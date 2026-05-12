@@ -1,0 +1,15 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/IconDictionary.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/DefaultStyle.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Popover.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/LogConsole.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/AlarmBar.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/StatusIndicator.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/PropertyGrid.xaml" />
+        <ResourceDictionary Source="/UI;component/Extensions/BtnExtension.xaml" />
+        <ResourceDictionary Source="/UI;component/Extensions/BorderExtension.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

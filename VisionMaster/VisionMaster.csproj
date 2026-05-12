@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+	  <LangVersion>preview</LangVersion>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="Dirkster.AvalonDock" Version="4.74.1" />
+		<PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.74.1" />
+		<PackageReference Include="DynamicExpresso.Core" Version="2.19.3" />
+		<PackageReference Include="gong-wpf-dragdrop" Version="4.0.0" />
+		<PackageReference Include="NLog" Version="6.0.4" />
+		<PackageReference Include="Prism.Core" Version="9.0.537" />
+		<PackageReference Include="Prism.Unity" Version="9.0.537" />
+	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+	  <ProjectReference Include="..\UI\Controls\UI.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Controls\" />
+	  <Folder Include="Core\" />
+	</ItemGroup>
+</Project>

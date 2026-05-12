@@ -1,0 +1,51 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style x:Key="WhiteThemeToolCardStyle" TargetType="Border">
+        <!--  默认状态：融于白色背板，仅用极浅的边框勾勒轮廓  -->
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#E2E8F0" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <!--  稍微圆润一点，工业感中带点现代  -->
+        <Setter Property="Cursor" Value="Hand" />
+        <!--  动画过渡效果，让交互更丝滑  -->
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Setter.Value>
+        </Setter>
+
+        <!--  交互触发器：悬停与按下  -->
+        <Style.Triggers>
+            <!--  1. 鼠标悬停：微微浮起，边框变蓝  -->
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#F8FAFC" />
+                <!--  极浅的灰蓝色  -->
+                <Setter Property="BorderBrush" Value="#3182CE" />
+                <!--  品牌强调色：工业蓝  -->
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <!--  浅色主题的核心：淡淡的投影  -->
+                        <DropShadowEffect
+                            BlurRadius="8"
+                            Opacity="0.08"
+                            ShadowDepth="2"
+                            Color="#000000" />
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+
+            <!--  2. 鼠标按下：微缩，模拟真实按键反弹  -->
+            <Trigger Property="IsMouseCaptured" Value="True">
+                <Setter Property="Background" Value="#EDF2F7" />
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <ScaleTransform ScaleX="0.95" ScaleY="0.95" />
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="Effect" Value="{x:Null}" />
+                <!--  按下时阴影消失  -->
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

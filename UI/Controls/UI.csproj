@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	  <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="新文件夹\**" />
+    <EmbeddedResource Remove="新文件夹\**" />
+    <None Remove="新文件夹\**" />
+    <Page Remove="新文件夹\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Asserts\FontFamilys\Font Awesome 6 Pro-Light-300.otf" />
+    <None Remove="Asserts\FontFamilys\Font Awesome 6 Pro-Regular-400.otf" />
+    <None Remove="Asserts\FontFamilys\Font Awesome 6 Pro-Solid-900.otf" />
+    <None Remove="Asserts\FontFamilys\Font Awesome 6 Pro-Thin-100.otf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.122" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Asserts\FontFamilys\Font Awesome 6 Pro-Light-300.otf" />
+    <Resource Include="Asserts\FontFamilys\Font Awesome 6 Pro-Regular-400.otf" />
+    <Resource Include="Asserts\FontFamilys\Font Awesome 6 Pro-Solid-900.otf" />
+    <Resource Include="Asserts\FontFamilys\Font Awesome 6 Pro-Thin-100.otf" />
+  </ItemGroup>
+
+</Project>

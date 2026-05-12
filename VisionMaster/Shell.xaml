@@ -1,0 +1,494 @@
+﻿<Window
+    x:Class="VisionMaster.Shell"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:avalonDock="https://github.com/Dirkster99/AvalonDock"
+    xmlns:commands="clr-namespace:VisionMaster.Commands"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:VisionMaster"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:views="clr-namespace:VisionMaster.Views"
+    Title="VisionMaster"
+    Width="1200"
+    Height="920"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    ui:WindowExtensions.IsAutoWireCommands="True"
+    Background="#F7FAFC"
+    FontFamily="Microsoft YaHei"
+    WindowStyle="None">
+    <WindowChrome.WindowChrome>
+        <WindowChrome
+            CaptionHeight="45"
+            CornerRadius="1"
+            GlassFrameThickness="1"
+            ResizeBorderThickness="6"
+            UseAeroCaptionButtons="True" />
+    </WindowChrome.WindowChrome>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="45" />
+            <RowDefinition Height="40" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="24" />
+        </Grid.RowDefinitions>
+        <ui:OverlayHost/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="auto" />
+                <ColumnDefinition />
+                <ColumnDefinition Width="auto" />
+            </Grid.ColumnDefinitions>
+            <Menu
+                HorizontalAlignment="Left"
+                FontFamily="{StaticResource Icon}"
+                WindowChrome.IsHitTestVisibleInChrome="True">
+                <MenuItem Header="文件(F)">
+                    <MenuItem Header="打开(O)" Icon="&#xf07c;" />
+                    <MenuItem Header="保存(S)" Icon="&#xf0c7;" />
+                    <MenuItem Header="编辑(E)" Icon="&#xf044;" />
+                    <Separator />
+                    <MenuItem Header="载入文件(F)" Icon="&#xf56f;" />
+                    <MenuItem Header="保存文件(L)" Icon="&#xf56e;" />
+                </MenuItem>
+
+                <MenuItem Header="参数(P)">
+                    <MenuItem Header="设备参数" Icon="&#xf233;" />
+                    <MenuItem Header="系统参数" Icon="&#xf085;" />
+                    <MenuItem Header="画布设置" Icon="&#xf53f;" />
+                </MenuItem>
+
+                <MenuItem Header="视图(V)">
+                    <MenuItem
+                        Header="视觉图像"
+                        Icon="&#xf030;"
+                        IsEnabled="False" />
+                    <MenuItem Header="工具栏" Icon="&#xf552;" />
+                    <MenuItem Header="流程栏" Icon="&#xf542;" />
+                    <MenuItem Header="日志信息" Icon="&#xf15c;" />
+                    <MenuItem Header="数据栏" Icon="&#xf080;" />
+                    <MenuItem Header="模块输出" Icon="&#xf2f5;" />
+                    <MenuItem Header="设备状态" Icon="&#xf108;" />
+                </MenuItem>
+
+                <MenuItem Header="工具(T)">
+                    <MenuItem Header="截屏" Icon="&#xf125;" />
+                    <MenuItem
+                        Command="{commands:SaveLayoutCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
+                        Header="保存布局"
+                        Icon="&#xf00a;" />
+                    <MenuItem
+                        Command="{commands:LoadLayoutCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
+                        Header="加载布局"
+                        Icon="&#xf07b;" />
+                    <MenuItem Header="加载默认布局" Icon="&#xf2d2;" />
+                    <Separator />
+                    <MenuItem Header="报表查询" Icon="&#xf200;" />
+                </MenuItem>
+
+                <MenuItem Header="帮助(H)">
+                    <MenuItem Header="激活" Icon="&#xf084;" />
+                    <MenuItem Header="建议及反馈" Icon="&#xf4ad;" />
+                    <MenuItem Header="帮助文档" Icon="&#xf02d;" />
+                    <Separator />
+                    <MenuItem Header="关于" Icon="&#xf05a;" />
+                </MenuItem>
+            </Menu>
+            <Grid
+                Grid.Column="1"
+                Margin="15,0"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        FontSize="14"
+                        Foreground="#007ACC"
+                        Text="&#x1F4C1;" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Foreground="#333333"
+                        Text="{Binding Workspace.CurrentSolution.SolutionName, TargetNullValue='未加载', FallbackValue='未加载'}"
+                        ToolTip="当前正在运行的视觉解决方案" />
+
+                </StackPanel>
+            </Grid>
+            <StackPanel
+                Grid.Column="2"
+                VerticalAlignment="Top"
+                Orientation="Horizontal">
+                <Button
+                    Command="{x:Static SystemCommands.MinimizeWindowCommand}"
+                    Content="M 0 5 L 10 5"
+                    Style="{StaticResource WindowControlButton}" />
+                <Button
+                    x:Name="BtnMaximize"
+                    Command="{x:Static SystemCommands.MaximizeWindowCommand}"
+                    Content="M 0 0 H 10 V 10 H 0 Z"
+                    Style="{StaticResource WindowControlButton}" />
+                <Button
+                    Command="{x:Static SystemCommands.CloseWindowCommand}"
+                    Content="M 0 0 L 10 10 M 0 10 L 10 0"
+                    Style="{StaticResource WindowControlButton}"
+                    Tag="Close" />
+            </StackPanel>
+        </Grid>
+        <StackPanel
+            Grid.Row="1"
+            Cursor=""
+            Orientation="Horizontal">
+            <StackPanel.Resources>
+                <Style TargetType="Button">
+                    <Setter Property="FontFamily" Value="{StaticResource Icon}" />
+                    <Setter Property="FontSize" Value="22" />
+                    <Setter Property="Foreground" Value="#444444" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Width" Value="40" />
+                    <Setter Property="Height" Value="40" />
+                    <Setter Property="Margin" Value="4,0" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#33FFFFFF" />
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Background" Value="#66FFFFFF" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+                <Style TargetType="ToggleButton">
+                    <Setter Property="FontFamily" Value="{StaticResource Icon}" />
+                    <Setter Property="FontSize" Value="22" />
+                    <Setter Property="Foreground" Value="#444444" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Width" Value="40" />
+                    <Setter Property="Height" Value="40" />
+                    <Setter Property="Margin" Value="4,0" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#33FFFFFF" />
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Background" Value="#66FFFFFF" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Foreground" Value="Green" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </StackPanel.Resources>
+            <Button
+                Command="{Binding SolutionCommand}"
+                CommandParameter="{x:Static local:SolutionAction.Create}"
+                Content="&#xf15b;"
+                ToolTip="新建方案" />
+            <Button
+                Command="{Binding SolutionCommand}"
+                CommandParameter="{x:Static local:SolutionAction.BrowseList}"
+                Content="&#xf0ca;"
+                ToolTip="方案列表" />
+            <Button
+                Command="{Binding SolutionCommand}"
+                CommandParameter="{x:Static local:SolutionAction.Open}"
+                Content="&#xf07c;"
+                ToolTip="打开" />
+            <Button
+                Command="{Binding SolutionCommand}"
+                CommandParameter="{x:Static local:SolutionAction.Save}"
+                Content="&#xf0c7;"
+                ToolTip="保存" />
+
+            <Rectangle
+                Width="1"
+                Margin="10,8"
+                Fill="Gray" />
+
+            <ToggleButton Content="&#xf135;" ToolTip="急速模式" />
+            <Button
+                Command="{Binding ExecutionCommand}"
+                CommandParameter="{x:Static local:ExecutionAction.Compile}"
+                Content="&#xf0e7;"
+                Cursor="Hand"
+                ToolTip="流程编译" />
+            <Button
+                Command="{Binding ExecutionCommand}"
+                CommandParameter="{x:Static local:ExecutionAction.RunOnce}"
+                Content="&#xf061;"
+                Cursor="Hand"
+                Foreground="Lime"
+                ToolTip="运行一次" />
+            <Button
+                Command="{Binding ExecutionCommand}"
+                CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
+                Content="&#xf021;"
+                Foreground="Lime"
+                ToolTip="循环运行" />
+            <Button
+                Command="{Binding ExecutionCommand}"
+                CommandParameter="{x:Static local:ExecutionAction.Stop}"
+                Content="&#xf28d;"
+                Foreground="Red"
+                ToolTip="停止" />
+
+            <Rectangle
+                Width="1"
+                Margin="10,8"
+                Fill="Gray" />
+
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.UserLogin}"
+                Content="&#xf4fe;"
+                ToolTip="用户登录" />
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
+                Content="&#xf121;"
+                ToolTip="全局变量" />
+
+            <Rectangle
+                Width="1"
+                Margin="10,8"
+                Fill="Gray" />
+
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.CameraSettings}"
+                Content="&#xf030;"
+                ToolTip="相机设置" />
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.CommSettings}"
+                Content="&#xf6ff;"
+                ToolTip="通讯设置" />
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
+                Content="&#xf2db;"
+                ToolTip="硬件设置" />
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.ReportQuery}"
+                Content="&#xf200;"
+                ToolTip="报表查询" />
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.ReturnToZero}"
+                Content="&#xf015;"
+                ToolTip="回零" />
+            <Button
+                Command="{Binding SystemCommand}"
+                CommandParameter="{x:Static local:SystemAction.UIDesign}"
+                Content="&#xf53f;"
+                ToolTip="UI设计" />
+        </StackPanel>
+        <avalonDock:DockingManager
+            x:Name="dockManager"
+            Grid.Row="2"
+            AllowMixedOrientation="True"
+            AutoWindowSizeWhenOpened="True"
+            IsVirtualizingAnchorable="True"
+            IsVirtualizingDocument="True">
+            <avalonDock:DockingManager.Theme>
+                <avalonDock:Vs2013LightTheme />
+            </avalonDock:DockingManager.Theme>
+            <avalonDock:LayoutRoot>
+                <avalonDock:LayoutPanel Orientation="Horizontal">
+
+                    <avalonDock:LayoutAnchorablePaneGroup DockWidth="450" Orientation="Horizontal">
+                        <avalonDock:LayoutAnchorablePane DockWidth="200">
+                            <avalonDock:LayoutAnchorable
+                                Title="工具栏"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ToolView">
+                                <views:ToolView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
+
+                        <avalonDock:LayoutAnchorablePane DockWidth="250">
+                            <avalonDock:LayoutAnchorable
+                                Title="流程栏"
+                                CanClose="False"
+                                ContentId="Panel_ProcessView">
+                                <views:ProcessView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
+                    </avalonDock:LayoutAnchorablePaneGroup>
+
+                    <avalonDock:LayoutPanel Orientation="Vertical">
+
+                        <!--  2.1 中央文档区域  -->
+                        <avalonDock:LayoutDocumentPaneGroup>
+                            <avalonDock:LayoutDocumentPane>
+                                <avalonDock:LayoutDocument
+                                    Title="视觉图像1"
+                                    CanClose="False"
+                                    ContentId="Panel_ImageView" />
+                            </avalonDock:LayoutDocumentPane>
+                        </avalonDock:LayoutDocumentPaneGroup>
+
+                        <!--  2.2 底部区域：日志和状态 (固定高度)  -->
+                        <avalonDock:LayoutAnchorablePaneGroup DockHeight="200" Orientation="Horizontal">
+                            <avalonDock:LayoutAnchorablePane DockWidth="8*">
+                                <!--  日志面板  -->
+                                <avalonDock:LayoutAnchorable
+                                    Title="日志信息"
+                                    CanClose="False"
+                                    ContentId="Panel_LogView">
+                                    <views:LogView />
+                                </avalonDock:LayoutAnchorable>
+                                <avalonDock:LayoutAnchorable
+                                    Title="数据栏"
+                                    CanClose="False"
+                                    ContentId="Panel_DataView" />
+                                <avalonDock:LayoutAnchorable
+                                    Title="模块输出"
+                                    CanClose="False"
+                                    ContentId="Panel_ModuleOutView" />
+                            </avalonDock:LayoutAnchorablePane>
+
+                            <avalonDock:LayoutAnchorablePane DockWidth="2*">
+                                <!--  设备状态面板  -->
+                                <avalonDock:LayoutAnchorable
+                                    Title="设备状态"
+                                    CanClose="False"
+                                    ContentId="Panel_DeviceStateView" />
+                            </avalonDock:LayoutAnchorablePane>
+                        </avalonDock:LayoutAnchorablePaneGroup>
+
+                    </avalonDock:LayoutPanel>
+
+                </avalonDock:LayoutPanel>
+            </avalonDock:LayoutRoot>
+        </avalonDock:DockingManager>
+        <Grid Grid.Row="3" Background="#F0F0F0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!--  左侧：业务信息 (保持不变)  -->
+            <StackPanel
+                Grid.Column="0"
+                Margin="8,0"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <TextBlock Margin="0,0,4,0" Text="当前用户：" />
+                <TextBlock
+                    x:Name="CurrentUserText"
+                    FontWeight="Bold"
+                    Text="开发者" />
+                <TextBlock
+                    Margin="8,0"
+                    Foreground="Gray"
+                    Text="|" />
+                <TextBlock Margin="0,0,4,0" Text="当前解决方案" />
+                <TextBlock
+                    x:Name="SolutionPathText"
+                    MaxWidth="400"
+                    FontWeight="Bold"
+                    Text="E:\dev\Code\01_Source\01_Source\VM\00.exe(启动窗口.vm)"
+                    TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+            </StackPanel>
+            <StackPanel
+                Grid.Column="2"
+                Margin="8,0"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+
+                <!--  1. CPU  -->
+                <TextBlock
+                    Margin="0,0,4,0"
+                    FontFamily="{StaticResource Icon}"
+                    Foreground="#007ACC"
+                    Text="&#xf2db;" />
+                <TextBlock
+                    Width="75"
+                    Text="{Binding CpuUsageStr}"
+                    ToolTip="进程CPU占用率" />
+                <TextBlock
+                    Margin="8,0"
+                    Foreground="Gray"
+                    Text="|" />
+
+                <!--  2. 内存  -->
+                <TextBlock
+                    Margin="0,0,4,0"
+                    FontFamily="{StaticResource Icon}"
+                    Foreground="#6897BB"
+                    Text="&#xf538;" />
+                <TextBlock
+                    Width="90"
+                    Text="{Binding MemoryUsageStr}"
+                    ToolTip="进程物理内存 (Working Set)" />
+                <TextBlock
+                    Margin="8,0"
+                    Foreground="Gray"
+                    Text="|" />
+
+                <!--  3. 线程数  -->
+                <TextBlock
+                    Margin="0,0,4,0"
+                    FontFamily="{StaticResource Icon}"
+                    Foreground="#9E9E9E"
+                    Text="&#xf0e8;" />
+                <TextBlock
+                    Width="65"
+                    Text="{Binding ThreadCountStr}"
+                    ToolTip="当前进程活动线程数" />
+                <TextBlock
+                    Margin="8,0"
+                    Foreground="Gray"
+                    Text="|" />
+
+                <!--  4. 句柄数  -->
+                <TextBlock
+                    Margin="0,0,4,0"
+                    FontFamily="{StaticResource Icon}"
+                    Foreground="#9E9E9E"
+                    Text="&#xf24d;" />
+                <TextBlock
+                    Width="65"
+                    Text="{Binding HandleCountStr}"
+                    ToolTip="系统句柄数 (警告线: 10000)" />
+                <TextBlock
+                    Margin="12,0,12,0"
+                    Foreground="Gray"
+                    Text="|" />
+
+                <!--  5. 原有的当前时间  -->
+                <TextBlock x:Name="CurrentTimeText" Text="{Binding CurrentTimeText}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

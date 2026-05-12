@@ -1,0 +1,459 @@
+﻿<UserControl
+    x:Class="VisionMaster.Views.DialogViews.GlobalVariableView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="1080"
+    Height="620"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    Background="#F0F2F5"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <Style TargetType="DataGridCell">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border
+                            Background="{TemplateBinding Background}"
+                            BorderThickness="0"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter VerticalAlignment="Center" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Margin" Value="0,1" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FAFAFA" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#F5F7FA" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="#EBEEF5" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="RowHeight" Value="46" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="#EBEEF5" />
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="SelectionMode" Value="Single" />
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#F5F7FA" />
+            <Setter Property="Foreground" Value="#909399" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Padding" Value="15,0" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="BorderBrush" Value="#EBEEF5" />
+        </Style>
+
+        <Style x:Key="LinkButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#409EFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Foreground="{TemplateBinding Foreground}"
+                                Text="{TemplateBinding Content}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.7" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="15">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280" />
+            <ColumnDefinition Width="15" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border
+            Grid.Column="0"
+            Background="White"
+            BorderBrush="#EBEEF5"
+            BorderThickness="1"
+            CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="12"
+                    Direction="270"
+                    Opacity="0.04"
+                    ShadowDepth="3" />
+            </Border.Effect>
+
+            <Grid Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Margin="0,0,0,25"
+                    FontSize="17"
+                    FontWeight="Bold"
+                    Foreground="#303133"
+                    Text="新建全局变量" />
+
+                <TextBlock
+                    Grid.Row="1"
+                    Margin="0,0,0,6"
+                    FontWeight="SemiBold"
+                    Foreground="#606266"
+                    Text="变量名称 (不可重复)" />
+                <TextBox
+                    Grid.Row="2"
+                    Height="36"
+                    Margin="0,0,0,18"
+                    Padding="10,0"
+                    VerticalContentAlignment="Center"
+                    Background="#F5F7FA"
+                    BorderBrush="#DCDFE6"
+                    Text="{Binding NewVarName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="3"
+                    Margin="0,0,0,6"
+                    FontWeight="SemiBold"
+                    Foreground="#606266"
+                    Text="数据类型" />
+                <ComboBox
+                    Grid.Row="4"
+                    Height="36"
+                    Margin="0,0,0,18"
+                    Padding="10,0"
+                    VerticalContentAlignment="Center"
+                    Background="#F5F7FA"
+                    BorderBrush="#DCDFE6"
+                    DisplayMemberPath="DisplayName"
+                    ItemsSource="{Binding AvailableTypes}"
+                    SelectedItem="{Binding SelectedType}" />
+
+                <TextBlock
+                    Grid.Row="5"
+                    Margin="0,0,0,6"
+                    FontWeight="SemiBold"
+                    Foreground="#606266"
+                    Text="变量描述 (选填)" />
+                <TextBox
+                    Grid.Row="6"
+                    Height="70"
+                    Margin="0,0,0,18"
+                    Padding="10"
+                    AcceptsReturn="True"
+                    Background="#F5F7FA"
+                    BorderBrush="#DCDFE6"
+                    Text="{Binding NewVarDescription, UpdateSourceTrigger=PropertyChanged}"
+                    TextWrapping="Wrap" />
+
+                <Button
+                    Grid.Row="8"
+                    Height="42"
+                    Background="#409EFF"
+                    BorderThickness="0"
+                    Command="{Binding AddCommand}"
+                    Content="＋ 添加到全局池"
+                    Cursor="Hand"
+                    FontWeight="Bold"
+                    Foreground="White">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6" />
+                        </Style>
+                    </Button.Resources>
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Opacity" Value="0.85" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Border
+            Grid.Column="2"
+            Background="White"
+            BorderBrush="#EBEEF5"
+            BorderThickness="1"
+            CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="12"
+                    Direction="270"
+                    Opacity="0.04"
+                    ShadowDepth="3" />
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="55" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border
+                    Grid.Row="0"
+                    BorderBrush="#EBEEF5"
+                    BorderThickness="0,0,0,1">
+                    <Grid Margin="20,0">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Foreground="#303133"
+                            Text="实时监控面板 (全局内存池)" />
+                        <Border
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="#F5F7FA"
+                            BorderBrush="#DCDFE6"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <StackPanel Height="30" Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="10,0,5,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    Foreground="#C0C4CC"
+                                    Text="&#xf002;" />
+                                <TextBox
+                                    Width="140"
+                                    Padding="0,0,10,0"
+                                    VerticalAlignment="Stretch"
+                                    VerticalContentAlignment="Center"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="#909399"
+                                    Text="搜索..." />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <DataGrid
+                    Grid.Row="1"
+                    Margin="1"
+                    HorizontalScrollBarVisibility="Disabled"
+                    ItemsSource="{Binding GlobalVariables}">
+                    <DataGrid.Columns>
+
+                        <DataGridTemplateColumn
+                            Width="150"
+                            Header="变量名"
+                            IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="15,0,0,0" Orientation="Horizontal">
+                                        <Ellipse
+                                            Width="8"
+                                            Height="8"
+                                            Margin="0,0,10,0"
+                                            Fill="#67C23A" />
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="13"
+                                            FontWeight="Bold"
+                                            Foreground="#303133"
+                                            Text="{Binding Name}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn
+                            Width="80"
+                            Binding="{Binding DataType.Name}"
+                            Foreground="#909399"
+                            Header="类型"
+                            IsReadOnly="True">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                    <Setter Property="Margin" Value="5,0" />
+                                    <Setter Property="FontSize" Value="13" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <DataGridTemplateColumn Width="130" Header="初始值 (复位用)">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border
+                                        Height="28"
+                                        Margin="5,0"
+                                        Background="#FAFAFA"
+                                        BorderBrush="#DCDFE6"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <Grid>
+                                            <TextBox
+                                                Padding="10,0"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Stretch"
+                                                VerticalContentAlignment="Center"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Foreground="#606266"
+                                                Style="{x:Null}"
+                                                Text="{Binding DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                                                Visibility="{Binding DataType, Converter={ui:DataTypeIsArrayConverter IsInverse=True}}" />
+
+                                            <Button
+                                                Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Content="[ 编辑集合... ]"
+                                                Style="{StaticResource LinkButtonStyle}"
+                                                Visibility="{Binding DataType, Converter={ui:DataTypeIsArrayConverter}}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Width="150" Header="当前运行值 (实时)">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border
+                                        Height="28"
+                                        Margin="5,0"
+                                        Background="#F0F9EB"
+                                        CornerRadius="4">
+                                        <Grid>
+                                            <TextBox
+                                                Padding="10,0"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Stretch"
+                                                VerticalContentAlignment="Center"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                FontWeight="Bold"
+                                                Foreground="#529B2E"
+                                                Style="{x:Null}"
+                                                Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                Visibility="{Binding DataType, Converter={ui:DataTypeIsArrayConverter IsInverse=True}}" />
+
+                                            <Button
+                                                Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Content="[ 强制覆盖集合... ]"
+                                                Foreground="#529B2E"
+                                                Style="{StaticResource LinkButtonStyle}"
+                                                Visibility="{Binding DataType, Converter={ui:DataTypeIsArrayConverter}}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Width="*" Header="操作">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <Button
+                                            Margin="0,0,15,0"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            Cursor="Hand"
+                                            ToolTip="恢复初始值">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Opacity" Value="0.7" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Opacity" Value="1" />
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock
+                                                FontFamily="{StaticResource Icon}"
+                                                FontSize="15"
+                                                Foreground="#E6A23C"
+                                                Text="&#xf0e2;" />
+                                        </Button>
+
+                                        <Button
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            Cursor="Hand"
+                                            ToolTip="删除">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Opacity" Value="0.7" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Opacity" Value="1" />
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock
+                                                FontFamily="{StaticResource Icon}"
+                                                FontSize="15"
+                                                Foreground="#F56C6C"
+                                                Text="&#xf1f8;" />
+                                        </Button>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
