@@ -13,14 +13,14 @@ namespace VisionMaster.ViewModels
 {
     public class VariableBindingViewModel : BindableBase, IDialogAware
     {
+        private readonly IPluginProvider pluginProvider;
+
         public string Title => "变量绑定";
         public IWorkspaceManager Workspace { get; init; }
 
-        /// <summary>
-        /// 当前可选的变量
-        /// </summary>
         public ObservableCollection<InputPortUIModel> DisplayDataPort { get; } = new();
-        public ObservableCollection<NodeLinkViewModel> TreeNodes { get; } = new();
+
+        public ObservableCollection<ToolItemModel> TreeNodes { get; } = new();
 
         public DelegateCommand ConfirmCommand { get; set; }
         public DelegateCommand CancelCommand { get; set; }
@@ -29,15 +29,13 @@ namespace VisionMaster.ViewModels
         public DelegateCommand<InputPortUIModel> UnbindCommand => new(port =>
         {
             if (port == null) return;
-            // 底层字典移除
-            Workspace.CurrentStep.LinkedSources.Remove(port.Schema.Name);
-            // UI 状态清空
+            Workspace.CurrentStep.LinkedSources.Remove(port.Definition.Name);
             port.LinkedAddress = null;
         });
 
-        public DelegateCommand<PortSchema> DoublockClickBindCommand { get; set; }
+        public DelegateCommand<PortDefinition> DoublockClickBindCommand { get; set; }
 
-        public ObservableCollection<PortSchema> DisplayPorts
+        public ObservableCollection<PortDefinition> DisplayPorts
         {
             get => field;
             set => SetProperty(ref field, value);
@@ -48,46 +46,52 @@ namespace VisionMaster.ViewModels
             get => field;
             set => SetProperty(ref field, value);
         }
-        public NodeLinkViewModel SelectedNode
+        public ToolItemModel SelectedNode
         {
             get => field;
             set
             {
                 SetProperty(ref field, value);
-                DisplayPorts = new(value.OutputSchemas);
+                if (value != null && value.OutputDefinitions != null)
+                {
+                    DisplayPorts = new ObservableCollection<PortDefinition>(value.OutputDefinitions);
+                }
+                else
+                {
+                    DisplayPorts = new ObservableCollection<PortDefinition>();
+                }
             }
         }
 
         public DialogCloseListener RequestClose { get; set; }
 
-        public VariableBindingViewModel(IWorkspaceManager workspace)
+        public VariableBindingViewModel(IWorkspaceManager workspace,IPluginProvider pluginProvider)
         {
             this.Workspace = workspace;
+            this.pluginProvider = pluginProvider;
             CancelCommand = new DelegateCommand(() =>
             {
-                RequestClose.Invoke();
+                RequestClose.Invoke( ButtonResult.Cancel);
             });
             ConfirmCommand = new DelegateCommand(Confirm);
-            DoublockClickBindCommand = new DelegateCommand<PortSchema>(DoublockClickBind);
+            DoublockClickBindCommand = new DelegateCommand<PortDefinition>(DoublockClickBind);
         }
 
-        private void DoublockClickBind(PortSchema outputSchema)
+        private void DoublockClickBind(PortDefinition outputSchema)
         {
             if (SelectedInputPort == null)
             {
                 EasyDialog.ShowSync("提示", "请先在左侧选择需要绑定的输入端口！");
                 return;
             }
-
-            Type inputType = SelectedInputPort.Schema.DataType;
-            Type outputType = outputSchema.DataType;
+           
+            Type inputType = Type.GetType(SelectedInputPort.Definition.DataTypeName);
+            Type outputType = Type.GetType(outputSchema.DataTypeName);
             bool isIndexing = !inputType.IsArray && outputType.IsArray;
 
             if (isIndexing)
             {
                 Type outputElementType = outputType.GetElementType();
-
-                // 校验：数组里的东西，能不能塞进输入端口？
                 if (outputElementType == null || !inputType.IsAssignableFrom(outputElementType))
                 {
                     EasyDialog.ShowSync("类型不匹配",
@@ -95,7 +99,6 @@ namespace VisionMaster.ViewModels
                     return;
                 }
 
-                // 校验通过，进入索引输入流程
                 var (isConfirmed, indexStr) = EasyDialog.ShowTextInputSync("索引选择", "0");
                 if (!isConfirmed) return;
 
@@ -104,13 +107,10 @@ namespace VisionMaster.ViewModels
                     EasyDialog.ShowSync("格式错误", "索引必须是非负整数！");
                     return;
                 }
-
-                // 最终地址：StepID.PortName[Index]
-                DoFinalBind($"{SelectedNode.StepID}.{outputSchema.Name}[{index}]");
+                DoFinalBind(outputSchema, index);
             }
             else
             {
-                // 2. 普通绑定（标量对标量，或数组对数组）
                 if (!inputType.IsAssignableFrom(outputType))
                 {
                     EasyDialog.ShowSync("类型不匹配",
@@ -118,34 +118,60 @@ namespace VisionMaster.ViewModels
                     return;
                 }
 
-                // 最终地址：StepID.PortName
-                DoFinalBind($"{SelectedNode.StepID}.{outputSchema.Name}");
+                DoFinalBind(outputSchema);
             }
 
         }
-        private void DoFinalBind(string address)
+        private void DoFinalBind(PortDefinition port)
         {
-            Workspace.CurrentStep.LinkedSources[SelectedInputPort.Schema.Name] = address;
-            SelectedInputPort.LinkedAddress = address;
+            Guid targetId = SelectedNode.Id;
+            string targetPort = port.Name;
+            string displayName = $"{SelectedNode.Name}.{port.Name}";
+            var linkRef = new LinkReference(targetId, targetPort, displayName);
+            Workspace.CurrentStep.LinkedSources[SelectedInputPort.Definition.Name] = linkRef;
+            SelectedInputPort.LinkedAddress = displayName;
         }
-        private void Confirm()=> RequestClose.Invoke();
-
+        private void DoFinalBind(PortDefinition port,int index)
+        {
+            Guid targetId = SelectedNode.Id;
+            string targetPort = port.Name;
+            string displayName = $"{SelectedNode.Name}.{port.Name}[{index}]";
+            var linkRef = new LinkReference(targetId, targetPort, displayName);
+            Workspace.CurrentStep.LinkedSources[SelectedInputPort.Definition.Name] = linkRef;
+            SelectedInputPort.LinkedAddress = displayName;
+        }
+        private void Confirm()=> RequestClose.Invoke(ButtonResult.OK);
+        /// <summary>
+        /// 拿变量的时候 要检查是判断类型还是算子类型
+        /// </summary>
+        /// <param name="type"></param>
         public void BuildTree(Type type = null)
         {
             if (DisplayDataPort == null || TreeNodes == null || Workspace?.CurrentStep == null)
                 return;
             DisplayDataPort.Clear();
             TreeNodes.Clear();
-            //加载当前算子需要的【输入端口】 (左侧栏)
-            var currentSchema = PluginRegistry.GetSchema(Workspace.CurrentStep.PluginTypeName);
+            var currentSchema = pluginProvider.ModulePlugins[Workspace.CurrentStep.PluginTypeName].InputDefinitions;
             if (currentSchema != null)
             {
-                foreach (var schema in currentSchema.InputSchemas)
+                foreach (var schema in currentSchema)
                 {
-                    Workspace.CurrentStep.LinkedSources.TryGetValue(schema.Name, out string existingLink);
-                    DisplayDataPort.Add(new InputPortUIModel(schema, existingLink));
+                    Workspace.CurrentStep.LinkedSources.TryGetValue(schema.Name, out var existingLink);
+
+                    DisplayDataPort.Add(new InputPortUIModel(schema, existingLink?.DisplayAddress));
                 }
             }
+            //判断是不是判断类型
+            //if (Workspace.CurrentStep is ConditionStep condition)
+            //{
+            //    foreach (var varName in condition.LocalVariableNames)
+            //    {
+            //        // 尝试找回已绑定的上游地址
+            //        condition.LinkedSources.TryGetValue(varName, out var existingLink);
+
+
+            //    }
+            //}
             var dat1a =FlowQueryHelper.GetAvailableVariablesTree(Workspace.GlobalVariables, Workspace.CurrentFlow.Steps,Workspace.CurrentStep);
             foreach (var item in dat1a)
             {

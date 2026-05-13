@@ -150,12 +150,12 @@
                                                         VerticalAlignment="Center"
                                                         FontWeight="SemiBold"
                                                         Foreground="#303133"
-                                                        Text="{Binding Schema.Name}" />
+                                                        Text="{Binding Definition.Name}" />
                                                     <TextBlock
                                                         VerticalAlignment="Center"
                                                         FontSize="12"
                                                         Foreground="#909399"
-                                                        Text="{Binding Schema.Description, StringFormat=' - {0}'}" />
+                                                        Text="{Binding Definition.DataTypeName, Converter={ui:TypeNameToFriendlyNameConverter}}" />
                                                 </StackPanel>
 
                                                 <Border
@@ -280,17 +280,17 @@
                                                     FontFamily="{StaticResource Icon}"
                                                     FontSize="16"
                                                     Foreground="#409EFF"
-                                                    Text="{Binding IconCode}" />
+                                                    Text="{Binding Icon}" />
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock
                                                         FontWeight="SemiBold"
                                                         Foreground="#303133"
-                                                        Text="{Binding DisplayName}" />
+                                                        Text="{Binding ModuleGroup}" />
                                                     <TextBlock
                                                         Margin="0,2,0,0"
                                                         FontSize="10"
                                                         Foreground="#C0C4CC"
-                                                        Text="{Binding StepID}" />
+                                                        Text="{Binding Description}" />
                                                 </StackPanel>
                                             </StackPanel>
                                         </DataTemplate>
@@ -376,7 +376,7 @@
                                                         Margin="4,0,0,0"
                                                         VerticalAlignment="Center"
                                                         Foreground="#909399"
-                                                        Text="{Binding DataType.Name, StringFormat=' ({0})'}" />
+                                                        Text="{Binding Description, StringFormat=' ({0})'}" />
                                                 </StackPanel>
                                             </Grid>
                                         </DataTemplate>

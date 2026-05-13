@@ -9,6 +9,7 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 	<ItemGroup>
+		<PackageReference Include="AvalonEdit" Version="6.3.1.120" />
 		<PackageReference Include="Dirkster.AvalonDock" Version="4.74.1" />
 		<PackageReference Include="Dirkster.AvalonDock.Themes.VS2013" Version="4.74.1" />
 		<PackageReference Include="DynamicExpresso.Core" Version="2.19.3" />

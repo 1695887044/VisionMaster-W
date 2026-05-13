@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using UI.Events;
+using VisionMaster.EventModel;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -38,6 +41,7 @@ namespace VisionMaster.Services
         public WorkspaceContext()
         {
             InitializeCommonVariables();
+            GlobalEventBus.Subscribe<StepRenamedMessage>(OnStepRenamed);
         }
 
         public void SwitchSolution(SolutionModel solution)
@@ -72,6 +76,49 @@ namespace VisionMaster.Services
             }
 
             SetProperty(ref _currentStep, step, nameof(CurrentStep));
+        }
+        private void OnStepRenamed(StepRenamedMessage args)
+        {
+            if (CurrentFlow == null) return;
+            UpdateReferencesRecursively(CurrentFlow.Steps, args.OldName, args.NewName);
+        }
+
+        private void UpdateReferencesRecursively(IEnumerable<StepModel> steps, string oldName, string newName)
+        {
+            foreach (var step in steps)
+            {
+                var keysToUpdate = step.LinkedSources.Keys.ToList();
+                foreach (var key in keysToUpdate)
+                {
+                    var linkedAddress = step.LinkedSources[key];
+
+                    if (linkedAddress != null && linkedAddress.DisplayAddress.StartsWith(oldName + "."))
+                    {
+                        // 把 "老名字.Score" 替换为 "新名字.Score"
+                        step.LinkedSources[key].DisplayAddress = linkedAddress.DisplayAddress.Replace(oldName + ".", newName + ".");
+                    }
+                }
+
+                // 🌟 2. 修复逻辑分支的表达式 (Expression)
+                if (step is ConditionStep conditionNode)
+                {
+                    foreach (var branch in conditionNode.Children)
+                    {
+                        if (!string.IsNullOrWhiteSpace(branch.Expression))
+                        {
+                            // 🚨 极度危险：千万不要用简单的 string.Replace！
+                            // 否则把 "流程1" 改成 "相机"，会导致 "流程10" 变成 "相机0"！
+                            // 必须使用正则表达式的“单词边界 \b”来进行精准替换。
+
+                            string pattern = $@"\b{Regex.Escape(oldName)}\b";
+                            branch.Expression = Regex.Replace(branch.Expression, pattern, newName);
+                        }
+
+                        // 递归钻进子分支
+                        UpdateReferencesRecursively(branch.Steps, oldName, newName);
+                    }
+                }
+            }
         }
         private bool ContainsStepRecursively(IEnumerable<StepModel> steps, StepModel targetStep)
         {

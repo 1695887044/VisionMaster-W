@@ -8,13 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="新文件夹\**" />
-    <EmbeddedResource Remove="新文件夹\**" />
-    <None Remove="新文件夹\**" />
-    <Page Remove="新文件夹\**" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Remove="Asserts\FontFamilys\Font Awesome 6 Pro-Light-300.otf" />
     <None Remove="Asserts\FontFamilys\Font Awesome 6 Pro-Regular-400.otf" />
     <None Remove="Asserts\FontFamilys\Font Awesome 6 Pro-Solid-900.otf" />

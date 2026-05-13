@@ -10,7 +10,7 @@ namespace VisionMaster.Models
     public class InputPortUIModel : BindableBase
     {
         // 原始的端口定义信息
-        public PortSchema Schema { get; }
+        public PortDefinition Definition { get; }
 
         // 动态的连线地址 (如 "Global.CT" 或 "Delay_0.OutTime")
         private string _linkedAddress;
@@ -29,9 +29,9 @@ namespace VisionMaster.Models
         // 是否已绑定
         public bool IsBound => !string.IsNullOrEmpty(LinkedAddress);
 
-        public InputPortUIModel(PortSchema schema, string linkedAddress)
+        public InputPortUIModel(PortDefinition schema, string linkedAddress)
         {
-            Schema = schema;
+            Definition = schema;
             LinkedAddress = linkedAddress;
         }
     }

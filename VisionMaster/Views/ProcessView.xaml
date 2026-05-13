@@ -56,59 +56,101 @@
                 </StackPanel>
             </DataTemplate>
             <HierarchicalDataTemplate DataType="{x:Type models:ConditionStep}" ItemsSource="{Binding Children}">
-                <Border
-                    Margin="0,4,0,2"
-                    Padding="4,4"
-                    Background="#E6F7FF"
-                    BorderBrush="#91D5FF"
-                    BorderThickness="1"
-                    CornerRadius="4">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock
-                            Margin="4,0,10,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            Foreground="#1890FF"
-                            Text="{Binding Icon}" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontWeight="Bold"
-                            Foreground="#0050B3"
-                            Text="条件控制流: " />
-                        <TextBlock
-                            Margin="2,0,0,0"
-                            VerticalAlignment="Center"
-                            Foreground="#1890FF"
-                            Text="{Binding StepName}" />
-                    </StackPanel>
-                </Border>
+                <StackPanel
+                    Margin="0,10,0,4"
+                    Background="Transparent"
+                    Orientation="Horizontal"
+                    ToolTip="点击配置分支输入变量">
+
+                    <Rectangle
+                        Width="3"
+                        Height="14"
+                        Margin="0,0,8,0"
+                        Fill="#DCDFE6"
+                        RadiusX="1.5"
+                        RadiusY="1.5" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="#909399"
+                        Text="逻辑路由" />
+
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="#C0C4CC"
+                        Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                </StackPanel>
             </HierarchicalDataTemplate>
             <HierarchicalDataTemplate DataType="{x:Type models:StepCollection}" ItemsSource="{Binding Steps}">
-                <Border
-                    MinWidth="150"
-                    MinHeight="28"
-                    Margin="0,2,0,2"
-                    Padding="6,2"
-                    Background="#F8F9FA"
-                    BorderBrush="#E4E7ED"
-                    BorderThickness="1"
-                    CornerRadius="3"
-                    ToolTip="将算子拖入此分支">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse
-                            Width="6"
-                            Height="6"
-                            Margin="0,0,8,0"
-                            VerticalAlignment="Center"
-                            Fill="#E6A23C" />
+                <!-- 基础卡片样式 (加入阴影和更柔和的圆角，强调它是可以拖入算子的容器) -->
+                <Border x:Name="BranchContainer"
+            MinWidth="180" MinHeight="32" 
+            Margin="0,4,0,4" Padding="10,6"
+            Background="#F0F7FF" 
+            BorderBrush="#CBE5FF" 
+            BorderThickness="1" 
+            CornerRadius="6"
+            ToolTip="将算子拖入此分支内部">
 
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontWeight="SemiBold"
-                            Foreground="#E6A23C"
-                            Text="{Binding DisplayName}" />
+                    <StackPanel Orientation="Horizontal">
+                        <!-- 状态指示灯 -->
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,0,10,0" Fill="#409EFF" VerticalAlignment="Center"/>
+
+                        <!-- 分支文本 -->
+                        <TextBlock x:Name="BranchText" 
+                       VerticalAlignment="Center" 
+                       FontWeight="SemiBold" 
+                       Foreground="#303133" 
+                       Text="{Binding DisplayName}" />
                     </StackPanel>
                 </Border>
+
+                <!-- 🌟 神奇的触发器：让卡片学会自己变色 -->
+                <HierarchicalDataTemplate.Triggers>
+
+                    <!-- 场景 1：如果是 Else 分支 -> 变成低调的灰色 -->
+                    <DataTrigger Binding="{Binding BranchType}" Value="Else">
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#F5F7FA" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#E4E7ED" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#A8ABB2" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding BranchType}" Value="Default">
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#F5F7FA" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#E4E7ED" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#A8ABB2" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                    </DataTrigger>
+
+                    <!-- 场景 2：如果是 If 分支，但是表达式为空！ -> 变成危险的红色警告 -->
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding BranchType}" Value="If" />
+                            <Condition Binding="{Binding Expression}" Value="{x:Null}" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#FEF0F0" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#FBC4C4" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#F56C6C" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#F56C6C" />
+                    </MultiDataTrigger>
+
+                    <!-- 兼容 Expression 为 "" (空字符串) 的情况 -->
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding BranchType}" Value="If" />
+                            <Condition Binding="{Binding Expression}" Value="" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#FEF0F0" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#FBC4C4" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#F56C6C" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#F56C6C" />
+                    </MultiDataTrigger>
+
+                </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
         </TreeView.Resources>
         <TreeView.ContextMenu>

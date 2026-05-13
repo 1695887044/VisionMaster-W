@@ -17,6 +17,8 @@ namespace VisionMaster.ViewModels
 
     {
         private readonly SolutionService solutionService;
+        private readonly IPluginProvider pluginProvider;
+
         public IWorkspaceManager Workspace {  get; init; }
 
 
@@ -29,10 +31,11 @@ namespace VisionMaster.ViewModels
         public List<ToolGroupModel> ToolBarSource { get; set; } = new();
 
         public AsyncDelegateCommand<FlowAction?> FlowCommand { get; set; }
-        public ToolViewModel(SolutionService solutionService, IWorkspaceManager Workspace)
+        public ToolViewModel(SolutionService solutionService, IWorkspaceManager Workspace,IPluginProvider pluginProvider)
         {
             this.solutionService = solutionService;
             this.Workspace = Workspace;
+            this.pluginProvider = pluginProvider;
             FlowCommand =new (FlowCommandExecute);
             loadTools();
 
@@ -60,7 +63,7 @@ namespace VisionMaster.ViewModels
 
         void loadTools()
         {
-            PluginService.PluginDic_Module.GroupBy(t => t.Value.Category).ToList().ForEach(g =>
+            pluginProvider.ModulePlugins.GroupBy(t => t.Value.Category).ToList().ForEach(g =>
             {
                 ToolGroupModel toolGroup = new ToolGroupModel() { Name = g.Key };
                 g.ToList().ForEach(p =>

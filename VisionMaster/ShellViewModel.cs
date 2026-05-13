@@ -1,9 +1,11 @@
-﻿using System.Reflection.Metadata;
-using System.Threading.Tasks;
-using System.Windows.Threading;
-using Core.Interfaces;
+﻿using Core.Interfaces;
+using NLog;
 using Prism.Common;
 using Prism.Dialogs;
+using System.Reflection.Metadata;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Threading;
 using UI.Attributes;
 using UI.CustomControl;
 using UI.Helper;
@@ -25,8 +27,9 @@ namespace VisionMaster
         private readonly IDialogService dialogService;
         private readonly IFlowEngine flowService;
         private readonly IRuntimeManager _runtimeManager;
-
-        public IWorkspaceManager Workspace { get; init; }
+        private CancellationTokenSource _cts;
+        private Task _monitorTask;
+        public  IWorkspaceManager Workspace { get; }
         private string CurrentFlowName => Workspace.CurrentFlow?.FlowName;
         public SolutionService solutionService { get; }
 
@@ -74,11 +77,8 @@ namespace VisionMaster
             FlowCompiler _flowCompiler
         )
         {
-            //时间
-            var timer = new System.Windows.Threading.DispatcherTimer();
-            timer.Interval = TimeSpan.FromSeconds(1);
-            timer.Tick += OnUpdateSystemInfo;
-            timer.Start();
+          
+            StartBackgroundMonitoring();
             SolutionCommand = new(ExecuteProjectAction);
             ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction);
             SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
@@ -182,6 +182,41 @@ namespace VisionMaster
                     // TODO: 弹出相机配置 Dialog
                     break;
             }
+        }
+        private void StartBackgroundMonitoring()
+        {
+            _cts = new CancellationTokenSource();
+            _monitorTask = Task.Run(async () =>
+            {
+                while (!_cts.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        double cpu = _monitor.GetCpuUsage();
+                        double mem = _monitor.GetMemoryUsageMB();
+                        int threads = _monitor.GetThreadCount();
+                        int handles = _monitor.GetHandleCount();
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            CpuUsageStr = $"CPU: {cpu:F1}%";
+                            MemoryUsageStr = $"MEM: {mem:F0} MB";
+                            ThreadCountStr = $"THD: {threads}";
+                            HandleCountStr = $"HDL: {handles}";
+                            CurrentTimeText = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
+                        });
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Notifier.ShowError(ex.Message);
+                    }
+
+                    await Task.Delay(TimeSpan.FromSeconds(1), _cts.Token);
+                }
+            }, _cts.Token);
         }
 
         #region Methods

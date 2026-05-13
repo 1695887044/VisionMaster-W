@@ -58,10 +58,19 @@ namespace Core.Interfaces
             set
             {
                 if (_linkedSource != null)
+                {
                     _linkedSource.ValueChanged -= UpstreamValueChanged;
+                }
                 SetProperty(ref _linkedSource, value);
                 if (_linkedSource != null)
+                {
                     _linkedSource.ValueChanged += UpstreamValueChanged;
+                    RefreshLinkedCache();
+                }
+                else
+                {
+                    _cachedLinkedValue = default(T);
+                }
                 OnPropertyChanged(nameof(ActualValue));
             }
         }

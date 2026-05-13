@@ -15,141 +15,121 @@ namespace VisionMaster.Services
 {
     public class PluginService
     {
-        /// <summary>
-        /// 模块插件字典
-        /// </summary>
-        public static Dictionary<string, ToolItemModel> PluginDic_Module = new();
+        private readonly IPluginProvider _registry;
 
-        /// <summary>
-        /// 相机插件字典
-        /// </summary>
-        public static Dictionary<string, ToolItemModel> PluginDic_Camera = new();
+        public PluginService(IPluginProvider registry)
+        {
+            _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        }
 
-        /// <summary>
-        /// 激光插件字典
-        /// </summary>
-        public static Dictionary<string, ToolItemModel> PluginDic_Laser = new();
-
-        /// <summary>
-        /// 轴卡插件字典
-        /// </summary>
-        public static Dictionary<string, ToolItemModel> PluginDic_Motion = new();
-
-        public static void InitPlugin()
+        public void InitPlugins()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string PlugInsDir;
-            PlugInsDir = Path.Combine(baseDir, "Modules");
-#if DEBUG
+            string pluginsDir = Path.Combine(baseDir, "Modules");
+
+            #if DEBUG
             string relativePath = @"..\..\..\..\Modules";
-            PlugInsDir = Path.GetFullPath(Path.Combine(baseDir, relativePath));
-#endif
-            if (!Directory.Exists(PlugInsDir))
-                return; //判断是否存在
-            foreach (var dllPath in Directory.GetFiles(PlugInsDir))
+            pluginsDir = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+            #endif
+
+            if (!Directory.Exists(pluginsDir))
+                return;
+
+            foreach (var dllPath in Directory.GetFiles(pluginsDir))
             {
-                //检查是不是dll
-                FileInfo fi = new FileInfo(dllPath);
-                if (!fi.Name.StartsWith("Plugin") || !fi.Name.EndsWith(".dll"))
-                    continue;
-                Assembly assemPlugIn = Assembly.LoadFrom(dllPath);
-
-                // 该方法会占用文件 但可以调试
-                var types = assemPlugIn
-                    .GetTypes()
-                    .Where(t => (!t.IsAbstract && typeof(IVisionPlugin).IsAssignableFrom(t)));
-                foreach (var type in types)
+                try
                 {
-                    var att = type.GetCustomAttribute<DisplayAttribute>();
-                    if (att == null)
-                        continue;
-
-                    var plugin = Activator.CreateInstance(type) as VisionPluginBase;
-                    if (plugin == null)
-                        continue;
-                    var schema = new PluginSchema
-                    {
-                        IconCode = att.ShortName,
-                        DisplayName = att.Name,
-                        PluginType = type.AssemblyQualifiedName,
-                        InputSchemas =
-                            plugin
-                                .Inputs?.Values.Select(p => new PortSchema
-                                {
-                                    Name = p.Name,
-                                    Description = p.Description,
-                                    DataType = p.DataType,
-                                })
-                                .ToList()
-                            ?? new List<PortSchema>(),
-
-                        OutputSchemas =
-                            plugin
-                                .Outputs?.Values.Select(p => new PortSchema
-                                {
-                                    Name = p.Name,
-                                    Description = p.Description,
-                                    DataType = p.DataType,
-                                })
-                                .ToList()
-                            ?? new List<PortSchema>(),
-                    };
-
-                    PluginRegistry.Register(schema);
-                    var isContaioner = typeof(IBranchPlugin).IsAssignableFrom(type);
-                    var toolItem = new ToolItemModel
-                    {
-                        Category = att.GroupName,
-                        Description = att.Description,
-                        Name = att.Name,
-                        Icon = att.ShortName,
-                        ModuleTypeName = type.AssemblyQualifiedName,
-                        IsContainer = isContaioner,
-                    };
-
-                    if (!PluginDic_Module.ContainsKey(att.Name))
-                    {
-                        PluginDic_Module.Add(att.Name, toolItem);
-                    }
-                    else
-                    {
-                        Notifier.ShowError($"{att.Name}插件命名重复");
-                    }
+                    RegisterBuiltInNodes();
+                    LoadPlugin(dllPath);
+                }
+                catch (Exception ex)
+                {
+                    Notifier.ShowError($"加载插件失败 {dllPath}: {ex.Message}");
                 }
             }
         }
-    }
 
-    public class PortSchema
-    {
-        public string Name { get; set; } // 比如 "InputImage"
-        public string Description { get; set; } // 比如 "待处理的输入图像"
-        public Type DataType { get; set; } // 比如 typeof(Image)
-    }
-
-    public class PluginSchema
-    {
-        public string IconCode { get; set; } // 比如 "fa fa-image"
-        public string PluginType { get; set; } // 比如 "VisionCore.TemplateMatchPlugin"
-        public string DisplayName { get; set; } // 比如 "模板匹配"
-
-        public List<PortSchema> InputSchemas { get; set; } = new List<PortSchema>();
-        public List<PortSchema> OutputSchemas { get; set; } = new List<PortSchema>();
-    }
-
-    public class PluginRegistry
-    {
-        private static readonly Dictionary<string, PluginSchema> _catalog =
-            new Dictionary<string, PluginSchema>();
-
-        public static void Register(PluginSchema schema)
+        private void RegisterBuiltInNodes()
         {
-            _catalog[schema.PluginType] = schema;
+            var ifToolItem = new ToolItemModel
+            {
+                Category = "逻辑控制",
+                Description = "根据条件执行不同的分支",
+                Name = "If",
+                Icon = "IfIcon",
+                ModuleTypeName = "BuiltIn_If",
+                IsContainer = true, // 它是容器,
+                InputDefinitions = new()
+
+            };
+            var virtualPort = new PortDefinition()
+            {
+                Name = "虚拟变量", // 必须使用变量别名作为端口名
+                DataTypeName = "System.Object", // 条件判断通常处理数值，也可以根据需要调整
+                Description = "作为中间变量,打通分支和算子之间的数据传递",
+            };
+            ifToolItem.InputDefinitions.Add(virtualPort);
+            _registry.RegisterModule(ifToolItem);
         }
 
-        public static PluginSchema GetSchema(string pluginType)
+        private void LoadPlugin(string dllPath)
         {
-            return _catalog.TryGetValue(pluginType, out var schema) ? schema : null;
+            var fi = new FileInfo(dllPath);
+            if (!fi.Name.StartsWith("Plugin") || !fi.Name.EndsWith(".dll"))
+                return;
+
+            var assembly = Assembly.LoadFrom(dllPath);
+            var types = assembly
+                .GetTypes()
+                .Where(t => !t.IsAbstract && typeof(IVisionPlugin).IsAssignableFrom(t));
+
+            foreach (var type in types)
+            {
+                var att = type.GetCustomAttribute<DisplayAttribute>();
+                if (att == null)
+                    continue;
+
+                var plugin = Activator.CreateInstance(type) as VisionPluginBase;
+                if (plugin == null)
+                    continue;
+
+                var toolItem = new ToolItemModel
+                {
+                    Category = att.GroupName,
+                    Description = att.Description,
+                    Name = att.Name,
+                    Icon = att.ShortName,
+                    ModuleTypeName = type.AssemblyQualifiedName,
+                    IsContainer = false,
+                    InputDefinitions = plugin.Inputs?.Values.Select(p => new PortDefinition
+                    {
+                        Name= p.Name,
+                        Description = p.Description,
+                        DataTypeName = p.DataType.AssemblyQualifiedName
+                    }).ToList() ?? new List<PortDefinition>(),
+                    OutputDefinitions = plugin.Outputs?.Values.Select(p => new PortDefinition
+                    {
+                        Name = p.Name,
+                        Description = p.Description,
+                        DataTypeName = p.DataType.AssemblyQualifiedName
+                    }).ToList() ?? new List<PortDefinition>()
+                };
+                switch (att.GroupName)
+                {
+                    case "相机":
+                        _registry.RegisterCamera(toolItem);
+                        break;
+                    case "激光":
+                        _registry.RegisterLaser(toolItem);
+                        break;
+                    case "轴卡":
+                        _registry.RegisterMotion(toolItem);
+                        break;
+                    default:
+                        _registry.RegisterModule(toolItem);
+                        break;
+                }
+            }
         }
     }
 }

@@ -34,9 +34,9 @@ namespace VisionMaster
         }
         protected override void RegisterTypes(IContainerRegistry containerRegistry)
         {
-            PluginService.InitPlugin();
             containerRegistry.RegisterSingleton<SolutionService>();
             containerRegistry.RegisterSingleton<FlowCompiler>();
+            containerRegistry.RegisterSingleton<IPluginProvider, PluginProvider>();
             containerRegistry.RegisterSingleton<IFlowEngine, FlowEngineService>();
             containerRegistry.RegisterSingleton<IRuntimeManager, RuntimeManager>();
             containerRegistry.RegisterSingleton<IExecutionContext, Services.ExecutionContext>();
@@ -49,8 +49,11 @@ namespace VisionMaster
             containerRegistry.RegisterForNavigation<ToolView, ToolViewModel>();
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
+            containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
             containerRegistry.RegisterForNavigation<Shell, ShellViewModel>();
-            
+            var pluginService = containerRegistry.GetContainer().Resolve<PluginService>();
+            pluginService.InitPlugins();
+
         }
     }
 

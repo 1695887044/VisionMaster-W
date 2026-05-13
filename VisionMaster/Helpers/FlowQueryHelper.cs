@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Text;
@@ -11,54 +12,54 @@ namespace VisionMaster.Helpers
 {
     public static class FlowQueryHelper
     {
-        /// <summary>
-        /// 获取指定算子之前的所有可用变量（包含全局变量和上游算子输出）
-        /// </summary>
-        /// <param name="globals">全局变量集合</param>
-        /// <param name="allSteps">当前流程的所有算子</param>
-        /// <param name="targetStep">目标算子（作为截断点，只取它前面的）</param>
-        /// <returns>可以直接绑定到 UI 树形控件的节点集合</returns>
-        public static List<NodeLinkViewModel> GetAvailableVariablesTree(
+        static IPluginProvider pluginProvider;
+
+        public static List<ToolItemModel> GetAvailableVariablesTree(
             IEnumerable<GlobalVariableModel> globals,
             IEnumerable<StepModel> allSteps,
-            StepModel targetStep)
+            StepModel targetStep
+        )
         {
-            var treeNodes = new List<NodeLinkViewModel>();
-
-            // 1. 组装全局变量节点
+            if(pluginProvider == null)
+            {
+                pluginProvider = ContainerLocator.Container.Resolve<IPluginProvider>();
+            }
+            var treeNodes = new List<ToolItemModel>();
             if (globals != null && globals.Any())
             {
-                var globalNode = new NodeLinkViewModel
+                var globalNode = new ToolItemModel()
                 {
-                    StepID = "Global",
-                    DisplayName = "全局变量 (Global)",
-                    IconCode = "\uf0ac", // 全局地球图标
-                    InputSchemas = new List<PortSchema>(),
-                    OutputSchemas = globals.Select(gv => new PortSchema
-                    {
-                        Name = gv.Name,
-                        DataType = gv.DataType,
-                        Description = gv.Description,
-                    }).ToList()
+                    ModuleGroup = "Global",
+                    Name = "全局变量 (Global)",
+                    Icon = "\uf0ac",
+                    Description ="全局共享变量",
+                    OutputDefinitions = globals
+                        .Select(gv => new PortDefinition
+                        {
+                            Name = gv.Name,
+                            DataTypeName = gv.DataType.AssemblyQualifiedName,
+                            Description = gv.Description
+                        })
+                        .ToList(),
                 };
                 treeNodes.Add(globalNode);
             }
-
+            //获取当前节点以上的所有输出 只是展示 不需要Clone
             var upstreamNodes = GetUpstreamNodes(allSteps, targetStep);
-
             foreach (var node in upstreamNodes)
             {
-                var data = PluginRegistry.GetSchema(node.PluginTypeName);
-                if (data == null || data.OutputSchemas == null || !data.OutputSchemas.Any())
-                    continue; // 如果这个算子没有输出，就不显示在字典里
+                var data = pluginProvider.ModulePlugins[node.PluginTypeName];
+                if (data == null || data.OutputDefinitions == null || !data.OutputDefinitions.Any())
+                    continue;
 
-                var uiNode = new NodeLinkViewModel
+                var uiNode = new ToolItemModel
                 {
-                    StepID = node.StepID,
-                    DisplayName = node.StepName,
-                    IconCode = node.Icon,
-                    InputSchemas = data.InputSchemas,
-                    OutputSchemas = data.OutputSchemas,
+                    Id = node.StepID,
+                    ModuleGroup = node.StepName,
+                    Name = node.StepName,
+                    Icon = node.Icon,
+                    Description= node.Description,
+                    OutputDefinitions = data.OutputDefinitions.ToList(),
                 };
 
                 treeNodes.Add(uiNode);
@@ -67,7 +68,10 @@ namespace VisionMaster.Helpers
             return treeNodes;
         }
 
-        public static List<StepModel> GetUpstreamNodes(IEnumerable<StepModel> steps, StepModel targetStep)
+        public static List<StepModel> GetUpstreamNodes(
+            IEnumerable<StepModel> steps,
+            StepModel targetStep
+        )
         {
             var result = new List<StepModel>();
             foreach (var step in steps)
