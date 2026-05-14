@@ -1,4 +1,6 @@
-﻿namespace Core.Interfaces
+using System.Collections.Generic;
+
+namespace Core.Interfaces
 {
     /// <summary>
     /// 端口基础接口，定义所有端口的公共契约
@@ -49,6 +51,19 @@
         /// 编译/运行时会检查未绑定的必填端口
         /// </summary>
         bool IsRequired { get; set; }
+
+        /// <summary>
+        /// 是否为功能性枚举端口
+        /// 标记为 true 时，该端口会在变量绑定界面显示预设选项，不需要链接上游变量
+        /// 当端口类型是枚举时，默认为 true
+        /// </summary>
+        bool IsFunctionalEnum { get; set; }
+
+        /// <summary>
+        /// 预设选项列表（当 IsFunctionalEnum 为 true 时使用）
+        /// 当端口类型是枚举时，自动从枚举成员生成
+        /// </summary>
+        List<string> PresetOptions { get; set; }
 
         /// <summary>
         /// 链接的上游输出端口

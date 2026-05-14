@@ -1,4 +1,4 @@
-﻿using Core.Interfaces.Core;
+using Core.Interfaces.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +26,21 @@ namespace Core.Interfaces
         /// 编译/运行时会检查未绑定的必填端口
         /// </summary>
         public bool IsRequired { get; set; } = true;
+
+        /// <summary>
+        /// 是否为功能性枚举端口
+        /// 标记为 true 时，该端口会在变量绑定界面显示预设选项，不需要链接上游变量
+        /// 当 T 是枚举类型时，默认为 true
+        /// </summary>
+        public bool IsFunctionalEnum { get; set; } = typeof(T).IsEnum;
+
+        /// <summary>
+        /// 预设选项列表（当 IsFunctionalEnum 为 true 时使用）
+        /// 当 T 是枚举类型时，自动从枚举成员生成
+        /// </summary>
+        public List<string> PresetOptions { get; set; } = typeof(T).IsEnum 
+            ? Enum.GetNames(typeof(T)).ToList() 
+            : new List<string>();
 
         /// <summary>
         /// 端口唯一名称
@@ -58,7 +73,6 @@ namespace Core.Interfaces
             {
                 T newValue;
 
-                // 统一使用与OutputPort相同的转换逻辑
                 if (value == null)
                 {
                     newValue = default(T);
@@ -72,13 +86,10 @@ namespace Core.Interfaces
                     newValue = DefaultConvert(value);
                 }
 
-                // 只有值真正变化时才更新并触发事件
                 if (!EqualityComparer<T>.Default.Equals(_manualValue, newValue))
                 {
                     SetProperty(ref _manualValue, newValue);
-                    // 手动值变化时，需要通知ActualValue变化
                     OnPropertyChanged(nameof(ActualValue));
-                    // 只有当没有链接上游时，才触发ValueChanged
                     if (LinkedSource == null)
                     {
                         ValueChanged?.Invoke(this, EventArgs.Empty);
@@ -103,7 +114,6 @@ namespace Core.Interfaces
             {
                 if (_linkedSource != null)
                 {
-                    // 移除旧链接的事件订阅，防止内存泄漏
                     _linkedSource.ValueChanged -= UpstreamValueChanged;
                 }
 
@@ -113,21 +123,16 @@ namespace Core.Interfaces
 
                 if (_linkedSource != null)
                 {
-                    // 订阅新链接的事件
                     _linkedSource.ValueChanged += UpstreamValueChanged;
-                    // 立即刷新缓存值
                     RefreshLinkedCache();
                 }
                 else
                 {
-                    // 清除缓存值
                     _cachedLinkedValue = default(T);
                 }
 
-                // 通知ActualValue变化
                 OnPropertyChanged(nameof(ActualValue));
 
-                // 如果链接状态发生变化（有→无 或 无→有），触发ValueChanged
                 if (oldHasLink != newHasLink)
                 {
                     ValueChanged?.Invoke(this, EventArgs.Empty);
@@ -177,12 +182,6 @@ namespace Core.Interfaces
         {
             get
             {
-                // 注意：这里的逻辑已经完全修复
-                // 不再错误地比较data和_cachedLinkedValue
-                // 因为：
-                // 1. 当使用链接源时，_cachedLinkedValue已经在RefreshLinkedCache中更新
-                // 2. 当使用手动值时，_cachedLinkedValue与实际值无关
-                // 3. ValueChanged事件已经在正确的地方触发
                 return GetTypedValue();
             }
         }
@@ -192,12 +191,9 @@ namespace Core.Interfaces
         /// </summary>
         private void UpstreamValueChanged(object sender, EventArgs e)
         {
-            // 保存旧值用于比较
             T oldValue = _cachedLinkedValue;
-            // 刷新缓存值
             RefreshLinkedCache();
 
-            // 只有值真正变化时才触发事件
             if (!EqualityComparer<T>.Default.Equals(oldValue, _cachedLinkedValue))
             {
                 OnPropertyChanged(nameof(ActualValue));
@@ -222,14 +218,12 @@ namespace Core.Interfaces
                 return;
             }
 
-            // 类型完全匹配，直接赋值
             if (rawValue is T typedValue)
             {
                 _cachedLinkedValue = typedValue;
                 return;
             }
 
-            // 类型不匹配，尝试智能转换
             try
             {
                 _cachedLinkedValue = DefaultConvert(rawValue);
@@ -255,19 +249,16 @@ namespace Core.Interfaces
                 return default(T);
 
             Type targetType = typeof(T);
-            // 处理可空类型
             if (Nullable.GetUnderlyingType(targetType) != null)
             {
                 targetType = Nullable.GetUnderlyingType(targetType);
             }
 
-            // 处理枚举的字符串转换
             if (targetType.IsEnum && rawValue is string strValue)
             {
                 return (T)Enum.Parse(targetType, strValue);
             }
 
-            // 系统默认的兜底转换
             return (T)Convert.ChangeType(rawValue, targetType);
         }
     }

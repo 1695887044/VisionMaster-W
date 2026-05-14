@@ -24,5 +24,14 @@ namespace VisionMaster.Views
         {
             InitializeComponent();
         }
+
+        private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var viewModel = DataContext as ViewModels.VariableBindingViewModel;
+            if (viewModel != null && sender is TabControl tabControl)
+            {
+                viewModel.ConstantValue = string.Empty;
+            }
+        }
     }
 }

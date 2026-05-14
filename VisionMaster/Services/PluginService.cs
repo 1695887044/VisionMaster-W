@@ -198,11 +198,17 @@ namespace VisionMaster.Services
                     IsContainer = false,
                     InputDefinitions =
                         plugin
-                            .Inputs?.Values.Select(p => new PortDefinition
+                            .Inputs?.Values.Select(p =>
                             {
-                                Name = p.Name,
-                                Description = p.Description,
-                                DataTypeName = p.DataType.AssemblyQualifiedName,
+                                var inputPort = p as IInputPort;
+                                return new PortDefinition
+                                {
+                                    Name = p.Name,
+                                    Description = p.Description,
+                                    DataTypeName = p.DataType.AssemblyQualifiedName,
+                                    IsFunctionalEnum = inputPort?.IsFunctionalEnum ?? false,
+                                    PresetOptions = inputPort?.PresetOptions ?? new List<string>(),
+                                };
                             })
                             .ToList()
                         ?? new List<PortDefinition>(),
