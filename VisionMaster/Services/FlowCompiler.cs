@@ -375,14 +375,28 @@ namespace VisionMaster.Services
 
                     if (linkRef.TargetStepId == Guid.Empty)
                     {
-                        sourcePort = workspaceManager.GlobalVariables.FirstOrDefault(s =>
-                            s.Name == linkRef.TargetPortName
-                        );
-                        if (sourcePort == null)
-                            errors.Add(
-                                $"[连线断开] '{model.StepName}' 找不到全局变量: '{linkRef.TargetPortName}'"
+                        if (!string.IsNullOrEmpty(linkRef.DisplayAddress) && linkRef.DisplayAddress.StartsWith("常量值: "))
+                        {
+                            var constantValue = linkRef.TargetPortName;
+                            actualUpstreamName = "常量";
+                            Type targetType = typeof(string);
+                            if (targetNode is CompiledPluginNode pluginNode && pluginNode.ExternalPlugin?.Inputs?.TryGetValue(myInputName, out var targetPort) == true)
+                            {
+                                targetType = targetPort?.DataType ?? typeof(string);
+                            }
+                            sourcePort = new ConstantOutputPort(constantValue, targetType);
+                        }
+                        else
+                        {
+                            sourcePort = workspaceManager.GlobalVariables.FirstOrDefault(s =>
+                                s.Name == linkRef.TargetPortName
                             );
-                        actualUpstreamName = "Global";
+                            if (sourcePort == null)
+                                errors.Add(
+                                    $"[连线断开] '{model.StepName}' 找不到全局变量: '{linkRef.TargetPortName}'"
+                                );
+                            actualUpstreamName = "Global";
+                        }
                     }
                     else
                     {
