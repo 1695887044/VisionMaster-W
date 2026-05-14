@@ -1,4 +1,4 @@
-﻿using System.Reflection.Metadata;
+using System.Reflection.Metadata;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -191,33 +191,16 @@ namespace VisionMaster
             switch (action)
             {
                 case ExecutionAction.Compile:
-                    DoCompile();
+                    DoCompileAll();
                     break;
                 case ExecutionAction.RunOnce:
-                    if (!PreRunCheck())
-                        return;
-                    var sessionOnce = _runtimeManager.GetSessionByName(CurrentFlowName);
-                    if (sessionOnce != null)
-                    {
-                        _ = flowEngine.RunSessionOnceAsync(sessionOnce);
-                    }
+                    RunAllEnabledOnce();
                     break;
                 case ExecutionAction.RunContinuous:
-                    if (!PreRunCheck())
-                        return;
-                    // 从仓库拿机器，丢给引擎跑死循环
-                    var sessionCont = _runtimeManager.GetSessionByName(CurrentFlowName);
-                    if (sessionCont != null)
-                    {
-                        _ = flowEngine.RunSessionAsync(sessionCont);
-                    }
+                    RunAllEnabledContinuous();
                     break;
                 case ExecutionAction.Stop:
-                    var sessionToStop = _runtimeManager.GetSessionByName(CurrentFlowName);
-                    if (sessionToStop != null)
-                    {
-                        flowEngine.StopSession(sessionToStop);
-                    }
+                    StopAllRunning();
                     break;
             }
         }
@@ -309,6 +292,9 @@ namespace VisionMaster
             return true;
         }
 
+        /// <summary>
+        /// 编译当前单个流程（保留原有方法用于兼容性）
+        /// </summary>
         private void DoCompile()
         {
             if (Workspace.CurrentFlow == null)
@@ -324,20 +310,223 @@ namespace VisionMaster
                 return;
             }
 
-            // 1. 造出新的物理机器
             var newSession = new FlowSession
             {
                 FlowName = CurrentFlowName,
                 ExecutionEngine = result.Data,
-                CompiledVersion = Workspace.CurrentFlow.Version, // 🌟 同步版本号
+                CompiledVersion = Workspace.CurrentFlow.Version,
             };
 
-            // 2. 将机器推入仓库，完成登记！(如果之前有同名机器在跑，内部逻辑会处理)
             _runtimeManager.RegisterSession(newSession);
 
             Notifier.ShowSuccess(
                 $"流程 [{CurrentFlowName}] 编译完成，版本：{newSession.CompiledVersion}"
             );
+        }
+
+        /// <summary>
+        /// 批量编译所有流程
+        /// </summary>
+        private void DoCompileAll()
+        {
+            if (Workspace.CurrentSolution == null || Workspace.CurrentSolution.Flows.Count == 0)
+            {
+                Notifier.ShowWarning("当前没有可编译的流程");
+                return;
+            }
+
+            int successCount = 0;
+            int skipCount = 0;
+            int failCount = 0;
+
+            foreach (var flow in Workspace.CurrentSolution.Flows)
+            {
+                if (!flow.IsEnabled)
+                {
+                    Notifier.ShowInfo($"流程 [{flow.FlowName}] 已禁用，跳过编译");
+                    skipCount++;
+                    continue;
+                }
+
+                var result = _flowCompiler.Compile(flow.Steps, flow.FlowName);
+                if (result.Success)
+                {
+                    var newSession = new FlowSession
+                    {
+                        FlowName = flow.FlowName,
+                        ExecutionEngine = result.Data,
+                        CompiledVersion = flow.Version,
+                    };
+
+                    foreach (var step in flow.Steps)
+                    {
+                        newSession.Blueprints.Add(step);
+                    }
+
+                    _runtimeManager.RegisterSession(newSession);
+                    successCount++;
+                }
+                else
+                {
+                    foreach (var item in result.Errors)
+                    {
+                        Notifier.ShowError($"[{flow.FlowName}] {item}");
+                    }
+                    failCount++;
+                }
+            }
+
+            if (skipCount > 0)
+            {
+                Notifier.ShowSuccess(
+                    $"批量编译完成：成功 {successCount} 个，跳过 {skipCount} 个，失败 {failCount} 个"
+                );
+            }
+            else
+            {
+                Notifier.ShowSuccess(
+                    $"批量编译完成：成功 {successCount} 个，失败 {failCount} 个"
+                );
+            }
+        }
+
+        /// <summary>
+        /// 批量运行所有已启用流程（单次运行）
+        /// </summary>
+        private void RunAllEnabledOnce()
+        {
+            if (Workspace.CurrentSolution == null || Workspace.CurrentSolution.Flows.Count == 0)
+            {
+                Notifier.ShowWarning("当前没有可运行的流程");
+                return;
+            }
+
+            int runCount = 0;
+
+            foreach (var flow in Workspace.CurrentSolution.Flows)
+            {
+                if (!flow.IsEnabled)
+                    continue;
+
+                var session = _runtimeManager.GetSessionByName(flow.FlowName);
+                
+                // 检查是否需要重新编译
+                if (session == null || flow.Version > session.CompiledVersion)
+                {
+                    var result = _flowCompiler.Compile(flow.Steps, flow.FlowName);
+                    if (!result.Success)
+                    {
+                        foreach (var item in result.Errors)
+                        {
+                            Notifier.ShowError($"[{flow.FlowName}] {item}");
+                        }
+                        continue;
+                    }
+
+                    session = new FlowSession
+                    {
+                        FlowName = flow.FlowName,
+                        ExecutionEngine = result.Data,
+                        CompiledVersion = flow.Version,
+                    };
+
+                    foreach (var step in flow.Steps)
+                    {
+                        session.Blueprints.Add(step);
+                    }
+
+                    _runtimeManager.RegisterSession(session);
+                }
+
+                if (session != null && !session.IsRunning)
+                {
+                    _ = flowEngine.RunSessionOnceAsync(session);
+                    runCount++;
+                }
+            }
+
+            if (runCount > 0)
+            {
+                Notifier.ShowSuccess($"已启动 {runCount} 个流程的单次运行");
+            }
+            else
+            {
+                Notifier.ShowWarning("没有可运行的流程（请确保流程已启用且未加密）");
+            }
+        }
+
+        /// <summary>
+        /// 批量运行所有已启用流程（连续运行）
+        /// </summary>
+        private void RunAllEnabledContinuous()
+        {
+            if (Workspace.CurrentSolution == null || Workspace.CurrentSolution.Flows.Count == 0)
+            {
+                Notifier.ShowWarning("当前没有可运行的流程");
+                return;
+            }
+
+            int runCount = 0;
+
+            foreach (var flow in Workspace.CurrentSolution.Flows)
+            {
+                if (!flow.IsEnabled)
+                    continue;
+
+                var session = _runtimeManager.GetSessionByName(flow.FlowName);
+                
+                // 检查是否需要重新编译
+                if (session == null || flow.Version > session.CompiledVersion)
+                {
+                    var result = _flowCompiler.Compile(flow.Steps, flow.FlowName);
+                    if (!result.Success)
+                    {
+                        foreach (var item in result.Errors)
+                        {
+                            Notifier.ShowError($"[{flow.FlowName}] {item}");
+                        }
+                        continue;
+                    }
+
+                    session = new FlowSession
+                    {
+                        FlowName = flow.FlowName,
+                        ExecutionEngine = result.Data,
+                        CompiledVersion = flow.Version,
+                    };
+
+                    foreach (var step in flow.Steps)
+                    {
+                        session.Blueprints.Add(step);
+                    }
+
+                    _runtimeManager.RegisterSession(session);
+                }
+
+                if (session != null && !session.IsRunning)
+                {
+                    _ = flowEngine.RunSessionAsync(session);
+                    runCount++;
+                }
+            }
+
+            if (runCount > 0)
+            {
+                Notifier.ShowSuccess($"已启动 {runCount} 个流程的连续运行");
+            }
+            else
+            {
+                Notifier.ShowWarning("没有可运行的流程（请确保流程已启用且未加密）");
+            }
+        }
+
+        /// <summary>
+        /// 停止所有正在运行的流程
+        /// </summary>
+        private void StopAllRunning()
+        {
+            flowEngine.StopAll();
+            Notifier.ShowSuccess("已停止所有运行中的流程");
         }
 
         #endregion

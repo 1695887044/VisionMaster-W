@@ -34,40 +34,136 @@
             <!--  🧩 普通视觉算子样式 (ActionStep)  -->
             <!--  ==========================================  -->
             <DataTemplate DataType="{x:Type models:ActionStep}">
-                <Border Padding="0,4" Background="Transparent">
-                    <StackPanel Orientation="Horizontal">
-                        <!--  算子图标 (开启 Display 模式，让图标更锐利)  -->
-                        <TextBlock
-                            Margin="0,0,8,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="14"
-                            Foreground="#409EFF"
-                            Text="{Binding Icon}"
-                            TextOptions.TextFormattingMode="Display" />
+                <Border x:Name="RootBorder" 
+                        Padding="6,4" 
+                        Background="Transparent" 
+                        BorderBrush="Transparent" 
+                        BorderThickness="1" 
+                        CornerRadius="4"
+                        Margin="2">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="20" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                        <!--  算子名称  -->
-                        <TextBlock
-                            MaxWidth="150"
-                            VerticalAlignment="Center"
-                            FontWeight="Medium"
-                            Foreground="#303133"
-                            Text="{Binding StepName}"
-                            TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding StepName}" />
+                        <TextBlock x:Name="StatusIcon"
+                                   Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   FontFamily="{StaticResource Icon}"
+                                   FontSize="12"
+                                   Visibility="Collapsed" />
 
-                        <!--  算子描述 (改为高级灰，避免亮绿色喧宾夺主)  -->
-                        <TextBlock
-                            MaxWidth="180"
-                            Margin="8,0,0,0"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            Foreground="#909399"
-                            Text="{Binding Description}"
-                            TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding Description}" />
-                    </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <TextBlock x:Name="IconText"
+                                       Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{StaticResource Icon}"
+                                       FontSize="14"
+                                       Foreground="#409EFF"
+                                       Text="{Binding Icon}"
+                                       TextOptions.TextFormattingMode="Display" />
+
+                            <TextBlock x:Name="NameText"
+                                       MaxWidth="150"
+                                       VerticalAlignment="Center"
+                                       FontWeight="Medium"
+                                       Foreground="#303133"
+                                       Text="{Binding StepName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding StepName}" />
+
+                            <TextBlock x:Name="DescText"
+                                       MaxWidth="180"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"
+                                       Foreground="#909399"
+                                       Text="{Binding Description}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Description}" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="TimePanel" 
+                                    Grid.Column="2" 
+                                    Orientation="Horizontal" 
+                                    VerticalAlignment="Center"
+                                    Margin="10,0,0,0"
+                                    Visibility="Collapsed">
+                            <TextBlock x:Name="TimeIcon"
+                                       FontFamily="{StaticResource Icon}" 
+                                       Text="&#xf017;" 
+                                       FontSize="11" 
+                                       Foreground="#A8ABB2" 
+                                       VerticalAlignment="Center" 
+                                       Margin="0,0,4,0"/>
+
+                            <TextBlock x:Name="TimeText"
+                                       FontSize="12" 
+                                       FontFamily="Consolas"
+                                       Foreground="#909399" 
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
                 </Border>
+
+                <DataTemplate.Triggers>
+
+                    <DataTrigger Binding="{Binding LastRunTimeMs, Converter={ui:GreaterThanZeroConverter}}" Value="True">
+                        <Setter TargetName="TimeText" Property="Text" Value="{Binding LastRunTimeMs, StringFormat='{}{0} ms'}"/>
+                        <Setter TargetName="TimePanel" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding IsRunningFocus}" Value="True">
+                        <Setter TargetName="TimeText" Property="Text" Value="{Binding CurrentRunTimeMs, StringFormat='{}{0} ms'}"/>
+                        <Setter TargetName="TimePanel" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding IsRunningFocus}" Value="True">
+                        <Setter TargetName="RootBorder" Property="Background" Value="#F0F9EB" />
+                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="#67C23A" />
+                        <Setter TargetName="IconText" Property="Foreground" Value="#67C23A" />
+                        <Setter TargetName="TimeText" Property="Foreground" Value="#67C23A" />
+                        <Setter TargetName="TimeText" Property="FontWeight" Value="Bold" />
+                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf1ce;" />
+                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#67C23A" />
+                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding State}" Value="Success">
+                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf00c;" />
+                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#67C23A" />
+                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding State}" Value="Failed">
+                        <Setter TargetName="RootBorder" Property="Background" Value="#FEF0F0" />
+                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="#F56C6C" />
+                        <Setter TargetName="NameText" Property="Foreground" Value="#F56C6C" />
+                        <Setter TargetName="TimeText" Property="Foreground" Value="#F56C6C" />
+                        <Setter TargetName="IconText" Property="Foreground" Value="#F56C6C" />
+                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf00d;" />
+                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#F56C6C" />
+                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding State}" Value="Skipped">
+                        <Setter TargetName="RootBorder" Property="Opacity" Value="0.6" />
+                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf054;" />
+                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#909399" />
+                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding IsDisEnable}" Value="True">
+                        <Setter TargetName="RootBorder" Property="Opacity" Value="0.45" />
+                        <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
+                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Collapsed" />
+                        <Setter TargetName="TimePanel" Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+
+                </DataTemplate.Triggers>
             </DataTemplate>
 
             <!--  ==========================================  -->

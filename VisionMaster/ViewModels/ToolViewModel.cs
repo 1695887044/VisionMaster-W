@@ -1,4 +1,5 @@
-﻿using GongSolutions.Wpf.DragDrop;
+using GongSolutions.Wpf.DragDrop;
+using Prism.Dialogs;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -18,6 +19,7 @@ namespace VisionMaster.ViewModels
     {
         private readonly SolutionService solutionService;
         private readonly IPluginProvider pluginProvider;
+        private readonly IDialogService dialogService;
 
         public IWorkspaceManager Workspace {  get; init; }
 
@@ -31,11 +33,12 @@ namespace VisionMaster.ViewModels
         public List<ToolGroupModel> ToolBarSource { get; set; } = new();
 
         public AsyncDelegateCommand<FlowAction?> FlowCommand { get; set; }
-        public ToolViewModel(SolutionService solutionService, IWorkspaceManager Workspace,IPluginProvider pluginProvider)
+        public ToolViewModel(SolutionService solutionService, IWorkspaceManager Workspace,IPluginProvider pluginProvider, IDialogService dialogService)
         {
             this.solutionService = solutionService;
             this.Workspace = Workspace;
             this.pluginProvider = pluginProvider;
+            this.dialogService = dialogService;
             FlowCommand =new (FlowCommandExecute);
             loadTools();
 
@@ -56,9 +59,28 @@ namespace VisionMaster.ViewModels
                     break;
                 case FlowAction.EditComment:
                     var data1 = await EasyDialog.ShowTextInputAsync("流程注释修改", SelectFlow.Description);
-                    if (data1.IsConfirmed) SelectFlow.Description = data1.Value;
+                if (data1.IsConfirmed) SelectFlow.Description = data1.Value;
+                    break;
+                case FlowAction.Manager:
+                    ShowFlowManager();
                     break;
             }
+        }
+
+        /// <summary>
+        /// 显示流程管理对话框
+        /// </summary>
+        private void ShowFlowManager()
+        {
+            if (Workspace.CurrentSolution == null) return;
+
+            var parameters = new DialogParameters();
+            parameters.Add("Flows", Workspace.CurrentSolution.Flows);
+            
+            dialogService.ShowDialog("FlowManagerView", parameters, result =>
+            {
+                // 可以在这里处理对话框关闭后的逻辑
+            });
         }
 
         void loadTools()

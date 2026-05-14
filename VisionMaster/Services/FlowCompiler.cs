@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata;
@@ -29,20 +29,17 @@ namespace VisionMaster.Services
             this.workspaceManager = workspaceManager;
         }
 
-        public CompilationResult Compile(IEnumerable<StepModel> blueprints)
+        public CompilationResult Compile(IEnumerable<StepModel> blueprints, string? flowName = null)
         {
             var result = new CompilationResult();
 
             var pluginLookup = new Dictionary<Guid, IVisionPlugin>();
-            // 给编译器内部连线用的：所有节点（包含插件和 IF 控制节点）
             var nodeLookup = new Dictionary<Guid, CompiledNode>();
 
             try
             {
-                // 1. 将图纸编译为虚拟机指令树
-                var rootNodes = CompileSteps(blueprints, pluginLookup, nodeLookup, result.Errors);
+                var rootNodes = CompileSteps(blueprints, flowName, pluginLookup, nodeLookup, result.Errors);
 
-                // 2. 接管子 + 安全检查
                 LinkPorts(blueprints, nodeLookup, pluginLookup, result.Errors);
 
                 result.Success = result.Errors.Count == 0;
@@ -60,6 +57,7 @@ namespace VisionMaster.Services
 
         private List<CompiledNode> CompileSteps(
             IEnumerable<StepModel> models,
+            string? flowName,
             Dictionary<Guid, IVisionPlugin> pluginLookup,
             Dictionary<Guid, CompiledNode> nodeLookup,
             List<string> errors
@@ -77,7 +75,7 @@ namespace VisionMaster.Services
                 // ==========================================
                 if (model is WhileStep whileModel)
                     {
-                        var whileNode = new CompiledWhileNode { Id = model.StepID, Name = model.StepName };
+                        var whileNode = new CompiledWhileNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                         nodeLookup.Add(model.StepID, whileNode);
 
                     var delegateParams = new List<Parameter>();
@@ -125,11 +123,11 @@ namespace VisionMaster.Services
 
                     if (loopCollection != null)
                     {
-                        // 递归编译循环体内部算子
                         if (loopCollection.Steps != null)
                         {
                             compiledBranch.ExecutionSteps = CompileSteps(
                                 loopCollection.Steps,
+                                flowName,
                                 pluginLookup,
                                 nodeLookup,
                                 errors
@@ -170,7 +168,7 @@ namespace VisionMaster.Services
                 // ==========================================
                 else if (model is ConditionStep conditionModel)
                 {
-                    var ifNode = new CompiledIfNode { Id = model.StepID, Name = model.StepName };
+                    var ifNode = new CompiledIfNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                     nodeLookup.Add(model.StepID, ifNode);
 
                     var delegateParams = new List<Parameter>();
@@ -211,6 +209,7 @@ namespace VisionMaster.Services
                     {
                         var childNodes = CompileSteps(
                             childCollection.Steps,
+                            flowName,
                             pluginLookup,
                             nodeLookup,
                             errors
@@ -273,16 +272,16 @@ namespace VisionMaster.Services
                 // ==========================================
                 else if (model is ForStep forModel)
                 {
-                    var forNode = new CompiledForNode { Id = model.StepID, Name = model.StepName };
+                    var forNode = new CompiledForNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                     forNode.DefaultLoopCount = forModel.DefaultLoopCount;
                     nodeLookup.Add(model.StepID, forNode);
 
-                    // For 节点没有局部变量和动态表达式，只需要递归编译它里面的算子即可
                     var loopCollection = forModel.Children.FirstOrDefault();
                     if (loopCollection != null && loopCollection.Steps != null)
                     {
                         forNode.LoopBody = CompileSteps(
                             loopCollection.Steps,
+                            flowName,
                             pluginLookup,
                             nodeLookup,
                             errors
@@ -293,19 +292,19 @@ namespace VisionMaster.Services
                 }
                 else if (model.PluginTypeName == "BuiltIn_Break")
                 {
-                    var breakNode = new CompiledBreakNode { Id = model.StepID, Name = model.StepName };
+                    var breakNode = new CompiledBreakNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                     nodeLookup.Add(model.StepID, breakNode);
                     compiledNodes.Add(breakNode);
                 }
                 else if (model.PluginTypeName == "BuiltIn_Continue")
                 {
-                    var continueNode = new CompiledContinueNode { Id = model.StepID, Name = model.StepName };
+                    var continueNode = new CompiledContinueNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                     nodeLookup.Add(model.StepID, continueNode);
                     compiledNodes.Add(continueNode);
                 }
                 else if (model.PluginTypeName == "BuiltIn_Return")
                 {
-                    var returnNode = new CompiledReturnNode { Id = model.StepID, Name = model.StepName };
+                    var returnNode = new CompiledReturnNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                     nodeLookup.Add(model.StepID, returnNode);
                     compiledNodes.Add(returnNode);
                 }
@@ -322,9 +321,11 @@ namespace VisionMaster.Services
                             throw new Exception($"找不到插件: {model.PluginTypeName}");
 
                         plugin = (IVisionPlugin)Activator.CreateInstance(type);
-                        plugin.InstanceName = model.StepName;
+                        plugin.InstanceName = string.IsNullOrEmpty(flowName) 
+                            ? model.StepName 
+                            : $"{flowName}.{model.StepName}";
 
-                        pluginLookup.Add(model.StepID, plugin); // 登记到外部字典 (供查结果用)
+                        pluginLookup.Add(model.StepID, plugin);
                     }
                     catch (Exception ex)
                     {
@@ -339,8 +340,8 @@ namespace VisionMaster.Services
                             inputPort.Value = kvp.Value;
                     }
 
-                    var pluginNode = new CompiledPluginNode { Id = model.StepID, Name = model.StepName, ExternalPlugin = plugin };
-                    nodeLookup.Add(model.StepID, pluginNode); // 登记到内部字典 (供连线用)
+                    var pluginNode = new CompiledPluginNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, ExternalPlugin = plugin };
+                    nodeLookup.Add(model.StepID, pluginNode);
                     compiledNodes.Add(pluginNode);
                 }
             }

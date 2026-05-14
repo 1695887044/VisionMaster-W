@@ -95,6 +95,12 @@ namespace VisionMaster.Services
             session.CancellationTokenSource = new CancellationTokenSource();
             var token = session.CancellationTokenSource.Token;
 
+            // 复位所有步序状态
+            foreach (var step in session.Blueprints)
+            {
+                step.ResetState();
+            }
+
             NotifyStateChanged(session, SessionState.Running);
             _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
 
@@ -107,6 +113,12 @@ namespace VisionMaster.Services
                         session.PauseLock.Wait(token);
 
                         if (token.IsCancellationRequested) break;
+
+                        // 每次循环前再次复位所有步序状态
+                        foreach (var step in session.Blueprints)
+                        {
+                            step.ResetState();
+                        }
 
                         var context = new ExecutionContext(_logService, session, _workspaceManager, token);
                         session.ExecutionEngine.Run(context);
@@ -154,6 +166,13 @@ namespace VisionMaster.Services
 
             session.IsRunning = true;
             session.State = SessionState.Running;
+
+            // 复位所有步序状态
+            foreach (var step in session.Blueprints)
+            {
+                step.ResetState();
+            }
+
             NotifyStateChanged(session, SessionState.Running);
             _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
 

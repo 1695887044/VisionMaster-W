@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -9,6 +9,34 @@ using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
+    /// <summary>
+    /// 流程调用类型枚举
+    /// </summary>
+    public enum FlowInvokeType
+    {
+        /// <summary>手动调用</summary>
+        Manual = 0,
+        /// <summary>定时调用</summary>
+        Timer = 1,
+        /// <summary>变量触发调用</summary>
+        Variable = 2,
+        /// <summary>作为子程序调用</summary>
+        Subroutine = 3
+    }
+
+    /// <summary>
+    /// 流程运行时状态
+    /// </summary>
+    public enum FlowRunState
+    {
+        /// <summary>停止</summary>
+        Stopped = 0,
+        /// <summary>运行中</summary>
+        Running = 1,
+        /// <summary>暂停</summary>
+        Paused = 2
+    }
+
     /// <summary>
     /// 流程模型
     /// 表示一个完整的视觉检测流程
@@ -48,14 +76,99 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 流程是否启用
+        /// </summary>
+        public bool IsEnabled
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 调用类型
+        /// </summary>
+        public FlowInvokeType InvokeType
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 触发变量名称（当InvokeType为Variable时使用）
+        /// </summary>
+        public string TriggerVariable
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 定时调用间隔（毫秒）
+        /// </summary>
+        public int TimerIntervalMs
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 步序内容是否加密
+        /// </summary>
+        public bool StepsEncrypted
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 加密密钥（加密后的密钥由系统生成）
+        /// </summary>
+        public string? EncryptedKey { get; set; }
+
+        /// <summary>
         /// 触发模式（单次/连续/外部/定时）
         /// </summary>
         public FlowTriggerMode TriggerMode { get; set; } = FlowTriggerMode.Continuous;
 
         /// <summary>
-        /// 定时触发间隔（毫秒）
+        /// 运行时状态
         /// </summary>
-        public int TimerIntervalMs { get; set; } = 1000;
+        [JsonIgnore]
+        public FlowRunState RunState
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 当前运行步骤索引
+        /// </summary>
+        [JsonIgnore]
+        public int CurrentStepIndex
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 开始运行时间
+        /// </summary>
+        [JsonIgnore]
+        public DateTime? StartRunTime
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 当前运行时间（毫秒）
+        /// </summary>
+        [JsonIgnore]
+        public long CurrentRunTimeMs
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
 
         /// <summary>
         /// 步骤列表

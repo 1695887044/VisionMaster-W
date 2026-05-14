@@ -1,4 +1,4 @@
-﻿using GongSolutions.Wpf.DragDrop;
+using GongSolutions.Wpf.DragDrop;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -62,6 +62,47 @@ namespace VisionMaster.Models
             get => field;
             set => SetProperty(ref field, value);
         }
+
+        /// <summary>
+        /// 是否为当前运行焦点
+        /// </summary>
+        [JsonIgnore]
+        public bool IsRunningFocus
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
+
+        /// <summary>
+        /// 最后运行开始时间
+        /// </summary>
+        [JsonIgnore]
+        public DateTime? LastRunStartTime
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
+
+        /// <summary>
+        /// 最后运行时间（毫秒）
+        /// </summary>
+        [JsonIgnore]
+        public long LastRunTimeMs
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
+
+        /// <summary>
+        /// 当前运行时间（毫秒，实时更新）
+        /// </summary>
+        [JsonIgnore]
+        public long CurrentRunTimeMs
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
+
         public Dictionary<string, object> InputValues { get; set; } = new Dictionary<string, object>();
 
         public Dictionary<string, LinkReference> LinkedSources { get; set; } = new();
@@ -73,6 +114,17 @@ namespace VisionMaster.Models
             this.PluginTypeName = pluginTypeName;
             StepName = stepName == null ? pluginName: stepName;
             Description = pluginName;
+        }
+
+        /// <summary>
+        /// 复位步序状态到Idle
+        /// </summary>
+        public void ResetState()
+        {
+            State = StepState.Idle;
+            IsRunningFocus = false;
+            CurrentRunTimeMs = 0;
+            LastRunStartTime = null;
         }
 
     }

@@ -29,4 +29,9 @@
 	  <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
 	  <ProjectReference Include="..\UI\Controls\UI.csproj" />
 	</ItemGroup>
+	<ItemGroup>
+	  <Reference Include="HslCommunication">
+	    <HintPath>..\DLL\HslCommunication.dll</HintPath>
+	  </Reference>
+	</ItemGroup>
 </Project>

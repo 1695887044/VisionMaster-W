@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Prism.Ioc;
 using System.ComponentModel;
 using System.Configuration;
 using System.Data;
@@ -55,6 +56,7 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
+            containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
             containerRegistry.RegisterForNavigation<Shell, ShellViewModel>();
             var pluginService = containerRegistry.GetContainer().Resolve<PluginService>();
             pluginService.InitPlugins();
