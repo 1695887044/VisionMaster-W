@@ -3,7 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using VisionMaster.Helpers;
 
 namespace VisionMaster.Models
 {
@@ -13,15 +15,47 @@ namespace VisionMaster.Models
     /// </summary>
     public class GlobalVariableModel : BindableBase, IOutputPort
     {
+        private string _dataTypeString;
+        private Type _dataType;
+
         /// <summary>
         /// 变量名称
         /// </summary>
         public string Name { get; set; }
 
         /// <summary>
+        /// 数据类型（用于序列化）
+        /// </summary>
+        public string DataTypeString
+        {
+            get => _dataTypeString ?? TypeCache.GetTypeKey(DataType);
+            set
+            {
+                _dataTypeString = value;
+                _dataType = TypeCache.GetType(value);
+            }
+        }
+
+        /// <summary>
         /// 数据类型
         /// </summary>
-        public Type DataType { get; set; }
+        [JsonIgnore]
+        public Type DataType
+        {
+            get
+            {
+                if (_dataType == null && !string.IsNullOrEmpty(_dataTypeString))
+                {
+                    _dataType = TypeCache.GetType(_dataTypeString);
+                }
+                return _dataType ?? typeof(string);
+            }
+            set
+            {
+                _dataType = value;
+                _dataTypeString = TypeCache.GetTypeKey(value);
+            }
+        }
 
         /// <summary>
         /// 变量描述
@@ -42,14 +76,21 @@ namespace VisionMaster.Models
             set
             {
                 SetProperty(ref field, value);
-                ValueChanged?.Invoke(this, EventArgs.Empty);
+                _valueChanged?.Invoke(this, EventArgs.Empty);
             }
         }
 
         /// <summary>
         /// 值变更事件
         /// </summary>
-        public event EventHandler ValueChanged;
+        [JsonIgnore]
+        private EventHandler _valueChanged;
+        
+        public event EventHandler ValueChanged
+        {
+            add => _valueChanged += value;
+            remove => _valueChanged -= value;
+        }
 
         /// <summary>
         /// 重置为默认值

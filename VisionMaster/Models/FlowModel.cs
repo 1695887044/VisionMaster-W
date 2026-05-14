@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Models
@@ -64,24 +65,29 @@ namespace VisionMaster.Models
         /// <summary>
         /// 初始化流程模型
         /// </summary>
+        [JsonConstructor]
         public FlowModel()
         {
-            Steps.CollectionChanged += (s, e) =>
+            // 反序列化时不订阅事件
+            if (Steps != null)
             {
-                Version++;
-
-                if (e.NewItems != null)
+                Steps.CollectionChanged += (s, e) =>
                 {
-                    foreach (StepModel item in e.NewItems)
-                        item.PropertyChanged += OnStepPropertyChanged;
-                }
+                    Version++;
 
-                if (e.OldItems != null)
-                {
-                    foreach (StepModel item in e.OldItems)
-                        item.PropertyChanged -= OnStepPropertyChanged;
-                }
-            };
+                    if (e.NewItems != null)
+                    {
+                        foreach (StepModel item in e.NewItems)
+                            item.PropertyChanged += OnStepPropertyChanged;
+                    }
+
+                    if (e.OldItems != null)
+                    {
+                        foreach (StepModel item in e.OldItems)
+                            item.PropertyChanged -= OnStepPropertyChanged;
+                    }
+                };
+            }
         }
 
         /// <summary>

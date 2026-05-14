@@ -111,12 +111,76 @@ namespace VisionMaster
                     }
                     break;
                 case SolutionAction.Open:
-                    await EasyDialog.ShowCustomAsync("", new ConditionEditorView());
+                    await OpenSolutionAsync();
                     break;
                 case SolutionAction.Save:
+                    await SaveSolutionAsync();
                     break;
                 case SolutionAction.BrowseList:
                     break;
+            }
+        }
+
+        /// <summary>
+        /// 打开解决方案
+        /// </summary>
+        private async Task OpenSolutionAsync()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "VisionMaster方案 (*.vms)|*.vms|所有文件 (*.*)|*.*",
+                Title = "打开解决方案",
+                DefaultExt = ".vms",
+                CheckFileExists = true
+            };
+
+            var result = dialog.ShowDialog();
+            if (result == true)
+            {
+                var loadResult = await solutionService.LoadAsync(dialog.FileName);
+                if (loadResult.Success)
+                {
+                    Workspace.SwitchSolution(loadResult.Data);
+                    Notifier.ShowSuccess($"方案 [{loadResult.Data.SolutionName}] 加载成功");
+                }
+                else
+                {
+                    Notifier.ShowError(loadResult.Message);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 保存解决方案
+        /// </summary>
+        private async Task SaveSolutionAsync()
+        {
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("当前没有打开的解决方案");
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "VisionMaster方案 (*.vms)|*.vms|所有文件 (*.*)|*.*",
+                Title = "保存解决方案",
+                DefaultExt = ".vms",
+                FileName = $"{Workspace.CurrentSolution.SolutionName}.vms"
+            };
+
+            var result = dialog.ShowDialog();
+            if (result == true)
+            {
+                var saveResult = await solutionService.SaveAsync(Workspace.CurrentSolution, dialog.FileName);
+                if (saveResult.Success)
+                {
+                    Notifier.ShowSuccess($"方案 [{Workspace.CurrentSolution.SolutionName}] 保存成功");
+                }
+                else
+                {
+                    Notifier.ShowError(saveResult.Message);
+                }
             }
         }
 

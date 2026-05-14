@@ -12,6 +12,12 @@ using VisionMaster.EventModel;
 
 namespace VisionMaster.Models
 {
+    [JsonDerivedType(typeof(ActionStep), typeDiscriminator: "ActionStep")]
+    [JsonDerivedType(typeof(ConditionStep), typeDiscriminator: "ConditionStep")]
+    [JsonDerivedType(typeof(BreakStep), typeDiscriminator: "BreakStep")]
+    [JsonDerivedType(typeof(ContinueStep), typeDiscriminator: "ContinueStep")]
+    [JsonDerivedType(typeof(ReturnStep), typeDiscriminator: "ReturnStep")]
+    [JsonDerivedType(typeof(ForStep), typeDiscriminator: "ForStep")]
     public abstract class StepModel:BindableBase
     {
         public Guid StepID { get; set; } = Guid.NewGuid();

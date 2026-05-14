@@ -1,5 +1,7 @@
-﻿﻿﻿﻿using Core.Interfaces.Result;
+﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
 using UI.CustomControl;
 using UI.Helper;
 using VisionMaster.Models;
@@ -13,6 +15,11 @@ namespace VisionMaster.Services
     public class SolutionService : BindableBase
     {
         private readonly ObservableCollection<SolutionModel> _solutionModels = new();
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            WriteIndented = true,
+            IncludeFields = true
+        };
 
         /// <summary>
         /// 方案模型集合（只读）
@@ -44,7 +51,22 @@ namespace VisionMaster.Services
         /// </summary>
         public async Task<Result<bool>> SaveAsync(SolutionModel targetSolution, string filePath)
         {
-            return Result<bool>.Ok(true);
+            try
+            {
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var json = JsonSerializer.Serialize(targetSolution, _jsonOptions);
+                await File.WriteAllTextAsync(filePath, json);
+                return Result<bool>.Ok(true);
+            }
+            catch (Exception ex)
+            {
+                return Result<bool>.NG($"保存方案失败: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -52,7 +74,32 @@ namespace VisionMaster.Services
         /// </summary>
         public async Task<Result<SolutionModel>> LoadAsync(string filePath)
         {
-            return Result<SolutionModel>.NG("尚未实现");
+            try
+            {
+                if (!File.Exists(filePath))
+                {
+                    return Result<SolutionModel>.NG($"文件不存在: {filePath}");
+                }
+
+                var json = await File.ReadAllTextAsync(filePath);
+                var solution = JsonSerializer.Deserialize<SolutionModel>(json, _jsonOptions);
+                
+                if (solution == null)
+                {
+                    return Result<SolutionModel>.NG("方案文件解析失败");
+                }
+
+                if (!_solutionModels.Contains(solution))
+                {
+                    _solutionModels.Add(solution);
+                }
+
+                return Result<SolutionModel>.Ok(solution);
+            }
+            catch (Exception ex)
+            {
+                return Result<SolutionModel>.NG($"加载方案失败: {ex.Message}");
+            }
         }
     }
 }

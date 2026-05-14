@@ -80,7 +80,8 @@ namespace VisionMaster
         Rename,
         EditComment,
         Encrypt,
-        Decrypt
+        Decrypt,
+        Manager
     }
 
     /// <summary>

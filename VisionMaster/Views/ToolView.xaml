@@ -191,6 +191,11 @@
                                             Header="解密流程"
                                             Icon="&#xf09c;" />
                                     </MenuItem>
+                                    <MenuItem
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.Manager}"
+                                        Header="流程管理"
+                                        Icon="&#xf09c;" />
                                 </ContextMenu>
                             </Grid.ContextMenu>
                         </Grid>
@@ -222,7 +227,6 @@
                                 BorderBrush="{StaticResource ToolBorderBrush}"
                                 BorderThickness="0,0,0,1"
                                 Header="{Binding Name}"
-                              
                                 IsExpanded="True">
 
                                 <Expander.HeaderTemplate>

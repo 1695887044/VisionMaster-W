@@ -45,12 +45,12 @@
                 FontFamily="{StaticResource Icon}"
                 WindowChrome.IsHitTestVisibleInChrome="True">
                 <MenuItem Header="文件(F)">
-                    <MenuItem Header="打开(O)" Icon="&#xf07c;" />
-                    <MenuItem Header="保存(S)" Icon="&#xf0c7;" />
+                    <MenuItem Header="打开(O)" Icon="&#xf07c;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Open}" />
+                    <MenuItem Header="保存(S)" Icon="&#xf0c7;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Save}" />
                     <MenuItem Header="编辑(E)" Icon="&#xf044;" />
                     <Separator />
-                    <MenuItem Header="载入文件(F)" Icon="&#xf56f;" />
-                    <MenuItem Header="保存文件(L)" Icon="&#xf56e;" />
+                    <MenuItem Header="载入文件(F)" Icon="&#xf56f;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Open}" />
+                    <MenuItem Header="保存文件(L)" Icon="&#xf56e;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Save}" />
                 </MenuItem>
 
                 <MenuItem Header="参数(P)">
