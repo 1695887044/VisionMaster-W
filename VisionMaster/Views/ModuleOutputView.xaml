@@ -1,73 +1,46 @@
-﻿<UserControl
-    x:Class="VisionMaster.Views.ModuleOutputView"
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:prism="http://prismlibrary.com/"
-    prism:ViewModelLocator.AutoWireViewModel="True">
+﻿<UserControl x:Class="VisionMaster.Views.ModuleOutputView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:prism="http://prismlibrary.com/"
+             prism:ViewModelLocator.AutoWireViewModel="True">
+
     <Grid Background="#FFFFFF">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border
-            Grid.Row="0"
-            Height="36"
-            Margin="10,12,10,8"
-            Background="#F5F7FA"
-            CornerRadius="4">
+        <Border Grid.Row="0" Margin="10,12,10,8" Background="#F8F9FA" BorderBrush="#EBEEF5" BorderThickness="1" CornerRadius="4">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock
-                    Grid.Column="0"
-                    Margin="12,0,8,0"
-                    VerticalAlignment="Center"
-                    FontFamily="{StaticResource Icon}"
-                    FontSize="14"
-                    Foreground="#909399"
-                    Text="&#xf002;" />
+                <TextBlock Grid.Column="0" Text="添加监视:" Foreground="#909399" FontWeight="SemiBold" 
+                           VerticalAlignment="Center" Margin="12,0,8,0" />
 
-                <ComboBox
-                    Grid.Column="1"
-                    VerticalContentAlignment="Center"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    DisplayMemberPath="DisplayText"
-                    FontSize="13"
-                    Foreground="#303133"
-                    IsEditable="True"
-                    ItemsSource="{Binding SuggestedItems}"
-                    SelectedItem="{Binding SelectedSuggestion}"
-                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
-                    <ComboBox.Resources>
-                        <Style TargetType="ToggleButton">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </Style>
-                    </ComboBox.Resources>
-                </ComboBox>
+                <TextBox Grid.Column="1" 
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Background="Transparent" BorderThickness="0" 
+                         VerticalContentAlignment="Center" Height="34"
+                         Foreground="#303133" FontSize="13"
+                         ToolTip="输入 '算子名' 监控所有引脚；输入 '算子名.引脚名' 监控单个变量。敲击回车确认。">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding AddWatchCommand}"/>
+                    </TextBox.InputBindings>
+                </TextBox>
             </Grid>
         </Border>
 
-        <DataGrid
-            Grid.Row="1"
-            AutoGenerateColumns="False"
-            Background="Transparent"
-            BorderThickness="0"
-            CanUserAddRows="False"
-            GridLinesVisibility="Horizontal"
-            HeadersVisibility="Column"
-            HorizontalGridLinesBrush="#EBEEF5"
-            IsReadOnly="True"
-            ItemsSource="{Binding DisplayPorts}"
-            RowHeight="36">
+        <DataGrid Grid.Row="1" ItemsSource="{Binding DisplayPorts}" 
+                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EBEEF5"
+                  BorderThickness="0" Background="Transparent" RowHeight="36">
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="Padding" Value="10,0" />
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Padding" Value="10,0"/>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="DataGridCell">
@@ -81,58 +54,29 @@
             </DataGrid.CellStyle>
 
             <DataGrid.Columns>
-                <DataGridTextColumn
-                    Width="220"
-                    Binding="{Binding DisplayName}"
-                    FontWeight="SemiBold"
-                    Foreground="#409EFF"
-                    Header="所属节点 / 变量名" />
+                <DataGridTextColumn Header="名称" Binding="{Binding DisplayName}" Width="200" Foreground="#409EFF" FontWeight="SemiBold"/>
 
-                <DataGridTemplateColumn Width="80" Header="方向">
+                <DataGridTemplateColumn Header="方向" Width="80">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Border
-                                Padding="8,3"
-                                HorizontalAlignment="Left"
-                                Background="#F4F4F5"
-                                CornerRadius="4">
-                                <TextBlock
-                                    FontSize="11"
-                                    Foreground="#909399"
-                                    Text="{Binding Direction}" />
+                            <Border Background="#F4F4F5" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding Direction}" FontSize="11" Foreground="#909399"/>
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn
-                    Width="120"
-                    Binding="{Binding TypeName}"
-                    Foreground="#909399"
-                    Header="数据类型" />
+                <DataGridTextColumn Header="数据类型" Binding="{Binding TypeName}" Width="120" Foreground="#909399"/>
 
-                <DataGridTextColumn
-                    Width="*"
-                    Binding="{Binding DisplayValue}"
-                    FontWeight="Bold"
-                    Foreground="#E6A23C"
-                    Header="实时数值" />
+                <DataGridTextColumn Header="实时数值" Binding="{Binding DisplayValue}" Width="*" Foreground="#E6A23C" FontWeight="Bold"/>
 
-                <DataGridTemplateColumn Width="80" Header="操作">
+                <DataGridTemplateColumn Header="操作" Width="80">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                CommandParameter="{Binding}"
-                                Cursor="Hand"
-                                ToolTip="取消监视">
-                                <TextBlock
-                                    FontFamily="{StaticResource Icon}"
-                                    FontSize="15"
-                                    Foreground="#F56C6C"
-                                    Text="&#xf1f8;" />
+                            <Button Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="取消监视"
+                                    Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                    CommandParameter="{Binding}">
+                                <TextBlock FontFamily="{StaticResource Icon}" FontSize="15" Foreground="#F56C6C" Text="&#xf1f8;" />
                             </Button>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

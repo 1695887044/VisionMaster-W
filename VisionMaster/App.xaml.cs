@@ -50,6 +50,7 @@ namespace VisionMaster
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
             containerRegistry.RegisterForNavigation<GlobalDataView, GlobalDataViewModel>();
             containerRegistry.RegisterForNavigation<ToolView, ToolViewModel>();
+            containerRegistry.RegisterForNavigation<ModuleOutputView, ModuleOutputViewModel>();
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");

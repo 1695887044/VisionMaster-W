@@ -8,26 +8,25 @@ using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
-    public class WatchItemModel
+    public class WatchItemModel : BindableBase
     {
-        public Guid StepId { get; set; }
-        public string StepName { get; set; } // 冗余字段，方便脱机查看
+        // 标记当前这个监视项的类型
+        public WatchItemType ItemType { get; set; }
 
-        /// <summary>
-        /// 如果为空，代表监控该算子【全部】的输入输出。
-        /// 如果有值，代表精确监控单个引脚。
-        /// </summary>
+        // ================= 算子相关配置 =================
+        public Guid StepId { get; set; }
+        public string StepName { get; set; }
         public string PortName { get; set; }
-        public bool IsInput { get; set; }    // 仅在 PortName 不为空时生效
+        public bool IsInput { get; set; }
+
+        // ================= 全局变量配置 =================
+        public string GlobalVariableName { get; set; }
     }
 
-    public enum WatchMode
+    public enum WatchItemType
     {
-        [Description("监控所有输入和输出")]
-        AllInputsAndOutputs, 
-        [Description("仅监控所有输出 (通常输入是不变的，大家只关心输出结果)")]
-        AllOutputsOnly,      
-        [Description("监控指定引脚")]
-        SpecificPorts       
+        PluginAll,       // 监视整个算子的所有引脚
+        PluginPort,      // 监视算子的某一个特定引脚
+        GlobalVariable   // 监视全局变量
     }
 }
