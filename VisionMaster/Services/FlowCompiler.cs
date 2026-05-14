@@ -1,11 +1,14 @@
-﻿using Core.Interfaces;
-using DynamicExpresso;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
+using Core.Interfaces;
+using DynamicExpresso;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
+using static System.Windows.Forms.LinkLabel;
+using Parameter = DynamicExpresso.Parameter;
 
 namespace VisionMaster.Services
 {
@@ -14,7 +17,10 @@ namespace VisionMaster.Services
         /// <summary>
         /// 缓存
         /// </summary>
-        static Dictionary<string, Type> TypeCache = new Dictionary<string, Type>();
+        static Dictionary<string, Type> TypeCache = new Dictionary<string, Type>(
+            50,
+            StringComparer.Ordinal
+        );
         private readonly IWorkspaceManager workspaceManager;
         private readonly Interpreter _interpreter = new Interpreter().Reference(typeof(Math));
 
@@ -63,46 +69,141 @@ namespace VisionMaster.Services
 
             foreach (var model in models)
             {
-                if (!model.IsEnabled)
+                if (model.IsDisEnable)
                     continue;
 
                 // ==========================================
-                // 🎯 场景 A：内置逻辑节点 (绕过反射，直接硬编译)
+                // 🎯 场景 A-1：While 循环节点 (🚨 必须放在 ConditionStep 之前！)
                 // ==========================================
-                if (model is ConditionStep conditionModel)
+                if (model is WhileStep whileModel)
+                {
+                    var whileNode = new CompiledWhileNode();
+                    nodeLookup.Add(model.StepID, whileNode);
+
+                    var delegateParams = new List<Parameter>();
+                    var compiledVarTypes = new Dictionary<Guid, Type>();
+                    var compiledVarIds = new List<Guid>();
+
+                    // 1. 编译局部变量 (复用你的安全验证与缓存逻辑)
+                    foreach (var localVar in whileModel.LocalVariables)
+                    {
+                        Type varType = typeof(double);
+                        try
+                        {
+                            varType = Type.GetType(localVar.DataTypeName) ?? typeof(double);
+                            if (TypeCache.TryGetValue(localVar.DataTypeName, out var type))
+                            {
+                                varType = type;
+                            }
+                            else
+                            {
+                                varType = TypeHelper.GetActualTypeFromLink(localVar.DataTypeName);
+                                TypeCache[localVar.DataTypeName] = varType;
+                            }
+
+                            if (!TypeHelper.IsSafeExpressionType(varType))
+                            {
+                                errors.Add($"[安全拦截] 变量 '{localVar.Name}' 数据类型不合法！");
+                                continue;
+                            }
+                        }
+                        catch { }
+
+                        delegateParams.Add(new Parameter(localVar.Name, varType));
+                        compiledVarTypes[localVar.Id] = varType;
+                        compiledVarIds.Add(localVar.Id);
+                    }
+
+                    // 2. 提取唯一的循环分支
+                    var loopCollection = whileModel.Children.FirstOrDefault();
+                    var compiledBranch = new CompiledBranch
+                    {
+                        LocalVarIds = compiledVarIds,
+                        VarTypes = compiledVarTypes,
+                        ExecutionSteps = new List<CompiledNode>(),
+                    };
+
+                    if (loopCollection != null)
+                    {
+                        // 递归编译循环体内部算子
+                        if (loopCollection.Steps != null)
+                        {
+                            compiledBranch.ExecutionSteps = CompileSteps(
+                                loopCollection.Steps,
+                                pluginLookup,
+                                nodeLookup,
+                                errors
+                            );
+                        }
+
+                        // 编译 While 的触发条件
+                        if (string.IsNullOrWhiteSpace(loopCollection.Expression))
+                        {
+                            errors.Add(
+                                $"[编译警告] '{whileModel.StepName}' 的循环条件表达式为空。"
+                            );
+                        }
+                        else
+                        {
+                            try
+                            {
+                                compiledBranch.ConditionLambda = _interpreter.Parse(
+                                    loopCollection.Expression,
+                                    typeof(bool),
+                                    delegateParams.ToArray()
+                                );
+                            }
+                            catch (Exception ex)
+                            {
+                                errors.Add(
+                                    $"[语法错误] While节点 '{whileModel.StepName}' 编译失败: {ex.Message}"
+                                );
+                            }
+                        }
+                    }
+
+                    whileNode.LoopBranch = compiledBranch;
+                    compiledNodes.Add(whileNode);
+                }
+                // ==========================================
+                // 🎯 场景 A-2：If 条件节点 (保留你原本完美的代码)
+                // ==========================================
+                else if (model is ConditionStep conditionModel)
                 {
                     var ifNode = new CompiledIfNode();
-                    nodeLookup.Add(model.StepID, ifNode); // 登记节点，为了后续连线
+                    nodeLookup.Add(model.StepID, ifNode);
 
-                    // 准备形参签名       变量名和它推断出的类型存下来，运行期需要用到！
                     var delegateParams = new List<Parameter>();
-                    var compiledVarTypes = new Dictionary<string, Type>();
-                    if (conditionModel.LocalVariableNames != null)
+                    var compiledVarTypes = new Dictionary<Guid, Type>();
+                    var compiledVarIds = new List<Guid>();
+
+                    foreach (var localVar in conditionModel.LocalVariables)
                     {
-                        foreach (var localVar in conditionModel.LocalVariableNames)
+                        Type varType = typeof(double);
+                        try
                         {
-                            Type varType = typeof(double);
-                            if (conditionModel.LinkedSources.TryGetValue(localVar, out var link) && link != null)
+                            varType = Type.GetType(localVar.DataTypeName) ?? typeof(double);
+                            if (TypeCache.TryGetValue(localVar.DataTypeName, out var type))
                             {
-
-                                var actualType = TypeHelper.GetActualTypeFromLink(link);
-                                if (actualType != null)
-                                {
-                                    // ==========================================
-                                    // 🛑 核心拦截：类型安检！
-                                    // ==========================================
-                                    if (!TypeHelper.IsSafeExpressionType(actualType))
-                                    {
-                                        errors.Add($"[安全拦截] 变量 '{localVar}' 绑定的数据类型 '{actualType.Name}' 不合法！表达式仅支持基础数值和字符串。");
-                                        continue; 
-                                    }
-
-                                    varType = actualType;
-                                }
+                                varType = type;
                             }
-                            delegateParams.Add(new Parameter(localVar, varType));
-                            compiledVarTypes[localVar] = varType;
+                            else
+                            {
+                                varType = TypeHelper.GetActualTypeFromLink(localVar.DataTypeName);
+                                TypeCache[localVar.DataTypeName] = varType;
+                            }
+
+                            if (!TypeHelper.IsSafeExpressionType(varType))
+                            {
+                                errors.Add($"[安全拦截] 变量 '{localVar.Name}' 数据类型不合法！");
+                                continue;
+                            }
                         }
+                        catch { }
+
+                        delegateParams.Add(new Parameter(localVar.Name, varType));
+                        compiledVarTypes[localVar.Id] = varType;
+                        compiledVarIds.Add(localVar.Id);
                     }
 
                     // 编译分支
@@ -123,8 +224,11 @@ namespace VisionMaster.Services
                         {
                             try
                             {
-                                //// 强制第二个参数返回 bool，增加安全性
-                                compiledCondition = _interpreter.Parse("true", typeof(bool), delegateParams.ToArray());
+                                compiledCondition = _interpreter.Parse(
+                                    "true",
+                                    typeof(bool),
+                                    delegateParams.ToArray()
+                                );
                             }
                             catch { }
                         }
@@ -138,7 +242,11 @@ namespace VisionMaster.Services
                         {
                             try
                             {
-                                compiledCondition = _interpreter.Parse(childCollection.Expression, typeof(bool), delegateParams.ToArray());
+                                compiledCondition = _interpreter.Parse(
+                                    childCollection.Expression,
+                                    typeof(bool),
+                                    delegateParams.ToArray()
+                                );
                             }
                             catch (Exception ex)
                             {
@@ -152,13 +260,54 @@ namespace VisionMaster.Services
                             new CompiledBranch
                             {
                                 ConditionLambda = compiledCondition,
-                                LocalVarNames = conditionModel.LocalVariableNames?.ToList() ?? new List<string>(),
+                                LocalVarIds = compiledVarIds,
                                 VarTypes = compiledVarTypes,
-                                ExecutionSteps = childNodes
+                                ExecutionSteps = childNodes,
                             }
                         );
                     }
                     compiledNodes.Add(ifNode);
+                }
+                // ==========================================
+                // 🎯 场景 A-3：For 计次循环节点
+                // ==========================================
+                else if (model is ForStep forModel)
+                {
+                    var forNode = new CompiledForNode();
+                    forNode.DefaultLoopCount = forModel.DefaultLoopCount;
+                    nodeLookup.Add(model.StepID, forNode);
+
+                    // For 节点没有局部变量和动态表达式，只需要递归编译它里面的算子即可
+                    var loopCollection = forModel.Children.FirstOrDefault();
+                    if (loopCollection != null && loopCollection.Steps != null)
+                    {
+                        forNode.LoopBody = CompileSteps(
+                            loopCollection.Steps,
+                            pluginLookup,
+                            nodeLookup,
+                            errors
+                        );
+                    }
+
+                    compiledNodes.Add(forNode);
+                }
+                else if (model.PluginTypeName == "BuiltIn_Break")
+                {
+                    var breakNode = new CompiledBreakNode();
+                    nodeLookup.Add(model.StepID, breakNode);
+                    compiledNodes.Add(breakNode);
+                }
+                else if (model.PluginTypeName == "BuiltIn_Continue")
+                {
+                    var continueNode = new CompiledContinueNode();
+                    nodeLookup.Add(model.StepID, continueNode);
+                    compiledNodes.Add(continueNode);
+                }
+                else if (model.PluginTypeName == "BuiltIn_Return")
+                {
+                    var returnNode = new CompiledReturnNode();
+                    nodeLookup.Add(model.StepID, returnNode);
+                    compiledNodes.Add(returnNode);
                 }
                 // ==========================================
                 // 🎯 场景 B：真正的视觉算子 (反射实例化)
@@ -207,7 +356,7 @@ namespace VisionMaster.Services
         {
             foreach (var model in models)
             {
-                if (model == null || !model.IsEnabled)
+                if (model == null || model.IsDisEnable)
                     continue;
 
                 if (!nodeLookup.TryGetValue(model.StepID, out var targetNode))
@@ -216,7 +365,7 @@ namespace VisionMaster.Services
                 // --- 连线绑定 ---
                 foreach (var linkKvp in model.LinkedSources)
                 {
-                    string myInputName = linkKvp.Key;
+                    var myInputName = linkKvp.Key;
                     LinkReference linkRef = linkKvp.Value;
                     if (linkRef == null)
                         continue;
@@ -271,6 +420,17 @@ namespace VisionMaster.Services
                             if (linkRef.DisplayAddress != correctAddress)
                                 linkRef.DisplayAddress = correctAddress;
                         }
+                        else if (nodeLookup.TryGetValue(linkRef.TargetStepId, out var upNode))
+                        {
+                            if (
+                                upNode is CompiledForNode forNode
+                                && linkRef.TargetPortName == "Index"
+                            )
+                            {
+                                sourcePort = forNode.IndexPort;
+                                actualUpstreamName = "ForLoop"; // 或者从图纸查名字
+                            }
+                        }
                         else
                         {
                             errors.Add(
@@ -281,9 +441,9 @@ namespace VisionMaster.Services
 
                     if (sourcePort != null)
                     {
-                        // 🎯 目标是普通算子
                         if (targetNode is CompiledPluginNode pluginNode)
                         {
+                            // 普通算子：myInputName 依然是 "InImage" 这样的真实名字
                             if (
                                 pluginNode.ExternalPlugin.Inputs.TryGetValue(
                                     myInputName,
@@ -291,16 +451,30 @@ namespace VisionMaster.Services
                                 )
                             )
                                 myInPort.LinkedSource = sourcePort;
-                            else
-                                errors.Add(
-                                    $"[结构错误] '{model.StepName}' 不存在输入端口 '{myInputName}'"
-                                );
                         }
-                        // 🎯 目标是 IF 控制节点
                         else if (targetNode is CompiledIfNode ifNode)
                         {
-                            // 直接把上游的输出端口挂到字典里，运行时直接读取它的 Value！
-                            ifNode.UpstreamLinks[myInputName] = sourcePort;
+                            // 🌟 If 算子：myInputName 其实是 Guid 的 ToString()！直接转回 Guid 存进去！
+                            if (Guid.TryParse(myInputName, out Guid varId))
+                            {
+                                ifNode.UpstreamLinks[varId] = sourcePort;
+                            }
+                        }
+                        // 🌟🌟 补全：While 算子的连线逻辑 (和 If 一模一样，都是接收 Guid 作为键)
+                        else if (targetNode is CompiledWhileNode whileNode)
+                        {
+                            if (Guid.TryParse(myInputName, out Guid varId))
+                            {
+                                whileNode.UpstreamLinks[varId] = sourcePort;
+                            }
+                        }
+                        // 🌟🌟 补全：For 算子接收外部传来的循环次数 (连线名我们在注册时叫 "LoopCount")
+                        else if (targetNode is CompiledForNode forNode)
+                        {
+                            if (myInputName == "LoopCount")
+                            {
+                                forNode.LoopCountLink = sourcePort;
+                            }
                         }
                     }
                 }
@@ -318,9 +492,17 @@ namespace VisionMaster.Services
                 }
 
                 // --- 递归子分支连线 ---
+                // 💡 注意：因为 WhileStep 继承自 ConditionStep，所以这里会自动包含了 If 和 While 两种容器！
                 if (model is ConditionStep conditionModel && conditionModel.Children != null)
                 {
                     foreach (var branch in conditionModel.Children)
+                        if (branch.Steps != null)
+                            LinkPorts(branch.Steps, nodeLookup, pluginLookup, errors);
+                }
+                // 🌟🌟 补全：For 容器的递归遍历
+                else if (model is ForStep forModel && forModel.Children != null)
+                {
+                    foreach (var branch in forModel.Children)
                         if (branch.Steps != null)
                             LinkPorts(branch.Steps, nodeLookup, pluginLookup, errors);
                 }

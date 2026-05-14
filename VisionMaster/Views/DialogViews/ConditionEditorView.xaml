@@ -152,6 +152,7 @@
                     Margin="10,10,10,0"
                     Background="Transparent"
                     BorderThickness="0"
+                    SelectedIndex="-1"
                     ItemsSource="{Binding Branches}"
                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                     SelectedItem="{Binding SelectedBranch}">

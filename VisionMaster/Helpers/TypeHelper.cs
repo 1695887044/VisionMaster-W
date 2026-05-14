@@ -21,24 +21,56 @@ namespace VisionMaster.Helpers
             // 拒绝其他所有复杂的 Class 引用类型
             return false;
         }
-
-        public static Type ResolveTypeFromString(string typeStr)
+        public static bool IsTypeCompatible(Type source, Type target)
         {
-            if (string.IsNullOrWhiteSpace(typeStr)) return typeof(double);
-            switch (typeStr.ToLower())
+            // 1. 完全相同，或者存在继承关系 (比如子类可以赋给父类)
+            if (target.IsAssignableFrom(source))
+                return true;
+
+            // 2. 目标如果是 object，来者不拒
+            if (target == typeof(object))
+                return true;
+
+            // 3. 目标如果是 string，任何类型都能通过 .ToString() 转成文本
+            if (target == typeof(string))
+                return true;
+
+            // 4. 🌟 智能数值兼容：允许 int 绑定到 double (因为我们底层 OutputPort 加了 Convert.ChangeType)
+            if (IsNumericType(source) && IsNumericType(target))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// 判断是否为基础数值类型
+        /// </summary>
+        public static bool IsNumericType(Type type)
+        {
+            switch (Type.GetTypeCode(type))
             {
-                case "system.string": case "string": return typeof(string);
-                case "system.boolean": case "bool": return typeof(bool);
-                default: return typeof(double);
+                case TypeCode.Byte:
+                case TypeCode.SByte:
+                case TypeCode.UInt16:
+                case TypeCode.UInt32:
+                case TypeCode.UInt64:
+                case TypeCode.Int16:
+                case TypeCode.Int32:
+                case TypeCode.Int64:
+                case TypeCode.Decimal:
+                case TypeCode.Double:
+                case TypeCode.Single:
+                    return true;
+                default:
+                    return false;
             }
         }
-        public static Type GetActualTypeFromLink(dynamic link)
+        public static Type GetActualTypeFromLink(string typeName)
         {
-            if (link == null) return typeof(double); // 断线兜底
+            if (typeName == null) return typeof(double); // 断线兜底
 
-            // 🌟 TODO: 将 DataTypeName 替换为你对象中真实存储类型名称的属性！
             // 假设它拿到的是 "System.Double", "System.String" 这样的字符串
-            string typeName = link.DataTypeName?.ToString();
+
 
             if (string.IsNullOrWhiteSpace(typeName))
                 return typeof(double);

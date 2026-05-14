@@ -8,9 +8,9 @@ namespace VisionMaster.Models
 {
     public class LocalVariableItem:BindableBase
     {
-        public Guid Id { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid(); 
         public string Name { get => field; set => SetProperty(ref field, value); }
 
-        public string DataTypeName { get => field; set => SetProperty(ref field, value); }
+        public string DataTypeName { get => field; set => SetProperty(ref field, value); } = "System.Double";
     }
 }

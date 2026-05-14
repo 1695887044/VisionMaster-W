@@ -5,11 +5,10 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dd="urn:gong-wpf-dragdrop"
     xmlns:enums="clr-namespace:VisionMaster"
-    
-    xmlns:ui="http://schemas.UI.com/ui"
     xmlns:local="clr-namespace:VisionMaster.Views"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
     d:DesignHeight="600"
     d:DesignWidth="250"
     prism:ViewModelLocator.AutoWireViewModel="True"
@@ -45,7 +44,7 @@
                         </Grid.RowDefinitions>
                         <TextBlock
                             Grid.Row="0"
-                            FontFamily="{StaticResource  Icon}"
+                            FontFamily="{StaticResource Icon}"
                             FontSize="18"
                             Foreground="#4A5568"
                             Style="{StaticResource FunctionIconStyle}"
@@ -69,30 +68,30 @@
         </Grid.RowDefinitions>
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="50" />
+                <RowDefinition Height="00" />
                 <RowDefinition />
             </Grid.RowDefinitions>
             <StackPanel
                 Grid.Row="0"
                 Background="#F3F3F3"
                 Orientation="Horizontal">
-                <Button
+                <!--<Button
                     Margin="5,0"
                     CommandParameter="{x:Static enums:FlowAction.BrowseList}"
                     Content="&#xf013;"
                     FontFamily="{StaticResource Icon}"
                     Foreground="#005A9E"
                     Style="{StaticResource IconButon}"
-                    ToolTip="程序管理" />
+                    ToolTip="程序管理" />-->
             </StackPanel>
             <ListBox
                 Grid.Row="1"
                 HorizontalContentAlignment="Stretch"
                 Background="Transparent"
                 BorderThickness="0"
-                ItemsSource="{Binding Workspace.CurrentSolution.Flows }"
-                SelectedItem="{Binding SelectFlow}"
-                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                ItemsSource="{Binding Workspace.CurrentSolution.Flows}"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                SelectedItem="{Binding SelectFlow}">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
                         <Setter Property="Padding" Value="0" />
@@ -135,7 +134,7 @@
                                 Grid.Column="0"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                FontFamily="{StaticResource  Icon}"
+                                FontFamily="{StaticResource Icon}"
                                 FontSize="16"
                                 Foreground="#007ACC"
                                 Text="&#xf1c9;" />
@@ -157,7 +156,7 @@
                                 TextTrimming="CharacterEllipsis"
                                 ToolTip="{Binding Description}" />
                             <Grid.ContextMenu>
-                                <ContextMenu FontFamily="{StaticResource  Icon}">
+                                <ContextMenu FontFamily="{StaticResource Icon}">
                                     <MenuItem Header="流程" Icon="&#xf0e8;">
                                         <MenuItem
                                             Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
@@ -208,74 +207,102 @@
                 Background="#FFFFFF"
                 BorderBrush="#E4E7ED"
                 BorderThickness="0,0,0,1" />
-            <ItemsControl Background="{StaticResource PanelBackgroundBrush}" ItemsSource="{Binding ToolBarSource}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <!--  分组容器  -->
-                        <Expander
-                            Background="Transparent"
-                            BorderBrush="{StaticResource ToolBorderBrush}"
-                            BorderThickness="0,0,0,1"
-                            Header="{Binding Name}"
-                            IsExpanded="True">
-                            <Expander.HeaderTemplate>
-                                <DataTemplate>
-                                    <TextBlock
-                                        Margin="5,8"
-                                        FontWeight="SemiBold"
-                                        Foreground="{StaticResource PrimaryTextBrush}"
-                                        Text="{Binding}" />
-                                </DataTemplate>
-                            </Expander.HeaderTemplate>
 
-                            <!--  工具列表  -->
-                            <ItemsControl
-                                Margin="10,5"
-                                dd:DragDrop.DragAdornerTemplate="{StaticResource MyDragAdornerTemplate}"
-                                dd:DragDrop.IsDragSource="True"
-                                dd:DragDrop.UseDefaultDragAdorner="True"
-                                dd:DragDrop.UseDefaultEffectDataTemplate="True"
-                                ItemsSource="{Binding Children}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
+            <!--  🌟 1. 外层包裹 ScrollViewer，开启垂直滚动，禁用水平滚动  -->
+            <ScrollViewer
+                Padding="0,0,6,0"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+
+                <ItemsControl Background="{StaticResource PanelBackgroundBrush}" ItemsSource="{Binding ToolBarSource}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Expander
+                                Background="Transparent"
+                                BorderBrush="{StaticResource ToolBorderBrush}"
+                                BorderThickness="0,0,0,1"
+                                Header="{Binding Name}"
+                              
+                                IsExpanded="True">
+
+                                <Expander.HeaderTemplate>
                                     <DataTemplate>
-                                        <Border
-                                            Width="50"
-                                            Height="50"
-                                            Style="{StaticResource WhiteThemeToolCardStyle}"
-                                            ToolTip="{Binding Description}">
-                                            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="*" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-                                                <TextBlock
-                                                    Grid.Row="0"
-                                                    FontFamily="{StaticResource  Icon}"
-                                                    FontSize="18"
-                                                    Foreground="#4A5568"
-                                                    Style="{StaticResource FunctionIconStyle}"
-                                                    Text="{Binding Icon}" />
-                                                <TextBlock
-                                                    Grid.Row="1"
-                                                    MaxWidth="32"
-                                                    Foreground="#2D3748"
-                                                    Style="{StaticResource FunctionTextStyle}"
-                                                    Text="{Binding Name}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                            </Grid>
-                                        </Border>
+                                        <!--  恢复原本舒适的上下边距  -->
+                                        <TextBlock
+                                            Margin="5,10"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource PrimaryTextBrush}"
+                                            Text="{Binding}" />
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Expander>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                                </Expander.HeaderTemplate>
+
+
+                                <!--  工具列表  -->
+                                <ItemsControl
+                                    Margin="10,5,10,10"
+                                    dd:DragDrop.DragAdornerTemplate="{StaticResource MyDragAdornerTemplate}"
+                                    dd:DragDrop.IsDragSource="True"
+                                    dd:DragDrop.UseDefaultDragAdorner="True"
+                                    dd:DragDrop.UseDefaultEffectDataTemplate="True"
+                                    ItemsSource="{Binding Children}">
+
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <!--  🌟 加大间距，让卡片不要紧贴在一起  -->
+                                            <WrapPanel Margin="0,0,0,0" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <!--  🌟 1. 黄金尺寸：54x54，恢复紧凑感，同时 Margin 缩小到 4  -->
+                                            <Border
+                                                Width="54"
+                                                Height="54"
+                                                Margin="0,0,4,4"
+                                                Style="{StaticResource WhiteThemeToolCardStyle}"
+                                                ToolTip="{Binding Description}">
+                                                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <!--  🌟 2. 图标适当缩小，更显精致  -->
+                                                    <TextBlock
+                                                        Grid.Row="0"
+                                                        Margin="0,0,0,2"
+                                                        HorizontalAlignment="Center"
+                                                        FontFamily="{StaticResource Icon}"
+                                                        FontSize="16"
+                                                        Foreground="#4A5568"
+                                                        Style="{StaticResource FunctionIconStyle}"
+                                                        Text="{Binding Icon}"
+                                                        TextOptions.TextFormattingMode="Display" />
+
+                                                    <!--  🌟 3. 字体保持 11px，MaxWidth 卡在 50，完美兼容居中和极简换行  -->
+                                                    <TextBlock
+                                                        Grid.Row="1"
+                                                        MaxWidth="50"
+                                                        MaxHeight="28"
+                                                        HorizontalAlignment="Center"
+                                                        FontSize="11"
+                                                        Foreground="#2D3748"
+                                                        Style="{StaticResource FunctionTextStyle}"
+                                                        Text="{Binding Name}"
+                                                        TextAlignment="Center"
+                                                        TextTrimming="CharacterEllipsis"
+                                                        TextWrapping="Wrap" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>

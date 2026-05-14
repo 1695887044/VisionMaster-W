@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Core.Interfaces;
+using GongSolutions.Wpf.DragDrop;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -7,8 +9,6 @@ using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using Core.Interfaces;
-using GongSolutions.Wpf.DragDrop;
 using UI.CustomControl;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -103,7 +103,7 @@ namespace VisionMaster.ViewModels
                 case ModuleCommandAction.Paste:
                     break;
                 case ModuleCommandAction.Disable:
-                    CurrentSelectedStepModel.IsEnabled = false;
+                    CurrentSelectedStepModel.IsDisEnable = false;
                     break;
                 case ModuleCommandAction.Delete:
                     if (CurrentSelectedStepModel == null || Workspace?.CurrentFlow == null)
@@ -202,7 +202,6 @@ namespace VisionMaster.ViewModels
                 dropInfo.Effects = DragDropEffects.None;
                 return;
             }
-
             // 3. 智能推断“落地点名称”和“UI 框选效果”
             string destinationName = "主流程";
             bool isHoveringContainer = false;
@@ -212,9 +211,14 @@ namespace VisionMaster.ViewModels
                 destinationName = $"分支: {branch.StepName}";
                 isHoveringContainer = true;
             }
-            else if (dropInfo.TargetItem is ConditionStep condition)
+            else if (dropInfo.TargetItem is ConditionStep condition) // 💡 自动包含 If 和 While
             {
                 destinationName = $"容器: {condition.StepName}";
+                isHoveringContainer = true;
+            }
+            else if (dropInfo.TargetItem is ForStep forStep) // 🌟 新增：识别 For 循环容器
+            {
+                destinationName = $"循环: {forStep.StepName}";
                 isHoveringContainer = true;
             }
 
@@ -260,30 +264,30 @@ namespace VisionMaster.ViewModels
                 return;
 
             // ==========================================
-            // 第一步：智能解析要放进哪个“口袋” (彻底告别反射)
+            // 第一步：智能解析要放进哪个“口袋”
             // ==========================================
             IList targetList = args.TargetCollection as IList;
             int insertIndex = args.InsertIndex;
 
-            // 如果 WPF 拖拽库没有直接命中 ObservableCollection<StepModel>，
-            // 说明鼠标可能悬停在了“大容器的头部”或“背景空白处”，我们需要手动纠偏。
             if (targetList == null || !(targetList is IEnumerable<StepModel>))
             {
                 switch (args.TargetItem)
                 {
-                    // 🎯 命中情况 1：鼠标悬停在“If 分支”这个容器上
                     case StepCollection branch:
                         targetList = branch.Steps;
-                        insertIndex = branch.Steps.Count; // 默认追加到分支末尾
+                        insertIndex = branch.Steps.Count;
                         break;
 
-                    // 🎯 命中情况 2：鼠标悬停在“If 算子”的大头上
-                    case ConditionStep condition when condition.Children.Count > 0:
-                        targetList = condition.Children[0].Steps; // 默认丢进它的第一个分支 (If)
+                    case ConditionStep condition when condition.Children.Count > 0: // 💡 包含 If 和 While
+                        targetList = condition.Children[0].Steps;
                         insertIndex = condition.Children[0].Steps.Count;
                         break;
 
-                    // 🎯 兜底情况：统统丢进主流程
+                    case ForStep forStep when forStep.Children.Count > 0: // 🌟 新增：把算子丢进 For 循环肚子里
+                        targetList = forStep.Children[0].Steps;
+                        insertIndex = forStep.Children[0].Steps.Count;
+                        break;
+
                     default:
                         targetList = Workspace.CurrentFlow.Steps;
                         insertIndex = Workspace.CurrentFlow.Steps.Count;
@@ -291,11 +295,8 @@ namespace VisionMaster.ViewModels
                 }
             }
 
-            // 防止因为 UI 虚拟化导致的索引越界
-            if (insertIndex < 0)
-                insertIndex = 0;
-            if (insertIndex > targetList.Count)
-                insertIndex = targetList.Count;
+            if (insertIndex < 0) insertIndex = 0;
+            if (insertIndex > targetList.Count) insertIndex = targetList.Count;
 
             // ==========================================
             // 第二步：场景 A - 从工具箱【新增】算子 (Copy)
@@ -303,25 +304,38 @@ namespace VisionMaster.ViewModels
             if (args.Effects == DragDropEffects.Copy && args.Data is ToolItemModel node)
             {
                 var totalIndex = CountStepsDeep(Workspace.CurrentFlow.Steps, node.ModuleTypeName);
+                string stepName = $"{node.Name}_{totalIndex}";
 
-                StepModel newStep = node.IsContainer
-                    ? new ConditionStep(
-                        node.Icon,
-                        node.Name,
-                        node.ModuleTypeName,
-                        $"{node.Name}_{totalIndex}"
-                    )
-                    : new ActionStep(
-                        node.Icon,
-                        node.Name,
-                        node.ModuleTypeName,
-                        $"{node.Name}_{totalIndex}"
-                    );
+                StepModel newStep = null;
+
+                // 🌟 核心修改：根据 ModuleTypeName 精准实例化原生节点
+                if (node.IsContainer)
+                {
+                    if (node.ModuleTypeName == "BuiltIn_While")
+                    {
+                        newStep = new WhileStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
+                    }
+                    else if (node.ModuleTypeName == "BuiltIn_For")
+                    {
+                        newStep = new ForStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
+                    }
+                    else // 默认兜底是 If
+                    {
+                        newStep = new ConditionStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
+                    }
+                }
+                else
+                {
+                    // 普通算子
+                    newStep = new ActionStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
+                }
 
                 targetList.Insert(insertIndex, newStep);
+
+                // 🌟 别忘了通知图纸：结构改变了，需要重新编译！
+                Workspace.CurrentFlow.Version++;
                 return;
             }
-
             // ==========================================
             // 第三步：场景 B - 在画布内部【拖拽移动】 (Move)
             // ==========================================

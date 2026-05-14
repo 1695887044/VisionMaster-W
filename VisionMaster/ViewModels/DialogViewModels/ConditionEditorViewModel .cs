@@ -1,12 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO.Packaging;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Input;
-using Core.Interfaces;
 using Prism.Dialogs;
 using VisionMaster.Models;
 
@@ -17,13 +11,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private ConditionStep _targetNode;
         private readonly IDialogService dialogService;
 
-        // 左侧：分支列表 (If, ElseIf, Else)
-        public ObservableCollection<StepCollection> Branches
-        {
-            get => field;
-            set => SetProperty(ref field, value);
-        }
-
+        public ObservableCollection<StepCollection> Branches { get => field; set => SetProperty(ref field, value); }
         public StepCollection SelectedBranch
         {
             get => field;
@@ -34,41 +22,33 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        public ObservableCollection<VariableItem> Variables { get; } =
-            new ObservableCollection<VariableItem>();
+        public ObservableCollection<VariableItem> Variables { get; } = new ObservableCollection<VariableItem>();
 
-        // 命令
         public DelegateCommand AddVariableCommand { get; }
         public DelegateCommand<VariableItem> RemoveVariableCommand { get; }
         public DelegateCommand SaveCommand { get; }
         public DelegateCommand CancelCommand { get; }
         public DelegateCommand<VariableItem> BindVariableCommand { get; }
-        public string Title => "条件逻辑配置中心";
 
+        public string Title => "条件逻辑配置中心";
         public DialogCloseListener RequestClose { get; set; }
+        public event EventHandler<StepCollection> BranchChanged;
 
         public bool CanCloseDialog() => true;
-
         public void OnDialogClosed() { }
-
-        // 给 View 用的事件，解决 AvalonEdit 无法直接双向绑定的痛点
-        public event EventHandler<StepCollection> BranchChanged;
 
         public void OnDialogOpened(IDialogParameters parameters)
         {
             if (parameters.TryGetValue<ConditionStep>("Node", out var node))
             {
                 _targetNode = node;
-
-                // 此时赋值会触发 SetProperty，通知 UI 渲染左侧列表
                 Branches = node.Children;
-
-                // 恢复变量表
                 Variables.Clear();
-                foreach (var varName in node.LocalVariableNames)
+
+                foreach (var localVar in node.LocalVariables)
                 {
-                    var item = new VariableItem { AliasName = varName };
-                    if (node.LinkedSources.TryGetValue(varName, out var link))
+                    var item = new VariableItem { Id = localVar.Id, AliasName = localVar.Name , DataTypeName = localVar.DataTypeName };
+                    if (node.LinkedSources.TryGetValue(item.Id.ToString(), out var link))
                     {
                         item.SourceAddress = link.DisplayAddress;
                         item.OriginalLink = link;
@@ -76,7 +56,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     Variables.Add(item);
                 }
 
-                // 恢复选中的分支
                 var initialBranch = parameters.GetValue<StepCollection>("Branch");
                 SelectedBranch = initialBranch ?? Branches.FirstOrDefault();
             }
@@ -84,89 +63,83 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public ConditionEditorViewModel(IDialogService dialogService)
         {
-            AddVariableCommand = new(OnAddVariable);
-
-            RemoveVariableCommand = new DelegateCommand<VariableItem>(item =>
-            {
-                if (item != null)
-                    Variables.Remove(item);
-            });
-
-            SaveCommand = new DelegateCommand(OnSave);
-
-            CancelCommand = new DelegateCommand(() =>
-                RequestClose.Invoke(new DialogResult(ButtonResult.Cancel))
-            );
-            BindVariableCommand = new DelegateCommand<VariableItem>(OnBindVariable);
             this.dialogService = dialogService;
+            AddVariableCommand = new DelegateCommand(OnAddVariable);
+            RemoveVariableCommand = new DelegateCommand<VariableItem>(OnRemoveVariable);
+            SaveCommand = new DelegateCommand(OnSave);
+            CancelCommand = new DelegateCommand(() => RequestClose.Invoke(new DialogResult(ButtonResult.Cancel)));
+            BindVariableCommand = new DelegateCommand<VariableItem>(OnBindVariable);
         }
 
         private void OnBindVariable(VariableItem item)
         {
-            if (item == null)
-                return;
-            //使用插件中唯一的一个输入变量作为公共变量
-            // _targetNode.LinkedSources
-            _targetNode.LinkedSources.Clear();
-            dialogService.ShowDialog(
-                "DataBindView",
-                (s) =>
+            if (item == null) return;
+
+            // 🌟 开启单绑模式，告诉弹窗：“你不要碰源数据，只要把用户选的变量还给我就行！”
+            var p = new DialogParameters { { "IsSingleBindMode", true } };
+
+            dialogService.ShowDialog("DataBindView", p, (s) =>
+            {
+                if (s.Result != ButtonResult.OK) return;
+
+                // 🌟 安全取值
+                if (s.Parameters.TryGetValue<LinkReference>("BoundLink", out var link))
                 {
-                    if (s.Result != ButtonResult.OK) return;
-                    var data = _targetNode.LinkedSources.ElementAt(0).Value;
-                    item.SourceAddress = data.DisplayAddress;
-                    item.OriginalLink = data;
+                    item.SourceAddress = link.DisplayAddress;
+                    item.OriginalLink = link;
                 }
-            );
+                if (s.Parameters.TryGetValue<string>("DataTypeName", out var typeName))
+                {
+                    item.DataTypeName = typeName;
+                }
+            });
         }
+
         private void OnAddVariable()
         {
             Variables.Add(new VariableItem { AliasName = $"Var_{Variables.Count + 1}" });
-            _targetNode.LocalVariableNames.Add($"Var_{Variables.Count}");
         }
 
         private void OnRemoveVariable(VariableItem item)
         {
-            if (item != null)
-                Variables.Remove(item);
-            _targetNode.LocalVariableNames.Add($"Var_{item.AliasName}");
+            if (item != null) Variables.Remove(item);
         }
 
         private void OnSave()
         {
-            if (_targetNode == null)
-                return;
-            _targetNode.LocalVariableNames.Clear();
+            if (_targetNode == null) return;
+
+            _targetNode.LocalVariables.Clear();
             _targetNode.LinkedSources.Clear();
 
             foreach (var v in Variables)
             {
-                if (string.IsNullOrWhiteSpace(v.AliasName))
-                    continue;
-                _targetNode.LocalVariableNames.Add(v.AliasName);
+                if (string.IsNullOrWhiteSpace(v.AliasName)) continue;
+
+                _targetNode.LocalVariables.Add(new LocalVariableItem
+                {
+                    Id = v.Id,
+                    Name = v.AliasName,
+                    DataTypeName = v.DataTypeName
+                });
+
                 if (v.OriginalLink != null)
-                    _targetNode.LinkedSources[v.AliasName] = v.OriginalLink;
+                {
+                    _targetNode.LinkedSources[v.Id.ToString()] = v.OriginalLink;
+                }
             }
 
-            // Prism 标准关闭并返回成功
             RequestClose.Invoke(new DialogResult(ButtonResult.OK));
         }
     }
 
     public class VariableItem : BindableBase
     {
-        public string AliasName
-        {
-            get => field;
-            set => SetProperty(ref field, value);
-        }
-
-        public string SourceAddress
-        {
-            get => field;
-            set => SetProperty(ref field, value);
-        }
-
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string AliasName { get => field; set => SetProperty(ref field, value); }
+        public string SourceAddress { get => field; set => SetProperty(ref field, value); }
         public LinkReference OriginalLink { get; set; }
+
+        public string DataTypeName { get; set; } = "System.Double";
     }
 }

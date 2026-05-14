@@ -14,6 +14,7 @@ namespace VisionMaster.Services
         public IPortBindingService PortBindingService { get; init; }
 
         public CancellationToken CancellationToken { get; init; }
+        public FlowControlState CurrentFlowState { get; set; }
 
         public ExecutionContext(ILogService logService)
         {

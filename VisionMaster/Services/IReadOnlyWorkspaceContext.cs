@@ -126,20 +126,14 @@ namespace VisionMaster.Services
 
             foreach (var step in steps)
             {
-                // 1. 表面找到了，直接返回 true
                 if (step == targetStep)
                     return true;
-
-                // 2. 如果当前算子是个容器，钻进去找
-                if (step is ConditionStep conditionStep && conditionStep.Children != null)
+                if (step is IContainerStep container && container.Children != null)
                 {
-                    foreach (var branch in conditionStep.Children)
+                    foreach (var branch in container.Children)
                     {
-                        // 递归调用自己，去分支的 Steps 里找
                         if (ContainsStepRecursively(branch.Steps, targetStep))
-                        {
                             return true;
-                        }
                     }
                 }
             }

@@ -7,13 +7,12 @@ using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
-    public class ConditionStep : StepModel
+    public class ConditionStep : StepModel,IContainerStep
     {
         /// <summary>
         /// 用来描述 条件局部变量和 上游端口变量的关系  Var_1  在子容器  会有一个 <Var_1,LinkSource>的字典
         /// </summary>
         public ObservableCollection<LocalVariableItem> LocalVariables { get; set; } = new();
-        public ObservableCollection<string> LocalVariableNames { get; set; } = new();
         public ObservableCollection<StepCollection> Children { get; } = new();
 
         public ConditionStep(

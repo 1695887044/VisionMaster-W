@@ -45,7 +45,11 @@ namespace VisionMaster.Models
 
         public int SortId { get; set; }
 
-        public bool IsEnabled { get; set; } = true;
+        public bool IsDisEnable
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } 
 
         public StepState State
         {
@@ -53,6 +57,7 @@ namespace VisionMaster.Models
             set => SetProperty(ref field, value);
         }
         public Dictionary<string, object> InputValues { get; set; } = new Dictionary<string, object>();
+
         public Dictionary<string, LinkReference> LinkedSources { get; set; } = new();
 
         public StepModel(string icon,string pluginName, string pluginTypeName, string stepName =null)

@@ -322,8 +322,8 @@
             <avalonDock:LayoutRoot>
                 <avalonDock:LayoutPanel Orientation="Horizontal">
 
-                    <avalonDock:LayoutAnchorablePaneGroup DockWidth="450" Orientation="Horizontal">
-                        <avalonDock:LayoutAnchorablePane DockWidth="200">
+                    <avalonDock:LayoutAnchorablePaneGroup DockWidth="500" Orientation="Horizontal">
+                        <avalonDock:LayoutAnchorablePane DockWidth="220">
                             <avalonDock:LayoutAnchorable
                                 Title="工具栏"
                                 CanClose="False"

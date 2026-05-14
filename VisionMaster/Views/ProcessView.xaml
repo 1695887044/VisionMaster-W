@@ -29,104 +29,250 @@
         ItemsSource="{Binding Workspace.CurrentFlow.Steps}"
         PreviewMouseRightButtonUp="moduleTree_PreviewMouseRightButtonDown">
         <TreeView.Resources>
+
+            <!--  ==========================================  -->
+            <!--  🧩 普通视觉算子样式 (ActionStep)  -->
+            <!--  ==========================================  -->
             <DataTemplate DataType="{x:Type models:ActionStep}">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock
-                        Margin="0,0,10,0"
-                        VerticalAlignment="Center"
-                        FontFamily="{StaticResource Icon}"
-                        Foreground="#4A90E2"
-                        Text="{Binding Icon}" />
-                    <TextBlock
-                        MaxWidth="140"
-                        Margin="2,0,0,0"
-                        VerticalAlignment="Center"
-                        Text="{Binding StepName}"
-                        TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding StepName}" />
-                    <TextBlock
-                        MaxWidth="180"
-                        Margin="2,0,0,0"
-                        VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="Green"
-                        Text="{Binding Description}"
-                        TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding Description}" />
-                </StackPanel>
+                <Border Padding="0,4" Background="Transparent">
+                    <StackPanel Orientation="Horizontal">
+                        <!--  算子图标 (开启 Display 模式，让图标更锐利)  -->
+                        <TextBlock
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="14"
+                            Foreground="#409EFF"
+                            Text="{Binding Icon}"
+                            TextOptions.TextFormattingMode="Display" />
+
+                        <!--  算子名称  -->
+                        <TextBlock
+                            MaxWidth="150"
+                            VerticalAlignment="Center"
+                            FontWeight="Medium"
+                            Foreground="#303133"
+                            Text="{Binding StepName}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding StepName}" />
+
+                        <!--  算子描述 (改为高级灰，避免亮绿色喧宾夺主)  -->
+                        <TextBlock
+                            MaxWidth="180"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="#909399"
+                            Text="{Binding Description}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding Description}" />
+                    </StackPanel>
+                </Border>
             </DataTemplate>
+
+            <!--  ==========================================  -->
+            <!--  🔀 If 条件节点容器样式  -->
+            <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:ConditionStep}" ItemsSource="{Binding Children}">
                 <StackPanel
-                    Margin="0,10,0,4"
+                    Margin="0,12,0,4"
                     Background="Transparent"
                     Orientation="Horizontal"
                     ToolTip="点击配置分支输入变量">
-
+                    <!--  标识色块  -->
                     <Rectangle
                         Width="3"
                         Height="14"
                         Margin="0,0,8,0"
-                        Fill="#DCDFE6"
+                        Fill="#909399"
                         RadiusX="1.5"
                         RadiusY="1.5" />
+                    <!--  节点图标  -->
+                    <TextBlock
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="#909399"
+                        Text="{Binding Icon}"
+                        TextOptions.TextFormattingMode="Display" />
+                    <!--  节点类型标签  -->
                     <TextBlock
                         VerticalAlignment="Center"
                         FontSize="12"
                         FontWeight="Bold"
-                        Foreground="#909399"
+                        Foreground="#606266"
                         Text="逻辑路由" />
-
+                    <!--  节点别名  -->
                     <TextBlock
-                        Margin="4,0,0,0"
+                        Margin="6,0,0,0"
                         VerticalAlignment="Center"
                         FontSize="12"
                         Foreground="#C0C4CC"
                         Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
                 </StackPanel>
             </HierarchicalDataTemplate>
+
+            <!--  ==========================================  -->
+            <!--  🔄 While 循环节点容器样式  -->
+            <!--  ==========================================  -->
+            <HierarchicalDataTemplate DataType="{x:Type models:WhileStep}" ItemsSource="{Binding Children}">
+                <StackPanel
+                    Margin="0,12,0,4"
+                    Background="Transparent"
+                    Orientation="Horizontal"
+                    ToolTip="点击配置循环条件">
+                    <Rectangle
+                        Width="3"
+                        Height="14"
+                        Margin="0,0,8,0"
+                        Fill="#E6A23C"
+                        RadiusX="1.5"
+                        RadiusY="1.5" />
+                    <TextBlock
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="#E6A23C"
+                        Text="{Binding Icon}"
+                        TextOptions.TextFormattingMode="Display" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="#E6A23C"
+                        Text="While 循环" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="#C0C4CC"
+                        Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                </StackPanel>
+            </HierarchicalDataTemplate>
+
+            <!--  ==========================================  -->
+            <!--  🔢 For 计次循环节点容器样式  -->
+            <!--  ==========================================  -->
+            <HierarchicalDataTemplate DataType="{x:Type models:ForStep}" ItemsSource="{Binding Children}">
+                <StackPanel
+                    Margin="0,12,0,4"
+                    Background="Transparent"
+                    Orientation="Horizontal"
+                    ToolTip="计次循环容器">
+                    <Rectangle
+                        Width="3"
+                        Height="14"
+                        Margin="0,0,8,0"
+                        Fill="#67C23A"
+                        RadiusX="1.5"
+                        RadiusY="1.5" />
+                    <TextBlock
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="#67C23A"
+                        Text="{Binding Icon}"
+                        TextOptions.TextFormattingMode="Display" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="#67C23A"
+                        Text="For 循环" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="#C0C4CC"
+                        Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                </StackPanel>
+            </HierarchicalDataTemplate>
+
+            <!--  ==========================================  -->
+            <!--  📦 分支/循环体 卡片样式 (StepCollection)  -->
+            <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:StepCollection}" ItemsSource="{Binding Steps}">
-                <!-- 基础卡片样式 (加入阴影和更柔和的圆角，强调它是可以拖入算子的容器) -->
-                <Border x:Name="BranchContainer"
-            MinWidth="180" MinHeight="32" 
-            Margin="0,4,0,4" Padding="10,6"
-            Background="#F0F7FF" 
-            BorderBrush="#CBE5FF" 
-            BorderThickness="1" 
-            CornerRadius="6"
-            ToolTip="将算子拖入此分支内部">
+                <!--  卡片主体  -->
+                <Border
+                    x:Name="BranchContainer"
+                    MinWidth="180"
+                    MinHeight="32"
+                    Margin="0,4,0,4"
+                    Padding="10,6"
+                    Background="#F0F7FF"
+                    BorderBrush="#CBE5FF"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    ToolTip="将算子拖入此分支内部">
 
                     <StackPanel Orientation="Horizontal">
-                        <!-- 状态指示灯 -->
-                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,0,10,0" Fill="#409EFF" VerticalAlignment="Center"/>
+                        <!--  状态指示灯  -->
+                        <Ellipse
+                            x:Name="StatusDot"
+                            Width="8"
+                            Height="8"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Fill="#409EFF" />
 
-                        <!-- 分支文本 -->
-                        <TextBlock x:Name="BranchText" 
-                       VerticalAlignment="Center" 
-                       FontWeight="SemiBold" 
-                       Foreground="#303133" 
-                       Text="{Binding DisplayName}" />
+                        <!--  分支文本  -->
+                        <TextBlock
+                            x:Name="BranchText"
+                            VerticalAlignment="Center"
+                            FontWeight="SemiBold"
+                            Foreground="#303133"
+                            Text="{Binding DisplayName}" />
+
+                        <!--  代码表达式 (Consolas 等宽字体)  -->
+                        <TextBlock
+                            x:Name="ExpressionText"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Consolas"
+                            FontSize="12"
+                            Foreground="#409EFF"
+                            Text="{Binding Expression, StringFormat='[ {0} ]'}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Expression}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Expression}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
                 </Border>
 
-                <!-- 🌟 神奇的触发器：让卡片学会自己变色 -->
+                <!--  🌟 智能变色触发器  -->
                 <HierarchicalDataTemplate.Triggers>
-
-                    <!-- 场景 1：如果是 Else 分支 -> 变成低调的灰色 -->
+                    <!--  场景 1：Else 分支 (灰色)  -->
                     <DataTrigger Binding="{Binding BranchType}" Value="Else">
                         <Setter TargetName="BranchContainer" Property="Background" Value="#F5F7FA" />
                         <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#E4E7ED" />
                         <Setter TargetName="StatusDot" Property="Fill" Value="#A8ABB2" />
                         <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                        <Setter TargetName="ExpressionText" Property="Foreground" Value="#909399" />
                     </DataTrigger>
 
+                    <!--  场景 2：Default 循环体 (浅绿)  -->
                     <DataTrigger Binding="{Binding BranchType}" Value="Default">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#F5F7FA" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#E4E7ED" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#A8ABB2" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#F0F9EB" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#C2E7B0" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#67C23A" />
                         <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                        <Setter TargetName="ExpressionText" Property="Foreground" Value="#67C23A" />
                     </DataTrigger>
 
-                    <!-- 场景 2：如果是 If 分支，但是表达式为空！ -> 变成危险的红色警告 -->
+                    <!--  场景 3：If 表达式为空时，红色危险警告  -->
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding BranchType}" Value="If" />
@@ -138,7 +284,6 @@
                         <Setter TargetName="BranchText" Property="Foreground" Value="#F56C6C" />
                     </MultiDataTrigger>
 
-                    <!-- 兼容 Expression 为 "" (空字符串) 的情况 -->
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding BranchType}" Value="If" />
@@ -149,9 +294,9 @@
                         <Setter TargetName="StatusDot" Property="Fill" Value="#F56C6C" />
                         <Setter TargetName="BranchText" Property="Foreground" Value="#F56C6C" />
                     </MultiDataTrigger>
-
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
+
         </TreeView.Resources>
         <TreeView.ContextMenu>
             <ContextMenu DataContext="{Binding Data, Source={StaticResource ModuleData}}" FontFamily="{StaticResource Icon}">
