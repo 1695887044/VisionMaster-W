@@ -1,11 +1,11 @@
-﻿using Core.Interfaces;
-using NLog;
-using Prism.Common;
-using Prism.Dialogs;
-using System.Reflection.Metadata;
+﻿using System.Reflection.Metadata;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using Core.Interfaces;
+using NLog;
+using Prism.Common;
+using Prism.Dialogs;
 using UI.Attributes;
 using UI.CustomControl;
 using UI.Helper;
@@ -22,14 +22,13 @@ namespace VisionMaster
     {
         private readonly FlowCompiler _flowCompiler;
         private readonly IFlowEngine flowEngine;
-        private SystemMonitor _monitor = new();
         private readonly IExecutionContext executionContext;
         private readonly IDialogService dialogService;
         private readonly IFlowEngine flowService;
         private readonly IRuntimeManager _runtimeManager;
         private CancellationTokenSource _cts;
         private Task _monitorTask;
-        public  IWorkspaceManager Workspace { get; }
+        public IWorkspaceManager Workspace { get; }
         private string CurrentFlowName => Workspace.CurrentFlow?.FlowName;
         public SolutionService solutionService { get; }
 
@@ -77,7 +76,6 @@ namespace VisionMaster
             FlowCompiler _flowCompiler
         )
         {
-          
             StartBackgroundMonitoring();
             SolutionCommand = new(ExecuteProjectAction);
             ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction);
@@ -90,20 +88,6 @@ namespace VisionMaster
             this.flowService = flowService;
             this._runtimeManager = _runtimeManager;
             this._flowCompiler = _flowCompiler;
-        }
-
-        private void OnUpdateSystemInfo(object? sender, EventArgs e)
-        {
-            CurrentTimeText = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
-            double cpu = _monitor.GetCpuUsage();
-            double mem = _monitor.GetMemoryUsageMB();
-            int threads = _monitor.GetThreadCount();
-            int handles = _monitor.GetHandleCount();
-
-            CpuUsageStr = $"CPU: {cpu:F1}%";
-            MemoryUsageStr = $"MEM: {mem:F0} MB";
-            ThreadCountStr = $"THD: {threads}";
-            HandleCountStr = $"HDL: {handles}";
         }
 
         /// <summary>
@@ -127,7 +111,7 @@ namespace VisionMaster
                     }
                     break;
                 case SolutionAction.Open:
-                 await   EasyDialog.ShowCustomAsync("", new ConditionEditorView());
+                    await EasyDialog.ShowCustomAsync("", new ConditionEditorView());
                     break;
                 case SolutionAction.Save:
                     break;
@@ -135,17 +119,19 @@ namespace VisionMaster
                     break;
             }
         }
+
         private FlowSession _currentSession;
+
         private void OnExecutionAction(ExecutionAction? action)
         {
-            
             switch (action)
             {
                 case ExecutionAction.Compile:
                     DoCompile();
                     break;
                 case ExecutionAction.RunOnce:
-                    if (!PreRunCheck()) return;
+                    if (!PreRunCheck())
+                        return;
                     var sessionOnce = _runtimeManager.GetSessionByName(CurrentFlowName);
                     if (sessionOnce != null)
                     {
@@ -153,7 +139,8 @@ namespace VisionMaster
                     }
                     break;
                 case ExecutionAction.RunContinuous:
-                    if (!PreRunCheck()) return;
+                    if (!PreRunCheck())
+                        return;
                     // 从仓库拿机器，丢给引擎跑死循环
                     var sessionCont = _runtimeManager.GetSessionByName(CurrentFlowName);
                     if (sessionCont != null)
@@ -183,46 +170,47 @@ namespace VisionMaster
                     break;
             }
         }
+
         private void StartBackgroundMonitoring()
         {
             _cts = new CancellationTokenSource();
-            _monitorTask = Task.Run(async () =>
-            {
-                while (!_cts.Token.IsCancellationRequested)
+            _monitorTask = Task.Run(
+                async () =>
                 {
-                    try
+                    while (!_cts.Token.IsCancellationRequested)
                     {
-                        double cpu = _monitor.GetCpuUsage();
-                        double mem = _monitor.GetMemoryUsageMB();
-                        int threads = _monitor.GetThreadCount();
-                        int handles = _monitor.GetHandleCount();
-                        Application.Current.Dispatcher.Invoke(() =>
+                        try
                         {
-                            CpuUsageStr = $"CPU: {cpu:F1}%";
-                            MemoryUsageStr = $"MEM: {mem:F0} MB";
-                            ThreadCountStr = $"THD: {threads}";
-                            HandleCountStr = $"HDL: {handles}";
-                            CurrentTimeText = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
-                        });
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        Notifier.ShowError(ex.Message);
-                    }
+                            var metrics = SystemMonitor.Instance.GetAllMetrics();
 
-                    await Task.Delay(TimeSpan.FromSeconds(1), _cts.Token);
-                }
-            }, _cts.Token);
+                            CpuUsageStr = $"CPU: {metrics.CpuUsagePercent:F1}%";
+                            MemoryUsageStr = $"MEM: {metrics.PrivateMemoryMB:F0} MB";
+                            ThreadCountStr = $"THD: {metrics.ThreadCount}";
+                            HandleCountStr = $"HDL: {metrics.HandleCount}";
+                            CurrentTimeText = DateTime.Now.ToString(" HH:mm:ss");
+                            //CurrentTimeText = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            Notifier.ShowError(ex.Message);
+                        }
+
+                        await Task.Delay(TimeSpan.FromSeconds(1), _cts.Token);
+                    }
+                },
+                _cts.Token
+            );
         }
 
         #region Methods
         private bool PreRunCheck()
         {
-            if (Workspace.CurrentFlow == null) return false;
+            if (Workspace.CurrentFlow == null)
+                return false;
 
             // 从仓库中寻找当前流程的运行实例
             var session = _runtimeManager.GetSessionByName(CurrentFlowName);
@@ -231,14 +219,21 @@ namespace VisionMaster
             if (session == null)
             {
                 var result = EasyDialog.ShowSync("提示", "当前流程尚未编译，是否立即编译并运行？");
-                if (result) { DoCompile(); return true; }
+                if (result)
+                {
+                    DoCompile();
+                    return true;
+                }
                 return false;
             }
 
             // 2. 🌟 脏检查：图纸版本是否大于已编译的物理机版本？
             if (Workspace.CurrentFlow.Version > session.CompiledVersion)
             {
-                var result = EasyDialog.ShowSync("配置已更改", "检测到流程图纸已修改，当前的运行逻辑已过期。\n是否重新编译？");
+                var result = EasyDialog.ShowSync(
+                    "配置已更改",
+                    "检测到流程图纸已修改，当前的运行逻辑已过期。\n是否重新编译？"
+                );
                 if (result)
                 {
                     DoCompile();
@@ -249,9 +244,11 @@ namespace VisionMaster
 
             return true;
         }
+
         private void DoCompile()
         {
-            if (Workspace.CurrentFlow == null) return;
+            if (Workspace.CurrentFlow == null)
+                return;
 
             var result = _flowCompiler.Compile(Workspace.CurrentFlow.Steps);
             if (!result.Success)
@@ -268,16 +265,17 @@ namespace VisionMaster
             {
                 FlowName = CurrentFlowName,
                 ExecutionEngine = result.Data,
-                CompiledVersion = Workspace.CurrentFlow.Version // 🌟 同步版本号
+                CompiledVersion = Workspace.CurrentFlow.Version, // 🌟 同步版本号
             };
 
             // 2. 将机器推入仓库，完成登记！(如果之前有同名机器在跑，内部逻辑会处理)
             _runtimeManager.RegisterSession(newSession);
 
-            Notifier.ShowSuccess($"流程 [{CurrentFlowName}] 编译完成，版本：{newSession.CompiledVersion}");
+            Notifier.ShowSuccess(
+                $"流程 [{CurrentFlowName}] 编译完成，版本：{newSession.CompiledVersion}"
+            );
         }
 
         #endregion
-
     }
 }

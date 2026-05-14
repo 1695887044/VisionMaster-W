@@ -17,6 +17,7 @@ namespace VisionMaster.Services
         SolutionModel CurrentSolution { get; }
         FlowModel CurrentFlow { get; }
         StepModel CurrentStep { get; }
+        ObservableCollection<WatchItemModel> WatchItems { get; }
     }
 
     public interface IWorkspaceManager : IReadOnlyWorkspaceContext
@@ -38,6 +39,8 @@ namespace VisionMaster.Services
 
         private StepModel _currentStep;
         public StepModel CurrentStep => _currentStep;
+
+        public ObservableCollection<WatchItemModel> WatchItems => CurrentSolution?.WatchItems;
 
         public WorkspaceContext()
         {

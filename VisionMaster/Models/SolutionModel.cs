@@ -45,8 +45,12 @@ namespace VisionMaster.Models
         public ObservableCollection<FlowModel> Flows { get; set; } =
             new()
             {
-                new FlowModel() { FlowName = "GoHome",Description="程序回原点流程-默认设置" },
-                new FlowModel() { FlowName = "MainTask" ,Description="程序主任务流程-默认设置" }
+                new FlowModel() { FlowName = "GoHome",Description="回原" },
+                new FlowModel() { FlowName = "MainTask" ,Description="主任务" }
             };
+        /// <summary>
+        /// 动态监视的列表
+        /// </summary>
+        public ObservableCollection<WatchItemModel> WatchItems { get; set; } = new();
     }
 }

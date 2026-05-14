@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.Windows;
+using VisionMaster.Core;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
 using VisionMaster.ViewModels.DialogViewModels;
@@ -34,6 +35,7 @@ namespace VisionMaster
         }
         protected override void RegisterTypes(IContainerRegistry containerRegistry)
         {
+            MemoryManager.Instance.Start(300, 30);
             containerRegistry.RegisterSingleton<SolutionService>();
             containerRegistry.RegisterSingleton<FlowCompiler>();
             containerRegistry.RegisterSingleton<IPluginProvider, PluginProvider>();
