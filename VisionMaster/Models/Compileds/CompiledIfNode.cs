@@ -1,20 +1,37 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
+    /// <summary>
+    /// 编译后的 If 节点
+    /// 支持 If-ElseIf-Else 分支结构
+    /// </summary>
     public class CompiledIfNode : CompiledNode
     {
+        /// <summary>
+        /// 分支列表
+        /// </summary>
         public List<CompiledBranch> Branches { get; set; } = new();
 
+        /// <summary>
+        /// 上游连线映射（变量ID -> 输出端口）
+        /// </summary>
         public Dictionary<Guid, IOutputPort> UpstreamLinks { get; set; } = new();
 
+        /// <summary>
+        /// 执行 If 节点
+        /// 按顺序计算条件，执行第一个条件为真的分支
+        /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
+            context.CurrentNodeId = Id;
+
+            if (context.CancellationToken.IsCancellationRequested)
+                return null;
+
             foreach (var branch in Branches)
             {
                 if (branch.ConditionLambda == null) continue;
@@ -22,17 +39,15 @@ namespace VisionMaster.Models
                 var args = new object[branch.LocalVarIds.Count];
                 for (int i = 0; i < branch.LocalVarIds.Count; i++)
                 {
-                    Guid varId = branch.LocalVarIds[i]; // 🌟 用 ID 取值
+                    Guid varId = branch.LocalVarIds[i];
                     Type expectedType = branch.VarTypes.ContainsKey(varId) ? branch.VarTypes[varId] : typeof(double);
 
-                    // 极速匹配上游数据
                     if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
                     {
                         args[i] = sourcePort.Value;
                     }
                     else
                     {
-                        // 断线兜底机制
                         if (expectedType == typeof(string)) args[i] = string.Empty;
                         else if (expectedType == typeof(bool)) args[i] = false;
                         else args[i] = 0.0;
@@ -46,7 +61,7 @@ namespace VisionMaster.Models
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"分支执行异常: {ex.Message}");
+                    context.Logger.Error($"分支执行异常: {ex.Message}");
                 }
             }
             return null;

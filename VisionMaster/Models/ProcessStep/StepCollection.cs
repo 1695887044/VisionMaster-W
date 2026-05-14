@@ -7,22 +7,40 @@ using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
+    /// <summary>
+    /// 步骤集合
+    /// 用于管理条件分支或循环体中的步骤列表
+    /// </summary>
     public class StepCollection : BindableBase
     {
+        /// <summary>
+        /// 步骤列表
+        /// </summary>
         public ObservableCollection<StepModel> Steps { get; } = new ObservableCollection<StepModel>();
 
+        /// <summary>
+        /// 分支类型
+        /// </summary>
         public BranchType BranchType
         {
             get => field;
             set => SetProperty(ref field, value);
         }
+
+        /// <summary>
+        /// 步骤名称
+        /// </summary>
         public string StepName
         {
             get => field;
             set => SetProperty(ref field, value);
         }
+
         /// <summary>
-        /// 表达式字符串，例如 "Score > 80"，用户在界面上输入，后端解析执行。对于 Else 和 Default 分支，这个属性可以留空，因为它们不需要条件表达式。
+        /// 条件表达式字符串
+        /// 用户在界面上输入，后端解析执行
+        /// 例如 "Score > 80"
+        /// 对于 Else 和 Default 分支，此属性可以留空
         /// </summary>
         public string Expression
         {
@@ -30,27 +48,30 @@ namespace VisionMaster.Models
             set
             {
                 if (SetProperty(ref field, value))
-                    RaisePropertyChanged(nameof(DisplayName)); // 🌟 核心：用户敲代码时，树节点瞬间同步更新！
+                    RaisePropertyChanged(nameof(DisplayName)); // 表达式变化时同步更新显示名
             }
         }
 
+        /// <summary>
+        /// 显示名称（包含条件表达式）
+        /// </summary>
         public string DisplayName
         {
             get
             {
-                // 如果是 Else 或 Default，它们没有条件表达式，直接原样返回
+                // 如果是 Else 或 Default，直接返回步骤名
                 if (BranchType == BranchType.Else || BranchType == BranchType.Default)
                 {
                     return StepName;
                 }
 
-                // 如果用户写了表达式，就把表达式拼接上去，例如：ElseIf [ Score > 80 ]
+                // 如果有表达式，拼接显示
                 if (!string.IsNullOrWhiteSpace(Expression))
                 {
                     return $"{StepName} [ {Expression} ]";
                 }
 
-                // 如果还没写表达式，就提示一下
+                // 提示用户未绑定条件
                 return $"{StepName} [ 未绑定条件 ]";
             }
         }

@@ -1,4 +1,4 @@
-﻿using Core.Interfaces;
+﻿﻿using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -8,15 +8,30 @@ using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
+    /// <summary>
+    /// 树节点模型
+    /// 用于在变量绑定面板中显示可用变量树
+    /// </summary>
     public class TreeNodeModel
     {
-        public string NodeName { get; set; } // 节点名称，如 "视觉工具" 或 "模板匹配_1"
-        public string IconCode { get; set; } // 图标编码
+        /// <summary>
+        /// 节点名称（如 "视觉工具" 或 "模板匹配_1"）
+        /// </summary>
+        public string NodeName { get; set; }
 
-        public ObservableCollection<TreeNodeModel> Children { get; set; }
-            = new ObservableCollection<TreeNodeModel>();
+        /// <summary>
+        /// 图标编码（Font Awesome 图标）
+        /// </summary>
+        public string IconCode { get; set; }
 
-        public ObservableCollection<IOutputPort> AvailablePorts { get; set; }
-            = new ObservableCollection<IOutputPort>();
+        /// <summary>
+        /// 子节点集合
+        /// </summary>
+        public ObservableCollection<TreeNodeModel> Children { get; set; } = new ObservableCollection<TreeNodeModel>();
+
+        /// <summary>
+        /// 可用端口集合（该节点提供的输出端口）
+        /// </summary>
+        public ObservableCollection<IOutputPort> AvailablePorts { get; set; } = new ObservableCollection<IOutputPort>();
     }
 }

@@ -3,19 +3,38 @@ using DynamicExpresso;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
+    /// <summary>
+    /// 编译后的 While 循环节点
+    /// 支持条件循环执行
+    /// </summary>
     public class CompiledWhileNode : CompiledNode
     {
+        /// <summary>
+        /// 循环分支（包含条件和循环体）
+        /// </summary>
         public CompiledBranch LoopBranch { get; set; }
-        public Dictionary<Guid, IOutputPort> UpstreamLinks { get; set; } = new();
-        public int MaxIterations { get; set; } = 9999; // 防死循环
 
+        /// <summary>
+        /// 上游连线映射（变量ID -> 输出端口）
+        /// </summary>
+        public Dictionary<Guid, IOutputPort> UpstreamLinks { get; set; } = new();
+
+        /// <summary>
+        /// 最大迭代次数（防止无限循环）
+        /// </summary>
+        public int MaxIterations { get; set; } = 9999;
+
+        /// <summary>
+        /// 执行 While 循环
+        /// 条件为真时执行循环体，支持 Break/Continue/Return 控制流
+        /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
+            context.CurrentNodeId = Id;
+
             if (LoopBranch?.ConditionLambda == null) return null;
 
             int iter = 0;
@@ -23,7 +42,6 @@ namespace VisionMaster.Models
             {
                 if (context.CancellationToken.IsCancellationRequested) break;
 
-                // 1. 动态取值
                 var args = new object[LoopBranch.LocalVarIds.Count];
                 for (int i = 0; i < LoopBranch.LocalVarIds.Count; i++)
                 {
@@ -31,44 +49,37 @@ namespace VisionMaster.Models
                     if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
                         args[i] = sourcePort.Value;
                     else
-                        args[i] = 0.0; // 兜底
+                        args[i] = 0.0;
                 }
 
-                // 2. 判断条件
                 bool isTrue = false;
                 try { isTrue = (bool)LoopBranch.ConditionLambda.Invoke(args); }
                 catch { break; }
 
-                // 3. 决定流向
-                if (!isTrue) break; // 条件不成立，跳出 While 循环
+                if (!isTrue) break;
 
-                // 4. 递归执行循环体内部算子
                 foreach (var step in LoopBranch.ExecutionSteps)
                 {
                     if (context.CancellationToken.IsCancellationRequested) return null;
                     step.RunAndGetNext(context);
                     if (context.CurrentFlowState == FlowControlState.Continue)
                     {
-                        // 1. 拦截 Continue：把信号灯重置为正常，然后跳出内层的 foreach，让外层 for 进入下一次迭代
                         context.CurrentFlowState = FlowControlState.Normal;
                         break;
                     }
                     if (context.CurrentFlowState == FlowControlState.Break)
                     {
-                        // 2. 拦截 Break：把信号灯重置为正常，然后彻底结束这个 CompiledForNode 的执行
                         context.CurrentFlowState = FlowControlState.Normal;
-                        return null; // 直接返回，外层的 for 循环也被强行终止了！
+                        return null;
                     }
                     if (context.CurrentFlowState == FlowControlState.Return)
                     {
-                        // 3. 遇到 Return：不要重置信号灯！直接返回！
-                        // 让 Return 信号一直往上冒泡，直到被主流程引擎看到！
                         return null;
                     }
                 }
                 iter++;
             }
-            return null; // 执行完毕，让主流程继续
+            return null;
         }
     }
 }

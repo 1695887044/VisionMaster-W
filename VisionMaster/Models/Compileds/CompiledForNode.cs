@@ -1,26 +1,44 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
+    /// <summary>
+    /// 编译后的 For 循环节点
+    /// 支持指定次数的循环执行，并向外暴露循环索引
+    /// </summary>
     public class CompiledForNode : CompiledNode
     {
-        // 🌟 原生自带的输出端口，在内存里实际长这样
+        /// <summary>
+        /// 索引输出端口（供下游算子绑定）
+        /// </summary>
         public OutputPort<int> IndexPort { get; } = new OutputPort<int>("Index");
 
-        // 如果上游连了线，从这里取循环次数
+        /// <summary>
+        /// 循环次数输入连线
+        /// </summary>
         public IOutputPort LoopCountLink { get; set; }
+
+        /// <summary>
+        /// 默认循环次数（未连接时使用）
+        /// </summary>
         public int DefaultLoopCount { get; set; }
 
+        /// <summary>
+        /// 循环体步骤列表
+        /// </summary>
         public List<CompiledNode> LoopBody { get; set; } = new();
 
+        /// <summary>
+        /// 执行 For 循环
+        /// 根据指定次数执行循环体，支持 Break/Continue/Return 控制流
+        /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
-            // 动态获取循环次数：如果连线了就用连线的，没连线就用固定填写的
+            context.CurrentNodeId = Id;
+
             int targetCount = DefaultLoopCount;
             if (LoopCountLink != null && LoopCountLink.Value != null)
             {
@@ -31,7 +49,6 @@ namespace VisionMaster.Models
             {
                 if (context.CancellationToken.IsCancellationRequested) break;
 
-                // 🌟 核心：更新原生输出端口的值！下游算子通过连线读的就是这个引用！
                 IndexPort.Value = i;
 
                 foreach (var step in LoopBody)
@@ -40,20 +57,16 @@ namespace VisionMaster.Models
                     step.RunAndGetNext(context);
                     if (context.CurrentFlowState == FlowControlState.Continue)
                     {
-                        // 1. 拦截 Continue：把信号灯重置为正常，然后跳出内层的 foreach，让外层 for 进入下一次迭代
                         context.CurrentFlowState = FlowControlState.Normal;
                         break;
                     }
                     if (context.CurrentFlowState == FlowControlState.Break)
                     {
-                        // 2. 拦截 Break：把信号灯重置为正常，然后彻底结束这个 CompiledForNode 的执行
                         context.CurrentFlowState = FlowControlState.Normal;
-                        return null; // 直接返回，外层的 for 循环也被强行终止了！
+                        return null;
                     }
                     if (context.CurrentFlowState == FlowControlState.Return)
                     {
-                        // 3. 遇到 Return：不要重置信号灯！直接返回！
-                        // 让 Return 信号一直往上冒泡，直到被主流程引擎看到！
                         return null;
                     }
                 }

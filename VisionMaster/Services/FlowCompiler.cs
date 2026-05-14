@@ -76,9 +76,9 @@ namespace VisionMaster.Services
                 // 🎯 场景 A-1：While 循环节点 (🚨 必须放在 ConditionStep 之前！)
                 // ==========================================
                 if (model is WhileStep whileModel)
-                {
-                    var whileNode = new CompiledWhileNode();
-                    nodeLookup.Add(model.StepID, whileNode);
+                    {
+                        var whileNode = new CompiledWhileNode { Id = model.StepID, Name = model.StepName };
+                        nodeLookup.Add(model.StepID, whileNode);
 
                     var delegateParams = new List<Parameter>();
                     var compiledVarTypes = new Dictionary<Guid, Type>();
@@ -170,7 +170,7 @@ namespace VisionMaster.Services
                 // ==========================================
                 else if (model is ConditionStep conditionModel)
                 {
-                    var ifNode = new CompiledIfNode();
+                    var ifNode = new CompiledIfNode { Id = model.StepID, Name = model.StepName };
                     nodeLookup.Add(model.StepID, ifNode);
 
                     var delegateParams = new List<Parameter>();
@@ -273,7 +273,7 @@ namespace VisionMaster.Services
                 // ==========================================
                 else if (model is ForStep forModel)
                 {
-                    var forNode = new CompiledForNode();
+                    var forNode = new CompiledForNode { Id = model.StepID, Name = model.StepName };
                     forNode.DefaultLoopCount = forModel.DefaultLoopCount;
                     nodeLookup.Add(model.StepID, forNode);
 
@@ -293,19 +293,19 @@ namespace VisionMaster.Services
                 }
                 else if (model.PluginTypeName == "BuiltIn_Break")
                 {
-                    var breakNode = new CompiledBreakNode();
+                    var breakNode = new CompiledBreakNode { Id = model.StepID, Name = model.StepName };
                     nodeLookup.Add(model.StepID, breakNode);
                     compiledNodes.Add(breakNode);
                 }
                 else if (model.PluginTypeName == "BuiltIn_Continue")
                 {
-                    var continueNode = new CompiledContinueNode();
+                    var continueNode = new CompiledContinueNode { Id = model.StepID, Name = model.StepName };
                     nodeLookup.Add(model.StepID, continueNode);
                     compiledNodes.Add(continueNode);
                 }
                 else if (model.PluginTypeName == "BuiltIn_Return")
                 {
-                    var returnNode = new CompiledReturnNode();
+                    var returnNode = new CompiledReturnNode { Id = model.StepID, Name = model.StepName };
                     nodeLookup.Add(model.StepID, returnNode);
                     compiledNodes.Add(returnNode);
                 }
@@ -339,7 +339,7 @@ namespace VisionMaster.Services
                             inputPort.Value = kvp.Value;
                     }
 
-                    var pluginNode = new CompiledPluginNode { ExternalPlugin = plugin };
+                    var pluginNode = new CompiledPluginNode { Id = model.StepID, Name = model.StepName, ExternalPlugin = plugin };
                     nodeLookup.Add(model.StepID, pluginNode); // 登记到内部字典 (供连线用)
                     compiledNodes.Add(pluginNode);
                 }

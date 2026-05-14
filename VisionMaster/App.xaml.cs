@@ -1,4 +1,4 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System.ComponentModel;
 using System.Configuration;
 using System.Data;
@@ -46,6 +46,7 @@ namespace VisionMaster
             containerRegistry.Register<IReadOnlyWorkspaceContext>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.Register<IWorkspaceManager>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.RegisterSingleton<ILogService, LogService>();
+            containerRegistry.RegisterSingleton<IPerformanceMonitor, PerformanceMonitor>();
             containerRegistry.RegisterForNavigation<LogView,LogViewModel>();
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
             containerRegistry.RegisterForNavigation<GlobalDataView, GlobalDataViewModel>();

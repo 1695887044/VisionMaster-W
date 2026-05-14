@@ -1,33 +1,54 @@
-﻿using Core.Interfaces;
+﻿﻿using Core.Interfaces;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace VisionMaster.Models
 {
     /// <summary>
-    /// 虚拟机底层指令基类 (对外隐藏)
+    /// 编译节点基类
+    /// 所有编译后节点的抽象基类
     /// </summary>
     public abstract class CompiledNode
     {
-        // 虚拟机的核心问答机制：
+        /// <summary>
+        /// 节点唯一标识
+        /// </summary>
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        /// <summary>
+        /// 节点名称
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// 执行节点并获取下一个要执行的节点列表
+        /// </summary>
         public abstract List<CompiledNode> RunAndGetNext(IExecutionContext context);
     }
+
     /// <summary>
-    /// 包装外部第三方视觉算法的“执行指令”
+    /// 编译后的插件节点
+    /// 封装外部视觉插件的执行
     /// </summary>
     public class CompiledPluginNode : CompiledNode
     {
+        /// <summary>
+        /// 外部插件实例
+        /// </summary>
         public IVisionPlugin ExternalPlugin { get; set; }
 
+        /// <summary>
+        /// 执行插件节点
+        /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
-            // 跑真正的图像算法
+            context.CurrentNodeId = Id;
+
+            if (context.CancellationToken.IsCancellationRequested)
+                return null;
+
             ExternalPlugin.Execute(context);
 
-            // 普通算子没有肚子里嵌套的子节点，直接返回 null，告诉虚拟机继续往下走
             return null;
         }
     }

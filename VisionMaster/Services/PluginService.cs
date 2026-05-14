@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
@@ -13,15 +13,26 @@ using VisionMaster.Models;
 
 namespace VisionMaster.Services
 {
+    /// <summary>
+    /// 插件服务
+    /// 负责初始化和加载所有插件
+    /// </summary>
     public class PluginService
     {
         private readonly IPluginProvider _registry;
 
+        /// <summary>
+        /// 初始化插件服务
+        /// </summary>
         public PluginService(IPluginProvider registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
+        /// <summary>
+        /// 初始化插件
+        /// 加载内置节点和外部插件
+        /// </summary>
         public void InitPlugins()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -49,15 +60,18 @@ namespace VisionMaster.Services
             }
         }
 
+        /// <summary>
+        /// 注册内置节点
+        /// 包括 If、While、For、Break、Continue、Return 等控制流节点
+        /// </summary>
         private void RegisterBuiltInNodes()
         {
-            // 1. 注册 If 节点
             var ifToolItem = new ToolItemModel
             {
                 Category = "逻辑控制",
                 Description = "根据条件执行不同的分支",
                 Name = "If",
-                Icon = "\uf0e8", // 随便配个图标
+                Icon = "\uf0e8",
                 ModuleTypeName = "BuiltIn_If",
                 IsContainer = true,
                 InputDefinitions = new()
@@ -71,13 +85,13 @@ namespace VisionMaster.Services
                 },
             };
             _registry.RegisterModule(ifToolItem);
-            // 2. 注册 While 节点 (结构和 If 基本一致)
+
             var whileToolItem = new ToolItemModel
             {
                 Category = "逻辑控制",
                 Description = "只要条件成立，就一直循环执行内部节点",
                 Name = "While",
-                Icon = "\uf01e", // 刷新/循环图标
+                Icon = "\uf01e",
                 ModuleTypeName = "BuiltIn_While",
                 IsContainer = true,
                 InputDefinitions = new()
@@ -92,18 +106,16 @@ namespace VisionMaster.Services
             };
             _registry.RegisterModule(whileToolItem);
 
-            // 3. 🌟 注册 For 节点 (核心机制：内置输出端口)
             var forToolItem = new ToolItemModel
             {
                 Category = "逻辑控制",
                 Description = "按指定的次数循环执行内部节点",
                 Name = "For",
-                Icon = "\uf0ca", // 列表图标
+                Icon = "\uf0ca",
                 ModuleTypeName = "BuiltIn_For",
                 IsContainer = true,
                 InputDefinitions = new()
                 {
-                    // 允许用户把循环次数绑给某个全局变量
                     new PortDefinition
                     {
                         Name = "LoopCount",
@@ -113,7 +125,6 @@ namespace VisionMaster.Services
                 },
                 OutputDefinitions = new()
                 {
-                    // 🌟 原生节点向外暴露变量！下游算子可以绑定这个 Index！
                     new PortDefinition
                     {
                         Name = "Index",
@@ -123,6 +134,7 @@ namespace VisionMaster.Services
                 },
             };
             _registry.RegisterModule(forToolItem);
+
             _registry.RegisterModule(new ToolItemModel
             {
                 Category = "逻辑控制",
@@ -131,6 +143,7 @@ namespace VisionMaster.Services
                 ModuleTypeName = "BuiltIn_Break",
                 IsContainer = false
             });
+
             _registry.RegisterModule(new ToolItemModel
             {
                 Category = "逻辑控制",
@@ -139,6 +152,7 @@ namespace VisionMaster.Services
                 ModuleTypeName = "BuiltIn_Continue",
                 IsContainer = false
             });
+
             _registry.RegisterModule(new ToolItemModel
             {
                 Category = "逻辑控制",
@@ -149,6 +163,10 @@ namespace VisionMaster.Services
             });
         }
 
+        /// <summary>
+        /// 加载外部插件 DLL
+        /// 扫描并注册实现 IVisionPlugin 接口的类型
+        /// </summary>
         private void LoadPlugin(string dllPath)
         {
             var fi = new FileInfo(dllPath);

@@ -7,71 +7,98 @@ using System.Threading.Tasks;
 
 namespace VisionMaster
 {
+    /// <summary>
+    /// 会话状态枚举
+    /// </summary>
     public enum SessionState
     {
         Idle,
         Running,
-        Paused,   // 🌟 暂停状态
+        Paused,
         Stopped,
         Faulted
     }
+
+    /// <summary>
+    /// 分支类型枚举
+    /// </summary>
     public enum BranchType
     {
         Default,
-        If,    // 条件判断
-        Else,   // 循环
-        ElseIf,   // 循环
-        Case, // 多分支
-    }
-    public enum SolutionAction
-    {
-        Create,            // 新建方案
-        BrowseList,     // 方案列表
-        Open,           // 打开方案
-        Save            // 保存方案
-    }
-    public enum ExecutionAction
-    {
-        Compile,         // 编译
-        RunOnce,         // 单次运行
-        RunContinuous,   // 连续运行
-        Stop             // 停止
+        If,
+        Else,
+        ElseIf,
+        Case,
     }
 
     /// <summary>
-    /// 系统配置与全局管理相关指令
+    /// 方案操作枚举
+    /// </summary>
+    public enum SolutionAction
+    {
+        Create,
+        BrowseList,
+        Open,
+        Save
+    }
+
+    /// <summary>
+    /// 执行操作枚举
+    /// </summary>
+    public enum ExecutionAction
+    {
+        Compile,
+        RunOnce,
+        RunContinuous,
+        Stop
+    }
+
+    /// <summary>
+    /// 系统操作枚举
     /// </summary>
     public enum SystemAction
     {
-        UserLogin,       // 用户登录
-        GlobalVariables, // 全局变量
-        CameraSettings,  // 相机设置
-        CommSettings,    // 通讯设置
-        HardwareSettings,// 硬件设置
-        ReportQuery,     // 报表查询
-        ReturnToZero,    // 回零
-        UIDesign         // UI设计
+        UserLogin,
+        GlobalVariables,
+        CameraSettings,
+        CommSettings,
+        HardwareSettings,
+        ReportQuery,
+        ReturnToZero,
+        UIDesign
     }
+
+    /// <summary>
+    /// 流程操作枚举
+    /// </summary>
     public enum FlowAction
     {
-        Create,            
-        Delete,   
-        BrowseList,           
+        Create,
+        Delete,
+        BrowseList,
         Edit,
         Rename,
         EditComment,
         Encrypt,
         Decrypt
     }
+
+    /// <summary>
+    /// 步骤状态枚举
+    /// </summary>
     public enum StepState
     {
-        Idle,       // 默认/空闲 (灰色)
-        Running,    // 正在执行 (黄色闪烁)
-        Success,    // 执行成功 (绿色)
-        Warning,    // 警告 (橙色)
-        Error,       // 故障/报错 (红色)
+        Idle,
+        Running,
+        Success,
+        Warning,
+        Error,
         Cancel
     }
+
+    /// <summary>
+    /// 流程触发模式枚举
+    /// </summary>
     public enum FlowTriggerMode
     {
         [Display(Name = "单次执行", Description = "手动触发，流程只运行一次")]
@@ -83,23 +110,27 @@ namespace VisionMaster
         [Display(Name = "定时触发", Description = "按照设定的时间周期自动循环执行")]
         Timer = 3
     }
+
+    /// <summary>
+    /// 模块命令操作枚举
+    /// </summary>
     public enum ModuleCommandAction
     {
-        Rename,             // 重命名
-        EditComment,        // 编辑注释
-        ExecuteSelected,    // 执行选中模块
-        ExecuteFromHere,    // 从此处执行
-        ShowAll,            // 显示所有
-        EnableSuperTool,    // 启用超级工具
-        SetBreakpoint,      // 设置断点
-        ModuleParameters,   // 模块参数
-        Cut,                // 剪切
-        Copy,               // 复制
-        Paste,              // 粘贴
-        Disable,            // 禁用
-        Delete,              // 删除模块
-        AddElseIf,  // 添加 ElseIf 分支
-        AddElse,    // 添加 Else 分支
-        AddCase     // 添加 Switch 的 Case 分支
+        Rename,
+        EditComment,
+        ExecuteSelected,
+        ExecuteFromHere,
+        ShowAll,
+        EnableSuperTool,
+        SetBreakpoint,
+        ModuleParameters,
+        Cut,
+        Copy,
+        Paste,
+        Disable,
+        Delete,
+        AddElseIf,
+        AddElse,
+        AddCase
     }
 }

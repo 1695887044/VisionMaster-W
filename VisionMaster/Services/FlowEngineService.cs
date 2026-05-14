@@ -1,40 +1,87 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using VisionMaster.EventModel;
 using VisionMaster.Models;
+using VisionMaster.Core;
 
 namespace VisionMaster.Services
 {
+    /// <summary>
+    /// 流程执行引擎服务实现
+    /// 负责管理多个流程会话的并发执行、状态管理和生命周期控制
+    /// </summary>
     public class FlowEngineService : IFlowEngine
     {
-        // 引擎不存机器，但它需要一把“仓库钥匙”，用来执行 StopAll 一键急停
+        /// <summary>
+        /// 运行时管理器，管理所有活动会话
+        /// </summary>
         private readonly IRuntimeManager _runtimeManager;
-        private readonly IExecutionContext executionContext;
 
-        // 🌟 对外广播的事件：UI 可以订阅它来改变运行指示灯的颜色
+        /// <summary>
+        /// 日志服务
+        /// </summary>
+        private readonly ILogService _logService;
+
+        /// <summary>
+        /// 工作空间管理器，提供全局变量访问
+        /// </summary>
+        private readonly IWorkspaceManager _workspaceManager;
+
+        /// <summary>
+        /// 性能监控服务
+        /// </summary>
+        private readonly IPerformanceMonitor _performanceMonitor;
+
+        /// <summary>
+        /// 会话状态变更事件
+        /// 当会话状态发生变化时触发
+        /// </summary>
         public event EventHandler<SessionStateChangedEventArgs> SessionStateChanged;
 
-        public FlowEngineService(IRuntimeManager runtimeManager, IExecutionContext executionContext)
+        /// <summary>
+        /// 构造函数
+        /// </summary>
+        /// <param name="runtimeManager">运行时管理器</param>
+        /// <param name="logService">日志服务</param>
+        /// <param name="workspaceManager">工作空间管理器</param>
+        /// <param name="performanceMonitor">性能监控服务</param>
+        public FlowEngineService(
+            IRuntimeManager runtimeManager, 
+            ILogService logService, 
+            IWorkspaceManager workspaceManager, 
+            IPerformanceMonitor performanceMonitor)
         {
             _runtimeManager = runtimeManager ?? throw new ArgumentNullException(nameof(runtimeManager));
-            this.executionContext = executionContext ?? throw new ArgumentNullException(nameof(executionContext));
+            _logService = logService ?? throw new ArgumentNullException(nameof(logService));
+            _workspaceManager = workspaceManager ?? throw new ArgumentNullException(nameof(workspaceManager));
+            _performanceMonitor = performanceMonitor;
         }
 
-        // 统计当前真正在跑的流程数量
+        /// <summary>
+        /// 获取当前活跃会话数量
+        /// </summary>
         public int ActiveSessionCount => _runtimeManager.ActiveSessions.Count(s => s.State == SessionState.Running);
 
-        // 内部辅助方法：触发状态变更事件
-        private void NotifyStateChanged(FlowSession session, SessionState state, string message = null)
+        /// <summary>
+        /// 通知会话状态变更
+        /// </summary>
+        /// <param name="session">会话实例</param>
+        /// <param name="state">新状态</param>
+        /// <param name="message">附加消息（可选）</param>
+        private void NotifyStateChanged(FlowSession session, SessionState newState, string message = null)
         {
-            SessionStateChanged?.Invoke(this, new SessionStateChangedEventArgs(session, state, message));
+            var oldState = session.State;
+            session.State = newState;
+            SessionStateChanged?.Invoke(this, new SessionStateChangedEventArgs(session.SessionID, session.FlowName, oldState, newState));
         }
-        #region 1. 核心执行逻辑
 
+        /// <summary>
+        /// 启动会话连续执行
+        /// </summary>
+        /// <param name="session">要执行的会话</param>
+        /// <returns>异步任务</returns>
         public async Task RunSessionAsync(FlowSession session)
         {
             if (session == null || session.ExecutionEngine == null)
@@ -42,63 +89,65 @@ namespace VisionMaster.Services
 
             if (session.IsRunning) return;
 
-            // 1. 初始化运行状态
             session.IsRunning = true;
             session.State = SessionState.Running;
-            session.PauseLock.Set(); // 确保刚启动时是绿灯（通行）状态
+            session.PauseLock.Set();
             session.CancellationTokenSource = new CancellationTokenSource();
             var token = session.CancellationTokenSource.Token;
 
             NotifyStateChanged(session, SessionState.Running);
+            _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
 
             try
             {
-                // 2. 丢入线程池后台执行
                 await Task.Run(() =>
                 {
                     while (!token.IsCancellationRequested)
                     {
-                        // 🌟 核心暂停点：如果被 Pause() 设为红灯，线程会在这里低耗休眠。
-                        // 传入 token 是为了防止死锁：即使在暂停状态下点击停止，也能瞬间打断并抛出取消异常退出。
                         session.PauseLock.Wait(token);
 
-                        // 🌟 核心执行点：将 session 自身作为 Context 传给算子
-                        session.ExecutionEngine.Run(executionContext);
+                        if (token.IsCancellationRequested) break;
 
-                        // 工业节拍控制：释放 CPU 调度权
+                        var context = new ExecutionContext(_logService, session, _workspaceManager, token);
+                        session.ExecutionEngine.Run(context);
+
                         Thread.Sleep(10);
                     }
                 }, token);
             }
             catch (OperationCanceledException)
             {
-                // 正常停止 (用户点击了停止按钮)，不需要当作异常处理
+                // 正常取消，无需处理
             }
             catch (Exception ex)
             {
-                // 崩溃停止
                 session.State = SessionState.Faulted;
+                _logService.Error($"流程执行异常 {session.FlowName}: {ex.Message}");
                 NotifyStateChanged(session, SessionState.Faulted, ex.Message);
             }
             finally
             {
-                // 3. 彻底重置机器状态 (不管是正常停还是报错停)
                 session.IsRunning = false;
 
-                // 如果不是异常崩溃，就标记为已停止
                 if (session.State != SessionState.Faulted)
                 {
                     session.State = SessionState.Stopped;
                     NotifyStateChanged(session, SessionState.Stopped);
                 }
 
-                // 释放非托管资源
-                session.PauseLock.Set(); // 防止停止后锁死
+                _performanceMonitor?.RecordSessionEnd(session.SessionID);
+
+                session.PauseLock.Set();
                 session.CancellationTokenSource?.Dispose();
                 session.CancellationTokenSource = null;
             }
         }
 
+        /// <summary>
+        /// 启动会话单次执行
+        /// </summary>
+        /// <param name="session">要执行的会话</param>
+        /// <returns>异步任务</returns>
         public async Task RunSessionOnceAsync(FlowSession session)
         {
             if (session == null || session.ExecutionEngine == null || session.IsRunning) return;
@@ -106,23 +155,28 @@ namespace VisionMaster.Services
             session.IsRunning = true;
             session.State = SessionState.Running;
             NotifyStateChanged(session, SessionState.Running);
+            _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
 
             try
             {
                 await Task.Run(() =>
                 {
-                    // 单次执行不需要死循环和暂停锁，直接跑一圈
-                    session.ExecutionEngine.Run(executionContext);
+                    var context = new ExecutionContext(_logService, session, _workspaceManager, 
+                        session.CancellationTokenSource?.Token ?? CancellationToken.None);
+                    session.ExecutionEngine.Run(context);
                 });
             }
             catch (Exception ex)
             {
                 session.State = SessionState.Faulted;
+                _logService.Error($"流程单次执行异常 {session.FlowName}: {ex.Message}");
                 NotifyStateChanged(session, SessionState.Faulted, ex.Message);
             }
             finally
             {
                 session.IsRunning = false;
+                _performanceMonitor?.RecordSessionEnd(session.SessionID);
+
                 if (session.State != SessionState.Faulted)
                 {
                     session.State = SessionState.Stopped;
@@ -131,48 +185,55 @@ namespace VisionMaster.Services
             }
         }
 
-        #endregion
-
-        #region 2. 状态干预逻辑 (暂停/恢复/停止)
-
+        /// <summary>
+        /// 暂停会话执行
+        /// </summary>
+        /// <param name="session">要暂停的会话</param>
         public void PauseSession(FlowSession session)
         {
             if (session != null && session.IsRunning && session.State == SessionState.Running)
             {
-                session.PauseLock.Reset(); // 🚦 亮红灯：拦截下一次循环
+                session.PauseLock.Reset();
                 session.State = SessionState.Paused;
                 NotifyStateChanged(session, SessionState.Paused);
             }
         }
 
+        /// <summary>
+        /// 恢复会话执行
+        /// </summary>
+        /// <param name="session">要恢复的会话</param>
         public void ResumeSession(FlowSession session)
         {
             if (session != null && session.IsRunning && session.State == SessionState.Paused)
             {
-                session.PauseLock.Set(); // 🚦 亮绿灯：放行
+                session.PauseLock.Set();
                 session.State = SessionState.Running;
                 NotifyStateChanged(session, SessionState.Running);
             }
         }
 
+        /// <summary>
+        /// 停止会话执行
+        /// </summary>
+        /// <param name="session">要停止的会话</param>
         public void StopSession(FlowSession session)
         {
             if (session != null && session.IsRunning && session.CancellationTokenSource != null)
             {
-                // 发出取消信号，while 循环和 PauseLock.Wait 都会立刻收到通知并退出
                 session.CancellationTokenSource.Cancel();
             }
         }
 
+        /// <summary>
+        /// 停止所有会话
+        /// </summary>
         public void StopAll()
         {
-            // 利用注入的 RuntimeManager，遍历仓库里所有机器直接拉闸
             foreach (var session in _runtimeManager.ActiveSessions.ToList())
             {
                 StopSession(session);
             }
         }
-
-        #endregion
     }
 }

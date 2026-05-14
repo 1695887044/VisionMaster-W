@@ -8,6 +8,13 @@
 	  <LangVersion>preview</LangVersion>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Controls\**" />
+    <EmbeddedResource Remove="Controls\**" />
+    <None Remove="Controls\**" />
+    <Page Remove="Controls\**" />
+  </ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="AvalonEdit" Version="6.3.1.120" />
 		<PackageReference Include="Dirkster.AvalonDock" Version="4.74.1" />
@@ -21,8 +28,5 @@
 	<ItemGroup>
 	  <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
 	  <ProjectReference Include="..\UI\Controls\UI.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-	  <Folder Include="Controls\" />
 	</ItemGroup>
 </Project>

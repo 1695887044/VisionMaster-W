@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,31 +7,40 @@ using VisionMaster.Models;
 
 namespace VisionMaster.EventModel
 {
+    /// <summary>
+    /// 会话状态变更事件参数
+    /// </summary>
     public class SessionStateChangedEventArgs : EventArgs
     {
         /// <summary>
-        /// 发生状态变更的具体运行会话
+        /// 会话ID
         /// </summary>
-        public FlowSession Session { get; }
+        public string SessionId { get; }
 
         /// <summary>
-        /// 会话当前进入的新状态
+        /// 流程名称
         /// </summary>
-        public SessionState State { get; }
+        public string FlowName { get; }
 
         /// <summary>
-        /// 附加信息（通常在 Faulted 状态下携带具体的异常报错信息）
+        /// 旧状态
         /// </summary>
-        public string Message { get; }
+        public SessionState OldState { get; }
 
         /// <summary>
-        /// 构造函数 (强制初始化，保证属性只读)
+        /// 新状态
         /// </summary>
-        public SessionStateChangedEventArgs(FlowSession session, SessionState state, string message = null)
+        public SessionState NewState { get; }
+
+        /// <summary>
+        /// 创建会话状态变更事件参数
+        /// </summary>
+        public SessionStateChangedEventArgs(string sessionId, string flowName, SessionState oldState, SessionState newState)
         {
-            Session = session ?? throw new ArgumentNullException(nameof(session));
-            State = state;
-            Message = message;
+            SessionId = sessionId;
+            FlowName = flowName;
+            OldState = oldState;
+            NewState = newState;
         }
     }
 }

@@ -1,42 +1,53 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Core.Interfaces;
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.Threading;
 
-namespace Plugin.Delay
+namespace VisionMaster.Plugins.Utility
 {
     /// <summary>
-    /// 是否通过特性来注册 输入 输出?
+    /// 延时插件
+    /// 使当前流程暂停指定的时间（毫秒），支持急停中断
     /// </summary>
     [Display(
-        Name = "Delay",
+        Name = "延时",
         GroupName = "常用工具",
-        Description = "使当前流程暂停指定的时间",
+        Description = "使当前流程暂停指定的时间，支持急停信号中断",
         ShortName = "\uf017"
     )]
     public class DelayPlugin : VisionPluginBase
     {
+        /// <summary>
+        /// 延时时间输入端口（毫秒）
+        /// </summary>
+        public InputPort<int> DelayTimePort { get; } = new InputPort<int>("Delay", 10, "延时时间(ms)") { IsRequired = true };
 
-        
-        public InputPort<int> DelayTimePort { get; } = new InputPort<int>("Delay", 10, "延时时间(ms)");
-        public OutputPort<int> ET { get; } = new OutputPort<int>("ET", "输出已流逝时间(ms)");
-        public OutputPort<bool> State { get; } = new OutputPort<bool>("State", "输出状态");
+        /// <summary>
+        /// 已流逝时间输出端口（毫秒）
+        /// </summary>
+        public OutputPort<int> ElapsedTime { get; } = new OutputPort<int>("ET", "已流逝时间(ms)");
 
+        /// <summary>
+        /// 执行状态输出端口
+        /// </summary>
+        public OutputPort<bool> State { get; } = new OutputPort<bool>("State", "执行状态");
 
+        /// <summary>
+        /// 执行延时算法
+        /// </summary>
+        /// <param name="context">执行上下文，包含日志和取消令牌</param>
         public override void RunAlgorithm(IExecutionContext context)
         {
             context.Logger.Info($"{InstanceName} 开始执行延时...");
 
             int targetDelayMs = DelayTimePort.GetTypedValue();
-            ET.Value = 0;
+            ElapsedTime.Value = 0;
             State.Value = false;
+
             try
             {
                 int elapsed = 0;
-                int step = 50;
+                const int step = 50;
 
                 while (elapsed < targetDelayMs)
                 {
@@ -45,14 +56,14 @@ namespace Plugin.Delay
                         context.Logger.Warn($"{InstanceName} 收到急停信号，已强制中断！");
                         return;
                     }
+
                     int currentStep = Math.Min(step, targetDelayMs - elapsed);
                     Thread.Sleep(currentStep);
 
                     elapsed += currentStep;
-                    ET.Value = elapsed;
+                    ElapsedTime.Value = elapsed;
                 }
 
-                // 5. 运行结束，更新完成状态
                 State.Value = true;
                 context.Logger.Info($"{InstanceName} 延时 {targetDelayMs}ms 完成。");
             }
@@ -64,8 +75,14 @@ namespace Plugin.Delay
             }
         }
 
+        /// <summary>
+        /// 初始化插件
+        /// </summary>
         public override void Initialize() { }
 
+        /// <summary>
+        /// 释放资源
+        /// </summary>
         public override void Dispose() { }
     }
 }

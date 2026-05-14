@@ -1,4 +1,4 @@
-﻿using Core.Interfaces.Core;
+using Core.Interfaces.Core;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -91,10 +91,28 @@ namespace Core.Interfaces
                     }
                 }
 
-                // 只有值真正变化时才更新并触发事件
-                if (!EqualityComparer<T>.Default.Equals(_typedValue, newValue))
+                // 使用 SetProperty 方法进行值比较和更新
+                // SetProperty 内部会使用 ValuesAreEqual 进行正确的值比较
+                if (SetProperty(ref _typedValue, newValue))
                 {
-                    SetProperty(ref _typedValue, newValue);
+                    // 值确实发生了变化，触发 ValueChanged 事件
+                    ValueChanged?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 强类型的值属性
+        /// 直接设置强类型值，避免装箱拆箱
+        /// </summary>
+        public T TypedValue
+        {
+            get => _typedValue;
+            set
+            {
+                if (SetProperty(ref _typedValue, value))
+                {
+                    OnPropertyChanged(nameof(Value));
                     ValueChanged?.Invoke(this, EventArgs.Empty);
                 }
             }
@@ -109,6 +127,19 @@ namespace Core.Interfaces
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             Description = description;
+        }
+
+        /// <summary>
+        /// 构造函数（带初始值）
+        /// </summary>
+        /// <param name="name">端口唯一名称</param>
+        /// <param name="description">端口描述信息</param>
+        /// <param name="initialValue">初始值</param>
+        public OutputPort(string name, string description, T initialValue)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Description = description;
+            _typedValue = initialValue;
         }
     }
 }

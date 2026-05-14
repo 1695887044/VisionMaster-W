@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Core
@@ -33,7 +34,6 @@ namespace VisionMaster.Core
             _resetAction = resetAction;
             _maxCapacity = maxCapacity;
 
-            // 预初始化对象
             for (int i = 0; i < initialSize; i++)
             {
                 _pool.Enqueue(factory());
@@ -53,7 +53,6 @@ namespace VisionMaster.Core
                 return item;
             }
 
-            // 池为空，创建新对象
             Interlocked.Increment(ref _totalCreated);
             return _factory();
         }
@@ -65,10 +64,8 @@ namespace VisionMaster.Core
         {
             if (_disposed || item == null) return;
 
-            // 重置对象状态
             _resetAction?.Invoke(item);
 
-            // 超过最大容量则丢弃
             if (_pool.Count < _maxCapacity)
             {
                 _pool.Enqueue(item);

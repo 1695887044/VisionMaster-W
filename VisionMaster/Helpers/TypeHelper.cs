@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,36 +6,41 @@ using System.Threading.Tasks;
 
 namespace VisionMaster.Helpers
 {
+    /// <summary>
+    /// 类型帮助工具类
+    /// 提供类型兼容性检查、表达式安全类型判断等功能
+    /// </summary>
     public static class TypeHelper
     {
+        /// <summary>
+        /// 判断类型是否可安全用于表达式计算
+        /// 只允许字符串和值类型，防止注入攻击
+        /// </summary>
         public static bool IsSafeExpressionType(Type type)
         {
             if (type == null) return false;
 
-            // 1. 允许字符串
             if (type == typeof(string)) return true;
 
-            // 2. 允许所有值类型 (数字、布尔、枚举、DateTime等)
             if (type.IsValueType) return true;
 
-            // 拒绝其他所有复杂的 Class 引用类型
             return false;
         }
+
+        /// <summary>
+        /// 判断类型是否兼容（用于端口绑定验证）
+        /// </summary>
         public static bool IsTypeCompatible(Type source, Type target)
         {
-            // 1. 完全相同，或者存在继承关系 (比如子类可以赋给父类)
             if (target.IsAssignableFrom(source))
                 return true;
 
-            // 2. 目标如果是 object，来者不拒
             if (target == typeof(object))
                 return true;
 
-            // 3. 目标如果是 string，任何类型都能通过 .ToString() 转成文本
             if (target == typeof(string))
                 return true;
 
-            // 4. 🌟 智能数值兼容：允许 int 绑定到 double (因为我们底层 OutputPort 加了 Convert.ChangeType)
             if (IsNumericType(source) && IsNumericType(target))
                 return true;
 
@@ -65,20 +70,20 @@ namespace VisionMaster.Helpers
                     return false;
             }
         }
+
+        /// <summary>
+        /// 从类型名字符串获取实际类型
+        /// 使用硬编码匹配提升性能
+        /// </summary>
         public static Type GetActualTypeFromLink(string typeName)
         {
-            if (typeName == null) return typeof(double); // 断线兜底
-
-            // 假设它拿到的是 "System.Double", "System.String" 这样的字符串
-
+            if (typeName == null) return typeof(double);
 
             if (string.IsNullOrWhiteSpace(typeName))
                 return typeof(double);
 
-            // 采用硬编码字典/Switch匹配，比反射 Type.GetType() 性能快几十倍！
             switch (typeName.ToLower())
             {
-                // 1. 基础数值类型
                 case "system.double":
                 case "double":
                     return typeof(double);
@@ -91,26 +96,22 @@ namespace VisionMaster.Helpers
                 case "int":
                     return typeof(int);
 
-                // 2. 布尔类型
                 case "system.boolean":
                 case "bool":
                     return typeof(bool);
 
-                // 3. 字符串类型
                 case "system.string":
                 case "string":
                     return typeof(string);
 
-                // 4. 其他复杂类型 (返回真实 Type，交由 IsSafeExpressionType 负责拦截)
                 default:
                     try
                     {
-                        // 如果是标准库里的，或者带有完整命名空间的类，尝试反射获取
                         return Type.GetType(typeName, throwOnError: false, ignoreCase: true) ?? typeof(object);
                     }
                     catch
                     {
-                        return typeof(object); // 解析失败直接作为 object 处理
+                        return typeof(object);
                     }
             }
         }

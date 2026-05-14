@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -12,48 +12,115 @@ using VisionMaster.Models;
 
 namespace VisionMaster.Services
 {
+    /// <summary>
+    /// 只读工作区上下文接口
+    /// 提供对当前工作区状态的只读访问
+    /// </summary>
     public interface IReadOnlyWorkspaceContext
     {
+        /// <summary>
+        /// 当前方案
+        /// </summary>
         SolutionModel CurrentSolution { get; }
+
+        /// <summary>
+        /// 当前流程
+        /// </summary>
         FlowModel CurrentFlow { get; }
+
+        /// <summary>
+        /// 当前步骤
+        /// </summary>
         StepModel CurrentStep { get; }
+
+        /// <summary>
+        /// 监视项集合（用于调试时查看变量值）
+        /// </summary>
         ObservableCollection<WatchItemModel> WatchItems { get; }
     }
 
+    /// <summary>
+    /// 工作区管理器接口
+    /// 继承自只读接口，增加状态切换能力
+    /// </summary>
     public interface IWorkspaceManager : IReadOnlyWorkspaceContext
     {
+        /// <summary>
+        /// 全局变量集合
+        /// </summary>
         public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; }
+
+        /// <summary>
+        /// 切换当前方案
+        /// </summary>
         void SwitchSolution(SolutionModel solution);
+
+        /// <summary>
+        /// 切换当前流程
+        /// </summary>
         void SwitchFlow(FlowModel flow);
+
+        /// <summary>
+        /// 切换当前步骤
+        /// </summary>
         void SwitchStep(StepModel step);
     }
 
+    /// <summary>
+    /// 工作区上下文实现类
+    /// 管理方案、流程、步骤的切换，并维护全局变量
+    /// </summary>
     public class WorkspaceContext : BindableBase, IWorkspaceManager
     {
+        /// <summary>
+        /// 全局变量集合
+        /// </summary>
         public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; } = new();
+
         private SolutionModel _currentSolution;
-        public SolutionModel CurrentSolution => _currentSolution; // 实现只读属性
+        /// <summary>
+        /// 当前方案（只读）
+        /// </summary>
+        public SolutionModel CurrentSolution => _currentSolution;
 
         private FlowModel _currentFlow;
+        /// <summary>
+        /// 当前流程（只读）
+        /// </summary>
         public FlowModel CurrentFlow => _currentFlow;
 
         private StepModel _currentStep;
+        /// <summary>
+        /// 当前步骤（只读）
+        /// </summary>
         public StepModel CurrentStep => _currentStep;
 
+        /// <summary>
+        /// 监视项集合
+        /// </summary>
         public ObservableCollection<WatchItemModel> WatchItems => CurrentSolution?.WatchItems;
 
+        /// <summary>
+        /// 初始化工作区上下文
+        /// </summary>
         public WorkspaceContext()
         {
             InitializeCommonVariables();
             GlobalEventBus.Subscribe<StepRenamedMessage>(OnStepRenamed);
         }
 
+        /// <summary>
+        /// 切换当前方案
+        /// </summary>
         public void SwitchSolution(SolutionModel solution)
         {
             SetProperty(ref _currentSolution, solution, nameof(CurrentSolution));
             SwitchFlow(null);
         }
 
+        /// <summary>
+        /// 切换当前流程
+        /// </summary>
         public void SwitchFlow(FlowModel flow)
         {
             if (flow != null)
@@ -68,6 +135,9 @@ namespace VisionMaster.Services
             SwitchStep(null);
         }
 
+        /// <summary>
+        /// 切换当前步骤
+        /// </summary>
         public void SwitchStep(StepModel step)
         {
             if (step != null)
@@ -81,12 +151,21 @@ namespace VisionMaster.Services
 
             SetProperty(ref _currentStep, step, nameof(CurrentStep));
         }
+
+        /// <summary>
+        /// 处理步骤重命名事件
+        /// 更新所有引用旧名称的连线地址和表达式
+        /// </summary>
         private void OnStepRenamed(StepRenamedMessage args)
         {
             if (CurrentFlow == null) return;
             UpdateReferencesRecursively(CurrentFlow.Steps, args.OldName, args.NewName);
         }
 
+        /// <summary>
+        /// 递归更新步骤引用
+        /// 更新连线地址和条件表达式中的步骤名称引用
+        /// </summary>
         private void UpdateReferencesRecursively(IEnumerable<StepModel> steps, string oldName, string newName)
         {
             foreach (var step in steps)
@@ -98,32 +177,29 @@ namespace VisionMaster.Services
 
                     if (linkedAddress != null && linkedAddress.DisplayAddress.StartsWith(oldName + "."))
                     {
-                        // 把 "老名字.Score" 替换为 "新名字.Score"
                         step.LinkedSources[key].DisplayAddress = linkedAddress.DisplayAddress.Replace(oldName + ".", newName + ".");
                     }
                 }
 
-                // 🌟 2. 修复逻辑分支的表达式 (Expression)
                 if (step is ConditionStep conditionNode)
                 {
                     foreach (var branch in conditionNode.Children)
                     {
                         if (!string.IsNullOrWhiteSpace(branch.Expression))
                         {
-                            // 🚨 极度危险：千万不要用简单的 string.Replace！
-                            // 否则把 "流程1" 改成 "相机"，会导致 "流程10" 变成 "相机0"！
-                            // 必须使用正则表达式的“单词边界 \b”来进行精准替换。
-
                             string pattern = $@"\b{Regex.Escape(oldName)}\b";
                             branch.Expression = Regex.Replace(branch.Expression, pattern, newName);
                         }
 
-                        // 递归钻进子分支
                         UpdateReferencesRecursively(branch.Steps, oldName, newName);
                     }
                 }
             }
         }
+
+        /// <summary>
+        /// 递归检查步骤是否在步骤集合中（包括嵌套容器）
+        /// </summary>
         private bool ContainsStepRecursively(IEnumerable<StepModel> steps, StepModel targetStep)
         {
             if (steps == null) return false;
@@ -142,14 +218,16 @@ namespace VisionMaster.Services
                 }
             }
 
-            // 所有的表面和深层都找过了，还是没有
             return false;
         }
+
+        /// <summary>
+        /// 初始化常用全局变量
+        /// </summary>
         public void InitializeCommonVariables()
         {
             GlobalVariables = new ObservableCollection<GlobalVariableModel>
             {
-                // ================== 1. 生产与配方 (String) ==================
                 new GlobalVariableModel
                 {
                     Name = "RecipeName",
@@ -166,7 +244,6 @@ namespace VisionMaster.Services
                     DefaultValue = "",
                     Value = "QR202310240001",
                 },
-                // ================== 2. 统计数据 (Int32) ==================
                 new GlobalVariableModel
                 {
                     Name = "TotalCount",
@@ -191,7 +268,6 @@ namespace VisionMaster.Services
                     DefaultValue = 0,
                     Value = 15,
                 },
-                // ================== 3. 视觉参数与阈值 (Double) ==================
                 new GlobalVariableModel
                 {
                     Name = "ScoreThreshold",
@@ -216,7 +292,6 @@ namespace VisionMaster.Services
                     DefaultValue = 100.0,
                     Value = 99.0,
                 },
-                // ================== 4. 系统状态与 IO (Boolean) ==================
                 new GlobalVariableModel
                 {
                     Name = "IsSystemAuto",
@@ -241,7 +316,6 @@ namespace VisionMaster.Services
                     DefaultValue = false,
                     Value = true,
                 },
-                // ================== 5. 机械坐标补偿 (Double) ==================
                 new GlobalVariableModel
                 {
                     Name = "OffsetX",

@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -10,21 +10,30 @@ using VisionMaster.Services;
 
 namespace VisionMaster.Helpers
 {
+    /// <summary>
+    /// 流程查询帮助类
+    /// 提供流程相关的查询和分析功能
+    /// </summary>
     public static class FlowQueryHelper
     {
         static IPluginProvider pluginProvider;
 
+        /// <summary>
+        /// 获取可用于绑定的变量树
+        /// 包括全局变量和上游步骤的输出端口
+        /// </summary>
         public static List<ToolItemModel> GetAvailableVariablesTree(
             IEnumerable<GlobalVariableModel> globals,
             IEnumerable<StepModel> allSteps,
             StepModel targetStep
         )
         {
-            if(pluginProvider == null)
+            if (pluginProvider == null)
             {
                 pluginProvider = ContainerLocator.Container.Resolve<IPluginProvider>();
             }
             var treeNodes = new List<ToolItemModel>();
+
             if (globals != null && globals.Any())
             {
                 var globalNode = new ToolItemModel()
@@ -32,7 +41,7 @@ namespace VisionMaster.Helpers
                     ModuleGroup = "Global",
                     Name = "全局变量 (Global)",
                     Icon = "\uf0ac",
-                    Description ="全局共享变量",
+                    Description = "全局共享变量",
                     OutputDefinitions = globals
                         .Select(gv => new PortDefinition
                         {
@@ -44,7 +53,7 @@ namespace VisionMaster.Helpers
                 };
                 treeNodes.Add(globalNode);
             }
-            //获取当前节点以上的所有输出 只是展示 不需要Clone
+
             var upstreamNodes = GetUpstreamNodes(allSteps, targetStep);
             foreach (var node in upstreamNodes)
             {
@@ -58,7 +67,7 @@ namespace VisionMaster.Helpers
                     ModuleGroup = node.StepName,
                     Name = node.StepName,
                     Icon = node.Icon,
-                    Description= node.Description,
+                    Description = node.Description,
                     OutputDefinitions = data.OutputDefinitions.ToList(),
                 };
 
@@ -68,6 +77,10 @@ namespace VisionMaster.Helpers
             return treeNodes;
         }
 
+        /// <summary>
+        /// 获取目标步骤之前的所有上游步骤
+        /// 支持嵌套容器步骤的递归查找
+        /// </summary>
         public static List<StepModel> GetUpstreamNodes(
             IEnumerable<StepModel> steps,
             StepModel targetStep

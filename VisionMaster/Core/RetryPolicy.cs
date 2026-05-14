@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Core
@@ -43,7 +44,6 @@ namespace VisionMaster.Core
                         ? initialDelayMs * (int)Math.Pow(2, retryCount - 1)
                         : initialDelayMs;
 
-                   // Log.Warn($"操作失败，{delay}ms后重试（第{retryCount}/{maxRetries}次）: {ex.Message}");
                     Thread.Sleep(delay);
                 }
             }
@@ -74,7 +74,6 @@ namespace VisionMaster.Core
                         ? initialDelayMs * (int)Math.Pow(2, retryCount - 1)
                         : initialDelayMs;
 
-                    //Log.Warn($"操作失败，{delay}ms后重试（第{retryCount}/{maxRetries}次）: {ex.Message}");
                     Thread.Sleep(delay);
                 }
             }

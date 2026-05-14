@@ -1,32 +1,46 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
 
-namespace Plugin.Delay
+namespace VisionMaster.Plugins.Utility
 {
+    /// <summary>
+    /// 文件日志插件
+    /// 将文本内容追加写入到指定的文本或CSV文件中
+    /// </summary>
     [Display(
-        Name = "Write File",
+        Name = "文件写入",
         GroupName = "系统工具",
-        Description = "将文本内容追加写入到指定的文本或 CSV 文件中",
-        ShortName = "\uf0c7" // 保存软盘图标
+        Description = "将文本内容追加写入到指定的文本或CSV文件中",
+        ShortName = "\uf0c7"
     )]
     public class FileLoggerPlugin : VisionPluginBase
     {
-        // 文件路径，默认写在程序运行目录
-        public InputPort<string> FilePath { get; } = new InputPort<string>("File Path", "D:\\DataLog\\Result.csv", "保存的文件绝对路径");
+        /// <summary>
+        /// 文件路径输入端口
+        /// </summary>
+        public InputPort<string> FilePath { get; } = new InputPort<string>("FilePath", "D:\\DataLog\\Result.csv", "保存的文件绝对路径") { IsRequired = true };
 
-        // 要写入的内容（配合 StringFormat 插件食用极佳）
+        /// <summary>
+        /// 要写入的内容输入端口
+        /// </summary>
         public InputPort<string> LogContent { get; } = new InputPort<string>("Content", "", "需要写入的文本行");
 
-        // 是否自动换行
-        public InputPort<bool> AutoNewLine { get; } = new InputPort<bool>("Auto NewLine", true, "是否在末尾自动添加换行符");
+        /// <summary>
+        /// 是否自动换行输入端口
+        /// </summary>
+        public InputPort<bool> AutoNewLine { get; } = new InputPort<bool>("AutoNewLine", true, "是否在末尾自动添加换行符");
 
+        /// <summary>
+        /// 写入成功状态输出端口
+        /// </summary>
         public OutputPort<bool> IsSuccess { get; } = new OutputPort<bool>("Success", "是否写入成功");
 
+        /// <summary>
+        /// 执行文件写入
+        /// </summary>
+        /// <param name="context">执行上下文</param>
         public override void RunAlgorithm(IExecutionContext context)
         {
             string path = FilePath.GetTypedValue();
@@ -35,14 +49,12 @@ namespace Plugin.Delay
 
             try
             {
-                // 确保文件夹存在
                 string dir = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 {
                     Directory.CreateDirectory(dir);
                 }
 
-                // 写入文件（Append 模式，不会覆盖原有数据）
                 string textToWrite = newLine ? content + Environment.NewLine : content;
                 File.AppendAllText(path, textToWrite);
 
@@ -56,7 +68,14 @@ namespace Plugin.Delay
             }
         }
 
+        /// <summary>
+        /// 初始化插件
+        /// </summary>
         public override void Initialize() { }
+
+        /// <summary>
+        /// 释放资源
+        /// </summary>
         public override void Dispose() { }
     }
 }
