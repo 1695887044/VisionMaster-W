@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
@@ -20,7 +21,7 @@ namespace VisionMaster.Services
 
     public interface IWorkspaceManager : IReadOnlyWorkspaceContext
     {
-        public List<GlobalVariableModel> GlobalVariables { get; set; }
+        public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; }
         void SwitchSolution(SolutionModel solution);
         void SwitchFlow(FlowModel flow);
         void SwitchStep(StepModel step);
@@ -28,7 +29,7 @@ namespace VisionMaster.Services
 
     public class WorkspaceContext : BindableBase, IWorkspaceManager
     {
-        public List<GlobalVariableModel> GlobalVariables { get; set; } = new();
+        public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; } = new();
         private SolutionModel _currentSolution;
         public SolutionModel CurrentSolution => _currentSolution; // 实现只读属性
 
@@ -143,7 +144,7 @@ namespace VisionMaster.Services
         }
         public void InitializeCommonVariables()
         {
-            GlobalVariables = new List<GlobalVariableModel>
+            GlobalVariables = new ObservableCollection<GlobalVariableModel>
             {
                 // ================== 1. 生产与配方 (String) ==================
                 new GlobalVariableModel

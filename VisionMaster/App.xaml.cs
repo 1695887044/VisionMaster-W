@@ -46,6 +46,7 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<ILogService, LogService>();
             containerRegistry.RegisterForNavigation<LogView,LogViewModel>();
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
+            containerRegistry.RegisterForNavigation<GlobalDataView, GlobalDataViewModel>();
             containerRegistry.RegisterForNavigation<ToolView, ToolViewModel>();
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");

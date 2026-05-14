@@ -7,6 +7,47 @@
     <prism:PrismApplication.Resources>
         <ResourceDictionary>
             <FontFamily x:Key="Icon"/>
+            <ControlTemplate x:Key="ExpandToggleButtonTemplate" TargetType="ToggleButton">
+                <Border Background="#FFFFFF" BorderBrush="#C0C4CC" BorderThickness="1" CornerRadius="2">
+                    <TextBlock Margin="0,-1,0,0" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontFamily="Consolas" FontSize="11" Foreground="#606266">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="+" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                                        <Setter Property="Text" Value="-" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+            </ControlTemplate>
+
+            <!-- 通用链接按钮样式 -->
+            <Style x:Key="LinkButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="#409EFF" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent">
+                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{TemplateBinding Foreground}" Text="{TemplateBinding Content}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Opacity" Value="0.7" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
             <ResourceDictionary.MergedDictionaries>
 
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />

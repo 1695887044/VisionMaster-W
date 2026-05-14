@@ -1,0 +1,66 @@
+﻿<UserControl x:Class="VisionMaster.Views.ModuleOutputView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:prism="http://prismlibrary.com/"
+             prism:ViewModelLocator.AutoWireViewModel="True">
+    <Grid Background="#FFFFFF">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#F5F7FA" CornerRadius="4" Margin="10,12,10,8" Height="36">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" FontFamily="{StaticResource Icon}" Text="&#xf002;" Foreground="#909399" 
+                           VerticalAlignment="Center" Margin="12,0,8,0" FontSize="14"/>
+
+                <ComboBox Grid.Column="1" IsEditable="True" 
+                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                          ItemsSource="{Binding NameHints}"
+                          BorderThickness="0" Background="Transparent"
+                          VerticalContentAlignment="Center"
+                          FontSize="13" Foreground="#303133"
+                          ToolTip="输入算子名称，按回车键查看输出"
+                          Margin="0,0,4,0">
+                </ComboBox>
+            </Grid>
+        </Border>
+
+        <DataGrid Grid.Row="1" ItemsSource="{Binding PortResults}" 
+                  AutoGenerateColumns="False" 
+                  CanUserAddRows="False"
+                  IsReadOnly="True"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#EBEEF5"
+                  BorderThickness="0"
+                  Background="Transparent"
+                  RowHeight="36">
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Padding" Value="10,0"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="DataGridCell">
+                                <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
+                                    <ContentPresenter VerticalAlignment="Center" />
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="引脚名称" Binding="{Binding Name}" Width="180" Foreground="#303133" FontWeight="SemiBold"/>
+                <DataGridTextColumn Header="数据类型" Binding="{Binding DataType.Name}" Width="120" Foreground="#909399"/>
+                <DataGridTextColumn Header="最新数值" Binding="{Binding Value}" Width="*" Foreground="#E6A23C" FontWeight="Bold"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

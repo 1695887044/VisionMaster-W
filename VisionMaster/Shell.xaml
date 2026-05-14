@@ -368,11 +368,15 @@
                                 <avalonDock:LayoutAnchorable
                                     Title="数据栏"
                                     CanClose="False"
-                                    ContentId="Panel_DataView" />
+                                    ContentId="Panel_DataView">
+                                    <views:GlobalDataView />
+                                </avalonDock:LayoutAnchorable>
                                 <avalonDock:LayoutAnchorable
                                     Title="模块输出"
                                     CanClose="False"
-                                    ContentId="Panel_ModuleOutView" />
+                                    ContentId="Panel_ModuleOutView">
+                                    <views:ModuleOutputView />
+                                </avalonDock:LayoutAnchorable>
                             </avalonDock:LayoutAnchorablePane>
 
                             <avalonDock:LayoutAnchorablePane DockWidth="2*">
