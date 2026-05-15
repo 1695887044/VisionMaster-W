@@ -10,6 +10,21 @@ using VisionMaster.Helpers;
 namespace VisionMaster.Models
 {
     /// <summary>
+    /// 变量类型枚举
+    /// </summary>
+    public enum VariableType
+    {
+        /// <summary>
+        /// 本地变量
+        /// </summary>
+        Local,
+        /// <summary>
+        /// 通讯变量
+        /// </summary>
+        Communication
+    }
+
+    /// <summary>
     /// 全局变量模型
     /// 实现 IOutputPort 接口，可作为数据端口被其他步骤引用
     /// </summary>
@@ -17,11 +32,27 @@ namespace VisionMaster.Models
     {
         private string _dataTypeString;
         private Type _dataType;
+        private object? _value;
 
         /// <summary>
         /// 变量名称
         /// </summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 变量类型（本地变量或通讯变量）
+        /// </summary>
+        public VariableType VariableType { get; set; } = VariableType.Local;
+
+        /// <summary>
+        /// 关联的通讯连接名称（通讯变量使用）
+        /// </summary>
+        public string? ConnectionName { get; set; }
+
+        /// <summary>
+        /// 通讯地址（通讯变量使用）
+        /// </summary>
+        public string? Address { get; set; }
 
         /// <summary>
         /// 数据类型（用于序列化）
@@ -60,23 +91,28 @@ namespace VisionMaster.Models
         /// <summary>
         /// 变量描述
         /// </summary>
-        public string Description { get; set; }
+        public string Description { get; set; } = string.Empty;
 
         /// <summary>
         /// 默认值
         /// </summary>
-        public object DefaultValue { get; set; }
+        public object? DefaultValue { get; set; }
 
         /// <summary>
         /// 当前值
         /// </summary>
-        public object Value
+        public object? Value
         {
-            get => field;
+            get => _value;
             set
             {
-                SetProperty(ref field, value);
-                _valueChanged?.Invoke(this, EventArgs.Empty);
+                if (SetProperty(ref _value, value))
+                {
+                    if (VariableType == VariableType.Local)
+                    {
+                        _valueChanged?.Invoke(this, EventArgs.Empty);
+                    }
+                }
             }
         }
 
@@ -84,12 +120,23 @@ namespace VisionMaster.Models
         /// 值变更事件
         /// </summary>
         [JsonIgnore]
-        private EventHandler _valueChanged;
+        private EventHandler? _valueChanged;
         
         public event EventHandler ValueChanged
         {
             add => _valueChanged += value;
             remove => _valueChanged -= value;
+        }
+
+        /// <summary>
+        /// 通讯变量值变更（由通讯管理器调用）
+        /// </summary>
+        public void UpdateCommunicationValue(object? newValue)
+        {
+            if (SetProperty(ref _value, newValue))
+            {
+                _valueChanged?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         /// <summary>
@@ -148,15 +195,15 @@ namespace VisionMaster.Models
             var raw = _parentSource.Value;
             if (raw is Array arr && _index >= 0 && _index < arr.Length)
             {
-                return arr.GetValue(_index);
+                return arr.GetValue(_index)!;
             }
-            return null;
+            return null!;
         }
 
         /// <summary>
         /// 元素类型（自动从数组类型推断）
         /// </summary>
-        public Type DataType => _parentSource.DataType?.GetElementType();
+        public Type? DataType => _parentSource.DataType?.GetElementType();
 
         /// <summary>
         /// 端口名称（包含索引后缀）

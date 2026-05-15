@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.Windows;
+using VisionMaster.Communications;
 using VisionMaster.Core;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
@@ -42,6 +43,7 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<IPluginProvider, PluginProvider>();
             containerRegistry.RegisterSingleton<IFlowEngine, FlowEngineService>();
             containerRegistry.RegisterSingleton<IRuntimeManager, RuntimeManager>();
+            containerRegistry.RegisterSingleton<ICommunicationManager, AdvancedCommunicationManager>();
             containerRegistry.RegisterSingleton<IExecutionContext, Services.ExecutionContext>();
             containerRegistry.RegisterSingleton<WorkspaceContext>();
             containerRegistry.Register<IReadOnlyWorkspaceContext>(c => c.Resolve<WorkspaceContext>());
@@ -57,6 +59,7 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
             containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
+            containerRegistry.RegisterDialog<CommunicationSettingsView, CommunicationSettingsViewModel>("CommunicationSettingsView");
             containerRegistry.RegisterForNavigation<Shell, ShellViewModel>();
             var pluginService = containerRegistry.GetContainer().Resolve<PluginService>();
             pluginService.InitPlugins();

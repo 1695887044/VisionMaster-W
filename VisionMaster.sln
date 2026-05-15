@@ -19,6 +19,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Plugins", "Plugins", "{256A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Delay", "Plugins\Plugin.Utility\Plugin.Delay.csproj", "{2BC77779-57AA-97C3-583F-13E43960BE21}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DLL", "DLL", "{378A42C3-F029-4AF2-B8F1-040ACB391207}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HslCommunication", "DLL\HslCommunication\HslCommunication.csproj", "{2DFEF210-F010-4631-BB75-A3FFC31B3911}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +45,10 @@ Global
 		{2BC77779-57AA-97C3-583F-13E43960BE21}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BC77779-57AA-97C3-583F-13E43960BE21}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2BC77779-57AA-97C3-583F-13E43960BE21}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DFEF210-F010-4631-BB75-A3FFC31B3911}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DFEF210-F010-4631-BB75-A3FFC31B3911}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DFEF210-F010-4631-BB75-A3FFC31B3911}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DFEF210-F010-4631-BB75-A3FFC31B3911}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -49,6 +57,7 @@ Global
 		{600B1D2F-21B1-31D6-B87D-7410126C828A} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{36C56540-C3A0-46B8-B4CC-7A521728060C} = {4691AF49-2E97-4AFE-A74D-687C41A848EA}
 		{2BC77779-57AA-97C3-583F-13E43960BE21} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
+		{2DFEF210-F010-4631-BB75-A3FFC31B3911} = {378A42C3-F029-4AF2-B8F1-040ACB391207}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B65F7027-912C-4508-AF09-E1435EEC2173}

@@ -61,6 +61,16 @@ namespace VisionMaster.Models
             };
 
         /// <summary>
+        /// 通讯配置集合（跟着解决方案走）
+        /// </summary>
+        public ObservableCollection<Communications.CommunicationConfig> CommunicationConfigs { get; set; } = new();
+
+        /// <summary>
+        /// 全局变量集合（跟着解决方案走）
+        /// </summary>
+        public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; } = new();
+
+        /// <summary>
         /// 动态监视项列表（用于调试时查看变量值）
         /// </summary>
         public ObservableCollection<WatchItemModel> WatchItems { get; set; } = new();

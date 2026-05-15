@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
+﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;

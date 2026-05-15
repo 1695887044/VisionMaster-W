@@ -215,7 +215,23 @@ namespace VisionMaster
                 case SystemAction.CameraSettings:
                     // TODO: 弹出相机配置 Dialog
                     break;
+                case SystemAction.CommSettings:
+                    ShowCommunicationSettings();
+                    break;
             }
+        }
+
+        private void ShowCommunicationSettings()
+        {
+            if (Workspace.CurrentSolution == null) return;
+
+            var parameters = new DialogParameters();
+            parameters.Add("Configs", Workspace.CurrentSolution.CommunicationConfigs);
+            
+            dialogService.ShowDialog("CommunicationSettingsView", parameters, result =>
+            {
+                // 可以在这里处理对话框关闭后的逻辑
+            });
         }
 
         private void StartBackgroundMonitoring()
