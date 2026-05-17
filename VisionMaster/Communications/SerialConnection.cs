@@ -1,41 +1,41 @@
 using HslCommunication;
 using HslCommunication.ModBus;
 using System;
+using System.IO.Ports;
 
 namespace VisionMaster.Communications
 {
-    public class ModbusTcpConnection : BaseConnection<ModbusTcpNet>
+    public class SerialConnection : BaseConnection<ModbusRtu>
     {
         public override string ConnectionName { get; set; } = string.Empty;
-        public override CommunicationType Type => CommunicationType.ModbusTcp;
+        public override CommunicationType Type => CommunicationType.ModbusRtu;
         public override ConnectionConfigBase? Config { get; protected set; }
 
-        public ModbusTcpConnection(CommunicationConfig config)
+        public SerialConnection(CommunicationConfig config)
         {
-            if (config.Config is not ModbusTcpConfig modbusConfig)
-                throw new InvalidOperationException("需要 Modbus TCP 配置");
-            Config = modbusConfig;
+            if (config.Config is not SerialConfig serialConfig)
+                throw new InvalidOperationException("需要串口配置");
+            Config = serialConfig;
             ConnectionName = config.ConnectionName;
         }
 
-        public ModbusTcpConnection(ModbusTcpConfig config)
+        public SerialConnection(SerialConfig config)
         {
             Config = config;
-            ConnectionName = config.IpAddress + ":" + config.Port;
+            ConnectionName = config.PortName + "@" + config.BaudRate;
         }
 
         protected override void InitializeDevice()
         {
-            var tcpConfig = Config as EthernetConfigBase;
-            _device = new ModbusTcpNet(tcpConfig!.IpAddress, tcpConfig.Port)
-            {
-                ConnectTimeOut = tcpConfig.TimeoutMs,
-                AddressStartWithZero = true
-            };
+            var serialConfig = Config as SerialConfig;
+            _device = new ModbusRtu();
+            _device.SerialPortInni(serialConfig!.PortName, serialConfig.BaudRate, serialConfig.DataBits,
+                serialConfig.StopBits switch { StopBitsMode.Two => StopBits.Two, _ => StopBits.One },
+                serialConfig.Parity switch { ParityMode.Odd => Parity.Odd, ParityMode.Even => Parity.Even, _ => Parity.None });
         }
 
-        protected override OperateResult ConnectServer() => _device!.ConnectServer();
-        protected override void CloseConnection() => _device?.ConnectClose();
+        protected override OperateResult ConnectServer() => _device!.Open();
+        protected override void CloseConnection() => _device?.Close();
         protected override OperateResult<bool> ReadBool(string address) => _device!.ReadBool(address);
         protected override OperateResult<short> ReadInt16(string address) => _device!.ReadInt16(address);
         protected override OperateResult<ushort> ReadUInt16(string address) => _device!.ReadUInt16(address);
@@ -53,6 +53,6 @@ namespace VisionMaster.Communications
         protected override OperateResult WriteDouble(string address, double value) => _device!.Write(address, value);
         protected override OperateResult WriteBytesCore(string address, byte[] data) => _device!.Write(address, data);
 
-        public override string ToString() => $"ModbusTcp[{((Config as EthernetConfigBase)?.IpAddress)}:{((Config as EthernetConfigBase)?.Port)}]";
+        public override string ToString() => $"Serial[{((Config as SerialConfig)?.PortName)}@{((Config as SerialConfig)?.BaudRate)}]";
     }
 }

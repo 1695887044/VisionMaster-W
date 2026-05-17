@@ -34,6 +34,12 @@ namespace VisionMaster.Communications
         void Disconnect();
 
         /// <summary>
+        /// 测试连接
+        /// </summary>
+        /// <returns>是否成功</returns>
+        bool TestConnection();
+
+        /// <summary>
         /// 读取指定类型的值
         /// </summary>
         /// <typeparam name="T">数据类型</typeparam>

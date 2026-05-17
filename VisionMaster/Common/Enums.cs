@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using UI.Attributes;
 
 namespace VisionMaster
 {
@@ -206,5 +207,32 @@ namespace VisionMaster
         ReadOnly,
         WriteOnly,
         ReadWrite
+    }
+    // 校验位
+    public enum ParityMode
+    {
+        None = 0,
+       Odd = 1,
+       Even = 2
+    }
+
+    // 停止位
+    public enum StopBitsMode
+    {
+      One = 1,
+        OnePointFive = 3, // 底层库通常用3代表1.5
+        Two = 2
+    }
+
+    // 通讯类型枚举
+    public enum CommunicationType
+    {
+        ModbusTcp,
+        ModbusRtu,
+        SiemensS7,
+        OmronFins,
+        MitsubishiMc,
+        FreeProtocol,
+        OpcUa
     }
 }

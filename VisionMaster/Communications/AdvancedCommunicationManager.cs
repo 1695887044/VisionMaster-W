@@ -1,499 +1,281 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using VisionMaster.Helpers;
 
 namespace VisionMaster.Communications
 {
-    /// <summary>
-    /// 高级通讯管理器实现类
-    /// 提供完整的通讯管理功能，包括连接管理、变量注册、批量读取和写入队列处理
-    /// </summary>
-    public class AdvancedCommunicationManager : ICommunicationManager
+    public class AdvancedCommunicationManager : ICommunicationManager, IDisposable
     {
-        // 连接对象字典，键为连接名称
-        private readonly ConcurrentDictionary<string, ICommunicationConnection> _connections = new();
+        private readonly Dictionary<string, ICommunicationConnection> _connections = new();
+        private readonly Dictionary<string, Timer> _reconnectTimers = new();
+        private readonly Dictionary<string, Timer> _heartbeatTimers = new();
+        private readonly ConnectionFactoryManager _factoryManager = ConnectionFactoryManager.Instance;
+        private bool _disposed = false;
 
-        // 连接配置字典，键为连接名称
-        private readonly ConcurrentDictionary<string, CommunicationConfig> _configs = new();
+        public ObservableCollection<CommunicationConfig> ConnectionsList { get; } = new();
+        public int ConnectionCount => ConnectionsList.Count;
+        public int ConnectedCount => _connections.Count(c => c.Value.IsConnected);
+        public bool IsRunning { get; private set; } = false;
+        public string ConfigFilePath { get; set; } = "communications.json";
+        public bool AutoReconnectEnabled { get; set; } = true;
+        public int GlobalReconnectIntervalMs { get; set; } = 5000;
+        public int HeartbeatIntervalMs { get; set; } = 30000;
 
-        // 读取循环取消标记字典
-        private readonly ConcurrentDictionary<string, CancellationTokenSource> _readCycles = new();
+        public event EventHandler<ConnectionStateChangedEventArgs>? ConnectionStateChanged;
+        public event EventHandler<ConnectionErrorEventArgs>? ConnectionError;
+        public event EventHandler<CommunicationDataEventArgs>? DataReceived;
 
-        // 已注册的通讯变量字典，每个连接对应一个变量列表
-        private readonly ConcurrentDictionary<string, List<CommunicationVariable>> _readVariables = new();
+        private event EventHandler<CommunicationErrorEventArgs>? OnCommError;
+        private event EventHandler<VariableChangedEventArgs>? OnVarChanged;
 
-        // 写入请求队列字典，每个连接对应一个写入队列
-        private readonly ConcurrentDictionary<string, ConcurrentQueue<VariableWriteRequest>> _writeQueue = new();
-
-        // 批量读取锁，保证线程安全
-        private readonly object _batchReadLock = new object();
-
-        // 写入处理任务
-        private Task? _writeTask;
-
-        // 写入任务取消标记
-        private CancellationTokenSource? _writeCts;
-
-        /// <summary>
-        /// 通讯错误事件
-        /// </summary>
-        public event EventHandler<CommunicationErrorEventArgs>? OnCommunicationError;
-
-        /// <summary>
-        /// 变量值变化事件
-        /// </summary>
-        public event EventHandler<VariableChangedEventArgs>? OnVariableChanged;
-
-        /// <summary>
-        /// 获取指定连接
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        /// <returns>连接对象，如果不存在则返回null</returns>
-        public ICommunicationConnection? GetConnection(string connectionName)
+        event EventHandler<CommunicationErrorEventArgs>? ICommunicationManager.OnCommunicationError
         {
-            _connections.TryGetValue(connectionName, out var connection);
-            return connection;
+            add => OnCommError += value;
+            remove => OnCommError -= value;
         }
 
-        /// <summary>
-        /// 添加新连接
-        /// </summary>
-        /// <param name="config">连接配置</param>
-        /// <returns>是否添加成功</returns>
-        public bool AddConnection(CommunicationConfig config)
+        event EventHandler<VariableChangedEventArgs>? ICommunicationManager.OnVariableChanged
         {
-            // 检查是否已存在同名连接
-            if (_configs.ContainsKey(config.ConnectionName))
-                return false;
-
-            try
-            {
-                // 根据通讯类型创建对应的连接对象
-                ICommunicationConnection connection = config.Type switch
-                {
-                    CommunicationType.ModbusTcp => new ModbusTcpConnection(config),
-                    CommunicationType.SiemensS7 => new SiemensS7Connection(config),
-                    CommunicationType.ModbusRtu => throw new NotSupportedException("Modbus RTU暂未实现"),
-                    CommunicationType.FreeProtocol => throw new NotSupportedException("自由协议暂未实现"),
-                    _ => throw new NotSupportedException($"不支持的通讯类型: {config.Type}")
-                };
-
-                // 保存连接对象和配置
-                _connections[config.ConnectionName] = connection;
-                _configs[config.ConnectionName] = config;
-                _readVariables[config.ConnectionName] = new List<CommunicationVariable>();
-                _writeQueue[config.ConnectionName] = new ConcurrentQueue<VariableWriteRequest>();
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                // 触发错误事件
-                OnCommunicationError?.Invoke(this, new CommunicationErrorEventArgs
-                {
-                    ConnectionName = config.ConnectionName,
-                    ErrorMessage = $"添加连接失败: {ex.Message}",
-                    Exception = ex
-                });
-                return false;
-            }
+            add => OnVarChanged += value;
+            remove => OnVarChanged -= value;
         }
 
-        /// <summary>
-        /// 移除连接
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        /// <returns>是否移除成功</returns>
-        public bool RemoveConnection(string connectionName)
-        {
-            // 先停止读取循环
-            StopReadCycle(connectionName);
+        public ICommunicationConnection? GetConnection(string connectionName) =>
+            _connections.TryGetValue(connectionName, out var conn) ? conn : null;
 
-            // 尝试移除并释放资源
-            if (_connections.TryRemove(connectionName, out var connection))
-            {
-                connection.Dispose();
-                _configs.TryRemove(connectionName, out _);
-                _readVariables.TryRemove(connectionName, out _);
-                _writeQueue.TryRemove(connectionName, out _);
-                return true;
-            }
-            return false;
-        }
+        public List<CommunicationConfig> GetAllConnections() => ConnectionsList.ToList();
 
-        /// <summary>
-        /// 更新连接配置
-        /// </summary>
-        /// <param name="config">新的连接配置</param>
-        /// <returns>是否更新成功</returns>
+        public void StartAll() => ConnectAll();
+
+        public void StopAll() => DisconnectAll();
+
+        public void WriteVariable(string connectionName, string address, object value) => Write(connectionName, address, value);
+
+        public T? ReadVariable<T>(string connectionName, string address) => Read<T>(connectionName, address);
+
+        public void RegisterVariable(CommunicationVariable variable) { }
+
+        public void UnregisterVariable(string connectionName, string variableName) { }
+
+        public void TriggerWrite(string connectionName, string address, object value, Type valueType) => Write(connectionName, address, value);
+
         public bool UpdateConnection(CommunicationConfig config)
         {
             RemoveConnection(config.ConnectionName);
             return AddConnection(config);
         }
 
-        /// <summary>
-        /// 获取所有连接配置
-        /// </summary>
-        /// <returns>连接配置列表</returns>
-        public List<CommunicationConfig> GetAllConnections()
+        public bool AddConnection(CommunicationConfig config)
         {
-            return new List<CommunicationConfig>(_configs.Values);
+            if (config == null) throw new ArgumentNullException(nameof(config));
+            if (string.IsNullOrWhiteSpace(config.ConnectionName)) throw new ArgumentException("名称不能为空");
+            if (ConnectionsList.Any(c => c.ConnectionName == config.ConnectionName)) throw new InvalidOperationException("已存在同名连接");
+            if (!config.Validate(out string error)) throw new InvalidOperationException($"验证失败: {error}");
+
+            try
+            {
+                var connection = _factoryManager.CreateConnection(config);
+                _connections[config.ConnectionName] = connection;
+                ConnectionsList.Add(config);
+                config.State = ConnectionState.Disconnected;
+                OnConnectionStateChanged(config.ConnectionName, ConnectionState.Disconnected, ConnectionState.Disconnected);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                OnConnectionError(config.ConnectionName, ex);
+                throw;
+            }
         }
 
-        /// <summary>
-        /// 启动所有已启用的连接和读取循环
-        /// </summary>
-        public void StartAll()
+        public bool RemoveConnection(string connectionName)
         {
-            // 遍历所有配置，连接并启动读取
-            foreach (var config in _configs.Values)
-            {
-                if (config.IsEnabled)
-                {
-                    var connection = GetConnection(config.ConnectionName);
-                    if (connection != null && !connection.IsConnected)
-                    {
-                        connection.Connect();
-                    }
+            if (string.IsNullOrWhiteSpace(connectionName)) return false;
+            StopReconnectTimer(connectionName);
+            StopHeartbeatTimer(connectionName);
 
-                    // 如果配置了读取周期，启动读取循环
-                    if (config.ReadCycleMs > 0)
-                    {
-                        StartReadCycle(config.ConnectionName, config.ReadCycleMs);
-                    }
+            if (_connections.TryGetValue(connectionName, out var connection))
+            {
+                connection.Disconnect();
+                if (connection is IDisposable disposable) disposable.Dispose();
+            }
+            _connections.Remove(connectionName);
+
+            var config = ConnectionsList.FirstOrDefault(c => c.ConnectionName == connectionName);
+            if (config != null) ConnectionsList.Remove(config);
+            return true;
+        }
+
+        public bool Connect(string connectionName)
+        {
+            if (!_connections.TryGetValue(connectionName, out var connection)) throw new InvalidOperationException($"连接不存在: {connectionName}");
+            var config = ConnectionsList.FirstOrDefault(c => c.ConnectionName == connectionName);
+            if (config == null) return false;
+
+            try
+            {
+                if (connection.IsConnected) return true;
+                config.State = ConnectionState.Connecting;
+                OnConnectionStateChanged(connectionName, ConnectionState.Disconnected, ConnectionState.Connecting);
+
+                var result = connection.Connect();
+                config.State = result ? ConnectionState.Connected : ConnectionState.Error;
+                if (result)
+                {
+                    config.UpdateLastConnectedTime();
+                    OnConnectionStateChanged(connectionName, ConnectionState.Connecting, ConnectionState.Connected);
+                    if (AutoReconnectEnabled && config.AutoReconnect) StartHeartbeatTimer(connectionName);
+                }
+                else
+                {
+                    OnConnectionStateChanged(connectionName, ConnectionState.Connecting, ConnectionState.Error);
+                    if (AutoReconnectEnabled && config.AutoReconnect) StartReconnectTimer(connectionName, config.Config.RetryIntervalMs);
+                }
+                return result;
+            }
+            catch (Exception ex)
+            {
+                config.State = ConnectionState.Error;
+                OnConnectionStateChanged(connectionName, ConnectionState.Connecting, ConnectionState.Error);
+                OnConnectionError(connectionName, ex);
+                if (AutoReconnectEnabled && config.AutoReconnect) StartReconnectTimer(connectionName, config.Config.RetryIntervalMs);
+                return false;
+            }
+        }
+
+        public void Disconnect(string connectionName)
+        {
+            if (!_connections.TryGetValue(connectionName, out var connection)) return;
+            var config = ConnectionsList.FirstOrDefault(c => c.ConnectionName == connectionName);
+            StopReconnectTimer(connectionName);
+            StopHeartbeatTimer(connectionName);
+
+            try
+            {
+                connection.Disconnect();
+                if (config != null)
+                {
+                    config.State = ConnectionState.Disconnected;
+                    OnConnectionStateChanged(connectionName, ConnectionState.Connected, ConnectionState.Disconnected);
                 }
             }
-
-            // 启动写入处理器
-            StartWriteProcessor();
+            catch (Exception ex) { OnConnectionError(connectionName, ex); }
         }
 
-        /// <summary>
-        /// 停止所有通讯
-        /// </summary>
-        public void StopAll()
+        public void ConnectAll() { foreach (var config in ConnectionsList.Where(c => c.IsEnabled && c.AutoStart)) Connect(config.ConnectionName); }
+        public void DisconnectAll() { foreach (var name in _connections.Keys.ToList()) Disconnect(name); }
+        public bool TestConnection(string connectionName) { if (!_connections.TryGetValue(connectionName, out var connection)) return false; try { return connection.TestConnection(); } catch { return false; } }
+
+        public T? Read<T>(string connectionName, string address)
         {
-            // 停止所有读取循环
-            foreach (var connectionName in _connections.Keys)
-            {
-                StopReadCycle(connectionName);
-            }
-
-            // 停止写入处理器
-            StopWriteProcessor();
-        }
-
-        /// <summary>
-        /// 注册通讯变量到指定的连接
-        /// </summary>
-        /// <param name="variable">通讯变量</param>
-        public void RegisterVariable(CommunicationVariable variable)
-        {
-            // 如果连接不存在，先创建列表
-            if (!_readVariables.ContainsKey(variable.ConnectionName))
-                _readVariables[variable.ConnectionName] = new List<CommunicationVariable>();
-
-            var variables = _readVariables[variable.ConnectionName];
-
-            // 检查是否已存在同名地址的变量，避免重复注册
-            if (!variables.Any(v => v.Address == variable.Address && v.VariableName == variable.VariableName))
-            {
-                variables.Add(variable);
-            }
-        }
-
-        /// <summary>
-        /// 注销通讯变量
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        /// <param name="variableName">变量名称</param>
-        public void UnregisterVariable(string connectionName, string variableName)
-        {
-            if (_readVariables.TryGetValue(connectionName, out var variables))
-            {
-                variables.RemoveAll(v => v.VariableName == variableName);
-            }
-        }
-
-        /// <summary>
-        /// 触发写入操作，将请求加入写入队列
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        /// <param name="address">变量地址</param>
-        /// <param name="value">写入值</param>
-        /// <param name="valueType">值类型</param>
-        public void TriggerWrite(string connectionName, string address, object value, Type valueType)
-        {
-            if (_writeQueue.TryGetValue(connectionName, out var queue))
-            {
-                queue.Enqueue(new VariableWriteRequest
-                {
-                    ConnectionName = connectionName,
-                    Address = address,
-                    Value = value,
-                    ValueType = valueType
-                });
-            }
-        }
-
-        /// <summary>
-        /// 直接写入变量值(同步写入)
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        /// <param name="address">变量地址</param>
-        /// <param name="value">写入值</param>
-        public void WriteVariable(string connectionName, string address, object value)
-        {
-            var connection = GetConnection(connectionName);
-            if (connection == null || !connection.IsConnected)
-                throw new InvalidOperationException($"连接 {connectionName} 不存在或未连接");
-
-            connection.Write(address, value);
-        }
-
-        /// <summary>
-        /// 读取变量值
-        /// </summary>
-        /// <typeparam name="T">数据类型</typeparam>
-        /// <param name="connectionName">连接名称</param>
-        /// <param name="address">变量地址</param>
-        /// <returns>读取的值</returns>
-        public T? ReadVariable<T>(string connectionName, string address)
-        {
-            var connection = GetConnection(connectionName);
-            if (connection == null || !connection.IsConnected)
-                throw new InvalidOperationException($"连接 {connectionName} 不存在或未连接");
-
+            if (!_connections.TryGetValue(connectionName, out var connection)) throw new InvalidOperationException($"连接不存在: {connectionName}");
+            if (!connection.IsConnected) throw new InvalidOperationException($"连接未建立: {connectionName}");
             return connection.Read<T>(address);
         }
 
-        /// <summary>
-        /// 启动指定连接的读取循环
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        /// <param name="cycleMs">读取周期(毫秒)</param>
-        private void StartReadCycle(string connectionName, int cycleMs)
+        public void Write(string connectionName, string address, object value)
         {
-            // 先停止已存在的读取循环
-            StopReadCycle(connectionName);
-
-            // 创建新的取消标记
-            var cts = new CancellationTokenSource();
-            _readCycles[connectionName] = cts;
-
-            // 启动异步读取循环
-            Task.Run(async () =>
-            {
-                while (!cts.Token.IsCancellationRequested)
-                {
-                    try
-                    {
-                        // 执行批量读取
-                        await BatchReadVariablesAsync(connectionName);
-
-                        // 等待下一个读取周期
-                        await Task.Delay(cycleMs, cts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // 正常取消，退出循环
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        // 发生异常，触发错误事件并继续
-                        OnCommunicationError?.Invoke(this, new CommunicationErrorEventArgs
-                        {
-                            ConnectionName = connectionName,
-                            ErrorMessage = $"读取循环异常: {ex.Message}",
-                            Exception = ex
-                        });
-                    }
-                }
-            }, cts.Token);
+            if (!_connections.TryGetValue(connectionName, out var connection)) throw new InvalidOperationException($"连接不存在: {connectionName}");
+            if (!connection.IsConnected) throw new InvalidOperationException($"连接未建立: {connectionName}");
+            connection.Write(address, value);
         }
 
-        /// <summary>
-        /// 停止指定连接的读取循环
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        private void StopReadCycle(string connectionName)
+        public async Task SaveConfigAsync()
         {
-            if (_readCycles.TryRemove(connectionName, out var cts))
-            {
-                cts.Cancel();
-                cts.Dispose();
-            }
+            var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            var json = JsonSerializer.Serialize(ConnectionsList.ToList(), options);
+            await File.WriteAllTextAsync(ConfigFilePath, json);
         }
 
-        /// <summary>
-        /// 批量读取所有已注册的变量
-        /// </summary>
-        /// <param name="connectionName">连接名称</param>
-        private async Task BatchReadVariablesAsync(string connectionName)
+        public async Task LoadConfigAsync()
         {
-            // 获取该连接下的所有变量
-            if (!_readVariables.TryGetValue(connectionName, out var variables) || variables.Count == 0)
-                return;
-
-            var connection = GetConnection(connectionName);
-            if (connection == null || !connection.IsConnected)
-                return;
-
-            // 在线程池中执行批量读取
-            await Task.Run(() =>
-            {
-                lock (_batchReadLock)
-                {
-                    foreach (var variable in variables)
-                    {
-                        try
-                        {
-                            // 根据类型读取变量值
-                            var value = ReadVariableByType(connection, variable.Address, TypeCache.GetType(variable.VariableName));
-
-                            // 触发变量变化事件
-                            OnVariableChanged?.Invoke(this, new VariableChangedEventArgs
-                            {
-                                ConnectionName = connectionName,
-                                Address = variable.Address,
-                                NewValue = value
-                            });
-
-                            // 更新变量当前值
-                            variable.UpdateValue(value);
-                        }
-                        catch (Exception ex)
-                        {
-                            // 读取失败，触发错误事件
-                            OnCommunicationError?.Invoke(this, new CommunicationErrorEventArgs
-                            {
-                                ConnectionName = connectionName,
-                                ErrorMessage = $"读取变量 {variable.VariableName} 失败: {ex.Message}",
-                                Exception = ex
-                            });
-                        }
-                    }
-                }
-            });
+            if (!File.Exists(ConfigFilePath)) return;
+            var json = await File.ReadAllTextAsync(ConfigFilePath);
+            var configs = JsonSerializer.Deserialize<List<CommunicationConfig>>(json);
+            if (configs != null) { foreach (var config in configs) { try { AddConnection(config); } catch { } } }
         }
 
-        /// <summary>
-        /// 根据类型读取变量值
-        /// </summary>
-        /// <param name="connection">连接对象</param>
-        /// <param name="address">变量地址</param>
-        /// <param name="valueType">值类型</param>
-        /// <returns>读取的值</returns>
-        private object? ReadVariableByType(ICommunicationConnection connection, string address, Type valueType)
+        public async Task ExportConfigAsync(string filePath)
         {
-            // 根据不同类型调用对应的读取方法
-            if (valueType == typeof(bool))
-                return connection.Read<bool>(address);
-            else if (valueType == typeof(short))
-                return connection.Read<short>(address);
-            else if (valueType == typeof(ushort))
-                return connection.Read<ushort>(address);
-            else if (valueType == typeof(int))
-                return connection.Read<int>(address);
-            else if (valueType == typeof(uint))
-                return connection.Read<uint>(address);
-            else if (valueType == typeof(long))
-                return connection.Read<long>(address);
-            else if (valueType == typeof(ulong))
-                return connection.Read<ulong>(address);
-            else if (valueType == typeof(float))
-                return connection.Read<float>(address);
-            else if (valueType == typeof(double))
-                return connection.Read<double>(address);
-            else if (valueType == typeof(byte))
-                return connection.Read<byte>(address);
-
-            return null;
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            var json = JsonSerializer.Serialize(ConnectionsList.ToList(), options);
+            await File.WriteAllTextAsync(filePath, json);
         }
 
-        /// <summary>
-        /// 启动写入处理器
-        /// </summary>
-        private void StartWriteProcessor()
+        public async Task ImportConfigAsync(string filePath)
         {
-            StopWriteProcessor();
-            _writeCts = new CancellationTokenSource();
-
-            _writeTask = Task.Run(async () =>
-            {
-                while (!_writeCts.Token.IsCancellationRequested)
-                {
-                    try
-                    {
-                        // 处理写入队列
-                        await ProcessWriteQueueAsync();
-
-                        // 短暂延迟，避免CPU占用过高
-                        await Task.Delay(10, _writeCts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        // 处理异常，继续运行
-                        OnCommunicationError?.Invoke(this, new CommunicationErrorEventArgs
-                        {
-                            ErrorMessage = $"写入处理异常: {ex.Message}",
-                            Exception = ex
-                        });
-                    }
-                }
-            }, _writeCts.Token);
+            if (!File.Exists(filePath)) throw new FileNotFoundException("配置文件不存在", filePath);
+            var json = await File.ReadAllTextAsync(filePath);
+            var configs = JsonSerializer.Deserialize<List<CommunicationConfig>>(json);
+            if (configs != null) { foreach (var config in configs) { try { AddConnection(config); } catch { } } }
         }
 
-        /// <summary>
-        /// 停止写入处理器
-        /// </summary>
-        private void StopWriteProcessor()
+        private void StartReconnectTimer(string name, int intervalMs)
         {
-            _writeCts?.Cancel();
-            _writeTask = null;
+            StopReconnectTimer(name);
+            _reconnectTimers[name] = new Timer(_ => Connect(name), null, intervalMs, Timeout.Infinite);
         }
 
-        /// <summary>
-        /// 处理写入队列
-        /// </summary>
-        private async Task ProcessWriteQueueAsync()
+        private void StopReconnectTimer(string name)
         {
-            // 遍历所有连接的写入队列
-            foreach (var connectionName in _writeQueue.Keys)
-            {
-                if (_writeQueue.TryGetValue(connectionName, out var queue))
-                {
-                    // 取出并处理所有写入请求
-                    while (queue.TryDequeue(out var request))
-                    {
-                        try
-                        {
-                            // 执行写入操作
-                            await Task.Run(() => WriteVariable(request.ConnectionName, request.Address, request.Value));
-                        }
-                        catch (Exception ex)
-                        {
-                            // 写入失败，触发错误事件
-                            OnCommunicationError?.Invoke(this, new CommunicationErrorEventArgs
-                            {
-                                ConnectionName = request.ConnectionName,
-                                ErrorMessage = $"写入变量 {request.Address} 失败: {ex.Message}",
-                                Exception = ex
-                            });
-                        }
-                    }
-                }
-            }
+            if (_reconnectTimers.Remove(name, out var timer)) timer.Dispose();
         }
+
+        private void StartHeartbeatTimer(string name)
+        {
+            StopHeartbeatTimer(name);
+            if (HeartbeatIntervalMs <= 0) return;
+            _heartbeatTimers[name] = new Timer(_ => { if (!_connections.TryGetValue(name, out var c) || !c.IsConnected) Connect(name); }, null, HeartbeatIntervalMs, HeartbeatIntervalMs);
+        }
+
+        private void StopHeartbeatTimer(string name)
+        {
+            if (_heartbeatTimers.Remove(name, out var timer)) timer.Dispose();
+        }
+
+        private void OnConnectionStateChanged(string name, ConnectionState oldState, ConnectionState newState) => ConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs(name, oldState, newState));
+        private void OnConnectionError(string name, Exception ex) => ConnectionError?.Invoke(this, new ConnectionErrorEventArgs(name, ex));
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            DisconnectAll();
+            foreach (var timer in _reconnectTimers.Values) timer.Dispose();
+            _reconnectTimers.Clear();
+            foreach (var timer in _heartbeatTimers.Values) timer.Dispose();
+            _heartbeatTimers.Clear();
+            foreach (var connection in _connections.Values) if (connection is IDisposable d) d.Dispose();
+            _connections.Clear();
+            ConnectionsList.Clear();
+            _disposed = true;
+        }
+    }
+
+    public class ConnectionStateChangedEventArgs : EventArgs
+    {
+        public string ConnectionName { get; }
+        public ConnectionState OldState { get; }
+        public ConnectionState NewState { get; }
+        public ConnectionStateChangedEventArgs(string name, ConnectionState oldState, ConnectionState newState) { ConnectionName = name; OldState = oldState; NewState = newState; }
+    }
+
+    public class ConnectionErrorEventArgs : EventArgs
+    {
+        public string ConnectionName { get; }
+        public Exception Exception { get; }
+        public ConnectionErrorEventArgs(string name, Exception ex) { ConnectionName = name; Exception = ex; }
+    }
+
+    public class CommunicationDataEventArgs : EventArgs
+    {
+        public string ConnectionName { get; }
+        public string Address { get; }
+        public object? Value { get; }
+        public CommunicationDataEventArgs(string name, string address, object? value) { ConnectionName = name; Address = address; Value = value; }
     }
 }
