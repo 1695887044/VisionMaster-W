@@ -66,9 +66,9 @@ namespace VisionMaster.Communications
         public override CommunicationType Type => CommunicationType.SiemensS7;
         public string S7CpuType { get; set; } = "S1200";
         public byte Rack { get; set; } = 0;
-        public byte Slot { get; set; } = 1;
+        public byte Slot { get; set; } = 0;
 
-        public SiemensS7Config() { Port = 102; }
+        public SiemensS7Config() {  }
 
         public override ICommunicationConnection CreateConnection() => new SiemensS7Connection(this);
         public override ConnectionConfigBase Clone() => new SiemensS7Config

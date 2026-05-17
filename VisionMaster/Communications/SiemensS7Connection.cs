@@ -47,6 +47,7 @@ namespace VisionMaster.Communications
                 Rack = s7Config.Rack,
                 Slot = s7Config.Slot
             };
+            _device.Port = s7Config.Port;
         }
 
         protected override OperateResult ConnectServer() => _device!.ConnectServer();

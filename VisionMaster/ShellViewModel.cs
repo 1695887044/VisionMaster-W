@@ -1,14 +1,16 @@
+using Core.Interfaces;
+using HslCommunication.Profinet.Siemens;
+using NLog;
+using Prism.Common;
+using Prism.Dialogs;
 using System.Reflection.Metadata;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
-using Core.Interfaces;
-using NLog;
-using Prism.Common;
-using Prism.Dialogs;
 using UI.Attributes;
 using UI.CustomControl;
 using UI.Helper;
+using VisionMaster.Communications;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -117,6 +119,30 @@ namespace VisionMaster
                     await SaveSolutionAsync();
                     break;
                 case SolutionAction.BrowseList:
+                    // 加载测试数据
+                    var manager = new AdvancedCommunicationManager();
+                    //await  manager.ImportConfigAsync("\"E:\\VM\\VM\\communications_test_data.json\"");
+                    // manager.Add(new ModbusTcpConnection("Modbus_PLC_1", "127.0.0.1", 502));
+                    // 连接并测试
+                    // Modbus TCP
+                    var modbus = CommunicationConfig.CreateModbusTcp("PLC_1", "127.0.0.1", 502);
+
+                    // 西门子 S7
+                    var s7 = CommunicationConfig.CreateSiemensS7("S7_PLC", "127.0.0.1", 108,"S1200");
+                   //s7.Config
+                    // 串口 RTU
+                    var rtu = CommunicationConfig.CreateModbusRtu("Sensor", "COM1", 115200);
+
+                    manager.AddConnection(modbus);
+                    manager.AddConnection(s7);
+                    manager.AddConnection(rtu);
+                    manager.ConnectAll();
+                    manager.Connect("S7_PLC");
+                   // SiemensS7Net s7Net = new SiemensS7Net(SiemensPLCS.S1200, "127.0.0.1");
+                    //s7Net.Port = 108;
+                 // var result =    s7Net.ConnectServer();
+                   // var value = manager.Read<bool>("S7_PLC", "M100");
+                    //var value = manager.Read<bool>("Modbus_PLC_1", "1.0");
                     break;
             }
         }

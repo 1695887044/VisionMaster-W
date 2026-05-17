@@ -55,13 +55,14 @@ namespace VisionMaster.Communications
             };
         }
 
-        public static CommunicationConfig CreateSiemensS7(string name, string ip, string cpuType = "S1200")
+        public static CommunicationConfig CreateSiemensS7(string name, string ip,int port = 102, string cpuType = "S1200")
         {
             return new CommunicationConfig
             {
                 ConnectionName = name,
                 Protocol = CommunicationType.SiemensS7,
-                Config = new SiemensS7Config { IpAddress = ip, S7CpuType = cpuType },
+                Config = new SiemensS7Config { IpAddress = ip, S7CpuType = cpuType ,Port =port},
+
                 AutoStart = true, AutoReconnect = true, ReadCycleMs = 1000
             };
         }
