@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using Prism.Mvvm; // 引入 BindableBase
 using UI.Attributes;
@@ -8,11 +8,123 @@ namespace VisionMaster.Communications
     // ==========================================
     // 🌟 1. 顶层基类 (引入缓存机制与属性通知)
     // ==========================================
-    [TypeConverter(typeof(ExpandableObjectConverter))]
     public abstract class DeviceAddressBase : BindableBase
     {
         // 核心缓存：运行期底层通讯频繁读取时，直接返回它
         protected string? _cachedAddress = null;
+
+        #region 数据转换管道
+
+        private double? _scale;
+        private double _offset;
+        private string? _unit;
+        private int _decimalPlaces = 2;
+        private bool _enableConversion;
+
+        [Category("数据转换"), SuperDisplay(Name = "启用转换")]
+        public bool EnableConversion
+        {
+            get => _enableConversion;
+            set => SetProperty(ref _enableConversion, value);
+        }
+
+        [Category("数据转换"), SuperDisplay(Name = "缩放系数")]
+        public double? Scale
+        {
+            get => _scale;
+            set
+            {
+                if (SetProperty(ref _scale, value))
+                {
+                    RaisePropertyChanged(nameof(EngineeringValue));
+                }
+            }
+        }
+
+        [Category("数据转换"), SuperDisplay(Name = "工程偏移")]
+        public double EngineeringOffset
+        {
+            get => _offset;
+            set
+            {
+                if (SetProperty(ref _offset, value))
+                {
+                    RaisePropertyChanged(nameof(EngineeringValue));
+                }
+            }
+        }
+
+        [Category("数据转换"), SuperDisplay(Name = "工程单位")]
+        public string? Unit
+        {
+            get => _unit;
+            set => SetProperty(ref _unit, value);
+        }
+
+        [Category("数据转换"), SuperDisplay(Name = "小数位数")]
+        public int DecimalPlaces
+        {
+            get => _decimalPlaces;
+            set
+            {
+                if (value < 0) value = 0;
+                if (value > 10) value = 10;
+                if (SetProperty(ref _decimalPlaces, value))
+                {
+                    RaisePropertyChanged(nameof(EngineeringValue));
+                }
+            }
+        }
+
+        [Browsable(false)]
+        public double EngineeringValue { get; private set; }
+
+        public object? ConvertToEngineering(object? rawValue)
+        {
+            if (!EnableConversion || rawValue == null) return rawValue;
+            try
+            {
+                double raw = Convert.ToDouble(rawValue);
+                double scaled = Scale.HasValue ? raw * Scale.Value : raw;
+                double result = scaled + EngineeringOffset;
+                EngineeringValue = Math.Round(result, DecimalPlaces);
+                return EngineeringValue;
+            }
+            catch
+            {
+                return rawValue;
+            }
+        }
+
+        public object? ConvertToRaw(object? engineeringValue)
+        {
+            if (!EnableConversion || engineeringValue == null) return engineeringValue;
+            try
+            {
+                double eng = Convert.ToDouble(engineeringValue);
+                double offset = eng - EngineeringOffset;
+                double result = Scale.HasValue ? offset / Scale.Value : offset;
+                return Math.Round(result, 0);
+            }
+            catch
+            {
+                return engineeringValue;
+            }
+        }
+
+        public string FormatEngineeringValue(object? rawValue)
+        {
+            var engValue = ConvertToEngineering(rawValue);
+            if (engValue == null) return "N/A";
+            if (engValue is double d)
+            {
+                var format = $"F{DecimalPlaces}";
+                return Unit != null ? $"{d.ToString(format)} {Unit}" : d.ToString(format);
+            }
+            return engValue.ToString() ?? "N/A";
+        }
+
+        #endregion
 
         /// <summary>
         /// 核心偏移量/地址编号 (设为 virtual 允许子类重写特性)
