@@ -135,4 +135,76 @@ namespace VisionMaster
         AddElse,
         AddCase
     }
+    // 2. Modbus 特有区域枚举
+    public enum ModbusArea
+    {
+        Coils,             // 0x: 线圈 (读写布尔)
+        DiscreteInputs,    // 1x: 离散输入 (只读布尔)
+        InputRegisters,    // 3x: 输入寄存器 (只读字)
+        HoldingRegisters   // 4x: 保持寄存器 (读写字)
+    }
+
+    // 3. 西门子 S7 特有区域枚举
+    public enum S7Area
+    {
+        DB,  // 数据块
+        I,   // 输入映像区
+        Q,   // 输出映像区
+        M,   // 内部标志位
+        V    // V区 (200Smart特有)
+    }
+
+    // 4. 欧姆龙特有区域枚举
+    public enum OmronArea
+    {
+        D,   // 数据区
+        CIO, // 核心I/O区
+        W,   // 工作区
+        H,   // 保持区
+        A    // 辅助区
+    }
+
+    // 5. 三菱特有区域枚举
+    public enum MitsubishiArea
+    {
+        D,   // 数据寄存器
+        M,   // 内部继电器
+        X,   // 输入继电器 (十六进制寻址)
+        Y,   // 输出继电器 (十六进制寻址)
+        W,   // 链接寄存器 (十六进制寻址)
+        B    // 链接继电器 (十六进制寻址)
+    }
+
+    // 6. OPC UA 标识符类型枚举
+    public enum OpcUaIdType
+    {
+        String,
+        Numeric,
+        Guid
+    }
+
+    // 7. 裸报文（Raw Socket）数据解析模式枚举
+    public enum ParseMode
+    {
+        Regex,
+        SplitByComma,
+        ReadAll
+    }
+
+    // 8. Modbus 大小端字节序枚举
+    public enum ByteOrderFormat
+    {
+        ABCD,
+        CDAB,
+        BADC,
+        DCBA
+    }
+
+    // 9. 变量访问权限模式枚举
+    public enum VariableAccessMode
+    {
+        ReadOnly,
+        WriteOnly,
+        ReadWrite
+    }
 }
