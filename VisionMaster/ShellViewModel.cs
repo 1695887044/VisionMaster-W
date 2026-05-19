@@ -3,9 +3,11 @@ using HslCommunication.Profinet.Siemens;
 using NLog;
 using Prism.Common;
 using Prism.Dialogs;
+using System.Diagnostics;
 using System.Reflection.Metadata;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using UI.Attributes;
 using UI.CustomControl;
@@ -30,6 +32,8 @@ namespace VisionMaster
         private readonly IRuntimeManager _runtimeManager;
         private CancellationTokenSource _cts;
         private Task _monitorTask;
+
+
         public IWorkspaceManager Workspace { get; }
         private string CurrentFlowName => Workspace.CurrentFlow?.FlowName;
         public SolutionService solutionService { get; }
@@ -117,32 +121,13 @@ namespace VisionMaster
                     break;
                 case SolutionAction.Save:
                     await SaveSolutionAsync();
+
                     break;
                 case SolutionAction.BrowseList:
-                    // 加载测试数据
-                    var manager = new AdvancedCommunicationManager();
-                    //await  manager.ImportConfigAsync("\"E:\\VM\\VM\\communications_test_data.json\"");
-                    // manager.Add(new ModbusTcpConnection("Modbus_PLC_1", "127.0.0.1", 502));
-                    // 连接并测试
-                    // Modbus TCP
-                    var modbus = CommunicationConfig.CreateModbusTcp("PLC_1", "127.0.0.1", 502);
 
-                    // 西门子 S7
-                    var s7 = CommunicationConfig.CreateSiemensS7("S7_PLC", "127.0.0.1", 108,"S1200");
-                   //s7.Config
-                    // 串口 RTU
-                    var rtu = CommunicationConfig.CreateModbusRtu("Sensor", "COM1", 115200);
-
-                    manager.AddConnection(modbus);
-                    manager.AddConnection(s7);
-                    manager.AddConnection(rtu);
-                    manager.ConnectAll();
-                    manager.Connect("S7_PLC");
-                   // SiemensS7Net s7Net = new SiemensS7Net(SiemensPLCS.S1200, "127.0.0.1");
-                    //s7Net.Port = 108;
-                 // var result =    s7Net.ConnectServer();
-                   // var value = manager.Read<bool>("S7_PLC", "M100");
-                    //var value = manager.Read<bool>("Modbus_PLC_1", "1.0");
+                    var asd = await EasyDialog.ShowPropertyGridAsync(
+                  "创建新解决方案",
+                  new CommunicationConfig());
                     break;
             }
         }
@@ -249,7 +234,11 @@ namespace VisionMaster
 
         private void ShowCommunicationSettings()
         {
-            if (Workspace.CurrentSolution == null) return;
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("请先打开一个解决方案");
+                return;
+            }
 
             var parameters = new DialogParameters();
             parameters.Add("Configs", Workspace.CurrentSolution.CommunicationConfigs);

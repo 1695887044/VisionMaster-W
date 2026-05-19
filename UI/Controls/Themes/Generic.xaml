@@ -11,5 +11,6 @@
         <ResourceDictionary Source="/UI;component/Themes/PropertyGrid.xaml" />
         <ResourceDictionary Source="/UI;component/Extensions/BtnExtension.xaml" />
         <ResourceDictionary Source="/UI;component/Extensions/BorderExtension.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/PropergridStyle.xaml" />
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

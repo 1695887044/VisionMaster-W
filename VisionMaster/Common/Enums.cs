@@ -19,7 +19,20 @@ namespace VisionMaster
         Stopped,
         Faulted
     }
+    public enum DataQuality
+    {
+        /// <summary>数据有效且可靠</summary>
+        Good,
 
+        /// <summary>数据无效，通常由通信错误导致</summary>
+        Bad,
+
+        /// <summary>数据可能不准确或已过时</summary>
+        Uncertain,
+
+        /// <summary>未建立连接或数据未初始化</summary>
+        NotConnected
+    }
     /// <summary>
     /// 分支类型枚举
     /// </summary>
@@ -192,13 +205,12 @@ namespace VisionMaster
         ReadAll
     }
 
-    // 8. Modbus 大小端字节序枚举
     public enum ByteOrderFormat
     {
-        ABCD,
-        CDAB,
-        BADC,
-        DCBA
+        ABCD, // 大端
+        DCBA, // 小端
+        BADC, // 字交换大端
+        CDAB  // 字交换小端
     }
 
     // 9. 变量访问权限模式枚举
@@ -234,5 +246,96 @@ namespace VisionMaster
         MitsubishiMc,
         FreeProtocol,
         OpcUa
+    }
+    public enum DataValueType
+    {
+
+        Boolean,
+
+
+        SByte,
+
+
+        Byte,
+
+
+        Int16,
+
+
+        UInt16,
+
+
+        Int32,
+
+
+        UInt32,
+
+    
+        Int64,
+
+        UInt64,
+
+  
+        Float,
+
+ 
+        Double,
+
+
+        String,
+
+        ByteArray
+    }
+    public enum McProtocolType
+    {
+        Tcp,
+        Udp
+    }
+
+    public enum McFrameFormat
+    {
+        Binary,
+        Ascii
+    }
+
+    public enum FreeProtocolMode
+    {
+        Serial,
+        Ethernet
+    }
+
+    public enum ChecksumType
+    {
+        None,
+        Xor,
+        Sum8,
+        Sum16,
+        Crc16,
+        Crc32
+    }
+    public enum ConnectionState
+    {
+        Disconnected,
+        Connecting,
+        Connected,
+        Error,
+        Reconnecting,
+    }
+
+    public enum OpcUaSecurityPolicy
+    {
+        None,
+        Basic128Rsa15,
+        Basic256,
+        Basic256Sha256,
+        Aes128_Sha256_RsaOaep,
+        Aes256_Sha256_RsaPss
+    }
+
+    public enum OpcUaMessageSecurityMode
+    {
+        None,
+        Sign,
+        SignAndEncrypt
     }
 }

@@ -4,153 +4,227 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:prism="http://prismlibrary.com/"
     prism:ViewModelLocator.AutoWireViewModel="True"
-    Width="800"
+    Width="900"
     Height="600"
-    Background="#F5F5F5">
-    
-    <Grid Margin="20">
+    Background="#FFFFFF">
+
+    <UserControl.Resources>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#F5F7FA" />
+            <Setter Property="Foreground" Value="#909399" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="BorderBrush" Value="#EBEEF5" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Padding="{TemplateBinding Padding}" 
+                                Background="Transparent" 
+                                BorderBrush="Transparent" 
+                                BorderThickness="0">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="#303133" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#606266" />
+            <Setter Property="Height" Value="45" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridRow">
+                        <Border x:Name="DGR_Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <DataGridCellsPresenter ItemsPanel="{TemplateBinding ItemsPanel}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F5F7FA" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#ECF5FF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="60" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="65" />
         </Grid.RowDefinitions>
 
-        <!--  标题  -->
-        <TextBlock
-            Grid.Row="0"
-            FontSize="20"
-            FontWeight="Bold"
-            Foreground="#2C3E50"
-            Text="通讯连接配置" />
+        <Border Grid.Row="0" BorderBrush="#EBEEF5" BorderThickness="0,0,0,1" Background="#FAFAFA">
+            <StackPanel Orientation="Horizontal" Margin="24,0">
+                <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf1e6;" FontSize="18" Foreground="#409EFF" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <TextBlock FontSize="18" FontWeight="Bold" Foreground="#303133" Text="通讯连接配置" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
 
-        <!--  工具栏  -->
-        <Grid Grid.Row="1" Margin="0,15,0,10">
+        <Grid Grid.Row="1" Margin="24,15,24,15">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBox
-                Grid.Column="0"
-                Width="250"
-                Height="32"
-                HorizontalAlignment="Left"
-                VerticalContentAlignment="Center"
-                Background="White"
-                BorderBrush="#BDC3C7"
-                BorderThickness="1"
-                Padding="10,0"
-                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
-                <TextBox.Style>
-                    <Style TargetType="TextBox">
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="TextBox">
-                                    <Border
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        CornerRadius="5">
-                                        <Grid>
-                                            <TextBlock
-                                                Margin="10,0"
-                                                VerticalAlignment="Center"
-                                                Foreground="#BDC3C7"
-                                                Text="搜索连接..."
-                                                Visibility="{Binding ElementName=textBox, Path=Text.IsEmpty, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                            <ScrollViewer x:Name="PART_ContentHost" Margin="10,0" />
-                                        </Grid>
-                                    </Border>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </TextBox.Style>
-            </TextBox>
+            <Border Grid.Column="0" Width="260" Height="34" HorizontalAlignment="Left" Background="#F5F7FA" CornerRadius="4" BorderBrush="#DCDFE6" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Margin="10,0,5,0" FontFamily="{StaticResource Icon}" Text="&#xf002;" Foreground="#C0C4CC" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" 
+                             Foreground="#606266" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Background">
+                                            <Setter.Value>
+                                                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
+                                                    <VisualBrush.Visual>
+                                                        <TextBlock Text="搜索连接名称..." Foreground="#C0C4CC" FontStyle="Italic"/>
+                                                    </VisualBrush.Visual>
+                                                </VisualBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </Grid>
+            </Border>
 
-            <Button
-                Grid.Column="1"
-                Command="{Binding AddCommand}"
-                Content="添加连接"
-                Padding="15,8"
-                Background="#3498DB"
-                Foreground="White"
-                BorderThickness="0"
-                Cursor="Hand" />
+            <Button Grid.Column="1" Command="{Binding AddCommand}" Height="34" Padding="15,0" Background="#409EFF" Foreground="White" BorderThickness="0" Cursor="Hand">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf067;" Margin="0,0,6,0" FontSize="12"/>
+                                <TextBlock Text="添加连接" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#66B1FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
         </Grid>
 
-        <!--  连接列表  -->
-        <DataGrid
-            Grid.Row="2"
-            AutoGenerateColumns="False"
-            Background="White"
-            BorderBrush="#BDC3C7"
-            BorderThickness="1"
-            GridLinesVisibility="Horizontal"
-            HeadersVisibility="Column"
-            HorizontalGridLinesBrush="#ECF0F1"
-            IsReadOnly="True"
-            ItemsSource="{Binding Configs}"
-            SelectedItem="{Binding SelectedConfig}"
-            SelectionMode="Single">
+        <DataGrid Grid.Row="2" Margin="24,0,24,0"
+                  AutoGenerateColumns="False"
+                  Background="Transparent"
+                  BorderBrush="#EBEEF5"
+                  BorderThickness="1"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  HorizontalGridLinesBrush="#EBEEF5"
+                  RowHeaderWidth="0"
+                  IsReadOnly="True"
+                  ItemsSource="{Binding Configs}"
+                  SelectedItem="{Binding SelectedConfig}"
+                  SelectionMode="Single">
             <DataGrid.Columns>
-                <DataGridTextColumn
-                    Width="*"
-                    Binding="{Binding ConnectionName}"
-                    Header="连接名称" />
-                <DataGridTextColumn
-                    Width="100"
-                    Binding="{Binding Type}"
-                    Header="类型" />
-                <DataGridTextColumn
-                    Width="120"
-                    Binding="{Binding IpAddress}"
-                    Header="IP地址" />
-                <DataGridTextColumn
-                    Width="60"
-                    Binding="{Binding Port}"
-                    Header="端口" />
-                <DataGridTextColumn
-                    Width="60"
-                    Binding="{Binding Station}"
-                    Header="站号" />
-                <DataGridTextColumn
-                    Width="80"
-                    Binding="{Binding ReadCycleMs}"
-                    Header="读取周期(ms)" />
-                <DataGridTemplateColumn Width="80" Header="启用">
+                <DataGridTemplateColumn Width="1.5*" Header="连接名称">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <CheckBox
-                                HorizontalAlignment="Center"
-                                IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="{Binding ConnectionName}" FontWeight="SemiBold" Foreground="#303133" VerticalAlignment="Center"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Width="150" Header="操作">
+
+                <DataGridTextColumn Width="120" Binding="{Binding Protocol}" Header="协议类型" />
+
+                <DataGridTemplateColumn Width="2*" Header="物理链路参数">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
-                                <Button
-                                    Command="{Binding DataContext.TestConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                    CommandParameter="{Binding}"
-                                    Content="测试"
-                                    Margin="0,0,5,0"
-                                    Padding="8,4"
-                                    Background="#27AE60"
-                                    Foreground="White"
-                                    BorderThickness="0"
-                                    Cursor="Hand" />
-                                <Button
-                                    Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                    CommandParameter="{Binding}"
-                                    Content="删除"
-                                    Padding="8,4"
-                                    Background="#E74C3C"
-                                    Foreground="White"
-                                    BorderThickness="0"
-                                    Cursor="Hand" />
+                            <Border Background="#F4F4F5" CornerRadius="3" Padding="8,4" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding Config}" FontFamily="Consolas" FontSize="11" Foreground="#909399" VerticalAlignment="Center"/>
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTextColumn Width="100" Binding="{Binding ReadCycleMs, StringFormat={}{0} ms}" Header="轮询周期" />
+
+                <DataGridTemplateColumn Width="80" Header="启用">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Width="160" Header="操作">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Command="{Binding DataContext.TestConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"
+                                        Content="连通测试"
+                                        Background="#F0F9EB"
+                                        Foreground="#67C23A"
+                                        Style="{StaticResource ActionButtonStyle}" />
+
+                                <Button Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"
+                                        Content="删除"
+                                        Background="#FEF0F0"
+                                        Foreground="#F56C6C"
+                                        Style="{StaticResource ActionButtonStyle}" />
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -158,20 +232,26 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!--  底部按钮  -->
-        <StackPanel
-            Grid.Row="3"
-            HorizontalAlignment="Right"
-            Margin="0,15,0,0"
-            Orientation="Horizontal">
-            <Button
-                Command="{Binding CloseCommand}"
-                Content="确定"
-                Padding="20,8"
-                Background="#34495E"
-                Foreground="White"
-                BorderThickness="0"
-                Cursor="Hand" />
-        </StackPanel>
+        <Border Grid.Row="3" BorderBrush="#EBEEF5" BorderThickness="0,1,0,0" Background="#FAFAFA">
+            <Button Command="{Binding CloseCommand}" 
+                    Content="确 定" 
+                    HorizontalAlignment="Right" 
+                    Margin="0,0,24,0"
+                    Width="100" Height="36" 
+                    Background="#409EFF" Foreground="White" BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#66B1FF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Border>
     </Grid>
 </UserControl>

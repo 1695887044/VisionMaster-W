@@ -22,7 +22,7 @@ namespace VisionMaster.Models
         /// 解决方案名称
         /// </summary>
         [Required]
-        [Icon(SvgIcons.Icon_Solution)]
+        [Icon(IconCode = SvgIcons.Icon_Solution)]
         [SuperDisplay(Name = "解决方案名称")]
         public string SolutionName
         {

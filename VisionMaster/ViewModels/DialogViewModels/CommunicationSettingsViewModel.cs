@@ -95,10 +95,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>
         /// 构造函数，初始化通讯管理器
         /// </summary>
-        public CommunicationSettingsViewModel()
+        public CommunicationSettingsViewModel(ICommunicationManager communicationManager)
         {
-            // 创建通讯管理器实例
-            _communicationManager = new AdvancedCommunicationManager();
+            // 使用传入的通讯管理器实例
+            _communicationManager = communicationManager;
 
             // 初始化命令
             AddCommand = new DelegateCommand(ExecuteAdd);

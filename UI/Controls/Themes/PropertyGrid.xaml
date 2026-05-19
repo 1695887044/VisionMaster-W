@@ -3,57 +3,34 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:UI.CustomControl">
 
-    <SolidColorBrush x:Key="SidebarBg" Color="#F1F5F9" />
-    <SolidColorBrush x:Key="ContentBg" Color="#F8FAFC" />
-    <SolidColorBrush x:Key="AccentBlue" Color="#3B82F6" />
-    <SolidColorBrush x:Key="TextMain" Color="#1E293B" />
+    <SolidColorBrush x:Key="SidebarBg" Color="#FAFAFA" />
+    <SolidColorBrush x:Key="ContentBg" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="TextMain" Color="#303133" />
+    <SolidColorBrush x:Key="TextRegular" Color="#606266" />
+    <SolidColorBrush x:Key="BorderLight" Color="#EBEEF5" />
+
+    <SolidColorBrush x:Key="AccentBlue" Color="#409EFF" />
+    <SolidColorBrush x:Key="AccentBlueHover" Color="#66B1FF" />
+    <SolidColorBrush x:Key="AccentBlueActive" Color="#3A8EE6" />
+
     <Style x:Key="PropertyLabelStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#666666" />
+        <Setter Property="Foreground" Value="{StaticResource TextRegular}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="Margin" Value="0,0,16,0" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
     </Style>
-    <Style x:Key="DarkFlatTabItemStyle" TargetType="TabItem">
-        <Setter Property="Foreground" Value="#888888" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Padding" Value="12,8" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="TabItem">
-                    <Border
-                        x:Name="Border"
-                        Padding="{TemplateBinding Padding}"
-                        Background="{TemplateBinding Background}">
-                        <ContentPresenter
-                            x:Name="ContentSite"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            ContentSource="Header" />
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="#DDDDDD" />
-                        </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Foreground" Value="#FFFFFF" />
-                            <Setter TargetName="Border" Property="BorderBrush" Value="#555555" />
-                            <Setter TargetName="Border" Property="BorderThickness" Value="1" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
+
     <Style x:Key="LightFlatTabItemStyle" TargetType="TabItem">
-        <Setter Property="Foreground" Value="#666666" />
+        <Setter Property="Foreground" Value="{StaticResource TextRegular}" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="Padding" Value="20,12" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
@@ -62,7 +39,7 @@
                         Padding="{TemplateBinding Padding}"
                         Background="{TemplateBinding Background}"
                         BorderBrush="Transparent"
-                        BorderThickness="0,0,0,3">
+                        BorderThickness="0,0,0,2">
                         <ContentPresenter
                             x:Name="ContentSite"
                             HorizontalAlignment="Center"
@@ -71,14 +48,14 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="#111111" />
-                            <Setter TargetName="Border" Property="Background" Value="#F3F3F3" />
-                            <Setter TargetName="Border" Property="CornerRadius" Value="4,4,0,0" />
+                            <Setter Property="Foreground" Value="{StaticResource TextMain}" />
+                            <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Foreground" Value="#000000" />
-                            <Setter TargetName="Border" Property="BorderBrush" Value="#005FB8" />
+                            <Setter Property="Foreground" Value="{StaticResource AccentBlue}" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
                             <Setter TargetName="Border" Property="Background" Value="Transparent" />
+                            <Setter TargetName="ContentSite" Property="TextElement.FontWeight" Value="SemiBold" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -86,42 +63,180 @@
         </Setter>
     </Style>
 
-    <Style TargetType="{x:Type local:CardPropertyGrid}">
+    <Style x:Key="FlatButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource TextRegular}" />
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="#DCDFE6" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="20,9" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Border"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="4">
+                        <ContentPresenter
+                            x:Name="ContentSite"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
+                            <Setter Property="Foreground" Value="{StaticResource AccentBlue}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="#E6EAF2" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBlueActive}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#C0C4CC" />
+                            <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#E4E7ED" />
+                            <Setter Property="Opacity" Value="0.6" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style
+        x:Key="FlatButtonVariantStyle"
+        BasedOn="{StaticResource FlatButtonStyle}"
+        TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource AccentBlue}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Border"
+                        Background="{TemplateBinding Background}"
+                        BorderThickness="0"
+                        CornerRadius="4">
+                        <ContentPresenter
+                            x:Name="ContentSite"
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource AccentBlueHover}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="Transparent" />
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource AccentBlueActive}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Border" Property="Background" Value="#E4E7ED" />
+                            <Setter Property="Foreground" Value="#C0C4CC" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type local:FlatPropertyGrid}">
         <Setter Property="Background" Value="{StaticResource ContentBg}" />
         <Setter Property="Template">
             <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:FlatPropertyGrid}">
+                    <Border Background="{TemplateBinding Background}">
+                        <TabControl
+                            x:Name="PART_TabControl"
+                            Background="Transparent"
+                            BorderThickness="0">
+                            <TabControl.ItemContainerStyle>
+                                <Style BasedOn="{StaticResource LightFlatTabItemStyle}" TargetType="TabItem" />
+                            </TabControl.ItemContainerStyle>
+                            <TabControl.Template>
+                                <ControlTemplate TargetType="TabControl">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+                                        <Border
+                                            x:Name="HeaderPanel"
+                                            Grid.Row="0"
+                                            Margin="16,8,16,0"
+                                            BorderBrush="{StaticResource BorderLight}"
+                                            BorderThickness="0,0,0,1">
+                                            <TabPanel
+                                                Margin="0,0,0,-1"
+                                                IsItemsHost="true"
+                                                KeyboardNavigation.TabIndex="1" />
+                                        </Border>
+                                        <ContentPresenter
+                                            x:Name="PART_SelectedContentHost"
+                                            Grid.Row="1"
+                                            ContentSource="SelectedContent" />
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Items.Count, RelativeSource={RelativeSource Self}}" Value="1">
+                                            <Setter TargetName="HeaderPanel" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </TabControl.Template>
+                        </TabControl>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="{x:Type local:CardPropertyGrid}">
+        <Setter Property="Background" Value="{StaticResource AppBg}" />
+        <Setter Property="Template">
+            <Setter.Value>
                 <ControlTemplate TargetType="{x:Type local:CardPropertyGrid}">
-                    <Border
-                        Background="{TemplateBinding Background}"
-                        ClipToBounds="True"
-                        CornerRadius="8">
+                    <Border Background="{TemplateBinding Background}" ClipToBounds="True">
                         <TabControl
                             x:Name="PART_TabControl"
                             Background="Transparent"
                             BorderThickness="0"
                             TabStripPlacement="Left">
+
                             <TabControl.Template>
                                 <ControlTemplate TargetType="TabControl">
                                     <Grid IsItemsHost="False">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="auto" MinWidth="140" />
+                                            <ColumnDefinition Width="180" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
                                         <Border
                                             Grid.Column="0"
                                             Background="{StaticResource SidebarBg}"
-                                            BorderBrush="#E2E8F0"
+                                            BorderBrush="{StaticResource BorderLight}"
                                             BorderThickness="0,0,1,0">
                                             <ScrollViewer
-                                                Padding="0,15"
+                                                Padding="8,16"
                                                 HorizontalScrollBarVisibility="Disabled"
                                                 VerticalScrollBarVisibility="Auto">
                                                 <ItemsPresenter />
                                             </ScrollViewer>
                                         </Border>
 
-                                        <Border Grid.Column="1" Background="{StaticResource ContentBg}">
+                                        <Border Grid.Column="1" Background="Transparent">
                                             <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
                                         </Border>
                                     </Grid>
@@ -130,45 +245,49 @@
 
                             <TabControl.ItemContainerStyle>
                                 <Style TargetType="TabItem">
-                                    <Setter Property="Margin" Value="12,2,12,2" />
+                                    <Setter Property="Margin" Value="0,2,0,2" />
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="TabItem">
                                                 <Border
                                                     x:Name="BaseBorder"
+                                                    Padding="0,4"
                                                     Background="Transparent"
-                                                    CornerRadius="6"
-                                                    SnapsToDevicePixels="True">
-                                                    <Grid Height="40">
+                                                    CornerRadius="4">
+                                                    <Grid Height="36">
                                                         <Border
                                                             x:Name="ActiveMark"
                                                             Width="3"
                                                             Height="16"
-                                                            Margin="8,0,0,0"
+                                                            Margin="4,0,0,0"
                                                             HorizontalAlignment="Left"
                                                             Background="Transparent"
                                                             CornerRadius="2" />
+
                                                         <ContentPresenter
                                                             x:Name="TextHost"
-                                                            Margin="24,0,10,0"
+                                                            Margin="16,0,10,0"
                                                             VerticalAlignment="Center"
                                                             ContentSource="Header"
-                                                            TextBlock.Foreground="#64748B" />
+                                                            TextBlock.FontSize="13"
+                                                            TextBlock.Foreground="{StaticResource TextRegular}" />
                                                     </Grid>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="BaseBorder" Property="Background" Value="#E2E8F0" />
+                                                        <Setter TargetName="BaseBorder" Property="Background" Value="{StaticResource BorderLight}" />
+                                                        <Setter TargetName="TextHost" Property="TextBlock.Foreground" Value="{StaticResource TextMain}" />
                                                     </Trigger>
                                                     <Trigger Property="IsSelected" Value="True">
-                                                        <Setter TargetName="BaseBorder" Property="Background" Value="White" />
+                                                        <Setter TargetName="BaseBorder" Property="Background" Value="{StaticResource CardBg}" />
                                                         <Setter TargetName="ActiveMark" Property="Background" Value="{StaticResource AccentBlue}" />
-                                                        <Setter TargetName="TextHost" Property="TextBlock.Foreground" Value="{StaticResource TextMain}" />
+                                                        <Setter TargetName="TextHost" Property="TextBlock.Foreground" Value="{StaticResource AccentBlue}" />
                                                         <Setter TargetName="TextHost" Property="TextBlock.FontWeight" Value="SemiBold" />
                                                         <Setter TargetName="BaseBorder" Property="Effect">
                                                             <Setter.Value>
                                                                 <DropShadowEffect
-                                                                    BlurRadius="8"
+                                                                    BlurRadius="5"
+                                                                    Direction="270"
                                                                     Opacity="0.05"
                                                                     ShadowDepth="1" />
                                                             </Setter.Value>
@@ -183,80 +302,30 @@
 
                             <TabControl.ContentTemplate>
                                 <DataTemplate>
-                                    <ScrollViewer Padding="40" VerticalScrollBarVisibility="Auto">
+                                    <ScrollViewer
+                                        Padding="24"
+                                        HorizontalScrollBarVisibility="Disabled"
+                                        VerticalScrollBarVisibility="Auto">
                                         <Border
-                                            Padding="32"
-                                            Background="White"
-                                            BorderBrush="#E2E8F0"
-                                            BorderThickness="1"
-                                            CornerRadius="12">
+                                            Padding="32,24"
+                                            Background="{StaticResource CardBg}"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="8">
                                             <Border.Effect>
                                                 <DropShadowEffect
-                                                    BlurRadius="20"
-                                                    Opacity="0.04"
-                                                    ShadowDepth="4" />
+                                                    BlurRadius="25"
+                                                    Direction="270"
+                                                    Opacity="0.06"
+                                                    ShadowDepth="6"
+                                                    Color="#000000" />
                                             </Border.Effect>
                                             <ContentPresenter Content="{Binding}" />
                                         </Border>
                                     </ScrollViewer>
                                 </DataTemplate>
                             </TabControl.ContentTemplate>
-                        </TabControl>
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
 
-    <Style TargetType="{x:Type local:FlatPropertyGrid}">
-        <Setter Property="Background" Value="#FFFFFF" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="{x:Type local:FlatPropertyGrid}">
-                    <Border Background="{TemplateBinding Background}">
-                        <TabControl
-                            x:Name="PART_TabControl"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            ItemContainerStyle="{StaticResource LightFlatTabItemStyle}">
-                            <TabControl.Template>
-                                <ControlTemplate TargetType="TabControl">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="*" />
-                                        </Grid.RowDefinitions>
-
-                                        <Border
-                                            x:Name="HeaderPanel"
-                                            Grid.Row="0"
-                                            Margin="12,8,12,0"
-                                            BorderBrush="#E5E5E5"
-                                            BorderThickness="0,0,0,1">
-                                            <TabPanel
-                                                Margin="0,0,0,-1"
-                                                IsItemsHost="true"
-                                                KeyboardNavigation.TabIndex="1" />
-                                        </Border>
-
-                                        <ContentPresenter
-                                            x:Name="PART_SelectedContentHost"
-                                            Grid.Row="1"
-                                            Margin="0,8,0,0"
-                                            ContentSource="SelectedContent" />
-                                    </Grid>
-
-                                    <ControlTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding Items.Count, RelativeSource={RelativeSource Self}}" Value="1">
-                                            <Setter TargetName="HeaderPanel" Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding Items.Count, RelativeSource={RelativeSource Self}}" Value="0">
-                                            <Setter TargetName="HeaderPanel" Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </ControlTemplate.Triggers>
-
-                                </ControlTemplate>
-                            </TabControl.Template>
                         </TabControl>
                     </Border>
                 </ControlTemplate>
