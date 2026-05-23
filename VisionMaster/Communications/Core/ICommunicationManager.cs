@@ -246,7 +246,7 @@ namespace VisionMaster.Communications
         /// </code>
         /// </example>
         /// <seealso cref="WriteVariable(string, string, object)"/>
-        T? ReadVariable<T>(string connectionName, string address);
+        T ReadVariable<T>(string connectionName, string address) where T : struct;
 
         #endregion
 

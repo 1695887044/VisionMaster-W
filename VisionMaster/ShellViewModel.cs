@@ -125,9 +125,9 @@ namespace VisionMaster
                     break;
                 case SolutionAction.BrowseList:
 
-                    var asd = await EasyDialog.ShowPropertyGridAsync(
-                  "创建新解决方案",
-                  new CommunicationConfig());
+                  //  var asd = await EasyDialog.ShowPropertyGridAsync(
+                  //"创建新解决方案",
+                  //new CommunicationConfig());
                     break;
             }
         }
@@ -266,7 +266,6 @@ namespace VisionMaster
                             ThreadCountStr = $"THD: {metrics.ThreadCount}";
                             HandleCountStr = $"HDL: {metrics.HandleCount}";
                             CurrentTimeText = DateTime.Now.ToString(" HH:mm:ss");
-                            //CurrentTimeText = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
                         }
                         catch (OperationCanceledException)
                         {

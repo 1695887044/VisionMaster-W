@@ -3,9 +3,9 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:prism="http://prismlibrary.com/"
-    prism:ViewModelLocator.AutoWireViewModel="True"
     Width="900"
     Height="600"
+    prism:ViewModelLocator.AutoWireViewModel="True"
     Background="#FFFFFF">
 
     <UserControl.Resources>
@@ -25,10 +25,11 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridCell">
-                        <Border Padding="{TemplateBinding Padding}" 
-                                Background="Transparent" 
-                                BorderBrush="Transparent" 
-                                BorderThickness="0">
+                        <Border
+                            Padding="{TemplateBinding Padding}"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0">
                             <ContentPresenter VerticalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -49,10 +50,11 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridRow">
-                        <Border x:Name="DGR_Border"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
+                        <Border
+                            x:Name="DGR_Border"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
                             <DataGridCellsPresenter ItemsPanel="{TemplateBinding ItemsPanel}" />
                         </Border>
                     </ControlTemplate>
@@ -77,7 +79,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -102,10 +107,25 @@
             <RowDefinition Height="65" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" BorderBrush="#EBEEF5" BorderThickness="0,0,0,1" Background="#FAFAFA">
-            <StackPanel Orientation="Horizontal" Margin="24,0">
-                <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf1e6;" FontSize="18" Foreground="#409EFF" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <TextBlock FontSize="18" FontWeight="Bold" Foreground="#303133" Text="通讯连接配置" VerticalAlignment="Center"/>
+        <Border
+            Grid.Row="0"
+            Background="#FAFAFA"
+            BorderBrush="#EBEEF5"
+            BorderThickness="0,0,0,1">
+            <StackPanel Margin="24,0" Orientation="Horizontal">
+                <TextBlock
+                    Margin="0,0,10,0"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="18"
+                    Foreground="#409EFF"
+                    Text="&#xf1e6;" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="18"
+                    FontWeight="Bold"
+                    Foreground="#303133"
+                    Text="通讯连接配置" />
             </StackPanel>
         </Border>
 
@@ -114,49 +134,36 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-
-            <Border Grid.Column="0" Width="260" Height="34" HorizontalAlignment="Left" Background="#F5F7FA" CornerRadius="4" BorderBrush="#DCDFE6" BorderThickness="1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Margin="10,0,5,0" FontFamily="{StaticResource Icon}" Text="&#xf002;" Foreground="#C0C4CC" VerticalAlignment="Center"/>
-                    <TextBox Grid.Column="1" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center" 
-                             Foreground="#606266" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox">
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="">
-                                        <Setter Property="Background">
-                                            <Setter.Value>
-                                                <VisualBrush Stretch="None" AlignmentX="Left" AlignmentY="Center">
-                                                    <VisualBrush.Visual>
-                                                        <TextBlock Text="搜索连接名称..." Foreground="#C0C4CC" FontStyle="Italic"/>
-                                                    </VisualBrush.Visual>
-                                                </VisualBrush>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
-                </Grid>
-            </Border>
-
-            <Button Grid.Column="1" Command="{Binding AddCommand}" Height="34" Padding="15,0" Background="#409EFF" Foreground="White" BorderThickness="0" Cursor="Hand">
+            <Button
+                Grid.Column="1"
+                Height="34"
+                Padding="15,0"
+                Background="#409EFF"
+                BorderThickness="0"
+                Command="{Binding AddCommand}"
+                Cursor="Hand"
+                Foreground="White">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf067;" Margin="0,0,6,0" FontSize="12"/>
-                                <TextBlock Text="添加连接" FontWeight="SemiBold"/>
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4">
+                            <StackPanel
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,6,0"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="12"
+                                    Text="&#xf067;" />
+                                <TextBlock FontWeight="SemiBold" Text="添加连接" />
                             </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#66B1FF"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#66B1FF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -164,46 +171,70 @@
             </Button>
         </Grid>
 
-        <DataGrid Grid.Row="2" Margin="24,0,24,0"
-                  AutoGenerateColumns="False"
-                  Background="Transparent"
-                  BorderBrush="#EBEEF5"
-                  BorderThickness="1"
-                  GridLinesVisibility="Horizontal"
-                  HeadersVisibility="Column"
-                  HorizontalGridLinesBrush="#EBEEF5"
-                  RowHeaderWidth="0"
-                  IsReadOnly="True"
-                  ItemsSource="{Binding Configs}"
-                  SelectedItem="{Binding SelectedConfig}"
-                  SelectionMode="Single">
+        <DataGrid
+            Grid.Row="2"
+            Margin="24,0,24,0"
+            AutoGenerateColumns="False"
+            Background="Transparent"
+            BorderBrush="#EBEEF5"
+            BorderThickness="1"
+            GridLinesVisibility="Horizontal"
+            HeadersVisibility="Column"
+            HorizontalGridLinesBrush="#EBEEF5"
+            IsReadOnly="True"
+            ItemsSource="{Binding Configs}"
+            RowHeaderWidth="0"
+            SelectedItem="{Binding SelectedConfig}"
+            SelectionMode="Single">
             <DataGrid.Columns>
                 <DataGridTemplateColumn Width="1.5*" Header="连接名称">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding ConnectionName}" FontWeight="SemiBold" Foreground="#303133" VerticalAlignment="Center"/>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontWeight="SemiBold"
+                                Foreground="#303133"
+                                Text="{Binding ConnectionName}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Width="120" Binding="{Binding Protocol}" Header="协议类型" />
+                <DataGridTextColumn
+                    Width="120"
+                    Binding="{Binding Protocol}"
+                    Header="协议类型" />
 
                 <DataGridTemplateColumn Width="2*" Header="物理链路参数">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Border Background="#F4F4F5" CornerRadius="3" Padding="8,4" HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding Config}" FontFamily="Consolas" FontSize="11" Foreground="#909399" VerticalAlignment="Center"/>
+                            <Border
+                                Padding="8,4"
+                                HorizontalAlignment="Left"
+                                Background="#F4F4F5"
+                                CornerRadius="3">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="Consolas"
+                                    FontSize="11"
+                                    Foreground="#909399"
+                                    Text="{Binding Config}" />
                             </Border>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTextColumn Width="100" Binding="{Binding ReadCycleMs, StringFormat={}{0} ms}" Header="轮询周期" />
+                <DataGridTextColumn
+                    Width="100"
+                    Binding="{Binding ReadCycleMs, StringFormat={}{0} ms}"
+                    Header="轮询周期" />
 
                 <DataGridTemplateColumn Width="80" Header="启用">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <CheckBox
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -211,20 +242,22 @@
                 <DataGridTemplateColumn Width="160" Header="操作">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Command="{Binding DataContext.TestConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}"
-                                        Content="连通测试"
-                                        Background="#F0F9EB"
-                                        Foreground="#67C23A"
-                                        Style="{StaticResource ActionButtonStyle}" />
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <Button
+                                    Background="#F0F9EB"
+                                    Command="{Binding DataContext.TestConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                    CommandParameter="{Binding}"
+                                    Content="连通测试"
+                                    Foreground="#67C23A"
+                                    Style="{StaticResource ActionButtonStyle}" />
 
-                                <Button Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}"
-                                        Content="删除"
-                                        Background="#FEF0F0"
-                                        Foreground="#F56C6C"
-                                        Style="{StaticResource ActionButtonStyle}" />
+                                <Button
+                                    Background="#FEF0F0"
+                                    Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                    CommandParameter="{Binding}"
+                                    Content="删除"
+                                    Foreground="#F56C6C"
+                                    Style="{StaticResource ActionButtonStyle}" />
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -232,16 +265,29 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <Border Grid.Row="3" BorderBrush="#EBEEF5" BorderThickness="0,1,0,0" Background="#FAFAFA">
-            <Button Command="{Binding CloseCommand}" 
-                    Content="确 定" 
-                    HorizontalAlignment="Right" 
-                    Margin="0,0,24,0"
-                    Width="100" Height="36" 
-                    Background="#409EFF" Foreground="White" BorderThickness="0" Cursor="Hand" FontWeight="SemiBold">
+        <Border
+            Grid.Row="3"
+            Background="#FAFAFA"
+            BorderBrush="#EBEEF5"
+            BorderThickness="0,1,0,0">
+            <Button
+                Width="100"
+                Height="36"
+                Margin="0,0,24,0"
+                HorizontalAlignment="Right"
+                Background="#409EFF"
+                BorderThickness="0"
+                Command="{Binding CloseCommand}"
+                Content="确 定"
+                Cursor="Hand"
+                FontWeight="SemiBold"
+                Foreground="White">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>

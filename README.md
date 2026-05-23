@@ -2,6 +2,8 @@
 
 工业视觉检测与流程自动化平台 - 基于 WPF + Prism 的现代化机器视觉软件框架
 
+---
+
 ## 目录
 
 - [项目概述](#项目概述)
@@ -11,17 +13,23 @@
   - [地址配置](#地址配置)
   - [数据点管理](#数据点管理)
   - [通讯管理器](#通讯管理器)
+  - [连接实现](#连接实现)
   - [轮询机制](#轮询机制)
   - [缓存机制](#缓存机制)
+  - [报警机制](#报警机制)
+  - [历史记录](#历史记录)
+  - [监控统计](#监控统计)
+  - [健康检查](#健康检查)
 - [快速开始](#快速开始)
 - [API 参考](#api-参考)
 - [最佳实践](#最佳实践)
+- [更新日志](#更新日志)
 
 ---
 
 ## 项目概述
 
-VisionMaster 是一个功能完整的工业视觉检测与流程自动化平台，采用现代化的 WPF + Prism 架构设计。
+VisionMaster 是一个功能完整的工业视觉检测与流程自动化平台，采用现代化的 WPF + Prism 架构设计。平台提供强大的工业通信能力，支持多种主流工业协议。
 
 ### 核心特性
 
@@ -34,6 +42,10 @@ VisionMaster 是一个功能完整的工业视觉检测与流程自动化平台�
 | **连接健康检查** | 定时监控连接状态，支持自动重连 |
 | **历史数据记录** | 数据变化记录，支持统计查询 |
 | **配置持久化** | JSON 格式导入/导出 |
+| **批量读写** | 支持一次读取多个连续地址 |
+| **数据订阅** | 事件驱动，UI 只在数据变化时更新 |
+| **数据缓存** | 高频读取数据缓存，减少 PLC 访问 |
+| **双向绑定** | 支持 UI 控件与 PLC 数据双向绑定 |
 
 ### 技术栈
 
@@ -48,29 +60,65 @@ VisionMaster 是一个功能完整的工业视觉检测与流程自动化平台�
 
 ## 系统架构
 
+### 目录结构
+
 ```
 VisionMaster/
 ├── Communications/                    # 通讯模块
-│   ├── Core/                         # 核心接口
+│   ├── Core/                         # 核心接口和工具
 │   │   ├── ICommunicationConnection.cs   # 连接接口
 │   │   ├── ICommunicationManager.cs     # 管理器接口
-│   │   └── CommunicationVariable.cs      # 通信变量
+│   │   ├── IConnectionHealthCheck.cs    # 健康检查接口
+│   │   ├── CommunicationVariable.cs      # 通信变量
+│   │   ├── CommunicationEventArgs.cs    # 事件参数类
+│   │   └── HslHelper.cs                  # Hsl辅助工具
 │   ├── Address/                       # 地址配置
-│   │   └── DeviceAddressBase.cs         # 地址基类
-│   ├── Data/                         # 数据点
-│   │   ├── DataPoint.cs               # 数据点类
-│   │   └── DataPointManager.cs         # 数据点管理器
+│   │   ├── DeviceAddressBase.cs         # 地址基类
+│   │   ├── ModbusAddress.cs             # Modbus地址
+│   │   └── S7Address.cs                 # 西门子S7地址
+│   ├── Data/                          # 数据点
+│   │   ├── IDataPoint.cs                # 数据点接口
+│   │   ├── DataPoint.cs                 # 数据点类
+│   │   ├── DataPointManager.cs          # 数据点管理器
+│   │   ├── DataPointAlarm.cs            # 报警配置
+│   │   ├── DataPointHistory.cs          # 历史记录
+│   │   └── DataPointConfigurationManager.cs
+│   ├── Config/                        # 连接配置
+│   │   ├── CommunicationConfig.cs       # 通信配置
+│   │   ├── ConnectionConfigBase.cs      # 连接配置基类
+│   │   ├── EthernetConfigBase.cs        # 以太网配置基类
+│   │   ├── SerialConfig.cs              # 串口配置
+│   │   ├── ModbusTcpConfig.cs           # Modbus TCP配置
+│   │   ├── SiemensS7Config.cs           # 西门子S7配置
+│   │   ├── MitsubishiMcConfig.cs        # 三菱配置
+│   │   ├── OmronFinsConfig.cs           # 欧姆龙配置
+│   │   └── OpcUaConfig.cs               # OPC UA配置
+│   ├── Connection/                     # 连接实现
+│   │   ├── ModbusTcpConnection.cs       # Modbus TCP连接
+│   │   ├── SiemensS7Connection.cs       # 西门子S7连接
+│   │   └── SerialConnection.cs          # 串口连接
 │   ├── Manager/                       # 管理器
-│   │   └── AdvancedCommunicationManager.cs
-│   ├── Connection/                    # 连接实现
-│   │   ├── BaseConnection.cs
-│   │   ├── ModbusTcpConnection.cs
-│   │   └── SiemensS7Connection.cs
-│   └── Monitor/                       # 监控统计
-│       ├── ConnectionStatistics.cs
-│       └── ConnectionHealthCheck.cs
-└── Services/                          # 服务层
+│   │   ├── AdvancedCommunicationManager.cs
+│   │   └── ConnectionFactory.cs         # 连接工厂
+│   └── Monitor/                        # 监控统计
+│       ├── ConnectionStatistics.cs      # 通讯统计
+│       └── ConnectionHealthCheck.cs     # 健康检查
+└── UI/                                # 用户界面
+    └── Controls/
+        └── CommunicationTextBox.cs      # 双向绑定控件
 ```
+
+### 模块职责
+
+| 模块 | 职责 | 关键文件 |
+|------|------|----------|
+| **Core** | 定义核心接口和公共类型 | ICommunicationConnection, ICommunicationManager |
+| **Address** | 设备地址配置，数据转换管道 | DeviceAddressBase, ModbusAddress |
+| **Data** | 数据点管理、报警、历史记录 | DataPoint, DataPointManager, DataPointAlarm |
+| **Config** | 连接配置定义 | CommunicationConfig, ModbusTcpConfig |
+| **Connection** | 具体协议连接实现 | ModbusTcpConnection, SiemensS7Connection |
+| **Manager** | 通信管理、连接工厂 | AdvancedCommunicationManager |
+| **Monitor** | 连接监控、健康检查 | ConnectionStatistics, ConnectionHealthCheck |
 
 ---
 
@@ -93,7 +141,7 @@ public interface ICommunicationConnection : IDisposable
     void Disconnect();                  // 断开连接
     bool TestConnection();              // 测试连接
     
-    T? Read<T>(string address);         // 读取数据
+    T Read<T>(string address) where T : struct;  // 读取数据
     void Write(string address, object value);  // 写入数据
     byte[] ReadBytes(string address, ushort length);
     void WriteBytes(string address, byte[] data);
@@ -109,33 +157,38 @@ public interface ICommunicationConnection : IDisposable
 ```csharp
 public interface ICommunicationManager
 {
+    // 事件
     event EventHandler<CommunicationErrorEventArgs>? OnCommunicationError;
     event EventHandler<VariableChangedEventArgs>? OnVariableChanged;
     
+    // 连接管理
     ICommunicationConnection? GetConnection(string connectionName);
     bool AddConnection(CommunicationConfig config);
     bool RemoveConnection(string connectionName);
     bool UpdateConnection(CommunicationConfig config);
     List<CommunicationConfig> GetAllConnections();
     
+    // 连接控制
     void StartAll();
     void StopAll();
     
+    // 数据读写
     void WriteVariable(string connectionName, string address, object value);
-    T? ReadVariable<T>(string connectionName, string address);
+    T ReadVariable<T>(string connectionName, string address) where T : struct;
     
+    // 变量管理
     void RegisterVariable(CommunicationVariable variable);
     void UnregisterVariable(string connectionName, string variableName);
 }
 ```
 
----
+**位置**: [ICommunicationManager.cs](file:///e:/VM/VM/VisionMaster/Communications/Core/ICommunicationManager.cs)
 
 ### 地址配置
 
 #### DeviceAddressBase
 
-设备地址配置基类，是一个**纯配置对象**，只存储"怎么读"的信息，不包含运行时数据：
+设备地址配置基类，是一个**纯配置对象**，只存储"怎么读"的信息：
 
 ```csharp
 public abstract class DeviceAddressBase : BindableBase
@@ -186,12 +239,6 @@ var rawValue = address.ConvertToRaw(25.0); // 2500
 **支持的协议地址类**:
 - `ModbusAddress` - Modbus 协议地址
 - `S7Address` - 西门子 S7 协议地址
-- `MitsubishiAddress` - 三菱协议地址
-- `OmronAddress` - 欧姆龙协议地址
-- `AllenBradleyAddress` - AB 协议地址（标签名格式）
-- `OpcUaAddress` - OPC UA 协议地址
-
----
 
 ### 数据点管理
 
@@ -274,8 +321,6 @@ public class DataPointManager : IDisposable
 3. **数据缓存**：100ms 内使用缓存，减少 PLC 访问
 4. **事件通知**：值变化时触发 DataChanged 事件
 
----
-
 ### 通讯管理器
 
 #### AdvancedCommunicationManager
@@ -297,7 +342,7 @@ public class AdvancedCommunicationManager : ICommunicationManager, IDisposable
     public void DisconnectAll();
     
     // 数据读写
-    public T? Read<T>(string connectionName, string address);
+    public T Read<T>(string connectionName, string address) where T : struct;
     public void Write(string connectionName, string address, object value);
     
     // 变量管理
@@ -330,7 +375,45 @@ public class AdvancedCommunicationManager : ICommunicationManager, IDisposable
 | **配置持久化** | JSON 格式保存/加载配置 |
 | **反射优化** | 读取方法缓存，避免重复反射 |
 
----
+### 连接实现
+
+#### 连接类架构
+
+| 类名 | 继承关系 | 协议 | 文件位置 |
+|------|----------|------|----------|
+| ModbusTcpConnection | 封装 ModbusTcpNet | Modbus TCP | [Connection/ModbusTcpConnection.cs](file:///e:/VM/VM/VisionMaster/Communications/Connection/ModbusTcpConnection.cs) |
+| SiemensS7Connection | 封装 SiemensS7Net | 西门子 S7 | [Connection/SiemensS7Connection.cs](file:///e:/VM/VM/VisionMaster/Communications/Connection/SiemensS7Connection.cs) |
+| SerialConnection | 封装 ModbusRtu | Modbus RTU | [Connection/SerialConnection.cs](file:///e:/VM/VM/VisionMaster/Communications/Connection/SerialConnection.cs) |
+
+**设计特点**:
+- 使用**组合模式**封装 HslCommunication 设备对象
+- 每个连接类独立实现 `ICommunicationConnection` 接口
+- 零重复代码，直接调用 Hsl 设备的方法
+
+#### ModbusTcpConnection 核心代码
+
+```csharp
+public class ModbusTcpConnection : ICommunicationConnection
+{
+    private readonly ModbusTcpNet _device;
+    private bool _isConnected;
+    
+    public bool Connect()
+    {
+        var result = _device.ConnectServer();
+        _isConnected = result.IsSuccess;
+        return _isConnected;
+    }
+    
+    public T Read<T>(string address) where T : struct
+    {
+        if (!_isConnected) throw new InvalidOperationException("设备未连接");
+        var result = _device.Read(address, 1);
+        if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
+        return HslHelper.ConvertTo<T>(result.Content);
+    }
+}
+```
 
 ### 轮询机制
 
@@ -349,7 +432,6 @@ private async Task PollingLoopAsync(
     int intervalMs, 
     CancellationToken token)
 {
-    // 异步循环天然保证上一次执行完成后才会开始下一次
     while (!token.IsCancellationRequested && !_disposed)
     {
         try
@@ -405,8 +487,6 @@ private async Task PollingLoopAsync(
 └─────────────────────────────────────────────────────────────┘
 ```
 
----
-
 ### 缓存机制
 
 #### 数据缓存策略
@@ -444,6 +524,172 @@ private bool TryGetCachedValue(string key, out object? value)
 ```
 {ConnectionName}.{Address}
 例如：PLC_1.40001
+```
+
+### 报警机制
+
+#### DataPointAlarm
+
+四级阈值报警配置类：
+
+```csharp
+public class DataPointAlarm : BindableBase
+{
+    // 启用设置
+    public bool IsEnabled { get; set; }
+    
+    // 上限报警
+    public bool HighHighEnabled { get; set; }
+    public double HighHigh { get; set; }
+    public bool HighEnabled { get; set; }
+    public double High { get; set; }
+    
+    // 下限报警
+    public bool LowEnabled { get; set; }
+    public double Low { get; set; }
+    public bool LowLowEnabled { get; set; }
+    public double LowLow { get; set; }
+    
+    // 检查方法
+    public AlarmLevel Check(double value);
+    public string GetAlarmMessage(double value);
+}
+```
+
+**位置**: [DataPointAlarm.cs](file:///e:/VM/VM/VisionMaster/Communications/Data/DataPointAlarm.cs)
+
+**报警级别**:
+
+| 级别 | 名称 | 颜色 | 说明 |
+|------|------|------|------|
+| 0 | Normal | 绿色 | 正常范围 |
+| 1 | LowLow | 红色 | 下下限报警 |
+| 2 | Low | 橙色 | 下限警告 |
+| 3 | High | 橙色 | 上限警告 |
+| 4 | HighHigh | 红色 | 上上限报警 |
+
+**检查优先级**（从高到低）：
+1. HighHigh（上上限）
+2. High（上限）
+3. Low（下限）
+4. LowLow（下下限）
+
+### 历史记录
+
+#### DataPointHistory
+
+历史数据记录类：
+
+```csharp
+public class DataPointHistory : BindableBase
+{
+    public string DataPointName { get; set; }
+    public string ConnectionName { get; set; }
+    public int MaxHistorySize { get; set; } = 1000;
+    
+    // 记录方法
+    public void Record(object value);
+    
+    // 查询方法
+    public IReadOnlyList<DataPointHistoryItem> GetHistory(DateTime start, DateTime end);
+    public IReadOnlyList<DataPointHistoryItem> GetRecent(int count);
+    public IReadOnlyList<DataPointHistoryItem> GetAll();
+    
+    // 统计方法
+    public DataPointStatistics GetStatistics(DateTime start, DateTime end);
+}
+```
+
+**位置**: [DataPointHistory.cs](file:///e:/VM/VM/VisionMaster/Communications/Data/DataPointHistory.cs)
+
+**统计信息**:
+
+```csharp
+public class DataPointStatistics
+{
+    public int Count { get; set; }      // 数据点数量
+    public double Min { get; set; }     // 最小值
+    public double Max { get; set; }     // 最大值
+    public double Average { get; set; } // 平均值
+    public DateTime StartTime { get; set; }
+    public DateTime EndTime { get; set; }
+    public TimeSpan Duration { get; set; }
+    public double Range => Max - Min;   // 数据范围
+}
+```
+
+### 监控统计
+
+#### ConnectionStatistics
+
+通讯质量统计类：
+
+```csharp
+public class ConnectionStatistics : BindableBase
+{
+    // 读取统计
+    public int TotalReads { get; set; }
+    public int SuccessReads { get; set; }
+    public int FailedReads { get; set; }
+    public double ReadSuccessRate => TotalReads > 0 ? (double)SuccessReads / TotalReads * 100 : 0;
+    
+    // 写入统计
+    public int TotalWrites { get; set; }
+    public int SuccessWrites { get; set; }
+    public int FailedWrites { get; set; }
+    
+    // 性能统计
+    public double AverageReadTimeMs { get; set; }
+    public double AverageWriteTimeMs { get; set; }
+    public double MaxReadTimeMs { get; set; }
+    
+    // 状态监控
+    public int ConsecutiveFailures { get; set; }
+    public bool IsHealthy => ConsecutiveFailures < 3;
+    
+    // 记录方法
+    public void RecordReadSuccess(double responseTimeMs);
+    public void RecordReadFailure(string errorMessage);
+    public void RecordWriteSuccess(double responseTimeMs);
+    public void RecordWriteFailure(string errorMessage);
+}
+```
+
+**位置**: [ConnectionStatistics.cs](file:///e:/VM/VM/VisionMaster/Communications/Monitor/ConnectionStatistics.cs)
+
+### 健康检查
+
+#### ConnectionHealthCheck
+
+连接健康检查实现类：
+
+```csharp
+public class ConnectionHealthCheck : IConnectionHealthCheck, IDisposable
+{
+    // 事件
+    public event EventHandler<HealthCheckResult>? HealthCheckCompleted;
+    
+    // 方法
+    public Task<HealthCheckResult> CheckHealthAsync(string connectionName);
+    public void StartHealthMonitor(string connectionName, int intervalMs = 60000);
+    public void StopHealthMonitor(string connectionName);
+    public HealthCheckResult? GetLastResult(string connectionName);
+}
+```
+
+**位置**: [ConnectionHealthCheck.cs](file:///e:/VM/VM/VisionMaster/Communications/Monitor/ConnectionHealthCheck.cs)
+
+**健康检查结果**:
+
+```csharp
+public class HealthCheckResult
+{
+    public bool IsHealthy { get; set; }
+    public string StatusMessage { get; set; } = "";
+    public long ResponseTimeMs { get; set; }
+    public int ConsecutiveFailures { get; set; }
+    public DateTime CheckedTime { get; set; }
+}
 ```
 
 ---
@@ -535,6 +781,55 @@ await commManager.ImportConfigAsync("backup.json");
 await commManager.LoadConfigAsync();
 ```
 
+### 健康检查示例
+
+```csharp
+// 创建健康检查器
+var healthCheck = new ConnectionHealthCheck(commManager);
+
+// 单次检查
+var result = await healthCheck.CheckHealthAsync("PLC_1");
+Console.WriteLine($"健康状态: {result.IsHealthy}");
+
+// 启动持续监控（每分钟检查一次）
+healthCheck.StartHealthMonitor("PLC_1", 60000);
+
+// 订阅健康检查事件
+healthCheck.HealthCheckCompleted += (s, e) =>
+{
+    if (!e.IsHealthy)
+    {
+        Console.WriteLine($"警告: {e.StatusMessage}");
+    }
+};
+```
+
+### 报警配置示例
+
+```csharp
+// 创建报警配置
+var alarm = new DataPointAlarm
+{
+    IsEnabled = true,
+    HighHighEnabled = true,
+    HighHigh = 100,
+    HighEnabled = true,
+    High = 80,
+    LowEnabled = true,
+    Low = 20,
+    LowLowEnabled = true,
+    LowLow = 10
+};
+
+// 检查报警级别
+var level = alarm.Check(temperature);
+if (level == AlarmLevel.HighHigh)
+{
+    // 紧急处理
+    EmergencyStop();
+}
+```
+
 ---
 
 ## API 参考
@@ -601,6 +896,19 @@ public enum DataValueType
 }
 ```
 
+#### AlarmLevel
+
+```csharp
+public enum AlarmLevel
+{
+    Normal,        // 正常
+    HighHigh,      // 上上限报警
+    High,          // 上限警告
+    Low,           // 下限警告
+    LowLow         // 下下限报警
+}
+```
+
 ### 事件参数类
 
 #### DataPointChangedEventArgs
@@ -633,6 +941,20 @@ public class ConnectionErrorEventArgs : EventArgs
 {
     public string ConnectionName { get; }         // 连接名称
     public Exception? Exception { get; }         // 异常对象
+}
+```
+
+#### DataPointAlarmEventArgs
+
+```csharp
+public class DataPointAlarmEventArgs : EventArgs
+{
+    public string DataPointName { get; set; }     // 数据点名称
+    public string ConnectionName { get; set; }    // 连接名称
+    public AlarmLevel Level { get; set; }         // 报警级别
+    public double Value { get; set; }             // 当前值
+    public string Message { get; set; }          // 报警消息
+    public DateTime Timestamp { get; set; }       // 时间戳
 }
 ```
 
@@ -717,9 +1039,26 @@ commManager.Dispose();
 - **异步操作**：写入操作使用异步方法，避免阻塞 UI
 - **取消订阅**：不再需要时取消事件订阅，避免内存泄漏
 
+### 6. 双向绑定控件
+
+```xml
+<!-- XAML 中使用双向绑定控件 -->
+<local:CommunicationTextBox 
+    ConnectionName="PLC_1"
+    Address="40001"
+    DataType="{x:Type system:Int16}"
+    WriteOnEnter="True"
+    WriteOnLostFocus="True" />
+```
+
 ---
 
 ## 更新日志
+
+### v3.2.1 (2026-05-19)
+- ✅ **重构连接实现**：删除 BaseConnection 基类，使用组合模式封装 Hsl 设备
+- ✅ **减少代码量**：连接类代码减少约 70%
+- ✅ **架构优化**：每个连接类独立实现，零重复代码
 
 ### v3.2.0 (2026-05-17)
 - ✅ **修复轮询机制**：使用异步循环替代定时器，避免并发问题

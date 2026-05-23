@@ -11,7 +11,7 @@ namespace VisionMaster.Communications
     {
         [SuperDisplay(Name = "连接名称", GroupPath = "1. 基本设置", Order = 1, ColSpan = 12)]
         [Required(ErrorMessage = "名称不能为空")]
-        public string ConnectionName { get; set; } = string.Empty;
+        public string ConnectionName { get; set; } = DateTime.Now.ToString();
 
         [SuperDisplay(
             Name = "协议类型",

@@ -19,17 +19,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
         // 通讯管理器实例，用于管理通讯连接
         private readonly ICommunicationManager _communicationManager;
 
-        // 通讯配置集合(过滤后显示)
-        private ObservableCollection<CommunicationConfig> _configs = new();
-
-        // 当前选中的配置
-        private CommunicationConfig? _selectedConfig;
-
-        // 搜索文本
-        private string _searchText = string.Empty;
-
-        // 所有配置(未过滤)
-        private ObservableCollection<CommunicationConfig> _allConfigs = new();
 
         /// <summary>
         /// 对话框关闭请求监听器
@@ -41,32 +30,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public ObservableCollection<CommunicationConfig> Configs
         {
-            get => _configs;
-            set => SetProperty(ref _configs, value);
-        }
+            get => field;
+            set => SetProperty(ref field, value);
+        } = new();
 
         /// <summary>
         /// 当前选中的配置
         /// </summary>
         public CommunicationConfig? SelectedConfig
         {
-            get => _selectedConfig;
-            set => SetProperty(ref _selectedConfig, value);
+            get => field;
+            set => SetProperty(ref field, value);
         }
-
-        /// <summary>
-        /// 搜索文本，用于过滤配置列表
-        /// </summary>
-        public string SearchText
-        {
-            get => _searchText;
-            set
-            {
-                SetProperty(ref _searchText, value);
-                FilterConfigs();
-            }
-        }
-
         /// <summary>
         /// 添加新配置命令
         /// </summary>
@@ -92,14 +67,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public string Title => "通讯设置";
 
-        /// <summary>
-        /// 构造函数，初始化通讯管理器
-        /// </summary>
         public CommunicationSettingsViewModel(ICommunicationManager communicationManager)
         {
             // 使用传入的通讯管理器实例
             _communicationManager = communicationManager;
-
             // 初始化命令
             AddCommand = new DelegateCommand(ExecuteAdd);
             DeleteCommand = new DelegateCommand<CommunicationConfig>(ExecuteDelete);
@@ -107,19 +78,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             CloseCommand = new DelegateCommand(ExecuteClose);
         }
 
-        /// <summary>
-        /// 判断是否可以关闭对话框
-        /// </summary>
-        /// <returns>始终返回true</returns>
+
         public bool CanCloseDialog() => true;
 
-        /// <summary>
-        /// 对话框关闭时的处理
-        /// </summary>
         public void OnDialogClosed()
         {
-            // 停止通讯管理器
-            _communicationManager.StopAll();
         }
 
         /// <summary>
@@ -128,50 +91,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <param name="parameters">对话框参数</param>
         public void OnDialogOpened(IDialogParameters parameters)
         {
-            // 从参数中获取配置列表
-            if (parameters.ContainsKey("Configs"))
-            {
-                var configs = parameters.GetValue<ObservableCollection<CommunicationConfig>>("Configs");
-                LoadConfigs(configs);
-            }
+            LoadConfigs(_communicationManager.GetAllConnections());
         }
 
         /// <summary>
         /// 加载配置列表
         /// </summary>
         /// <param name="configs">配置列表</param>
-        public void LoadConfigs(ObservableCollection<CommunicationConfig> configs)
+        public void LoadConfigs(IEnumerable<CommunicationConfig> configs)
         {
-            _allConfigs.Clear();
             Configs.Clear();
 
             // 遍历并加载每个配置
             foreach (var config in configs)
             {
-                _allConfigs.Add(config);
-
-                // 将配置添加到通讯管理器
-                _communicationManager.AddConnection(config);
-
                 Configs.Add(config);
-            }
-        }
-
-        /// <summary>
-        /// 根据搜索文本过滤配置列表
-        /// </summary>
-        private void FilterConfigs()
-        {
-            Configs.Clear();
-
-            foreach (var config in _allConfigs)
-            {
-                // 如果搜索文本为空或配置名称包含搜索文本，则显示
-                if (string.IsNullOrWhiteSpace(SearchText) ||
-                    config.ConnectionName.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
-                {
-                    Configs.Add(config);
-                }
             }
         }
 
@@ -182,19 +116,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             // 创建新的通讯配置
             var newConfig = new CommunicationConfig();
-
             // 显示属性编辑对话框
             var result = EasyDialog.ShowPropertyGridSync("创建新通信", newConfig);
             if (!result)
             {
+                Notifier.ShowInfo("创建新通信已取消");
                 return;
             }
-
-            // 添加到通讯管理器
             _communicationManager.AddConnection(newConfig);
-
-            // 添加到集合
-            _allConfigs.Add(newConfig);
             Configs.Add(newConfig);
 
             // 选中新配置
@@ -211,9 +140,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             // 从通讯管理器移除
             _communicationManager.RemoveConnection(config.ConnectionName);
-
-            // 从集合移除
-            _allConfigs.Remove(config);
             Configs.Remove(config);
         }
 
@@ -231,13 +157,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 var connection = _communicationManager.GetConnection(config.ConnectionName);
                 if (connection != null)
                 {
-                    // 如果已连接，先断开
                     if (connection.IsConnected)
                     {
                         connection.Disconnect();
                     }
-
-                    // 尝试连接
                     if (connection.Connect())
                     {
                         Notifier.ShowSuccess($"连接 [{config.ConnectionName}] 测试成功");

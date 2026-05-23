@@ -26,7 +26,7 @@ namespace VisionMaster.Communications
         /// </summary>
         [SuperDisplay(Name = "端口号", GroupPath = "网络参数", Order = 2, ColSpan = 4)]
         [RangeValidation(1, 65535, "端口范围：1-65535")]
-        public int Port { get; set; } = 502;
+        public virtual int Port { get; set; } = 502;
 
         /// <summary>
         /// <para>获取或设置是否启用 KeepAlive 心跳机制。</para>
@@ -41,5 +41,11 @@ namespace VisionMaster.Communications
         /// </summary>
         [SuperDisplay(Name = "心跳间隔(ms)", GroupPath = "网络参数", Order = 4, ColSpan = 6)]
         public int KeepAliveIntervalMs { get; set; } = 30000;
+
+
+        public override string ToString()
+        {
+            return IpAddress + ":" + Port;
+        }
     }
 }

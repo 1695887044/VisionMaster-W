@@ -367,7 +367,7 @@ namespace VisionMaster.Communications
 
         #region 数据读写
 
-        public T? Read<T>(string connectionName, string address)
+        public T Read<T>(string connectionName, string address) where T : struct
         {
             if (string.IsNullOrWhiteSpace(connectionName))
                 throw new ArgumentNullException(nameof(connectionName));
@@ -424,7 +424,7 @@ namespace VisionMaster.Communications
             Write(connectionName, address, value);
         }
 
-        public T? ReadVariable<T>(string connectionName, string address)
+        public T ReadVariable<T>(string connectionName, string address) where T : struct
         {
             return Read<T>(connectionName, address);
         }
