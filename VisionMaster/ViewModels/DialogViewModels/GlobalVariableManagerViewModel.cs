@@ -21,7 +21,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
     public class GlobalVariableManagerViewModel : GlobalVariableViewModelBase, IDialogAware
     {
-        public string Title => "全局变量管理";
+        public string Title => "变量管理";
 
         public ObservableCollection<DataTypeOption> AvailableTypes { get; } =
             new()
@@ -48,43 +48,38 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 },
             };
 
-        private string _newVarName;
         public string NewVarName
         {
-            get => _newVarName;
-            set => SetProperty(ref _newVarName, value);
+            get => field;
+            set => SetProperty(ref field, value);
         }
 
-        private string _newVarDescription;
         public string NewVarDescription
         {
-            get => _newVarDescription;
-            set => SetProperty(ref _newVarDescription, value);
+            get => field;
+            set => SetProperty(ref field, value);
         }
 
-        private DataTypeOption _selectedType;
         public DataTypeOption SelectedType
         {
-            get => _selectedType;
-            set => SetProperty(ref _selectedType, value);
+            get => field;
+            set => SetProperty(ref field, value);
         }
-        private string _searchText;
         public string SearchText
         {
-            get => _searchText;
+            get => field;
             set
             {
-                SetProperty(ref _searchText, value);
+                SetProperty(ref field, value);
                 UpdateFilteredList();
             }
         }
 
-        private ObservableCollection<VariableNode> _filteredDisplayNodes = new();
         public ObservableCollection<VariableNode> FilteredDisplayNodes
         {
-            get => _filteredDisplayNodes;
-            set => SetProperty(ref _filteredDisplayNodes, value);
-        }
+            get => field;
+            set => SetProperty(ref field, value);
+        } = new();
 
         protected override void UpdateFlatList()
         {

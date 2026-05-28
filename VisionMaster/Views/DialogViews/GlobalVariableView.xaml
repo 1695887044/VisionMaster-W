@@ -12,7 +12,6 @@
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="#F0F2F5"
     mc:Ignorable="d">
-
     <UserControl.Resources>
         <Style TargetType="DataGridCell">
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -21,10 +20,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="DataGridCell">
-                        <Border
-                            Background="{TemplateBinding Background}"
-                            BorderThickness="0"
-                            SnapsToDevicePixels="True">
+                        <Border Background="{TemplateBinding Background}" BorderThickness="0" SnapsToDevicePixels="True">
                             <ContentPresenter VerticalAlignment="Center" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
                         </Border>
                     </ControlTemplate>
@@ -69,30 +65,115 @@
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="BorderBrush" Value="#EBEEF5" />
         </Style>
+
+        <Style TargetType="TreeViewItem">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeViewItem">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Border x:Name="NodeBorder" Grid.Row="0" 
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="4" Margin="0,2,0,2"
+                                    Padding="{TemplateBinding Padding}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ToggleButton x:Name="Expander" Grid.Column="0" Width="16" Height="16" ClickMode="Press"
+                                                  IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                                  Template="{StaticResource ExpandToggleButtonTemplate}"/>
+
+                                    <TextBlock Grid.Column="1" x:Name="IconBlock" Margin="4,0,8,0" 
+                                               FontFamily="{StaticResource Icon}" Foreground="#409EFF" 
+                                               VerticalAlignment="Center" Text="&#xf0a0;" />
+
+                                    <ContentPresenter Grid.Column="2" x:Name="PART_Header" ContentSource="Header" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Margin="16,0,0,0" Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="HasItems" Value="False">
+                                <Setter TargetName="Expander" Property="Visibility" Value="Hidden"/>
+                                <Setter TargetName="IconBlock" Property="Text" Value="&#xf15b;"/>
+                                <Setter TargetName="IconBlock" Property="Foreground" Value="#67C23A"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True" SourceName="NodeBorder">
+                                <Setter TargetName="NodeBorder" Property="Background" Value="#F5F7FA"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="NodeBorder" Property="Background" Value="#ECF5FF"/>
+                                <Setter TargetName="PART_Header" Property="TextElement.Foreground" Value="#409EFF"/>
+                                <Setter TargetName="PART_Header" Property="TextElement.FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TreeView">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
     </UserControl.Resources>
 
-    <Grid Margin="15">
+    <Grid Margin="5">
         <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200" />
+            <ColumnDefinition Width="12" />
             <ColumnDefinition Width="280" />
-            <ColumnDefinition Width="15" />
+            <ColumnDefinition Width="12" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border
-            Grid.Column="0"
-            Background="White"
-            BorderBrush="#EBEEF5"
-            BorderThickness="1"
-            CornerRadius="8">
+        <Border Grid.Column="0" Background="White" BorderBrush="#EBEEF5" BorderThickness="1" CornerRadius="8">
             <Border.Effect>
-                <DropShadowEffect
-                    BlurRadius="12"
-                    Direction="270"
-                    Opacity="0.04"
-                    ShadowDepth="3" />
+                <DropShadowEffect BlurRadius="12" Direction="270" Opacity="0.04" ShadowDepth="3" />
+            </Border.Effect>
+            <Grid Margin="5">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Margin="0,0,0,16" FontSize="16" FontWeight="Bold" Foreground="#303133" Text="⚖️ 变量层级树" />
+
+                <TreeView Grid.Row="1" x:Name="DeviceTree">
+                    <TreeViewItem Header="🏠 本地内存池" IsSelected="True" />
+                    <TreeViewItem Header="🌐 网络通信池" IsExpanded="True">
+                        <TreeViewItem Header="Conn_PLC1 (Modbus)" />
+                        <TreeViewItem Header="Conn_PLC2 (S7)" />
+                        <TreeViewItem Header="Conn_Robot (TCP)" />
+                    </TreeViewItem>
+                </TreeView>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="2" Background="White" BorderBrush="#EBEEF5" BorderThickness="1" CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="12" Direction="270" Opacity="0.04" ShadowDepth="3" />
             </Border.Effect>
             <Grid Margin="20">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -104,74 +185,29 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock
-                    Grid.Row="0"
-                    Margin="0,0,0,25"
-                    FontSize="17"
-                    FontWeight="Bold"
-                    Foreground="#303133"
-                    Text="新建全局变量" />
-                <TextBlock
-                    Grid.Row="1"
-                    Margin="0,0,0,6"
-                    FontWeight="SemiBold"
-                    Foreground="#606266"
-                    Text="变量名称 (不可重复)" />
-                <TextBox
-                    Grid.Row="2"
-                    Height="36"
-                    Margin="0,0,0,18"
-                    Padding="10,0"
-                    VerticalContentAlignment="Center"
-                    Background="#F5F7FA"
-                    BorderBrush="#DCDFE6"
-                    Text="{Binding NewVarName, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Grid.Row="0" Margin="0,0,0,20" FontSize="16" FontWeight="Bold" Foreground="#303133" Text="新建全局变量" />
 
-                <TextBlock
-                    Grid.Row="3"
-                    Margin="0,0,0,6"
-                    FontWeight="SemiBold"
-                    Foreground="#606266"
-                    Text="数据类型" />
-                <ComboBox
-                    Grid.Row="4"
-                    Height="36"
-                    Margin="0,0,0,18"
-                    Padding="10,0"
-                    VerticalContentAlignment="Center"
-                    Background="#F5F7FA"
-                    BorderBrush="#DCDFE6"
-                    DisplayMemberPath="DisplayName"
-                    ItemsSource="{Binding AvailableTypes}"
-                    SelectedItem="{Binding SelectedType}" />
+                <TextBlock Grid.Row="1" Margin="0,0,0,6" FontWeight="SemiBold" Foreground="#909399" Text="📌 变量当前归属" />
+                <TextBox Grid.Row="2" Height="36" Margin="0,0,0,14" Padding="10,0" IsReadOnly="True"
+                         VerticalContentAlignment="Center" Background="#F5F7FA" BorderBrush="#E4E7ED" 
+                         FontWeight="SemiBold" Foreground="#409EFF" Text="🏠 本地内存池 (跟随左侧选中)" />
 
-                <TextBlock
-                    Grid.Row="5"
-                    Margin="0,0,0,6"
-                    FontWeight="SemiBold"
-                    Foreground="#606266"
-                    Text="变量描述 (选填)" />
-                <TextBox
-                    Grid.Row="6"
-                    Height="70"
-                    Margin="0,0,0,18"
-                    Padding="10"
-                    AcceptsReturn="True"
-                    Background="#F5F7FA"
-                    BorderBrush="#DCDFE6"
-                    Text="{Binding NewVarDescription, UpdateSourceTrigger=PropertyChanged}"
-                    TextWrapping="Wrap" />
+                <TextBlock Grid.Row="3" Margin="0,0,0,6" FontWeight="SemiBold" Foreground="#606266" Text="变量名称 (不可重复)" />
+                <TextBox Grid.Row="4" Height="36" Margin="0,0,0,14" Padding="10,0" VerticalContentAlignment="Center"
+                         Background="#FFFFFF" BorderBrush="#DCDFE6" Text="{Binding NewVarName, UpdateSourceTrigger=PropertyChanged}" />
 
-                <Button
-                    Grid.Row="8"
-                    Height="42"
-                    Background="#409EFF"
-                    BorderThickness="0"
-                    Command="{Binding AddCommand}"
-                    Content="＋ 添加到全局池"
-                    Cursor="Hand"
-                    FontWeight="Bold"
-                    Foreground="White">
+                <TextBlock Grid.Row="5" Margin="0,0,0,6" FontWeight="SemiBold" Foreground="#606266" Text="数据类型" />
+                <ComboBox Grid.Row="6" Height="36" Margin="0,0,0,14" Padding="10,0" VerticalContentAlignment="Center"
+                          Background="#FFFFFF" BorderBrush="#DCDFE6" DisplayMemberPath="DisplayName"
+                          ItemsSource="{Binding AvailableTypes}" SelectedItem="{Binding SelectedType}" />
+
+                <TextBlock Grid.Row="7" Margin="0,0,0,6" FontWeight="SemiBold" Foreground="#606266" Text="变量描述 (选填)" />
+                <TextBox Grid.Row="8" Height="70" Margin="0,0,0,14" Padding="10" AcceptsReturn="True"
+                         Background="#FFFFFF" BorderBrush="#DCDFE6" TextWrapping="Wrap"
+                         Text="{Binding NewVarDescription, UpdateSourceTrigger=PropertyChanged}" />
+
+                <Button Grid.Row="10" Height="42" Background="#409EFF" BorderThickness="0" Cursor="Hand"
+                        FontWeight="Bold" Foreground="White" Content="＋ 添加到当前分类" Command="{Binding AddCommand}">
                     <Button.Resources>
                         <Style TargetType="Border">
                             <Setter Property="CornerRadius" Value="6" />
@@ -190,18 +226,9 @@
             </Grid>
         </Border>
 
-        <Border
-            Grid.Column="2"
-            Background="White"
-            BorderBrush="#EBEEF5"
-            BorderThickness="1"
-            CornerRadius="8">
+        <Border Grid.Column="4" Background="White" BorderBrush="#EBEEF5" BorderThickness="1" CornerRadius="8">
             <Border.Effect>
-                <DropShadowEffect
-                    BlurRadius="12"
-                    Direction="270"
-                    Opacity="0.04"
-                    ShadowDepth="3" />
+                <DropShadowEffect BlurRadius="12" Direction="270" Opacity="0.04" ShadowDepth="3" />
             </Border.Effect>
             <Grid>
                 <Grid.RowDefinitions>
@@ -209,88 +236,43 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Border
-                    Grid.Row="0"
-                    BorderBrush="#EBEEF5"
-                    BorderThickness="0,0,0,1">
+                <Border Grid.Row="0" BorderBrush="#EBEEF5" BorderThickness="0,0,0,1">
                     <Grid Margin="20,0">
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontSize="16"
-                            FontWeight="Bold"
-                            Foreground="#303133"
-                            Text="实时监控面板 (全局内存池)" />
-                        <Border
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center"
-                            Background="#F5F7FA"
-                            BorderBrush="#DCDFE6"
-                            BorderThickness="1"
-                            CornerRadius="4">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock FontSize="15" FontWeight="Bold" Foreground="#303133" Text="📊 实时监控明细 " />
+                            <TextBlock FontSize="13" FontWeight="Normal" Foreground="#909399" VerticalAlignment="Center" Text="(当前节点: 本地内存池)" />
+                        </StackPanel>
+
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#F5F7FA" BorderBrush="#DCDFE6" BorderThickness="1" CornerRadius="4">
                             <StackPanel Height="30" Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="10,0,5,0"
-                                    VerticalAlignment="Center"
-                                    FontFamily="{StaticResource Icon}"
-                                    Foreground="#C0C4CC"
-                                    Text="&#xf002;" />
-                                <TextBox
-                                    Width="140"
-                                    Padding="0,0,10,0"
-                                    VerticalAlignment="Stretch"
-                                    VerticalContentAlignment="Center"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Foreground="#909399"
-                                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                   />
+                                <TextBlock Margin="10,0,5,0" VerticalAlignment="Center" FontFamily="{StaticResource Icon}" Foreground="#C0C4CC" Text="&#xf002;" />
+                                <TextBox Width="160" Padding="0,0,10,0" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                                         Background="Transparent" BorderThickness="0" Foreground="#909399"
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                         </Border>
                     </Grid>
                 </Border>
 
-                <DataGrid
-                    Grid.Row="1"
-                    Margin="1"
-                    HorizontalScrollBarVisibility="Disabled"
-                    ItemsSource="{Binding FilteredDisplayNodes}"
-                    RowDetailsVisibilityMode="Collapsed">
+                <DataGrid Grid.Row="1" Margin="1" HorizontalScrollBarVisibility="Disabled"
+                          ItemsSource="{Binding FilteredDisplayNodes}" RowDetailsVisibilityMode="Collapsed">
                     <DataGrid.Columns>
 
-                        <DataGridTemplateColumn
-                            Width="180"
-                            Header="变量名"
-                            IsReadOnly="True">
+                        <DataGridTemplateColumn Width="180" Header="变量名" IsReadOnly="True">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel
-                                        Margin="15,0,0,0"
-                                        Background="Transparent"
-                                        Orientation="Horizontal">
-
-                                        <!-- 层级缩进 -->
+                                    <StackPanel Margin="15,0,0,0" Background="Transparent" Orientation="Horizontal">
                                         <Border Width="{Binding Level, Converter={ui:LevelToIndentConverter}}" />
-
-                                        <!-- 展开/折叠按钮 -->
-                                        <ToggleButton
-                                            Width="14"
-                                            Height="14"
-                                            Margin="0,0,8,0"
-                                            Command="{Binding DataContext.ToggleNodeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                            CommandParameter="{Binding}"
-                                            Cursor="Hand"
-                                            IsChecked="{Binding IsExpanded, Mode=TwoWay}"
-                                            Template="{StaticResource ExpandToggleButtonTemplate}"
-                                            Visibility="{Binding IsContainer, Converter={ui:BooleanToVisibilityConverter}}" />
-
-                                        <!-- 非容器节点占位 -->
+                                        <ToggleButton Width="14" Height="14" Margin="0,0,8,0" Cursor="Hand"
+                                                      Command="{Binding DataContext.ToggleNodeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                      CommandParameter="{Binding}" IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                      Template="{StaticResource ExpandToggleButtonTemplate}"
+                                                      Visibility="{Binding IsContainer, Converter={ui:BooleanToVisibilityConverter}}" />
                                         <Border Width="{Binding IsContainer, Converter={ui:BooleanToWidthConverter}, ConverterParameter=22}" />
-
                                         <TextBlock VerticalAlignment="Center" Text="{Binding Name}">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="FontSize" Value="13" />
-                                                    <Setter Property="FontWeight" Value="Bold" />
                                                     <Setter Property="Foreground" Value="#303133" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Level}" Value="1">
@@ -306,12 +288,7 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTextColumn
-                            Width="120"
-                            Binding="{Binding TypeName}"
-                            Foreground="#909399"
-                            Header="类型"
-                            IsReadOnly="True">
+                        <DataGridTextColumn Width="100" Binding="{Binding TypeName}" Foreground="#909399" Header="类型" IsReadOnly="True">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="VerticalAlignment" Value="Center" />
@@ -321,92 +298,38 @@
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
 
-                        <DataGridTemplateColumn Width="160" Header="初始值 (复位用)">
+                        <DataGridTemplateColumn Width="150" Header="初始值 (复位用)">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Border
-                                        Height="28"
-                                        Margin="5,0"
-                                        Background="#FAFAFA"
-                                        BorderBrush="#DCDFE6"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
+                                    <Border Height="28" Margin="5,0" Background="#FAFAFA" BorderBrush="#DCDFE6" BorderThickness="1" CornerRadius="4">
                                         <Grid>
-                                            <!-- 普通变量可编辑 -->
-                                            <TextBox
-                                                Padding="10,0"
-                                                HorizontalAlignment="Stretch"
-                                                VerticalAlignment="Stretch"
-                                                VerticalContentAlignment="Center"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                Foreground="#606266"
-                                                Style="{x:Null}"
-                                                Text="{Binding OriginalModel.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
-                                                Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
-
-                                            <!-- 数组变量编辑按钮 -->
-                                            <Button
-                                                Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding OriginalModel}"
-                                                Content="[ 编辑集合... ]"
-                                                Style="{StaticResource LinkButtonStyle}"
-                                                Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
-
-                                            <!-- 数组子节点显示 -->
-                                            <TextBlock
-                                                Padding="10,0"
-                                                VerticalAlignment="Center"
-                                                Foreground="#606266"
-                                                Text="{Binding ChildDefaultValue}"
-                                                Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            <TextBox Padding="10,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                                                     Background="Transparent" BorderThickness="0" Foreground="#606266" Style="{x:Null}"
+                                                     Text="{Binding OriginalModel.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                                                     Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            <Button Content="[ 编辑集合... ]" Style="{StaticResource LinkButtonStyle}"
+                                                    Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            <TextBlock Padding="10,0" VerticalAlignment="Center" Foreground="#606266" Text="{Binding ChildDefaultValue}"
+                                                       Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="160" Header="当前运行值 (实时)">
+                        <DataGridTemplateColumn Width="150" Header="当前运行值 (实时)">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Border
-                                        Height="28"
-                                        Margin="5,0"
-                                        Background="#F0F9EB"
-                                        CornerRadius="4">
+                                    <Border Height="28" Margin="5,0" Background="#F0F9EB" CornerRadius="4">
                                         <Grid>
-                                            <!-- 普通变量只读显示 -->
-                                            <TextBox
-                                                Padding="10,0"
-                                                HorizontalAlignment="Stretch"
-                                                VerticalAlignment="Stretch"
-                                                VerticalContentAlignment="Center"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                FontWeight="Bold"
-                                                Foreground="#529B2E"
-                                                IsReadOnly="True"
-                                                Style="{x:Null}"
-                                                Text="{Binding OriginalModel.Value, Mode=OneWay}"
-                                                Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
-
-                                            <!-- 数组变量强制覆盖按钮 -->
-                                            <Button
-                                                Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding OriginalModel}"
-                                                Content="[ 强制覆盖集合... ]"
-                                                Foreground="#529B2E"
-                                                Style="{StaticResource LinkButtonStyle}"
-                                                Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
-
-                                            <!-- 数组子节点显示 -->
-                                            <TextBlock
-                                                Padding="10,0"
-                                                VerticalAlignment="Center"
-                                                FontWeight="Bold"
-                                                Foreground="#529B2E"
-                                                Text="{Binding ChildValue}"
-                                                Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            <TextBox Padding="10,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                                                     Background="Transparent" BorderThickness="0" FontWeight="Bold" Foreground="#529B2E" IsReadOnly="True" Style="{x:Null}"
+                                                     Text="{Binding OriginalModel.Value, Mode=OneWay}"
+                                                     Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            <Button Content="[ 强制覆盖集合... ]" Foreground="#529B2E" Style="{StaticResource LinkButtonStyle}"
+                                                    Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            <TextBlock Padding="10,0" VerticalAlignment="Center" FontWeight="Bold" Foreground="#529B2E" Text="{Binding ChildValue}"
+                                                       Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -416,19 +339,9 @@
                         <DataGridTemplateColumn Width="*" Header="操作">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Orientation="Horizontal"
-                                        Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
-                                        <Button
-                                            Margin="0,0,15,0"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                            CommandParameter="{Binding OriginalModel}"
-                                            Cursor="Hand"
-                                            ToolTip="恢复初始值">
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal"
+                                                Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
+                                        <Button Margin="0,0,15,0" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="恢复初始值">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Setter Property="Opacity" Value="0.7" />
@@ -439,20 +352,9 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
-                                            <TextBlock
-                                                FontFamily="{StaticResource Icon}"
-                                                FontSize="15"
-                                                Foreground="#E6A23C"
-                                                Text="&#xf0e2;" />
+                                            <TextBlock FontFamily="{StaticResource Icon}" FontSize="15" Foreground="#E6A23C" Text="&#xf0e2;" />
                                         </Button>
-
-                                        <Button
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                            CommandParameter="{Binding OriginalModel}"
-                                            Cursor="Hand"
-                                            ToolTip="删除">
+                                        <Button Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="删除">
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Setter Property="Opacity" Value="0.7" />
@@ -463,11 +365,7 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Button.Style>
-                                            <TextBlock
-                                                FontFamily="{StaticResource Icon}"
-                                                FontSize="15"
-                                                Foreground="#F56C6C"
-                                                Text="&#xf1f8;" />
+                                            <TextBlock FontFamily="{StaticResource Icon}" FontSize="15" Foreground="#F56C6C" Text="&#xf1f8;" />
                                         </Button>
                                     </StackPanel>
                                 </DataTemplate>
