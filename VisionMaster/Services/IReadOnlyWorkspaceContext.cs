@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -48,7 +48,7 @@ namespace VisionMaster.Services
         /// <summary>
         /// 全局变量集合
         /// </summary>
-        public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; }
+        public ObservableCollection<IVariable> GlobalVariables { get; set; }
 
         /// <summary>
         /// 切换当前方案
@@ -75,7 +75,7 @@ namespace VisionMaster.Services
         /// <summary>
         /// 全局变量集合
         /// </summary>
-        public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; } = new();
+        public ObservableCollection<IVariable> GlobalVariables { get; set; } = new();
 
         private SolutionModel _currentSolution;
         /// <summary>
@@ -226,144 +226,20 @@ namespace VisionMaster.Services
         /// </summary>
         public void InitializeCommonVariables()
         {
-            GlobalVariables = new ObservableCollection<GlobalVariableModel>
+            GlobalVariables = new ObservableCollection<IVariable>
             {
-                new GlobalVariableModel
-                {
-                    Name = "RecipeName",
-                    DataType = typeof(string),
-                    Description = "当前加载的产品模型配方名称",
-                    DefaultValue = "Product_Type_A",
-                    Value = "Product_Type_A",
-                },
-                new GlobalVariableModel
-                {
-                    Name = "ProductCode",
-                    DataType = typeof(string),
-                    Description = "当前识别到的条码或二维码信息",
-                    DefaultValue = "",
-                    Value = "QR202310240001",
-                },
-                new GlobalVariableModel
-                {
-                    Name = "TotalCount",
-                    DataType = typeof(int),
-                    Description = "设备运行以来的累计生产总数",
-                    DefaultValue = 0,
-                    Value = 1500,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "OKCount",
-                    DataType = typeof(int),
-                    Description = "累计检测良品总数",
-                    DefaultValue = 0,
-                    Value = 1485,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "NGCount",
-                    DataType = typeof(int),
-                    Description = "累计检测不良品总数",
-                    DefaultValue = 0,
-                    Value = 15,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "ScoreThreshold",
-                    DataType = typeof(double),
-                    Description = "模板匹配的最小及格分数 (0-100)",
-                    DefaultValue = 80.0,
-                    Value = 85.5,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "Exposure_Time",
-                    DataType = typeof(double),
-                    Description = "主相机的曝光时间 (ms)",
-                    DefaultValue = 20.0,
-                    Value = 25.0,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "YieldRate",
-                    DataType = typeof(double),
-                    Description = "当前的实时良率 (%)",
-                    DefaultValue = 100.0,
-                    Value = 99.0,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "IsSystemAuto",
-                    DataType = typeof(bool),
-                    Description = "系统是否处于自动运行模式",
-                    DefaultValue = false,
-                    Value = true,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "SafetyDoorState",
-                    DataType = typeof(bool),
-                    Description = "安全门限位开关状态 (True为关闭)",
-                    DefaultValue = true,
-                    Value = true,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "PLC_Ready",
-                    DataType = typeof(bool),
-                    Description = "外部PLC通讯握手信号",
-                    DefaultValue = false,
-                    Value = true,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "OffsetX",
-                    DataType = typeof(double),
-                    Description = "机械手 X 轴位置补偿量 (mm)",
-                    DefaultValue = 0.0,
-                    Value = 1.25,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "OffsetY",
-                    DataType = typeof(double),
-                    Description = "机械手 Y 轴位置补偿量 (mm)",
-                    DefaultValue = 0.0,
-                    Value = -0.42,
-                },
-                new GlobalVariableModel
-                {
-                    Name = "BarcodeResults",
-                    DataType = typeof(string[]),
-                    Description = "单次触发读取到的所有条码集合",
-                    DefaultValue = new string[0],
-                    Value = new string[] { "SN2026-A01", "SN2026-A02", "SN2026-B01" },
-                },
-                new GlobalVariableModel
-                {
-                    Name = "HoleCoordinatesX",
-                    DataType = typeof(double[]),
-                    Description = "所有定位孔的 X 坐标集合 (mm)",
-                    DefaultValue = new double[0],
-                    Value = new double[] { 12.5, 45.2, 88.9, 120.0 },
-                },
-                new GlobalVariableModel
-                {
-                    Name = "DefectAreas",
-                    DataType = typeof(double[]),
-                    Description = "表面检测发现的瑕疵面积列表 (px²)",
-                    DefaultValue = new double[0],
-                    Value = new double[] { 150.5, 45.2, 12.0 },
-                },
-                new GlobalVariableModel
-                {
-                    Name = "CameraROI",
-                    DataType = typeof(int[]),
-                    Description = "相机的动态检测区域 [X, Y, Width, Height]",
-                    DefaultValue = new int[] { 0, 0, 1920, 1080 },
-                    Value = new int[] { 100, 100, 800, 600 },
-                },
+                VariableFactory.CreateLocal("RecipeName", typeof(string), "当前加载的产品模型配方名称", "Product_Type_A"),
+                VariableFactory.CreateLocal("ProductCode", typeof(string),  "当前识别到的条码或二维码信息", "QR202310240001"),
+                VariableFactory.CreateLocal("TotalCount", typeof(int),"设备运行以来的累计生产总数", 1500),
+                VariableFactory.CreateLocal("OKCount", typeof(int),"累计检测良品总数", 1485),
+                VariableFactory.CreateLocal("NGCount", typeof(int),"累计检测不良品总数", 15),
+                VariableFactory.CreateLocal("ScoreThreshold", typeof(double),"模板匹配的最小及格分数 (0-100)", 85.5),
+                VariableFactory.CreateLocal("Exposure_Time", typeof(double),"主相机的曝光时间 (ms)", 25.0),
+                VariableFactory.CreateLocal("YieldRate", typeof(double), "当前的实时良率 (%)",99.0),
+                VariableFactory.CreateLocal("PLC_Ready", typeof(bool), "外部PLC通讯握手信号", true),
+                VariableFactory.CreateLocal("BarcodeResults", typeof(string[]), "单次触发读取到的所有条码集合",new string[] { "SN2026-A01", "SN2026-A02", "SN2026-B01" }),
+                VariableFactory.CreateLocal("HoleCoordinatesX", typeof(double[]),"所有定位孔的 X 坐标集合 (mm)", new double[] { 12.5, 45.2, 88.9, 120.0 }),
+                VariableFactory.CreateLocal("CameraROI", typeof(int[]),"相机的动态检测区域 [X, Y, Width, Height]", new int[] { 100, 100, 800, 600 }),
             };
         }
     }

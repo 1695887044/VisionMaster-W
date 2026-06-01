@@ -9,6 +9,20 @@ using UI.Attributes;
 namespace VisionMaster
 {
     /// <summary>
+    /// 变量类型枚举
+    /// </summary>
+    public enum VariableType
+    {
+        /// <summary>
+        /// 本地变量
+        /// </summary>
+        Local,
+        /// <summary>
+        /// 通讯变量
+        /// </summary>
+        Communication
+    }
+    /// <summary>
     /// 会话状态枚举
     /// </summary>
     public enum SessionState
@@ -249,41 +263,18 @@ namespace VisionMaster
     }
     public enum DataValueType
     {
-
         Boolean,
-
-
         SByte,
-
-
         Byte,
-
-
         Int16,
-
-
         UInt16,
-
-
         Int32,
-
-
         UInt32,
-
-    
         Int64,
-
         UInt64,
-
-  
         Float,
-
- 
         Double,
-
-
         String,
-
         ByteArray
     }
     public enum McProtocolType

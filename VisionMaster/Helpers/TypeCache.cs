@@ -258,10 +258,6 @@ namespace VisionMaster.Helpers
             }
         }
 
-        /// <summary>
-        /// 获取缓存统计信息
-        /// </summary>
-        /// <returns>统计信息</returns>
         public static CacheStatistics GetStatistics()
         {
             lock (_lock)
@@ -275,10 +271,6 @@ namespace VisionMaster.Helpers
                 };
             }
         }
-
-        /// <summary>
-        /// 缓存统计信息
-        /// </summary>
         public class CacheStatistics
         {
             public int TotalEntries { get; set; }

@@ -86,12 +86,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>
         /// 创建根节点（子类必须实现）
         /// </summary>
-        protected abstract VariableNode CreateRootNode(GlobalVariableModel gv);
+        protected abstract VariableNode CreateRootNode(IVariable gv);
 
         /// <summary>
         /// 判断是否需要为当前变量创建子节点
         /// </summary>
-        protected virtual bool ShouldCreateChildNodes(GlobalVariableModel gv)
+        protected virtual bool ShouldCreateChildNodes(IVariable gv)
         {
             return gv.DataType?.IsArray == true;
         }
@@ -99,7 +99,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>
         /// 创建子节点（子类必须实现）
         /// </summary>
-        protected abstract void CreateChildNodes(GlobalVariableModel gv, VariableNode parentNode);
+        protected abstract void CreateChildNodes(IVariable gv, VariableNode parentNode);
         #endregion
 
         /// <summary>

@@ -11,9 +11,6 @@ namespace VisionMaster.Communications
     /// </summary>
     public abstract class DeviceAddressBase : BindableBase
     {
-        /// <summary>
-        /// 缓存的完整地址字符串
-        /// </summary>
         protected string? _cachedAddress = null;
 
         #region 核心通信属性
@@ -22,11 +19,7 @@ namespace VisionMaster.Communications
         private int _bitOffset = -1;
         private int _length = 1;
 
-        /// <summary>
-        /// <para>获取或设置数据类型。</para>
-        /// <para>决定了通信层读取多少字节以及如何解析数据。</para>
-        /// </summary>
-        [Category("核心设置"), SuperDisplay(Name = "数据类型")]
+        [SuperDisplay(Name = "数据类型")]
         public DataValueType DataType
         {
             get => _dataType;
@@ -34,7 +27,6 @@ namespace VisionMaster.Communications
             {
                 if (SetProperty(ref _dataType, value))
                 {
-                    // 根据数据类型自动设置默认长度
                     _length = GetDefaultLength(value);
                     _cachedAddress = null;
                     RaisePropertyChanged(nameof(Address));
@@ -44,12 +36,7 @@ namespace VisionMaster.Communications
             }
         }
 
-        /// <summary>
-        /// <para>获取或设置位偏移量（0-7）。</para>
-        /// <para>仅当DataType为Boolean时有效，用于访问字节中的特定位。</para>
-        /// <para>值为-1表示不使用位偏移。</para>
-        /// </summary>
-        [Category("核心设置"), SuperDisplay(Name = "位偏移(0-7)")]
+        [SuperDisplay(Name = "位偏移(0-7)")]
         public int BitOffset
         {
             get => _bitOffset;
@@ -65,13 +52,7 @@ namespace VisionMaster.Communications
             }
         }
 
-        /// <summary>
-        /// <para>获取或设置数据长度。</para>
-        /// <para>对于基本类型：表示元素个数（数组长度）</para>
-        /// <para>对于字符串：表示最大字符数</para>
-        /// <para>对于ByteArray：表示字节数</para>
-        /// </summary>
-        [Category("核心设置"), SuperDisplay(Name = "数据长度")]
+        [ SuperDisplay(Name = "数据长度")]
         public int Length
         {
             get => _length;
@@ -86,23 +67,10 @@ namespace VisionMaster.Communications
             }
         }
 
-        /// <summary>
-        /// <para>获取是否为位类型数据。</para>
-        /// <para>位类型数据需要特殊的读取和解析逻辑。</para>
-        /// </summary>
-        [Browsable(false)]
         public bool IsBitType => DataType == DataValueType.Boolean && BitOffset >= 0;
 
-        /// <summary>
-        /// <para>获取该数据类型的默认字节大小。</para>
-        /// </summary>
-        [Browsable(false)]
         public int TypeSize => GetTypeSize(DataType);
 
-        /// <summary>
-        /// <para>获取读取该地址需要的总字节数。</para>
-        /// </summary>
-        [Browsable(false)]
         public int TotalBytes => TypeSize * Length;
 
         #endregion
@@ -240,9 +208,6 @@ namespace VisionMaster.Communications
 
         #region 地址属性
 
-        /// <summary>
-        /// <para>核心偏移量/地址编号。</para>
-        /// </summary>
         [SuperDisplay(Name = "地址/偏移量")]
         public virtual string Offset
         {
@@ -257,10 +222,6 @@ namespace VisionMaster.Communications
             }
         } = "0";
 
-        /// <summary>
-        /// <para>最终对外输出的完整通讯地址字符串。</para>
-        /// </summary>
-        [Browsable(false)]
         public string Address => _cachedAddress ??= BuildAddress();
 
         #endregion
@@ -331,7 +292,7 @@ namespace VisionMaster.Communications
     {
         private TAreaEnum _area;
 
-        [Category("基础设置"), SuperDisplay(Name = "存储区分类")]
+        [SuperDisplay(Name = "存储区分类")]
         public TAreaEnum Area
         {
             get => _area;
@@ -351,17 +312,12 @@ namespace VisionMaster.Communications
             if (!baseResult.IsValid)
                 return baseResult;
 
-            // 验证存储区与数据类型的兼容性
             if (!IsAreaCompatibleWithDataType(Area, DataType))
                 return (false, $"存储区 {Area} 不支持数据类型 {DataType}");
 
             return (true, string.Empty);
         }
 
-        /// <summary>
-        /// <para>验证存储区是否支持指定的数据类型。</para>
-        /// <para>子类可以重写此方法实现协议特定的验证逻辑。</para>
-        /// </summary>
         protected virtual bool IsAreaCompatibleWithDataType(TAreaEnum area, DataValueType dataType)
         {
             return true;

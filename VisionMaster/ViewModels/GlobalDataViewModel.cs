@@ -11,7 +11,7 @@ namespace VisionMaster.ViewModels
             RefreshTree();
         }
 
-        protected override VariableNode CreateRootNode(GlobalVariableModel gv)
+        protected override VariableNode CreateRootNode(IVariable gv)
         {
             return new VariableNode
             {
@@ -25,12 +25,12 @@ namespace VisionMaster.ViewModels
             };
         }
 
-        protected override bool ShouldCreateChildNodes(GlobalVariableModel gv)
+        protected override bool ShouldCreateChildNodes(IVariable gv)
         {
             return gv.Value is Array;
         }
 
-        protected override void CreateChildNodes(GlobalVariableModel gv, VariableNode parentNode)
+        protected override void CreateChildNodes(IVariable gv, VariableNode parentNode)
         {
             if (!(gv.Value is Array array)) return;
 

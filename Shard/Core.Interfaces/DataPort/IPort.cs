@@ -8,29 +8,15 @@ namespace Core.Interfaces
     /// </summary>
     public interface IPort
     {
-        /// <summary>
-        /// 端口唯一名称（如 "InputImage", "ScoreThreshold"）
-        /// </summary>
+        // 端口唯一名称（如 "InputImage", "ScoreThreshold"）
         string Name { get; }
 
-        /// <summary>
-        /// 端口承载的数据类型
-        /// </summary>
         Type DataType { get; }
 
-        /// <summary>
-        /// 端口当前值（弱类型访问）
-        /// </summary>
         object Value { get; set; }
 
-        /// <summary>
-        /// 端口描述信息，用于UI显示和文档生成
-        /// </summary>
         string Description { get; set; }
 
-        /// <summary>
-        /// 当端口值发生实质性变化时触发
-        /// </summary>
         event EventHandler ValueChanged;
     }
 

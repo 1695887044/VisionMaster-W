@@ -17,7 +17,7 @@ namespace VisionMaster.Helpers
     public class WatchPortWrapper : BindableBase, IDisposable
     {
         private readonly IPort _port;
-        private readonly GlobalVariableModel _globalVar;
+        private readonly IVariable _globalVar;
 
         /// <summary>
         /// 原始配置
@@ -76,7 +76,7 @@ namespace VisionMaster.Helpers
         /// <summary>
         /// 创建全局变量监视包装器
         /// </summary>
-        public WatchPortWrapper(WatchItemModel config, GlobalVariableModel gv)
+        public WatchPortWrapper(WatchItemModel config, IVariable gv)
         {
             OriginalConfig = config;
             DisplayName = gv.Name;

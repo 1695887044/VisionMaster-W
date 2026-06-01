@@ -68,7 +68,7 @@ namespace VisionMaster.Models
         /// <summary>
         /// 全局变量集合（跟着解决方案走）
         /// </summary>
-        public ObservableCollection<GlobalVariableModel> GlobalVariables { get; set; } = new();
+        public ObservableCollection<IVariable> GlobalVariables { get; set; } = new();
 
         /// <summary>
         /// 动态监视项列表（用于调试时查看变量值）

@@ -16,7 +16,7 @@ namespace VisionMaster.Models
         /// <summary>
         /// 原始变量模型引用
         /// </summary>
-        public GlobalVariableModel OriginalModel { get; set; }
+        public IVariable OriginalModel { get; set; }
 
         /// <summary>
         /// 变量名称

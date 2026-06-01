@@ -114,9 +114,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         public DelegateCommand AddCommand { get; }
-        public DelegateCommand<GlobalVariableModel> DeleteCommand { get; }
-        public DelegateCommand<GlobalVariableModel> EditArrayCommand { get; }
-        public DelegateCommand<GlobalVariableModel> ResetCommand { get; }
+        public DelegateCommand<LocalVariableModel> DeleteCommand { get; }
+        public DelegateCommand<LocalVariableModel> EditArrayCommand { get; }
+        public DelegateCommand<LocalVariableModel> ResetCommand { get; }
 
         public GlobalVariableManagerViewModel(IWorkspaceManager workspace)
             : base(workspace)
@@ -124,9 +124,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             SelectedType = AvailableTypes.First();
 
             AddCommand = new DelegateCommand(AddVariable);
-            DeleteCommand = new DelegateCommand<GlobalVariableModel>(DeleteVariable);
-            ResetCommand = new DelegateCommand<GlobalVariableModel>(ResetVariable);
-            EditArrayCommand = new DelegateCommand<GlobalVariableModel>(ExecuteEditArray);
+            DeleteCommand = new DelegateCommand<LocalVariableModel>(DeleteVariable);
+            ResetCommand = new DelegateCommand<LocalVariableModel>(ResetVariable);
+            EditArrayCommand = new DelegateCommand<LocalVariableModel>(ExecuteEditArray);
 
             // 挂载变量值变化监听
             foreach (var gv in _workspace.GlobalVariables)
@@ -142,7 +142,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             Application.Current.Dispatcher.Invoke(() => RefreshTree());
         }
 
-        protected override VariableNode CreateRootNode(GlobalVariableModel gv)
+        protected override VariableNode CreateRootNode(IVariable gv)
         {
             return new VariableNode
             {
@@ -157,7 +157,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             };
         }
 
-        protected override void CreateChildNodes(GlobalVariableModel gv, VariableNode parentNode)
+        protected override void CreateChildNodes(IVariable gv, VariableNode parentNode)
         {
             var defArray = gv.DefaultValue as Array;
             var valArray = gv.Value as Array;
@@ -190,7 +190,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 处理变量值变化事件的订阅/取消订阅
             if (e.OldItems != null)
             {
-                foreach (GlobalVariableModel old in e.OldItems)
+                foreach (LocalVariableModel old in e.OldItems)
                 {
                     old.ValueChanged -= OnVariableValueChanged;
                 }
@@ -198,7 +198,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (e.NewItems != null)
             {
-                foreach (GlobalVariableModel newItem in e.NewItems)
+                foreach (LocalVariableModel newItem in e.NewItems)
                 {
                     newItem.ValueChanged += OnVariableValueChanged;
                 }
@@ -208,7 +208,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         #region 业务逻辑方法
-        private async void ExecuteEditArray(GlobalVariableModel gv)
+        private async void ExecuteEditArray(LocalVariableModel gv)
         {
             if (gv == null || !gv.DataType.IsArray)
                 return;
@@ -286,7 +286,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             else
                 initValue = Activator.CreateInstance(targetType);
 
-            var newVar = new GlobalVariableModel
+            var newVar = new LocalVariableModel
             {
                 Name = NewVarName,
                 DataType = targetType,
@@ -300,7 +300,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             NewVarDescription = string.Empty;
         }
 
-        private void DeleteVariable(GlobalVariableModel gv)
+        private void DeleteVariable(LocalVariableModel gv)
         {
             if (
                 gv != null
@@ -314,7 +314,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        private void ResetVariable(GlobalVariableModel gv)
+        private void ResetVariable(LocalVariableModel gv)
         {
             if (gv != null)
                 gv.ResetToDefault();

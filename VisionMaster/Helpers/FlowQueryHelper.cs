@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -23,7 +23,7 @@ namespace VisionMaster.Helpers
         /// 包括全局变量和上游步骤的输出端口
         /// </summary>
         public static List<ToolItemModel> GetAvailableVariablesTree(
-            IEnumerable<GlobalVariableModel> globals,
+            IEnumerable<IVariable> globals,
             IEnumerable<StepModel> allSteps,
             StepModel targetStep
         )
@@ -47,7 +47,9 @@ namespace VisionMaster.Helpers
                         {
                             Name = gv.Name,
                             DataTypeName = gv.DataType.AssemblyQualifiedName,
-                            Description = gv.Description
+                            Description = gv.VariableType == VariableType.Communication 
+                                ? $"[网络变量] {gv.Description} (连接: {gv.ConnectionName})"
+                                : $"[本地变量] {gv.Description}"
                         })
                         .ToList(),
                 };
