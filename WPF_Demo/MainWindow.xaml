@@ -1,0 +1,39 @@
+﻿<Window x:Class="WPF_Demo.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPF_Demo"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <StackPanel Margin="20" Width="400" HorizontalAlignment="Left">
+
+        <!-- 1. 基础数字输入 (下划线风格) -->
+        <local:BindableParamBox Label="曝光时间" DataTypeBadge="INT">
+            <TextBox Width="150"
+                 Text="10000"
+                 Background="Transparent" 
+                 BorderThickness="0,0,0,1" 
+                 BorderBrush="#DCDFE6" 
+                 Foreground="#303133" 
+                 FontSize="12"
+                 FontWeight="SemiBold"
+                 Padding="2,2"/>
+        </local:BindableParamBox>
+
+        <!-- 2. 下拉选择器 -->
+        <local:BindableParamBox Label="触发模式" DataTypeBadge="ENUM">
+            <ComboBox Width="150" Height="26" SelectedIndex="0" FontSize="12">
+                <ComboBoxItem Content="软触发 (Software)"/>
+                <ComboBoxItem Content="硬触发 (Line1)"/>
+            </ComboBox>
+        </local:BindableParamBox>
+
+        <!-- 3. 已绑定上游链路展示 -->
+        <local:BindableParamBox Label="匹配得分" DataTypeBadge="DBL"
+                            SourcePath="算子1_模板匹配.Score">
+            <TextBox Width="150" Text="85.5"/>
+        </local:BindableParamBox>
+
+    </StackPanel>
+</Window>

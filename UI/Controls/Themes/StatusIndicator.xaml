@@ -1,0 +1,100 @@
+﻿<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:UI.CustomControl">
+    <Storyboard x:Key="Anim.Pulse">
+        <DoubleAnimation
+            AutoReverse="True"
+            RepeatBehavior="Forever"
+            Storyboard.TargetProperty="Opacity"
+            From="1.0"
+            To="0.4"
+            Duration="0:0:0.8" />
+    </Storyboard>
+
+    <Style TargetType="{x:Type local:StatusIndicator}">
+        <Setter Property="ActiveBrush" Value="#00C853" />
+        <Setter Property="InactiveBrush" Value="#CFD8DC" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:StatusIndicator}">
+                    <Grid x:Name="RootGrid">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="Col0" Width="Auto" />
+                            <ColumnDefinition x:Name="Col1" Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition x:Name="Row0" Height="Auto" />
+                            <RowDefinition x:Name="Row1" Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Ellipse
+                                x:Name="Glow"
+                                Fill="{Binding ActiveBrush, RelativeSource={RelativeSource TemplatedParent}}"
+                                Opacity="0">
+                            <Ellipse.Effect>
+                                <BlurEffect Radius="6" />
+                            </Ellipse.Effect>
+                        </Ellipse>
+                        <Border
+                                x:Name="CoreShape"
+                                Background="{Binding InactiveBrush, RelativeSource={RelativeSource TemplatedParent}}"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                                <Grid>
+                                    <Path
+                                        x:Name="GlassReflection"
+                                        Margin="3"
+                                        Data="M 2,5 A 10,10 0 0 1 15,2"
+                                        IsHitTestVisible="False"
+                                        Opacity="0.3"
+                                        Stretch="Uniform"
+                                        Stroke="White"
+                                        StrokeThickness="1.5" />
+
+                                    <ContentPresenter
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        TextBlock.FontSize="10"
+                                        TextBlock.Foreground="White" />
+                                </Grid>
+                            </Border>
+                   
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsActive" Value="True">
+                            <Setter TargetName="CoreShape" Property="Background" Value="{Binding ActiveBrush, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <Setter TargetName="Glow" Property="Opacity" Value="0.7" />
+                        </Trigger>
+
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsActive" Value="True" />
+                                <Condition Property="IsPulsing" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <MultiTrigger.EnterActions>
+                                <BeginStoryboard x:Name="PulsingStory">
+                                    <Storyboard AutoReverse="True" RepeatBehavior="Forever">
+                                        <DoubleAnimation
+                                            Storyboard.TargetName="IndicatorPart"
+                                            Storyboard.TargetProperty="Opacity"
+                                            From="1"
+                                            To="0.4"
+                                            Duration="0:0:0.8" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </MultiTrigger.EnterActions>
+                            <MultiTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="PulsingStory" />
+                            </MultiTrigger.ExitActions>
+                        </MultiTrigger>
+
+                        <Trigger Property="CornerRadius" Value="0">
+                            <Setter TargetName="CoreShape" Property="CornerRadius" Value="100" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>
