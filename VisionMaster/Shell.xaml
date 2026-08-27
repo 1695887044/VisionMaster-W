@@ -5,6 +5,7 @@
     xmlns:avalonDock="https://github.com/Dirkster99/AvalonDock"
     xmlns:commands="clr-namespace:VisionMaster.Commands"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:VisionMaster"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
@@ -33,7 +34,7 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="24" />
         </Grid.RowDefinitions>
-        <ui:OverlayHost/>
+        <ui:OverlayHost />
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="auto" />
@@ -45,18 +46,84 @@
                 FontFamily="{StaticResource Icon}"
                 WindowChrome.IsHitTestVisibleInChrome="True">
                 <MenuItem Header="文件(F)">
-                    <MenuItem Header="打开(O)" Icon="&#xf07c;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Open}" />
-                    <MenuItem Header="保存(S)" Icon="&#xf0c7;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Save}" />
+                    <MenuItem
+                        Command="{Binding SolutionCommand}"
+                        CommandParameter="{x:Static local:SolutionAction.Open}"
+                        Header="打开(O)"
+                        Icon="&#xf07c;" />
+                    <MenuItem
+                        Command="{Binding SolutionCommand}"
+                        CommandParameter="{x:Static local:SolutionAction.Save}"
+                        Header="保存(S)"
+                        Icon="&#xf0c7;" />
                     <MenuItem Header="编辑(E)" Icon="&#xf044;" />
                     <Separator />
-                    <MenuItem Header="载入文件(F)" Icon="&#xf56f;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Open}" />
-                    <MenuItem Header="保存文件(L)" Icon="&#xf56e;" Command="{Binding SolutionCommand}" CommandParameter="{x:Static local:SolutionAction.Save}" />
+                    <MenuItem
+                        Command="{Binding SolutionCommand}"
+                        CommandParameter="{x:Static local:SolutionAction.Open}"
+                        Header="载入文件(F)"
+                        Icon="&#xf56f;" />
+                    <MenuItem
+                        Command="{Binding SolutionCommand}"
+                        CommandParameter="{x:Static local:SolutionAction.Save}"
+                        Header="保存文件(L)"
+                        Icon="&#xf56e;" />
                 </MenuItem>
 
                 <MenuItem Header="参数(P)">
                     <MenuItem Header="设备参数" Icon="&#xf233;" />
                     <MenuItem Header="系统参数" Icon="&#xf085;" />
-                    <MenuItem Header="画布设置" Icon="&#xf53f;" />
+                    <MenuItem Header="画布设置" Icon="&#xf53f;">
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="1"
+                            Header="画布1 (单画面 1×1)"
+                            Icon="&#xf065;" />
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="2"
+                            Header="画布2 (双画面 1×2)"
+                            Icon="&#xf009;" />
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="3"
+                            Header="画布3 (主从 1+2 分屏)"
+                            Icon="&#xf00a;" />
+                        <Separator />
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="4"
+                            Header="画布4 (四宫格 2×2)"
+                            Icon="&#xf009;" />
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="5"
+                            Header="画布5 (多视口 2+3 分屏)"
+                            Icon="&#xf00a;" />
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="6"
+                            Header="画布6 (六宫格 2×3)"
+                            Icon="&#xf00a;" />
+                        <Separator />
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="7"
+                            Header="画布7 (矩阵 3+4 分屏)"
+                            Icon="&#xf00a;" />
+
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="8"
+                            Header="画布8 (矩阵 4+4 分屏)"
+                            Icon="&#xf00a;" />
+
+                        <MenuItem
+                            Command="{Binding SwitchCanvasCommand}"
+                            CommandParameter="9"
+                            Header="画布9 (九宫格 3×3)"
+                            Icon="&#xf00a;" />
+                    </MenuItem>
                 </MenuItem>
 
                 <MenuItem Header="视图(V)">
@@ -346,14 +413,15 @@
                     <avalonDock:LayoutPanel Orientation="Vertical">
 
                         <!--  2.1 中央文档区域  -->
-                        <avalonDock:LayoutDocumentPaneGroup>
-                            <avalonDock:LayoutDocumentPane>
-                                <avalonDock:LayoutDocument
-                                    Title="视觉图像1"
-                                    CanClose="False"
-                                    ContentId="Panel_ImageView" />
-                            </avalonDock:LayoutDocumentPane>
-                        </avalonDock:LayoutDocumentPaneGroup>
+                        <avalonDock:LayoutDocumentPane>
+                            <avalonDock:LayoutDocument
+                                Title="视觉图像"
+                                CanClose="False"
+                                ContentId="Panel_ImageView">
+                                <views:ImageView />
+                            </avalonDock:LayoutDocument>
+
+                        </avalonDock:LayoutDocumentPane>
 
                         <!--  2.2 底部区域：日志和状态 (固定高度)  -->
                         <avalonDock:LayoutAnchorablePaneGroup DockHeight="200" Orientation="Horizontal">

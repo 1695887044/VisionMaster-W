@@ -2,7 +2,7 @@ using Core.Interfaces;
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace VisionMaster.Plugins.Utility
+namespace VisionMaster.Plugins.Util
 {
     /// <summary>
     /// 随机数生成插件

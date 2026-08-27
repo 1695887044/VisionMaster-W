@@ -34,13 +34,14 @@
             <!--  🧩 普通视觉算子样式 (ActionStep)  -->
             <!--  ==========================================  -->
             <DataTemplate DataType="{x:Type models:ActionStep}">
-                <Border x:Name="RootBorder" 
-                        Padding="6,4" 
-                        Background="Transparent" 
-                        BorderBrush="Transparent" 
-                        BorderThickness="1" 
-                        CornerRadius="4"
-                        Margin="2">
+                <Border
+                    x:Name="RootBorder"
+                    Margin="2"
+                    Padding="6,4"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="1"
+                    CornerRadius="4">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="20" />
@@ -48,63 +49,70 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock x:Name="StatusIcon"
-                                   Grid.Column="0"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   FontFamily="{StaticResource Icon}"
-                                   FontSize="12"
-                                   Visibility="Collapsed" />
+                        <TextBlock
+                            x:Name="StatusIcon"
+                            Grid.Column="0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="12"
+                            Visibility="Collapsed" />
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <TextBlock x:Name="IconText"
-                                       Margin="0,0,8,0"
-                                       VerticalAlignment="Center"
-                                       FontFamily="{StaticResource Icon}"
-                                       FontSize="14"
-                                       Foreground="#409EFF"
-                                       Text="{Binding Icon}"
-                                       TextOptions.TextFormattingMode="Display" />
+                            <TextBlock
+                                x:Name="IconText"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="14"
+                                Foreground="#409EFF"
+                                Text="{Binding Icon}"
+                                TextOptions.TextFormattingMode="Display" />
 
-                            <TextBlock x:Name="NameText"
-                                       MaxWidth="150"
-                                       VerticalAlignment="Center"
-                                       FontWeight="Medium"
-                                       Foreground="#303133"
-                                       Text="{Binding StepName}"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTip="{Binding StepName}" />
+                            <TextBlock
+                                x:Name="NameText"
+                                MaxWidth="150"
+                                VerticalAlignment="Center"
+                                FontWeight="Medium"
+                                Foreground="#303133"
+                                Text="{Binding StepName}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding StepName}" />
 
-                            <TextBlock x:Name="DescText"
-                                       MaxWidth="180"
-                                       Margin="8,0,0,0"
-                                       VerticalAlignment="Center"
-                                       FontSize="12"
-                                       Foreground="#909399"
-                                       Text="{Binding Description}"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTip="{Binding Description}" />
+                            <TextBlock
+                                x:Name="DescText"
+                                MaxWidth="180"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="#909399"
+                                Text="{Binding Description}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding Description}" />
                         </StackPanel>
 
-                        <StackPanel x:Name="TimePanel" 
-                                    Grid.Column="2" 
-                                    Orientation="Horizontal" 
-                                    VerticalAlignment="Center"
-                                    Margin="10,0,0,0"
-                                    Visibility="Collapsed">
-                            <TextBlock x:Name="TimeIcon"
-                                       FontFamily="{StaticResource Icon}" 
-                                       Text="&#xf017;" 
-                                       FontSize="11" 
-                                       Foreground="#A8ABB2" 
-                                       VerticalAlignment="Center" 
-                                       Margin="0,0,4,0"/>
+                        <StackPanel
+                            x:Name="TimePanel"
+                            Grid.Column="2"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Visibility="Collapsed">
+                            <TextBlock
+                                x:Name="TimeIcon"
+                                Margin="0,0,4,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="11"
+                                Foreground="#A8ABB2"
+                                Text="&#xf017;" />
 
-                            <TextBlock x:Name="TimeText"
-                                       FontSize="12" 
-                                       FontFamily="Consolas"
-                                       Foreground="#909399" 
-                                       VerticalAlignment="Center"/>
+                            <TextBlock
+                                x:Name="TimeText"
+                                VerticalAlignment="Center"
+                                FontFamily="Consolas"
+                                FontSize="12"
+                                Foreground="#909399" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -112,12 +120,12 @@
                 <DataTemplate.Triggers>
 
                     <DataTrigger Binding="{Binding LastRunTimeMs, Converter={ui:GreaterThanZeroConverter}}" Value="True">
-                        <Setter TargetName="TimeText" Property="Text" Value="{Binding LastRunTimeMs, StringFormat='{}{0} ms'}"/>
+                        <Setter TargetName="TimeText" Property="Text" Value="{Binding LastRunTimeMs, StringFormat='{}{0} ms'}" />
                         <Setter TargetName="TimePanel" Property="Visibility" Value="Visible" />
                     </DataTrigger>
 
                     <DataTrigger Binding="{Binding IsRunningFocus}" Value="True">
-                        <Setter TargetName="TimeText" Property="Text" Value="{Binding CurrentRunTimeMs, StringFormat='{}{0} ms'}"/>
+                        <Setter TargetName="TimeText" Property="Text" Value="{Binding CurrentRunTimeMs, StringFormat='{}{0} ms'}" />
                         <Setter TargetName="TimePanel" Property="Visibility" Value="Visible" />
                     </DataTrigger>
 

@@ -63,8 +63,11 @@
                     <RowDefinition Height="50" />
                 </Grid.RowDefinitions>
 
-                <!-- 顶部：插件图标 + 名称 -->
-                <Border Grid.Row="0" Style="{StaticResource HeaderBorderStyle}" ui:WindowDragBehavior.IsWindowDraggable="True">
+                <!--  顶部：插件图标 + 名称  -->
+                <Border
+                    Grid.Row="0"
+                    ui:WindowDragBehavior.IsWindowDraggable="True"
+                    Style="{StaticResource HeaderBorderStyle}">
                     <Grid Margin="16,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -72,7 +75,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- 插件图标 -->
+                        <!--  插件图标  -->
                         <TextBlock
                             Grid.Column="0"
                             VerticalAlignment="Center"
@@ -81,8 +84,11 @@
                             Foreground="#409EFF"
                             Text="{Binding PluginIcon}" />
 
-                        <!-- 插件名称 + 描述 -->
-                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <!--  插件名称 + 描述  -->
+                        <StackPanel
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center">
                             <TextBlock
                                 FontSize="15"
                                 FontWeight="Bold"
@@ -95,8 +101,11 @@
                                 Text="{Binding PluginDescription}" />
                         </StackPanel>
 
-                        <!-- 执行中指示 -->
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!--  执行中指示  -->
+                        <StackPanel
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
                             <TextBlock
                                 Margin="0,0,6,0"
                                 FontSize="12"
@@ -107,13 +116,13 @@
                     </Grid>
                 </Border>
 
-                <!-- 中间：插件自定义视图注入区 -->
+                <!--  中间：插件自定义视图注入区  -->
                 <ContentPresenter
                     Grid.Row="1"
                     Margin="8"
                     Content="{Binding PluginViewContent}" />
 
-                <!-- 底部：状态 + 耗时 + 按钮 -->
+                <!--  底部：状态 + 耗时 + 按钮  -->
                 <Border Grid.Row="2" Style="{StaticResource FooterBorderStyle}">
                     <Grid Margin="16,0">
                         <Grid.ColumnDefinitions>
@@ -121,8 +130,11 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- 左侧状态信息 -->
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!--  左侧状态信息  -->
+                        <StackPanel
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
                             <TextBlock
                                 FontSize="12"
                                 Foreground="#606266"
@@ -134,8 +146,11 @@
                                 Text="{Binding ElapsedText}" />
                         </StackPanel>
 
-                        <!-- 右侧按钮 -->
-                        <StackPanel Grid.Column="1" Background="Transparent" Orientation="Horizontal">
+                        <!--  右侧按钮  -->
+                        <StackPanel
+                            Grid.Column="1"
+                            Background="Transparent"
+                            Orientation="Horizontal">
                             <Button
                                 Margin="0,0,10,0"
                                 Padding="24,6"

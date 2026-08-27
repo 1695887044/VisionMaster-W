@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DLL\HslCommunication\HslCommunication.csproj" />
+    <ProjectReference Include="..\Services\Core.Halcon\Core.Halcon.csproj" />
     <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
     <ProjectReference Include="..\UI\Controls\UI.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />

@@ -152,9 +152,9 @@
                     Margin="10,10,10,0"
                     Background="Transparent"
                     BorderThickness="0"
-                    SelectedIndex="-1"
                     ItemsSource="{Binding Branches}"
                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    SelectedIndex="-1"
                     SelectedItem="{Binding SelectedBranch}">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -360,59 +360,208 @@
                         Foreground="#303133"
                         Text="{Binding SelectedBranch.StepName, StringFormat='{}为分支 [ {0} ] 编写逻辑判断表达式:'}" />
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="130" Margin="0,0,0,10" Padding="0,0,5,0">
+                    <ScrollViewer
+                        Grid.Row="1"
+                        MaxHeight="130"
+                        Margin="0,0,0,10"
+                        Padding="0,0,5,0"
+                        VerticalScrollBarVisibility="Auto">
                         <WrapPanel Orientation="Horizontal">
 
-                            <!-- 1. 动态变量区 -->
-                            <TextBlock Text="引脚变量:" VerticalAlignment="Center" Margin="0,0,8,10" Foreground="#909399" FontSize="13"/>
+                            <!--  1. 动态变量区  -->
+                            <TextBlock
+                                Margin="0,0,8,10"
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="#909399"
+                                Text="引脚变量:" />
                             <ItemsControl ItemsSource="{Binding Variables}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal"/>
+                                        <WrapPanel Orientation="Horizontal" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Button Content="{Binding AliasName}" Style="{StaticResource TagButton}" Click="QuickInsert_Click"/>
+                                        <Button
+                                            Click="QuickInsert_Click"
+                                            Content="{Binding AliasName}"
+                                            Style="{StaticResource TagButton}" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <Rectangle Width="1" Height="20" Fill="#DCDFE6" Margin="10,0,15,10" VerticalAlignment="Top"/>
+                            <Rectangle
+                                Width="1"
+                                Height="20"
+                                Margin="10,0,15,10"
+                                VerticalAlignment="Top"
+                                Fill="#DCDFE6" />
 
-                            <!-- 2. 比较与逻辑区 -->
-                            <TextBlock Text="逻辑比较:" VerticalAlignment="Center" Margin="0,0,8,10" Foreground="#909399" FontSize="13"/>
-                            <Button Content="&gt;" Tag="&gt;" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="大于"/>
-                            <Button Content="&lt;" Tag="&lt;" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="小于"/>
-                            <Button Content="==" Tag="==" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="等于"/>
-                            <Button Content="!=" Tag="!=" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="不等于"/>
-                            <Button Content="&amp;&amp;" Tag="&amp;&amp;" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="并且 (And)"/>
-                            <Button Content="||" Tag="||" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="或者 (Or)"/>
-                            <Button Content="!" Tag="!" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="取反 (Not)"/>
+                            <!--  2. 比较与逻辑区  -->
+                            <TextBlock
+                                Margin="0,0,8,10"
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="#909399"
+                                Text="逻辑比较:" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="&gt;"
+                                Style="{StaticResource TagButton}"
+                                Tag="&gt;"
+                                ToolTip="大于" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="&lt;"
+                                Style="{StaticResource TagButton}"
+                                Tag="&lt;"
+                                ToolTip="小于" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="=="
+                                Style="{StaticResource TagButton}"
+                                Tag="=="
+                                ToolTip="等于" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="!="
+                                Style="{StaticResource TagButton}"
+                                Tag="!="
+                                ToolTip="不等于" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="&amp;&amp;"
+                                Style="{StaticResource TagButton}"
+                                Tag="&amp;&amp;"
+                                ToolTip="并且 (And)" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="||"
+                                Style="{StaticResource TagButton}"
+                                Tag="||"
+                                ToolTip="或者 (Or)" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="!"
+                                Style="{StaticResource TagButton}"
+                                Tag="!"
+                                ToolTip="取反 (Not)" />
 
-                            <Rectangle Width="1" Height="20" Fill="#DCDFE6" Margin="10,0,15,10" VerticalAlignment="Top"/>
+                            <Rectangle
+                                Width="1"
+                                Height="20"
+                                Margin="10,0,15,10"
+                                VerticalAlignment="Top"
+                                Fill="#DCDFE6" />
 
-                            <!-- 3. 运算与函数区 -->
-                            <TextBlock Text="数学运算:" VerticalAlignment="Center" Margin="0,0,8,10" Foreground="#909399" FontSize="13"/>
-                            <Button Content="( )" Tag="()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="括号 (提高优先级)"/>
-                            <Button Content="+" Tag="+" Style="{StaticResource TagButton}" Click="QuickInsert_Click"/>
-                            <Button Content="-" Tag="-" Style="{StaticResource TagButton}" Click="QuickInsert_Click"/>
-                            <Button Content="*" Tag="*" Style="{StaticResource TagButton}" Click="QuickInsert_Click"/>
-                            <Button Content="/" Tag="/" Style="{StaticResource TagButton}" Click="QuickInsert_Click"/>
+                            <!--  3. 运算与函数区  -->
+                            <TextBlock
+                                Margin="0,0,8,10"
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="#909399"
+                                Text="数学运算:" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="( )"
+                                Style="{StaticResource TagButton}"
+                                Tag="()"
+                                ToolTip="括号 (提高优先级)" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="+"
+                                Style="{StaticResource TagButton}"
+                                Tag="+" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="-"
+                                Style="{StaticResource TagButton}"
+                                Tag="-" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="*"
+                                Style="{StaticResource TagButton}"
+                                Tag="*" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="/"
+                                Style="{StaticResource TagButton}"
+                                Tag="/" />
 
-                            <Button Content="Math.Abs()" Tag="Math.Abs()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="绝对值 (常用于公差判断)"/>
-                            <Button Content="Math.Round()" Tag="Math.Round()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="四舍五入"/>
-                            <Button Content="Math.Sqrt()" Tag="Math.Sqrt()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="开平方 (常用于算距离)"/>
-                            <Rectangle Width="1" Height="20" Fill="#DCDFE6" Margin="10,0 ,15,10" VerticalAlignment="Top"/>
-                            <TextBlock Text="字符串:" VerticalAlignment="Center" Margin="0,0,8,10" Foreground="#909399" FontSize="13"/>
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="Math.Abs()"
+                                Style="{StaticResource TagButton}"
+                                Tag="Math.Abs()"
+                                ToolTip="绝对值 (常用于公差判断)" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="Math.Round()"
+                                Style="{StaticResource TagButton}"
+                                Tag="Math.Round()"
+                                ToolTip="四舍五入" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="Math.Sqrt()"
+                                Style="{StaticResource TagButton}"
+                                Tag="Math.Sqrt()"
+                                ToolTip="开平方 (常用于算距离)" />
+                            <Rectangle
+                                Width="1"
+                                Height="20"
+                                Margin="10,0,15,10"
+                                VerticalAlignment="Top"
+                                Fill="#DCDFE6" />
+                            <TextBlock
+                                Margin="0,0,8,10"
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="#909399"
+                                Text="字符串:" />
 
-                            <Button Content="Contains()" Tag=".Contains()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="包含某个字符"/>
-                            <Button Content="StartsWith()" Tag=".StartsWith()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="以...开头"/>
-                            <Button Content="IsNullOrEmpty()" Tag="string.IsNullOrEmpty()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="是否为空"/>
-                            <Button Content="Length" Tag=".Length" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="获取字符串长度"/>
-                            <Button Content="Trim()" Tag=".Trim()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="去除首尾空格"/>
-                            <Button Content="ToUpper()" Tag=".ToUpper()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="转大写"/>
-                            <Button Content="ToLower()" Tag=".ToLower()" Style="{StaticResource TagButton}" Click="QuickInsert_Click" ToolTip="转小写"/>
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="Contains()"
+                                Style="{StaticResource TagButton}"
+                                Tag=".Contains()"
+                                ToolTip="包含某个字符" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="StartsWith()"
+                                Style="{StaticResource TagButton}"
+                                Tag=".StartsWith()"
+                                ToolTip="以...开头" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="IsNullOrEmpty()"
+                                Style="{StaticResource TagButton}"
+                                Tag="string.IsNullOrEmpty()"
+                                ToolTip="是否为空" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="Length"
+                                Style="{StaticResource TagButton}"
+                                Tag=".Length"
+                                ToolTip="获取字符串长度" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="Trim()"
+                                Style="{StaticResource TagButton}"
+                                Tag=".Trim()"
+                                ToolTip="去除首尾空格" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="ToUpper()"
+                                Style="{StaticResource TagButton}"
+                                Tag=".ToUpper()"
+                                ToolTip="转大写" />
+                            <Button
+                                Click="QuickInsert_Click"
+                                Content="ToLower()"
+                                Style="{StaticResource TagButton}"
+                                Tag=".ToLower()"
+                                ToolTip="转小写" />
                         </WrapPanel>
                     </ScrollViewer>
 

@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using HalconDotNet;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -87,7 +88,7 @@ namespace Plugin.ImageAcquisition
         /// <summary>
         /// 采集到的图像
         /// </summary>
-        public OutputPort<Bitmap> OutputImage { get; } = new(
+        public OutputPort<HImage> OutputImage { get; } = new(
             "Image",
             "采集到的图像（System.Drawing.Bitmap）"
         );
@@ -163,7 +164,6 @@ namespace Plugin.ImageAcquisition
             ErrorMessage.Value = string.Empty;
             OutputImage.Value = null;
             CurrentFilePath.Value = string.Empty;
-
             try
             {
                 switch (mode)
@@ -307,7 +307,7 @@ namespace Plugin.ImageAcquisition
 
         public override void Dispose()
         {
-            if (OutputImage.Value is Bitmap bmp)
+            if (OutputImage.Value is HImage bmp)
             {
                 bmp.Dispose();
                 OutputImage.Value = null;

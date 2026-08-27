@@ -221,7 +221,7 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            
+
             <StackPanel Grid.Column="0">
                 <TextBlock
                     FontWeight="Bold"
@@ -240,16 +240,16 @@
                     Foreground="#7f8c8d"
                     Text="• 调用类型：定时调用按指定间隔执行，变量调用在变量变化时触发" />
             </StackPanel>
-            
+
             <Button
                 Grid.Column="1"
-                Command="{Binding CloseCommand}"
-                Content="关闭"
                 Padding="20,8"
                 Background="#34495e"
-                Foreground="White"
                 BorderThickness="0"
-                Cursor="Hand" />
+                Command="{Binding CloseCommand}"
+                Content="关闭"
+                Cursor="Hand"
+                Foreground="White" />
         </Grid>
     </Grid>
 </UserControl>

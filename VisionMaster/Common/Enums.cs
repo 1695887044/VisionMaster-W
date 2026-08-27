@@ -8,6 +8,19 @@ using UI.Attributes;
 
 namespace VisionMaster
 {
+
+    public enum eViewMode
+    {
+        One,
+        Two,
+        Three,
+        Four,
+        Five,
+        Six,
+        Seven,
+        Eight,
+        Night
+    }
     /// <summary>
     /// 变量类型枚举
     /// </summary>

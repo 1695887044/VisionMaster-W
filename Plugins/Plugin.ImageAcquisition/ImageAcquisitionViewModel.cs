@@ -1,4 +1,6 @@
+using Core.Halcon.Models;
 using Core.Interfaces;
+using HalconDotNet;
 using Microsoft.Win32;
 using Prism.Commands;
 using Prism.Mvvm;
@@ -11,6 +13,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using UI.Events;
 using static Plugin.ImageAcquisition.ImageAcquisitionPlugin;
 
 namespace Plugin.ImageAcquisition
@@ -137,11 +140,12 @@ namespace Plugin.ImageAcquisition
             set => SetProperty(ref _height, value);
         }
 
-        private BitmapSource? _previewImage;
+        private HImage _previewImage = new();
         /// <summary>
         /// 预览图像
         /// </summary>
-        public BitmapSource? PreviewImage
+
+        public HImage PreviewImage
         {
             get => _previewImage;
             set
@@ -193,7 +197,7 @@ namespace Plugin.ImageAcquisition
                 case "SelectImage":
                     BrowseFile();
                     break;
-                case "SelectLinkPath"://调用变量功能
+                case "SelectLinkPath"://调用变量功能---
                     LinkPath();
                     break;
                 case "BrowseFile":
@@ -213,9 +217,13 @@ namespace Plugin.ImageAcquisition
                     break;
             }
         }
+        //发布链接路径事件,并订阅
         private void LinkPath()
         {
-            
+            GlobalEventBus.Publish(new LinkPathEvent
+            {
+               
+            });
         }
         #region 浏览文件/文件夹
 
@@ -229,9 +237,11 @@ namespace Plugin.ImageAcquisition
 
             if (dlg.ShowDialog() == true)
             {
-                FilePath = dlg.FileName;
-                PreviewImagePath = dlg.FileName;
-                LoadPreview(FilePath);
+
+                HImage img = new HImage();
+                img.ReadImage(dlg.FileName);
+                PreviewImage =img;
+                //LoadPreview(FilePath);
             }
         }
 
@@ -349,7 +359,7 @@ namespace Plugin.ImageAcquisition
                 using var stream = File.OpenRead(path);
                 var bitmap = BitmapFrame.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
                 bitmap.Freeze();
-                PreviewImage = bitmap;
+                //PreviewImage = bitmap;
                 StatusMessage = $"预览: {Path.GetFileName(path)} ({bitmap.PixelWidth}x{bitmap.PixelHeight})";
             }
             catch (Exception ex)

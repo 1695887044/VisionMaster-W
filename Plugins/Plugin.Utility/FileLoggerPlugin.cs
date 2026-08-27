@@ -3,7 +3,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 
-namespace VisionMaster.Plugins.Utility
+namespace VisionMaster.Plugins.Util
 {
     /// <summary>
     /// 文件日志插件

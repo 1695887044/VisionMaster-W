@@ -2,7 +2,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace VisionMaster.Plugins.Utility
+namespace VisionMaster.Plugins.Util
 {
     /// <summary>
     /// 数组元素提取插件

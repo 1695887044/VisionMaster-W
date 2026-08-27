@@ -1,6 +1,7 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:local="clr-namespace:UI.CustomControl">
+﻿<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:UI.CustomControl">
 
     <Style TargetType="{x:Type local:Popover}">
         <Setter Property="Template">
@@ -10,24 +11,31 @@
 
                         <ContentPresenter />
 
-                        <Popup IsOpen="{Binding IsOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                               PlacementTarget="{Binding ElementName=RootNode}"
-                               Placement="{TemplateBinding Placement}"
-                               AllowsTransparency="True"
-                               StaysOpen="False"
-                               PopupAnimation="Fade">
+                        <Popup
+                            AllowsTransparency="True"
+                            IsOpen="{Binding IsOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                            Placement="{TemplateBinding Placement}"
+                            PlacementTarget="{Binding ElementName=RootNode}"
+                            PopupAnimation="Fade"
+                            StaysOpen="False">
 
-                            <Border Background="#FFFFFF" 
-                                    CornerRadius="6" 
-                                    Margin="16" 
-                                    Padding="12"
-                                    BorderBrush="#E5E5E5"
-                                    BorderThickness="1">
+                            <Border
+                                Margin="16"
+                                Padding="12"
+                                Background="#FFFFFF"
+                                BorderBrush="#E5E5E5"
+                                BorderThickness="1"
+                                CornerRadius="6">
                                 <Border.Effect>
-                                    <DropShadowEffect BlurRadius="20" Opacity="0.12" ShadowDepth="4" Direction="270" Color="Black"/>
+                                    <DropShadowEffect
+                                        BlurRadius="20"
+                                        Direction="270"
+                                        Opacity="0.12"
+                                        ShadowDepth="4"
+                                        Color="Black" />
                                 </Border.Effect>
 
-                                <ContentPresenter Content="{TemplateBinding FlyoutContent}"/>
+                                <ContentPresenter Content="{TemplateBinding FlyoutContent}" />
                             </Border>
                         </Popup>
                     </Grid>

@@ -228,7 +228,7 @@ namespace VisionMaster.Services
                     compiledNodes.Add(whileNode);
                 }
                 // ==========================================
-                // 🎯 场景 A-2：If 条件节点 (保留你原本完美的代码)
+                // 🎯 场景 A-2：If 条件节点
                 // ==========================================
                 else if (model is ConditionStep conditionModel)
                 {

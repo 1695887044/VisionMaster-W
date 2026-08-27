@@ -6,11 +6,20 @@
     xmlns:prism="http://prismlibrary.com/">
     <prism:PrismApplication.Resources>
         <ResourceDictionary>
-            <FontFamily x:Key="Icon"/>
+            <FontFamily x:Key="Icon" />
             <ControlTemplate x:Key="ExpandToggleButtonTemplate" TargetType="ToggleButton">
-                <Border Background="#FFFFFF" BorderBrush="#C0C4CC" BorderThickness="1" CornerRadius="2">
-                    <TextBlock Margin="0,-1,0,0" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       FontFamily="Consolas" FontSize="11" Foreground="#606266">
+                <Border
+                    Background="#FFFFFF"
+                    BorderBrush="#C0C4CC"
+                    BorderThickness="1"
+                    CornerRadius="2">
+                    <TextBlock
+                        Margin="0,-1,0,0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Foreground="#606266">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="+" />
@@ -25,7 +34,7 @@
                 </Border>
             </ControlTemplate>
 
-            <!-- 通用链接按钮样式 -->
+            <!--  通用链接按钮样式  -->
             <Style x:Key="LinkButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="#409EFF" />
@@ -36,8 +45,11 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border Background="Transparent">
-                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   Foreground="{TemplateBinding Foreground}" Text="{TemplateBinding Content}" />
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Text="{TemplateBinding Content}" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
@@ -49,7 +61,7 @@
                 </Setter>
             </Style>
             <ResourceDictionary.MergedDictionaries>
-
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
             </ResourceDictionary.MergedDictionaries>

@@ -2,7 +2,7 @@ using Core.Interfaces;
 using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace VisionMaster.Plugins.Utility
+namespace VisionMaster.Plugins.Util
 {
     /// <summary>
     /// 字符串格式化插件

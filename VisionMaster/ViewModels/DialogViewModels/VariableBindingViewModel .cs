@@ -112,7 +112,7 @@ namespace VisionMaster.ViewModels
         private void SelectPresetOption(string option)
         {
             ConstantValue = option;
-            
+
             foreach (var preset in PresetOptions)
             {
                 preset.IsSelected = preset.Option == option;
@@ -129,19 +129,24 @@ namespace VisionMaster.ViewModels
 
             var portDef = SelectedInputPort.Definition;
 
-            if (portDef.IsFunctionalEnum && portDef.PresetOptions != null && portDef.PresetOptions.Any())
+            if (
+                portDef.IsFunctionalEnum
+                && portDef.PresetOptions != null
+                && portDef.PresetOptions.Any()
+            )
             {
                 ConstantValue = portDef.PresetOptions.First();
                 HasFunctionalEnumPort = true;
                 foreach (var option in portDef.PresetOptions)
                 {
-                    PresetOptions.Add(new PresetOptionItem
-                    {
-                        Option = option,
-                        IsSelected = option == ConstantValue
-                    });
+                    PresetOptions.Add(
+                        new PresetOptionItem
+                        {
+                            Option = option,
+                            IsSelected = option == ConstantValue,
+                        }
+                    );
                 }
-              
             }
         }
 
@@ -153,7 +158,8 @@ namespace VisionMaster.ViewModels
                 return;
             }
 
-            Type targetType = Type.GetType(SelectedInputPort.Definition.DataTypeName) ?? typeof(object);
+            Type targetType =
+                Type.GetType(SelectedInputPort.Definition.DataTypeName) ?? typeof(object);
             Type outputType = Type.GetType(outputSchema.DataTypeName) ?? typeof(object);
 
             bool isIndexing = outputType.IsArray && !targetType.IsArray;
@@ -163,8 +169,10 @@ namespace VisionMaster.ViewModels
                 Type elementType = outputType.GetElementType();
                 if (elementType != null && !TypeHelper.IsTypeCompatible(elementType, targetType))
                 {
-                    EasyDialog.ShowSync("类型不匹配",
-                        $"变量集合中的元素类型是 [{elementType.Name}]，\n无法赋值给 [{targetType.Name}] 类型的端口！");
+                    EasyDialog.ShowSync(
+                        "类型不匹配",
+                        $"变量集合中的元素类型是 [{elementType.Name}]，\n无法赋值给 [{targetType.Name}] 类型的端口！"
+                    );
                     return;
                 }
 
@@ -184,8 +192,10 @@ namespace VisionMaster.ViewModels
             {
                 if (!TypeHelper.IsTypeCompatible(outputType, targetType))
                 {
-                    EasyDialog.ShowSync("类型不匹配",
-                        $"无法将 [{outputType.Name}] 直接绑定到 [{targetType.Name}] 端口！");
+                    EasyDialog.ShowSync(
+                        "类型不匹配",
+                        $"无法将 [{outputType.Name}] 直接绑定到 [{targetType.Name}] 端口！"
+                    );
                     return;
                 }
 
@@ -200,7 +210,7 @@ namespace VisionMaster.ViewModels
 
         private void DoFinalBind(PortDefinition port, int index = -1)
         {
-                Guid targetId = SelectedNode.Id;
+            Guid targetId = SelectedNode.Id;
             string targetPort = port.Name;
             string displayName;
 
@@ -245,7 +255,11 @@ namespace VisionMaster.ViewModels
                 Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;
                 SelectedInputPort.LinkedAddress = displayName;
                 _lastBoundLink = linkRef;
-                _lastBoundPort = new PortDefinition { Name = bindKey, DataTypeName = "System.String" };
+                _lastBoundPort = new PortDefinition
+                {
+                    Name = bindKey,
+                    DataTypeName = "System.String",
+                };
             }
 
             if (_lastBoundLink == null && SelectedOutputPort != null && _isSingleBindMode)

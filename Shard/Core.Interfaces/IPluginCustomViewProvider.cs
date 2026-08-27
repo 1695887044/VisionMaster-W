@@ -7,6 +7,7 @@ namespace Core.Interfaces
     /// 步骤配置数据接口
     /// 供 IPluginConfigView 使用，避免 Core.Interfaces 对 VisionMaster 模型层的硬依赖
     /// StepModel 实现此接口
+    /// 这里面可以放置配置数据，但不应放置执行数据
     /// </summary>
     public interface IStepConfigData
     {

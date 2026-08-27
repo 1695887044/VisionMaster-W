@@ -18,6 +18,8 @@ namespace Core.Interfaces
 
         private bool _isPortsDiscovered = false;
 
+        public object? PluginConfig { get; set; } = null;
+
         private readonly Dictionary<string, IInputPort> _inputs = new();
         private readonly Dictionary<string, IOutputPort> _outputs = new();
         public IReadOnlyDictionary<string, IInputPort> Inputs
@@ -74,7 +76,6 @@ namespace Core.Interfaces
                 _inputs.Add(port.Name, port);
             }
         }
-
         public void RemoveDynamicInput(string portName)
         {
             EnsurePortsDiscovered();

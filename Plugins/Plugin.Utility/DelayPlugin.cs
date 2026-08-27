@@ -3,7 +3,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading;
 
-namespace VisionMaster.Plugins.Utility
+namespace VisionMaster.Plugins.Util
 {
     /// <summary>
     /// 延时插件
@@ -20,7 +20,7 @@ namespace VisionMaster.Plugins.Utility
         /// <summary>
         /// 延时时间输入端口（毫秒）
         /// </summary>
-        public InputPort<int> DelayTimePort { get; } = new InputPort<int>("Delay", 10, "延时时间(ms)") { IsRequired = true };
+        public InputPort<int> DelayTimePort { get; } = new InputPort<int>("Delay", 500, "延时时间(ms)") { IsRequired = true };
 
         /// <summary>
         /// 已流逝时间输出端口（毫秒）
@@ -32,6 +32,10 @@ namespace VisionMaster.Plugins.Utility
         /// </summary>
         public OutputPort<bool> State { get; } = new OutputPort<bool>("State", "执行状态");
 
+        public DelayPlugin()
+        {
+            
+        }
         /// <summary>
         /// 执行延时算法
         /// </summary>
@@ -56,10 +60,8 @@ namespace VisionMaster.Plugins.Utility
                         context.Logger.Warn($"{InstanceName} 收到急停信号，已强制中断！");
                         return;
                     }
-
                     int currentStep = Math.Min(step, targetDelayMs - elapsed);
                     Thread.Sleep(currentStep);
-
                     elapsed += currentStep;
                     ElapsedTime.Value = elapsed;
                 }
@@ -74,6 +76,7 @@ namespace VisionMaster.Plugins.Utility
                 throw;
             }
         }
+
 
         /// <summary>
         /// 初始化插件

@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
     <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
     <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
   </ItemGroup>
@@ -21,6 +22,12 @@
 
   <ItemGroup>
     <Folder Include="Model\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

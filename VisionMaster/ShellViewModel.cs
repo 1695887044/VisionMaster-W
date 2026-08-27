@@ -11,8 +11,10 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using UI.Attributes;
 using UI.CustomControl;
+using UI.Events;
 using UI.Helper;
 using VisionMaster.Communications;
+using VisionMaster.EventModel;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -70,6 +72,8 @@ namespace VisionMaster
         public DelegateCommand<ExecutionAction?> ExecutionCommand { get; }
         public DelegateCommand<SystemAction?> SystemCommand { get; }
 
+        public DelegateCommand<string> SwitchCanvasCommand {  get; }
+
         #endregion
         public ShellViewModel(
             SolutionService solutionService,
@@ -86,6 +90,7 @@ namespace VisionMaster
             SolutionCommand = new(ExecuteProjectAction);
             ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction);
             SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
+            SwitchCanvasCommand = new DelegateCommand<string>(SwitchCanvas);
             this.solutionService = solutionService;
             this.Workspace = workspaceManager;
             this.flowEngine = flowEngine;
@@ -94,6 +99,25 @@ namespace VisionMaster
             this.flowService = flowService;
             this._runtimeManager = _runtimeManager;
             this._flowCompiler = _flowCompiler;
+        }
+
+        private void SwitchCanvas(string obj)
+        {
+            eViewMode viewMode = obj switch
+            {
+                "1" => eViewMode.One,
+                "2" => eViewMode.Two,
+                "3" => eViewMode.Three,
+                "4" => eViewMode.Four,
+                "5" => eViewMode.Five,
+                "6" => eViewMode.Six,
+                "7" => eViewMode.Seven,
+                "8" => eViewMode.Eight,
+                "9" => eViewMode.Night,
+                _ => eViewMode.Night,
+            };
+
+            GlobalEventBus.Publish<ImageCanvasChangeEvent>(new ImageCanvasChangeEvent { ViewMode = viewMode });
         }
 
         /// <summary>

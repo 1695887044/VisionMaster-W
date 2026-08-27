@@ -17,7 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core.Interfaces", "Shard\Co
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Plugins", "Plugins", "{256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Delay", "Plugins\Plugin.Utility\Plugin.Delay.csproj", "{2BC77779-57AA-97C3-583F-13E43960BE21}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Util", "Plugins\Plugin.Utility\Plugin.Util.csproj", "{2BC77779-57AA-97C3-583F-13E43960BE21}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DLL", "DLL", "{378A42C3-F029-4AF2-B8F1-040ACB391207}"
 EndProject
@@ -26,6 +26,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.ImageAcquisition", "Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj", "{C8BCD9DE-0AD6-68EF-2BA1-9B56D6BE5032}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPF_Demo", "WPF_Demo\WPF_Demo.csproj", "{E1A2CF6D-3282-431F-AE48-DE6D2C31160F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core.Halcon", "Services\Core.Halcon\Core.Halcon.csproj", "{97BFCD35-AD2F-4F71-88BF-8724425D4ED9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -61,6 +63,10 @@ Global
 		{E1A2CF6D-3282-431F-AE48-DE6D2C31160F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E1A2CF6D-3282-431F-AE48-DE6D2C31160F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E1A2CF6D-3282-431F-AE48-DE6D2C31160F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97BFCD35-AD2F-4F71-88BF-8724425D4ED9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97BFCD35-AD2F-4F71-88BF-8724425D4ED9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97BFCD35-AD2F-4F71-88BF-8724425D4ED9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97BFCD35-AD2F-4F71-88BF-8724425D4ED9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -71,6 +77,7 @@ Global
 		{2BC77779-57AA-97C3-583F-13E43960BE21} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 		{2DFEF210-F010-4631-BB75-A3FFC31B3911} = {378A42C3-F029-4AF2-B8F1-040ACB391207}
 		{C8BCD9DE-0AD6-68EF-2BA1-9B56D6BE5032} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
+		{97BFCD35-AD2F-4F71-88BF-8724425D4ED9} = {4691AF49-2E97-4AFE-A74D-687C41A848EA}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B65F7027-912C-4508-AF09-E1435EEC2173}

@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using UI.CustomControl;
+using UI.Events;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
@@ -51,6 +52,12 @@ namespace VisionMaster.ViewModels
             this.Workspace = workspace;
             this.dialogService = dialogService;
             ModuleActionCommand = new(ModuleActionAsync);
+            GlobalEventBus.Subscribe<LinkPathEvent>(OnLinkPathEvent);
+        }
+
+        private void OnLinkPathEvent(LinkPathEvent @event)
+        {
+            dialogService.ShowDialog("DataBindView");
         }
 
         /// <summary>
@@ -129,7 +136,6 @@ namespace VisionMaster.ViewModels
                                 break;
                             }
                         }
-
                         // 回退到通用 DataBindView
                         dialogService.ShowDialog("DataBindView");
                     }

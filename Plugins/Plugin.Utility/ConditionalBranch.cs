@@ -1,7 +1,7 @@
 ﻿using Core.Interfaces;
 using System.ComponentModel.DataAnnotations;
 
-namespace VisionMaster.Plugins.Utility
+namespace VisionMaster.Plugins.Util
 {
     /// <summary>
     /// 条件分支插件

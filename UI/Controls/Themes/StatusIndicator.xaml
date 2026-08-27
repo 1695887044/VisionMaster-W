@@ -29,36 +29,36 @@
                             <RowDefinition x:Name="Row1" Height="Auto" />
                         </Grid.RowDefinitions>
                         <Ellipse
-                                x:Name="Glow"
-                                Fill="{Binding ActiveBrush, RelativeSource={RelativeSource TemplatedParent}}"
-                                Opacity="0">
+                            x:Name="Glow"
+                            Fill="{Binding ActiveBrush, RelativeSource={RelativeSource TemplatedParent}}"
+                            Opacity="0">
                             <Ellipse.Effect>
                                 <BlurEffect Radius="6" />
                             </Ellipse.Effect>
                         </Ellipse>
                         <Border
-                                x:Name="CoreShape"
-                                Background="{Binding InactiveBrush, RelativeSource={RelativeSource TemplatedParent}}"
-                                CornerRadius="{TemplateBinding CornerRadius}">
-                                <Grid>
-                                    <Path
-                                        x:Name="GlassReflection"
-                                        Margin="3"
-                                        Data="M 2,5 A 10,10 0 0 1 15,2"
-                                        IsHitTestVisible="False"
-                                        Opacity="0.3"
-                                        Stretch="Uniform"
-                                        Stroke="White"
-                                        StrokeThickness="1.5" />
+                            x:Name="CoreShape"
+                            Background="{Binding InactiveBrush, RelativeSource={RelativeSource TemplatedParent}}"
+                            CornerRadius="{TemplateBinding CornerRadius}">
+                            <Grid>
+                                <Path
+                                    x:Name="GlassReflection"
+                                    Margin="3"
+                                    Data="M 2,5 A 10,10 0 0 1 15,2"
+                                    IsHitTestVisible="False"
+                                    Opacity="0.3"
+                                    Stretch="Uniform"
+                                    Stroke="White"
+                                    StrokeThickness="1.5" />
 
-                                    <ContentPresenter
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        TextBlock.FontSize="10"
-                                        TextBlock.Foreground="White" />
-                                </Grid>
-                            </Border>
-                   
+                                <ContentPresenter
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    TextBlock.FontSize="10"
+                                    TextBlock.Foreground="White" />
+                            </Grid>
+                        </Border>
+
                     </Grid>
 
                     <ControlTemplate.Triggers>
