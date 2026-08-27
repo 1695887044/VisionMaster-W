@@ -897,7 +897,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="Padding" Value="16,12" />
+
 
         <Setter Property="UseLayoutRounding" Value="True" />
 

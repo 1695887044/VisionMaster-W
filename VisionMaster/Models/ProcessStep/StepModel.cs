@@ -8,7 +8,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows.Media;
-using UI.Events;
+using Core.Events;
 using VisionMaster.EventModel;
 
 namespace VisionMaster.Models
@@ -110,6 +110,33 @@ namespace VisionMaster.Models
         public Dictionary<string, object> InputValues { get; set; } = new Dictionary<string, object>();
 
         public Dictionary<string, LinkReference> LinkedSources { get; set; } = new();
+
+        // IStepConfigData 绑定 API：供插件自定义配置视图读写变量链接
+        public bool IsLinked(string inputPortName)
+            => !string.IsNullOrEmpty(inputPortName) && LinkedSources.ContainsKey(inputPortName);
+
+        public string GetLinkedAddress(string inputPortName)
+            => LinkedSources.TryGetValue(inputPortName ?? "", out var link)
+                ? link.DisplayAddress
+                : null;
+
+        public LinkReference GetLink(string inputPortName)
+            => LinkedSources.TryGetValue(inputPortName ?? "", out var link)
+                ? link
+                : null;
+
+        public void SetLink(string inputPortName, LinkReference link)
+        {
+            if (string.IsNullOrEmpty(inputPortName) || link == null)
+                return;
+            LinkedSources[inputPortName] = link;
+        }
+
+        public void RemoveLink(string inputPortName)
+        {
+            if (!string.IsNullOrEmpty(inputPortName))
+                LinkedSources.Remove(inputPortName);
+        }
 
         public StepModel(string icon,string pluginName, string pluginTypeName, string stepName =null)
         {

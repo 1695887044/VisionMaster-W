@@ -1,12 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace UI.Events
+namespace Core.Events
 {
     /// <summary>
     /// 全局静态事件总线 (轻量级 Pub/Sub)

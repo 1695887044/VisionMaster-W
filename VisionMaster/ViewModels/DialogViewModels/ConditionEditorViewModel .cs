@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Core.Interfaces;
 using Prism.Dialogs;
 using VisionMaster.Models;
 

@@ -5,12 +5,19 @@ namespace Plugin.ImageAcquisition
 {
     public partial class ImageAcquisitionView : UserControl
     {
-        public ImageAcquisitionView(IStepConfigData stepData)
+        public ImageAcquisitionView()
+        {
+
+        }
+
+        /// <summary>
+        /// 配置视图构造：DataContext = 插件实例自身（Plugin 与 ViewModel 合一）
+        /// </summary>
+        public ImageAcquisitionView(IStepConfigData stepData, ImageAcquisitionPlugin plugin)
         {
             InitializeComponent();
-            var vm = new ImageAcquisitionViewModel();
-            DataContext = vm;
-            vm.Initialize(stepData);
+            DataContext = plugin;
+            plugin.Initialize(stepData);
         }
     }
 }

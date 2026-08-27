@@ -275,7 +275,7 @@ namespace VisionMaster.ViewModels
             RequestClose.Invoke(p, ButtonResult.OK);
         }
 
-        public void BuildTree()
+        public void BuildTree(IDialogParameters parameters = null)
         {
             if (DisplayDataPort == null || TreeNodes == null || Workspace?.CurrentStep == null)
                 return;
@@ -309,12 +309,31 @@ namespace VisionMaster.ViewModels
             }
             else
             {
+                // 单绑定模式：优先使用外部指定的目标端口（插件自定义视图发来的链接请求）
+                string portName = "目标变量";
+                string typeName = "System.Object";
+                string desc = "当前准备绑定的变量";
+                if (
+                    parameters != null
+                    && parameters.TryGetValue<string>("TargetPortName", out var targetPort)
+                    && !string.IsNullOrEmpty(targetPort)
+                )
+                {
+                    portName = targetPort;
+                    desc = "当前准备绑定的输入端口";
+                    typeName =
+                        parameters.TryGetValue<string>("TargetTypeName", out var tn)
+                        && !string.IsNullOrEmpty(tn)
+                            ? tn
+                            : "System.Object";
+                }
+
                 var mockNode = new InputPortUIModel(
                     new PortDefinition
                     {
-                        Name = "目标变量",
-                        DataTypeName = "System.Object",
-                        Description = "当前准备绑定的变量",
+                        Name = portName,
+                        DataTypeName = typeName,
+                        Description = desc,
                     },
                     ""
                 );
@@ -344,7 +363,7 @@ namespace VisionMaster.ViewModels
         public void OnDialogOpened(IDialogParameters parameters)
         {
             _isSingleBindMode = parameters.GetValue<bool>("IsSingleBindMode");
-            BuildTree();
+            BuildTree(parameters);
         }
 
         public class PresetOptionItem : BindableBase

@@ -35,6 +35,37 @@ namespace Core.Interfaces
         /// 输入值字典（端口名 -> 值）
         /// </summary>
         Dictionary<string, object> InputValues { get; }
+
+        /// <summary>
+        /// 指定输入端口是否存在变量链接
+        /// </summary>
+        /// <param name="inputPortName">输入端口名（与插件 InputPort.Name 一致）</param>
+        bool IsLinked(string inputPortName);
+
+        /// <summary>
+        /// 获取输入端口的变量链接显示地址（如 "Global.CT"），未链接返回 null
+        /// </summary>
+        /// <param name="inputPortName">输入端口名</param>
+        string GetLinkedAddress(string inputPortName);
+
+        /// <summary>
+        /// 获取输入端口的连线引用对象（含目标步骤/端口/显示地址），未链接返回 null
+        /// </summary>
+        /// <param name="inputPortName">输入端口名</param>
+        LinkReference GetLink(string inputPortName);
+
+        /// <summary>
+        /// 设置输入端口的变量链接（覆盖同名旧链接）
+        /// </summary>
+        /// <param name="inputPortName">输入端口名</param>
+        /// <param name="link">连线引用</param>
+        void SetLink(string inputPortName, LinkReference link);
+
+        /// <summary>
+        /// 移除输入端口的变量链接
+        /// </summary>
+        /// <param name="inputPortName">输入端口名</param>
+        void RemoveLink(string inputPortName);
     }
 
     /// <summary>
@@ -58,7 +89,8 @@ namespace Core.Interfaces
     /// <summary>
     /// 插件配置视图接口
     /// 所有插件自定义视图（被 PluginConfigShellView 注入的内容）需实现此接口
-    /// Shell 通过此接口与内部视图通信，实现统一的 执行/确认/取消 行为
+    /// Shell 通过此接口与内部视图通信，实现统一的 确认/取消 行为
+    /// 试运行不在此接口中：由主程序 PluginTestRunner 基建统一执行插件的 RunAlgorithm
     /// </summary>
     public interface IPluginConfigView
     {
@@ -66,12 +98,6 @@ namespace Core.Interfaces
         /// 用步骤配置数据初始化视图，从 InputValues 恢复配置
         /// </summary>
         void Initialize(IStepConfigData stepData);
-
-        /// <summary>
-        /// 执行插件的单次试运行（用于 Shell 的"执行"按钮）
-        /// 返回执行结果，Shell 负责显示耗时和状态
-        /// </summary>
-        PluginExecuteResult OnExecute();
 
         /// <summary>
         /// 确认配置：将视图中的值回写到步骤配置数据

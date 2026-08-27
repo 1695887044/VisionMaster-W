@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using VisionMaster.Services;
 
 namespace VisionMaster.ViewModels.DialogViewModels
 {
@@ -14,11 +15,24 @@ namespace VisionMaster.ViewModels.DialogViewModels
     /// 顶部：插件图标+名称
     /// 中间：注入插件自定义视图（实现 IPluginConfigView）
     /// 底部：状态/耗时/执行/确认/取消
+    /// 试运行由 PluginTestRunner 基建统一执行（与正式运行共用插件的 RunAlgorithm）
     /// </summary>
     public class PluginConfigShellViewModel : BindableBase, IDialogAware
     {
         private IStepConfigData _stepData;
         private IPluginConfigView _pluginView;
+        private IVisionPlugin _plugin;
+        private readonly IWorkspaceManager _workspace;
+        private readonly ILogService _logger;
+
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger)
+        {
+            _workspace = workspace;
+            _logger = logger;
+            ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
+            ConfirmCommand = new DelegateCommand(Confirm);
+            CancelCommand = new DelegateCommand(Cancel);
+        }
 
         #region IDialogAware
 
@@ -26,7 +40,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public bool CanCloseDialog() => true;
 
-        public void OnDialogClosed() { }
+        public void OnDialogClosed()
+        {
+            // 配置窗口关闭（确认/取消/叉掉均走此回调）：释放配置实例持有的非托管资源（如 HImage 预览图）
+            // 配置实例由 ProcessViewModel.ResolvePluginInstance 每次 new（Activator.CreateInstance），
+            // 与流程运行实例完全隔离，Dispose 不影响流程执行
+            try
+            {
+                _plugin?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Info($"释放插件配置实例异常: {ex.Message}");
+            }
+            finally
+            {
+                _plugin = null;
+                _pluginView = null;
+                PluginViewContent = null;
+            }
+        }
 
         public void OnDialogOpened(IDialogParameters parameters)
         {
@@ -36,10 +69,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (parameters.TryGetValue<FrameworkElement>("PluginView", out FrameworkElement viewObj))
             {
                 // 视图由插件DLL返回，同时实现 IPluginConfigView 接口
-                
+
                 _pluginView = viewObj.DataContext as IPluginConfigView;
                 PluginViewContent = viewObj;
             }
+
+            if (parameters.TryGetValue<IVisionPlugin>("Plugin", out var plugin))
+                _plugin = plugin;
 
             if (_stepData != null)
             {
@@ -111,9 +147,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
         private void ExecutePlugin()
         {
-            if (_pluginView == null)
+            if (_plugin == null)
             {
-                StatusText = "状态: 插件视图未实现 IPluginConfigView";
+                StatusText = "状态: 插件实例未注入";
                 return;
             }
 
@@ -122,9 +158,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             try
             {
-                var sw = Stopwatch.StartNew();
-                var result = _pluginView.OnExecute();
-                sw.Stop();
+                // 试运行基建：解析链接 → 灌端口 → 执行插件唯一的 RunAlgorithm
+                var result = PluginTestRunner.Run(_plugin, _stepData, _workspace, _logger);
 
                 ElapsedText = $"耗时: {result.ElapsedMs} ms";
                 StatusText = result.Success

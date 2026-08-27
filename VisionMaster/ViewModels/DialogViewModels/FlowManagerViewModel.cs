@@ -6,7 +6,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
-using UI.Events;
+using Core.Events;
 using UI.CustomControl;
 
 namespace VisionMaster.ViewModels.DialogViewModels

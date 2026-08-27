@@ -403,11 +403,16 @@ namespace VisionMaster.Services
                         continue;
                     }
 
-                    // 灌入静态固定参数
-                    foreach (var kvp in model.InputValues)
+                    // 灌入静态固定参数（输入端口 + [StepConfig] 配置属性；链接端口跳过，以链接为准）
+                    if (plugin is VisionPluginBase pluginBase)
+                        pluginBase.ApplyConfigValues(model);
+                    else
                     {
-                        if (plugin.Inputs.TryGetValue(kvp.Key, out var inputPort))
-                            inputPort.Value = kvp.Value;
+                        foreach (var kvp in model.InputValues)
+                        {
+                            if (plugin.Inputs.TryGetValue(kvp.Key, out var inputPort))
+                                inputPort.Value = kvp.Value;
+                        }
                     }
 
                     var pluginNode = new CompiledPluginNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, ExternalPlugin = plugin };

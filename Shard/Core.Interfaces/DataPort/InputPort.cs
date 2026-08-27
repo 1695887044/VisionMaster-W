@@ -132,6 +132,7 @@ namespace Core.Interfaces
                 }
 
                 OnPropertyChanged(nameof(ActualValue));
+                OnPropertyChanged(nameof(TypedValue));
 
                 if (oldHasLink != newHasLink)
                 {
@@ -187,6 +188,23 @@ namespace Core.Interfaces
         }
 
         /// <summary>
+        /// 强类型可读写入口（WPF 绑定用——端口即数据成员，界面直接绑端口）
+        /// 写入手动值；已链接上游时实际取值仍以上游为准
+        /// </summary>
+        public T TypedValue
+        {
+            get => _manualValue;
+            set
+            {
+                if (!EqualityComparer<T>.Default.Equals(_manualValue, value))
+                {
+                    Value = value; // 复用弱类型入口：类型转换 + Value/ActualValue 通知 + ValueChanged 事件
+                    OnPropertyChanged(nameof(TypedValue));
+                }
+            }
+        }
+
+        /// <summary>
         /// 上游值变化事件处理程序
         /// </summary>
         private void UpstreamValueChanged(object sender, EventArgs e)
@@ -238,8 +256,7 @@ namespace Core.Interfaces
         }
 
         /// <summary>
-        /// 默认的类型转换方法
-        /// 统一处理可空类型、枚举字符串转换和系统类型转换
+        /// 默认的类型转换方法（委托给 ValueConverter 统一处理）
         /// </summary>
         /// <param name="rawValue">原始值</param>
         /// <returns>转换后的强类型值</returns>
@@ -248,18 +265,11 @@ namespace Core.Interfaces
             if (rawValue == null)
                 return default(T);
 
-            Type targetType = typeof(T);
+            var targetType = typeof(T);
             if (Nullable.GetUnderlyingType(targetType) != null)
-            {
                 targetType = Nullable.GetUnderlyingType(targetType);
-            }
 
-            if (targetType.IsEnum && rawValue is string strValue)
-            {
-                return (T)Enum.Parse(targetType, strValue);
-            }
-
-            return (T)Convert.ChangeType(rawValue, targetType);
+            return (T)ValueConverter.Convert(rawValue, targetType);
         }
     }
 }

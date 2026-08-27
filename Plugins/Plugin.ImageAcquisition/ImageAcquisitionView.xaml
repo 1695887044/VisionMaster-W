@@ -2,15 +2,32 @@
     x:Class="Plugin.ImageAcquisition.ImageAcquisitionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.ImageAcquisition"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:system="clr-namespace:System;assembly=mscorlib"
     xmlns:ui="http://schemas.UI.com/ui"
     d:Background="Gray"
     d:DesignHeight="500"
     d:DesignWidth="900"
     mc:Ignorable="d">
+    <UserControl.Resources>
+        <!--  显示窗口索引候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不显示）  -->
+        <x:Array x:Key="ViewIndexes" Type="system:Int32">
+            <system:Int32>0</system:Int32>
+            <system:Int32>1</system:Int32>
+            <system:Int32>2</system:Int32>
+            <system:Int32>3</system:Int32>
+            <system:Int32>4</system:Int32>
+            <system:Int32>5</system:Int32>
+            <system:Int32>6</system:Int32>
+            <system:Int32>7</system:Int32>
+            <system:Int32>8</system:Int32>
+            <system:Int32>9</system:Int32>
+        </x:Array>
+    </UserControl.Resources>
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="380" />
@@ -36,28 +53,17 @@
                     </GroupBox>
                     <GroupBox Grid.Row="1" Header="指定图像">
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock>
-                                <Run Text="选定链接" />
-                                <Run Text=":" />
-                                <Run Text="{Binding PreviewImagePath}" />
-                            </TextBlock>
-                            <StackPanel
-                                Margin="20"
+                            <!--  可链接参数编辑器：固定值输入 + 变量链接切换（VisionMaster 风格）  -->
+                            <cv:LinkableValueEditor
+                                Width="300"
+                                Margin="10"
                                 HorizontalAlignment="Center"
-                                Orientation="Horizontal">
-                                <Button
-                                    Margin="5"
-                                    Command="{Binding OperatorCommand}"
-                                    CommandParameter="SelectImage"
-                                    Content="选择路径"
-                                    Style="{StaticResource FlatButtonVariantStyle}" />
-                                <Button
-                                    Margin="5"
-                                    Command="{Binding OperatorCommand}"
-                                    CommandParameter="SelectLinkPath"
-                                    Content="路径变量"
-                                    Style="{StaticResource FlatButtonVariantStyle}" />
-                            </StackPanel>
+                                BrowseCommand="{Binding BrowseFileCommand}"
+                                Label="图像路径"
+                                PortName="FilePath"
+                                PortType="{x:Type system:String}"
+                                StepData="{Binding StepData}"
+                                Value="{Binding FilePathPort.TypedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
                     </GroupBox>
                     <!--<GroupBox Grid.Row="1" Header="文件目录">
@@ -107,7 +113,10 @@
                                     Margin="5,0"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
-                                    BorderThickness="0,0,0,1" />
+                                    BorderThickness="0,0,0,1"
+                                    ItemsSource="{StaticResource ViewIndexes}"
+                                    SelectedItem="{Binding DisplayViewIndex}"
+                                    ToolTip="采集图像显示到主界面几号视图窗口；0 = 不显示" />
                             </StackPanel>
                             <CheckBox
                                 Margin="10,10,0,0"

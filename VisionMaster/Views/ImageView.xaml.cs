@@ -1,4 +1,4 @@
-﻿using Core.Halcon.Controls;
+using Core.Halcon.Controls;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,8 +13,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using UI.Events;
+using Core.Events;
 using VisionMaster.EventModel;
+using HalconDotNet;
 
 namespace VisionMaster.Views
 {
@@ -32,6 +33,27 @@ namespace VisionMaster.Views
             }
             ShowCanvasAll(eViewMode.One);
             GlobalEventBus.Subscribe<ImageCanvasChangeEvent>(e=>ShowCanvasAll(e.ViewMode));
+            GlobalEventBus.Subscribe<ImageDisplayEvent<HImage>>(OnImageDisplay);
+        }
+
+        /// <summary>
+        /// 处理插件发布的图像显示事件（A1：复制副本显示，UI 独占所有权，不与插件端口共享对象）
+        /// </summary>
+        private void OnImageDisplay(ImageDisplayEvent<HImage> e)
+        {
+            // 发布方经 PublishOnUIThread 已在 UI 线程；BeginInvoke 幂等保护（不阻塞采集流程）
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (e.Image == null || !e.Image.IsInitialized()) return;
+                if (e.ViewIndex < 1 || e.ViewIndex > 9) return;
+
+                var box = GetImageBox(e.ViewIndex);
+
+                var copy = e.Image.CopyImage();
+                if (box.HImage != null && box.HImage.IsInitialized())
+                    box.HImage.Dispose();
+                box.HImage = copy;
+            }));
         }
 
         public ImageReadOnly GetImageBox(int key)

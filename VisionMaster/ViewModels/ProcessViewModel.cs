@@ -11,7 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using UI.CustomControl;
-using UI.Events;
+using Core.Events;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
@@ -57,7 +57,29 @@ namespace VisionMaster.ViewModels
 
         private void OnLinkPathEvent(LinkPathEvent @event)
         {
-            dialogService.ShowDialog("DataBindView");
+            // 未携带目标端口：兼容旧行为，打开完整绑定视图
+            if (string.IsNullOrEmpty(@event?.InputPortName))
+            {
+                dialogService.ShowDialog("DataBindView");
+                return;
+            }
+
+            // 单绑定模式：弹窗左侧目标端口 = 事件携带的插件输入端口
+            var p = new DialogParameters
+            {
+                { "IsSingleBindMode", true },
+                { "TargetPortName", @event.InputPortName },
+            };
+            if (@event.TargetType != null)
+                p.Add("TargetTypeName", @event.TargetType.AssemblyQualifiedName);
+
+            dialogService.ShowDialog("DataBindView", p, result =>
+            {
+                if (result.Result != ButtonResult.OK)
+                    return;
+                if (result.Parameters.TryGetValue<LinkReference>("BoundLink", out var link))
+                    @event.OnBound?.Invoke(link);
+            });
         }
 
         /// <summary>
@@ -132,6 +154,7 @@ namespace VisionMaster.ViewModels
                                 var parameters = new DialogParameters();
                                 parameters.Add("StepData", stepData);
                                 parameters.Add("PluginView", view);
+                                parameters.Add("Plugin", pluginInstance);
                                 dialogService.ShowDialog("PluginConfigShell", parameters);
                                 break;
                             }

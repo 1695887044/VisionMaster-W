@@ -26,9 +26,17 @@
   <ItemGroup>
     <ProjectReference Include="..\DLL\HslCommunication\HslCommunication.csproj" />
     <ProjectReference Include="..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\Shard\Core.Controls\Core.Controls.csproj" />
     <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
     <ProjectReference Include="..\UI\Controls\UI.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ImageView 订阅 ImageDisplayEvent 并直接操作 HImage（复制副本显示），需要编译期类型 -->
+    <Reference Include="HalconDotNet">
+      <HintPath>..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

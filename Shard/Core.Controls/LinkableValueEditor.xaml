@@ -1,0 +1,136 @@
+<UserControl
+    x:Class="Core.Controls.LinkableValueEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="30"
+    d:DesignWidth="320"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <!--  图标按钮：透明背景，悬停微亮  -->
+        <Style x:Key="IconBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="3">
+                            <ContentPresenter x:Name="PART_Content" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#22888888" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#33888888" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <!--  左侧标签（Label 为空时隐藏）  -->
+        <TextBlock
+            x:Name="PART_Label"
+            Grid.Column="0"
+            Margin="0,0,8,0"
+            VerticalAlignment="Center"
+            Visibility="Collapsed" />
+
+        <!--  中间输入区：固定值 / 链接地址 两态覆盖  -->
+        <Grid Grid.Column="1">
+            <TextBox
+                x:Name="PART_ValueBox"
+                Padding="2,2"
+                VerticalContentAlignment="Center"
+                Background="Transparent"
+                BorderBrush="#AAAAAA"
+                BorderThickness="0,0,0,1"
+                Text="{Binding Value, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}">
+                <TextBox.Style>
+                    <Style TargetType="TextBox">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBox.Style>
+            </TextBox>
+            <TextBox
+                x:Name="PART_LinkBox"
+                Padding="2,2"
+                VerticalContentAlignment="Center"
+                Background="Transparent"
+                BorderBrush="#4FC3F7"
+                BorderThickness="0,0,0,1"
+                Foreground="#4FC3F7"
+                IsReadOnly="True"
+                Text="{Binding LinkAddress, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                ToolTip="已链接变量，运行时将从上游取值">
+                <TextBox.Style>
+                    <Style TargetType="TextBox">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBox.Style>
+            </TextBox>
+        </Grid>
+
+        <!--  🔗 链接/改链按钮  -->
+        <Button
+            Grid.Column="2"
+            Click="LinkBtn_Click"
+            Style="{StaticResource IconBtnStyle}"
+            ToolTip="链接变量">
+            <!--  Material Design link 图标  -->
+            <Path
+                Width="15"
+                Height="15"
+                Data="M3.9,12 C3.9,10.29 5.29,8.9 7,8.9 L11,8.9 11,7 7,7 C4.24,7 2,9.24 2,12 C2,14.76 4.24,17 7,17 L11,17 11,15.1 7,15.1 C5.29,15.1 3.9,13.71 3.9,12 Z M8,13 L16,13 16,11 8,11 8,13 Z M17,7 L13,7 13,8.9 17,8.9 C18.71,8.9 20.1,10.29 20.1,12 C20.1,13.71 18.71,15.1 17,15.1 L13,15.1 13,17 17,17 C19.76,17 22,14.76 22,12 C22,9.24 19.76,7 17,7 Z"
+                Fill="#CCCCCC"
+                Stretch="Uniform" />
+        </Button>
+
+        <!--  ✕ 清除/解除按钮  -->
+        <Button
+            Grid.Column="3"
+            Click="UnlinkBtn_Click"
+            Style="{StaticResource IconBtnStyle}"
+            ToolTip="已链接时解除链接；未链接时清空输入">
+            <!--  Material Design close 图标  -->
+            <Path
+                Width="13"
+                Height="13"
+                Data="M19,6.41 L17.59,5 12,10.59 6.41,5 5,6.41 10.59,12 5,17.59 6.41,19 12,13.41 17.59,19 19,17.59 13.41,12 Z"
+                Fill="#CCCCCC"
+                Stretch="Uniform" />
+        </Button>
+    </Grid>
+</UserControl>

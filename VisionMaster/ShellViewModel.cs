@@ -11,7 +11,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using UI.Attributes;
 using UI.CustomControl;
-using UI.Events;
+using Core.Events;
 using UI.Helper;
 using VisionMaster.Communications;
 using VisionMaster.EventModel;
