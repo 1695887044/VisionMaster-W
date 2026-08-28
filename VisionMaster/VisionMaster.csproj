@@ -29,7 +29,7 @@
     <ProjectReference Include="..\Shard\Core.Controls\Core.Controls.csproj" />
     <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
     <ProjectReference Include="..\UI\Controls\UI.csproj" />
-    <ProjectReference Include="..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />
+
   </ItemGroup>
 
   <ItemGroup>

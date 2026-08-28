@@ -1,0 +1,92 @@
+﻿<UserControl
+    x:Class="Plugin.CreateRoi.CreateRoiView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:local="clr-namespace:Plugin.CreateRoi"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:system="clr-namespace:System;assembly=mscorlib"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="900"
+    Height="500">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="380" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <TabControl Style="{StaticResource VerTabControl}">
+            <TabControl.Resources>
+                <Style BasedOn="{StaticResource VerTabItem}" TargetType="TabItem" />
+            </TabControl.Resources>
+            <TabItem Header="基本参数">
+                <Grid x:Name="gd">
+                    <StackPanel>
+                        <cv:LinkableValueEditor
+                            Width="240"
+                            Margin="5"
+                            HorizontalAlignment="Center"
+                            Label="图像路径"
+                            PortName="SrcImage"
+                            PortType="{x:Type system:String}"
+                            StepData="{Binding StepData}"
+                            Value="{Binding SrcImage.TypedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
+
+            </TabItem>
+            <TabItem Header="图像参数">
+                <Grid x:Name="gd1">
+                    <GroupBox Header="图像参数">
+                        <StackPanel>
+                            <CheckBox
+                                Margin="10,10,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Content="流程结束时显示结果图像" />
+                            <StackPanel Margin="10" Orientation="Horizontal">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Text="显示窗体" />
+                                <ComboBox
+                                    Width="200"
+                                    Margin="5,0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    BorderThickness="0,0,0,1"
+                                    ToolTip="采集图像显示到主界面几号视图窗口；0 = 不显示" />
+                            </StackPanel>
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+            </TabItem>
+        </TabControl>
+        <!--  右侧：预览区  -->
+        <Border
+            Grid.Column="1"
+            Padding="12"
+            Background="White"
+            BorderBrush="#E0E0E0"
+            BorderThickness="1"
+            CornerRadius="6">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <h:ImageEdit HImage="{Binding SrcImage.Value}" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

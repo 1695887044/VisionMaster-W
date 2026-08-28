@@ -9,5 +9,5 @@
     xmlns:prism="http://prismlibrary.com/"
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
-    <Grid x:Name="grid" Margin="5"/>
+    <Grid x:Name="grid" Margin="5" />
 </UserControl>

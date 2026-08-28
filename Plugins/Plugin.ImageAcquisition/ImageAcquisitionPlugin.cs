@@ -64,7 +64,8 @@ namespace Plugin.ImageAcquisition
             "FilePath",
             "",
             "单张图像文件完整路径"
-        );
+        )
+        { IsRequired = false };
 
         /// <summary>
         /// 文件夹路径
@@ -73,7 +74,8 @@ namespace Plugin.ImageAcquisition
             "FolderPath",
             "",
             "包含图像的文件夹路径"
-        );
+        )
+        { IsRequired = false };
 
         /// <summary>
         /// 文件夹内的文件索引（0-based）
@@ -82,7 +84,9 @@ namespace Plugin.ImageAcquisition
             "FileIndex",
             0,
             "文件夹内的文件索引（0-based）"
-        );
+        )
+        { IsRequired = false };
+
 
         /// <summary>
         /// 相机索引号（预留）
@@ -91,7 +95,8 @@ namespace Plugin.ImageAcquisition
             "CameraIndex",
             0,
             "相机索引号（预留，默认 0）"
-        );
+        )
+        { IsRequired = false };
 
         #endregion
 

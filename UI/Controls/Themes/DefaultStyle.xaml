@@ -2366,27 +2366,43 @@
         </Setter>
     </Style>
     <Style x:Key="VerTabItem" TargetType="TabItem">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabItem">
                     <Border
-                        Name="back"
-                        Height="30"
-                        Background="Transparent"
-                        BorderBrush="Transparent"
-                        BorderThickness="0,0,0,3"
-                        Cursor="Hand">
+                        x:Name="BackBorder"
+                        Padding="12,0"
+                        Background="#2B2D33"
+                        BorderBrush="#3D404A"
+                        BorderThickness="1"
+                        CornerRadius="4">
                         <TextBlock
-                            Name="tb"
-                            Margin="15,0"
+                            x:Name="TbText"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            Foreground="White"
+                            FontSize="12"
+                            FontWeight="Normal"
+                            Foreground="#909399"
                             Text="{TemplateBinding Header}" />
                     </Border>
+
                     <ControlTemplate.Triggers>
+                        <!--  鼠标悬浮  -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="BackBorder" Property="Background" Value="#383B43" />
+                            <Setter TargetName="TbText" Property="Foreground" Value="#DCDFE6" />
+                        </Trigger>
+
+                        <!--  选中态：Element 蓝底胶囊  -->
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="FontWeight" Value="Bold" />
+                            <Setter TargetName="BackBorder" Property="Background" Value="#409EFF" />
+                            <Setter TargetName="BackBorder" Property="BorderBrush" Value="#409EFF" />
+                            <Setter TargetName="TbText" Property="Foreground" Value="#FFFFFF" />
+                            <Setter TargetName="TbText" Property="FontWeight" Value="SemiBold" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

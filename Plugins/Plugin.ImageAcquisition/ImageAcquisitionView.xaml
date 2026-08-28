@@ -10,23 +10,30 @@
     xmlns:system="clr-namespace:System;assembly=mscorlib"
     xmlns:ui="http://schemas.UI.com/ui"
     d:Background="Gray"
-    d:DesignHeight="500"
-    d:DesignWidth="900"
+ 
+    Width="900"
+    Height="500"
     mc:Ignorable="d">
     <UserControl.Resources>
         <!--  显示窗口索引候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不显示）  -->
-        <x:Array x:Key="ViewIndexes" Type="system:Int32">
-            <system:Int32>0</system:Int32>
-            <system:Int32>1</system:Int32>
-            <system:Int32>2</system:Int32>
-            <system:Int32>3</system:Int32>
-            <system:Int32>4</system:Int32>
-            <system:Int32>5</system:Int32>
-            <system:Int32>6</system:Int32>
-            <system:Int32>7</system:Int32>
-            <system:Int32>8</system:Int32>
-            <system:Int32>9</system:Int32>
-        </x:Array>
+        <ResourceDictionary>
+            <x:Array x:Key="ViewIndexes" Type="system:Int32">
+                <system:Int32>0</system:Int32>
+                <system:Int32>1</system:Int32>
+                <system:Int32>2</system:Int32>
+                <system:Int32>3</system:Int32>
+                <system:Int32>4</system:Int32>
+                <system:Int32>5</system:Int32>
+                <system:Int32>6</system:Int32>
+                <system:Int32>7</system:Int32>
+                <system:Int32>8</system:Int32>
+                <system:Int32>9</system:Int32>
+            </x:Array>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </UserControl.Resources>
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
@@ -34,11 +41,11 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <TabControl Style="{StaticResource VerTabControl}">
+        <TabControl  Style="{StaticResource VerTabControl}" >
             <TabControl.Resources>
                 <Style BasedOn="{StaticResource VerTabItem}" TargetType="TabItem" />
             </TabControl.Resources>
-            <TabItem Header="基本参数">
+            <TabItem Header="基本参数" >
                 <Grid x:Name="gd">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="140" />
