@@ -3,9 +3,11 @@ using Prism.Mvvm;
 using Prism.Dialogs;
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
+using VisionMaster.Services;
 using Core.Events;
 using UI.CustomControl;
 
@@ -84,12 +86,44 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>
         /// 构造函数
         /// </summary>
-        public FlowManagerViewModel()
+        public FlowManagerViewModel(WorkspaceContext workspace)
         {
+            _workspace = workspace;
             EncryptFlowCommand = new DelegateCommand<FlowItem>(ExecuteEncryptFlow);
             DecryptFlowCommand = new DelegateCommand<FlowItem>(ExecuteDecryptFlow);
             ToggleEnabledCommand = new DelegateCommand<FlowItem>(ExecuteToggleEnabled);
             CloseCommand = new DelegateCommand(ExecuteClose);
+
+            // 常驻面板模式：跟随工作区当前方案自动加载流程列表
+            _workspace.PropertyChanged += OnWorkspacePropertyChanged;
+            LoadFlowsFromWorkspace();
+        }
+
+        private readonly WorkspaceContext _workspace;
+
+        private void OnWorkspacePropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(WorkspaceContext.CurrentSolution))
+            {
+                LoadFlowsFromWorkspace();
+            }
+        }
+
+        /// <summary>
+        /// 从当前方案加载流程列表（方案未加载时清空列表）
+        /// </summary>
+        private void LoadFlowsFromWorkspace()
+        {
+            var flows = _workspace.CurrentSolution?.Flows;
+            if (flows != null)
+            {
+                LoadFlows(flows);
+            }
+            else
+            {
+                _allFlows.Clear();
+                Flows.Clear();
+            }
         }
 
         public bool CanCloseDialog() => true;

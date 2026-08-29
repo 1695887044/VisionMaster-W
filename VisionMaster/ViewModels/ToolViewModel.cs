@@ -1,86 +1,84 @@
-using GongSolutions.Wpf.DragDrop;
-using Prism.Dialogs;
+using Prism.Mvvm;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Documents;
-using UI.CustomControl;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
 namespace VisionMaster.ViewModels
 {
+    /// <summary>
+    /// 工具箱 ViewModel：纯插件工具分组展示 + 关键字过滤
+    /// </summary>
     public class ToolViewModel : BindableBase
-
     {
-        private readonly SolutionService solutionService;
         private readonly IPluginProvider pluginProvider;
-        private readonly IDialogService dialogService;
 
-        public IWorkspaceManager Workspace {  get; init; }
+        private List<ToolGroupModel> toolBarSource = new();
 
+        /// <summary>
+        /// 过滤后的插件分组（SearchText 变化时重建）
+        /// </summary>
+        public ObservableCollection<ToolGroupModel> FilteredToolBarSource { get; } = new();
 
-        public FlowModel SelectFlow
+        private string searchText;
+        public string SearchText
         {
-            get { return field; }
-            set { field = value; Workspace.SwitchFlow(value); }
-        }
-
-        public List<ToolGroupModel> ToolBarSource { get; set; } = new();
-
-        public AsyncDelegateCommand<FlowAction?> FlowCommand { get; set; }
-        public ToolViewModel(SolutionService solutionService, IWorkspaceManager Workspace,IPluginProvider pluginProvider, IDialogService dialogService)
-        {
-            this.solutionService = solutionService;
-            this.Workspace = Workspace;
-            this.pluginProvider = pluginProvider;
-            this.dialogService = dialogService;
-            FlowCommand =new (FlowCommandExecute);
-            loadTools();
-
-        }
-
-        private async Task FlowCommandExecute(FlowAction? action)
-        {
-            switch (action) { 
-                case FlowAction.Create:
-                    Workspace.CurrentSolution.Flows.Insert(Workspace.CurrentSolution.Flows.IndexOf(SelectFlow)+1, new FlowModel() { FlowName = "新建流程" });
-                    break;
-                case FlowAction.Delete:
-                    Workspace.CurrentSolution.Flows.Remove(SelectFlow);
-                    break;
-                case FlowAction.Rename:
-                 var data =await  EasyDialog.ShowTextInputAsync("流程重命名", SelectFlow.FlowName);
-                if (data.IsConfirmed) SelectFlow.FlowName = data.Value;
-                    break;
-                case FlowAction.EditComment:
-                    var data1 = await EasyDialog.ShowTextInputAsync("流程注释修改", SelectFlow.Description);
-                if (data1.IsConfirmed) SelectFlow.Description = data1.Value;
-                    break;
-                case FlowAction.Manager:
-                    ShowFlowManager();
-                    break;
+            get { return searchText; }
+            set
+            {
+                if (SetProperty(ref searchText, value))
+                {
+                    ApplyFilter();
+                }
             }
         }
 
-        /// <summary>
-        /// 显示流程管理对话框
-        /// </summary>
-        private void ShowFlowManager()
+        public ToolViewModel(IPluginProvider pluginProvider)
         {
-            if (Workspace.CurrentSolution == null) return;
+            this.pluginProvider = pluginProvider;
+            loadTools();
+        }
 
-            var parameters = new DialogParameters();
-            parameters.Add("Flows", Workspace.CurrentSolution.Flows);
-            
-            dialogService.ShowDialog("FlowManagerView", parameters, result =>
+        /// <summary>
+        /// 按关键字过滤：匹配插件名/描述/分组名，无匹配项的分组隐藏
+        /// </summary>
+        private void ApplyFilter()
+        {
+            FilteredToolBarSource.Clear();
+
+            var keyword = searchText?.Trim();
+            if (string.IsNullOrEmpty(keyword))
             {
-                // 可以在这里处理对话框关闭后的逻辑
-            });
+                foreach (var group in toolBarSource)
+                {
+                    FilteredToolBarSource.Add(group);
+                }
+                return;
+            }
+
+            foreach (var group in toolBarSource)
+            {
+                var matched = group.Children
+                    .Where(t => Contains(t.Name, keyword) || Contains(t.Description, keyword))
+                    .ToList();
+                if (matched.Count == 0) continue;
+
+                var copy = new ToolGroupModel() { Name = group.Name };
+                foreach (var tool in matched)
+                {
+                    copy.Children.Add(tool);
+                }
+                FilteredToolBarSource.Add(copy);
+            }
+        }
+
+        private static bool Contains(string source, string keyword)
+        {
+            return source?.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         void loadTools()
@@ -92,9 +90,9 @@ namespace VisionMaster.ViewModels
                 {
                     toolGroup.Children.Add(p.Value);
                 });
-                ToolBarSource.Add(toolGroup);
+                toolBarSource.Add(toolGroup);
             });
-
+            ApplyFilter();
         }
     }
 }

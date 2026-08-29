@@ -50,6 +50,7 @@ namespace VisionMaster
             containerRegistry.Register<IWorkspaceManager>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.RegisterSingleton<ILogService, LogService>();
             containerRegistry.RegisterSingleton<IPerformanceMonitor, PerformanceMonitor>();
+            containerRegistry.RegisterSingleton<AppSettingsService>();
             containerRegistry.RegisterForNavigation<LogView,LogViewModel>();
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
             containerRegistry.RegisterForNavigation<GlobalDataView, GlobalDataViewModel>();
@@ -61,6 +62,7 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
             containerRegistry.RegisterDialog<CommunicationSettingsView, CommunicationSettingsViewModel>("CommunicationSettingsView");
             containerRegistry.RegisterDialog<PluginConfigShellView, PluginConfigShellViewModel>("PluginConfigShell");
+            containerRegistry.RegisterDialog<SolutionListView, SolutionListViewModel>("SolutionListView");
             containerRegistry.RegisterForNavigation<Shell, ShellViewModel>();
             var pluginService = containerRegistry.GetContainer().Resolve<PluginService>();
             pluginService.InitPlugins();

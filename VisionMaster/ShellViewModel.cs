@@ -148,10 +148,7 @@ namespace VisionMaster
 
                     break;
                 case SolutionAction.BrowseList:
-
-                  //  var asd = await EasyDialog.ShowPropertyGridAsync(
-                  //"创建新解决方案",
-                  //new CommunicationConfig());
+                    dialogService.ShowDialog("SolutionListView");
                     break;
             }
         }
@@ -175,7 +172,9 @@ namespace VisionMaster
                 var loadResult = await solutionService.LoadAsync(dialog.FileName);
                 if (loadResult.Success)
                 {
+                    loadResult.Data.SolutionFilePath = dialog.FileName;
                     Workspace.SwitchSolution(loadResult.Data);
+                    Services.SolutionConfigApplier.Restore(loadResult.Data.Config);
                     Notifier.ShowSuccess($"方案 [{loadResult.Data.SolutionName}] 加载成功");
                 }
                 else
@@ -183,6 +182,33 @@ namespace VisionMaster
                     Notifier.ShowError(loadResult.Message);
                 }
             }
+        }
+
+        /// <summary>
+        /// 捕获当前界面布局到方案系统配置（保存方案前调用）
+        /// </summary>
+        private void CaptureLayoutToConfig()
+        {
+            Services.SolutionConfigApplier.Capture(Workspace.CurrentSolution);
+        }
+
+        /// <summary>
+        /// 软件启动时按软件级配置（AppConfig.json）自动加载默认启动方案
+        /// 无默认方案或文件不存在时不做任何事
+        /// </summary>
+        public async Task AutoLoadStartupSolutionAsync()
+        {
+            var settings = ContainerLocator.Container.Resolve<AppSettingsService>();
+            var startupPath = settings.Current.StartupSolutionPath;
+            if (string.IsNullOrWhiteSpace(startupPath) || !System.IO.File.Exists(startupPath)) return;
+
+            var loadResult = await solutionService.LoadAsync(startupPath);
+            if (!loadResult.Success) return;
+
+            loadResult.Data.SolutionFilePath = startupPath;
+            Workspace.SwitchSolution(loadResult.Data);
+            Services.SolutionConfigApplier.Restore(loadResult.Data.Config);
+            Notifier.ShowSuccess($"已自动加载方案 [{loadResult.Data.SolutionName}]");
         }
 
         /// <summary>
@@ -207,9 +233,11 @@ namespace VisionMaster
             var result = dialog.ShowDialog();
             if (result == true)
             {
+                CaptureLayoutToConfig();
                 var saveResult = await solutionService.SaveAsync(Workspace.CurrentSolution, dialog.FileName);
                 if (saveResult.Success)
                 {
+                    Workspace.CurrentSolution.SolutionFilePath = dialog.FileName;
                     Notifier.ShowSuccess($"方案 [{Workspace.CurrentSolution.SolutionName}] 保存成功");
                 }
                 else

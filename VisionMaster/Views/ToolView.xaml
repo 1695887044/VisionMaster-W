@@ -1,11 +1,9 @@
-﻿<UserControl
+<UserControl
     x:Class="VisionMaster.Views.ToolView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dd="urn:gong-wpf-dragdrop"
-    xmlns:enums="clr-namespace:VisionMaster"
-    xmlns:local="clr-namespace:VisionMaster.Views"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
@@ -13,296 +11,191 @@
     d:DesignWidth="250"
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
-    <Grid Background="#FFFFFF">
+    <Grid Background="#F5F6F8">
         <Grid.Resources>
-            <ui:BindingProxy x:Key="MyViewModelProxy" Data="{Binding}" />
-            <Style x:Key="FunctionIconStyle" TargetType="TextBlock">
-                <Setter Property="Width" Value="18" />
-                <Setter Property="Height" Value="18" />
-                <Setter Property="HorizontalAlignment" Value="Center" />
-                <Setter Property="VerticalAlignment" Value="Center" />
-            </Style>
-
-            <Style x:Key="FunctionTextStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="9" />
-                <Setter Property="Foreground" Value="White" />
-                <Setter Property="HorizontalAlignment" Value="Center" />
-                <Setter Property="TextAlignment" Value="Center" />
-                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-                <Setter Property="TextWrapping" Value="Wrap" />
-            </Style>
+            <!--  拖拽预览：胶囊行  -->
             <DataTemplate x:Key="MyDragAdornerTemplate">
                 <Border
-                    Width="50"
-                    Height="50"
-                    Style="{StaticResource WhiteThemeToolCardStyle}"
-                    ToolTip="{Binding Description}">
-                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                    Height="32"
+                    MinWidth="120"
+                    Background="#FFFFFF"
+                    BorderBrush="#C9D2DC"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                    <StackPanel Margin="10,0" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock
-                            Grid.Row="0"
+                            VerticalAlignment="Center"
                             FontFamily="{StaticResource Icon}"
-                            FontSize="18"
+                            FontSize="14"
                             Foreground="#4A5568"
-                            Style="{StaticResource FunctionIconStyle}"
                             Text="{Binding Icon}" />
                         <TextBlock
-                            Grid.Row="1"
-                            MaxWidth="32"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
                             Foreground="#2D3748"
-                            Style="{StaticResource FunctionTextStyle}"
-                            Text="{Binding Name}"
-                            TextTrimming="CharacterEllipsis" />
-                    </Grid>
+                            Text="{Binding Name}" />
+                    </StackPanel>
                 </Border>
             </DataTemplate>
         </Grid.Resources>
         <Grid.RowDefinitions>
-            <RowDefinition Height="400" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="00" />
-                <RowDefinition />
-            </Grid.RowDefinitions>
-            <StackPanel
-                Grid.Row="0"
-                Background="#F3F3F3"
-                Orientation="Horizontal">
-                <!--<Button
-                    Margin="5,0"
-                    CommandParameter="{x:Static enums:FlowAction.BrowseList}"
-                    Content="&#xf013;"
-                    FontFamily="{StaticResource Icon}"
-                    Foreground="#005A9E"
-                    Style="{StaticResource IconButon}"
-                    ToolTip="程序管理" />-->
-            </StackPanel>
-            <ListBox
-                Grid.Row="1"
-                HorizontalContentAlignment="Stretch"
-                Background="Transparent"
-                BorderThickness="0"
-                ItemsSource="{Binding Workspace.CurrentSolution.Flows}"
-                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                SelectedItem="{Binding SelectFlow}">
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
-                        <Setter Property="Padding" Value="0" />
-                        <Setter Property="Margin" Value="0,2,0,2" />
-                        <Setter Property="Background" Value="Transparent" />
-                        <Setter Property="BorderThickness" Value="0" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ListBoxItem">
-                                    <Border
-                                        x:Name="ItemBorder"
-                                        Padding="10,8"
-                                        Background="{TemplateBinding Background}"
-                                        CornerRadius="4">
-                                        <ContentPresenter />
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#F0F4F8" />
-                                        </Trigger>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="#E5F1FB" />
-                                            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListBox.ItemContainerStyle>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Background="Transparent">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="35" />
-                                <ColumnDefinition Width="85" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock
-                                Grid.Column="0"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontFamily="{StaticResource Icon}"
-                                FontSize="16"
-                                Foreground="#007ACC"
-                                Text="&#xf1c9;" />
-                            <TextBlock
-                                Grid.Column="1"
-                                Margin="5,0,0,0"
-                                VerticalAlignment="Center"
-                                FontSize="14"
-                                Foreground="#333333"
-                                Text="{Binding FlowName}" />
-                            <TextBlock
-                                Grid.Column="2"
-                                MaxWidth="180"
-                                Margin="2,0,0,0"
-                                VerticalAlignment="Center"
-                                FontSize="12"
-                                Foreground="Green"
-                                Text="{Binding Description}"
-                                TextTrimming="CharacterEllipsis"
-                                ToolTip="{Binding Description}" />
-                            <Grid.ContextMenu>
-                                <ContextMenu FontFamily="{StaticResource Icon}">
-                                    <MenuItem Header="流程" Icon="&#xf0e8;">
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Create}"
-                                            Header="添加"
-                                            Icon="&#xf56f;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Delete}"
-                                            Header="删除"
-                                            Icon="&#xf2ed;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Rename}"
-                                            Header="重命名"
-                                            Icon="&#xf044;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.EditComment}"
-                                            Header="编辑注释"
-                                            Icon="&#xf075;" />
-                                    </MenuItem>
-                                    <MenuItem Header="流程加密" Icon="&#xf132;">
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Encrypt}"
-                                            Header="加密流程"
-                                            Icon="&#xf023;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Decrypt}"
-                                            Header="解密流程"
-                                            Icon="&#xf09c;" />
-                                    </MenuItem>
-                                    <MenuItem
-                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Manager}"
-                                        Header="流程管理"
-                                        Icon="&#xf09c;" />
-                                </ContextMenu>
-                            </Grid.ContextMenu>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Grid>
-        <GridSplitter
-            Grid.Row="1"
-            Height="2"
-            HorizontalAlignment="Stretch" />
-        <Grid Grid.Row="2">
-            <Border
-                Background="#FFFFFF"
-                BorderBrush="#E4E7ED"
-                BorderThickness="0,0,0,1" />
 
-            <!--  🌟 1. 外层包裹 ScrollViewer，开启垂直滚动，禁用水平滚动  -->
+        <!--  搜索工具箱（Win11 输入框风格）  -->
+        <Border
+            Grid.Row="0"
+            Margin="8,8,8,4"
+            Padding="10,5"
+            Background="#FFFFFF"
+            BorderBrush="#D1D5DB"
+            BorderThickness="1"
+            CornerRadius="6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox
+                    VerticalContentAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    FontSize="12"
+                    Foreground="#333333"
+                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
+                    <TextBox.Resources>
+                        <VisualBrush
+                            x:Key="SearchHint"
+                            AlignmentX="Left"
+                            Stretch="None">
+                            <VisualBrush.Visual>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        Margin="0,0,6,0"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="12"
+                                        Foreground="#9AA5B1"
+                                        Text="&#xf002;" />
+                                    <TextBlock FontSize="12" Foreground="#9AA5B1" Text="搜索工具箱" />
+                                </StackPanel>
+                            </VisualBrush.Visual>
+                        </VisualBrush>
+                    </TextBox.Resources>
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Background" Value="{StaticResource SearchHint}" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="13"
+                    Foreground="#9AA5B1"
+                    Text="&#xf002;" />
+            </Grid>
+        </Border>
+
+        <!--  插件分组区（Win11 卡片式：组=独立卡片，行=独立圆角行）  -->
+        <Grid Grid.Row="1">
             <ScrollViewer
-                Padding="0,0,6,0"
                 HorizontalScrollBarVisibility="Disabled"
                 VerticalScrollBarVisibility="Auto">
 
-                <ItemsControl Background="{StaticResource PanelBackgroundBrush}" ItemsSource="{Binding ToolBarSource}">
+                <ItemsControl Margin="8,4,8,8" ItemsSource="{Binding FilteredToolBarSource}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Expander
-                                Background="Transparent"
-                                BorderBrush="{StaticResource ToolBorderBrush}"
-                                BorderThickness="0,0,0,1"
-                                Header="{Binding Name}"
-                                IsExpanded="True">
+                            <!--  组卡片  -->
+                            <Border
+                                Margin="0,4"
+                                Background="#FFFFFF"
+                                BorderBrush="#E5E8EC"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                <Expander
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Header="{Binding Name}"
+                                    IsExpanded="True">
 
-                                <Expander.HeaderTemplate>
-                                    <DataTemplate>
-                                        <!--  恢复原本舒适的上下边距  -->
-                                        <TextBlock
-                                            Margin="5,10"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource PrimaryTextBrush}"
-                                            Text="{Binding}" />
-                                    </DataTemplate>
-                                </Expander.HeaderTemplate>
-
-
-                                <!--  工具列表  -->
-                                <ItemsControl
-                                    Margin="10,5,10,10"
-                                    dd:DragDrop.DragAdornerTemplate="{StaticResource MyDragAdornerTemplate}"
-                                    dd:DragDrop.IsDragSource="True"
-                                    dd:DragDrop.UseDefaultDragAdorner="True"
-                                    dd:DragDrop.UseDefaultEffectDataTemplate="True"
-                                    ItemsSource="{Binding Children}">
-
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <!--  🌟 加大间距，让卡片不要紧贴在一起  -->
-                                            <WrapPanel Margin="0,0,0,0" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-
-                                    <ItemsControl.ItemTemplate>
+                                    <Expander.HeaderTemplate>
                                         <DataTemplate>
-                                            <!--  🌟 1. 黄金尺寸：54x54，恢复紧凑感，同时 Margin 缩小到 4  -->
-                                            <Border
-                                                Width="54"
-                                                Height="54"
-                                                Margin="0,0,4,4"
-                                                Style="{StaticResource WhiteThemeToolCardStyle}"
-                                                ToolTip="{Binding Description}">
-                                                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                    <Grid.RowDefinitions>
-                                                        <RowDefinition Height="Auto" />
-                                                        <RowDefinition Height="Auto" />
-                                                    </Grid.RowDefinitions>
-
-                                                    <!--  🌟 2. 图标适当缩小，更显精致  -->
-                                                    <TextBlock
-                                                        Grid.Row="0"
-                                                        Margin="0,0,0,2"
-                                                        HorizontalAlignment="Center"
-                                                        FontFamily="{StaticResource Icon}"
-                                                        FontSize="16"
-                                                        Foreground="#4A5568"
-                                                        Style="{StaticResource FunctionIconStyle}"
-                                                        Text="{Binding Icon}"
-                                                        TextOptions.TextFormattingMode="Display" />
-
-                                                    <!--  🌟 3. 字体保持 11px，MaxWidth 卡在 50，完美兼容居中和极简换行  -->
-                                                    <TextBlock
-                                                        Grid.Row="1"
-                                                        MaxWidth="50"
-                                                        MaxHeight="28"
-                                                        HorizontalAlignment="Center"
-                                                        FontSize="11"
-                                                        Foreground="#2D3748"
-                                                        Style="{StaticResource FunctionTextStyle}"
-                                                        Text="{Binding Name}"
-                                                        TextAlignment="Center"
-                                                        TextTrimming="CharacterEllipsis"
-                                                        TextWrapping="Wrap" />
-                                                </Grid>
-                                            </Border>
+                                            <TextBlock
+                                                Margin="12,10"
+                                                FontSize="13"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource PrimaryTextBrush}"
+                                                Text="{Binding}" />
                                         </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Expander>
+                                    </Expander.HeaderTemplate>
+
+                                    <!--  工具列表：一行一个工具，行间留隙不连片  -->
+                                    <ItemsControl
+                                        Margin="5,0,5,7"
+                                        dd:DragDrop.DragAdornerTemplate="{StaticResource MyDragAdornerTemplate}"
+                                        dd:DragDrop.IsDragSource="True"
+                                        dd:DragDrop.UseDefaultDragAdorner="False"
+                                        dd:DragDrop.UseDefaultEffectDataTemplate="True"
+                                        ItemsSource="{Binding Children}">
+
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    x:Name="RowBorder"
+                                                    Height="30"
+                                                    Margin="2,3"
+                                                    Padding="10,0"
+                                                    BorderBrush="Gray"
+                                                    BorderThickness="0.1"
+                                                    Background="Transparent"
+                                                    CornerRadius="4"
+                                                    ToolTip="{Binding Description}">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#EEF3F8" />
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                                        <TextBlock
+                                                            Width="20"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{StaticResource Icon}"
+                                                            FontSize="15"
+                                                            Foreground="#5B6B7C"
+                                                            Text="{Binding Icon}"
+                                                            TextAlignment="Center"
+                                                            TextOptions.TextFormattingMode="Display" />
+                                                        <TextBlock
+                                                            Margin="10,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12.5"
+                                                            Foreground="#33363D"
+                                                            Text="{Binding Name}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Expander>
+                            </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

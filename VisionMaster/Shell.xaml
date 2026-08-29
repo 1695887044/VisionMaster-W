@@ -1,4 +1,4 @@
-﻿<Window
+<Window
     x:Class="VisionMaster.Shell"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -128,30 +128,61 @@
 
                 <MenuItem Header="视图(V)">
                     <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_ImageView"
                         Header="视觉图像"
-                        Icon="&#xf030;"
-                        IsEnabled="False" />
-                    <MenuItem Header="工具栏" Icon="&#xf552;" />
-                    <MenuItem Header="流程栏" Icon="&#xf542;" />
-                    <MenuItem Header="日志信息" Icon="&#xf15c;" />
-                    <MenuItem Header="数据栏" Icon="&#xf080;" />
-                    <MenuItem Header="模块输出" Icon="&#xf2f5;" />
-                    <MenuItem Header="设备状态" Icon="&#xf108;" />
+                        Icon="&#xf030;" />
+                    <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_ProcessView"
+                        Header="流程栏"
+                        Icon="&#xf542;" />
+                    <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_FlowListView"
+                        Header="程序"
+                        Icon="&#xf00b;" />
+                    <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_ToolView"
+                        Header="工具箱"
+                        Icon="&#xf552;" />
+                    <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_LogView"
+                        Header="日志信息"
+                        Icon="&#xf15c;" />
+                    <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_DataView"
+                        Header="数据栏"
+                        Icon="&#xf080;" />
+                    <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_ModuleOutView"
+                        Header="模块输出"
+                        Icon="&#xf2f5;" />
+                    <MenuItem
+                        Command="{commands:ShowPanelCommand}"
+                        CommandParameter="Panel_DeviceStateView"
+                        Header="设备状态"
+                        Icon="&#xf108;" />
                 </MenuItem>
 
                 <MenuItem Header="工具(T)">
                     <MenuItem Header="截屏" Icon="&#xf125;" />
                     <MenuItem
                         Command="{commands:SaveLayoutCommand}"
-                        CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
                         Header="保存布局"
                         Icon="&#xf00a;" />
                     <MenuItem
                         Command="{commands:LoadLayoutCommand}"
-                        CommandParameter="{Binding RelativeSource={RelativeSource Self}}"
                         Header="加载布局"
                         Icon="&#xf07b;" />
-                    <MenuItem Header="加载默认布局" Icon="&#xf2d2;" />
+                    <MenuItem
+                        Command="{commands:ResetLayoutCommand}"
+                        Header="加载默认布局"
+                        Icon="&#xf2d2;" />
                     <Separator />
                     <MenuItem Header="报表查询" Icon="&#xf200;" />
                 </MenuItem>
@@ -389,27 +420,24 @@
             <avalonDock:LayoutRoot>
                 <avalonDock:LayoutPanel Orientation="Horizontal">
 
-                    <avalonDock:LayoutAnchorablePaneGroup DockWidth="440" Orientation="Horizontal">
-                        <avalonDock:LayoutAnchorablePane DockWidth="200">
-                            <avalonDock:LayoutAnchorable
-                                Title="工具栏"
-                                CanClose="False"
-                                CanHide="True"
-                                ContentId="Panel_ToolView">
-                                <views:ToolView />
-                            </avalonDock:LayoutAnchorable>
-                        </avalonDock:LayoutAnchorablePane>
+                    <!--  1. 左列：流程栏 + 程序（同面板 Tab 切换共用）  -->
+                    <avalonDock:LayoutAnchorablePane DockWidth="260">
+                        <avalonDock:LayoutAnchorable
+                            Title="程序"
+                            CanClose="False"
+                            ContentId="Panel_FlowListView">
+                            <views:FlowListView />
+                        </avalonDock:LayoutAnchorable>
+                        <avalonDock:LayoutAnchorable
+                            Title="流程栏"
+                            CanClose="False"
+                            ContentId="Panel_ProcessView">
+                            <views:ProcessView />
+                        </avalonDock:LayoutAnchorable>
 
-                        <avalonDock:LayoutAnchorablePane DockWidth="220">
-                            <avalonDock:LayoutAnchorable
-                                Title="流程栏"
-                                CanClose="False"
-                                ContentId="Panel_ProcessView">
-                                <views:ProcessView />
-                            </avalonDock:LayoutAnchorable>
-                        </avalonDock:LayoutAnchorablePane>
-                    </avalonDock:LayoutAnchorablePaneGroup>
+                    </avalonDock:LayoutAnchorablePane>
 
+                    <!--  2. 中列：视觉图像 + 底部日志区  -->
                     <avalonDock:LayoutPanel Orientation="Vertical">
 
                         <!--  2.1 中央文档区域  -->
@@ -458,6 +486,18 @@
 
                     </avalonDock:LayoutPanel>
 
+                    <!--  3. 右列：工具箱  -->
+                    <avalonDock:LayoutAnchorablePane DockWidth="330">
+                        <avalonDock:LayoutAnchorable
+                            Title="工具箱"
+                            IsActive="False"
+                            CanClose="False"
+                            CanHide="True"
+                            ContentId="Panel_ToolView">
+                            <views:ToolView />
+                        </avalonDock:LayoutAnchorable>
+                    </avalonDock:LayoutAnchorablePane>
+
                 </avalonDock:LayoutPanel>
             </avalonDock:LayoutRoot>
         </avalonDock:DockingManager>
@@ -488,7 +528,7 @@
                     x:Name="SolutionPathText"
                     MaxWidth="400"
                     FontWeight="Bold"
-                    Text="E:\dev\Code\01_Source\01_Source\VM\00.exe(启动窗口.vm)"
+                    Text="{Binding Workspace.CurrentSolution.SolutionFilePath, TargetNullValue='未加载', FallbackValue='未加载'}"
                     TextTrimming="CharacterEllipsis"
                     ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
             </StackPanel>

@@ -67,6 +67,7 @@ namespace VisionMaster.Views
         }
         private void ShowCanvasAll(eViewMode _ViewMode)
         {
+            ViewDic.CurrentMode = _ViewMode;
             RowDefinition row1 = new RowDefinition();
             RowDefinition row2 = new RowDefinition();
             RowDefinition row3 = new RowDefinition();
@@ -383,6 +384,12 @@ namespace VisionMaster.Views
     public class ViewDic
     {
         public static Dictionary<int, ImageReadOnly> mViewDic = new Dictionary<int, ImageReadOnly>();
+
+        /// <summary>
+        /// 当前图像视图宫格模式（供解决方案配置保存时读取）
+        /// </summary>
+        public static eViewMode CurrentMode { get; set; } = eViewMode.One;
+
         public static ImageReadOnly GetView(int key)
         {
             return mViewDic[key + 1];

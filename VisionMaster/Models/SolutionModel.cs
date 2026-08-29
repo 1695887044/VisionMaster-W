@@ -50,6 +50,36 @@ namespace VisionMaster.Models
             }
         }
 
+        private string solutionFilePath;
+
+        /// <summary>
+        /// 方案文件完整路径（打开/保存成功后记录，供状态栏与标题展示）
+        /// </summary>
+        public string SolutionFilePath
+        {
+            get { return solutionFilePath; }
+            set
+            {
+                solutionFilePath = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        private SolutionConfig config = new SolutionConfig();
+
+        /// <summary>
+        /// 解决方案级系统配置（面板布局、图像视图布局等，随 .vms 持久化）
+        /// </summary>
+        public SolutionConfig Config
+        {
+            get { return config; }
+            set
+            {
+                config = value;
+                RaisePropertyChanged();
+            }
+        }
+
         /// <summary>
         /// 流程集合
         /// </summary>
