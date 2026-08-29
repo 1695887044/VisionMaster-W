@@ -389,8 +389,8 @@
             <avalonDock:LayoutRoot>
                 <avalonDock:LayoutPanel Orientation="Horizontal">
 
-                    <avalonDock:LayoutAnchorablePaneGroup DockWidth="500" Orientation="Horizontal">
-                        <avalonDock:LayoutAnchorablePane DockWidth="220">
+                    <avalonDock:LayoutAnchorablePaneGroup DockWidth="440" Orientation="Horizontal">
+                        <avalonDock:LayoutAnchorablePane DockWidth="200">
                             <avalonDock:LayoutAnchorable
                                 Title="工具栏"
                                 CanClose="False"
@@ -400,7 +400,7 @@
                             </avalonDock:LayoutAnchorable>
                         </avalonDock:LayoutAnchorablePane>
 
-                        <avalonDock:LayoutAnchorablePane DockWidth="250">
+                        <avalonDock:LayoutAnchorablePane DockWidth="220">
                             <avalonDock:LayoutAnchorable
                                 Title="流程栏"
                                 CanClose="False"

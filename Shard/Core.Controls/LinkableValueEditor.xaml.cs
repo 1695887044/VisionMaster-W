@@ -10,28 +10,28 @@ namespace Core.Controls
     /// <summary>
     /// 可链接参数编辑器（固定值 / 变量链接 二合一控件，VisionMaster 风格）
     /// 布局：标签 + 下划线输入框 + 链接(🔗) / 清除(✕) 图标按钮
-    /// - 未链接：输入框手动编辑固定值；✕ 清空输入
-    /// - 已链接：输入框变为只读链接地址；🔗 改链、✕ 解除链接
+    /// - 直接绑定 InputPort：端口名/类型/值/链接状态均从端口读取
+    /// - 端口类型驱动控件形态：
+    ///   可文本输入类型（string/int/double/enum...）→ 输入框 + 链接按钮 + 清除按钮
+    ///   不可文本输入类型（HImage/byte[]...）     → 占位提示 + 链接按钮（未链接时无清除按钮）
     /// - 链接动作通过 GlobalEventBus 发布 LinkPathEvent，由主程序呼出变量绑定弹窗完成
-    /// - 绑定结果直接写入 StepData.SetLink(PortName, link)，随流程持久化
     /// </summary>
     public partial class LinkableValueEditor : UserControl
     {
         #region 依赖属性
 
         /// <summary>
-        /// 固定值（未链接时使用，TwoWay 绑定到宿主 ViewModel 属性）
+        /// 绑定的输入端口（端口即数据成员：名称/类型/值/链接状态均从端口读取）
         /// </summary>
-        public static readonly DependencyProperty ValueProperty =
+        public static readonly DependencyProperty PortProperty =
             DependencyProperty.Register(
-                nameof(Value), typeof(string), typeof(LinkableValueEditor),
-                new FrameworkPropertyMetadata(
-                    string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+                nameof(Port), typeof(IInputPort), typeof(LinkableValueEditor),
+                new FrameworkPropertyMetadata(null, OnPortChanged));
 
-        public string Value
+        public IInputPort Port
         {
-            get => (string)GetValue(ValueProperty);
-            set => SetValue(ValueProperty, value);
+            get => (IInputPort)GetValue(PortProperty);
+            set => SetValue(PortProperty, value);
         }
 
         /// <summary>
@@ -79,32 +79,34 @@ namespace Core.Controls
         }
 
         /// <summary>
-        /// 目标输入端口名（必须与插件 InputPort.Name 一致），必填
+        /// 端口当前是否支持文本输入（由 Port.DataType 驱动，只读）
+        /// string/基元类型/enum/decimal → true；HImage/byte[]/复杂类型 → false
         /// </summary>
-        public static readonly DependencyProperty PortNameProperty =
-            DependencyProperty.Register(
-                nameof(PortName), typeof(string), typeof(LinkableValueEditor),
-                new FrameworkPropertyMetadata(null, OnRestoreStateChanged));
+        private static readonly DependencyPropertyKey IsTextEditablePropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(IsTextEditable), typeof(bool), typeof(LinkableValueEditor),
+                new PropertyMetadata(true));
 
-        public string PortName
+        public static readonly DependencyProperty IsTextEditableProperty = IsTextEditablePropertyKey.DependencyProperty;
+
+        public bool IsTextEditable
         {
-            get => (string)GetValue(PortNameProperty);
-            set => SetValue(PortNameProperty, value);
+            get => (bool)GetValue(IsTextEditableProperty);
+            private set => SetValue(IsTextEditablePropertyKey, value);
         }
 
         /// <summary>
-        /// 端口期望的数据类型（用于绑定弹窗类型校验），默认 object
-        /// XAML 中用 PortType="{x:Type system:String}" 形式指定
+        /// 端口当前值的字符串形式（供 XAML 双向绑定；内部桥接到 Port.Value）
         /// </summary>
-        public static readonly DependencyProperty PortTypeProperty =
+        public static readonly DependencyProperty PortValueProperty =
             DependencyProperty.Register(
-                nameof(PortType), typeof(Type), typeof(LinkableValueEditor),
-                new PropertyMetadata(typeof(object)));
+                nameof(PortValue), typeof(string), typeof(LinkableValueEditor),
+                new FrameworkPropertyMetadata(string.Empty, OnPortValueChanged));
 
-        public Type PortType
+        public string PortValue
         {
-            get => (Type)GetValue(PortTypeProperty);
-            set => SetValue(PortTypeProperty, value);
+            get => (string)GetValue(PortValueProperty);
+            set => SetValue(PortValueProperty, value);
         }
 
         /// <summary>
@@ -140,11 +142,12 @@ namespace Core.Controls
         public LinkableValueEditor()
         {
             InitializeComponent();
+            UpdateButtonVisibility();
 
             // 未链接时双击输入框触发浏览命令（可选）
             PART_ValueBox.MouseDoubleClick += (s, e) =>
             {
-                if (!IsLinked)
+                if (!IsLinked && IsTextEditable)
                     BrowseCommand?.Execute(null);
             };
         }
@@ -164,21 +167,106 @@ namespace Core.Controls
         private static void OnLinkAddressChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var editor = (LinkableValueEditor)d;
-            editor.SetValue(IsLinkedPropertyKey, !string.IsNullOrEmpty((string)e.NewValue));
+            var linked = !string.IsNullOrEmpty((string)e.NewValue);
+            editor.SetValue(IsLinkedPropertyKey, linked);
+            editor.UpdateButtonVisibility();
+        }
+
+        private static void OnPortChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var editor = (LinkableValueEditor)d;
+            var port = e.NewValue as IInputPort;
+            if (port == null)
+            {
+                editor.IsTextEditable = true;
+                return;
+            }
+
+            // 端口类型驱动可输入性
+            editor.IsTextEditable = IsTextEditableType(port.DataType);
+
+            // 订阅端口值变化，同步刷新输入框显示
+            port.ValueChanged -= editor.OnPortValueChanged;
+            port.ValueChanged += editor.OnPortValueChanged;
+
+            editor.SyncPortValue();
+            editor.RestoreLinkState();
+            editor.UpdateButtonVisibility();
         }
 
         private static void OnRestoreStateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            // StepData / PortName 就绪后，从步骤配置恢复链接状态
             ((LinkableValueEditor)d).RestoreLinkState();
+        }
+
+        private static void OnPortValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            // 输入框编辑 → 写回端口
+            var editor = (LinkableValueEditor)d;
+            if (editor.Port == null || !editor.IsTextEditable) return;
+            var text = (string)e.NewValue;
+            try
+            {
+                editor.Port.Value = string.IsNullOrEmpty(text)
+                    ? GetDefaultValue(editor.Port.DataType)
+                    : Convert.ChangeType(text, editor.Port.DataType);
+            }
+            catch { /* 类型转换失败忽略，保留原值 */ }
+        }
+
+        private void OnPortValueChanged(object sender, EventArgs e)
+        {
+            // 端口外部变更（如链接灌值）→ 同步输入框
+            if (IsLinked) return;
+            SyncPortValue();
+        }
+
+        /// <summary>
+        /// 判断端口类型是否支持文本输入
+        /// 白名单：string、基元类型（int/double/bool/...）、enum、decimal
+        /// </summary>
+        private static bool IsTextEditableType(Type type)
+        {
+            if (type == null) return false;
+            return type == typeof(string)
+                || type.IsPrimitive
+                || type.IsEnum
+                || type == typeof(decimal);
+        }
+
+        /// <summary>
+        /// 从端口读取当前值，刷新 PortValue 显示
+        /// </summary>
+        private void SyncPortValue()
+        {
+            if (Port == null) return;
+            var val = Port.Value;
+            SetCurrentValue(PortValueProperty, val?.ToString() ?? string.Empty);
         }
 
         private void RestoreLinkState()
         {
-            if (StepData == null || string.IsNullOrEmpty(PortName))
-                return;
+            if (StepData == null || Port == null) return;
+            SetCurrentValue(LinkAddressProperty, StepData.GetLinkedAddress(Port.Name));
+        }
 
-            SetCurrentValue(LinkAddressProperty, StepData.GetLinkedAddress(PortName));
+        /// <summary>
+        /// 更新占位提示和按钮可见性（由 IsLinked / IsTextEditable 驱动）
+        /// </summary>
+        private void UpdateButtonVisibility()
+        {
+            // 占位提示：不可文本输入 且 未链接 时显示
+            PART_Placeholder.Visibility =
+                (!IsTextEditable && !IsLinked) ? Visibility.Visible : Visibility.Collapsed;
+
+            // ✕ 按钮：不可文本输入 且 未链接 时隐藏（没有值可清空，只能链接）
+            PART_UnlinkBtn.Visibility =
+                (!IsTextEditable && !IsLinked) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private static object GetDefaultValue(Type type)
+        {
+            return type.IsValueType ? Activator.CreateInstance(type) : null;
         }
 
         #endregion
@@ -188,18 +276,17 @@ namespace Core.Controls
         private void LinkBtn_Click(object sender, RoutedEventArgs e)
         {
             var stepData = StepData;
-            var portName = PortName;
-            if (stepData == null || string.IsNullOrEmpty(portName))
-                return;
+            var port = Port;
+            if (stepData == null || port == null) return;
 
             // 发布链接请求，主程序呼出 DataBindView 单绑定模式，选中后回调
             GlobalEventBus.Publish(new LinkPathEvent
             {
-                InputPortName = portName,
-                TargetType = PortType ?? typeof(object),
+                InputPortName = port.Name,
+                TargetType = port.DataType ?? typeof(object),
                 OnBound = link =>
                 {
-                    stepData.SetLink(portName, link);
+                    stepData.SetLink(port.Name, link);
                     SetCurrentValue(LinkAddressProperty, link.DisplayAddress);
                 }
             });
@@ -210,13 +297,14 @@ namespace Core.Controls
             if (IsLinked)
             {
                 // 已链接：解除链接，恢复固定值编辑
-                StepData?.RemoveLink(PortName);
+                StepData?.RemoveLink(Port.Name);
                 SetCurrentValue(LinkAddressProperty, null);
+                SyncPortValue(); // 恢复显示端口当前固定值
             }
             else
             {
                 // 未链接：清空固定值
-                SetCurrentValue(ValueProperty, string.Empty);
+                SetCurrentValue(PortValueProperty, string.Empty);
             }
         }
 

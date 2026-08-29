@@ -1,4 +1,6 @@
-﻿using Core.Interfaces;
+﻿using Core.Events;
+using Core.Interfaces;
+using Core.Interfaces.Result;
 using HalconDotNet;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -17,7 +19,19 @@ namespace Plugin.CreateRoi
     public class CreateRoiPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region //输入参数
-        public InputPort<HImage> SrcImage { get; } =new InputPort<HImage>("输入图像");
+        public InputPort<HImage> SrcImage { get; } = new InputPort<HImage>("输入图像");
+        #endregion
+
+        #region 视图参数
+        private HImage _previewImage = new();
+        /// <summary>
+        /// 预览图像
+        /// </summary>
+        public HImage PreviewImage
+        {
+            get => _previewImage;
+            set => SetProperty(ref _previewImage, value);
+        }
         #endregion
         public override void Dispose()
         {
@@ -36,7 +50,12 @@ namespace Plugin.CreateRoi
 
         public override void RunAlgorithm(IExecutionContext context)
         {
-            throw new NotImplementedException();
+            PreviewImage = SrcImage.ActualValue;
+            GlobalEventBus.PublishOnUIThread(new ImageDisplayEvent<HImage>
+            {
+                ViewIndex = 2,
+                Image = PreviewImage
+            });
         }
     }
 }

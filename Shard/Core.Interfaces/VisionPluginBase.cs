@@ -166,7 +166,7 @@ namespace Core.Interfaces
         {
             EnsureConfigPropsDiscovered();
             if (stepData?.InputValues == null) return;
-
+            //存放没有链接的端口属性
             foreach (var input in Inputs.Values)
             {
                 if (stepData.IsLinked(input.Name))
@@ -176,7 +176,7 @@ namespace Core.Interfaces
                 }
                 stepData.InputValues[input.Name] = input.Value;
             }
-
+            //需要保存的记忆属性
             foreach (var cp in _configProps)
             {
                 stepData.InputValues[cp.Name] = cp.Get();

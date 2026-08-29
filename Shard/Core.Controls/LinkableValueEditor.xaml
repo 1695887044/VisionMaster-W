@@ -58,8 +58,9 @@
             VerticalAlignment="Center"
             Visibility="Collapsed" />
 
-        <!--  中间输入区：固定值 / 链接地址 两态覆盖  -->
+        <!--  中间输入区：固定值 / 链接地址 / 不可输入占位 三态覆盖  -->
         <Grid Grid.Column="1">
+            <!--  可文本输入：固定值编辑框  -->
             <TextBox
                 x:Name="PART_ValueBox"
                 Padding="2,2"
@@ -67,18 +68,34 @@
                 Background="Transparent"
                 BorderBrush="#AAAAAA"
                 BorderThickness="0,0,0,1"
-                Text="{Binding Value, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}">
+                Text="{Binding PortValue, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}">
                 <TextBox.Style>
                     <Style TargetType="TextBox">
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
+                            <!--  已链接：隐藏固定值框  -->
                             <DataTrigger Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <!--  不可文本输入（如 HImage）：隐藏固定值框  -->
+                            <DataTrigger Binding="{Binding IsTextEditable, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBox.Style>
             </TextBox>
+
+            <!--  不可文本输入且未链接：占位提示  -->
+            <TextBlock
+                x:Name="PART_Placeholder"
+                Padding="2,2"
+                VerticalAlignment="Center"
+                Foreground="#999999"
+                Text="需链接变量"
+                Visibility="Collapsed" />
+
+            <!--  已链接：只读链接地址  -->
             <TextBox
                 x:Name="PART_LinkBox"
                 Padding="2,2"
@@ -105,6 +122,7 @@
 
         <!--  🔗 链接/改链按钮  -->
         <Button
+            x:Name="PART_LinkBtn"
             Grid.Column="2"
             Click="LinkBtn_Click"
             Style="{StaticResource IconBtnStyle}"
@@ -118,8 +136,9 @@
                 Stretch="Uniform" />
         </Button>
 
-        <!--  ✕ 清除/解除按钮  -->
+        <!--  ✕ 清除/解除按钮（不可文本输入且未链接时隐藏）  -->
         <Button
+            x:Name="PART_UnlinkBtn"
             Grid.Column="3"
             Click="UnlinkBtn_Click"
             Style="{StaticResource IconBtnStyle}"
