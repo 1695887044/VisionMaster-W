@@ -65,7 +65,11 @@ namespace Core.Interfaces
             private set => SetProperty(ref _stepData, value);
         }
 
-        public abstract void Dispose();
+        /// <summary>
+        /// 释放插件持有的非托管资源（HImage、句柄等）
+        /// 仅当插件真正持有需要释放的资源时才需要重写；默认空实现
+        /// </summary>
+        public virtual void Dispose() { }
 
         /// <summary>
         /// 计算时间 变量输入映射  变量输出映射  要可以兼容到动态注册
@@ -78,7 +82,12 @@ namespace Core.Interfaces
             return true;
         }
         public abstract void RunAlgorithm(IExecutionContext context);
-        public abstract void Initialize();
+
+        /// <summary>
+        /// 插件级初始化（如加载模型、连接硬件等一次性准备）
+        /// 仅当插件有初始化需求时才需要重写；默认空实现
+        /// </summary>
+        public virtual void Initialize() { }
 
         #region 默认配置生命周期（端口 + [StepConfig] 配置属性 ⇄ InputValues，键名 = 名称，无需映射）
 
@@ -202,13 +211,26 @@ namespace Core.Interfaces
                 if (typeof(IInputPort).IsAssignableFrom(prop.PropertyType))
                 {
                     var inputPort = (IInputPort)prop.GetValue(this);
-                    // 注意这里用 TryAdd，防止属性和动态添加的重名
-                    if (inputPort != null) _inputs.TryAdd(inputPort.Name, inputPort);
+                    if (inputPort != null)
+                    {
+                        // 端口声明时可以不写名称：自动以属性名命名（new InputPort<T>() 的精简写法）
+                        if (string.IsNullOrEmpty(inputPort.Name) && inputPort is IPortNameSettable settable)
+                            settable.Name = prop.Name;
+
+                        // 注意这里用 TryAdd，防止属性和动态添加的重名
+                        _inputs.TryAdd(inputPort.Name, inputPort);
+                    }
                 }
                 else if (typeof(IOutputPort).IsAssignableFrom(prop.PropertyType))
                 {
                     var outputPort = (IOutputPort)prop.GetValue(this);
-                    if (outputPort != null) _outputs.TryAdd(outputPort.Name, outputPort);
+                    if (outputPort != null)
+                    {
+                        if (string.IsNullOrEmpty(outputPort.Name) && outputPort is IPortNameSettable settable)
+                            settable.Name = prop.Name;
+
+                        _outputs.TryAdd(outputPort.Name, outputPort);
+                    }
                 }
             }
             _isPortsDiscovered = true;

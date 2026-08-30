@@ -15,7 +15,7 @@ namespace Core.Halcon.Controls
             MenuItem InfoMenu = new MenuItem();
             InfoMenu.Header = "信息";
             MenuItem RoiMenu = new MenuItem();
-            RoiMenu.Header = "Roi";
+            RoiMenu.Header = "区域";
             MenuItem menu1 = new MenuItem();
             menu1.Header = "适应图片/窗口";
             menu1.Click += (s, e) =>

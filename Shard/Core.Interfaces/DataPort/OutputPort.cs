@@ -14,12 +14,19 @@ namespace Core.Interfaces
     /// 支持跨类型智能转换，值变化时自动通知所有订阅者
     /// </summary>
     /// <typeparam name="T">端口承载的数据类型</typeparam>
-    public class OutputPort<T> : ObservableObject, IOutputPort
+    public class OutputPort<T> : ObservableObject, IOutputPort, IPortNameSettable
     {
         /// <summary>
         /// 端口唯一名称
+        /// 声明端口时可以不填（new OutputPort&lt;T&gt;()），基类收集端口时自动以属性名填充
         /// </summary>
-        public string Name { get; }
+        public string Name { get; internal set; }
+
+        string IPortNameSettable.Name
+        {
+            get => Name;
+            set => Name = value;
+        }
 
         /// <summary>
         /// 端口承载的数据类型
@@ -123,21 +130,21 @@ namespace Core.Interfaces
         /// </summary>
         /// <param name="name">端口唯一名称</param>
         /// <param name="description">端口描述信息</param>
-        public OutputPort(string name, string description = "")
+        public OutputPort(string name = null, string description = "")
         {
-            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Name = name;
             Description = description;
         }
 
         /// <summary>
         /// 构造函数（带初始值）
         /// </summary>
-        /// <param name="name">端口唯一名称</param>
+        /// <param name="name">端口唯一名称（可选：不填时基类收集端口自动以属性名命名）</param>
         /// <param name="description">端口描述信息</param>
         /// <param name="initialValue">初始值</param>
         public OutputPort(string name, string description, T initialValue)
         {
-            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Name = name;
             Description = description;
             _typedValue = initialValue;
         }

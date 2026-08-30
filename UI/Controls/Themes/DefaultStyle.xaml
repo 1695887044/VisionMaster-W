@@ -1300,11 +1300,17 @@
         </Setter>
     </Style>
 
+    <!--
+    MenuItem 隐式样式：默认模板渲染叶子项；
+    有子项的角色（TopLevelHeader/SubmenuHeader）通过触发器换用带 Popup + ItemsPresenter 的模板，
+    否则二级菜单没有渲染容器，右键菜单的子菜单永远不会弹出
+    -->
     <Style TargetType="MenuItem">
         <Setter Property="Padding" Value="12,8,24,8" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="Template">
             <Setter.Value>
+                <!--  叶子项：无可展开子项  -->
                 <ControlTemplate TargetType="MenuItem">
                     <Border
                         x:Name="Border"
@@ -1336,6 +1342,15 @@
                                 VerticalAlignment="Center"
                                 ContentSource="InputGestureText"
                                 TextElement.Foreground="#888888" />
+                            <!--  IsChecked 勾选标记（如“适应图片/窗口”的开关状态）  -->
+                            <TextBlock
+                                x:Name="CheckMark"
+                                Grid.Column="3"
+                                Margin="0,0,2,0"
+                                VerticalAlignment="Center"
+                                Foreground="#409EFF"
+                                Text="✓"
+                                Visibility="Collapsed" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -1345,10 +1360,185 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="#A0A0A0" />
                         </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <!--  垂直菜单（如右键菜单）中有子项的顶级项：向下弹出子菜单  -->
+            <Trigger Property="Role" Value="TopLevelHeader">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="MenuItem">
+                            <Border
+                                x:Name="Border"
+                                Margin="2"
+                                Background="Transparent"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Icon" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut" />
+                                        <ColumnDefinition Width="16" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ContentPresenter
+                                        Margin="8,0"
+                                        VerticalAlignment="Center"
+                                        ContentSource="Icon" />
+                                    <ContentPresenter
+                                        Grid.Column="1"
+                                        Margin="{TemplateBinding Padding}"
+                                        VerticalAlignment="Center"
+                                        ContentSource="Header" />
+                                    <ContentPresenter
+                                        Grid.Column="2"
+                                        Margin="16,0,8,0"
+                                        VerticalAlignment="Center"
+                                        ContentSource="InputGestureText"
+                                        TextElement.Foreground="#888888" />
+                                    <Path
+                                        Grid.Column="3"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Data="M 0 0 L 4 4 L 8 0"
+                                        IsHitTestVisible="False"
+                                        Stroke="#888888"
+                                        StrokeThickness="1.5" />
+
+                                    <Popup
+                                        AllowsTransparency="True"
+                                        Focusable="False"
+                                        IsOpen="{TemplateBinding IsSubmenuOpen}"
+                                        Placement="Bottom"
+                                        PopupAnimation="Fade">
+                                        <Border
+                                            Margin="8"
+                                            Background="#FAFAFA"
+                                            BorderBrush="#E5E5E5"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                            <Border.Effect>
+                                                <DropShadowEffect
+                                                    BlurRadius="16"
+                                                    Direction="270"
+                                                    Opacity="0.15"
+                                                    ShadowDepth="4"
+                                                    Color="Black" />
+                                            </Border.Effect>
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsPresenter Margin="4" />
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                                </Trigger>
+                                <Trigger Property="IsSubmenuOpen" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Foreground" Value="#A0A0A0" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+            <!--  子菜单中还有子项的项：向右弹出二级子菜单  -->
+            <Trigger Property="Role" Value="SubmenuHeader">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="MenuItem">
+                            <Border
+                                x:Name="Border"
+                                Margin="2"
+                                Background="Transparent"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Icon" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut" />
+                                        <ColumnDefinition Width="16" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ContentPresenter
+                                        Margin="8,0"
+                                        VerticalAlignment="Center"
+                                        ContentSource="Icon" />
+                                    <ContentPresenter
+                                        Grid.Column="1"
+                                        Margin="{TemplateBinding Padding}"
+                                        VerticalAlignment="Center"
+                                        ContentSource="Header" />
+                                    <ContentPresenter
+                                        Grid.Column="2"
+                                        Margin="16,0,8,0"
+                                        VerticalAlignment="Center"
+                                        ContentSource="InputGestureText"
+                                        TextElement.Foreground="#888888" />
+                                    <Path
+                                        Grid.Column="3"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Data="M 0 0 L 4 4 L 0 8"
+                                        IsHitTestVisible="False"
+                                        Stroke="#888888"
+                                        StrokeThickness="1.5" />
+
+                                    <Popup
+                                        AllowsTransparency="True"
+                                        Focusable="False"
+                                        IsOpen="{TemplateBinding IsSubmenuOpen}"
+                                        Placement="Right"
+                                        PopupAnimation="Fade">
+                                        <Border
+                                            Margin="8"
+                                            Background="#FAFAFA"
+                                            BorderBrush="#E5E5E5"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                            <Border.Effect>
+                                                <DropShadowEffect
+                                                    BlurRadius="16"
+                                                    Direction="270"
+                                                    Opacity="0.15"
+                                                    ShadowDepth="4"
+                                                    Color="Black" />
+                                            </Border.Effect>
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsPresenter Margin="4" />
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                                </Trigger>
+                                <Trigger Property="IsSubmenuOpen" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Foreground" Value="#A0A0A0" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="Expander">

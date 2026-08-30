@@ -21,6 +21,16 @@ namespace Core.Interfaces
     }
 
     /// <summary>
+    /// 框架内部使用：允许插件基类对未命名端口自动填充名称（属性名）
+    /// 端口声明时可不写名称：new InputPort&lt;HImage&gt;()，基类收集端口时自动以属性名命名
+    /// 仅同程序集可见，插件代码无需关心
+    /// </summary>
+    internal interface IPortNameSettable
+    {
+        string Name { get; set; }
+    }
+
+    /// <summary>
     /// 输出端口接口，数据生产者的抽象
     /// 负责向外发送数据，值变化时通知所有订阅者
     /// </summary>

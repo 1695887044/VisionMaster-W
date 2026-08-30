@@ -13,7 +13,7 @@ namespace Core.Interfaces
     /// 自动处理上游值的类型转换和变更通知
     /// </summary>
     /// <typeparam name="T">端口承载的数据类型</typeparam>
-    public class InputPort<T> : ObservableObject, IInputPort
+    public class InputPort<T> : ObservableObject, IInputPort, IPortNameSettable
     {
         /// <summary>
         /// 缓存的上游链接源的值
@@ -44,8 +44,15 @@ namespace Core.Interfaces
 
         /// <summary>
         /// 端口唯一名称
+        /// 声明端口时可以不填（new InputPort&lt;T&gt;()），基类收集端口时自动以属性名填充
         /// </summary>
-        public string Name { get; }
+        public string Name { get; internal set; }
+
+        string IPortNameSettable.Name
+        {
+            get => Name;
+            set => Name = value;
+        }
 
         /// <summary>
         /// 端口承载的数据类型
@@ -149,12 +156,12 @@ namespace Core.Interfaces
         /// <summary>
         /// 构造函数
         /// </summary>
-        /// <param name="name">端口唯一名称</param>
+        /// <param name="name">端口唯一名称（可选：不填时基类收集端口自动以属性名命名）</param>
         /// <param name="defaultValue">手动值的初始默认值</param>
         /// <param name="description">端口描述信息</param>
-        public InputPort(string name, T defaultValue = default, string description = "")
+        public InputPort(string name = null, T defaultValue = default, string description = "")
         {
-            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Name = name;
             _manualValue = defaultValue;
             Description = description;
         }

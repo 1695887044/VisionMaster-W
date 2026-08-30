@@ -157,10 +157,10 @@ namespace Core.Halcon.Base
             {
                 return;
             }
-            HWindow.ClearWindow();
-            HWindow.DispObj(hObject);
+            HWindow?.ClearWindow();
+            HWindow?.DispObj(hObject);
 
-            HWindow.SetPart(0, 0, -2, -2);
+            HWindow?.SetPart(0, 0, -2, -2);
         }
         protected void ShowImageInfo(bool Mode)
         {

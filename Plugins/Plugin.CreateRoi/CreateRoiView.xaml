@@ -8,9 +8,8 @@
     xmlns:local="clr-namespace:Plugin.CreateRoi"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:system="clr-namespace:System;assembly=mscorlib"
-    xmlns:ui="http://schemas.UI.com/ui"
-    Width="900"
-    Height="500">
+    xmlns:ui="http://schemas.UI.com/ui">
+    <!--  不写死 Width/Height：自适应填满外壳注入区，窗口缩放时跟随拉伸  -->
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -94,7 +93,7 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <!--<h:ImageEdit HImage="{Binding TextImg, Mode=TwoWay}"   />-->
+                <h:ImageEdit HImage="{Binding PreviewImage}"   />
             </Grid>
         </Border>
     </Grid>

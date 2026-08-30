@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using VisionMaster.Models;
 using VisionMaster.Services;
 
 namespace VisionMaster.ViewModels.DialogViewModels
@@ -22,6 +23,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private IStepConfigData _stepData;
         private IPluginConfigView _pluginView;
         private IVisionPlugin _plugin;
+        private FlowSession _trialSession; // 试运行会话（含编译实例及输出数据），窗口关闭或下次试运行时释放
         private readonly IWorkspaceManager _workspace;
         private readonly ILogService _logger;
         private readonly FlowCompiler _flowCompiler;
@@ -44,6 +46,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public void OnDialogClosed()
         {
+            // 释放试运行会话：整套编译实例及其输出数据（HImage 等）随窗口关闭一起回收，
+            // 兼顾"数据留存调试"与"非托管资源防泄漏"
+            _trialSession?.Dispose();
+            _trialSession = null;
+
             // 配置窗口关闭（确认/取消/叉掉均走此回调）：释放配置实例持有的非托管资源（如 HImage 预览图）
             // 配置实例由 ProcessViewModel.ResolvePluginInstance 每次 new（Activator.CreateInstance），
             // 与流程运行实例完全隔离，Dispose 不影响流程执行
@@ -143,6 +150,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         #endregion
         private void ExecutePlugin()
         {
+            if (_plugin == null)
+            {
+                StatusText = "状态: 插件实例未注入";
+                return;
+            }
+
             if (_stepData == null)
             {
                 StatusText = "状态: 步骤数据未注入";
@@ -157,8 +170,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 先把界面上未确认的修改同步进流程（触发版本号递增），保证"所见即所试"
                 _pluginView?.OnConfirm(_stepData);
 
-                // 试运行基建：与正式运行同一套链路（编译 → 定位目标节点 → 正式 ExecutionContext 执行）
-                var result = PluginTestRunner.Run(_stepData, _workspace, _logger, _flowCompiler);
+                // 释放上一次试运行的会话（旧数据随本次试运行被替换，防非托管资源堆积）
+                _trialSession?.Dispose();
+                _trialSession = null;
+
+                // 试运行基建：上游链在编译实例上供数，目标插件在配置实例上执行（所见即所得，
+                // RunAlgorithm 赋值的属性/输出直接落在界面绑定的实例上），数据留存供调试查看
+                var result = PluginTestRunner.Run(_plugin, _stepData, _workspace, _logger, _flowCompiler, out _trialSession);
 
                 ElapsedText = $"耗时: {result.ElapsedMs} ms";
                 StatusText = result.Success

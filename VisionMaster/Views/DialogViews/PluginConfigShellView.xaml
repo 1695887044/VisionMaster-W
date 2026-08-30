@@ -8,16 +8,18 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
-    Width="880"
-    Height="600"
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
 
+    <!--  窗口：固定初始尺寸 + 允许调整大小（不用 SizeToContent，否则手动放大后内容不会重新布局填满）  -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
-            <Setter Property="SizeToContent" Value="WidthAndHeight" />
+            <Setter Property="Width" Value="880" />
+            <Setter Property="Height" Value="600" />
+            <Setter Property="MinWidth" Value="640" />
+            <Setter Property="MinHeight" Value="420" />
         </Style>
     </prism:Dialog.WindowStyle>
 

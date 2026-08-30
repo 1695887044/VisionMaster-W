@@ -403,11 +403,7 @@ namespace Plugin.ImageAcquisition
                     // 发布到主程序视图（A1：事件传原图引用，UI 侧复制副本显示；0=不显示）
                     if (DisplayViewIndex > 0)
                     {
-                        GlobalEventBus.PublishOnUIThread(new ImageDisplayEvent<HImage>
-                        {
-                            ViewIndex = DisplayViewIndex+1,
-                            Image = result.Image
-                        });
+                        this.PublishPreview(result.Image, DisplayViewIndex + 1);
                     }
                 }
                 else
