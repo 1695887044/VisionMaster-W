@@ -63,7 +63,18 @@
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
                                     BorderThickness="0,0,0,1"
-                                    ToolTip="采集图像显示到主界面几号视图窗口；0 = 不显示" />
+                                    SelectedIndex="{Binding DisplayViewIndex}"
+                                    ToolTip="采集图像显示到主界面几号视图窗口；0 = 不显示" >
+                                    <ComboBoxItem>图像窗口1</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口2</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口3</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口4</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口5</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口6</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口7</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口8</ComboBoxItem>
+                                    <ComboBoxItem>图像窗口9</ComboBoxItem>
+                                </ComboBox>
                             </StackPanel>
                         </StackPanel>
                     </GroupBox>
@@ -83,7 +94,7 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <h:ImageEdit HImage="{Binding PreviewImage}" />
+                <!--<h:ImageEdit HImage="{Binding TextImg, Mode=TwoWay}"   />-->
             </Grid>
         </Border>
     </Grid>

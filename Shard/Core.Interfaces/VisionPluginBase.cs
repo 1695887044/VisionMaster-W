@@ -171,15 +171,15 @@ namespace Core.Interfaces
             {
                 if (stepData.IsLinked(input.Name))
                 {
-                    stepData.InputValues.Remove(input.Name);
+                    stepData.RemoveInputValue(input.Name);
                     continue;
                 }
-                stepData.InputValues[input.Name] = input.Value;
+                stepData.SetInputValue(input.Name, input.Value);
             }
-            //需要保存的记忆属性
+
             foreach (var cp in _configProps)
             {
-                stepData.InputValues[cp.Name] = cp.Get();
+                stepData.SetInputValue(cp.Name, cp.Get());
             }
         }
 

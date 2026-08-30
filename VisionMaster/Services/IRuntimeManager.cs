@@ -86,6 +86,8 @@ namespace VisionMaster.Services
 
         /// <summary>
         /// 注销会话
+        /// 注销前释放旧会话编译创建的插件实例（HImage 等非托管资源），防止重编译泄漏
+        /// 运行中的会话跳过释放（执行线程仍在使用插件实例）
         /// </summary>
         public void UnregisterSession(string sessionId)
         {
@@ -95,6 +97,9 @@ namespace VisionMaster.Services
                 if (session != null)
                 {
                     ActiveSessions.Remove(session);
+
+                    if (!session.IsRunning)
+                        session.Dispose();
                 }
             }
         }
@@ -113,11 +118,17 @@ namespace VisionMaster.Services
 
         /// <summary>
         /// 清空所有会话
+        /// 清空前释放每个会话持有的插件实例（运行中的会话跳过释放）
         /// </summary>
         public void ClearAll()
         {
             lock (_lock)
             {
+                foreach (var session in ActiveSessions)
+                {
+                    if (!session.IsRunning)
+                        session.Dispose();
+                }
                 ActiveSessions.Clear();
             }
         }

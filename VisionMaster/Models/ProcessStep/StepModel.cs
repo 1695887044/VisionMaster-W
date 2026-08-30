@@ -111,6 +111,32 @@ namespace VisionMaster.Models
 
         public Dictionary<string, LinkReference> LinkedSources { get; set; } = new();
 
+        // 统一写路径：所有对 InputValues 的写操作必须走这里，
+        // 通过 PropertyChanged 通知 FlowModel.OnStepPropertyChanged 递增流程版本，
+        // 从而让运行前的版本检查触发重新编译（否则改参数不会同步到已编译的运行实例）
+
+        /// <summary>
+        /// 写入输入参数（确认配置/落盘专用），并触发版本通知
+        /// </summary>
+        public void SetInputValue(string key, object value)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            InputValues[key] = value;
+            RaisePropertyChanged(nameof(InputValues));
+        }
+
+        /// <summary>
+        /// 移除输入参数（清除链接端口的固定值等），并触发版本通知
+        /// </summary>
+        public void RemoveInputValue(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            if (InputValues.Remove(key))
+            {
+                RaisePropertyChanged(nameof(InputValues));
+            }
+        }
+
         // IStepConfigData 绑定 API：供插件自定义配置视图读写变量链接
         public bool IsLinked(string inputPortName)
             => !string.IsNullOrEmpty(inputPortName) && LinkedSources.ContainsKey(inputPortName);
@@ -130,12 +156,18 @@ namespace VisionMaster.Models
             if (string.IsNullOrEmpty(inputPortName) || link == null)
                 return;
             LinkedSources[inputPortName] = link;
+            RaisePropertyChanged(nameof(LinkedSources));
         }
 
         public void RemoveLink(string inputPortName)
         {
             if (!string.IsNullOrEmpty(inputPortName))
-                LinkedSources.Remove(inputPortName);
+            {
+                if (LinkedSources.Remove(inputPortName))
+                {
+                    RaisePropertyChanged(nameof(LinkedSources));
+                }
+            }
         }
 
         public StepModel(string icon,string pluginName, string pluginTypeName, string stepName =null)

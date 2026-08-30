@@ -42,7 +42,7 @@ namespace Plugin.ImageAcquisition
             set => SetProperty(ref _mode, value);
         }
 
-        private int _displayViewIndex = 1;
+        private int _displayViewIndex = 0;
         /// <summary>
         /// 显示窗口索引：采集图像发布到主界面几号视图窗口（1~9），0=不显示
         /// </summary>
@@ -215,6 +215,7 @@ namespace Plugin.ImageAcquisition
         /// </summary>
         public object GetConfigView(IStepConfigData stepData)
         {
+           
             return new ImageAcquisitionView(stepData, this);
         }
 
@@ -404,7 +405,7 @@ namespace Plugin.ImageAcquisition
                     {
                         GlobalEventBus.PublishOnUIThread(new ImageDisplayEvent<HImage>
                         {
-                            ViewIndex = DisplayViewIndex,
+                            ViewIndex = DisplayViewIndex+1,
                             Image = result.Image
                         });
                     }

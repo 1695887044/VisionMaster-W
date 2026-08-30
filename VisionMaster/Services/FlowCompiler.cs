@@ -93,17 +93,18 @@ namespace VisionMaster.Services
 
             var pluginLookup = new Dictionary<Guid, IVisionPlugin>();
             var nodeLookup = new Dictionary<Guid, CompiledNode>();
+            var dependencyMap = new Dictionary<Guid, List<Guid>>();
 
             try
             {
                 var rootNodes = CompileSteps(blueprints, flowName, pluginLookup, nodeLookup, result.Errors);
 
-                LinkPorts(blueprints, nodeLookup, pluginLookup, result.Errors);
+                LinkPorts(blueprints, nodeLookup, pluginLookup, dependencyMap, result.Errors);
 
                 result.Success = result.Errors.Count == 0;
                 if (result.Success)
                 {
-                    result.Data = new CompiledFlow(rootNodes, pluginLookup);
+                    result.Data = new CompiledFlow(rootNodes, pluginLookup, nodeLookup, dependencyMap);
                 }
             }
             catch (Exception ex)
@@ -427,6 +428,7 @@ namespace VisionMaster.Services
             IEnumerable<StepModel> models,
             Dictionary<Guid, CompiledNode> nodeLookup,
             Dictionary<Guid, IVisionPlugin> pluginLookup, // 只有真正的算子才能作为【数据源】提供输出
+            Dictionary<Guid, List<Guid>> dependencyMap,   // 节点依赖表：接线成功时记录 下游 -> 上游
             List<string> errors
         )
         {
@@ -516,6 +518,9 @@ namespace VisionMaster.Services
                         // 🌟 上游一定是一个真正的 Plugin，所以去 pluginLookup 找输出端口
                         if (pluginLookup.TryGetValue(linkRef.TargetStepId, out var upPlugin))
                         {
+                            // 记录执行依赖：下游节点依赖上游节点（供试运行先执行上游链）
+                            AddDependency(dependencyMap, model.StepID, linkRef.TargetStepId);
+
                             actualUpstreamName = upPlugin.InstanceName;
                             var match = Regex.Match(
                                 linkRef.TargetPortName,
@@ -555,6 +560,8 @@ namespace VisionMaster.Services
                             )
                             {
                                 sourcePort = forNode.IndexPort;
+                                // 记录执行依赖：下游依赖 For 节点的 Index 输出（供试运行先执行 For）
+                                AddDependency(dependencyMap, model.StepID, linkRef.TargetStepId);
                                 actualUpstreamName = "ForLoop"; // 或者从图纸查名字
                             }
                         }
@@ -624,16 +631,28 @@ namespace VisionMaster.Services
                 {
                     foreach (var branch in conditionModel.Children)
                         if (branch.Steps != null)
-                            LinkPorts(branch.Steps, nodeLookup, pluginLookup, errors);
+                            LinkPorts(branch.Steps, nodeLookup, pluginLookup, dependencyMap, errors);
                 }
                 // 🌟🌟 补全：For 容器的递归遍历
                 else if (model is ForStep forModel && forModel.Children != null)
                 {
                     foreach (var branch in forModel.Children)
                         if (branch.Steps != null)
-                            LinkPorts(branch.Steps, nodeLookup, pluginLookup, errors);
+                            LinkPorts(branch.Steps, nodeLookup, pluginLookup, dependencyMap, errors);
                 }
             }
+        }
+
+        /// <summary>
+        /// 记录节点执行依赖（下游 -> 上游），供试运行按依赖顺序先执行上游链
+        /// </summary>
+        private static void AddDependency(Dictionary<Guid, List<Guid>> dependencyMap, Guid downstream, Guid upstream)
+        {
+            if (!dependencyMap.TryGetValue(downstream, out var deps))
+                dependencyMap[downstream] = deps = new List<Guid>();
+
+            if (!deps.Contains(upstream))
+                deps.Add(upstream);
         }
     }
 }

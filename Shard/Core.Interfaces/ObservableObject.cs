@@ -23,7 +23,7 @@ namespace Core.Interfaces
         }
 
         /// <summary>
-        /// 完美复刻 Prism 的 SetProperty 方法
+        /// 复刻 Prism 的 SetProperty 方法
         /// </summary>
         /// <typeparam name="T">属性类型</typeparam>
         /// <param name="storage">后台字段引用</param>

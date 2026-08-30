@@ -2,124 +2,127 @@ using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
+using System.Threading;
+using VisionMaster.Models;
 
 namespace VisionMaster.Services
 {
     /// <summary>
     /// 插件试运行基建（通用，所有插件免费获得）
-    /// 流程：解析链接 → 灌端口 → 执行插件唯一的 RunAlgorithm → 收集结果
-    /// 与正式运行走同一个 Execute 方法，保证"试运行通过 = 正式运行行为一致"
-    ///
-    /// 链接解析能力（与 FlowCompiler 相同的分类规则）：
-    /// - 常量链接：直接灌入端口
-    /// - 全局变量链接：从 GlobalVariables 查找并挂 LinkedSource（取当前值）
-    /// - 上游输出/运行时变量链接：试运行无法解析，聚合报错（流程未运行，数据不存在）
+    /// 与正式运行走同一套链路：FlowCompiler 编译 → CompiledNode.RunAndGetNext → 正式 ExecutionContext
+    /// 执行范围：目标节点 + 其全部上游依赖链（按编译期记录的 DependencyMap 深度优先后序执行，先上游后目标），
+    /// 与目标无关的分支不执行。因此上游输出端口能取到本次试运行产生的真实数据；
+    /// 运行时变量链接由节点执行前的 BindContext 注入上下文，行为与正式运行一致。
     /// </summary>
     public static class PluginTestRunner
     {
         public static PluginExecuteResult Run(
-            IVisionPlugin plugin,
             IStepConfigData stepData,
             IWorkspaceManager workspace,
-            ILogService logger)
+            ILogService logger,
+            FlowCompiler compiler)
         {
             var sw = Stopwatch.StartNew();
 
-            if (plugin == null)
-                return PluginExecuteResult.Fail(0, "插件实例为空");
             if (stepData == null)
                 return PluginExecuteResult.Fail(0, "步骤配置数据为空");
+            if (workspace?.CurrentFlow == null)
+                return PluginExecuteResult.Fail(0, "当前没有打开的流程");
 
-            // 1. 解析链接端口（全局变量挂 LinkedSource 取当前值；上游输出/运行时变量试运行无法解析）
-            var linkErrors = new List<string>();
-            foreach (var port in plugin.Inputs.Values.OfType<IInputPort>())
-            {
-                var key = port.Name;
+            var flow = workspace.CurrentFlow;
 
-                if (!stepData.IsLinked(key)) continue;
+            // 1. 与正式运行相同：编译整个流程（所有链接类型按正式规则解析接线）
+            var result = compiler.Compile(flow.Steps, flow.FlowName);
+            if (!result.Success)
+                return PluginExecuteResult.Fail(
+                    sw.ElapsedMilliseconds,
+                    "编译失败:\n" + string.Join("\n", result.Errors));
 
-                var link = stepData.GetLink(key);
-                if (link == null)
-                {
-                    linkErrors.Add($"[{key}] 链接数据缺失");
-                    continue;
-                }
+            var compiledFlow = result.Data;
 
-                if (link.TargetStepId == FlowCompiler.RuntimeVariableMarkerGuid)
-                {
-                    linkErrors.Add($"[{key}] 链接了运行时变量 ({link.DisplayAddress})，试运行无法解析，请正式运行验证");
-                }
-                else if (link.TargetStepId == Guid.Empty)
-                {
-                    if (!string.IsNullOrEmpty(link.DisplayAddress) && link.DisplayAddress.StartsWith("常量值: "))
-                    {
-                        // 常量链接：TargetPortName 即常量字符串，端口 Value setter 负责类型转换
-                        port.LinkedSource = null;
-                        port.Value = link.TargetPortName;
-                    }
-                    else
-                    {
-                        // 全局变量链接：按名查找并挂 LinkedSource（取当前值）
-                        var global = workspace?.GlobalVariables?.FirstOrDefault(v => v.Name == link.TargetPortName);
-                        if (global != null)
-                        {
-                            port.LinkedSource = global;
-                        }
-                        else
-                        {
-                            linkErrors.Add($"[{key}] 找不到全局变量: {link.TargetPortName}");
-                        }
-                    }
-                }
-                else
-                {
-                    linkErrors.Add($"[{key}] 链接了上游输出 ({link.DisplayAddress})，试运行无法解析，请正式运行验证");
-                }
-            }
+            // 2. 定位目标节点
+            if (!compiledFlow.NodeLookup.TryGetValue(stepData.StepId, out var targetNode))
+                return PluginExecuteResult.Fail(sw.ElapsedMilliseconds, "目标步骤不存在或已被禁用");
 
-            if (linkErrors.Count > 0)
-                return PluginExecuteResult.Fail(sw.ElapsedMilliseconds, string.Join("\n", linkErrors));
+            // 3. 临时会话：仅用于节点状态回报（流程图上显示 运行中/成功/失败），不注册到 RuntimeManager
+            var session = new FlowSession { FlowName = flow.FlowName };
+            foreach (var step in flow.Steps)
+                session.Blueprints.Add(step);
 
-            // 2. 灌入非链接的固定值（输入端口 + [StepConfig] 配置属性；链接端口跳过，保留上面挂的 LinkedSource）
-            if (plugin is VisionPluginBase pluginBase)
-                pluginBase.ApplyConfigValues(stepData);
-            else
-            {
-                foreach (var port in plugin.Inputs.Values.OfType<IInputPort>())
-                {
-                    if (stepData.IsLinked(port.Name)) continue;
-                    if (stepData.InputValues.TryGetValue(port.Name, out var value))
-                    {
-                        port.LinkedSource = null;
-                        port.Value = value;
-                    }
-                }
-            }
+            // 4. 正式执行上下文（与正式运行一致）
+            var context = new ExecutionContext(logger, session, workspace, CancellationToken.None);
 
-            // 3. 执行（与正式运行完全相同的入口）
+            PluginExecuteResult finalResult;
             try
             {
-                plugin.Execute(new TestExecutionContext(logger));
+                // 5. 按依赖顺序执行：先递归执行上游链，最后执行目标节点
+                var executed = new HashSet<Guid>();
+                ExecuteChain(stepData.StepId, compiledFlow, context, executed);
+
+                // 6. 收集结果：按约定读取编译实例的 Success / ErrorMessage 输出端口
+                // （必须在 Dispose 之前读取，释放后端口值可能已失效）
+                var success = true;
+                var info = string.Empty;
+
+                if (compiledFlow.PluginLookup.TryGetValue(stepData.StepId, out var plugin))
+                {
+                    if (plugin.Outputs.TryGetValue("Success", out var successPort))
+                        success = successPort.Value is bool b && b;
+
+                    if (plugin.Outputs.TryGetValue("ErrorMessage", out var errorPort))
+                        info = errorPort.Value?.ToString() ?? string.Empty;
+                }
+
+                finalResult = success
+                    ? PluginExecuteResult.Ok(sw.ElapsedMilliseconds, string.IsNullOrEmpty(info) ? "执行完成" : info)
+                    : PluginExecuteResult.Fail(sw.ElapsedMilliseconds, string.IsNullOrEmpty(info) ? "执行失败" : info);
             }
             catch (Exception ex)
             {
                 return PluginExecuteResult.Fail(sw.ElapsedMilliseconds, $"执行异常: {ex.Message}");
             }
+            finally
+            {
+                // 7. 释放本次编译创建的全部插件实例（含未执行的），防止 HImage 等非托管资源泄漏
+                session.Dispose();
+            }
 
-            // 4. 收集结果：按约定读取 Success / ErrorMessage 输出端口（VisionPluginBase 基类自带）
-            var success = true;
-            var info = string.Empty;
+            return finalResult;
+        }
 
-            if (plugin.Outputs.TryGetValue("Success", out var successPort))
-                success = successPort.Value is bool b && b;
+        /// <summary>
+        /// 深度优先后序执行：先递归执行当前节点的所有上游依赖，再执行当前节点本身
+        /// executed 集合防止多输入汇聚同一上游时重复执行，同时防御循环依赖
+        /// </summary>
+        private static void ExecuteChain(
+            Guid nodeId,
+            CompiledFlow flow,
+            IExecutionContext context,
+            HashSet<Guid> executed)
+        {
+            if (!executed.Add(nodeId))
+                return;
 
-            if (plugin.Outputs.TryGetValue("ErrorMessage", out var errorPort))
-                info = errorPort.Value?.ToString() ?? string.Empty;
+            // 先执行上游（递归，天然形成拓扑顺序）
+            if (flow.DependencyMap.TryGetValue(nodeId, out var upstreams))
+            {
+                foreach (var upstreamId in upstreams)
+                    ExecuteChain(upstreamId, flow, context, executed);
+            }
 
-            return success
-                ? PluginExecuteResult.Ok(sw.ElapsedMilliseconds, string.IsNullOrEmpty(info) ? "执行完成" : info)
-                : PluginExecuteResult.Fail(sw.ElapsedMilliseconds, string.IsNullOrEmpty(info) ? "执行失败" : info);
+            // 再执行当前节点
+            if (!flow.NodeLookup.TryGetValue(nodeId, out var node))
+                return; // 上游节点不存在（如被禁用）：编译期已容忍，跳过
+
+            try
+            {
+                node.RunAndGetNext(context);
+            }
+            catch (Exception ex)
+            {
+                // 带上步骤名抛出，让用户知道是链上哪一步失败
+                throw new Exception($"执行步骤 [{node.Name}] 失败: {ex.Message}", ex);
+            }
         }
     }
 }

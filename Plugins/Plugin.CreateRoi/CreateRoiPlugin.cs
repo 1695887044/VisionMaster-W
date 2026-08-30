@@ -1,7 +1,9 @@
 ﻿using Core.Events;
+using Core.Halcon.Extensions;
 using Core.Interfaces;
 using Core.Interfaces.Result;
 using HalconDotNet;
+using Microsoft.Win32;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -18,12 +20,24 @@ namespace Plugin.CreateRoi
 )]
     public class CreateRoiPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
-        #region //输入参数
+        #region 配置参数
+        private int _displayViewIndex = 1;
+        /// <summary>
+        /// 显示窗口索引：采集图像发布到主界面几号视图窗口（1~9），0=不显示
+        /// </summary>
+        [StepConfig]
+        public int DisplayViewIndex
+        {
+            get => _displayViewIndex;
+            set => SetProperty(ref _displayViewIndex, value);
+        }
+        #endregion
+        #region 输入参数
         public InputPort<HImage> SrcImage { get; } = new InputPort<HImage>("输入图像");
         #endregion
 
         #region 视图参数
-        private HImage _previewImage = new();
+        private HImage _previewImage;
         /// <summary>
         /// 预览图像
         /// </summary>
@@ -40,6 +54,7 @@ namespace Plugin.CreateRoi
 
         public object GetConfigView(IStepConfigData stepData)
         {
+            Initialize(stepData);
             return new CreateRoiView() { DataContext = this };
         }
 
@@ -53,7 +68,7 @@ namespace Plugin.CreateRoi
             PreviewImage = SrcImage.ActualValue;
             GlobalEventBus.PublishOnUIThread(new ImageDisplayEvent<HImage>
             {
-                ViewIndex = 2,
+                ViewIndex = DisplayViewIndex + 1,
                 Image = PreviewImage
             });
         }

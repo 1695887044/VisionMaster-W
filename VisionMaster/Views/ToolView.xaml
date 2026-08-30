@@ -22,7 +22,10 @@
                     BorderBrush="#C9D2DC"
                     BorderThickness="1"
                     CornerRadius="4">
-                    <StackPanel Margin="10,0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel
+                        Margin="10,0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
                         <TextBlock
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource Icon}"
@@ -78,7 +81,10 @@
                                         FontSize="12"
                                         Foreground="#9AA5B1"
                                         Text="&#xf002;" />
-                                    <TextBlock FontSize="12" Foreground="#9AA5B1" Text="搜索工具箱" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Foreground="#9AA5B1"
+                                        Text="搜索工具箱" />
                                 </StackPanel>
                             </VisualBrush.Visual>
                         </VisualBrush>
@@ -105,9 +111,7 @@
 
         <!--  插件分组区（Win11 卡片式：组=独立卡片，行=独立圆角行）  -->
         <Grid Grid.Row="1">
-            <ScrollViewer
-                HorizontalScrollBarVisibility="Disabled"
-                VerticalScrollBarVisibility="Auto">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
 
                 <ItemsControl Margin="8,4,8,8" ItemsSource="{Binding FilteredToolBarSource}">
                     <ItemsControl.ItemTemplate>
@@ -158,9 +162,9 @@
                                                     Height="30"
                                                     Margin="2,3"
                                                     Padding="10,0"
+                                                    Background="Transparent"
                                                     BorderBrush="Gray"
                                                     BorderThickness="0.1"
-                                                    Background="Transparent"
                                                     CornerRadius="4"
                                                     ToolTip="{Binding Description}">
                                                     <Border.Style>

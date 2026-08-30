@@ -15,7 +15,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
     /// 顶部：插件图标+名称
     /// 中间：注入插件自定义视图（实现 IPluginConfigView）
     /// 底部：状态/耗时/执行/确认/取消
-    /// 试运行由 PluginTestRunner 基建统一执行（与正式运行共用插件的 RunAlgorithm）
+    /// 试运行由 PluginTestRunner 基建统一执行（与正式运行同一套编译与执行链路，仅执行目标节点）
     /// </summary>
     public class PluginConfigShellViewModel : BindableBase, IDialogAware
     {
@@ -24,11 +24,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private IVisionPlugin _plugin;
         private readonly IWorkspaceManager _workspace;
         private readonly ILogService _logger;
+        private readonly FlowCompiler _flowCompiler;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler)
         {
             _workspace = workspace;
             _logger = logger;
+            _flowCompiler = flowCompiler;
             ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(Cancel);
@@ -139,17 +141,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public ICommand CancelCommand { get; private set; }
 
         #endregion
-        public PluginConfigShellViewModel()
-        {
-            ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
-            ConfirmCommand = new DelegateCommand(Confirm);
-            CancelCommand = new DelegateCommand(Cancel);
-        }
         private void ExecutePlugin()
         {
-            if (_plugin == null)
+            if (_stepData == null)
             {
-                StatusText = "状态: 插件实例未注入";
+                StatusText = "状态: 步骤数据未注入";
                 return;
             }
 
@@ -158,8 +154,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             try
             {
-                // 试运行基建：解析链接 → 灌端口 → 执行插件唯一的 RunAlgorithm
-                var result = PluginTestRunner.Run(_plugin, _stepData, _workspace, _logger);
+                // 先把界面上未确认的修改同步进流程（触发版本号递增），保证"所见即所试"
+                _pluginView?.OnConfirm(_stepData);
+
+                // 试运行基建：与正式运行同一套链路（编译 → 定位目标节点 → 正式 ExecutionContext 执行）
+                var result = PluginTestRunner.Run(_stepData, _workspace, _logger, _flowCompiler);
 
                 ElapsedText = $"耗时: {result.ElapsedMs} ms";
                 StatusText = result.Success

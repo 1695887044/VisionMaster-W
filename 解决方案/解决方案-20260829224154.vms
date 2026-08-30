@@ -1,14 +1,14 @@
 {
-  "SolutionName": "\u89E3\u51B3\u65B9\u6848-20260829224154",
+  "SolutionName": "\u89E3\u51B3\u65B9\u6848-20260830221247",
   "Version": 1,
   "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\\u89E3\u51B3\u65B9\u6848\\\u89E3\u51B3\u65B9\u6848-20260829224154.vms",
   "Config": {
-    "DockLayoutXml": "\u003C?xml version=\u00221.0\u0022 encoding=\u0022utf-16\u0022?\u003E\r\n\u003CLayoutRoot\u003E\r\n  \u003CRootPanel Orientation=\u0022Horizontal\u0022\u003E\r\n    \u003CLayoutAnchorablePane DockWidth=\u0022260\u0022\u003E\r\n      \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u7A0B\u5E8F\u0022 ContentId=\u0022Panel_FlowListView\u0022 LastActivationTimeStamp=\u002208/29/2026 23:31:02\u0022 /\u003E\r\n      \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6D41\u7A0B\u680F\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_ProcessView\u0022 LastActivationTimeStamp=\u002208/29/2026 23:31:09\u0022 /\u003E\r\n    \u003C/LayoutAnchorablePane\u003E\r\n    \u003CLayoutPanel Orientation=\u0022Vertical\u0022\u003E\r\n      \u003CLayoutDocumentPane\u003E\r\n        \u003CLayoutDocument Title=\u0022\u89C6\u89C9\u56FE\u50CF\u0022 IsSelected=\u0022True\u0022 IsLastFocusedDocument=\u0022True\u0022 ContentId=\u0022Panel_ImageView\u0022 CanClose=\u0022False\u0022 LastActivationTimeStamp=\u002208/29/2026 23:31:00\u0022 /\u003E\r\n      \u003C/LayoutDocumentPane\u003E\r\n      \u003CLayoutAnchorablePaneGroup Orientation=\u0022Horizontal\u0022 DockHeight=\u0022200\u0022\u003E\r\n        \u003CLayoutAnchorablePane DockWidth=\u00228*\u0022 DockHeight=\u0022200\u0022\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u65E5\u5FD7\u4FE1\u606F\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_LogView\u0022 /\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6570\u636E\u680F\u0022 ContentId=\u0022Panel_DataView\u0022 /\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6A21\u5757\u8F93\u51FA\u0022 ContentId=\u0022Panel_ModuleOutView\u0022 /\u003E\r\n        \u003C/LayoutAnchorablePane\u003E\r\n        \u003CLayoutAnchorablePane DockWidth=\u00222*\u0022\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u8BBE\u5907\u72B6\u6001\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_DeviceStateView\u0022 /\u003E\r\n        \u003C/LayoutAnchorablePane\u003E\r\n      \u003C/LayoutAnchorablePaneGroup\u003E\r\n    \u003C/LayoutPanel\u003E\r\n    \u003CLayoutAnchorablePane Id=\u0022b0436921-552f-4c0e-9a17-3fdf9e6d8dbe\u0022 DockWidth=\u0022230\u0022 /\u003E\r\n  \u003C/RootPanel\u003E\r\n  \u003CTopSide /\u003E\r\n  \u003CRightSide\u003E\r\n    \u003CLayoutAnchorGroup PreviousContainerId=\u0022b0436921-552f-4c0e-9a17-3fdf9e6d8dbe\u0022\u003E\r\n      \u003CLayoutAnchorable AutoHideWidth=\u0022221.33333333333348\u0022 AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u5DE5\u5177\u7BB1\u0022 ContentId=\u0022Panel_ToolView\u0022 LastActivationTimeStamp=\u002208/29/2026 23:31:05\u0022 /\u003E\r\n    \u003C/LayoutAnchorGroup\u003E\r\n  \u003C/RightSide\u003E\r\n  \u003CLeftSide /\u003E\r\n  \u003CBottomSide /\u003E\r\n  \u003CFloatingWindows /\u003E\r\n  \u003CHidden /\u003E\r\n\u003C/LayoutRoot\u003E",
+    "DockLayoutXml": "\u003C?xml version=\u00221.0\u0022 encoding=\u0022utf-16\u0022?\u003E\r\n\u003CLayoutRoot\u003E\r\n  \u003CRootPanel Orientation=\u0022Horizontal\u0022\u003E\r\n    \u003CLayoutAnchorablePane DockWidth=\u0022260\u0022\u003E\r\n      \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u7A0B\u5E8F\u0022 ContentId=\u0022Panel_FlowListView\u0022 LastActivationTimeStamp=\u002208/30/2026 22:25:24\u0022 /\u003E\r\n      \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6D41\u7A0B\u680F\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_ProcessView\u0022 LastActivationTimeStamp=\u002208/30/2026 22:25:47\u0022 /\u003E\r\n    \u003C/LayoutAnchorablePane\u003E\r\n    \u003CLayoutPanel Orientation=\u0022Vertical\u0022\u003E\r\n      \u003CLayoutDocumentPane\u003E\r\n        \u003CLayoutDocument Title=\u0022\u89C6\u89C9\u56FE\u50CF\u0022 IsSelected=\u0022True\u0022 IsLastFocusedDocument=\u0022True\u0022 ContentId=\u0022Panel_ImageView\u0022 CanClose=\u0022False\u0022 LastActivationTimeStamp=\u002208/30/2026 22:25:23\u0022 /\u003E\r\n      \u003C/LayoutDocumentPane\u003E\r\n      \u003CLayoutAnchorablePaneGroup Orientation=\u0022Horizontal\u0022 DockHeight=\u0022200\u0022\u003E\r\n        \u003CLayoutAnchorablePane DockWidth=\u00228*\u0022 DockHeight=\u0022200\u0022\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u65E5\u5FD7\u4FE1\u606F\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_LogView\u0022 /\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6570\u636E\u680F\u0022 ContentId=\u0022Panel_DataView\u0022 /\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6A21\u5757\u8F93\u51FA\u0022 ContentId=\u0022Panel_ModuleOutView\u0022 /\u003E\r\n        \u003C/LayoutAnchorablePane\u003E\r\n        \u003CLayoutAnchorablePane DockWidth=\u00222*\u0022\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u8BBE\u5907\u72B6\u6001\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_DeviceStateView\u0022 /\u003E\r\n        \u003C/LayoutAnchorablePane\u003E\r\n      \u003C/LayoutAnchorablePaneGroup\u003E\r\n    \u003C/LayoutPanel\u003E\r\n    \u003CLayoutAnchorablePane Id=\u0022b0436921-552f-4c0e-9a17-3fdf9e6d8dbe\u0022 DockWidth=\u0022230\u0022 /\u003E\r\n  \u003C/RootPanel\u003E\r\n  \u003CTopSide /\u003E\r\n  \u003CRightSide\u003E\r\n    \u003CLayoutAnchorGroup PreviousContainerId=\u0022b0436921-552f-4c0e-9a17-3fdf9e6d8dbe\u0022\u003E\r\n      \u003CLayoutAnchorable AutoHideWidth=\u0022221.33333333333348\u0022 AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u5DE5\u5177\u7BB1\u0022 ContentId=\u0022Panel_ToolView\u0022 LastActivationTimeStamp=\u002208/30/2026 22:25:44\u0022 /\u003E\r\n    \u003C/LayoutAnchorGroup\u003E\r\n  \u003C/RightSide\u003E\r\n  \u003CLeftSide /\u003E\r\n  \u003CBottomSide /\u003E\r\n  \u003CFloatingWindows /\u003E\r\n  \u003CHidden /\u003E\r\n\u003C/LayoutRoot\u003E",
     "ImageViewMode": 2
   },
   "Flows": [
     {
-      "FlowID": "6387ad636ae04f0bb0e8f02091b98992",
+      "FlowID": "d5020dad06b54a41837b74b513020dc9",
       "FlowName": "GoHome",
       "Description": "\u56DE\u539F",
       "Version": 0,
@@ -22,10 +22,10 @@
       "Steps": []
     },
     {
-      "FlowID": "e8e2a18987bb41d08c403d94d3d18c32",
+      "FlowID": "02797a28407840209f71a539c6813358",
       "FlowName": "MainTask",
       "Description": "\u4E3B\u4EFB\u52A1",
-      "Version": 3,
+      "Version": 141,
       "IsEnabled": true,
       "InvokeType": 0,
       "TriggerVariable": null,
@@ -36,7 +36,7 @@
       "Steps": [
         {
           "$type": "ActionStep",
-          "StepID": "9ad5a527-bc84-498e-a0fd-107c62879b8a",
+          "StepID": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
           "Icon": "\uF1C5",
           "PluginName": "\u56FE\u50CF\u91C7\u96C6",
           "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -46,7 +46,7 @@
           "IsDisEnable": false,
           "State": 2,
           "InputValues": {
-            "FilePath": "D:\\Halcon\\HALCON-23.05-Progress\\examples\\images\\datacode\\gs1dotcode\\gs1dotcode_generated_02.png",
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\board\\board-09.png",
             "FolderPath": "",
             "FileIndex": 0,
             "CameraIndex": 0,
@@ -57,7 +57,7 @@
         },
         {
           "$type": "ActionStep",
-          "StepID": "ad8b458d-4c60-487c-8a03-7b48a7278e73",
+          "StepID": "07ecf1f0-69af-426a-8a57-065ef9e15b9e",
           "Icon": "\uF1C5",
           "PluginName": "ROI",
           "PluginTypeName": "Plugin.CreateRoi.CreateRoiPlugin, Plugin.CreateRoi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -66,12 +66,56 @@
           "SortId": 0,
           "IsDisEnable": false,
           "State": 2,
-          "InputValues": {},
+          "InputValues": {
+            "DisplayViewIndex": 0
+          },
           "LinkedSources": {
             "\u8F93\u5165\u56FE\u50CF": {
-              "TargetStepId": "9ad5a527-bc84-498e-a0fd-107c62879b8a",
+              "TargetStepId": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
               "TargetPortName": "Image",
               "DisplayAddress": "MainTask.\u56FE\u50CF\u91C7\u96C6_0.Image"
+            }
+          }
+        },
+        {
+          "$type": "ActionStep",
+          "StepID": "9d05041f-f146-46cf-ac09-606ff26ae1da",
+          "Icon": "\uF017",
+          "PluginName": "\u5EF6\u65F6",
+          "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "\u5EF6\u65F6_0",
+          "Description": "\u5EF6\u65F6",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 2,
+          "InputValues": {},
+          "LinkedSources": {
+            "Delay": {
+              "TargetStepId": "00000000-0000-0000-0000-000000000000",
+              "TargetPortName": "200",
+              "DisplayAddress": "\u5E38\u91CF\u503C: 200"
+            }
+          }
+        },
+        {
+          "$type": "ActionStep",
+          "StepID": "3ade1942-90ab-47f3-89b6-9c8d5a3a469e",
+          "Icon": "\uF1C5",
+          "PluginName": "ROI",
+          "PluginTypeName": "Plugin.CreateRoi.CreateRoiPlugin, Plugin.CreateRoi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "ROI_1",
+          "Description": "ROI",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "DisplayViewIndex": 2
+          },
+          "LinkedSources": {
+            "\u8F93\u5165\u56FE\u50CF": {
+              "TargetStepId": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
+              "TargetPortName": "Image",
+              "DisplayAddress": "\u56FE\u50CF\u91C7\u96C6_0.Image"
             }
           }
         }

@@ -22,12 +22,29 @@ namespace VisionMaster.Models
         public Dictionary<Guid, IVisionPlugin> PluginLookup { get; private set; }
 
         /// <summary>
+        /// 节点查找表（步骤ID -> 编译节点）
+        /// </summary>
+        public Dictionary<Guid, CompiledNode> NodeLookup { get; private set; }
+
+        /// <summary>
+        /// 节点依赖表（步骤ID -> 直接上游步骤ID列表）
+        /// 由 FlowCompiler.LinkPorts 在接线成功时记录，用于试运行时按依赖顺序先执行上游链
+        /// </summary>
+        public Dictionary<Guid, List<Guid>> DependencyMap { get; private set; }
+
+        /// <summary>
         /// 创建编译流程
         /// </summary>
-        public CompiledFlow(List<CompiledNode> rootNodes, Dictionary<Guid, IVisionPlugin> lookup)
+        public CompiledFlow(
+            List<CompiledNode> rootNodes,
+            Dictionary<Guid, IVisionPlugin> lookup,
+            Dictionary<Guid, CompiledNode> nodeLookup,
+            Dictionary<Guid, List<Guid>> dependencyMap)
         {
             RootNodes = rootNodes;
             PluginLookup = lookup;
+            NodeLookup = nodeLookup;
+            DependencyMap = dependencyMap;
         }
 
         /// <summary>

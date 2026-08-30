@@ -37,6 +37,19 @@ namespace Core.Interfaces
         Dictionary<string, object> InputValues { get; }
 
         /// <summary>
+        /// 写入输入参数（统一写路径，实现方需触发变更通知以保证流程版本递增 → 触发重编译）
+        /// </summary>
+        /// <param name="key">端口名或配置属性名</param>
+        /// <param name="value">值</param>
+        void SetInputValue(string key, object value);
+
+        /// <summary>
+        /// 移除输入参数（统一写路径，实现方需触发变更通知以保证流程版本递增）
+        /// </summary>
+        /// <param name="key">端口名或配置属性名</param>
+        void RemoveInputValue(string key);
+
+        /// <summary>
         /// 指定输入端口是否存在变量链接
         /// </summary>
         /// <param name="inputPortName">输入端口名（与插件 InputPort.Name 一致）</param>

@@ -21,8 +21,9 @@ namespace VisionMaster.Models
     /// <summary>
     /// 流程会话类
     /// 代表一个流程实例的运行时状态，支持线程安全的状态管理
+    /// 会话是编译实例的属主：Dispose 负责释放编译引擎创建的全部插件实例
     /// </summary>
-    public class FlowSession : BindableBase
+    public class FlowSession : BindableBase, IDisposable
     {
         /// <summary>
         /// 状态锁对象，保护线程安全
@@ -152,5 +153,38 @@ namespace VisionMaster.Models
         /// 取消令牌源，用于优雅终止流程
         /// </summary>
         public CancellationTokenSource CancellationTokenSource { get; set; }
+
+        private bool _disposed;
+
+        /// <summary>
+        /// 释放会话持有的资源：
+        /// 1. 编译引擎创建的全部插件实例（每次编译都会 Activator.CreateInstance 一整套新实例，
+        ///    其中持有 HImage 等非托管资源，必须显式释放，GC 无法回收）
+        /// 2. 取消令牌源与暂停锁等同步对象
+        /// 可安全重复调用
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (ExecutionEngine?.PluginLookup != null)
+            {
+                foreach (var plugin in ExecutionEngine.PluginLookup.Values)
+                {
+                    try
+                    {
+                        plugin?.Dispose();
+                    }
+                    catch
+                    {
+                        // 单个插件释放失败不阻断其余实例的释放
+                    }
+                }
+            }
+
+            CancellationTokenSource?.Dispose();
+            PauseLock.Dispose();
+        }
     }
 }

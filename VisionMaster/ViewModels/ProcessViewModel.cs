@@ -146,7 +146,7 @@ namespace VisionMaster.ViewModels
                         var pluginInstance = ResolvePluginInstance(stepModel);
                         if (pluginInstance is IPluginCustomViewProvider viewProvider)
                         {
-                            // 有自定义视图：插件直接返回视图对象，注入 PluginConfigShellView
+                            // 有自定义视图：插件直接返回视图对象，注入 PluginConfigShellView  
                             var stepData = (IStepConfigData)stepModel;
                             var view = viewProvider.GetConfigView(stepData);
                             if (view != null)

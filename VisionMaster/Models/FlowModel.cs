@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
@@ -170,36 +171,56 @@ namespace VisionMaster.Models
             set { SetProperty(ref field, value); }
         }
 
-        /// <summary>
-        /// 步骤列表
-        /// </summary>
-        public ObservableCollection<StepModel> Steps { get; set; } = new();
+        private ObservableCollection<StepModel> _steps = new();
 
         /// <summary>
-        /// 初始化流程模型
+        /// 步骤列表
+        /// 注意：System.Text.Json 反序列化时可能用新集合实例整体替换 Steps，
+        /// 因此订阅（CollectionChanged + 每个步骤的 PropertyChanged）必须在 setter 里重挂，
+        /// 否则步骤属性变更通知丢失 → 流程版本不递增 → 改参数后不触发自动重编译
+        /// </summary>
+        public ObservableCollection<StepModel> Steps
+        {
+            get => _steps;
+            set
+            {
+                var old = _steps;
+                if (old != null)
+                {
+                    old.CollectionChanged -= OnStepsCollectionChanged;
+                    foreach (var s in old) s.PropertyChanged -= OnStepPropertyChanged;
+                }
+
+                _steps = value ?? new ObservableCollection<StepModel>();
+
+                _steps.CollectionChanged += OnStepsCollectionChanged;
+                foreach (var s in _steps) s.PropertyChanged += OnStepPropertyChanged;
+            }
+        }
+
+        /// <summary>
+        /// 初始化流程模型（为初始空集合挂上订阅）
         /// </summary>
         [JsonConstructor]
         public FlowModel()
         {
-            // 反序列化时不订阅事件
-            if (Steps != null)
+            _steps.CollectionChanged += OnStepsCollectionChanged;
+        }
+
+        private void OnStepsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            Version++;
+
+            if (e.NewItems != null)
             {
-                Steps.CollectionChanged += (s, e) =>
-                {
-                    Version++;
+                foreach (StepModel item in e.NewItems)
+                    item.PropertyChanged += OnStepPropertyChanged;
+            }
 
-                    if (e.NewItems != null)
-                    {
-                        foreach (StepModel item in e.NewItems)
-                            item.PropertyChanged += OnStepPropertyChanged;
-                    }
-
-                    if (e.OldItems != null)
-                    {
-                        foreach (StepModel item in e.OldItems)
-                            item.PropertyChanged -= OnStepPropertyChanged;
-                    }
-                };
+            if (e.OldItems != null)
+            {
+                foreach (StepModel item in e.OldItems)
+                    item.PropertyChanged -= OnStepPropertyChanged;
             }
         }
 
