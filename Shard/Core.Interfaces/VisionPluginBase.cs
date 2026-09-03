@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Core.Interfaces
@@ -188,7 +189,27 @@ namespace Core.Interfaces
 
             foreach (var cp in _configProps)
             {
-                stepData.SetInputValue(cp.Name, cp.Get());
+                stepData.SetInputValue(cp.Name, SnapshotConfigValue(cp.Get()));
+            }
+        }
+
+        /// <summary>
+        /// 配置属性存快照（JSON 往返拷贝）：复杂配置（如 List&lt;RoiItem&gt;）存进 InputValues 后
+        /// 不再与界面上的活对象共享引用——确认后界面继续修改不会污染已确认的数据
+        /// </summary>
+        private static object SnapshotConfigValue(object value)
+        {
+            if (value == null) return null;
+            var type = value.GetType();
+            if (type.IsPrimitive || value is string || value is Enum || value is decimal) return value;
+            try
+            {
+                var json = JsonSerializer.Serialize(value, type);
+                return JsonSerializer.Deserialize(json, type);
+            }
+            catch
+            {
+                return value; // 不可序列化的类型退回引用（宽容处理）
             }
         }
 
@@ -251,5 +272,57 @@ namespace Core.Interfaces
                 _inputs.Remove(portName);
             }
         }
+
+        /// <summary>
+        /// 添加动态输出端口（如 Crop_ROI_1 等，由 IDynamicOutputProvider 类插件在配置变化时调用）
+        /// </summary>
+        public void AddDynamicOutput(IOutputPort port)
+        {
+            EnsurePortsDiscovered();
+            if (!_outputs.ContainsKey(port.Name))
+                _outputs.Add(port.Name, port);
+        }
+
+        /// <summary>
+        /// 移除动态输出端口（ROI 删除时调用；固定端口不受影响）
+        /// </summary>
+        public void RemoveDynamicOutput(string portName)
+        {
+            EnsurePortsDiscovered();
+            _outputs.Remove(portName);
+        }
+
+        /// <summary>
+        /// 清空全部动态输出端口（重建集合前的清理；固定端口由反射重建，不受影响）
+        /// 实现方式：保留反射发现的固定端口，移除其余
+        /// </summary>
+        public void ClearDynamicOutputs()
+        {
+            EnsurePortsDiscovered();
+            // 固定端口 = 属性反射的端口；动态端口 = 运行时 Add 进来的
+            // 用属性集合判断哪些是固定的
+            var fixedNames = new HashSet<string>(
+                GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(p => typeof(IOutputPort).IsAssignableFrom(p.PropertyType))
+                    .Select(p => ((IOutputPort)p.GetValue(this))?.Name)
+                    .Where(n => !string.IsNullOrEmpty(n))
+            );
+            var dynamicKeys = _outputs.Keys.Where(k => !fixedNames.Contains(k)).ToList();
+            foreach (var key in dynamicKeys)
+                _outputs.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// 动态输出端口提供者接口（插件按需实现）
+    /// 实现后框架在编译前会调用 RebuildDynamicOutputs() 重建端口集合
+    /// </summary>
+    public interface IDynamicOutputProvider
+    {
+        /// <summary>
+        /// 按 StepModel.OutputPortNames 快照重建动态输出端口（编译/试运行前由框架调用）
+        /// 插件实现此方法后，框架无需关心端口如何构造
+        /// </summary>
+        void RebuildDynamicOutputs();
     }
 }

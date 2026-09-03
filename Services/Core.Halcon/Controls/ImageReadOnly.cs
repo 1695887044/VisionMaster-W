@@ -1,7 +1,7 @@
-﻿
+
 
 using System.Windows.Controls;
-using Core.Halcon.Base;
+using Core.Halcon.Controls;
 
 namespace Core.Halcon.Controls
 {

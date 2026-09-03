@@ -111,6 +111,14 @@ namespace VisionMaster.Models
 
         public Dictionary<string, LinkReference> LinkedSources { get; set; } = new();
 
+        /// <summary>
+        /// 动态输出端口定义快照（名字+类型，存盘）
+        /// 供 IDynamicOutputProvider 类插件在配置实例重建端口后同步回写，
+        /// 编译器和 LinkableValueEditor 从此读取可用端口表（不依赖配置实例存活）
+        /// 格式约定：[{Name="Crop_ROI_1", DataTypeName="HalconDotNet.HImage"}, ...]
+        /// </summary>
+        public List<DynamicPortInfo> OutputPortDefinitions { get; set; } = new();
+
         // 统一写路径：所有对 InputValues 的写操作必须走这里，
         // 通过 PropertyChanged 通知 FlowModel.OnStepPropertyChanged 递增流程版本，
         // 从而让运行前的版本检查触发重新编译（否则改参数不会同步到已编译的运行实例）

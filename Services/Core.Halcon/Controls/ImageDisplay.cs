@@ -1,10 +1,10 @@
-﻿using HalconDotNet;
+using HalconDotNet;
 using System.Collections.ObjectModel;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using Core.Halcon.Base;
+using Core.Halcon.Controls;
 namespace Core.Halcon.Controls
 {
     

@@ -38,6 +38,7 @@ namespace VisionMaster.Views
 
         /// <summary>
         /// 处理插件发布的图像显示事件（A1：复制副本显示，UI 独占所有权，不与插件端口共享对象）
+        /// 标注随帧整体覆盖（无标注时清空，避免残留上一帧的测量结果）
         /// </summary>
         private void OnImageDisplay(ImageDisplayEvent<HImage> e)
         {
@@ -52,7 +53,8 @@ namespace VisionMaster.Views
                 var copy = e.Image.CopyImage();
                 if (box.HImage != null && box.HImage.IsInitialized())
                     box.HImage.Dispose();
-                box.HImage = copy;
+                box.Annotations = e.Annotations; // 先设标注（只存数据，不触发渲染）
+                box.HImage = copy;               // 再设图（单次 RenderAll 画全图像+ROI+标注）
             }));
         }
 

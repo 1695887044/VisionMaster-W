@@ -8,93 +8,276 @@
     xmlns:local="clr-namespace:Plugin.CreateRoi"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:system="clr-namespace:System;assembly=mscorlib"
+    Height="600"
+    Width="1000"
     xmlns:ui="http://schemas.UI.com/ui">
-    <!--  不写死 Width/Height：自适应填满外壳注入区，窗口缩放时跟随拉伸  -->
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <local:InverseBoolConverter x:Key="InverseBool" />
+
+            <!--  Win11 风格卡片（与 UI 库 Win11Card 同参数：圆角 + 柔和阴影层次）  -->
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="14" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect
+                            BlurRadius="12"
+                            Direction="270"
+                            Opacity="0.05"
+                            ShadowDepth="2"
+                            Color="Black" />
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  卡片小标题  -->
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+
+            <!--  次要说明文字  -->
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+            </Style>
+
+            <!--  ROI 列表行：透明背景 + 圆角悬浮/选中高亮  -->
+            <Style x:Key="RoiListBoxItem" TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="8,5" />
+                <Setter Property="Margin" Value="0,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F5F5F5" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#E8F1FD" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="380" />
+            <ColumnDefinition Width="320" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <TabControl Style="{StaticResource VerTabControl}">
-            <TabControl.Resources>
-                <Style BasedOn="{StaticResource VerTabItem}" TargetType="TabItem" />
-            </TabControl.Resources>
-            <TabItem Header="基本参数">
-                <Grid x:Name="gd">
-                    <StackPanel>
-                        <cv:LinkableValueEditor
-                            Width="240"
-                            Margin="5"
-                            HorizontalAlignment="Center"
-                            Label="图像路径"
-                            Port="{Binding SrcImage}"
-                            StepData="{Binding StepData}" />
-                    </StackPanel>
-                </Grid>
+        <!--  左列：参数卡片流  -->
+        <Grid Grid.Column="0" Margin="0,0,8,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-            </TabItem>
-            <TabItem Header="图像参数">
-                <Grid x:Name="gd1">
-                    <GroupBox Header="图像参数">
-                        <StackPanel>
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="流程结束时显示结果图像" />
-                            <StackPanel Margin="10" Orientation="Horizontal">
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Text="显示窗体" />
-                                <ComboBox
-                                    Width="200"
-                                    Margin="5,0"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    BorderThickness="0,0,0,1"
-                                    SelectedIndex="{Binding DisplayViewIndex}"
-                                    ToolTip="采集图像显示到主界面几号视图窗口；0 = 不显示" >
-                                    <ComboBoxItem>图像窗口1</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口2</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口3</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口4</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口5</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口6</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口7</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口8</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口9</ComboBoxItem>
-                                </ComboBox>
-                            </StackPanel>
+            <!--  卡片：图像输入  -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="图像输入" />
+                    <cv:LinkableValueEditor
+                        Margin="0,10,0,0"
+                        HorizontalAlignment="Stretch"
+                        Label="图像路径"
+                        Port="{Binding SrcImage}"
+                        StepData="{Binding StepData}" />
+                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="显示窗口" />
+                        <ComboBox
+                            Width="120"
+                            Margin="8,0,0,0"
+                            HorizontalContentAlignment="Center"
+                            SelectedIndex="{Binding DisplayViewIndex}"
+                            ToolTip="结果显示到主界面几号视图窗口；0 = 不显示">
+                            <ComboBoxItem Content="不显示" />
+                            <ComboBoxItem Content="窗口1" />
+                            <ComboBoxItem Content="窗口2" />
+                            <ComboBoxItem Content="窗口3" />
+                            <ComboBoxItem Content="窗口4" />
+                            <ComboBoxItem Content="窗口5" />
+                            <ComboBoxItem Content="窗口6" />
+                            <ComboBoxItem Content="窗口7" />
+                            <ComboBoxItem Content="窗口8" />
+                            <ComboBoxItem Content="窗口9" />
+                        </ComboBox>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片：参数微调（绑定 SelectedRoi.ParamEntries，MVMV 无 code-behind）  -->
+            <Border Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="参数微调" />
+                        <TextBlock
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource HintText}"
+                            Text="{Binding SelectedRoi.Name, TargetNullValue='选中 ROI 后可编辑'}" />
+                    </Grid>
+                    <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedRoi.ParamEntries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="90" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Foreground="#888888"
+                                        Text="{Binding Name}" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Height="24"
+                                        Padding="4,0,0,0"
+                                        VerticalContentAlignment="Center"
+                                        Text="{Binding Value, UpdateSourceTrigger=LostFocus}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片：ROI 列表  -->
+            <Border Grid.Row="2" Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top">
+                        <TextBlock Style="{StaticResource CardTitle}" Text="ROI 列表" />
+                        <TextBlock
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource HintText}"
+                            Text="右键图像 → 区域 → 新建" />
+                    </Grid>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" Orientation="Horizontal">
+                        <Button
+                            MinWidth="76"
+                            Click="DeleteRoi_Click"
+                            Content="删除" />
+                        <Button
+                            MinWidth="76"
+                            Margin="8,0,0,0"
+                            Click="ClearRois_Click"
+                            Content="清空" />
+                    </StackPanel>
+                    <ListBox
+                        x:Name="RoiListBox"
+                        Margin="0,10,0,0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        DisplayMemberPath="DisplayText"
+                        ItemContainerStyle="{StaticResource RoiListBoxItem}"
+                        ItemsSource="{Binding RoiList}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        SelectedItem="{Binding SelectedRoi}" />
+                </DockPanel>
+            </Border>
+
+            <!--  操作提示  -->
+            <Border Grid.Row="3" Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <TextBlock Style="{StaticResource HintText}" Text="拖拽句柄粗调，参数微调精调；选中后按 Del 快速删除" />
+            </Border>
+        </Grid>
+
+        <!--  右列：图像编辑区  -->
+        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource CardBorder}">
+            <DockPanel>
+                <!--  掩膜预览工具条  -->
+                <Border
+                    DockPanel.Dock="Top"
+                    Padding="0,0,0,8"
+                    BorderBrush="#EEEEEE"
+                    BorderThickness="0,0,0,1">
+                    <DockPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton
+                                Checked="MaskPreview_Checked"
+                                Content="原图"
+                                GroupName="PreviewMode"
+                                IsChecked="{Binding IsMaskPreview, Converter={StaticResource InverseBool}, Mode=OneWay}" />
+                            <RadioButton
+                                Margin="8,0,0,0"
+                                Checked="MaskPreview_Checked"
+                                Content="掩膜预览"
+                                GroupName="PreviewMode"
+                                IsChecked="{Binding IsMaskPreview, Mode=TwoWay}" />
                         </StackPanel>
-                    </GroupBox>
-                </Grid>
-            </TabItem>
-        </TabControl>
-        <!--  右侧：预览区  -->
-        <Border
-            Grid.Column="1"
-            Padding="12"
-            Background="White"
-            BorderBrush="#E0E0E0"
-            BorderThickness="1"
-            CornerRadius="6">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <h:ImageEdit HImage="{Binding PreviewImage}"   />
-            </Grid>
+                        <CheckBox
+                            Margin="16,0,0,0"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Right"
+                            Content="排除模式（ROI 外有效）"
+                            IsChecked="{Binding MaskInvert}" />
+                    </DockPanel>
+                </Border>
+                <!--  涂擦工具条（画笔式自由掩膜编辑，参考 VisionMaster 涂抹交互）  -->
+                <Border
+                    DockPanel.Dock="Top"
+                    Padding="0,6,0,8"
+                    BorderBrush="#EEEEEE"
+                    BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton
+                            Checked="SmearMode_Checked"
+                            Content="正常"
+                            GroupName="SmearMode"
+                            IsChecked="True" />
+                        <RadioButton
+                            Margin="8,0,0,0"
+                            Checked="SmearMode_Checked"
+                            Content="绘制涂抹"
+                            GroupName="SmearMode" />
+                        <RadioButton
+                            Margin="8,0,0,0"
+                            Checked="SmearMode_Checked"
+                            Content="擦除涂抹"
+                            GroupName="SmearMode" />
+                        <TextBlock
+                            Margin="16,0,4,0"
+                            VerticalAlignment="Center"
+                            Text="笔刷:" />
+                        <TextBox
+                            x:Name="BrushBox"
+                            Width="40"
+                            LostFocus="Brush_Changed"
+                            KeyDown="Brush_KeyDown"
+                            Text="5" />
+                        <Button
+                            Margin="10,0,0,0"
+                            Click="ClearSmear_Click"
+                            Content="清除涂抹" />
+                    </StackPanel>
+                </Border>
+                <h:ImageEdit x:Name="ImageEditor" HImage="{Binding DisplayImage, Mode=OneWay}" />
+            </DockPanel>
         </Border>
     </Grid>
 </UserControl>

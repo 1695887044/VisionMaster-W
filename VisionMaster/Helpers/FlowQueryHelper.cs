@@ -81,6 +81,24 @@ namespace VisionMaster.Helpers
                 if (data == null || data.OutputDefinitions == null || !data.OutputDefinitions.Any())
                     continue;
 
+                // 合并动态输出端口：StepModel.OutputPortDefinitions 快照（名字+类型）里的端口
+                // 不在静态表里，补进去让绑定界面可选，类型兼容检查按真实类型执行
+                var outputDefs = data.OutputDefinitions.ToList();
+                if (node.OutputPortDefinitions != null && node.OutputPortDefinitions.Count > 0)
+                {
+                    var existing = new HashSet<string>(outputDefs.Select(p => p.Name));
+                    foreach (var dyn in node.OutputPortDefinitions)
+                    {
+                        if (string.IsNullOrEmpty(dyn?.Name) || existing.Contains(dyn.Name)) continue;
+                        outputDefs.Add(new PortDefinition
+                        {
+                            Name = dyn.Name,
+                            DataTypeName = dyn.DataTypeName ?? typeof(object).AssemblyQualifiedName,
+                            Description = dyn.Description ?? "[动态输出]"
+                        });
+                    }
+                }
+
                 var uiNode = new ToolItemModel
                 {
                     Id = node.StepID,
@@ -88,7 +106,7 @@ namespace VisionMaster.Helpers
                     Name = node.StepName,
                     Icon = node.Icon,
                     Description = node.Description,
-                    OutputDefinitions = data.OutputDefinitions.ToList(),
+                    OutputDefinitions = outputDefs,
                 };
 
                 treeNodes.Add(uiNode);

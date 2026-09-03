@@ -1,7 +1,7 @@
-﻿using HalconDotNet;
+using HalconDotNet;
 using System.Windows;
 using System.Windows.Controls;
-using Core.Halcon.Base;
+using Core.Halcon.Controls;
 
 namespace Core.Halcon.Controls
 {
@@ -49,16 +49,16 @@ namespace Core.Halcon.Controls
             InfoMenu.Items.Add(CreateMenu("打开图片", (s, e) => {
                 this.OpenImage();
             }));
-            RoiMenu.Items.Add(CreateMenu("矩形",(s,e)=> DrawShape(DrawShapeType.Rectangle)));
-            RoiMenu.Items.Add(CreateMenu("圆形", (s, e) => DrawShape(DrawShapeType.Circle)));
-            RoiMenu.Items.Add(CreateMenu("椭圆", (s, e) => DrawShape(DrawShapeType.Ellipse)));
-            RoiMenu.Items.Add(CreateMenu("区域", (s, e) => DrawShape(DrawShapeType.Region)));
-            RoiMenu.Items.Add(CreateMenu("掩膜", (s, e) => DrawShape(DrawShapeType.Mask)));
+
+            // ROI 新建：画布中心生成默认尺寸，出现可拖拽句柄，拖拽实时修改
+            RoiMenu.Items.Add(CreateMenu("新建矩形", (s, e) => CreateRoi(DrawShapeType.Rectangle)));
+            RoiMenu.Items.Add(CreateMenu("新建圆形", (s, e) => CreateRoi(DrawShapeType.Circle)));
+            RoiMenu.Items.Add(CreateMenu("新建椭圆", (s, e) => CreateRoi(DrawShapeType.Ellipse)));
+            RoiMenu.Items.Add(CreateMenu("删除选中区域", (s, e) => DeleteSelectedRoi()));
+
             ContextMenu.Items.Add(RoiMenu);
             ContextMenu.Items.Add(InfoMenu);
         }
-
-
 
     }
 }

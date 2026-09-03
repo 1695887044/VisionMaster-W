@@ -1,4 +1,5 @@
 
+using Core.Halcon.Models;
 
 namespace Core.Events
 {
@@ -20,5 +21,10 @@ namespace Core.Events
         /// 要显示的图像（发布方持有并管理原图）
         /// </summary>
         public T Image { get; init; }
+
+        /// <summary>
+        /// 测量标注层（线段/角度/文本），与图像同帧覆盖渲染；null 表示无标注
+        /// </summary>
+        public List<MeasureAnnotation> Annotations { get; init; }
     }
 }

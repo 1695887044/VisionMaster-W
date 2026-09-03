@@ -40,5 +40,10 @@ namespace VisionMaster.Models
         /// 方案清单（有序）
         /// </summary>
         public List<AppSolutionEntry> Solutions { get; set; } = new();
+
+        /// <summary>
+        /// 启动时是否执行通讯连通性自检（产线现场可关闭以加快启动）
+        /// </summary>
+        public bool EnableCommunicationStartupCheck { get; set; } = true;
     }
 }

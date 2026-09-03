@@ -63,7 +63,7 @@ namespace Core.Halcon.Extensions
                 );
                 drawObj = hTuples.GenRectangle2();
                return new DrawingObjectInfo(
-                    DrawShapeType.Rectangle2,
+                    DrawShapeType.Rectangle,
                     drawObj,
                     hTuples
                 );

@@ -6,7 +6,7 @@ namespace Core.Interfaces
     /// <summary>
     /// 配置值宽容转换（JSON 反序列化值 → 目标类型）
     /// 统一处理 JsonElement（System.Text.Json 反序列化 object 的产物）、
-    /// 枚举字符串/数字转换和系统类型转换
+    /// 枚举字符串/数字转换、系统类型转换和复杂类型（List/对象配置）反序列化
     /// InputPort 端口灌值与 [StepConfig] 配置属性灌值共用
     /// </summary>
     public static class ValueConverter
@@ -40,6 +40,11 @@ namespace Core.Interfaces
                     case JsonValueKind.True:
                     case JsonValueKind.False:
                         return el.GetBoolean();
+
+                    case JsonValueKind.Array:
+                    case JsonValueKind.Object:
+                        // 复杂配置类型（如 List<RoiItem>）：用 JSON 原文反序列化还原
+                        return JsonSerializer.Deserialize(el.GetRawText(), targetType);
 
                     default:
                         return null;

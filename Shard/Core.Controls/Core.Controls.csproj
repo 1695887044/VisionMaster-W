@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
   </ItemGroup>
 
   <ItemGroup>

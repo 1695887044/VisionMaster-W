@@ -79,6 +79,29 @@ namespace Core.Interfaces
         /// </summary>
         /// <param name="inputPortName">输入端口名</param>
         void RemoveLink(string inputPortName);
+
+        /// <summary>
+        /// 动态输出端口定义快照（名字+类型，存盘）
+        /// IDynamicOutputProvider 类插件在重建端口后同步回写，
+        /// 编译器和绑定界面从此读取可用端口表（不依赖配置实例存活）
+        /// </summary>
+        List<DynamicPortInfo> OutputPortDefinitions { get; set; }
+    }
+
+    /// <summary>
+    /// 动态输出端口的序列化友好定义（名字 + 类型）
+    /// 设计态动态端口与运行态（编译/绑定界面）之间的同步快照
+    /// </summary>
+    public class DynamicPortInfo
+    {
+        /// <summary>端口名（如 Crop_ROI_1）</summary>
+        public string Name { get; set; }
+
+        /// <summary>端口数据类型的程序集限定名（如 HalconDotNet.HImage）</summary>
+        public string DataTypeName { get; set; }
+
+        /// <summary>描述（可选）</summary>
+        public string Description { get; set; }
     }
 
     /// <summary>

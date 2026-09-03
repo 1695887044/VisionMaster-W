@@ -406,7 +406,14 @@ namespace VisionMaster.Services
 
                     // 灌入静态固定参数（输入端口 + [StepConfig] 配置属性；链接端口跳过，以链接为准）
                     if (plugin is VisionPluginBase pluginBase)
+                    {
                         pluginBase.ApplyConfigValues(model);
+
+                        // 动态输出端口：编译前按 StepModel.OutputPortNames 快照重建
+                        // （配置窗口里画的 ROI 存在快照里，编译实例据此生成对应的动态端口供接线）
+                        if (plugin is IDynamicOutputProvider dynProvider)
+                            dynProvider.RebuildDynamicOutputs();
+                    }
                     else
                     {
                         foreach (var kvp in model.InputValues)
