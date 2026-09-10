@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using UI.Attributes;
@@ -51,7 +51,6 @@ namespace VisionMaster.Communications
         /// <para>由子类实现，根据配置创建具体的连接实例。</para>
         /// </summary>
         /// <returns>通信连接对象</returns>
-        public abstract ICommunicationConnection CreateConnection();
 
         /// <summary>
         /// <para>克隆当前配置对象。</para>

@@ -1,8 +1,8 @@
 ﻿using Core.Interfaces;
+using VisionMaster.Communications;
 using Prism.Mvvm;
 using System.Text.Json.Serialization;
 using System.Windows;
-using VisionMaster.Communications;
 using VisionMaster.Helpers;
 
 namespace VisionMaster.Models

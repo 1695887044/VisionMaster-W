@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Threading;
 using VisionMaster.Communications;
 using VisionMaster.Core;
+using VisionMaster.Engine;
 using VisionMaster.Lifetime;
 using VisionMaster.Lifetime.Checks;
 using VisionMaster.Services;
@@ -25,15 +26,18 @@ namespace VisionMaster
         private AppLifetimeService? _lifetime;
         private SingleInstanceCheck? _singleInstance;
         private VisionMaster.Lifetime.SplashScreen? _splash;
+        private readonly List<IAppModule> _modules = new();
 
         protected override Window CreateShell()
         {
             var thinFont = this.Resources["FA.Light"];
             this.Resources["Icon"] = thinFont;
 
-            // ===== 生命周期宿主：异常分级接线 =====
+            // ===== 生命周期宿主：异常分级接线 + 模块初始化 =====
             _lifetime = Container.Resolve<AppLifetimeService>();
             _lifetime.RegisterGlobalExceptionHandlers();
+            foreach (var module in _modules)
+                module.Initialize(Container, _lifetime); // 模块注册自检项/退出任务，须在自检前完成
 
             // ===== 启动自检链（按执行顺序注册）=====
             _singleInstance = new SingleInstanceCheck();
@@ -69,24 +73,17 @@ namespace VisionMaster
             return Container.Resolve<Shell>();
         }
 
-        /// <summary>主窗口已显示后关闭 Splash（base.OnInitialized 内部会 Show 主窗口）</summary>
-        protected override void OnInitialized()
-        {
-            base.OnInitialized();
-            _splash?.Close();
-            _splash = null;
-        }
-
         protected override void RegisterTypes(IContainerRegistry containerRegistry)
         {
             MemoryManager.Instance.Start(300, 30);
+
+            // ===== 模块注册：通讯/引擎子系统自装配 =====
+            _modules.Add(new CommunicationModule());
+            _modules.Add(new FlowEngineModule());
+            foreach (var module in _modules)
+                module.Register(containerRegistry);
+
             containerRegistry.RegisterSingleton<SolutionService>();
-            containerRegistry.RegisterSingleton<FlowCompiler>();
-            containerRegistry.RegisterSingleton<IPluginProvider, PluginProvider>();
-            containerRegistry.RegisterSingleton<IFlowEngine, FlowEngineService>();
-            containerRegistry.RegisterSingleton<IRuntimeManager, RuntimeManager>();
-            containerRegistry.RegisterSingleton<ICommunicationManager, AdvancedCommunicationManager>();
-            containerRegistry.RegisterSingleton<IExecutionContext, Services.ExecutionContext>();
             containerRegistry.RegisterSingleton<WorkspaceContext>();
             containerRegistry.Register<IReadOnlyWorkspaceContext>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.Register<IWorkspaceManager>(c => c.Resolve<WorkspaceContext>());
@@ -107,23 +104,6 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<PluginConfigShellView, PluginConfigShellViewModel>("PluginConfigShell");
             containerRegistry.RegisterDialog<SolutionListView, SolutionListViewModel>("SolutionListView");
             containerRegistry.RegisterForNavigation<Shell, ShellViewModel>();
-
-            // ===== 退出资源释放链 =====
-            // 执行时按注册相反顺序：停止引擎 → 释放会话 → 断通讯 → 存配置 → 停内存
-            var lifetime = containerRegistry.GetContainer().Resolve<AppLifetimeService>();
-            lifetime.RegisterExitTask(ExitTask.Of("停止内存管理", () => MemoryManager.Instance.Stop()));
-            lifetime.RegisterExitTask(ExitTask.Of("持久化软件配置", () => Container.Resolve<AppSettingsService>().Save()));
-            lifetime.RegisterExitTask(ExitTask.Of("断开通讯连接", () =>
-            {
-                var comm = Container.Resolve<AdvancedCommunicationManager>();
-                comm.StopAll();
-                comm.DisconnectAll();
-            }));
-            lifetime.RegisterExitTask(ExitTask.Of("释放运行会话", () =>
-            {
-                Container.Resolve<IRuntimeManager>().ClearAll();
-            }));
-            lifetime.RegisterExitTask(ExitTask.Of("停止流程引擎", () => Container.Resolve<IFlowEngine>().StopAll()));
         }
 
         protected override void OnExit(ExitEventArgs e)
@@ -132,6 +112,14 @@ namespace VisionMaster
             catch { /* 退出链内部已逐项捕获，此处兜底 */ }
             _singleInstance?.Dispose();
             base.OnExit(e);
+        }
+
+        /// <summary>主窗口已显示后关闭 Splash（base.OnInitialized 内部会 Show 主窗口）</summary>
+        protected override void OnInitialized()
+        {
+            base.OnInitialized();
+            _splash?.Close();
+            _splash = null;
         }
 
         /// <summary>

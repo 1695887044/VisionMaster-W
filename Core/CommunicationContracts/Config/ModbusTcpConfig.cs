@@ -1,4 +1,4 @@
-namespace VisionMaster.Communications
+﻿namespace VisionMaster.Communications
 {
     /// <summary>
     /// <para>Modbus TCP 协议配置类。</para>
@@ -10,7 +10,6 @@ namespace VisionMaster.Communications
         /// <para>创建 Modbus TCP 连接对象。</para>
         /// </summary>
         /// <returns>Modbus TCP 连接实例</returns>
-        public override ICommunicationConnection CreateConnection() => new ModbusTcpConnection(this);
 
         /// <summary>
         /// <para>克隆当前配置对象。</para>

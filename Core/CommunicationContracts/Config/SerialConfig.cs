@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using UI.Attributes;
 
 namespace VisionMaster.Communications
@@ -53,7 +53,6 @@ namespace VisionMaster.Communications
         /// <para>创建串口连接对象。</para>
         /// </summary>
         /// <returns>串口连接实例</returns>
-        public override ICommunicationConnection CreateConnection() => new SerialConnection(this);
 
         /// <summary>
         /// <para>克隆当前配置对象。</para>

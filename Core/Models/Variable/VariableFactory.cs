@@ -1,3 +1,4 @@
+
 using VisionMaster.Communications;
 
 namespace VisionMaster.Models

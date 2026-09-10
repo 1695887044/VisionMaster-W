@@ -1,4 +1,4 @@
-using UI.Attributes;
+﻿using UI.Attributes;
 
 namespace VisionMaster.Communications
 {
@@ -56,7 +56,6 @@ namespace VisionMaster.Communications
         /// <para>注意：此方法尚未实现。</para>
         /// </summary>
         /// <returns>FINS 连接实例</returns>
-        public override ICommunicationConnection CreateConnection() => throw new NotImplementedException();
 
         /// <summary>
         /// <para>克隆当前配置对象。</para>

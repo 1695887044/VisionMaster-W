@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\VM.Core.csproj" />
+    <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- PluginService/PluginProvider 使用 UI.CustomControl 中的类型（历史耦合，待后续剥离） -->
+    <Reference Include="HalconDotNet">
+      <HintPath>..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

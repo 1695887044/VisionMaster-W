@@ -1,13 +1,13 @@
-﻿<UserControl
+<UserControl
     x:Class="VisionMaster.Views.ProcessView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dd="urn:gong-wpf-dragdrop"
-    xmlns:enums="clr-namespace:VisionMaster"
     xmlns:local="clr-namespace:VisionMaster.Views"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:models="clr-namespace:VisionMaster.Models"
+    xmlns:enums="clr-namespace:VisionMaster;assembly=VM.Core"
+    xmlns:models="clr-namespace:VisionMaster.Models;assembly=VM.Core"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
     d:DesignHeight="450"

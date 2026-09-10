@@ -1,4 +1,4 @@
-using HslCommunication.Profinet.Siemens;
+﻿using HslCommunication.Profinet.Siemens;
 using UI.Attributes;
 
 namespace VisionMaster.Communications
@@ -23,7 +23,6 @@ namespace VisionMaster.Communications
         public byte Slot { get; set; } = 0;
 
 
-        public override ICommunicationConnection CreateConnection() => new SiemensS7Connection(this);
 
         public override ConnectionConfigBase Clone() => new SiemensS7Config
         {

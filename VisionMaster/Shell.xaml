@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     x:Class="VisionMaster.Shell"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -6,7 +6,7 @@
     xmlns:commands="clr-namespace:VisionMaster.Commands"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
-    xmlns:local="clr-namespace:VisionMaster"
+    xmlns:local="clr-namespace:VisionMaster;assembly=VM.Core"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
