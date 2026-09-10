@@ -5,7 +5,6 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,6 +18,7 @@ namespace VisionMaster.Communications
         private readonly ConcurrentDictionary<string, ICommunicationConnection> _connections = new();
         private readonly ConcurrentDictionary<string, CommunicationConfig> _configCache = new();
         private readonly ConcurrentDictionary<string, Timer> _reconnectTimers = new();
+        private readonly ConcurrentDictionary<string, int> _reconnectAttempts = new(); // 重连计数（独立存储，勿复用 ReadCycleMs——它驱动变量轮询周期）
         private readonly ConcurrentDictionary<string, Timer> _heartbeatTimers = new();
         private readonly ConcurrentDictionary<string, Timer> _variablePollingTimers = new();
 
@@ -46,7 +46,8 @@ namespace VisionMaster.Communications
         public int ConnectionCount => _connections.Count;
         public int ConnectedCount => _connections.Count(c => c.Value.IsConnected);
         public bool IsRunning { get; private set; } = false;
-        public string ConfigFilePath { get; set; } = "communications.json";
+        public string ConfigFilePath { get; set; } =
+            Path.Combine(AppContext.BaseDirectory, "communications.json"); // 固定 exe 目录，避免工作目录漂移
         public bool AutoReconnectEnabled { get; set; } = true;
         public int GlobalReconnectIntervalMs { get; set; } = 5000;
         public int HeartbeatIntervalMs { get; set; } = 30000;
@@ -187,6 +188,7 @@ namespace VisionMaster.Communications
 
             // 移除配置缓存
             _configCache.TryRemove(connectionName, out _);
+            _reconnectAttempts.TryRemove(connectionName, out _);
 
             // 移除注册的变量
             _registeredVariables.TryRemove(connectionName, out _);
@@ -238,7 +240,7 @@ namespace VisionMaster.Communications
                 {
                     config.State = ConnectionState.Connected;
                     config.UpdateLastConnectedTime();
-                    config.ReadCycleMs = 0; // 重置重连计数
+                    _reconnectAttempts[connectionName] = 0; // 重置重连计数（勿复用 ReadCycleMs，它驱动变量轮询周期）
                     OnConnectionStateChanged(connectionName, ConnectionState.Connecting, ConnectionState.Connected);
 
                     LogInfo($"连接成功: {connectionName}");
@@ -594,13 +596,21 @@ namespace VisionMaster.Communications
 
         #region 配置管理
 
+        /// <summary>通信配置文件序列化设置（TypeNameHandling.Auto 支持抽象 Config 多态，$type 白名单防恶意文件）</summary>
+        private static readonly Newtonsoft.Json.JsonSerializerSettings _configJsonSettings = new()
+        {
+            Formatting = Newtonsoft.Json.Formatting.Indented,
+            NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+            TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto,
+            SerializationBinder = new VisionMaster.Communications.ConnectionConfigSerializationBinder()
+        };
+
         public async Task SaveConfigAsync()
         {
             try
             {
                 LogInfo($"正在保存配置到: {ConfigFilePath}");
 
-                var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                 List<CommunicationConfig> configs;
 
                 lock (_connectionsListLock)
@@ -608,7 +618,7 @@ namespace VisionMaster.Communications
                     configs = _connectionsList.ToList();
                 }
 
-                var json = JsonSerializer.Serialize(configs, options);
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(configs, _configJsonSettings);
                 await File.WriteAllTextAsync(ConfigFilePath, json);
 
                 LogInfo($"配置保存成功: {ConfigFilePath}");
@@ -633,7 +643,7 @@ namespace VisionMaster.Communications
                 LogInfo($"正在加载配置: {ConfigFilePath}");
 
                 var json = await File.ReadAllTextAsync(ConfigFilePath);
-                var configs = JsonSerializer.Deserialize<List<CommunicationConfig>>(json);
+                var configs = Newtonsoft.Json.JsonConvert.DeserializeObject<List<CommunicationConfig>>(json, _configJsonSettings);
 
                 if (configs != null)
                 {
@@ -668,7 +678,7 @@ namespace VisionMaster.Communications
             {
                 LogInfo($"正在导出配置到: {filePath}");
 
-                var options = new JsonSerializerOptions { WriteIndented = true };
+                var options = _configJsonSettings;
                 List<CommunicationConfig> configs;
 
                 lock (_connectionsListLock)
@@ -676,7 +686,7 @@ namespace VisionMaster.Communications
                     configs = _connectionsList.ToList();
                 }
 
-                var json = JsonSerializer.Serialize(configs, options);
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(configs, options);
                 await File.WriteAllTextAsync(filePath, json);
 
                 LogInfo($"配置导出成功: {filePath}");
@@ -698,7 +708,7 @@ namespace VisionMaster.Communications
                 LogInfo($"正在导入配置: {filePath}");
 
                 var json = await File.ReadAllTextAsync(filePath);
-                var configs = JsonSerializer.Deserialize<List<CommunicationConfig>>(json);
+                var configs = Newtonsoft.Json.JsonConvert.DeserializeObject<List<CommunicationConfig>>(json, _configJsonSettings);
 
                 if (configs != null)
                 {
@@ -746,15 +756,15 @@ namespace VisionMaster.Communications
                     if (!_configCache.TryGetValue(name, out var config)) return;
 
                     // 检查重连次数限制
-                    if (MaxReconnectAttempts > 0 && config.ReadCycleMs >= MaxReconnectAttempts)
+                    if (MaxReconnectAttempts > 0 && _reconnectAttempts.GetOrAdd(name, 0) >= MaxReconnectAttempts)
                     {
                         LogError($"连接 {name} 达到最大重连次数 {MaxReconnectAttempts}，停止重连");
                         StopReconnectTimer(name);
                         return;
                     }
 
-                    config.ReadCycleMs++;
-                    LogInfo($"正在尝试第 {config.ReadCycleMs} 次重连: {name}");
+                    int attempt = _reconnectAttempts.AddOrUpdate(name, 1, (_, c) => c + 1);
+                    LogInfo($"正在尝试第 {attempt} 次重连: {name}");
 
                     var result = Connect(name);
                     if (result)

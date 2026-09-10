@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace UI.Helper
 {
@@ -18,6 +18,12 @@ namespace UI.Helper
         public static T ShallowCopy<T>(T obj) where T : class
         {
             if (obj == null) return null;
+
+            // 类型守卫：反射 MemberwiseClone 只能作用于普通堆对象。
+            // 字符串字面量（.NET 9 冻结只读段）、基元装箱值、数组属于特殊运行时对象，
+            // MemberwiseClone 触碰它们会引发 AccessViolationException（实测启动崩溃）
+            if (obj is string || obj.GetType().IsPrimitive) return obj; // 不可变，直接引用即快照
+            if (obj is Array arr) return (T)arr.Clone();                // 数组走标准克隆
 
             // 绕过访问限制，直接调用 .NET 底层 C++ 实现的高性能 MemberwiseClone
             MethodInfo cloneMethod = typeof(object).GetMethod("MemberwiseClone", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -34,10 +40,17 @@ namespace UI.Helper
         {
             if (obj == null) return null;
 
-            // 使用现代 .NET 自带的 System.Text.Json 进行极速深序列化克隆
+            // Newtonsoft.Json 极速深序列化克隆（TypeNameHandling.Auto 保多态、Binder 白名单限类型）
             // 注意：被深拷贝的类及其内部类不能有循环引用
-            string json = JsonSerializer.Serialize(obj);
-            return JsonSerializer.Deserialize<T>(json);
+            string json = JsonConvert.SerializeObject(obj, new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.Auto,
+                NullValueHandling = NullValueHandling.Ignore
+            });
+            return JsonConvert.DeserializeObject<T>(json, new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.Auto
+            });
         }
     }
 }

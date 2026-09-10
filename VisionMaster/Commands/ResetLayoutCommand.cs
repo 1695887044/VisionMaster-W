@@ -6,7 +6,7 @@ using VisionMaster.Services;
 namespace VisionMaster.Commands
 {
     /// <summary>
-    /// 加载默认布局命令：删除布局文件，重启软件后恢复 XAML 内置默认布局
+    /// 恢复默认布局命令：立即恢复出厂默认布局（无需重启），同时清除用户布局文件
     /// </summary>
     internal class ResetLayoutCommand : MarkupCommandBase
     {
@@ -15,8 +15,8 @@ namespace VisionMaster.Commands
             if (LayoutHelper.Reset())
             {
                 MessageBox.Show(
-                    "已恢复默认布局，请重启软件生效。",
-                    "加载默认布局",
+                    "已恢复默认布局。",
+                    "恢复默认布局",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }

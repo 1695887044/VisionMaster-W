@@ -145,6 +145,13 @@ namespace VisionMaster.Models
         public ManualResetEventSlim PauseLock { get; } = new ManualResetEventSlim(true);
 
         /// <summary>
+        /// 当前持有运行焦点的步骤（执行指针）
+        /// 新步骤获得焦点时释放上一个，保证流程设计器上恒定单行高亮、平滑移动；
+        /// 毫秒级步骤若"完成即清焦点"，高亮会在渲染帧间隙闪变导致肉眼不可见
+        /// </summary>
+        public StepModel FocusedStep { get; set; }
+
+        /// <summary>
         /// 编译后的执行引擎
         /// </summary>
         public CompiledFlow ExecutionEngine { get; set; }

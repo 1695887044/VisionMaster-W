@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -17,6 +17,46 @@ namespace VisionMaster.Models
         /// 原始变量模型引用
         /// </summary>
         public IVariable OriginalModel { get; set; }
+
+        private bool _isNetwork;
+        /// <summary>
+        /// 是否为网络变量（VariableType.Communication）
+        /// </summary>
+        public bool IsNetwork
+        {
+            get => _isNetwork;
+            set => SetProperty(ref _isNetwork, value);
+        }
+
+        private string? _sourceLabel;
+        /// <summary>
+        /// 来源标签：本地变量="本地"，网络变量=所属连接名（UI 徽章显示用）
+        /// </summary>
+        public string? SourceLabel
+        {
+            get => _sourceLabel;
+            set => SetProperty(ref _sourceLabel, value);
+        }
+
+        private string? _address;
+        /// <summary>
+        /// 设备地址（网络变量才有，如 40100 / MW10 / DB1.DBW0）
+        /// </summary>
+        public string? Address
+        {
+            get => _address;
+            set => SetProperty(ref _address, value);
+        }
+
+        private bool _isConnected;
+        /// <summary>
+        /// 连接在线状态（网络变量；本地变量恒 true）
+        /// </summary>
+        public bool IsConnected
+        {
+            get => _isConnected;
+            set => SetProperty(ref _isConnected, value);
+        }
 
         /// <summary>
         /// 变量名称

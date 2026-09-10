@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -28,6 +28,15 @@ namespace VisionMaster.Communications
 
         protected override string BuildAddress()
         {
+            // 位访问（Boolean+位偏移）：无类型前缀，如 M0.0 / DB1.DBX0.0 由 DB 分支自带 X 前缀
+            if (IsBitType)
+            {
+                string baseBit = Area == S7Area.DB
+                    ? $"DB{DbNumber}.DBX{Offset}"
+                    : $"{Area}{Offset}";
+                return $"{baseBit}.{BitOffset}";
+            }
+
             string baseAddress;
 
             if (Area == S7Area.DB)
@@ -37,12 +46,6 @@ namespace VisionMaster.Communications
             else
             {
                 baseAddress = $"{Area}{GetDataTypePrefix(DataType)}{Offset}";
-            }
-
-            // 对于位类型，添加位偏移
-            if (IsBitType)
-            {
-                baseAddress += $".{BitOffset}";
             }
 
             return baseAddress;

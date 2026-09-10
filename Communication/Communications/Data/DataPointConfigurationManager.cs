@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Communications
@@ -34,12 +34,12 @@ namespace VisionMaster.Communications
 
         public async Task ExportToFileAsync(string filePath)
         {
-            var options = new JsonSerializerOptions
+            var settings = new JsonSerializerSettings
             {
-                WriteIndented = true,
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                Formatting = Formatting.Indented,
+                NullValueHandling = NullValueHandling.Ignore
             };
-            var json = JsonSerializer.Serialize(_configurations, options);
+            var json = JsonConvert.SerializeObject(_configurations, settings);
             await File.WriteAllTextAsync(filePath, json);
         }
 
@@ -48,7 +48,7 @@ namespace VisionMaster.Communications
             if (!File.Exists(filePath)) throw new FileNotFoundException("Configuration file not found", filePath);
 
             var json = await File.ReadAllTextAsync(filePath);
-            var configs = JsonSerializer.Deserialize<List<DataPointConfiguration>>(json);
+            var configs = JsonConvert.DeserializeObject<List<DataPointConfiguration>>(json);
 
             if (configs != null)
             {

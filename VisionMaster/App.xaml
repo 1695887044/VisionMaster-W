@@ -7,7 +7,8 @@
     ShutdownMode="OnMainWindowClose">
     <prism:PrismApplication.Resources>
         <ResourceDictionary>
-            <FontFamily x:Key="Icon" />
+            <!--  全局图标字体：Font Awesome 6 Pro Solid（Shell 菜单/活动栏 glyph 均为 Solid 码点）  -->
+            <FontFamily x:Key="Icon">pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid</FontFamily>
             <ControlTemplate x:Key="ExpandToggleButtonTemplate" TargetType="ToggleButton">
                 <Border
                     Background="#FFFFFF"

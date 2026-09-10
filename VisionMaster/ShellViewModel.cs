@@ -1,8 +1,10 @@
 using Core.Interfaces;
+using AvalonDock.Layout;
 using HslCommunication.Profinet.Siemens;
 using NLog;
 using Prism.Common;
 using Prism.Dialogs;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection.Metadata;
 using System.Threading.Tasks;
@@ -28,6 +30,8 @@ namespace VisionMaster
     {
         private readonly FlowCompiler _flowCompiler;
         private readonly IFlowEngine flowEngine;
+        private readonly AdvancedCommunicationManager _communicationManager;
+        private readonly NetworkVariableBridge _variableBridge;
         private readonly IExecutionContext executionContext;
         private readonly IDialogService dialogService;
         private readonly IFlowEngine flowService;
@@ -74,6 +78,91 @@ namespace VisionMaster
 
         public DelegateCommand<string> SwitchCanvasCommand {  get; }
 
+        public DelegateCommand<string> TogglePanelCommand { get; }
+
+        #endregion
+
+        #region 活动栏（Activity Bar）
+        /// <summary>
+        /// 活动栏按钮高亮状态跟随面板 IsActive（OneWay 绑定，由监听器驱动）
+        /// </summary>
+        public bool IsFlowListActive
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        public bool IsProcessActive
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        public bool IsToolboxActive
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 已挂接 PropertyChanged 监听的面板（布局重载会生成新实例，需先解绑旧的）
+        /// </summary>
+        private readonly List<(LayoutContent Panel, PropertyChangedEventHandler Handler)> _dockWatchers = new();
+
+        /// <summary>
+        /// 活动栏开关：不可见→显示并激活；可见未激活→切到前台；已激活→收起
+        /// </summary>
+        private void TogglePanel(string contentId)
+        {
+            if (!LayoutHelper.IsPanelVisible(contentId))
+            {
+                LayoutHelper.ShowPanel(contentId);
+            }
+            else if (!LayoutHelper.IsPanelActive(contentId))
+            {
+                LayoutHelper.ShowPanel(contentId); // 已显示但被遮挡/失活，切到前台
+            }
+            else
+            {
+                LayoutHelper.HidePanel(contentId);
+            }
+            RefreshActivityBar();
+        }
+
+        /// <summary>
+        /// 监听程序/工具箱面板的可见性与激活状态，驱动活动栏高亮
+        /// 布局加载/重载后必须重新调用（LayoutContent 实例会被替换）
+        /// </summary>
+        private void AttachDockWatchers()
+        {
+            foreach (var (panel, handler) in _dockWatchers)
+                panel.PropertyChanged -= handler;
+            _dockWatchers.Clear();
+
+            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView" })
+            {
+                // LayoutContent 基类同时兼容停靠面板与文档选项卡（工具箱为文档类型）
+                if (LayoutHelper.FindPanel(contentId) is not LayoutContent panel) continue;
+
+                PropertyChangedEventHandler handler = (_, e) =>
+                {
+                    // 文档类型无 IsVisible 属性，用 IsSelected（标签选中）替代
+                    if (e.PropertyName is nameof(LayoutAnchorable.IsVisible) or nameof(LayoutContent.IsActive) or nameof(LayoutDocument.IsSelected))
+                        RefreshActivityBar();
+                };
+                panel.PropertyChanged += handler;
+                _dockWatchers.Add((panel, handler));
+            }
+
+            RefreshActivityBar();
+        }
+
+        private void RefreshActivityBar()
+        {
+            IsFlowListActive = LayoutHelper.IsPanelActive("Panel_FlowListView");
+            IsProcessActive = LayoutHelper.IsPanelActive("Panel_ProcessView");
+            IsToolboxActive = LayoutHelper.IsPanelActive("Panel_ToolView");
+        }
         #endregion
         public ShellViewModel(
             SolutionService solutionService,
@@ -83,7 +172,9 @@ namespace VisionMaster
             IDialogService dialogService,
             IFlowEngine flowService,
             IRuntimeManager _runtimeManager,
-            FlowCompiler _flowCompiler
+            FlowCompiler _flowCompiler,
+            AdvancedCommunicationManager communicationManager,
+            NetworkVariableBridge variableBridge
         )
         {
             StartBackgroundMonitoring();
@@ -91,6 +182,8 @@ namespace VisionMaster
             ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction);
             SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
             SwitchCanvasCommand = new DelegateCommand<string>(SwitchCanvas);
+            TogglePanelCommand = new DelegateCommand<string>(TogglePanel);
+            LayoutHelper.LayoutLoaded += AttachDockWatchers;
             this.solutionService = solutionService;
             this.Workspace = workspaceManager;
             this.flowEngine = flowEngine;
@@ -99,6 +192,14 @@ namespace VisionMaster
             this.flowService = flowService;
             this._runtimeManager = _runtimeManager;
             this._flowCompiler = _flowCompiler;
+            this._communicationManager = communicationManager;
+            this._variableBridge = variableBridge;
+
+            // Core 层持久化服务的通信管理器引用（保存/加载方案时需要按协议重建地址）
+            Services.ServiceLocator.CommunicationManager = communicationManager;
+
+            // 启动时恢复上次保存的连接配置（communications.json；通信设置对话框关闭时保存）
+            _ = communicationManager.LoadConfigAsync();
         }
 
         private void SwitchCanvas(string obj)
@@ -175,6 +276,9 @@ namespace VisionMaster
                     loadResult.Data.SolutionFilePath = dialog.FileName;
                     Workspace.SwitchSolution(loadResult.Data);
                     Services.SolutionConfigApplier.Restore(loadResult.Data.Config);
+                    // 按快照重建变量集合 + 重新接线网络变量（轮询镜像链路）
+                    VariablePersistenceService.Restore(loadResult.Data, Workspace);
+                    _variableBridge.RebindAll();
                     Notifier.ShowSuccess($"方案 [{loadResult.Data.SolutionName}] 加载成功");
                 }
                 else
@@ -207,7 +311,12 @@ namespace VisionMaster
 
             loadResult.Data.SolutionFilePath = startupPath;
             Workspace.SwitchSolution(loadResult.Data);
-            Services.SolutionConfigApplier.Restore(loadResult.Data.Config);
+            // 自动加载不恢复方案布局：保持"上次关闭时的布局"，避免覆盖用户重置的默认布局；
+            // 手动打开方案仍按方案记忆布局（Restore 默认 true）
+            Services.SolutionConfigApplier.Restore(loadResult.Data.Config, restoreLayout: false);
+            // 按快照重建变量集合 + 重新接线网络变量（轮询镜像链路）
+            VariablePersistenceService.Restore(loadResult.Data, Workspace);
+            _variableBridge.RebindAll();
             Notifier.ShowSuccess($"已自动加载方案 [{loadResult.Data.SolutionName}]");
         }
 
@@ -230,10 +339,15 @@ namespace VisionMaster
                 FileName = $"{Workspace.CurrentSolution.SolutionName}.vms"
             };
 
-            var result = dialog.ShowDialog();
+            var result = dialog.ShowDialog() == true;
             if (result == true)
             {
                 CaptureLayoutToConfig();
+                VariablePersistenceService.Capture(Workspace.CurrentSolution, Workspace); // 变量快照随方案落盘
+                // 通信配置快照：通信设置里的增删改只更新管理器内存，保存时同步进方案
+                Workspace.CurrentSolution.CommunicationConfigs =
+                    new System.Collections.ObjectModel.ObservableCollection<CommunicationConfig>(
+                        _communicationManager.GetAllConnections());
                 var saveResult = await solutionService.SaveAsync(Workspace.CurrentSolution, dialog.FileName);
                 if (saveResult.Success)
                 {
@@ -294,10 +408,11 @@ namespace VisionMaster
 
             var parameters = new DialogParameters();
             parameters.Add("Configs", Workspace.CurrentSolution.CommunicationConfigs);
-            
+
             dialogService.ShowDialog("CommunicationSettingsView", parameters, result =>
             {
-                // 可以在这里处理对话框关闭后的逻辑
+                // 对话框关闭后持久化连接配置到 communications.json（软件重启后 LoadConfigAsync 自动恢复）
+                _ = _communicationManager.SaveConfigAsync();
             });
         }
 
@@ -375,6 +490,24 @@ namespace VisionMaster
         }
 
         /// <summary>
+        /// 递归收集步骤（含 If/For 等容器内的嵌套子步骤）
+        /// 引擎按 StepID 在 Blueprints 中查找步骤回写运行状态，
+        /// 只填顶层会导致嵌套步骤永不显示运行状态
+        /// </summary>
+        private static void CollectStepsDeep(IEnumerable<StepModel> steps, ICollection<StepModel> into)
+        {
+            foreach (var step in steps)
+            {
+                into.Add(step);
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                        CollectStepsDeep(branch.Steps, into);
+                }
+            }
+        }
+
+        /// <summary>
         /// 编译当前单个流程（保留原有方法用于兼容性）
         /// </summary>
         private void DoCompile()
@@ -398,6 +531,9 @@ namespace VisionMaster
                 ExecutionEngine = result.Data,
                 CompiledVersion = Workspace.CurrentFlow.Version,
             };
+
+            // 蓝图必须填充（含嵌套步骤）：否则编译出的会话运行时步骤状态无法回写 UI
+            CollectStepsDeep(Workspace.CurrentFlow.Steps, newSession.Blueprints);
 
             _runtimeManager.RegisterSession(newSession);
 
@@ -440,10 +576,7 @@ namespace VisionMaster
                         CompiledVersion = flow.Version,
                     };
 
-                    foreach (var step in flow.Steps)
-                    {
-                        newSession.Blueprints.Add(step);
-                    }
+                    CollectStepsDeep(flow.Steps, newSession.Blueprints);
 
                     _runtimeManager.RegisterSession(newSession);
                     successCount++;
@@ -512,10 +645,7 @@ namespace VisionMaster
                         CompiledVersion = flow.Version,
                     };
 
-                    foreach (var step in flow.Steps)
-                    {
-                        session.Blueprints.Add(step);
-                    }
+                    CollectStepsDeep(flow.Steps, session.Blueprints);
 
                     _runtimeManager.RegisterSession(session);
                 }
@@ -577,10 +707,7 @@ namespace VisionMaster
                         CompiledVersion = flow.Version,
                     };
 
-                    foreach (var step in flow.Steps)
-                    {
-                        session.Blueprints.Add(step);
-                    }
+                    CollectStepsDeep(flow.Steps, session.Blueprints);
 
                     _runtimeManager.RegisterSession(session);
                 }

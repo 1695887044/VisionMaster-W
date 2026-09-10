@@ -1,47 +1,43 @@
 {
-  "SolutionName": "\u89E3\u51B3\u65B9\u6848-20260830221247",
-  "Version": 1,
-  "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\\u89E3\u51B3\u65B9\u6848\\\u89E3\u51B3\u65B9\u6848-20260829224154.vms",
+  "SolutionName": "解决方案-20260830221247",
+  "Version": 1.0,
+  "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\解决方案\\解决方案-20260829224154.vms",
   "Config": {
-    "DockLayoutXml": "\u003C?xml version=\u00221.0\u0022 encoding=\u0022utf-16\u0022?\u003E\r\n\u003CLayoutRoot\u003E\r\n  \u003CRootPanel Orientation=\u0022Horizontal\u0022\u003E\r\n    \u003CLayoutAnchorablePane DockWidth=\u0022260\u0022\u003E\r\n      \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u7A0B\u5E8F\u0022 ContentId=\u0022Panel_FlowListView\u0022 LastActivationTimeStamp=\u002208/31/2026 16:49:49\u0022 /\u003E\r\n      \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6D41\u7A0B\u680F\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_ProcessView\u0022 LastActivationTimeStamp=\u002208/31/2026 16:51:02\u0022 /\u003E\r\n    \u003C/LayoutAnchorablePane\u003E\r\n    \u003CLayoutPanel Orientation=\u0022Vertical\u0022\u003E\r\n      \u003CLayoutDocumentPane\u003E\r\n        \u003CLayoutDocument Title=\u0022\u89C6\u89C9\u56FE\u50CF\u0022 IsSelected=\u0022True\u0022 IsLastFocusedDocument=\u0022True\u0022 ContentId=\u0022Panel_ImageView\u0022 CanClose=\u0022False\u0022 LastActivationTimeStamp=\u002208/31/2026 16:51:00\u0022 /\u003E\r\n      \u003C/LayoutDocumentPane\u003E\r\n      \u003CLayoutAnchorablePaneGroup Orientation=\u0022Horizontal\u0022 DockHeight=\u0022200\u0022\u003E\r\n        \u003CLayoutAnchorablePane DockWidth=\u00228*\u0022 DockHeight=\u0022200\u0022\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u65E5\u5FD7\u4FE1\u606F\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_LogView\u0022 /\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6570\u636E\u680F\u0022 ContentId=\u0022Panel_DataView\u0022 /\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u6A21\u5757\u8F93\u51FA\u0022 ContentId=\u0022Panel_ModuleOutView\u0022 /\u003E\r\n        \u003C/LayoutAnchorablePane\u003E\r\n        \u003CLayoutAnchorablePane DockWidth=\u00222*\u0022\u003E\r\n          \u003CLayoutAnchorable AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u8BBE\u5907\u72B6\u6001\u0022 IsSelected=\u0022True\u0022 ContentId=\u0022Panel_DeviceStateView\u0022 /\u003E\r\n        \u003C/LayoutAnchorablePane\u003E\r\n      \u003C/LayoutAnchorablePaneGroup\u003E\r\n    \u003C/LayoutPanel\u003E\r\n    \u003CLayoutAnchorablePane Id=\u0022b0436921-552f-4c0e-9a17-3fdf9e6d8dbe\u0022 DockWidth=\u0022230\u0022 /\u003E\r\n  \u003C/RootPanel\u003E\r\n  \u003CTopSide /\u003E\r\n  \u003CRightSide\u003E\r\n    \u003CLayoutAnchorGroup PreviousContainerId=\u0022b0436921-552f-4c0e-9a17-3fdf9e6d8dbe\u0022\u003E\r\n      \u003CLayoutAnchorable AutoHideWidth=\u0022221.33333333333348\u0022 AutoHideMinWidth=\u0022100\u0022 AutoHideMinHeight=\u0022100\u0022 Title=\u0022\u5DE5\u5177\u7BB1\u0022 ContentId=\u0022Panel_ToolView\u0022 LastActivationTimeStamp=\u002208/30/2026 22:25:44\u0022 /\u003E\r\n    \u003C/LayoutAnchorGroup\u003E\r\n  \u003C/RightSide\u003E\r\n  \u003CLeftSide /\u003E\r\n  \u003CBottomSide /\u003E\r\n  \u003CFloatingWindows /\u003E\r\n  \u003CHidden /\u003E\r\n\u003C/LayoutRoot\u003E",
+    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"211\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/10/2026 14:39:04\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"267.00000000000006\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/10/2026 14:39:12\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"43.533568904593636*\">\r\n      <LayoutDocumentPane DockHeight=\"0.83125*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/10/2026 14:38:56\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"308\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" ContentId=\"Panel_LogView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/10/2026 09:44:48\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
     "ImageViewMode": 2
   },
   "Flows": [
     {
       "FlowID": "d5020dad06b54a41837b74b513020dc9",
       "FlowName": "GoHome",
-      "Description": "\u56DE\u539F",
+      "Description": "回原",
       "Version": 0,
       "IsEnabled": true,
       "InvokeType": 0,
-      "TriggerVariable": null,
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
-      "EncryptedKey": null,
       "TriggerMode": 1,
       "Steps": []
     },
     {
       "FlowID": "02797a28407840209f71a539c6813358",
       "FlowName": "MainTask",
-      "Description": "\u4E3B\u4EFB\u52A1",
-      "Version": 663,
+      "Description": "主任务",
+      "Version": 1136411,
       "IsEnabled": true,
       "InvokeType": 0,
-      "TriggerVariable": null,
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
-      "EncryptedKey": null,
       "TriggerMode": 1,
       "Steps": [
         {
-          "$type": "ActionStep",
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
           "StepID": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
-          "Icon": "\uF1C5",
-          "PluginName": "\u56FE\u50CF\u91C7\u96C6",
+          "Icon": "",
+          "PluginName": "图像采集",
           "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "\u56FE\u50CF\u91C7\u96C6_0",
-          "Description": "\u56FE\u50CF\u91C7\u96C6",
+          "StepName": "图像采集_0",
+          "Description": "图像采集",
           "SortId": 0,
           "IsDisEnable": false,
           "State": 2,
@@ -55,109 +51,33 @@
           },
           "LinkedSources": {},
           "OutputPortDefinitions": []
-        },
-        {
-          "$type": "ActionStep",
-          "StepID": "07ecf1f0-69af-426a-8a57-065ef9e15b9e",
-          "Icon": "\uF1C5",
-          "PluginName": "ROI",
-          "PluginTypeName": "Plugin.CreateRoi.CreateRoiPlugin, Plugin.CreateRoi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "\u7B2C\u4E00\u6B21\u88C1\u526A",
-          "Description": "ROI",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 2,
-          "InputValues": {
-            "DisplayViewIndex": 0,
-            "MaskInvert": false,
-            "RoiList": [
-              {
-                "Name": "ROI_1",
-                "ShapeType": 2,
-                "Params": [
-                  246,
-                  323,
-                  151
-                ],
-                "DisplayText": "ROI_1  [Circle]",
-                "ParamNames": [
-                  "\u5706\u5FC3\u884C(R)",
-                  "\u5706\u5FC3\u5217(C)",
-                  "\u534A\u5F84(Radius)"
-                ],
-                "ParamEntries": [
-                  {
-                    "Name": "\u5706\u5FC3\u884C(R)",
-                    "Value": 246
-                  },
-                  {
-                    "Name": "\u5706\u5FC3\u5217(C)",
-                    "Value": 323
-                  },
-                  {
-                    "Name": "\u534A\u5F84(Radius)",
-                    "Value": 151
-                  }
-                ]
-              }
-            ],
-            "SmearDrawData": "197,274,278;198,272,280;199,272,280;200,271,281;201,271,281;202,271,281;203,271,281;204,271,281;205,272,280;206,272,280;207,274,278;211,275,278;212,273,280;213,273,280;214,272,281;215,272,281;216,272,281;217,271,281;218,271,281;219,271,280;220,271,280;221,272,279;222,272,279;223,274,277;227,275,278;228,273,280;229,273,280;230,272,281;231,272,281;232,235,238;232,272,281;233,233,240;233,272,281;234,233,240;234,272,281;235,232,241;235,272,281;236,232,241;236,272,281;237,232,241;237,272,281;238,232,241;238,273,280;239,233,240;239,273,280;240,233,240;240,275,278;241,233,240;242,232,241;243,232,241;244,232,241;245,232,242;246,233,244;247,233,244;248,235,245;249,236,245;250,236,245;251,236,245;252,237,247;253,237,247;254,239,248;255,239,248;256,239,248;257,239,248;258,240,247;259,240,247;259,257,260;260,242,245;260,255,262;261,255,262;262,254,263;263,254,263;264,254,263;265,254,263;266,255,262;267,255,262;268,257,260;",
-            "SmearEraseData": ""
-          },
-          "LinkedSources": {
-            "\u8F93\u5165\u56FE\u50CF": {
-              "TargetStepId": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
-              "TargetPortName": "Image",
-              "DisplayAddress": "MainTask.\u56FE\u50CF\u91C7\u96C6_0.Image"
-            },
-            "SrcImage": {
-              "TargetStepId": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
-              "TargetPortName": "Image",
-              "DisplayAddress": "MainTask.\u56FE\u50CF\u91C7\u96C6_0.Image"
-            }
-          },
-          "OutputPortDefinitions": [
-            {
-              "Name": "Crop_ROI_1",
-              "DataTypeName": "HalconDotNet.HImage, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8",
-              "Description": "ROI \u0027ROI_1\u0027 \u7684\u88C1\u526A\u56FE"
-            }
-          ]
-        },
-        {
-          "$type": "ActionStep",
-          "StepID": "3ade1942-90ab-47f3-89b6-9c8d5a3a469e",
-          "Icon": "\uF1C5",
-          "PluginName": "ROI",
-          "PluginTypeName": "Plugin.CreateRoi.CreateRoiPlugin, Plugin.CreateRoi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "ROI_1",
-          "Description": "ROI",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 2,
-          "InputValues": {
-            "DisplayViewIndex": 3,
-            "MaskInvert": false,
-            "RoiList": []
-          },
-          "LinkedSources": {
-            "\u8F93\u5165\u56FE\u50CF": {
-              "TargetStepId": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
-              "TargetPortName": "Image",
-              "DisplayAddress": "MainTask.\u56FE\u50CF\u91C7\u96C6_0.Image"
-            },
-            "SrcImage": {
-              "TargetStepId": "07ecf1f0-69af-426a-8a57-065ef9e15b9e",
-              "TargetPortName": "Crop_ROI_1",
-              "DisplayAddress": "MainTask.\u7B2C\u4E00\u6B21\u88C1\u526A.Crop_ROI_1"
-            }
-          },
-          "OutputPortDefinitions": []
         }
       ]
     }
   ],
-  "CommunicationConfigs": [],
+  "CommunicationConfigs": [
+    {
+      "ConnectionName": "Conn_100401",
+      "Protocol": 0,
+      "Config": {
+        "$type": "VisionMaster.Communications.ModbusTcpConfig, VM.Core",
+        "IpAddress": "127.0.0.1",
+        "Port": 502,
+        "EnableKeepAlive": true,
+        "KeepAliveIntervalMs": 30000,
+        "Type": 0,
+        "TimeoutMs": 3000,
+        "RetryCount": 3,
+        "RetryIntervalMs": 1000
+      },
+      "ReadCycleMs": 1000,
+      "AutoStart": true,
+      "AutoReconnect": true,
+      "IsEnabled": true,
+      "Description": ""
+    }
+  ],
   "GlobalVariables": [],
+  "VariableSnapshots": [],
   "WatchItems": []
 }

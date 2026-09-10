@@ -1,10 +1,9 @@
-﻿using Microsoft.VisualBasic.Logging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Core
@@ -191,7 +190,7 @@ namespace VisionMaster.Core
                 var fileName = $"failed_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.json";
                 var filePath = Path.Combine(_backupPath, fileName);
 
-                var json = JsonSerializer.Serialize(batch, new JsonSerializerOptions { WriteIndented = true });
+                var json = JsonConvert.SerializeObject(batch, Formatting.Indented);
                 await File.WriteAllTextAsync(filePath, json);
 
                // Log.Info($"失败数据已备份到: {filePath}");

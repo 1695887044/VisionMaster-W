@@ -1,11 +1,11 @@
-using GongSolutions.Wpf.DragDrop;
+﻿using GongSolutions.Wpf.DragDrop;
 using Core.Interfaces;
 using System;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using Core.Events;
@@ -13,12 +13,6 @@ using VisionMaster.EventModel;
 
 namespace VisionMaster.Models
 {
-    [JsonDerivedType(typeof(ActionStep), typeDiscriminator: "ActionStep")]
-    [JsonDerivedType(typeof(ConditionStep), typeDiscriminator: "ConditionStep")]
-    [JsonDerivedType(typeof(BreakStep), typeDiscriminator: "BreakStep")]
-    [JsonDerivedType(typeof(ContinueStep), typeDiscriminator: "ContinueStep")]
-    [JsonDerivedType(typeof(ReturnStep), typeDiscriminator: "ReturnStep")]
-    [JsonDerivedType(typeof(ForStep), typeDiscriminator: "ForStep")]
     public abstract class StepModel:BindableBase, IStepConfigData
     {
         public Guid StepID { get; set; } = Guid.NewGuid();

@@ -6,9 +6,13 @@ using HalconDotNet;
 using Plugin.CreateRoi.Models;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
+using System.Windows.Input;
 
 namespace Plugin.CreateRoi
 {
@@ -34,9 +38,9 @@ namespace Plugin.CreateRoi
         }
 
         // ObservableCollection：增删触发列表绑定刷新（List<T> 不会通知 UI）
-        private System.Collections.ObjectModel.ObservableCollection<RoiItem> _roiList = new();
+        private ObservableCollection<RoiItem> _roiList = new();
         [StepConfig]
-        public System.Collections.ObjectModel.ObservableCollection<RoiItem> RoiList
+        public ObservableCollection<RoiItem> RoiList
         {
             get => _roiList;
             set { _roiList = value ?? new(); OnPropertyChanged(); RebuildDynamicOutputs(); }
@@ -64,7 +68,7 @@ namespace Plugin.CreateRoi
             set { SetProperty(ref _previewImage, value); UpdateDisplayImage(); }
         }
 
-        /// <summary>当前选中 ROI（列表/画布双向联动枢纽，视图 XAML 直接绑定）</summary>
+        /// <summary>当前选中 ROI（列表选中态；与 CanvasActiveRoi 双向联动）</summary>
         private RoiItem? _selectedRoi;
         public RoiItem? SelectedRoi
         {
@@ -72,19 +76,35 @@ namespace Plugin.CreateRoi
             set
             {
                 if (_selectedRoi != null) _selectedRoi.ParamEdited -= OnSelectedRoiParamEdited;
-                SetProperty(ref _selectedRoi, value);
-                if (_selectedRoi != null) _selectedRoi.ParamEdited += OnSelectedRoiParamEdited;
+                if (SetProperty(ref _selectedRoi, value) && _selectedRoi != null)
+                {
+                    _selectedRoi.ParamEdited += OnSelectedRoiParamEdited;
+                    // 列表选中 → 画布挂接句柄（控件 ActiveRoi DP 回调完成 Attach）
+                    CanvasActiveRoi = CanvasRois.FirstOrDefault(x => x.RoiName == _selectedRoi.Name);
+                }
             }
         }
 
-        /// <summary>选中 ROI 的参数经数值框编辑 → 请求视图同步画布并刷新掩膜</summary>
-        public event Action<RoiItem>? RoiParamEditedRequested;
+        /// <summary>
+        /// 画布集合（控件 DrawObjectList 的绑定源，VM 是唯一所有者）：
+        /// 控件右键新建/删除直接改动此集合 → CollectionChanged 回写 RoiList
+        /// </summary>
+        public ObservableCollection<DrawingObjectInfo> CanvasRois { get; } = new();
 
-        private void OnSelectedRoiParamEdited(RoiItem roi) => RoiParamEditedRequested?.Invoke(roi);
-
-        /// <summary>画布 ROI 被点选（视图桥接：控件 RoiSelected 事件 → 这里 → 列表绑定自动定位）</summary>
-        public void SelectFromCanvas(string roiName) =>
-            SelectedRoi = RoiList.FirstOrDefault(x => x.Name == roiName);
+        private DrawingObjectInfo? _canvasActiveRoi;
+        /// <summary>
+        /// 画布编辑中的 ROI（控件 ActiveRoi 双向绑定）：
+        /// 画布点选回传 → 同步列表选中；列表选中写入 → 画布挂句柄
+        /// </summary>
+        public DrawingObjectInfo? CanvasActiveRoi
+        {
+            get => _canvasActiveRoi;
+            set
+            {
+                if (SetProperty(ref _canvasActiveRoi, value) && value != null)
+                    SelectedRoi = RoiList.FirstOrDefault(x => x.Name == value.RoiName); // 画布点选 → 列表定位
+            }
+        }
 
         #endregion
 
@@ -138,54 +158,97 @@ namespace Plugin.CreateRoi
 
         #endregion
 
-        #region 画布同步（视图桥接调用的业务方法）
+        #region 画布同步（集合与选中联动，纯 VM）
 
-        /// <summary>画布新建 ROI → 存入 RoiList（RoiItem 为单一数据源）</summary>
-        public void SyncFromCanvasAdd(DrawingObjectInfo info)
+        public CreateRoiPlugin()
         {
-            if (info.HTuples == null || info.HTuples.Length == 0) return;
-            RoiList.Add(new RoiItem
+            CanvasRois.CollectionChanged += OnCanvasRoisChanged;
+        }
+
+        /// <summary>画布集合变更（控件新建/删除/清空驱动）→ 回写 RoiList 并联动端口/掩膜</summary>
+        private void OnCanvasRoisChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (_seedingCanvas) return;
+            switch (e.Action)
             {
-                Name = info.RoiName,
-                ShapeType = info.ShapeType,
-                Params = info.HTuples.Select(t => t.D).ToArray()
-            });
-            OnRoiListChanged();
+                case NotifyCollectionChangedAction.Add when e.NewItems != null:
+                    foreach (DrawingObjectInfo info in e.NewItems)
+                    {
+                        info.PropertyChanged += OnCanvasRoiTuplesChanged;
+                        RoiList.Add(new RoiItem
+                        {
+                            Name = info.RoiName,
+                            ShapeType = info.ShapeType,
+                            Params = info.HTuples.Select(t => t.D).ToArray()
+                        });
+                    }
+                    OnRoiListChanged();
+                    break;
+
+                case NotifyCollectionChangedAction.Remove when e.OldItems != null:
+                    foreach (DrawingObjectInfo info in e.OldItems)
+                    {
+                        info.PropertyChanged -= OnCanvasRoiTuplesChanged;
+                        var roi = RoiList.FirstOrDefault(x => x.Name == info.RoiName);
+                        if (roi == null) continue;
+                        RoiList.Remove(roi);
+                        if (SelectedRoi == roi) SelectedRoi = null;
+                    }
+                    OnRoiListChanged();
+                    break;
+
+                case NotifyCollectionChangedAction.Reset:
+                    RoiList.Clear();
+                    SelectedRoi = null;
+                    OnRoiListChanged();
+                    break;
+            }
         }
 
-        /// <summary>画布删除 ROI → 从 RoiList 移除</summary>
-        public void SyncFromCanvasRemove(DrawingObjectInfo info)
+        /// <summary>
+        /// 拖拽/松手回传：控件把句柄参数写进 info.HTuples（INPC）→ 同步 RoiItem.Params。
+        /// 被删除的 ROI 已退订，删除后的回写自动跳过
+        /// </summary>
+        private void OnCanvasRoiTuplesChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (e.PropertyName != nameof(DrawingObjectInfo.HTuples)) return;
+            var info = (DrawingObjectInfo)sender!;
             var roi = RoiList.FirstOrDefault(x => x.Name == info.RoiName);
-            if (roi == null) return;
-            RoiList.Remove(roi);
-            if (SelectedRoi == roi) SelectedRoi = null;
-            OnRoiListChanged();
-        }
-
-        /// <summary>画布清空 → RoiList 清空</summary>
-        public void SyncFromCanvasReset()
-        {
-            RoiList.Clear();
-            SelectedRoi = null;
-            OnRoiListChanged();
-        }
-
-        /// <summary>拖拽句柄修改 → 回写 Params；选中项的参数面板同步刷新</summary>
-        public void UpdateRoiFromDrag(DrawingObjectInfo info)
-        {
-            if (info?.HTuples == null) return;
-            var roi = RoiList.FirstOrDefault(x => x.Name == info.RoiName);
-            if (roi == null) return;
-
-            roi.Params = info.HTuples.Select(t => t.D).ToArray(); // setter 同长度替换 → entry.Value INPC 通知 → 面板数值刷新
+            if (roi == null || info.HTuples == null) return;
+            roi.Params = info.HTuples.Select(t => t.D).ToArray();
             ScheduleMaskPreview();
         }
 
-        /// <summary>删除当前选中 ROI（视图 Del 键/删除按钮桥接；画布 Remove 事件回环同步 RoiList）</summary>
-        public void DeleteSelectedRoi() => SelectedRoi = null; // 视图按 SelectedRoi 找画布对象移除
+        /// <summary>选中 ROI 的参数经数值框编辑 → 写入画布 info.HTuples（INPC → 控件应用句柄并重绘）</summary>
+        private void OnSelectedRoiParamEdited(RoiItem roi)
+        {
+            var info = CanvasRois.FirstOrDefault(x => x.RoiName == roi.Name);
+            if (info != null)
+                info.HTuples = roi.Params.Select(p => new HTuple(p)).ToArray();
+            ScheduleMaskPreview();
+        }
 
-        /// <summary>RoiList 增删后的统一后处理：重建动态端口 + 掩膜联动</summary>
+        /// <summary>
+        /// 删除当前选中 ROI（Del 键/删除按钮；集合 Remove → 画布摘句柄 + RoiList 回写）。
+        /// CanExecute 守卫焦点在文本框时不触发（Del 是文本编辑键）
+        /// </summary>
+        public void DeleteSelectedRoi()
+        {
+            if (SelectedRoi is not RoiItem roi) return;
+            var info = CanvasRois.FirstOrDefault(x => x.RoiName == roi.Name);
+            if (info != null) CanvasRois.Remove(info);
+        }
+
+        public ICommand DeleteSelectedCommand => _deleteSelectedCommand ??=
+            new RelayCommand(
+                _ => DeleteSelectedRoi(),
+                _ => System.Windows.Input.Keyboard.FocusedElement is not System.Windows.Controls.TextBox);
+        private ICommand? _deleteSelectedCommand;
+
+        public ICommand ClearRoisCommand => _clearRoisCommand ??=
+            new RelayCommand(_ => CanvasRois.Clear());
+        private ICommand? _clearRoisCommand;
+
         private void OnRoiListChanged()
         {
             RebuildDynamicOutputs();
@@ -200,12 +263,42 @@ namespace Plugin.CreateRoi
             return new CreateRoiView() { DataContext = this };
         }
 
-        /// <summary>配置实例释放：掩膜预览图与防抖计时器</summary>
+        /// <summary>配置初始化：灌入配置后按 RoiList 播种画布集合并恢复涂擦（绑定建立时自动上屏）</summary>
+        public override void Initialize(IStepConfigData stepData)
+        {
+            base.Initialize(stepData);
+            _seedingCanvas = true;
+            try
+            {
+                CanvasRois.Clear();
+                foreach (var roi in RoiList)
+                    CanvasRois.Add(new DrawingObjectInfo(
+                        roi.ShapeType, roi.Params.Select(p => new HTuple(p)).ToArray(), roi.Name));
+            }
+            finally { _seedingCanvas = false; }
+            RestoreSmear();
+        }
+
+        private bool _seedingCanvas;
+
+        /// <summary>视图加载完成（生命周期信号，视图桥接调用）：回填输入图像</summary>
+        public void OnViewLoaded()
+        {
+            var src = SrcImage.ActualValue;
+            if (src != null && src.IsInitialized()) PreviewImage = src;
+        }
+
+        /// <summary>配置实例释放：掩膜预览图、防抖计时器与涂擦区域（直接清字段，避免析构期触发 INPC/持久化）</summary>
         public override void Dispose()
         {
             _maskDebounce.Stop();
             _maskPreviewImage?.Dispose();
             _maskPreviewImage = null;
+            _smearDraw?.Dispose(); _smearDraw = null;
+            _smearErase?.Dispose(); _smearErase = null;
+            // 画布 ROI 兜底释放：正常路径控件 Unloaded 已处置，此处覆盖控件未挂接/异常路径（Dispose 幂等）
+            foreach (var info in CanvasRois)
+                info.Dispose();
             base.Dispose();
         }
 
@@ -236,7 +329,7 @@ namespace Plugin.CreateRoi
 
             // 5. 视图与发布
             PreviewImage = src;
-            this.PublishPreview(src, DisplayViewIndex);
+            this.PublishPreview(src, DisplayViewIndex+1);
 
             // 6. 动态输出端口填值：每个 ROI 裁剪一张图，按端口名 Crop_{ROI名} 输出
             for (int i = 0; i < RoiList.Count && i < _dynamicPortNames.Count; i++)
@@ -355,10 +448,45 @@ namespace Plugin.CreateRoi
             return merged;
         }
 
-        #region 画笔涂擦集成（配置窗口桥接）
+        #region 画笔涂擦集成（属性即绑定通道，ImageEdit.SmearDraw/SmearErase 的绑定源）
 
         private HRegion? _smearDraw;
+
+        /// <summary>
+        /// 累计"涂抹"区域（ImageEdit.SmearDraw 双向绑定）：
+        /// 控件笔画结束以新实例回写 → 本属性释放被替换的旧实例并持久化；
+        /// VM 是唯一所有者，控件只读参与并集
+        /// </summary>
+        public HRegion? SmearDraw
+        {
+            get => _smearDraw;
+            set
+            {
+                if (ReferenceEquals(_smearDraw, value)) return;
+                _smearDraw?.Dispose();
+                _smearDraw = value;
+                OnPropertyChanged();
+                SyncSmearData();
+                if (IsMaskPreview) RefreshMaskPreview();
+            }
+        }
+
         private HRegion? _smearErase;
+
+        /// <summary>累计"擦除"区域（所有权约定同 SmearDraw）</summary>
+        public HRegion? SmearErase
+        {
+            get => _smearErase;
+            set
+            {
+                if (ReferenceEquals(_smearErase, value)) return;
+                _smearErase?.Dispose();
+                _smearErase = value;
+                OnPropertyChanged();
+                SyncSmearData();
+                if (IsMaskPreview) RefreshMaskPreview();
+            }
+        }
 
         private string _smearDrawData = "";
         /// <summary>涂抹区域持久化快照（游程编码文本，随方案存盘）</summary>
@@ -378,40 +506,16 @@ namespace Plugin.CreateRoi
             set { _smearEraseData = value ?? ""; OnPropertyChanged(); }
         }
 
-        /// <summary>
-        /// 配置窗口涂擦笔画结束后调用：替换涂/擦区域副本并刷新掩膜预览
-        /// 区域由插件持有副本，窗口关闭后运行时仍可用
-        /// </summary>
-        public void UpdateSmear(HRegion? draw, HRegion? erase)
-        {
-            _smearDraw?.Dispose(); _smearDraw = draw;
-            _smearErase?.Dispose(); _smearErase = erase;
-            SyncSmearData();
-            if (IsMaskPreview) RefreshMaskPreview();
-        }
+        /// <summary>清除涂擦（按钮命令）：置空触发绑定向控件回推 null（显示层同步清除）并持久化</summary>
+        public ICommand ClearSmearCommand => _clearSmearCommand ??=
+            new RelayCommand(_ => { SmearDraw = null; SmearErase = null; });
+        private ICommand? _clearSmearCommand;
 
-        /// <summary>清除涂擦（列表"清除涂抹"按钮调用）</summary>
-        public void ClearSmear()
-        {
-            _smearDraw?.Dispose(); _smearDraw = null;
-            _smearErase?.Dispose(); _smearErase = null;
-            SyncSmearData();
-            if (IsMaskPreview) RefreshMaskPreview();
-        }
-
-        /// <summary>导出插件持有的涂擦区域副本（配置窗口恢复显示用，调用方负责 Dispose）</summary>
-        public (HRegion?, HRegion?) CopySmearRegions()
-        {
-            HRegion? d = _smearDraw != null && _smearDraw.IsInitialized() ? new HRegion(_smearDraw) : null;
-            HRegion? e = _smearErase != null && _smearErase.IsInitialized() ? new HRegion(_smearErase) : null;
-            return (d, e);
-        }
-
-        /// <summary>配置窗口打开时调用：从持久化快照重建涂擦区域</summary>
+        /// <summary>配置窗口打开时调用：从持久化快照重建涂擦区域（绑定建立后自动上屏）</summary>
         public void RestoreSmear()
         {
-            _smearDraw?.Dispose(); _smearDraw = DataToRegion(_smearDrawData);
-            _smearErase?.Dispose(); _smearErase = DataToRegion(_smearEraseData);
+            SmearDraw = DataToRegion(_smearDrawData);
+            SmearErase = DataToRegion(_smearEraseData);
         }
 
         /// <summary>涂擦变化后同步持久化快照（区域是运行态，字段是存储态，单向同步）</summary>

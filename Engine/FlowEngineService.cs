@@ -141,6 +141,12 @@ namespace VisionMaster.Services
             {
                 session.IsRunning = false;
 
+                // 循环退出后清除所有步骤的运行焦点：
+                // 停止时机可能落在步骤"置 Running 之后、置 Success 之前"，不清除会导致高亮永久卡住
+                foreach (var step in session.Blueprints)
+                    step.IsRunningFocus = false;
+                session.FocusedStep = null;
+
                 if (session.State != SessionState.Faulted)
                 {
                     session.State = SessionState.Stopped;
@@ -194,6 +200,12 @@ namespace VisionMaster.Services
             finally
             {
                 session.IsRunning = false;
+
+                // 单次执行结束同样清除运行焦点，避免最终行高亮卡住
+                foreach (var step in session.Blueprints)
+                    step.IsRunningFocus = false;
+                session.FocusedStep = null;
+
                 _performanceMonitor?.RecordSessionEnd(session.SessionID);
 
                 if (session.State != SessionState.Faulted)

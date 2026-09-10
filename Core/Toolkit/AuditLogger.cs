@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Core
@@ -100,7 +100,7 @@ namespace VisionMaster.Core
                     {
                         try
                         {
-                            var entry = JsonSerializer.Deserialize<AuditLogEntry>(line);
+                            var entry = JsonConvert.DeserializeObject<AuditLogEntry>(line);
                             if (entry.Timestamp >= startTime && entry.Timestamp <= endTime)
                             {
                                 if (operationType.HasValue && entry.OperationType != operationType.Value) continue;
@@ -170,7 +170,7 @@ namespace VisionMaster.Core
 
                     if (batch.Count > 0)
                     {
-                        var lines = batch.Select(e => JsonSerializer.Serialize(e));
+                        var lines = batch.Select(e => JsonConvert.SerializeObject(e));
                         File.AppendAllLines(_currentLogFile, lines);
                     }
                     else

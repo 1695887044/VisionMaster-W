@@ -1,226 +1,595 @@
-﻿<Window
+<Window
     x:Class="VisionMaster.Shell"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:avalonDock="https://github.com/Dirkster99/AvalonDock"
     xmlns:commands="clr-namespace:VisionMaster.Commands"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:VisionMaster;assembly=VM.Core"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
     xmlns:views="clr-namespace:VisionMaster.Views"
     Title="VisionMaster"
-    Width="1200"
+    Width="1280"
     Height="920"
     prism:ViewModelLocator.AutoWireViewModel="True"
     ui:WindowExtensions.IsAutoWireCommands="True"
-    Background="#F7FAFC"
+    Background="#FFFFFF"
     FontFamily="Microsoft YaHei"
     WindowStyle="None">
     <WindowChrome.WindowChrome>
         <WindowChrome
-            CaptionHeight="45"
+            CaptionHeight="36"
             CornerRadius="1"
             GlassFrameThickness="1"
             ResizeBorderThickness="6"
             UseAeroCaptionButtons="True" />
     </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <!--  标题栏图标按钮（高频操作驻留）  -->
+        <Style x:Key="TitleButton" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource Icon}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Foreground" Value="#444444" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="5"
+                            x:Name="Bd">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E9EDF4" />
+                                <Setter Property="Foreground" Value="#1F1F1F" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#DCE6F5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  标题栏分隔线  -->
+        <Style x:Key="TitleSeparator" TargetType="Rectangle">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Margin" Value="5,7" />
+            <Setter Property="Fill" Value="#E0E0E0" />
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+
+        <!--  活动栏开关（VS Code 式，左侧强调条指示）  -->
+        <Style x:Key="ActivityToggle" TargetType="ToggleButton">
+            <Setter Property="FontFamily" Value="{StaticResource Icon}" />
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="Foreground" Value="#5A5A5A" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="48" />
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <!--  左侧强调指示条  -->
+                            <Border
+                                x:Name="Indicator"
+                                Width="3"
+                                HorizontalAlignment="Left"
+                                Background="#0067C0"
+                                CornerRadius="0,2,2,0"
+                                Visibility="Collapsed" />
+                            <Border
+                                x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="0">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#1F1F1F" />
+                                <Setter TargetName="Bd" Property="Background" Value="#F0F3F8" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="#0067C0" />
+                                <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  活动栏动作按钮（打开对话框类）  -->
+        <Style x:Key="ActivityAction" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource Icon}" />
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="Foreground" Value="#5A5A5A" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="48" />
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#1F1F1F" />
+                                <Setter TargetName="Bd" Property="Background" Value="#F0F3F8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="45" />
-            <RowDefinition Height="40" />
+            <RowDefinition Height="36" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="24" />
+            <RowDefinition Height="26" />
         </Grid.RowDefinitions>
         <ui:OverlayHost />
-        <Grid>
+
+        <!--  ============ 单行标题栏（VS Code 式） ============  -->
+        <Grid Background="#FFFFFF">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="auto" />
-                <ColumnDefinition />
-                <ColumnDefinition Width="auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Menu
-                HorizontalAlignment="Left"
-                FontFamily="{StaticResource Icon}"
-                WindowChrome.IsHitTestVisibleInChrome="True">
-                <MenuItem Header="文件(F)">
-                    <MenuItem
-                        Command="{Binding SolutionCommand}"
-                        CommandParameter="{x:Static local:SolutionAction.Open}"
-                        Header="打开(O)"
-                        Icon="&#xf07c;" />
-                    <MenuItem
-                        Command="{Binding SolutionCommand}"
-                        CommandParameter="{x:Static local:SolutionAction.Save}"
-                        Header="保存(S)"
-                        Icon="&#xf0c7;" />
-                    <MenuItem Header="编辑(E)" Icon="&#xf044;" />
-                    <Separator />
-                    <MenuItem
-                        Command="{Binding SolutionCommand}"
-                        CommandParameter="{x:Static local:SolutionAction.Open}"
-                        Header="载入文件(F)"
-                        Icon="&#xf56f;" />
-                    <MenuItem
-                        Command="{Binding SolutionCommand}"
-                        CommandParameter="{x:Static local:SolutionAction.Save}"
-                        Header="保存文件(L)"
-                        Icon="&#xf56e;" />
-                </MenuItem>
 
-                <MenuItem Header="参数(P)">
-                    <MenuItem Header="设备参数" Icon="&#xf233;" />
-                    <MenuItem Header="系统参数" Icon="&#xf085;" />
-                    <MenuItem Header="画布设置" Icon="&#xf53f;">
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="1"
-                            Header="画布1 (单画面 1×1)"
-                            Icon="&#xf065;" />
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="2"
-                            Header="画布2 (双画面 1×2)"
-                            Icon="&#xf009;" />
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="3"
-                            Header="画布3 (主从 1+2 分屏)"
-                            Icon="&#xf00a;" />
-                        <Separator />
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="4"
-                            Header="画布4 (四宫格 2×2)"
-                            Icon="&#xf009;" />
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="5"
-                            Header="画布5 (多视口 2+3 分屏)"
-                            Icon="&#xf00a;" />
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="6"
-                            Header="画布6 (六宫格 2×3)"
-                            Icon="&#xf00a;" />
-                        <Separator />
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="7"
-                            Header="画布7 (矩阵 3+4 分屏)"
-                            Icon="&#xf00a;" />
+            <StackPanel Orientation="Horizontal">
+                <!--  ☰ 菜单（完整菜单树折叠于此）  -->
+                <Menu
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+                    <MenuItem
+                        Foreground="#444444"
+                        Header="&#xf0c9;">
+                        <MenuItem Header="文件(F)" FontFamily="Microsoft YaHei">
+                            <MenuItem
+                                Command="{Binding SolutionCommand}"
+                                CommandParameter="{x:Static local:SolutionAction.Create}"
+                                Header="新建方案(N)"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf15b;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SolutionCommand}"
+                                CommandParameter="{x:Static local:SolutionAction.BrowseList}"
+                                Header="方案列表(L)"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0ca;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SolutionCommand}"
+                                CommandParameter="{x:Static local:SolutionAction.Open}"
+                                Header="打开方案(O)"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf07c;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SolutionCommand}"
+                                CommandParameter="{x:Static local:SolutionAction.Save}"
+                                Header="保存方案(S)"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0c7;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        </MenuItem>
 
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="8"
-                            Header="画布8 (矩阵 4+4 分屏)"
-                            Icon="&#xf00a;" />
+                        <MenuItem Header="视图(V)">
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ImageView"
+                                Header="视觉图像"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf030;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ProcessView"
+                                Header="流程设计器"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf542;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_FlowListView"
+                                Header="程序"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00b;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ToolView"
+                                Header="工具箱"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf552;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_LogView"
+                                Header="日志信息"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf15c;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_DataView"
+                                Header="数据栏"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf080;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ModuleOutView"
+                                Header="模块输出"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf2f5;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_DeviceStateView"
+                                Header="设备状态"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf108;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        </MenuItem>
 
-                        <MenuItem
-                            Command="{Binding SwitchCanvasCommand}"
-                            CommandParameter="9"
-                            Header="画布9 (九宫格 3×3)"
-                            Icon="&#xf00a;" />
+                        <MenuItem Header="画布(C)">
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="1"
+                                Header="单画面 1×1"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf065;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="2"
+                                Header="双画面 1×2"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf009;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="3"
+                                Header="主从 1+2 分屏"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <Separator />
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="4"
+                                Header="四宫格 2×2"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf009;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="5"
+                                Header="多视口 2+3 分屏"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="6"
+                                Header="六宫格 2×3"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <Separator />
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="7"
+                                Header="矩阵 3+4 分屏"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="8"
+                                Header="矩阵 4+4 分屏"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SwitchCanvasCommand}"
+                                CommandParameter="9"
+                                Header="九宫格 3×3"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        </MenuItem>
+
+                        <MenuItem Header="工具(T)">
+                            <MenuItem Header="截屏"  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf125;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:SaveLayoutCommand}"
+                                Header="保存布局"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:LoadLayoutCommand}"
+                                Header="加载布局"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf07b;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ResetLayoutCommand}"
+                                Header="恢复默认布局"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf2d2;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <Separator />
+                            <MenuItem Header="报表查询"  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf200;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        </MenuItem>
+
+                        <MenuItem Header="系统(S)">
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.UserLogin}"
+                                Header="用户登录"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf4fe;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
+                                Header="全局变量"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf121;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <Separator />
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.CameraSettings}"
+                                Header="相机设置"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf030;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.CommSettings}"
+                                Header="通讯设置"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf6ff;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
+                                Header="硬件设置"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf2db;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.ReportQuery}"
+                                Header="报表查询"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf200;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.ReturnToZero}"
+                                Header="回零"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf015;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.UIDesign}"
+                                Header="UI 设计"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf53f;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        </MenuItem>
+
+                        <MenuItem Header="帮助(H)" FontFamily="Microsoft YaHei">
+                            <MenuItem Header="激活"  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf084;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem Header="建议及反馈"  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf4ad;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem Header="帮助文档"  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf02d;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <Separator />
+                            <MenuItem Header="关于"  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf05a;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        </MenuItem>
                     </MenuItem>
-                </MenuItem>
+                </Menu>
 
-                <MenuItem Header="视图(V)">
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_ImageView"
-                        Header="视觉图像"
-                        Icon="&#xf030;" />
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_ProcessView"
-                        Header="流程栏"
-                        Icon="&#xf542;" />
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_FlowListView"
-                        Header="程序"
-                        Icon="&#xf00b;" />
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_ToolView"
-                        Header="工具箱"
-                        Icon="&#xf552;" />
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_LogView"
-                        Header="日志信息"
-                        Icon="&#xf15c;" />
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_DataView"
-                        Header="数据栏"
-                        Icon="&#xf080;" />
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_ModuleOutView"
-                        Header="模块输出"
-                        Icon="&#xf2f5;" />
-                    <MenuItem
-                        Command="{commands:ShowPanelCommand}"
-                        CommandParameter="Panel_DeviceStateView"
-                        Header="设备状态"
-                        Icon="&#xf108;" />
-                </MenuItem>
+                <!--  文件操作  -->
+                <Button
+                    Command="{Binding SolutionCommand}"
+                    CommandParameter="{x:Static local:SolutionAction.Create}"
+                    Content="&#xf15b;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="新建方案" />
+                <Button
+                    Command="{Binding SolutionCommand}"
+                    CommandParameter="{x:Static local:SolutionAction.Open}"
+                    Content="&#xf07c;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="打开方案" />
+                <Button
+                    Command="{Binding SolutionCommand}"
+                    CommandParameter="{x:Static local:SolutionAction.Save}"
+                    Content="&#xf0c7;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="保存方案" />
 
-                <MenuItem Header="工具(T)">
-                    <MenuItem Header="截屏" Icon="&#xf125;" />
-                    <MenuItem
-                        Command="{commands:SaveLayoutCommand}"
-                        Header="保存布局"
-                        Icon="&#xf00a;" />
-                    <MenuItem
-                        Command="{commands:LoadLayoutCommand}"
-                        Header="加载布局"
-                        Icon="&#xf07b;" />
-                    <MenuItem
-                        Command="{commands:ResetLayoutCommand}"
-                        Header="加载默认布局"
-                        Icon="&#xf2d2;" />
-                    <Separator />
-                    <MenuItem Header="报表查询" Icon="&#xf200;" />
-                </MenuItem>
+                <Rectangle Style="{StaticResource TitleSeparator}" />
 
-                <MenuItem Header="帮助(H)">
-                    <MenuItem Header="激活" Icon="&#xf084;" />
-                    <MenuItem Header="建议及反馈" Icon="&#xf4ad;" />
-                    <MenuItem Header="帮助文档" Icon="&#xf02d;" />
-                    <Separator />
-                    <MenuItem Header="关于" Icon="&#xf05a;" />
-                </MenuItem>
-            </Menu>
-            <Grid
-                Grid.Column="1"
-                Margin="15,0"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock
-                        Margin="0,0,8,0"
-                        VerticalAlignment="Center"
-                        FontSize="14"
-                        Foreground="#007ACC"
-                        Text="&#x1F4C1;" />
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontSize="20"
-                        FontWeight="SemiBold"
-                        Foreground="#333333"
-                        Text="{Binding Workspace.CurrentSolution.SolutionName, TargetNullValue='未加载', FallbackValue='未加载'}"
-                        ToolTip="当前正在运行的视觉解决方案" />
+                <!--  运行控制  -->
+                <Button
+                    Command="{Binding ExecutionCommand}"
+                    CommandParameter="{x:Static local:ExecutionAction.Compile}"
+                    Content="&#xf0e7;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="流程编译" />
+                <Button
+                    Command="{Binding ExecutionCommand}"
+                    CommandParameter="{x:Static local:ExecutionAction.RunOnce}"
+                    Content="&#xf061;"
+                    Foreground="#2DA44E"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="运行一次" />
+                <Button
+                    Command="{Binding ExecutionCommand}"
+                    CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
+                    Content="&#xf021;"
+                    Foreground="#2DA44E"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="循环运行" />
+                <Button
+                    Command="{Binding ExecutionCommand}"
+                    CommandParameter="{x:Static local:ExecutionAction.Stop}"
+                    Content="&#xf28d;"
+                    Foreground="#D1242F"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="停止" />
+            </StackPanel>
 
-                </StackPanel>
-            </Grid>
+            <!--  居中：当前方案名  -->
             <StackPanel
-                Grid.Column="2"
-                VerticalAlignment="Top"
-                Orientation="Horizontal">
+                Grid.Column="1"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                WindowChrome.IsHitTestVisibleInChrome="True">
+                <TextBlock
+                    Margin="0,0,8,0"
+                    VerticalAlignment="Center"
+                    FontSize="13"
+                    Foreground="#5A5A5A"
+                    Text="&#xf07b;">
+                    <TextBlock.FontFamily>
+                        <StaticResource ResourceKey="Icon" />
+                    </TextBlock.FontFamily>
+                </TextBlock>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Foreground="#333333"
+                    Text="{Binding Workspace.CurrentSolution.SolutionName, TargetNullValue='未加载方案', FallbackValue='未加载方案'}"
+                    ToolTip="当前正在运行的视觉解决方案" />
+            </StackPanel>
+
+            <!--  窗口控制按钮  -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
                 <Button
                     Command="{x:Static SystemCommands.MinimizeWindowCommand}"
                     Content="M 0 5 L 10 5"
@@ -232,375 +601,275 @@
                     Style="{StaticResource WindowControlButton}" />
                 <Button
                     Command="{x:Static SystemCommands.CloseWindowCommand}"
-                    Content="M 0 0 L 10 10 M 0 10 L 10 0"
+                    Content="M 0 0 L 10 10 M 0 10 L 0 10"
                     Style="{StaticResource WindowControlButton}"
                     Tag="Close" />
             </StackPanel>
         </Grid>
-        <StackPanel
-            Grid.Row="1"
-            Cursor=""
-            Orientation="Horizontal">
-            <StackPanel.Resources>
-                <Style TargetType="Button">
-                    <Setter Property="FontFamily" Value="{StaticResource Icon}" />
-                    <Setter Property="FontSize" Value="22" />
-                    <Setter Property="Foreground" Value="#444444" />
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="Width" Value="40" />
-                    <Setter Property="Height" Value="40" />
-                    <Setter Property="Margin" Value="4,0" />
-                    <Setter Property="Cursor" Value="Hand" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="Button">
-                                <Border Background="{TemplateBinding Background}" CornerRadius="4">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#33FFFFFF" />
-                                    </Trigger>
-                                    <Trigger Property="IsPressed" Value="True">
-                                        <Setter Property="Background" Value="#66FFFFFF" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Style>
-                <Style TargetType="ToggleButton">
-                    <Setter Property="FontFamily" Value="{StaticResource Icon}" />
-                    <Setter Property="FontSize" Value="22" />
-                    <Setter Property="Foreground" Value="#444444" />
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="Width" Value="40" />
-                    <Setter Property="Height" Value="40" />
-                    <Setter Property="Margin" Value="4,0" />
-                    <Setter Property="Cursor" Value="Hand" />
-                    <Setter Property="Template">
-                        <Setter.Value>
-                            <ControlTemplate TargetType="ToggleButton">
-                                <Border Background="{TemplateBinding Background}" CornerRadius="4">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="#33FFFFFF" />
-                                    </Trigger>
-                                    <Trigger Property="IsPressed" Value="True">
-                                        <Setter Property="Background" Value="#66FFFFFF" />
-                                    </Trigger>
-                                    <Trigger Property="IsChecked" Value="True">
-                                        <Setter Property="Foreground" Value="Green" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Setter.Value>
-                    </Setter>
-                </Style>
-            </StackPanel.Resources>
-            <Button
-                Command="{Binding SolutionCommand}"
-                CommandParameter="{x:Static local:SolutionAction.Create}"
-                Content="&#xf15b;"
-                ToolTip="新建方案" />
-            <Button
-                Command="{Binding SolutionCommand}"
-                CommandParameter="{x:Static local:SolutionAction.BrowseList}"
-                Content="&#xf0ca;"
-                ToolTip="方案列表" />
-            <Button
-                Command="{Binding SolutionCommand}"
-                CommandParameter="{x:Static local:SolutionAction.Open}"
-                Content="&#xf07c;"
-                ToolTip="打开" />
-            <Button
-                Command="{Binding SolutionCommand}"
-                CommandParameter="{x:Static local:SolutionAction.Save}"
-                Content="&#xf0c7;"
-                ToolTip="保存" />
 
-            <Rectangle
-                Width="1"
-                Margin="10,8"
-                Fill="Gray" />
+        <!--  ============ 主体：活动栏 + 停靠区 ============  -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <ToggleButton Content="&#xf135;" ToolTip="急速模式" />
-            <Button
-                Command="{Binding ExecutionCommand}"
-                CommandParameter="{x:Static local:ExecutionAction.Compile}"
-                Content="&#xf0e7;"
-                Cursor="Hand"
-                ToolTip="流程编译" />
-            <Button
-                Command="{Binding ExecutionCommand}"
-                CommandParameter="{x:Static local:ExecutionAction.RunOnce}"
-                Content="&#xf061;"
-                Cursor="Hand"
-                Foreground="Lime"
-                ToolTip="运行一次" />
-            <Button
-                Command="{Binding ExecutionCommand}"
-                CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
-                Content="&#xf021;"
-                Foreground="Lime"
-                ToolTip="循环运行" />
-            <Button
-                Command="{Binding ExecutionCommand}"
-                CommandParameter="{x:Static local:ExecutionAction.Stop}"
-                Content="&#xf28d;"
-                Foreground="Red"
-                ToolTip="停止" />
+            <!--  活动栏（Activity Bar）  -->
+            <Border
+                Background="#F7F8FA"
+                BorderBrush="#E5E5E5"
+                BorderThickness="0,0,1,0">
+                <DockPanel LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Top">
+                        <ToggleButton
+                            Command="{Binding TogglePanelCommand}"
+                            CommandParameter="Panel_FlowListView"
+                            Content="&#xf00b;"
+                            IsChecked="{Binding IsFlowListActive, Mode=OneWay}"
+                            Style="{StaticResource ActivityToggle}"
+                            ToolTip="程序" />
+                        <ToggleButton
+                            Command="{Binding TogglePanelCommand}"
+                            CommandParameter="Panel_ProcessView"
+                            Content="&#xf0e8;"
+                            IsChecked="{Binding IsProcessActive, Mode=OneWay}"
+                            Style="{StaticResource ActivityToggle}"
+                            ToolTip="流程栏" />
+                        <ToggleButton
+                            Command="{Binding TogglePanelCommand}"
+                            CommandParameter="Panel_ToolView"
+                            Content="&#xf552;"
+                            IsChecked="{Binding IsToolboxActive, Mode=OneWay}"
+                            Style="{StaticResource ActivityToggle}"
+                            ToolTip="工具箱" />
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Bottom">
+                        <Button
+                            Command="{Binding SystemCommand}"
+                            CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
+                            Content="&#xf121;"
+                            Style="{StaticResource ActivityAction}"
+                            ToolTip="全局变量" />
+                        <Button
+                            Command="{Binding SystemCommand}"
+                            CommandParameter="{x:Static local:SystemAction.CommSettings}"
+                            Content="&#xf6ff;"
+                            Style="{StaticResource ActivityAction}"
+                            ToolTip="通讯设置" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
 
-            <Rectangle
-                Width="1"
-                Margin="10,8"
-                Fill="Gray" />
+            <!--  停靠区（FluentLight 主题在代码后台应用）  -->
+            <avalonDock:DockingManager
+                x:Name="dockManager"
+                Grid.Column="1"
+                AllowMixedOrientation="True"
+                AutoWindowSizeWhenOpened="True"
+                IsVirtualizingAnchorable="True"
+                IsVirtualizingDocument="True">
+                <avalonDock:LayoutRoot>
+                    <avalonDock:LayoutPanel Orientation="Horizontal">
 
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.UserLogin}"
-                Content="&#xf4fe;"
-                ToolTip="用户登录" />
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
-                Content="&#xf121;"
-                ToolTip="全局变量" />
-
-            <Rectangle
-                Width="1"
-                Margin="10,8"
-                Fill="Gray" />
-
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.CameraSettings}"
-                Content="&#xf030;"
-                ToolTip="相机设置" />
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.CommSettings}"
-                Content="&#xf6ff;"
-                ToolTip="通讯设置" />
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
-                Content="&#xf2db;"
-                ToolTip="硬件设置" />
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.ReportQuery}"
-                Content="&#xf200;"
-                ToolTip="报表查询" />
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.ReturnToZero}"
-                Content="&#xf015;"
-                ToolTip="回零" />
-            <Button
-                Command="{Binding SystemCommand}"
-                CommandParameter="{x:Static local:SystemAction.UIDesign}"
-                Content="&#xf53f;"
-                ToolTip="UI设计" />
-        </StackPanel>
-        <avalonDock:DockingManager
-            x:Name="dockManager"
-            Grid.Row="2"
-            AllowMixedOrientation="True"
-            AutoWindowSizeWhenOpened="True"
-            IsVirtualizingAnchorable="True"
-            IsVirtualizingDocument="True">
-            <avalonDock:DockingManager.Theme>
-                <avalonDock:Vs2013LightTheme />
-            </avalonDock:DockingManager.Theme>
-            <avalonDock:LayoutRoot>
-                <avalonDock:LayoutPanel Orientation="Horizontal">
-
-                    <!--  1. 左列：流程栏 + 程序（同面板 Tab 切换共用）  -->
-                    <avalonDock:LayoutAnchorablePane DockWidth="260">
-                        <avalonDock:LayoutAnchorable
-                            Title="程序"
-                            CanClose="False"
-                            ContentId="Panel_FlowListView">
-                            <views:FlowListView />
-                        </avalonDock:LayoutAnchorable>
-                        <avalonDock:LayoutAnchorable
-                            Title="流程栏"
-                            CanClose="False"
-                            ContentId="Panel_ProcessView">
-                            <views:ProcessView />
-                        </avalonDock:LayoutAnchorable>
-
-                    </avalonDock:LayoutAnchorablePane>
-
-                    <!--  2. 中列：视觉图像 + 底部日志区  -->
-                    <avalonDock:LayoutPanel Orientation="Vertical">
-
-                        <!--  2.1 中央文档区域  -->
-                        <avalonDock:LayoutDocumentPane>
-                            <avalonDock:LayoutDocument
-                                Title="视觉图像"
+                        <!--  1. 左侧双栏：程序 / 流程栏（星号比例：任意分辨率/DPI 下占比恒定，顶层并列避免嵌套宽度失效）  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="13*">
+                            <avalonDock:LayoutAnchorable
+                                Title="程序"
                                 CanClose="False"
-                                ContentId="Panel_ImageView">
-                                <views:ImageView />
-                            </avalonDock:LayoutDocument>
+                                CanHide="True"
+                                ContentId="Panel_FlowListView">
+                                <views:FlowListView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
+                        <avalonDock:LayoutAnchorablePane DockWidth="17*">
+                            <avalonDock:LayoutAnchorable
+                                Title="流程栏"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ProcessView">
+                                <views:ProcessView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
 
-                        </avalonDock:LayoutDocumentPane>
+                        <!--  2. 中央工作区：视觉图像（文档标签，可拆分/浮动）  -->
+                        <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="70*">
+                            <avalonDock:LayoutDocumentPane>
+                                <avalonDock:LayoutDocument
+                                    Title="视觉图像"
+                                    CanClose="False"
+                                    ContentId="Panel_ImageView">
+                                    <views:ImageView />
+                                </avalonDock:LayoutDocument>
+                            </avalonDock:LayoutDocumentPane>
 
-                        <!--  2.2 底部区域：日志和状态 (固定高度)  -->
-                        <avalonDock:LayoutAnchorablePaneGroup DockHeight="200" Orientation="Horizontal">
-                            <avalonDock:LayoutAnchorablePane DockWidth="8*">
-                                <!--  日志面板  -->
+                            <!--  3. 底部面板组：四合一标签（可整体隐藏）  -->
+                            <avalonDock:LayoutAnchorablePane DockHeight="200">
                                 <avalonDock:LayoutAnchorable
                                     Title="日志信息"
                                     CanClose="False"
+                                    CanHide="True"
                                     ContentId="Panel_LogView">
                                     <views:LogView />
                                 </avalonDock:LayoutAnchorable>
                                 <avalonDock:LayoutAnchorable
-                                    Title="数据栏"
+                                    Title="监控栏"
                                     CanClose="False"
-                                    ContentId="Panel_DataView">
-                                    <views:GlobalDataView />
+                                    CanHide="True"
+                                    ContentId="Panel_MonitorView">
+                                    <views:MonitorView />
                                 </avalonDock:LayoutAnchorable>
-                                <avalonDock:LayoutAnchorable
-                                    Title="模块输出"
-                                    CanClose="False"
-                                    ContentId="Panel_ModuleOutView">
-                                    <views:ModuleOutputView />
-                                </avalonDock:LayoutAnchorable>
-                            </avalonDock:LayoutAnchorablePane>
-
-                            <avalonDock:LayoutAnchorablePane DockWidth="2*">
-                                <!--  设备状态面板  -->
                                 <avalonDock:LayoutAnchorable
                                     Title="设备状态"
                                     CanClose="False"
+                                    CanHide="True"
                                     ContentId="Panel_DeviceStateView" />
                             </avalonDock:LayoutAnchorablePane>
-                        </avalonDock:LayoutAnchorablePaneGroup>
+                        </avalonDock:LayoutPanel>
 
                     </avalonDock:LayoutPanel>
 
-                    <!--  3. 右列：工具箱  -->
-                    <avalonDock:LayoutAnchorablePane DockWidth="330">
-                        <avalonDock:LayoutAnchorable
-                            Title="工具箱"
-                            IsActive="False"
-                            CanClose="False"
-                            CanHide="True"
-                            ContentId="Panel_ToolView">
-                            <views:ToolView />
-                        </avalonDock:LayoutAnchorable>
-                    </avalonDock:LayoutAnchorablePane>
-
-                </avalonDock:LayoutPanel>
-            </avalonDock:LayoutRoot>
-        </avalonDock:DockingManager>
-        <Grid Grid.Row="3" Background="#F0F0F0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <!--  左侧：业务信息 (保持不变)  -->
-            <StackPanel
-                Grid.Column="0"
-                Margin="8,0"
-                VerticalAlignment="Center"
-                Orientation="Horizontal">
-                <TextBlock Margin="0,0,4,0" Text="当前用户：" />
-                <TextBlock
-                    x:Name="CurrentUserText"
-                    FontWeight="Bold"
-                    Text="开发者" />
-                <TextBlock
-                    Margin="8,0"
-                    Foreground="Gray"
-                    Text="|" />
-                <TextBlock Margin="0,0,4,0" Text="当前解决方案" />
-                <TextBlock
-                    x:Name="SolutionPathText"
-                    MaxWidth="400"
-                    FontWeight="Bold"
-                    Text="{Binding Workspace.CurrentSolution.SolutionFilePath, TargetNullValue='未加载', FallbackValue='未加载'}"
-                    TextTrimming="CharacterEllipsis"
-                    ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
-            </StackPanel>
-            <StackPanel
-                Grid.Column="2"
-                Margin="8,0"
-                VerticalAlignment="Center"
-                Orientation="Horizontal">
-
-                <!--  1. CPU  -->
-                <TextBlock
-                    Margin="0,0,4,0"
-                    FontFamily="{StaticResource Icon}"
-                    Foreground="#007ACC"
-                    Text="&#xf2db;" />
-                <TextBlock
-                    Width="75"
-                    Text="{Binding CpuUsageStr}"
-                    ToolTip="进程CPU占用率" />
-                <TextBlock
-                    Margin="8,0"
-                    Foreground="Gray"
-                    Text="|" />
-
-                <!--  2. 内存  -->
-                <TextBlock
-                    Margin="0,0,4,0"
-                    FontFamily="{StaticResource Icon}"
-                    Foreground="#6897BB"
-                    Text="&#xf538;" />
-                <TextBlock
-                    Width="90"
-                    Text="{Binding MemoryUsageStr}"
-                    ToolTip="进程物理内存 (Working Set)" />
-                <TextBlock
-                    Margin="8,0"
-                    Foreground="Gray"
-                    Text="|" />
-
-                <!--  3. 线程数  -->
-                <TextBlock
-                    Margin="0,0,4,0"
-                    FontFamily="{StaticResource Icon}"
-                    Foreground="#9E9E9E"
-                    Text="&#xf0e8;" />
-                <TextBlock
-                    Width="65"
-                    Text="{Binding ThreadCountStr}"
-                    ToolTip="当前进程活动线程数" />
-                <TextBlock
-                    Margin="8,0"
-                    Foreground="Gray"
-                    Text="|" />
-
-                <!--  4. 句柄数  -->
-                <TextBlock
-                    Margin="0,0,4,0"
-                    FontFamily="{StaticResource Icon}"
-                    Foreground="#9E9E9E"
-                    Text="&#xf24d;" />
-                <TextBlock
-                    Width="65"
-                    Text="{Binding HandleCountStr}"
-                    ToolTip="系统句柄数 (警告线: 10000)" />
-                <TextBlock
-                    Margin="12,0,12,0"
-                    Foreground="Gray"
-                    Text="|" />
-
-                <!--  5. 原有的当前时间  -->
-                <TextBlock x:Name="CurrentTimeText" Text="{Binding CurrentTimeText}" />
-            </StackPanel>
+                    <!--  右侧自动隐藏区：工具箱（平时缩成侧边细标签，点击滑出，失焦自动收回）  -->
+                    <avalonDock:LayoutRoot.RightSide>
+                        <avalonDock:LayoutAnchorSide>
+                            <avalonDock:LayoutAnchorGroup>
+                                <avalonDock:LayoutAnchorable
+                                    Title="工具箱"
+                                    CanClose="False"
+                                    CanHide="True"
+                                    AutoHideWidth="300"
+                                    ContentId="Panel_ToolView">
+                                    <views:ToolView />
+                                </avalonDock:LayoutAnchorable>
+                            </avalonDock:LayoutAnchorGroup>
+                        </avalonDock:LayoutAnchorSide>
+                    </avalonDock:LayoutRoot.RightSide>
+                </avalonDock:LayoutRoot>
+            </avalonDock:DockingManager>
         </Grid>
+
+        <!--  ============ 状态栏（VS Code 式） ============  -->
+        <Border
+            Grid.Row="2"
+            Background="#F5F7FA"
+            BorderBrush="#E5E5E5"
+            BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel
+                    Grid.Column="0"
+                    Margin="10,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock FontSize="12" Text="当前用户：" />
+                    <TextBlock
+                        x:Name="CurrentUserText"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Text="开发者" />
+                    <TextBlock
+                        Margin="8,0"
+                        FontSize="12"
+                        Foreground="#C9CEDB"
+                        Text="|" />
+                    <TextBlock FontSize="12" Text="当前方案" />
+                    <TextBlock
+                        x:Name="SolutionPathText"
+                        MaxWidth="400"
+                        Margin="4,0,0,0"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Text="{Binding Workspace.CurrentSolution.SolutionFilePath, TargetNullValue='未加载', FallbackValue='未加载'}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="2"
+                    Margin="10,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#0067C0"
+                        Text="&#xf2db;">
+                        <TextBlock.FontFamily>
+                            <StaticResource ResourceKey="Icon" />
+                        </TextBlock.FontFamily>
+                    </TextBlock>
+                    <TextBlock
+                        Width="72"
+                        FontSize="12"
+                        Text="{Binding CpuUsageStr}"
+                        ToolTip="进程CPU占用率" />
+                    <TextBlock
+                        Margin="6,0"
+                        FontSize="12"
+                        Foreground="#C9CEDB"
+                        Text="|" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#6897BB"
+                        Text="&#xf538;">
+                        <TextBlock.FontFamily>
+                            <StaticResource ResourceKey="Icon" />
+                        </TextBlock.FontFamily>
+                    </TextBlock>
+                    <TextBlock
+                        Width="88"
+                        FontSize="12"
+                        Text="{Binding MemoryUsageStr}"
+                        ToolTip="进程物理内存 (Working Set)" />
+                    <TextBlock
+                        Margin="6,0"
+                        FontSize="12"
+                        Foreground="#C9CEDB"
+                        Text="|" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#9E9E9E"
+                        Text="&#xf0e8;">
+                        <TextBlock.FontFamily>
+                            <StaticResource ResourceKey="Icon" />
+                        </TextBlock.FontFamily>
+                    </TextBlock>
+                    <TextBlock
+                        Width="62"
+                        FontSize="12"
+                        Text="{Binding ThreadCountStr}"
+                        ToolTip="当前进程活动线程数" />
+                    <TextBlock
+                        Margin="6,0"
+                        FontSize="12"
+                        Foreground="#C9CEDB"
+                        Text="|" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#9E9E9E"
+                        Text="&#xf24d;">
+                        <TextBlock.FontFamily>
+                            <StaticResource ResourceKey="Icon" />
+                        </TextBlock.FontFamily>
+                    </TextBlock>
+                    <TextBlock
+                        Width="62"
+                        FontSize="12"
+                        Text="{Binding HandleCountStr}"
+                        ToolTip="系统句柄数 (警告线: 10000)" />
+                    <TextBlock
+                        Margin="10,0"
+                        FontSize="12"
+                        Foreground="#C9CEDB"
+                        Text="|" />
+                    <TextBlock
+                        FontSize="12"
+                        Text="{Binding CurrentTimeText}" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

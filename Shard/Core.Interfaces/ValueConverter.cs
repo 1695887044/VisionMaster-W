@@ -1,11 +1,11 @@
 using System;
-using System.Text.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Core.Interfaces
 {
     /// <summary>
     /// 配置值宽容转换（JSON 反序列化值 → 目标类型）
-    /// 统一处理 JsonElement（System.Text.Json 反序列化 object 的产物）、
+    /// 统一处理 JToken（Newtonsoft.Json 反序列化 object 的产物）、
     /// 枚举字符串/数字转换、系统类型转换和复杂类型（List/对象配置）反序列化
     /// InputPort 端口灌值与 [StepConfig] 配置属性灌值共用
     /// </summary>
@@ -19,40 +19,37 @@ namespace Core.Interfaces
             if (Nullable.GetUnderlyingType(targetType) != null)
                 targetType = Nullable.GetUnderlyingType(targetType);
 
-            // 流程 JSON 加载后 InputValues 的值是 JsonElement，需先拆包
-            if (rawValue is JsonElement el)
+            // 流程 JSON 加载后 InputValues 的值是 JToken（Newtonsoft object 槽位产物），需先拆包
+            if (rawValue is JToken token)
             {
-                switch (el.ValueKind)
+                if (token.Type == JTokenType.Null)
+                    return null;
+
+                // 枚举优先：JToken 直转不认枚举，按名字串/数字手动解析
+                if (targetType.IsEnum)
+                    return System.Enum.Parse(targetType, token.ToString());
+
+                switch (token.Type)
                 {
-                    case JsonValueKind.String:
-                        var str = el.GetString();
-                        if (targetType.IsEnum)
-                            return Enum.Parse(targetType, str);
-                        return System.Convert.ChangeType(str, targetType);
+                    case JTokenType.Boolean:
+                    case JTokenType.Integer:
+                    case JTokenType.Float:
+                    case JTokenType.String:
+                    case JTokenType.Date:
+                        // 标量：JToken.ToObject 直转 CLR（int/double/string/bool 等）
+                        return token.ToObject(targetType);
 
-                    case JsonValueKind.Number:
-                        if (el.TryGetInt64(out var l))
-                            return targetType.IsEnum
-                                ? Enum.ToObject(targetType, l)
-                                : System.Convert.ChangeType(l, targetType);
-                        return System.Convert.ChangeType(el.GetDouble(), targetType);
-
-                    case JsonValueKind.True:
-                    case JsonValueKind.False:
-                        return el.GetBoolean();
-
-                    case JsonValueKind.Array:
-                    case JsonValueKind.Object:
-                        // 复杂配置类型（如 List<RoiItem>）：用 JSON 原文反序列化还原
-                        return JsonSerializer.Deserialize(el.GetRawText(), targetType);
-
-                    default:
-                        return null;
+                    case JTokenType.Array:
+                    case JTokenType.Object:
+                        // 复杂配置类型（如 List<RoiItem>）：按 JSON 原文反序列化还原
+                        return token.ToObject(targetType);
                 }
+
+                return token.ToString();
             }
 
             if (targetType.IsEnum && rawValue is string strValue)
-                return Enum.Parse(targetType, strValue);
+                return System.Enum.Parse(targetType, strValue);
 
             return System.Convert.ChangeType(rawValue, targetType);
         }

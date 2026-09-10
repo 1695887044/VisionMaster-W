@@ -17,11 +17,13 @@ namespace VisionMaster.Services
         /// 从方案系统配置恢复界面布局（面板布局 + 图像宫格模式）
         /// 方案无布局记录（旧 .vms）时保持当前布局不变
         /// </summary>
-        public static void Restore(SolutionConfig config)
+        /// <param name="restoreLayout">是否恢复面板布局；
+        /// 启动自动加载方案传 false（保持"上次关闭时的布局"），手动打开方案传 true（按方案记忆布局）</param>
+        public static void Restore(SolutionConfig config, bool restoreLayout = true)
         {
             if (config == null) return;
 
-            if (!string.IsNullOrWhiteSpace(config.DockLayoutXml))
+            if (restoreLayout && !string.IsNullOrWhiteSpace(config.DockLayoutXml))
             {
                 LayoutHelper.LoadFromString(config.DockLayoutXml);
             }

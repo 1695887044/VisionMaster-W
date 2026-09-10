@@ -1,8 +1,8 @@
-﻿<ResourceDictionary
+<ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:UI.CustomControl"
-    xmlns:models="clr-namespace:UI.Models">
+    xmlns:models="clr-namespace:UI.Models;assembly=VM.Core">
 
     <Style TargetType="{x:Type local:LogConsole}">
         <Style.Resources>

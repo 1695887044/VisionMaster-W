@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace VisionMaster.Models
 {
@@ -12,7 +13,7 @@ namespace VisionMaster.Models
     public class AppSolutionEntry
     {
         /// <summary>序号（UI 展示用，不持久化，由清单顺序决定）</summary>
-        [System.Text.Json.Serialization.JsonIgnore]
+        [JsonIgnore]
         public int Index { get; set; }
 
         /// <summary>方案名称（默认取文件名）</summary>

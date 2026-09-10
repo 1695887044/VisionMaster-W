@@ -36,6 +36,15 @@ namespace VisionMaster
             // ===== 生命周期宿主：异常分级接线 + 模块初始化 =====
             _lifetime = Container.Resolve<AppLifetimeService>();
             _lifetime.RegisterGlobalExceptionHandlers();
+
+            // ===== 退出链收尾：日志落盘 =====
+            // 退出链逆序执行：此处最先注册 → 最后运行，保证其他退出任务的日志都完整落盘
+            _lifetime.RegisterExitTask(ExitTask.Of("日志落盘收尾", () =>
+            {
+                if (Container.Resolve<ILogService>() is IDisposable d)
+                    d.Dispose();
+            }));
+
             foreach (var module in _modules)
                 module.Initialize(Container, _lifetime); // 模块注册自检项/退出任务，须在自检前完成
 
@@ -77,6 +86,13 @@ namespace VisionMaster
         {
             MemoryManager.Instance.Start(300, 30);
 
+            // ===== 基础服务最先注册：Unity 注册工厂时可能提前解析依赖，必须保证已就位 =====
+            containerRegistry.RegisterSingleton<ILogService, LogService>();
+            containerRegistry.RegisterSingleton<IPerformanceMonitor, PerformanceMonitor>();
+            containerRegistry.RegisterSingleton<AppSettingsService>();
+            containerRegistry.RegisterSingleton<AppLifetimeService>();
+            containerRegistry.RegisterSingleton<IUserNotifier, UserNotifier>();
+
             // ===== 模块注册：通讯/引擎子系统自装配 =====
             _modules.Add(new CommunicationModule());
             _modules.Add(new FlowEngineModule());
@@ -85,17 +101,13 @@ namespace VisionMaster
 
             containerRegistry.RegisterSingleton<SolutionService>();
             containerRegistry.RegisterSingleton<WorkspaceContext>();
+            containerRegistry.RegisterSingleton<NetworkVariableBridge>();
             containerRegistry.Register<IReadOnlyWorkspaceContext>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.Register<IWorkspaceManager>(c => c.Resolve<WorkspaceContext>());
-            containerRegistry.RegisterSingleton<ILogService, LogService>();
-            containerRegistry.RegisterSingleton<IPerformanceMonitor, PerformanceMonitor>();
-            containerRegistry.RegisterSingleton<AppSettingsService>();
-            containerRegistry.RegisterSingleton<AppLifetimeService>();
             containerRegistry.RegisterForNavigation<LogView,LogViewModel>();
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
-            containerRegistry.RegisterForNavigation<GlobalDataView, GlobalDataViewModel>();
+            containerRegistry.RegisterForNavigation<MonitorView, MonitorViewModel>();
             containerRegistry.RegisterForNavigation<ToolView, ToolViewModel>();
-            containerRegistry.RegisterForNavigation<ModuleOutputView, ModuleOutputViewModel>();
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");

@@ -24,6 +24,18 @@ namespace VisionMaster.Services
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Layout.xml");
 
         /// <summary>
+        /// 出厂默认布局快照（首次启动时从 XAML 内置布局捕获，"恢复默认布局"的数据源）
+        /// </summary>
+        public static readonly string DefaultLayoutFilePath =
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DefaultLayout.xml");
+
+        /// <summary>
+        /// 布局加载/重载完成后触发（活动栏等外部状态在此同步；
+        /// 反序列化会创建新的 LayoutContent 实例，订阅方必须重新挂接监听）
+        /// </summary>
+        public static event Action? LayoutLoaded;
+
+        /// <summary>
         /// ContentId → 面板内容工厂（加载布局后按 ContentId 重建面板内容）
         /// </summary>
         private static readonly Dictionary<string, Func<object>> ContentFactories = new()
@@ -33,9 +45,17 @@ namespace VisionMaster.Services
             ["Panel_FlowListView"] = () => new Views.FlowListView(),
             ["Panel_ImageView"] = () => new Views.ImageView(),
             ["Panel_LogView"] = () => new Views.LogView(),
-            ["Panel_DataView"] = () => new Views.GlobalDataView(),
-            ["Panel_ModuleOutView"] = () => new Views.ModuleOutputView(),
+            ["Panel_MonitorView"] = () => new Views.MonitorView(),
             // Panel_DeviceStateView：占位面板，无内容
+        };
+
+        /// <summary>
+        /// 旧 ContentId → 新 ContentId 兼容映射（旧方案布局文件加载时自动迁移到监控栏）
+        /// </summary>
+        private static readonly Dictionary<string, string> LegacyContentIdMap = new()
+        {
+            ["Panel_DataView"] = "Panel_MonitorView",      // 旧"数据栏"
+            ["Panel_ModuleOutView"] = "Panel_MonitorView", // 旧"模块输出"
         };
 
         /// <summary>
@@ -71,6 +91,7 @@ namespace VisionMaster.Services
         /// <returns>是否成功加载</returns>
         public static bool Load()
         {
+            CaptureDefaultLayoutSnapshot(); // 出厂快照缺失时补捕获（须在 XAML 默认布局就绪后调用）
             try
             {
                 if (!File.Exists(LayoutFilePath)) return false;
@@ -81,6 +102,25 @@ namespace VisionMaster.Services
                 Console.WriteLine($"布局加载失败，已重置为默认布局。原因：{ex.Message}");
                 TryDeleteLayoutFile();
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// 首次启动把 XAML 内置默认布局快照到 DefaultLayout.xml（"恢复默认布局"的数据源；
+        /// 只捕获一次，之后即使用户改乱布局也不覆盖）
+        /// </summary>
+        private static void CaptureDefaultLayoutSnapshot()
+        {
+            try
+            {
+                if (File.Exists(DefaultLayoutFilePath)) return;
+                var xml = SaveToString();
+                if (string.IsNullOrEmpty(xml)) return;
+                File.WriteAllText(DefaultLayoutFilePath, xml);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"默认布局快照失败：{ex.Message}");
             }
         }
 
@@ -131,6 +171,7 @@ namespace VisionMaster.Services
 
                 // 反序列化只还原结构，按 ContentId 回填面板内容
                 FillContents(manager);
+                LayoutLoaded?.Invoke();
                 return true;
             }
             catch (Exception ex)
@@ -142,11 +183,63 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 重置布局：删除布局文件，重启软件后恢复默认布局
+        /// 重置布局：立即恢复出厂默认布局（DefaultLayout.xml），并删除用户布局文件
         /// </summary>
         public static bool Reset()
         {
-            return TryDeleteLayoutFile();
+            var restored = false;
+            try
+            {
+                if (File.Exists(DefaultLayoutFilePath))
+                {
+                    restored = LoadFromString(
+                        File.ReadAllText(DefaultLayoutFilePath), deleteFileOnError: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"默认布局恢复失败：{ex.Message}");
+            }
+            TryDeleteLayoutFile();
+            return restored;
+        }
+
+        /// <summary>
+        /// 按 ContentId 查找布局内容（含浮动窗口与隐藏面板）；找不到返回 null
+        /// </summary>
+        public static LayoutContent FindPanel(string contentId)
+        {
+            if (string.IsNullOrEmpty(contentId)) return null;
+
+            var manager = FindManager();
+            if (manager == null) return null;
+
+            return EnumerateContents(manager)
+                .FirstOrDefault(c => c.ContentId == contentId);
+        }
+
+        /// <summary>
+        /// 面板当前是否可见（隐藏面板 / 关闭到自动隐藏区均视为不可见；文档选项卡常驻视为可见）
+        /// </summary>
+        public static bool IsPanelVisible(string contentId)
+            => FindPanel(contentId) is LayoutContent c
+               && (c is not LayoutAnchorable a || a.IsVisible);
+
+        /// <summary>
+        /// 面板是否可见且处于激活状态（活动栏高亮判定；兼容停靠面板与文档选项卡）
+        /// </summary>
+        public static bool IsPanelActive(string contentId)
+            => FindPanel(contentId) is LayoutContent c
+               && (c is not LayoutAnchorable a || a.IsVisible)
+               && c.IsActive;
+
+        /// <summary>
+        /// 隐藏指定面板（活动栏再次点击时收起；停靠面板切自动隐藏，文档切到其他标签）
+        /// </summary>
+        public static void HidePanel(string contentId)
+        {
+            if (FindPanel(contentId) is LayoutAnchorable a && a.IsVisible)
+                a.IsVisible = false; // 文档选项卡无"收起"语义（只能切走），仅处理停靠面板
         }
 
         /// <summary>
@@ -163,21 +256,25 @@ namespace VisionMaster.Services
                 .FirstOrDefault(c => c.ContentId == contentId);
             if (content == null) return;
 
+            // 停靠面板先恢复可见再激活；文档选项卡直接激活（切标签）
             if (content is LayoutAnchorable anchorable && !anchorable.IsVisible)
-            {
                 anchorable.IsVisible = true;
-            }
             content.IsActive = true;
         }
 
         /// <summary>
-        /// 按 ContentId 工厂回填面板内容
+        /// 按 ContentId 工厂回填面板内容（旧 ContentId 先迁移，无工厂的占位面板跳过）
         /// </summary>
         private static void FillContents(DockingManager manager)
         {
             foreach (var content in EnumerateContents(manager))
             {
                 if (content.Content != null) continue;
+
+                // 旧方案布局的 ContentId 迁移（如旧"数据栏/模块输出"→"监控栏"）
+                if (content.ContentId != null && LegacyContentIdMap.TryGetValue(content.ContentId, out var migrated))
+                    content.ContentId = migrated;
+
                 if (ContentFactories.TryGetValue(content.ContentId, out var factory))
                 {
                     content.Content = factory();

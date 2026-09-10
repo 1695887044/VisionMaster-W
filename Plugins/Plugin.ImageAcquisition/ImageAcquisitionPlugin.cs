@@ -401,10 +401,8 @@ namespace Plugin.ImageAcquisition
                     context.Logger.Info($"{InstanceName} {result.Error}");
 
                     // 发布到主程序视图（A1：事件传原图引用，UI 侧复制副本显示；0=不显示）
-                    if (DisplayViewIndex > 0)
-                    {
-                        this.PublishPreview(result.Image, DisplayViewIndex);
-                    }
+
+                        this.PublishPreview(result.Image, DisplayViewIndex+1);
                 }
                 else
                 {

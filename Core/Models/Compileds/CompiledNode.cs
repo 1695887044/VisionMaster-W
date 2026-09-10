@@ -1,4 +1,4 @@
-﻿﻿﻿using Core.Interfaces;
+﻿﻿using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -34,12 +34,15 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 更新步骤运行时状态
+        /// 高亮采用"执行指针"语义：新步骤 Running 时从上一个焦点步骤平滑接管，
+        /// Success/Failed 不清焦点（保留最近执行高亮，避免毫秒级步骤的高亮闪变不可见）
         /// </summary>
         protected void UpdateStepRuntimeState(IExecutionContext context, StepRuntimeState state)
         {
             if (context is VisionMaster.Services.ExecutionContext execContext && execContext.CurrentSession != null)
             {
-                var step = execContext.CurrentSession.Blueprints
+                var session = execContext.CurrentSession;
+                var step = session.Blueprints
                     .FirstOrDefault(s => s.StepID == Id);
 
                 if (step != null)
@@ -56,16 +59,28 @@ namespace VisionMaster.Models
 
                     if (state == StepRuntimeState.Running)
                     {
+                        // 执行指针：焦点从上一个步骤移交，恒定单行高亮
+                        if (session.FocusedStep != null && !ReferenceEquals(session.FocusedStep, step))
+                            session.FocusedStep.IsRunningFocus = false;
                         step.IsRunningFocus = true;
                         step.LastRunStartTime = DateTime.Now;
+                        session.FocusedStep = step;
                     }
                     else if (state == StepRuntimeState.Success || state == StepRuntimeState.Failed)
                     {
-                        step.IsRunningFocus = false;
+                        // 完成不清焦点（执行指针停留）；耗时冻结在最终值，防止 UI 定时器继续累加
                         if (step.LastRunStartTime.HasValue)
                         {
-                            step.LastRunTimeMs = (long)(DateTime.Now - step.LastRunStartTime.Value).TotalMilliseconds;
+                            var elapsed = (long)(DateTime.Now - step.LastRunStartTime.Value).TotalMilliseconds;
+                            step.LastRunTimeMs = elapsed;
+                            step.CurrentRunTimeMs = elapsed;
                         }
+                    }
+                    else if (state == StepRuntimeState.Skipped && ReferenceEquals(session.FocusedStep, step))
+                    {
+                        // 取消导致的跳过：释放焦点
+                        step.IsRunningFocus = false;
+                        session.FocusedStep = null;
                     }
                 }
             }

@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -42,7 +43,11 @@ namespace UI.CustomControl
                 // 等当前所有引发弹窗的 UI 事件（如 ListBox 选中、按钮高亮动画）彻底死透、释放锁之后，再来弹窗！
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
-                    owner = Application.Current.MainWindow;
+                    // Owner 取当前激活窗口：从对话框（如变量管理）触发时弹窗跟随该窗口，
+                    // 保证 Z 序在其之上且遮罩覆盖其范围；无激活窗口时回退主窗口。
+                    // （原来固定绑 MainWindow，导致对话框内弹窗被对话框自身遮挡）
+                    owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
+                            ?? Application.Current.MainWindow;
 
                     overlayWindow = new Window
                     {

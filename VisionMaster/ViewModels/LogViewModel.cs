@@ -1,4 +1,4 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System.Collections.ObjectModel;
 using System.Windows;
 using UI.Models;
@@ -14,10 +14,11 @@ namespace VisionMaster.ViewModels
         {
             if (_logService is LogService logService)
             {
-                logService.OnLogReceived += (log) => Application.Current.Dispatcher.Invoke(() => SystemLogs.Add(log));
+                // 空保护：启动阶段（设计器/异常启动路径）Application.Current 可能为 null，直接 Invoke 会崩溃
+                logService.OnLogReceived += (log) => Application.Current?.Dispatcher?.Invoke(() => SystemLogs.Add(log));
                 _logService.Success("软件加载成功");
             }
-            
+
         }
 
     }

@@ -46,7 +46,7 @@ namespace VisionMaster.Views
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (e.Image == null || !e.Image.IsInitialized()) return;
-                if (e.ViewIndex < 1 || e.ViewIndex > 9) return;
+                if (e.ViewIndex < 0 || e.ViewIndex > 9) return;
 
                 var box = GetImageBox(e.ViewIndex);
 

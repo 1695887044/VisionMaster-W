@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
+using Newtonsoft.Json;
 using System.Threading.Tasks;
 
 namespace Core.Interfaces
@@ -204,8 +204,8 @@ namespace Core.Interfaces
             if (type.IsPrimitive || value is string || value is Enum || value is decimal) return value;
             try
             {
-                var json = JsonSerializer.Serialize(value, type);
-                return JsonSerializer.Deserialize(json, type);
+                var json = JsonConvert.SerializeObject(value, type, new JsonSerializerSettings());
+                return JsonConvert.DeserializeObject(json, type, new JsonSerializerSettings());
             }
             catch
             {

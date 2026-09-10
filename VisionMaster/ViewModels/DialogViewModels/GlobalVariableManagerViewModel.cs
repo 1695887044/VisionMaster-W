@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
@@ -8,6 +8,7 @@ using System.Windows.Media;
 using Prism.Commands;
 using UI.CustomControl;
 using UI.Helper;
+using VisionMaster.Communications;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
@@ -19,34 +20,282 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public Type ActualType { get; set; }
     }
 
+    /// <summary>
+    /// 来源树节点：本地池 + 每条通信连接一个子节点
+    /// </summary>
+    public class VariableSourceNode : BindableBase
+    {
+        public string Key { get; set; } = "All";            // All | Local | 连接名
+        public string DisplayName { get; set; } = "全部";
+        public string Icon { get; set; } = "\uf0ac";
+        public bool IsNetwork { get; set; }
+
+        private int _count;
+        /// <summary>来源下变量数（INPC：新建/删除变量后计数徽标实时刷新）</summary>
+        public int Count { get => _count; set => SetProperty(ref _count, value); }
+
+        private bool _isOnline;
+        /// <summary>连接在线状态（INPC：连接状态变化后徽标实时刷新）</summary>
+        public bool IsOnline { get => _isOnline; set => SetProperty(ref _isOnline, value); }
+    }
+
+    /// <summary>
+    /// 变量管理（变量中心）：
+    /// 本地变量 + 网络变量的创建/编辑/实时监控/写值/删除；
+    /// 网络变量经 NetworkVariableBridge 接入通信管理器轮询体系（镜像值自动上屏）
+    /// </summary>
     public class GlobalVariableManagerViewModel : GlobalVariableViewModelBase, IDialogAware
     {
+        private readonly AdvancedCommunicationManager _communicationManager;
+        private readonly NetworkVariableBridge _bridge;
+
         public string Title => "变量管理";
 
-        public ObservableCollection<DataTypeOption> AvailableTypes { get; } =
-            new()
+        #region 来源树
+
+        public ObservableCollection<VariableSourceNode> SourceNodes { get; } = new();
+
+        private VariableSourceNode? _selectedSource;
+        public VariableSourceNode? SelectedSource
+        {
+            get => _selectedSource;
+            set
             {
-                new DataTypeOption { DisplayName = "整数 (int)", ActualType = typeof(int) },
-                new DataTypeOption { DisplayName = "小数 (double)", ActualType = typeof(double) },
-                new DataTypeOption { DisplayName = "文本 (string)", ActualType = typeof(string) },
-                new DataTypeOption { DisplayName = "布尔 (bool)", ActualType = typeof(bool) },
-                new DataTypeOption { DisplayName = "整数数组 (int[])", ActualType = typeof(int[]) },
-                new DataTypeOption
+                if (SetProperty(ref _selectedSource, value))
                 {
-                    DisplayName = "小数数组 (double[])",
-                    ActualType = typeof(double[]),
-                },
-                new DataTypeOption
+                    UpdateFilteredList();
+                    // 联动新建变量区的本地/网络胶囊：选本地→本地模式，选网络连接→网络模式
+                    if (value != null)
+                        IsNetworkSource = value.IsNetwork;
+                }
+            }
+        }
+
+        /// <summary>重建来源树并刷新计数（方案变量或连接变化时调用）。
+        /// 本地变量与网络变量分组显示：本地节点只显示本地变量，连接节点只显示该连接的网络变量</summary>
+        private void RebuildSourceTree()
+        {
+            var currentKey = SelectedSource?.Key ?? "Local";
+
+            SourceNodes.Clear();
+            SourceNodes.Add(new VariableSourceNode { Key = "Local", DisplayName = "本地变量", Icon = "\uf15b", Count = _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local), IsOnline = true });
+
+            foreach (var conn in _communicationManager.GetAllConnections())
+            {
+                SourceNodes.Add(new VariableSourceNode
                 {
-                    DisplayName = "文本数组 (string[])",
-                    ActualType = typeof(string[]),
-                },
-                new DataTypeOption
+                    Key = conn.ConnectionName,
+                    DisplayName = conn.ConnectionName,
+                    Icon = "\uf1eb",
+                    IsNetwork = true,
+                    Count = _workspace.GlobalVariables.Count(v => v is NetworkVariableModel n && n.ConnectionName == conn.ConnectionName),
+                    IsOnline = _communicationManager.GetConnection(conn.ConnectionName)?.IsConnected ?? false
+                });
+            }
+
+            SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == currentKey) ?? SourceNodes[0];
+        }
+
+        /// <summary>轻量刷新来源计数（新建/删除变量后调用，不重建树不改变选中）</summary>
+        private void RefreshSourceCounts()
+        {
+            foreach (var node in SourceNodes)
+            {
+                node.Count = node.Key == "Local"
+                    ? _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local)
+                    : _workspace.GlobalVariables.Count(v => v is NetworkVariableModel n && n.ConnectionName == node.Key);
+            }
+        }
+
+        private void RefreshSourceStates()
+        {
+            foreach (var node in SourceNodes.Where(s => s.IsNetwork))
+            {
+                node.IsOnline = _communicationManager.GetConnection(node.Key)?.IsConnected ?? false;
+            }
+            RefreshTree(); // 节点 IsConnected 徽标同步
+        }
+
+        #endregion
+
+        #region 明细筛选
+
+        private string _searchText = "";
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                SetProperty(ref _searchText, value);
+                UpdateFilteredList();
+            }
+        }
+
+        public ObservableCollection<VariableNode> FilteredDisplayNodes { get; } = new();
+
+        protected override void UpdateFlatList()
+        {
+            base.UpdateFlatList();
+            UpdateFilteredList();
+        }
+
+        private void UpdateFilteredList()
+        {
+            FilteredDisplayNodes.Clear();
+            var sourceKey = SelectedSource?.Key ?? "Local";
+            var query = SearchText?.Trim() ?? "";
+
+            foreach (var node in DisplayNodes)
+            {
+                // 来源筛选：根节点判定来源（本地节点只显本地，连接节点只显该连接），子节点跟随父级
+                if (node.IsRootNode)
                 {
-                    DisplayName = "布尔数组 (bool[])",
-                    ActualType = typeof(bool[]),
-                },
-            };
+                    bool matchSource = sourceKey == "Local"
+                        ? !node.IsNetwork
+                        : (node.IsNetwork && node.SourceLabel == sourceKey);
+                    if (!matchSource) continue;
+                }
+
+                // 搜索筛选
+                if (query.Length > 0 && node.IsRootNode
+                    && node.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0
+                    && (node.Description?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) < 0
+                    && (node.Address?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) < 0)
+                {
+                    continue;
+                }
+
+                FilteredDisplayNodes.Add(node);
+            }
+        }
+
+        #endregion
+
+        #region 新建变量（本地/网络双模式）
+
+        private bool _isNetworkSource;
+        /// <summary>新建面板当前来源：false=本地 true=网络（胶囊切换，两个 Radio 双向绑定互斥同步）。
+        /// 与左侧来源树双向联动：切本地→选中"本地变量"分组，切网络→选中当前/首个网络连接分组</summary>
+        public bool IsNetworkSource
+        {
+            get => _isNetworkSource;
+            set
+            {
+                if (SetProperty(ref _isNetworkSource, value))
+                {
+                    RaisePropertyChanged(nameof(IsLocalSource));
+                    RaisePropertyChanged(nameof(FilteredTypes));
+                    SelectedAreaType = null;
+                    NewBitOffset = 0; // S7 布尔必须带位偏移（M0.0），默认位 0
+
+                    // 网络模式仅支持标量：当前类型（string/数组）不合法时回落到首个合法项
+                    if (value && (SelectedType == null || !FilteredTypes.Contains(SelectedType)))
+                        SelectedType = FilteredTypes.First();
+
+                    // 联动来源树：切本地→选中本地分组；切网络→保持当前网络连接或选首个
+                    if (value)
+                    {
+                        if (SelectedSource == null || !SelectedSource.IsNetwork)
+                            SelectedSource = SourceNodes.FirstOrDefault(s => s.IsNetwork);
+                    }
+                    else
+                    {
+                        SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == "Local");
+                    }
+                }
+            }
+        }
+
+        /// <summary>IsNetworkSource 的反值（供"本地"胶囊直接双向绑定）</summary>
+        public bool IsLocalSource
+        {
+            get => !_isNetworkSource;
+            set => IsNetworkSource = !value;
+        }
+
+        public ObservableCollection<CommunicationConfig> Connections { get; } = new();
+
+        private CommunicationConfig? _selectedConnection;
+        public CommunicationConfig? SelectedConnection
+        {
+            get => _selectedConnection;
+            set
+            {
+                if (SetProperty(ref _selectedConnection, value))
+                {
+                    RefreshAreaOptions();
+                    NewBitOffset = 0; // S7 布尔必须带位偏移（M0.0），默认位 0
+                }
+            }
+        }
+
+        public ObservableCollection<Enum> AreaOptions { get; } = new();
+
+        private Enum? _selectedAreaType;
+        public Enum? SelectedAreaType
+        {
+            get => _selectedAreaType;
+            set
+            {
+                if (SetProperty(ref _selectedAreaType, value))
+                {
+                    RaisePropertyChanged(nameof(IsCoilOrDiscrete));
+                    RaisePropertyChanged(nameof(IsBitMode)); // 存储区切换影响位访问判定（线圈区无位偏移）
+                }
+            }
+        }
+
+        private string _newOffset = "0";
+        public string NewOffset
+        {
+            get => _newOffset;
+            set => SetProperty(ref _newOffset, value);
+        }
+
+        private int _newBitOffset = 0;
+        public int NewBitOffset
+        {
+            get => _newBitOffset;
+            set
+            {
+                if (SetProperty(ref _newBitOffset, value))
+                    RaisePropertyChanged(nameof(IsBitMode));
+            }
+        }
+
+        /// <summary>是否位访问（Boolean+位偏移有效且非线圈区），决定位偏移输入框可见性与地址构造</summary>
+        public bool IsBitMode => SelectedType?.ActualType == typeof(bool) && NewBitOffset >= 0 && !IsCoilOrDiscrete;
+
+        /// <summary>所选存储区是否线圈/离散输入（仅 bool 合法）</summary>
+        public bool IsCoilOrDiscrete => SelectedAreaType is ModbusArea.Coils or ModbusArea.DiscreteInputs;
+
+        private int _newPollIntervalMs = 1000;
+        public int NewPollIntervalMs
+        {
+            get => _newPollIntervalMs;
+            set => SetProperty(ref _newPollIntervalMs, value);
+        }
+
+        private void RefreshAreaOptions()
+        {
+            AreaOptions.Clear();
+            switch (SelectedConnection?.Protocol)
+            {
+                case CommunicationType.ModbusTcp:
+                    foreach (ModbusArea a in Enum.GetValues(typeof(ModbusArea))) AreaOptions.Add(a);
+                    SelectedAreaType = ModbusArea.HoldingRegisters;
+                    break;
+                case CommunicationType.SiemensS7:
+                    foreach (S7Area a in Enum.GetValues(typeof(S7Area))) AreaOptions.Add(a);
+                    SelectedAreaType = S7Area.M;
+                    break;
+            }
+        }
+
+        #endregion
+
+        /// <summary>数据类型是否布尔（网络模式下决定位偏移输入框显示）</summary>
+        public bool IsBoolType => SelectedType?.ActualType == typeof(bool);
 
         public string NewVarName
         {
@@ -63,88 +312,100 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public DataTypeOption SelectedType
         {
             get => field;
-            set => SetProperty(ref field, value);
-        }
-        public string SearchText
-        {
-            get => field;
             set
             {
-                SetProperty(ref field, value);
-                UpdateFilteredList();
-            }
-        }
-
-        public ObservableCollection<VariableNode> FilteredDisplayNodes
-        {
-            get => field;
-            set => SetProperty(ref field, value);
-        } = new();
-
-        protected override void UpdateFlatList()
-        {
-            base.UpdateFlatList();
-            UpdateFilteredList();
-        }
-
-        private void UpdateFilteredList()
-        {
-            FilteredDisplayNodes.Clear();
-
-            if (string.IsNullOrWhiteSpace(SearchText))
-            {
-                foreach (var node in DisplayNodes)
+                if (SetProperty(ref field, value))
                 {
-                    FilteredDisplayNodes.Add(node);
-                }
-            }
-            else
-            {
-                foreach (
-                    var node in DisplayNodes.Where(n =>
-                        n.Name.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase) >= 0
-                        || n.Description?.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase)
-                            >= 0
-                    )
-                )
-                {
-                    FilteredDisplayNodes.Add(node);
+                    RaisePropertyChanged(nameof(IsBitMode));
+                    RaisePropertyChanged(nameof(IsBoolType));
                 }
             }
         }
+
+        public ObservableCollection<DataTypeOption> AvailableTypes { get; } =
+            new()
+            {
+                new DataTypeOption { DisplayName = "整数 (int)", ActualType = typeof(int) },
+                new DataTypeOption { DisplayName = "小数 (double)", ActualType = typeof(double) },
+                new DataTypeOption { DisplayName = "文本 (string)", ActualType = typeof(string) },
+                new DataTypeOption { DisplayName = "布尔 (bool)", ActualType = typeof(bool) },
+                new DataTypeOption { DisplayName = "整数数组 (int[])", ActualType = typeof(int[]) },
+                new DataTypeOption { DisplayName = "小数数组 (double[])", ActualType = typeof(double[]) },
+                new DataTypeOption { DisplayName = "文本数组 (string[])", ActualType = typeof(string[]) },
+                new DataTypeOption { DisplayName = "布尔数组 (bool[])", ActualType = typeof(bool[]) },
+            };
+
+        /// <summary>
+        /// 当前模式可选类型（新建面板下拉绑定此属性）：
+        /// 网络模式下过滤文本与数组——通信层仅支持标量点读，
+        /// ToDataValueType 对 string/数组会兜底成 Int32，导致地址语义错误（隐患修复）
+        /// </summary>
+        public IEnumerable<DataTypeOption> FilteredTypes =>
+            _isNetworkSource
+                ? AvailableTypes.Where(t =>
+                    t.ActualType != typeof(string) &&
+                    t.ActualType != typeof(string[]) &&
+                    !t.ActualType.IsArray)
+                : AvailableTypes;
 
         public DelegateCommand AddCommand { get; }
-        public DelegateCommand<LocalVariableModel> DeleteCommand { get; }
-        public DelegateCommand<LocalVariableModel> EditArrayCommand { get; }
-        public DelegateCommand<LocalVariableModel> ResetCommand { get; }
+        public DelegateCommand<VariableNode> DeleteCommand { get; }
+        public DelegateCommand<VariableNode> EditArrayCommand { get; }
+        public DelegateCommand<VariableNode> ResetCommand { get; }
 
-        public GlobalVariableManagerViewModel(IWorkspaceManager workspace)
+        /// <summary>网络变量写值（弹出单值输入，直通设备）</summary>
+        public DelegateCommand<VariableNode> WriteValueCommand { get; }
+
+        /// <summary>复制变量名（HMI 控件绑定预留入口）</summary>
+        public DelegateCommand<VariableNode> CopyNameCommand { get; }
+
+        public DelegateCommand<VariableSourceNode> SelectSourceCommand { get; }
+
+        public GlobalVariableManagerViewModel(
+            IWorkspaceManager workspace,
+            AdvancedCommunicationManager communicationManager,
+            NetworkVariableBridge bridge)
             : base(workspace)
         {
+            _communicationManager = communicationManager;
+            _bridge = bridge;
+
             SelectedType = AvailableTypes.First();
 
             AddCommand = new DelegateCommand(AddVariable);
-            DeleteCommand = new DelegateCommand<LocalVariableModel>(DeleteVariable);
-            ResetCommand = new DelegateCommand<LocalVariableModel>(ResetVariable);
-            EditArrayCommand = new DelegateCommand<LocalVariableModel>(ExecuteEditArray);
+            DeleteCommand = new DelegateCommand<VariableNode>(DeleteVariable);
+            ResetCommand = new DelegateCommand<VariableNode>(ResetVariable);
+            EditArrayCommand = new DelegateCommand<VariableNode>(ExecuteEditArray);
+            WriteValueCommand = new DelegateCommand<VariableNode>(ExecuteWriteValue);
+            CopyNameCommand = new DelegateCommand<VariableNode>(
+                n => Clipboard.SetText(n?.Name ?? ""),
+                n => n != null && n.IsRootNode);
 
-            // 挂载变量值变化监听
+            SelectSourceCommand = new DelegateCommand<VariableSourceNode>(node => SelectedSource = node);
+
+            foreach (var conn in _communicationManager.GetAllConnections())
+                Connections.Add(conn);
+
+            // 连接状态变化 → 徽标联动（命名方法：Dispose 才能正确退订）
+            _communicationManager.ConnectionStateChanged += OnConnectionStateChangedHandler;
+
+            // 变量增删 → 来源树计数刷新
+            _workspace.GlobalVariables.CollectionChanged += OnVariablesChangedForCountsHandler;
+
+            // 已存在的网络变量挂值变化监听
             foreach (var gv in _workspace.GlobalVariables)
             {
                 gv.ValueChanged += OnVariableValueChanged;
             }
 
+            RebuildSourceTree();
             RefreshTree();
-        }
-
-        private void OnVariableValueChanged(object sender, EventArgs e)
-        {
-            Application.Current.Dispatcher.Invoke(() => RefreshTree());
         }
 
         protected override VariableNode CreateRootNode(IVariable gv)
         {
-            return new VariableNode
+            bool isNetwork = gv.VariableType == VariableType.Communication;
+            var node = new VariableNode
             {
                 OriginalModel = gv,
                 Name = gv.Name,
@@ -154,7 +415,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ChildDefaultValue = gv.DefaultValue,
                 ChildValue = gv.Value,
                 Level = 0,
+                IsNetwork = isNetwork,
+                SourceLabel = isNetwork ? gv.ConnectionName : "本地",
+                Address = gv.AddressConfig?.Address,
             };
+
+            if (isNetwork && !string.IsNullOrEmpty(gv.ConnectionName))
+            {
+                var conn = _communicationManager.GetConnection(gv.ConnectionName);
+                node.IsConnected = conn?.IsConnected ?? false;
+            }
+            else
+            {
+                node.IsConnected = true;
+            }
+            return node;
         }
 
         protected override void CreateChildNodes(IVariable gv, VariableNode parentNode)
@@ -177,41 +452,218 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         ChildValue =
                             valArray != null && i < valArray.Length ? valArray.GetValue(i) : null,
                         Level = 1,
+                        SourceLabel = parentNode.SourceLabel,
+                        IsNetwork = parentNode.IsNetwork,
+                        IsConnected = parentNode.IsConnected,
                     }
                 );
             }
         }
 
-        protected override void OnGlobalVariablesCollectionChanged(
-            object sender,
-            System.Collections.Specialized.NotifyCollectionChangedEventArgs e
-        )
+        private void OnVariableValueChanged(object sender, EventArgs e)
         {
-            // 处理变量值变化事件的订阅/取消订阅
-            if (e.OldItems != null)
-            {
-                foreach (LocalVariableModel old in e.OldItems)
-                {
-                    old.ValueChanged -= OnVariableValueChanged;
-                }
-            }
-
-            if (e.NewItems != null)
-            {
-                foreach (LocalVariableModel newItem in e.NewItems)
-                {
-                    newItem.ValueChanged += OnVariableValueChanged;
-                }
-            }
-
-            base.OnGlobalVariablesCollectionChanged(sender, e);
+            // 本地变量值变化需要重建树（子节点默认值联动）；网络变量走镜像 INPC 直达，无需重建
+            if (sender is LocalVariableModel)
+                Application.Current.Dispatcher.Invoke(RefreshTree);
         }
 
-        #region 业务逻辑方法
-        private async void ExecuteEditArray(LocalVariableModel gv)
+        /// <summary>新建变量补挂值变化监听（此前仅构造时给存量变量挂接，新建变量运行中值不同步）</summary>
+        protected override void OnVariableAdded(IVariable variable)
         {
-            if (gv == null || !gv.DataType.IsArray)
+            variable.ValueChanged += OnVariableValueChanged;
+        }
+
+        /// <summary>删除变量退订值变化监听，防泄漏</summary>
+        protected override void OnVariableRemoved(IVariable variable)
+        {
+            variable.ValueChanged -= OnVariableValueChanged;
+        }
+
+        private void OnConnectionStateChangedHandler(object? sender, ConnectionStateChangedEventArgs e) => RefreshSourceStates();
+
+        private void OnVariablesChangedForCountsHandler(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshSourceCounts();
+
+        #region 新建变量
+
+        private void AddVariable()
+        {
+            if (string.IsNullOrWhiteSpace(NewVarName))
+            {
+                EasyDialog.ShowSync("变量名不能为空！", "提示");
                 return;
+            }
+
+            if (_workspace.GlobalVariables.Any(s => s.Name.Equals(NewVarName, StringComparison.Ordinal)))
+            {
+                EasyDialog.ShowSync("底层引擎已存在同名变量，请更换名称！", "提示");
+                return;
+            }
+
+            Type targetType = SelectedType.ActualType;
+
+            if (IsNetworkSource)
+            {
+                AddNetworkVariable(targetType);
+            }
+            else
+            {
+                AddLocalVariable(targetType);
+            }
+        }
+
+        private void AddLocalVariable(Type targetType)
+        {
+            object initValue = targetType.IsArray
+                ? Array.CreateInstance(targetType.GetElementType(), 0)
+                : targetType == typeof(string) ? string.Empty : Activator.CreateInstance(targetType);
+
+            var newVar = new LocalVariableModel
+            {
+                Name = NewVarName,
+                DataType = targetType,
+                Description = NewVarDescription,
+                DefaultValue = initValue,
+                Value = initValue,
+            };
+
+            _workspace.GlobalVariables.Add(newVar); // 集合事件自动挂监听 + 树刷新
+
+            // 切换到本地来源分组，确保新变量立即可见（此前停留在非本地来源时新变量被过滤器吞掉）
+            SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == "Local");
+
+            NewVarName = string.Empty;
+            NewVarDescription = string.Empty;
+            Notifier.ShowSuccess($"本地变量 [{newVar.Name}] 创建成功");
+        }
+
+        private void AddNetworkVariable(Type targetType)
+        {
+            if (SelectedConnection == null)
+            {
+                EasyDialog.ShowSync("请选择所属连接！", "提示");
+                return;
+            }
+            if (SelectedAreaType == null)
+            {
+                EasyDialog.ShowSync("请选择存储区！", "提示");
+                return;
+            }
+            if (IsCoilOrDiscrete && targetType != typeof(bool))
+            {
+                EasyDialog.ShowSync("线圈/离散输入区仅支持布尔类型！", "提示");
+                return;
+            }
+            // 创建入口兜底校验：通信层仅支持标量点读，文本/数组会导致地址语义错误
+            if (targetType == typeof(string) || targetType.IsArray)
+            {
+                EasyDialog.ShowSync("网络变量仅支持数值/布尔标量类型，不支持文本与数组！", "提示");
+                return;
+            }
+
+            DeviceAddressBase address;
+            try
+            {
+                switch (SelectedConnection.Protocol)
+                {
+                    case CommunicationType.ModbusTcp:
+                        address = new ModbusAddress
+                        {
+                            Area = (ModbusArea)SelectedAreaType,
+                            Offset = NewOffset,
+                            DataType = ToDataValueType(targetType),
+                            BitOffset = IsBitMode ? NewBitOffset : -1
+                        };
+                        break;
+                    case CommunicationType.SiemensS7:
+                        address = new S7Address
+                        {
+                            Area = (S7Area)SelectedAreaType,
+                            Offset = NewOffset,
+                            DataType = ToDataValueType(targetType),
+                            BitOffset = IsBitMode ? NewBitOffset : -1
+                        };
+                        break;
+                    default:
+                        EasyDialog.ShowSync($"协议 {SelectedConnection.Protocol} 的变量创建暂不支持", "提示");
+                        return;
+                }
+
+                var (valid, error) = address.Validate();
+                if (!valid)
+                {
+                    EasyDialog.ShowSync(error, "地址配置无效");
+                    return;
+                }
+
+                var netVar = (NetworkVariableModel)VariableFactory.CreateNetwork(
+                    NewVarName, targetType, SelectedConnection.ConnectionName,
+                    address, NewVarDescription, pollIntervalMs: NewPollIntervalMs);
+
+                _workspace.GlobalVariables.Add(netVar); // 桥接器监听集合 → 自动 Bind + RegisterVariable + 镜像接线
+
+                // 切换到对应连接来源分组，确保新变量立即可见
+                SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == SelectedConnection.ConnectionName);
+
+                NewVarName = string.Empty;
+                NewVarDescription = string.Empty;
+                Notifier.ShowSuccess($"网络变量 [{netVar.Name}] 创建成功（{SelectedConnection.ConnectionName} @ {address.Address}）");
+            }
+            catch (Exception ex)
+            {
+                EasyDialog.ShowSync($"创建网络变量失败：{ex.Message}", "错误");
+            }
+        }
+
+        /// <summary>CLR 类型 → 通信地址数据类型</summary>
+        private static DataValueType ToDataValueType(Type t)
+        {
+            var u = Nullable.GetUnderlyingType(t) ?? t;
+            if (u == typeof(bool)) return DataValueType.Boolean;
+            if (u == typeof(byte)) return DataValueType.Byte;
+            if (u == typeof(short)) return DataValueType.Int16;
+            if (u == typeof(ushort)) return DataValueType.UInt16;
+            if (u == typeof(int)) return DataValueType.Int32;
+            if (u == typeof(uint)) return DataValueType.UInt32;
+            if (u == typeof(float)) return DataValueType.Float;
+            if (u == typeof(double)) return DataValueType.Double;
+            if (u == typeof(long)) return DataValueType.Int64;
+            return DataValueType.Int32;
+        }
+
+        #endregion
+
+        #region 编辑/复位/写值
+
+        /// <summary>统一删除：本地直接删；网络变量经桥接器注销轮询后删</summary>
+        private void DeleteVariable(VariableNode node)
+        {
+            var gv = node?.OriginalModel;
+            if (gv == null) return;
+
+            if (EasyDialog.ShowSync(
+                    $"确定要删除变量 [{gv.Name}] 吗？\n警告：可能会导致引用它的算子报错！",
+                    "删除确认"))
+            {
+                _workspace.GlobalVariables.Remove(gv); // 桥接器集合监听自动注销网络变量轮询
+            }
+        }
+
+        private void ResetVariable(VariableNode node)
+        {
+            (node?.OriginalModel)?.ResetToDefault();
+        }
+
+        /// <summary>数组编辑器（本地数组变量）</summary>
+        private void ExecuteEditArray(VariableNode node)
+        {
+            if (node?.OriginalModel is not LocalVariableModel gv) return;
+            if (!gv.DataType.IsArray) return;
+            ExecuteEditArrayCore(gv);
+        }
+
+        /// <summary>数组元素编辑对话框（编辑默认值并同步当前值）</summary>
+        private async void ExecuteEditArrayCore(LocalVariableModel gv)
+        {
             Type elementType = gv.DataType.GetElementType();
             var editList = new ObservableCollection<ArrayItemWrapper>();
 
@@ -225,100 +677,79 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 }
             }
 
-            var editorControl = BuildArrayEditorUI(editList, elementType.Name);
-            bool isConfirmed = await EasyDialog.ShowCustomAsync(
-                $"高级集合编辑 - {gv.Name}",
-                editorControl,
-                isModal: true
-            );
+            string elementTypeName = elementType?.Name ?? "元素";
+            var editor = new VariableArrayEditor { Elements = editList };
+            var ok = EasyDialog.ShowPropertyGridSync($"编辑数组 [{gv.Name}]", editor);
+            if (!ok) return;
 
-            if (isConfirmed)
+            try
             {
-                try
+                var newArray = Array.CreateInstance(elementType, editList.Count);
+                for (int i = 0; i < editList.Count; i++)
                 {
-                    Array newArray = Array.CreateInstance(elementType, editList.Count);
-                    for (int i = 0; i < editList.Count; i++)
-                    {
-                        object realValue = Convert.ChangeType(editList[i].StringValue, elementType);
-                        newArray.SetValue(realValue, i);
-                    }
-                    gv.DefaultValue = newArray;
-                    gv.Value = newArray.Clone();
-                    var clonedGv = CloneHelper.ShallowCopy(gv);
-                    int index = _workspace.GlobalVariables.IndexOf(gv);
-                    _workspace.GlobalVariables[index] = clonedGv;
+                    var converted = Convert.ChangeType(
+                        editList[i].StringValue,
+                        Nullable.GetUnderlyingType(elementType) ?? elementType);
+                    newArray.SetValue(converted, i);
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(
-                        $"数据格式转换失败，请检查输入内容！\n{ex.Message}",
-                        "保存失败"
-                    );
-                }
+                gv.DefaultValue = newArray;
+                gv.Value = newArray.Clone();
+                RefreshTree();
             }
+            catch (Exception ex)
+            {
+                EasyDialog.ShowSync($"数组转换失败：{ex.Message}", "错误");
+            }
+            await System.Threading.Tasks.Task.CompletedTask;
         }
 
-        private void AddVariable()
+        /// <summary>数组编辑对话框承载对象（PropertyGrid 用）</summary>
+        public class VariableArrayEditor
         {
-            if (string.IsNullOrWhiteSpace(NewVarName))
+            [System.ComponentModel.DisplayName("元素数")]
+            public int Count => Elements?.Count ?? 0;
+            public ObservableCollection<ArrayItemWrapper> Elements { get; set; } = new();
+        }
+
+        /// <summary>网络变量写值：弹出单值输入 → Value setter 直通设备</summary>
+        private void ExecuteWriteValue(VariableNode node)
+        {
+            if (node?.OriginalModel is not NetworkVariableModel netVar) return;
+
+            var editor = new VariableValueEditor
             {
-                EasyDialog.ShowSync("变量名不能为空！", "提示");
-                return;
-            }
-
-            if (
-                _workspace.GlobalVariables.Any(s =>
-                    s.Name.Equals(NewVarName, StringComparison.Ordinal)
-                )
-            )
-            {
-                EasyDialog.ShowSync("底层引擎已存在同名变量，请更换名称！", "提示");
-                return;
-            }
-
-            object initValue;
-            Type targetType = SelectedType.ActualType;
-
-            if (targetType.IsArray)
-                initValue = Array.CreateInstance(targetType.GetElementType(), 0);
-            else if (targetType == typeof(string))
-                initValue = string.Empty;
-            else
-                initValue = Activator.CreateInstance(targetType);
-
-            var newVar = new LocalVariableModel
-            {
-                Name = NewVarName,
-                DataType = targetType,
-                Description = NewVarDescription,
-                DefaultValue = initValue,
-                Value = initValue,
+                VariableName = netVar.Name,
+                Address = node.Address ?? "",
+                StringValue = netVar.Value?.ToString() ?? ""
             };
+            var ok = EasyDialog.ShowPropertyGridSync("写值到设备", editor);
+            if (!ok) return;
 
-            _workspace.GlobalVariables.Add(newVar);
-            NewVarName = string.Empty;
-            NewVarDescription = string.Empty;
-        }
-
-        private void DeleteVariable(LocalVariableModel gv)
-        {
-            if (
-                gv != null
-                && EasyDialog.ShowSync(
-                    $"确定要删除变量 [{gv.Name}] 吗？\n警告：可能会导致引用它的算子报错！",
-                    "删除确认"
-                )
-            )
+            try
             {
-                _workspace.GlobalVariables.Remove(gv);
+                object converted = Convert.ChangeType(
+                    editor.StringValue,
+                    Nullable.GetUnderlyingType(netVar.DataType) ?? netVar.DataType);
+                netVar.Value = converted;
+                Notifier.ShowSuccess($"[{netVar.Name}] 已写入 {editor.StringValue}");
+            }
+            catch (Exception ex)
+            {
+                EasyDialog.ShowSync($"写入失败：{ex.Message}", "错误");
             }
         }
 
-        private void ResetVariable(LocalVariableModel gv)
+        /// <summary>写值对话框承载对象（PropertyGrid 自动生成表单）</summary>
+        public class VariableValueEditor
         {
-            if (gv != null)
-                gv.ResetToDefault();
+            [System.ComponentModel.DisplayName("变量")]
+            public string VariableName { get; set; } = "";
+            [System.ComponentModel.DisplayName("设备地址")]
+            public string Address { get; set; } = "";
+            [System.ComponentModel.DisplayName("新值")]
+            public string StringValue { get; set; } = "";
         }
+
         #endregion
 
         #region IDialogAware实现
@@ -328,7 +759,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public void OnDialogClosed() => Dispose();
 
-        public void OnDialogOpened(IDialogParameters parameters) { }
+        public void OnDialogOpened(IDialogParameters parameters)
+        {
+            // 对话框可能在方案加载后打开：重建来源树与镜像（桥接器负责接线）
+            RebuildSourceTree();
+            RefreshTree();
+        }
         #endregion
 
         #region 内部类与UI构建
@@ -342,105 +778,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
             public DelegateCommand RemoveCommand { get; set; }
         }
-
-        private FrameworkElement BuildArrayEditorUI(
-            ObservableCollection<ArrayItemWrapper> editList,
-            string elementTypeName
-        )
-        {
-            var grid = new Grid
-            {
-                Height = 350,
-                Width = 380,
-                Margin = new Thickness(10),
-            };
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(
-                new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }
-            );
-
-            var btnAdd = new Button
-            {
-                Content = $"+ 添加 {elementTypeName} 元素",
-                Margin = new Thickness(0, 0, 0, 15),
-                Height = 36,
-                Background = new SolidColorBrush(
-                    (Color)ColorConverter.ConvertFromString("#409EFF")
-                ),
-                Foreground = Brushes.White,
-                FontWeight = FontWeights.Bold,
-                BorderThickness = new Thickness(0),
-                Cursor = System.Windows.Input.Cursors.Hand,
-            };
-            btnAdd.Template = (ControlTemplate)
-                XamlReader.Parse(
-                    @"
-                <ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='Button'>
-                    <Border Background='{TemplateBinding Background}' CornerRadius='6'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border>
-                </ControlTemplate>"
-                );
-            btnAdd.Click += (s, e) =>
-            {
-                var newItem = new ArrayItemWrapper { StringValue = "0" };
-                newItem.RemoveCommand = new DelegateCommand(() => editList.Remove(newItem));
-                editList.Add(newItem);
-            };
-            Grid.SetRow(btnAdd, 0);
-            grid.Children.Add(btnAdd);
-
-            var dataGrid = new DataGrid
-            {
-                ItemsSource = editList,
-                AutoGenerateColumns = false,
-                CanUserAddRows = false,
-                HeadersVisibility = DataGridHeadersVisibility.None,
-                Background = Brushes.White,
-                RowHeight = 40,
-                BorderBrush = new SolidColorBrush(
-                    (Color)ColorConverter.ConvertFromString("#EBEEF5")
-                ),
-                SelectionMode = DataGridSelectionMode.Single,
-            };
-            dataGrid.CellStyle = (Style)
-                XamlReader.Parse(
-                    @"
-                <Style xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='DataGridCell'>
-                    <Setter Property='BorderThickness' Value='0'/><Setter Property='FocusVisualStyle' Value='{x:Null}'/><Setter Property='Background' Value='Transparent'/>
-                </Style>"
-                );
-
-            var textCol = new DataGridTemplateColumn
-            {
-                Width = new DataGridLength(1, DataGridLengthUnitType.Star),
-            };
-            textCol.CellTemplate = (DataTemplate)
-                XamlReader.Parse(
-                    @"
-                <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
-                    <Border Height='30' Margin='5,0' Background='#FAFAFA' BorderBrush='#DCDFE6' BorderThickness='1' CornerRadius='4'>
-                        <TextBox Text='{Binding StringValue, UpdateSourceTrigger=PropertyChanged}' Background='Transparent' BorderThickness='0' Style='{x:Null}' Foreground='#606266' VerticalAlignment='Stretch' VerticalContentAlignment='Center' Padding='10,0' Margin='0'/>
-                    </Border>
-                </DataTemplate>"
-                );
-
-            var delCol = new DataGridTemplateColumn { Width = new DataGridLength(50) };
-            delCol.CellTemplate = (DataTemplate)
-                XamlReader.Parse(
-                    @"
-                <DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>
-                    <Button Background='Transparent' BorderThickness='0' Cursor='Hand' ToolTip='删除元素' Command='{Binding RemoveCommand}'>
-                        <TextBlock Text='✖' FontSize='14' FontWeight='Bold' Foreground='#F56C6C' HorizontalAlignment='Center' VerticalAlignment='Center' Margin='0,0,0,2'/>
-                    </Button>
-                </DataTemplate>"
-                );
-
-            dataGrid.Columns.Add(textCol);
-            dataGrid.Columns.Add(delCol);
-            Grid.SetRow(dataGrid, 1);
-            grid.Children.Add(dataGrid);
-
-            return grid;
-        }
         #endregion
 
         protected override void Dispose(bool disposing)
@@ -452,6 +789,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 {
                     gv.ValueChanged -= OnVariableValueChanged;
                 }
+
+                // 取消来源树联动订阅（必须用命名方法退订，lambda -= 无效会泄漏）
+                _communicationManager.ConnectionStateChanged -= OnConnectionStateChangedHandler;
+                _workspace.GlobalVariables.CollectionChanged -= OnVariablesChangedForCountsHandler;
             }
 
             base.Dispose(disposing);

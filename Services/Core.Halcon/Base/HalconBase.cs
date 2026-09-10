@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -40,6 +42,38 @@ namespace Core.Halcon.Controls
             // DP 默认值是所有实例共享的集合——必须在构造时赋新实例，
             // 否则不同配置窗口的绘制列表会互相串扰
             DrawObjectList = new ObservableCollection<DrawingObjectInfo>();
+            Unloaded += OnControlUnloaded;
+        }
+
+        /// <summary>
+        /// 控件卸载：HALCON 窗口随之销毁，已挂接的原生绘制对象句柄全部失效——统一释放。
+        /// 数据仍在 HTuples（VM 参数）中，重新加载后首次选中时 AttachRoi 按参数惰性重建句柄
+        /// </summary>
+        private void OnControlUnloaded(object sender, RoutedEventArgs e)
+        {
+            // 活动句柄先摘除再释放，避免窗口残留对已释放原生对象的引用
+            if (ActiveRoi?.DrawObject != null && hWindow != null)
+            {
+                try { hWindow.DetachDrawingObjectFromWindow(ActiveRoi.DrawObject); }
+                catch { /* 窗口可能已失效 */ }
+            }
+            foreach (var x in _trackedRois)
+                x.Dispose();
+            ClearSampleChannelCache();
+        }
+
+        /// <summary>
+        /// 释放通道取样缓存（换图或控件卸载时调用）
+        /// </summary>
+        private void ClearSampleChannelCache()
+        {
+            try { _sampleRed?.Dispose(); } catch { }
+            try { _sampleGreen?.Dispose(); } catch { }
+            try { _sampleBlue?.Dispose(); } catch { }
+            _sampleRed = null;
+            _sampleGreen = null;
+            _sampleBlue = null;
+            _cacheSource = null;
         }
 
         public bool IsDrawing
@@ -139,11 +173,57 @@ namespace Core.Halcon.Controls
         }
         public static readonly DependencyProperty DrawObjectListProperty =
             DependencyProperty.Register(
-                "DrawObjectList",
+                nameof(DrawObjectList),
                 typeof(ObservableCollection<DrawingObjectInfo>),
                 typeof(HalconBase),
-                new PropertyMetadata(new ObservableCollection<DrawingObjectInfo>())
+                new PropertyMetadata(null, OnDrawObjectListPropertyChanged)
             );
+
+        private ObservableCollection<DrawingObjectInfo> _boundList; // 当前订阅的画布集合（防重复订阅）
+        private readonly List<DrawingObjectInfo> _trackedRois = new(); // 集合内对象的影子表：Reset（Clear）后拿不到旧项，靠它释放原生句柄
+
+        // 通道取样缓存：MouseMove 高频触发，避免每次移动都 AccessChannel 生成 3 个临时图像
+        private HImage _cacheSource; // 缓存对应的源图实例引用，换图即失效
+        private HImage _sampleRed;
+        private HImage _sampleGreen;
+        private HImage _sampleBlue;
+
+        private static void OnDrawObjectListPropertyChanged(
+            DependencyObject d,
+            DependencyPropertyChangedEventArgs e
+        )
+        {
+            ((HalconBase)d).SwapDrawObjectList(
+                e.OldValue as ObservableCollection<DrawingObjectInfo>,
+                e.NewValue as ObservableCollection<DrawingObjectInfo>
+            );
+        }
+
+        /// <summary>
+        /// 集合整体换绑（MVVM 绑定源接入）：重挂 CollectionChanged；
+        /// 旧编辑对象若不在新集合中则摘除句柄，随后重绘。
+        /// 绑定会在加载时用 ViewModel 的集合替换单例默认集合，没有这一步句柄联动会静默失效
+        /// </summary>
+        private void SwapDrawObjectList(
+            ObservableCollection<DrawingObjectInfo> oldList,
+            ObservableCollection<DrawingObjectInfo> newList
+        )
+        {
+            if (ReferenceEquals(oldList, newList))
+                return;
+            if (oldList != null)
+                oldList.CollectionChanged -= OnDrawObjectListChanged;
+            _boundList = newList;
+            if (newList != null)
+                newList.CollectionChanged += OnDrawObjectListChanged;
+            // 换绑后重建影子表（新集合可能已含既有 ROI，Add 事件不会再来）
+            _trackedRois.Clear();
+            if (newList != null)
+                _trackedRois.AddRange(newList);
+            if (ActiveRoi != null && newList?.Contains(ActiveRoi) != true)
+                SetCurrentValue(ActiveRoiProperty, null);
+            RenderAll();
+        }
 
         /// <summary>
         /// 属性改变的时候  将图片信息拿到 长/宽 通道信息
@@ -155,34 +235,38 @@ namespace Core.Halcon.Controls
             DependencyPropertyChangedEventArgs e
         )
         {
-            if (d is HalconBase view && e.NewValue != null)
+            if (d is not HalconBase view)
+                return;
+            // 置空/无效图像：清屏，避免上一帧画面残留
+            if (e.NewValue is not HImage newImg || !newImg.IsInitialized())
             {
-                // 只在图像尺寸变化时重置视图（fit 显示）；
-                // 涂抹预览/掩膜刷新生成同尺寸新图时不重置，保持用户缩放/平移状态
-                bool sizeChanged = true;
-                if (e.OldValue is HImage oldImg && oldImg.IsInitialized() && view.HImage.IsInitialized())
-                {
-                    try
-                    {
-                        var oldSize = oldImg.GetImageSize();
-                        var newSize = view.HImage.GetImageSize();
-                        sizeChanged = oldSize[0]!= newSize[0] || oldSize[1] != newSize[1];
-                    }
-                    catch { }
-                }
-                if (sizeChanged)
-                    view.hWindow?.SetPart(0, 0, -2, -2);
-                view.RenderAll();
-                if (view.HImage.IsInitialized())
-                {
-                    view.DisplayImageInfo.Width = view.HImage.GetImageSize()[0];
-                    view.DisplayImageInfo.Height = view.HImage.GetImageSize()[1];
-                    view.DisplayImageInfo.Image = view.HImage;
-                    HOperatorSet.CountChannels(view.HImage, out HTuple channel_count);
-                    view.DisplayImageInfo.ChannelCount = channel_count;
-                    view.HImageChanged(view, view.DisplayImageInfo.Image);
-                }
+                view.hWindow?.ClearWindow();
+                view.hSmart?.InvalidateVisual();
+                return;
             }
+            // 只在图像尺寸变化时重置视图（fit 显示）；
+            // 涂抹预览/掩膜刷新生成同尺寸新图时不重置，保持用户缩放/平移状态
+            bool sizeChanged = true;
+            if (e.OldValue is HImage oldImg && oldImg.IsInitialized())
+            {
+                try
+                {
+                    var oldSize = oldImg.GetImageSize();
+                    var newSize = newImg.GetImageSize();
+                    sizeChanged = oldSize[0]!= newSize[0] || oldSize[1] != newSize[1];
+                }
+                catch { }
+            }
+            if (sizeChanged)
+                view.hWindow?.SetPart(0, 0, -2, -2);
+            view.RenderAll();
+            var size = newImg.GetImageSize(); // 仅调用一次，避免重复查询
+            view.DisplayImageInfo.Width = size[0];
+            view.DisplayImageInfo.Height = size[1];
+            view.DisplayImageInfo.Image = newImg;
+            HOperatorSet.CountChannels(newImg, out HTuple channel_count);
+            view.DisplayImageInfo.ChannelCount = channel_count;
+            view.HImageChanged(view, view.DisplayImageInfo.Image);
         }
 
         public virtual void HImageChanged(HalconBase halcon, HImage Value) { }
@@ -202,6 +286,12 @@ namespace Core.Halcon.Controls
                     HWindow = hWindow;
                     //DrawCheckerboardBackground(hWindow);
                     RenderAll();
+                    // Loaded 前设置的 ActiveRoi 当时挂接被跳过（hWindow 未就绪），此处补挂
+                    if (ActiveRoi?.DrawObject != null)
+                    {
+                        try { hWindow.AttachDrawingObjectToWindow(ActiveRoi.DrawObject); }
+                        catch { }
+                    }
                 };
                 // 涂擦画笔（优先于 ROI 选中：涂擦模式下不切换编辑对象）
                 hSmart.HMouseDown += HSmart_MouseDownForSmear;
@@ -209,11 +299,38 @@ namespace Core.Halcon.Controls
                 hSmart.HMouseMove += HSmart_MouseMoveForSmear;
                 // 缩放/平移/拖拽/笔画结束后重绘（ROI 轮廓跟随窗口）
                 hSmart.HMouseUp += HSmart_MouseUpForSmear;
-                hSmart.HMouseUp += (s, e) => RenderAll();
+                hSmart.HMouseUp += HSmart_MouseUpForRoi;
             }
             RegisterMouseMethods();
-            // 列表增删时自动重绘（新建/删除/恢复显示）
-            DrawObjectList.CollectionChanged += (s, e) => RenderAll();
+            // 集合订阅在构造/DP 换绑回调（SwapDrawObjectList）中统一管理，此处不再重复挂接
+        }
+
+        private void OnDrawObjectListChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            switch (e.Action)
+            {
+                case NotifyCollectionChangedAction.Add when e.NewItems != null:
+                    foreach (DrawingObjectInfo x in e.NewItems)
+                        _trackedRois.Add(x);
+                    break;
+                case NotifyCollectionChangedAction.Remove when e.OldItems != null:
+                    foreach (DrawingObjectInfo x in e.OldItems)
+                    {
+                        _trackedRois.Remove(x);
+                        if (ReferenceEquals(x, ActiveRoi))
+                            SetCurrentValue(ActiveRoiProperty, null); // DP 回调同步摘除窗口句柄
+                        x.Dispose(); // 摘除后释放原生句柄（未挂接的句柄直接释放）
+                    }
+                    break;
+                case NotifyCollectionChangedAction.Reset:
+                    if (ActiveRoi != null)
+                        SetCurrentValue(ActiveRoiProperty, null); // DP 回调同步摘除活动句柄
+                    foreach (var x in _trackedRois)
+                        x.Dispose(); // 其余对象句柄本就已摘除，直接释放
+                    _trackedRois.Clear();
+                    break;
+            }
+            RenderAll();
         }
 
         /// <summary>
@@ -258,6 +375,42 @@ namespace Core.Halcon.Controls
         }
 
         /// <summary>
+        /// 获取 R/G/B 三通道取样图（带缓存）。
+        /// 缓存随源图实例失效：采集端每次抓图都是新 HImage 实例，引用不变即内容未变（UI 线程访问，无并发风险）。
+        /// 出参是缓存实例，调用方不得 Dispose，生命周期归缓存管理。
+        /// </summary>
+        private bool TryGetSampleChannels(out HImage red, out HImage green, out HImage blue)
+        {
+            red = green = blue = null;
+            HImage src = DisplayImageInfo?.Image;
+            if (src == null || !src.IsInitialized())
+                return false;
+
+            if (!ReferenceEquals(_cacheSource, src))
+            {
+                // 换图：先释放旧缓存再重建
+                ClearSampleChannelCache();
+                try
+                {
+                    _sampleRed = src.AccessChannel(1);
+                    _sampleGreen = src.AccessChannel(2);
+                    _sampleBlue = src.AccessChannel(3);
+                    _cacheSource = src;
+                }
+                catch
+                {
+                    ClearSampleChannelCache();
+                    return false;
+                }
+            }
+
+            red = _sampleRed;
+            green = _sampleGreen;
+            blue = _sampleBlue;
+            return red != null && green != null && blue != null;
+        }
+
+        /// <summary>
         /// 显示图像信息
         /// </summary>
         /// <param name="sender"></param>
@@ -296,10 +449,8 @@ namespace Core.Halcon.Controls
                 }
                 else if (DisplayImageInfo.ChannelCount == 3)
                 {
-                    using HImage red = DisplayImageInfo.Image.AccessChannel(1);
-                    using HImage green = DisplayImageInfo.Image.AccessChannel(2);
-                    using HImage blue = DisplayImageInfo.Image.AccessChannel(3);
-
+                    if (!TryGetSampleChannels(out HImage red, out HImage green, out HImage blue))
+                        return;
                     DisplayImageInfo.Rgb1 = red.GetGrayval(
                         DisplayImageInfo.PointY,
                         DisplayImageInfo.PointX
@@ -352,6 +503,8 @@ namespace Core.Halcon.Controls
         /// </summary>
         protected void RePaint()
         {
+            if (hWindow == null)
+                return; // 模板未应用/未加载时窗口未就绪
             this.hWindow.SetDraw("margin");
             HSystem.SetSystem("flush_graphic", "false");
             this.hWindow.ClearWindow();
@@ -364,54 +517,85 @@ namespace Core.Halcon.Controls
 
         #region ROI 编辑体系（HDrawingObject：显示/拖拽修改/掩膜数据）
 
-        private DrawingObjectInfo activeRoi; // 当前编辑中的 ROI
         private int roiSeq; // ROI 命名序号（保证唯一）
+        private bool _syncingTuples; // 拖拽回写 HTuples 时抑制"应用句柄"反向联动
+
+        public static readonly DependencyProperty ActiveRoiProperty =
+            DependencyProperty.Register(
+                nameof(ActiveRoi),
+                typeof(DrawingObjectInfo),
+                typeof(HalconBase),
+                new PropertyMetadata(null, OnActiveRoiChanged)
+            );
 
         /// <summary>
-        /// ROI 参数被拖拽修改时触发（携带被修改的 ROI）
+        /// 当前编辑中的 ROI（双向绑定枢纽）：
+        /// 控件画布点选/新建 → SetCurrentValue → 绑定回传 ViewModel；
+        /// ViewModel（列表选中）写入 → DP 回调挂接句柄。null = 结束编辑
         /// </summary>
-        public event EventHandler<DrawingObjectInfo> RoiChanged;
-
-        /// <summary>
-        /// ROI 被选中进入编辑时触发（画布点选/新建；视图据此同步列表选中态）
-        /// </summary>
-        public event EventHandler<DrawingObjectInfo> RoiSelected;
-
-        /// <summary>
-        /// 选中指定 ROI 进入编辑状态（列表联动入口；null 结束当前编辑）
-        /// </summary>
-        public void SelectRoi(DrawingObjectInfo info)
+        public DrawingObjectInfo ActiveRoi
         {
-            if (info == activeRoi)
-            {
-                RenderAll();
-                return;
-            }
-            EndEditRoi();
-            if (info != null)
-                AttachRoi(info);
-            RenderAll();
+            get { return (DrawingObjectInfo)GetValue(ActiveRoiProperty); }
+            set { SetValue(ActiveRoiProperty, value); }
+        }
+
+        private static void OnActiveRoiChanged(
+            DependencyObject d,
+            DependencyPropertyChangedEventArgs e
+        )
+        {
+            var c = (HalconBase)d;
+            if (e.OldValue is DrawingObjectInfo old)
+                c.DetachRoi(old);
+            if (e.NewValue is DrawingObjectInfo nwi)
+                c.AttachRoi(nwi);
+            c.RenderAll();
         }
 
         /// <summary>
-        /// 清空全部 ROI（编辑状态一并复位）
+        /// 挂接 ROI 进入可拖拽编辑（订阅 HTuples 反向联动：VM 参数微调 → 画布句柄跟随）
         /// </summary>
-        public void ClearRois()
-        {
-            EndEditRoi();
-            DrawObjectList.Clear();
-        }
-
-        /// <summary>
-        /// 参数微调后同步：把 HTuples 写回可拖拽对象并重绘（数值框精调用）
-        /// </summary>
-        public void UpdateRoiParams(DrawingObjectInfo info)
+        private void AttachRoi(DrawingObjectInfo info)
         {
             if (info == null)
                 return;
-            if (info.DrawObject != null)
+            if (info.DrawObject == null)
+                info.DrawObject = CreateDrawObject(info);
+            if (info.DrawObject == null)
+                return;
+
+            RegisterDrawCallback(info);
+            info.PropertyChanged += OnActiveRoiTuplesChanged;
+            hWindow?.AttachDrawingObjectToWindow(info.DrawObject);
+            info.IsSelected = true;
+        }
+
+        /// <summary>
+        /// 结束编辑：摘除句柄、最终参数回写（INPC → VM 同步 Params）、恢复轮廓渲染
+        /// </summary>
+        private void DetachRoi(DrawingObjectInfo info)
+        {
+            if (info?.DrawObject == null)
+                return;
+            info.PropertyChanged -= OnActiveRoiTuplesChanged;
+            hWindow?.DetachDrawingObjectFromWindow(info.DrawObject);
+            SyncParams(info);
+            info.IsSelected = false;
+        }
+
+        /// <summary>
+        /// 编辑中 ROI 的 HTuples 变化（参数微调写入）→ 应用到画布句柄并重绘；
+        /// 拖拽回写路径经 _syncingTuples 抑制，防止读出→写回自激
+        /// </summary>
+        private void OnActiveRoiTuplesChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(DrawingObjectInfo.HTuples) || _syncingTuples)
+                return;
+            if (sender is DrawingObjectInfo info)
+            {
                 ApplyParamsToDrawObject(info);
-            RenderAll();
+                RenderAll();
+            }
         }
 
         /// <summary>
@@ -454,11 +638,6 @@ namespace Core.Halcon.Controls
         }
 
         /// <summary>
-        /// 当前编辑中的 ROI（未编辑时为 null）
-        /// </summary>
-        public DrawingObjectInfo ActiveRoi => activeRoi;
-
-        /// <summary>
         /// HDrawingObject 的类型字符串映射
         /// </summary>
         private static string TypeName(DrawShapeType t) =>
@@ -487,8 +666,6 @@ namespace Core.Halcon.Controls
                 return;
             }
 
-            EndEditRoi(); // 结束当前编辑
-
             // 在图像中心创建默认尺寸的绘制对象
             HImage.GetImageSize(out int w, out int h);
             double cr = h / 2.0,
@@ -509,77 +686,23 @@ namespace Core.Halcon.Controls
                     return;
             }
 
-            var info = new DrawingObjectInfo(shapeType, drawObj.GetTuples(type), $"ROI_{++roiSeq}")
+            var info = new DrawingObjectInfo(shapeType, drawObj.GetTuples(type), $"ROI_{roiSeq}")
             {
                 DrawObject = drawObj,
             };
+            roiSeq = roiSeq + 1;
             DrawObjectList.Add(info);
-            AttachRoi(info);
+            SetCurrentValue(ActiveRoiProperty, info); // 换绑编辑对象（旧 ROI 经 DP 回调自动摘除句柄）
         }
 
         /// <summary>
-        /// 删除选中的 ROI
+        /// 删除选中的 ROI：移出集合即可，句柄摘除由集合变更回调统一处理
         /// </summary>
         protected void DeleteSelectedRoi()
         {
-            if (activeRoi == null)
+            if (ActiveRoi == null)
                 return;
-            var info = activeRoi;
-            DetachRoi(info);
-            DrawObjectList.Remove(info);
-            RoiChanged?.Invoke(this, info);
-        }
-
-        /// <summary>
-        /// 删除指定 ROI（若正在编辑则先结束编辑）
-        /// </summary>
-        public void RemoveRoi(DrawingObjectInfo info)
-        {
-            if (info == null)
-                return;
-            if (activeRoi == info)
-                DetachRoi(info);
-            DrawObjectList.Remove(info);
-        }
-
-        /// <summary>
-        /// 把 ROI 挂接到窗口进入可拖拽编辑状态（已挂接则跳过）
-        /// </summary>
-        private void AttachRoi(DrawingObjectInfo info)
-        {
-            if (info == null)
-                return;
-            if (info.DrawObject == null)
-            {
-                info.DrawObject = CreateDrawObject(info);
-            }
-            if (info.DrawObject == null)
-                return;
-
-            RegisterDrawCallback(info.DrawObject);
-            hWindow.AttachDrawingObjectToWindow(info.DrawObject);
-            activeRoi = info;
-            info.IsSelected = true;
-            RoiSelected?.Invoke(this, info);
-        }
-
-        /// <summary>
-        /// 结束编辑：摘除句柄、最终参数回写、恢复轮廓渲染
-        /// </summary>
-        private void DetachRoi(DrawingObjectInfo info)
-        {
-            if (info?.DrawObject == null)
-                return;
-            hWindow.DetachDrawingObjectFromWindow(info.DrawObject);
-            SyncParams(info);
-            info.IsSelected = false;
-            activeRoi = null;
-        }
-
-        private void EndEditRoi()
-        {
-            if (activeRoi != null)
-                DetachRoi(activeRoi);
+            DrawObjectList.Remove(ActiveRoi);
         }
 
         /// <summary>
@@ -615,34 +738,77 @@ namespace Core.Halcon.Controls
         }
 
         /// <summary>
-        /// 注册拖拽回调（对象创建时一次；拖拽中由 HALCON 渲染句柄，松开后统一重绘轮廓）
+        /// 注册拖拽回调：闭包直接捕获 info——HALCON 回调传入的包装对象可能与创建时
+        /// 不是同一 .NET 实例，按 drawObj 引用反查会静默失联；委托同时保存在 info 上防 GC
         /// </summary>
-        private void RegisterDrawCallback(HDrawingObject drawObj)
+        private void RegisterDrawCallback(DrawingObjectInfo info)
         {
-            drawObj?.OnDrag(OnRoiDrawChanged);
-            drawObj?.OnResize(OnRoiDrawChanged);
-        }
-
-        /// <summary>
-        /// 拖拽回调：实时把句柄参数回写到 HTuples（拖拽中由 HALCON 渲染句柄，松开后统一重绘轮廓）
-        /// </summary>
-        private void OnRoiDrawChanged(HDrawingObject drawObj, HWindow window, string type)
-        {
-            var info = DrawObjectList.FirstOrDefault(x => x.DrawObject == drawObj);
-            if (info == null)
+            var obj = info?.DrawObject;
+            if (obj == null)
                 return;
-            SyncParams(info);
-            RoiChanged?.Invoke(this, info);
+            info.DragCallback = (s, w, t) => HandleRoiDrawChanged(info);
+            info.ResizeCallback = (s, w, t) => HandleRoiDrawChanged(info);
+            obj.OnDrag(info.DragCallback);
+            obj.OnResize(info.ResizeCallback);
         }
 
         /// <summary>
-        /// 从可拖拽对象读取最新形状参数
+        /// 拖拽回调：实时把句柄参数回写 HTuples（INPC 自动通知 VM 同步 Params；
+        /// 异常不得外抛进 HALCON 原生回调）
+        /// </summary>
+        private void HandleRoiDrawChanged(DrawingObjectInfo info)
+        {
+            try
+            {
+                SyncParams(info);
+            }
+            catch
+            {
+                // 参数读取失败时跳过本帧，不中断 HALCON 交互
+            }
+        }
+
+        /// <summary>
+        /// 从可拖拽对象读取最新形状参数（回写经 _syncingTuples 抑制反向应用）
         /// </summary>
         private void SyncParams(DrawingObjectInfo info)
         {
             var t = info.DrawObject?.GetTuples(TypeName(info.ShapeType));
             if (t != null)
-                info.HTuples = t;
+            {
+                _syncingTuples = true;
+                try
+                {
+                    info.HTuples = t;
+                }
+                finally
+                {
+                    _syncingTuples = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 松开鼠标：拖拽手势结束，回写最终形状（INPC → VM 同步 Params，兜底拖拽中途回调丢失），
+        /// 之后统一重绘轮廓
+        /// </summary>
+        private void HSmart_MouseUpForRoi(
+            object sender,
+            HSmartWindowControlWPF.HMouseEventArgsWPF e
+        )
+        {
+            if (ActiveRoi != null)
+            {
+                try
+                {
+                    SyncParams(ActiveRoi);
+                }
+                catch
+                {
+                    // 兜底同步失败不阻断重绘
+                }
+            }
+            RenderAll();
         }
 
         /// <summary>
@@ -660,24 +826,17 @@ namespace Core.Halcon.Controls
             if (SmearMode != SmearModeType.None)
                 return;
             // 容差命中（屏幕像素换算）：点边缘句柄时 TestRegionPoint 对边界点判定不可靠，
-            // 不加容差会误判为点空白 → EndEditRoi 摘除句柄 → 矩形/椭圆无法拖拽
-            if (activeRoi != null && HitTest(activeRoi, e.Row, e.Column, ScreenToleranceToImage(8.0)))
+            // 不加容差会误判为点空白 → 摘除句柄 → 矩形/椭圆无法拖拽
+            if (ActiveRoi != null && HitTest(ActiveRoi, e.Row, e.Column, ScreenToleranceToImage(8.0)))
                 return;
 
             var hit = DrawObjectList.FirstOrDefault(x =>
-                x != activeRoi && HitTest(x, e.Row, e.Column)
+                x != ActiveRoi && HitTest(x, e.Row, e.Column)
             );
             if (hit != null)
-            {
-                EndEditRoi();
-                AttachRoi(hit);
-                RenderAll();
-            }
-            else if (activeRoi != null)
-            {
-                EndEditRoi();
-                RenderAll();
-            }
+                SetCurrentValue(ActiveRoiProperty, hit); // 换绑（DP 回调摘旧挂新并重绘）
+            else if (ActiveRoi != null)
+                SetCurrentValue(ActiveRoiProperty, null); // 点空白结束编辑
         }
 
         /// <summary>
@@ -773,7 +932,7 @@ namespace Core.Halcon.Controls
                 }
                 foreach (var info in DrawObjectList)
                 {
-                    if (info == activeRoi && info.DrawObject != null)
+                    if (info == ActiveRoi && info.DrawObject != null)
                         continue;
                     using var region = GenRegion(info);
                     if (region == null)
@@ -795,18 +954,20 @@ namespace Core.Halcon.Controls
                     hWindow.WriteString(info.RoiName);
                 }
 
-                // 涂抹层：涂=橙色、擦=红色（填充显示修正区域）
-                if (smearDraw != null && smearDraw.IsInitialized())
+                // 涂抹层：涂=橙色、擦=红色（填充显示修正区域；笔画中优先显示工作副本）
+                var drawShow = strokeDraw ?? SmearDraw;
+                var eraseShow = strokeErase ?? SmearErase;
+                if (drawShow != null && drawShow.IsInitialized())
                 {
                     hWindow.SetDraw("fill");
                     hWindow.SetColor("orange");
-                    hWindow.DispObj(smearDraw);
+                    hWindow.DispObj(drawShow);
                 }
-                if (smearErase != null && smearErase.IsInitialized())
+                if (eraseShow != null && eraseShow.IsInitialized())
                 {
                     hWindow.SetDraw("fill");
                     hWindow.SetColor("red");
-                    hWindow.DispObj(smearErase);
+                    hWindow.DispObj(eraseShow);
                     hWindow.SetDraw("margin");
                 }
 
@@ -826,6 +987,7 @@ namespace Core.Halcon.Controls
         #region 画笔涂擦掩膜
 
         private bool isSmearing;
+        private DateTime lastSmearRenderUtc; // 渲染节流时间戳：MouseMove 高频触发，全量重绘按 ~40ms 一帧节流
 
         public static readonly DependencyProperty SmearModeProperty =
             DependencyProperty.Register(nameof(SmearMode), typeof(SmearModeType), typeof(HalconBase),
@@ -839,8 +1001,8 @@ namespace Core.Halcon.Controls
         private void OnSmearModeChanged()
         {
             // 进入涂擦模式时退出 ROI 编辑，避免画笔与句柄拖拽抢鼠标
-            if (SmearMode != SmearModeType.None && activeRoi != null)
-                EndEditRoi();
+            if (SmearMode != SmearModeType.None && ActiveRoi != null)
+                SetCurrentValue(ActiveRoiProperty, null);
         }
 
         public static readonly DependencyProperty BrushRadiusProperty =
@@ -853,51 +1015,38 @@ namespace Core.Halcon.Controls
             set => SetValue(BrushRadiusProperty, value);
         }
 
-        private HRegion smearDraw;   // 累计"涂抹"（加选进掩膜）
-        private HRegion smearErase;  // 累计"擦除"（从掩膜移除，含 ROI 本体）
-        /// <summary>最终涂擦修正：(涂 ∪ 副本) 与 擦 副本，null 表示无；调用方负责 Dispose</summary>
-        public (HRegion Draw, HRegion Erase) CopySmearRegions()
+        public static readonly DependencyProperty SmearDrawProperty =
+            DependencyProperty.Register(nameof(SmearDraw), typeof(HRegion), typeof(HalconBase),
+                new PropertyMetadata(null, (d, _) => ((HalconBase)d).RenderAll()));
+        /// <summary>
+        /// 累计"涂抹"区域（双向绑定；VM 是唯一所有者并负责 Dispose，
+        /// 控件只读显示、笔画结束以新实例覆盖，旧实例交回 VM 释放）
+        /// </summary>
+        public HRegion SmearDraw
         {
-            HRegion d = smearDraw != null && smearDraw.IsInitialized() ? new HRegion(smearDraw) : null;
-            HRegion e = smearErase != null && smearErase.IsInitialized() ? new HRegion(smearErase) : null;
-            return (d, e);
+            get => (HRegion)GetValue(SmearDrawProperty);
+            set => SetValue(SmearDrawProperty, value);
         }
 
-        /// <summary>一次笔画结束或清除涂擦时触发，供插件刷新掩膜预览</summary>
-        public event EventHandler SmearChanged;
-
-        /// <summary>清除全部涂擦</summary>
-        public void ClearSmear()
+        public static readonly DependencyProperty SmearEraseProperty =
+            DependencyProperty.Register(nameof(SmearErase), typeof(HRegion), typeof(HalconBase),
+                new PropertyMetadata(null, (d, _) => ((HalconBase)d).RenderAll()));
+        /// <summary>累计"擦除"区域（所有权约定同 SmearDraw）</summary>
+        public HRegion SmearErase
         {
-            smearDraw?.Dispose(); smearDraw = null;
-            smearErase?.Dispose(); smearErase = null;
-            SmearChanged?.Invoke(this, EventArgs.Empty);
-            RenderAll();
+            get => (HRegion)GetValue(SmearEraseProperty);
+            set => SetValue(SmearEraseProperty, value);
         }
 
-        /// <summary>导出涂擦区域副本（调用方负责 Dispose）</summary>
-        public HRegion CopySmearRegion()
-        {
-            var (d, _) = CopySmearRegions();
-            return d;
-        }
-
-        /// <summary>外部恢复涂擦显示（接管副本所有权，供插件持久化数据回灌）</summary>
-        public void SetSmearRegions(HRegion? draw, HRegion? erase)
-        {
-            smearDraw?.Dispose();
-            smearErase?.Dispose();
-            smearDraw = draw;
-            smearErase = erase;
-            RenderAll();
-        }
+        private HRegion strokeDraw;   // 笔画进行中的"涂抹"工作副本（笔画结束移交 DP）
+        private HRegion strokeErase;  // 笔画进行中的"擦除"工作副本
 
         private void HSmart_MouseDownForSmear(object sender, HSmartWindowControlWPF.HMouseEventArgsWPF e)
         {
             if (SmearMode == SmearModeType.None || e.Button != MouseButton.Left)
                 return;
             isSmearing = true;
-            ApplySmear(e.Row, e.Column);
+            ApplySmear(e.Row, e.Column, forceRender: true); // 落笔立即反馈
         }
 
         private void HSmart_MouseMoveForSmear(object sender, HSmartWindowControlWPF.HMouseEventArgsWPF e)
@@ -912,28 +1061,45 @@ namespace Core.Halcon.Controls
             if (!isSmearing)
                 return;
             isSmearing = false;
-            SmearChanged?.Invoke(this, EventArgs.Empty); // 一次笔画结束，插件刷新掩膜
+            // 一次笔画结束：工作副本移交 DP（TwoWay 绑定回传 VM 持久化；VM 负责释放被替换的旧实例）
+            if (strokeDraw != null)
+                SetCurrentValue(SmearDrawProperty, strokeDraw);
+            if (strokeErase != null)
+                SetCurrentValue(SmearEraseProperty, strokeErase);
+            strokeDraw = null;
+            strokeErase = null;
         }
 
-        /// <summary>落笔：涂（并集圆盘）/ 擦（差集圆盘）</summary>
-        private void ApplySmear(double row, double column)
+        /// <summary>落笔：涂（并集圆盘）/ 擦（差集圆盘）；笔画中累积到工作副本，不惊动 DP/VM。
+        /// 几何累积每次执行（代价小，保证笔画连贯）；渲染按 ~40ms 节流（全量重绘是大头），
+        /// 收笔时 DP 变更回调自带最终渲染兜底。</summary>
+        private void ApplySmear(double row, double column, bool forceRender = false)
         {
             try
             {
-                HOperatorSet.GenCircle(out HObject discObj, row, column, BrushRadius);
+                HOperatorSet.GenCircle(out HObject discObj, row, column, Math.Max(1.0, BrushRadius));
                 using var disc = new HRegion(discObj);
                 discObj.Dispose();
                 if (SmearMode == SmearModeType.Draw)
                 {
-                    smearDraw = smearDraw == null ? new HRegion(disc) : smearDraw.Union2(disc);
+                    var baseRegion = strokeDraw ?? SmearDraw; // DP 值为 VM 所有，只读参与并集
+                    var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
+                    strokeDraw?.Dispose(); // 旧工作副本（仅控件持有的实例）才可释放
+                    strokeDraw = added;
                 }
-                else if (smearErase != null || SmearMode == SmearModeType.Erase)
+                else if (SmearMode == SmearModeType.Erase)
                 {
-                    var added = smearErase == null ? new HRegion(disc) : smearErase.Union2(disc);
-                    smearErase?.Dispose();
-                    smearErase = added;
+                    var baseRegion = strokeErase ?? SmearErase;
+                    var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
+                    strokeErase?.Dispose();
+                    strokeErase = added;
                 }
-                RenderAll();
+                var now = DateTime.UtcNow;
+                if (forceRender || (now - lastSmearRenderUtc).TotalMilliseconds >= 40)
+                {
+                    lastSmearRenderUtc = now;
+                    RenderAll();
+                }
             }
             catch
             {
@@ -942,26 +1108,6 @@ namespace Core.Halcon.Controls
         }
 
         #endregion
-
-        /// <summary>
-        /// 获取所有 ROI 的合并区域（掩膜/区域运算的数据源，掩膜图像生成由插件负责）
-        /// </summary>
-        public HRegion GetMergedRoi()
-        {
-            HRegion merged = new HRegion();
-            merged.GenEmptyRegion(); // 初始化为空区域
-
-            foreach (var info in DrawObjectList)
-            {
-                using var region = GenRegion(info);
-                if (region == null) continue;
-
-                var union = merged.Union2(region);
-                merged.Dispose();
-                merged = union;
-            }
-            return merged;
-        }
 
         private List<MeasureAnnotation> annotations = new();
 
@@ -1023,7 +1169,7 @@ namespace Core.Halcon.Controls
         /// <param name="fitImage"></param>
         protected void ResetWindow(bool fitImage = false)
         {
-            if (DisplayImageInfo.Height == 0)
+            if (hSmart == null || DisplayImageInfo.Height == 0)
             {
                 return;
             }
@@ -1059,6 +1205,11 @@ namespace Core.Halcon.Controls
         /// </summary>
         protected void SaveImage()
         {
+            if (HImage == null || !HImage.IsInitialized())
+            {
+                TopText = "无图像可保存";
+                return;
+            }
             SaveFileDialog sfd = new SaveFileDialog();
             sfd.Filter = "PNG图像|*.png|BMP图像|*.bmp|JPG图像|*.jpg"; //|所有文件|*.*
             sfd.FilterIndex = 1;
@@ -1068,7 +1219,6 @@ namespace Core.Halcon.Controls
                 {
                     return;
                 }
-                FileInfo _FileInfo = new FileInfo(sfd.FileName);
                 HOperatorSet.WriteImage(
                     this.HImage,
                     Path.GetExtension(sfd.FileName).Replace(".", ""),
@@ -1098,7 +1248,8 @@ namespace Core.Halcon.Controls
             }
             catch (HalconException ex)
             {
-                throw ex;
+                // 文件损坏/格式不支持等：右键菜单路径无外层异常处理，向上抛会崩溃，改为提示
+                TopText = $"打开图像失败：{ex.Message}";
             }
         }
 
@@ -1173,6 +1324,38 @@ namespace Core.Halcon.Controls
             menu.Header = name;
             menu.Click += click;
             return menu;
+        }
+
+        /// <summary>
+        /// 创建带勾选态切换的菜单项（点击反转 IsChecked 后执行 action）
+        /// </summary>
+        protected MenuItem CreateToggleMenu(string name, Action<bool> action)
+        {
+            var menu = new MenuItem { Header = name };
+            menu.Click += (s, e) =>
+            {
+                menu.IsChecked = !menu.IsChecked;
+                action(menu.IsChecked);
+            };
+            return menu;
+        }
+
+        /// <summary>
+        /// 构建"信息"子菜单（适应窗口/图像信息/十字线 + 保存原始/缩略图像 [+打开图片]）。
+        /// 三个控件的右键菜单此前各复制一份约 50 行，收敛到基类单一实现
+        /// </summary>
+        /// <param name="includeOpenImage">是否包含"打开图片"项</param>
+        protected MenuItem BuildInfoMenu(bool includeOpenImage)
+        {
+            var infoMenu = new MenuItem { Header = "信息" };
+            infoMenu.Items.Add(CreateToggleMenu("适应图片/窗口", fit => ResetWindow(fit)));
+            infoMenu.Items.Add(CreateToggleMenu("显示/隐藏图像信息", show => ShowImageInfo(show)));
+            infoMenu.Items.Add(CreateToggleMenu("显示/隐藏十字", show => ShowImageCross(show)));
+            infoMenu.Items.Add(CreateMenu("保存原始图像", (s, e) => SaveImage()));
+            infoMenu.Items.Add(CreateMenu("保存缩略图像", (s, e) => SaveWindowDump()));
+            if (includeOpenImage)
+                infoMenu.Items.Add(CreateMenu("打开图片", (s, e) => OpenImage()));
+            return infoMenu;
         }
     }
 }

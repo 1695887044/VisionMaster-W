@@ -1,11 +1,11 @@
 using System;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Models
@@ -175,10 +175,11 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 步骤列表
-        /// 注意：System.Text.Json 反序列化时可能用新集合实例整体替换 Steps，
-        /// 因此订阅（CollectionChanged + 每个步骤的 PropertyChanged）必须在 setter 里重挂，
-        /// 否则步骤属性变更通知丢失 → 流程版本不递增 → 改参数后不触发自动重编译
+        /// ObjectCreationHandling.Replace 确保 Newtonsoft 反序列化时调用 setter 整体替换集合，
+        /// 使 setter 内的订阅重挂逻辑（CollectionChanged + 每个步骤的 PropertyChanged）生效，
+        /// 否则默认追加行为会绕过 setter，导致步骤属性变更通知丢失 → 流程版本不递增 → 改参数后不触发自动重编译
         /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<StepModel> Steps
         {
             get => _steps;

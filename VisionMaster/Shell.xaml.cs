@@ -27,6 +27,31 @@ namespace VisionMaster
         public Shell()
         {
             InitializeComponent();
+            ApplyDockTheme();
+        }
+
+        /// <summary>
+        /// 应用 AvalonDock 停靠主题：VS2013Light 控件模板 + Fluent Light 调色板画刷覆盖
+        /// （切深色主题时把 Source 换成 DarkTheme.xaml 即可，模板复用同一套）
+        /// </summary>
+        private void ApplyDockTheme()
+        {
+            dockManager.Theme = new FluentLightTheme();
+        }
+
+        /// <summary>
+        /// DictionaryTheme 是抽象类，需派生具体主题传入自定义字典
+        /// </summary>
+        private sealed class FluentLightTheme : AvalonDock.Themes.DictionaryTheme
+        {
+            public FluentLightTheme()
+                : base(new ResourceDictionary
+                {
+                    Source = new Uri(
+                        "pack://application:,,,/VisionMaster;component/Themes/DockThemes/FluentLight.xaml")
+                })
+            {
+            }
         }
 
         /// <summary>

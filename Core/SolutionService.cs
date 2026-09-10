@@ -1,9 +1,7 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.Json;
-using UI.CustomControl;
-using UI.Helper;
+using Newtonsoft.Json;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -15,11 +13,27 @@ namespace VisionMaster.Services
     public class SolutionService : BindableBase
     {
         private readonly ObservableCollection<SolutionModel> _solutionModels = new();
-        private static readonly JsonSerializerOptions _jsonOptions = new()
+
+        /// <summary>
+        /// 方案序列化设置：
+        /// TypeNameHandling.Auto —— 抽象/接口位置（ConnectionConfigBase.Config 等）自动写入 $type，
+        /// 反序列化按 $type 重建具体子类（ModbusTcpConfig/SiemensS7Config...），新增协议零维护；
+        /// SerializationBinder 白名单限定可实例化类型，防止恶意 .vms 文件借 $type 执行任意类型构造。
+        /// </summary>
+        private static readonly JsonSerializerSettings _jsonSettings = new()
         {
-            WriteIndented = true,
-            IncludeFields = true
+            Formatting = Formatting.Indented,
+            NullValueHandling = NullValueHandling.Ignore,
+            TypeNameHandling = TypeNameHandling.Auto,
+            SerializationBinder = new SafeSerializationBinder()
         };
+
+        /// <summary>
+        /// $type 白名单：只允许本项目的 Models / CommunicationContracts 命名空间下类型被反序列化
+        /// </summary>
+        private class SafeSerializationBinder : Communications.ConnectionConfigSerializationBinder
+        {
+        }
 
         /// <summary>
         /// 方案模型集合（只读）
@@ -59,7 +73,7 @@ namespace VisionMaster.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                var json = JsonSerializer.Serialize(targetSolution, _jsonOptions);
+                var json = JsonConvert.SerializeObject(targetSolution, _jsonSettings);
                 await File.WriteAllTextAsync(filePath, json);
                 return Result<bool>.Ok(true);
             }
@@ -82,8 +96,8 @@ namespace VisionMaster.Services
                 }
 
                 var json = await File.ReadAllTextAsync(filePath);
-                var solution = JsonSerializer.Deserialize<SolutionModel>(json, _jsonOptions);
-                
+                var solution = JsonConvert.DeserializeObject<SolutionModel>(json, _jsonSettings);
+
                 if (solution == null)
                 {
                     return Result<SolutionModel>.NG("方案文件解析失败");

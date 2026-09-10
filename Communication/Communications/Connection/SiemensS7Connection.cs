@@ -30,7 +30,10 @@ namespace VisionMaster.Communications
         {
             Config = config;
             ConnectionName = $"{config.IpAddress}:{config.Port}({config.S7CpuType})";
-            _device = new SiemensS7Net(config.S7CpuType, config.IpAddress);
+            // 契约层自声明枚举按名映射到 Hsl 枚举（成员名一致），未知值回退 S1200
+            var cpu = Enum.TryParse<SiemensPLCS>(config.S7CpuType.ToString(), out var parsed)
+                ? parsed : SiemensPLCS.S1200;
+            _device = new SiemensS7Net(cpu, config.IpAddress);
             _device.Port = config.Port;
             _device.Rack = config.Rack;
             _device.Slot = config.Slot;
@@ -63,7 +66,8 @@ namespace VisionMaster.Communications
         public T Read<T>(string address) where T : struct
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            var result = _device.Read(address, 1);
+            // S7 按字节粒度读取：bool=1，byte/short/ushort=2，int/uint/float=4，long/ulong/double=8
+            var result = _device.Read(address, (ushort)System.Runtime.InteropServices.Marshal.SizeOf<T>());
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
             return HslHelper.ConvertTo<T>(result.Content);
         }

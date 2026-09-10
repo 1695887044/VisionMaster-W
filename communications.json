@@ -1,0 +1,21 @@
+[
+  {
+    "connectionName": "Conn_100401",
+    "protocol": 0,
+    "config": {
+      "ipAddress": "127.0.0.1",
+      "port": 502,
+      "enableKeepAlive": true,
+      "keepAliveIntervalMs": 30000,
+      "type": 0,
+      "timeoutMs": 3000,
+      "retryCount": 3,
+      "retryIntervalMs": 1000
+    },
+    "readCycleMs": 1000,
+    "autoStart": true,
+    "autoReconnect": true,
+    "isEnabled": true,
+    "description": ""
+  }
+]

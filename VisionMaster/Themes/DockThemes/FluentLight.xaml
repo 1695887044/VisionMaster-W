@@ -1,0 +1,132 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:keys="clr-namespace:AvalonDock.Themes.VS2013.Themes;assembly=AvalonDock.Themes.VS2013">
+
+    <!--
+    ============================================================================
+    FluentLight 主题：VS2013Light 模板 + Win11 浅色调色板
+    架构：合并原主题字典（保留全部控件模板），直接覆盖其画刷资源键——
+    模板内部通过 DynamicResource 引用画刷，覆盖后即时生效，无需重写模板。
+    深色主题 = 同架构另建字典（参考 DarkTheme.xaml），运行期替换即可。
+    ============================================================================
+    -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/AvalonDock.Themes.VS2013;component/LightTheme.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--  画布/面板基础面  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.Background}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.TabBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.PanelBorderBrush}" Color="#E5E5E5" />
+
+    <!--  强调色（选中 tab 下划线、停靠指示等）  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ControlAccentColorKey}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ControlAccentBrushKey}" Color="#0067C0" />
+
+    <!--  ===== 中央文档区（视觉图像 / 流程设计器标签页）=====  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabSelectedActiveBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabSelectedActiveText}" Color="#1F1F1F" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabSelectedInactiveBackground}" Color="#F2F5FA" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabSelectedInactiveText}" Color="#6A6A6A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabUnselectedBackground}" Color="Transparent" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabUnselectedText}" Color="#5A5A5A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabUnselectedHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabUnselectedHoveredText}" Color="#1F1F1F" />
+
+    <!--  文档标签上的关闭按钮  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedActiveGlyph}" Color="#1F1F1F" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedActiveHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedActiveHoveredBorder}" Color="#D8DEE9" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedActiveHoveredGlyph}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedActivePressedBackground}" Color="#DCE6F5" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedActivePressedBorder}" Color="#C7D3E8" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedActivePressedGlyph}" Color="#005BA1" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedInactiveGlyph}" Color="#6A6A6A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedInactiveHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedInactiveHoveredBorder}" Color="#D8DEE9" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedInactiveHoveredGlyph}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedInactivePressedBackground}" Color="#DCE6F5" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedInactivePressedBorder}" Color="#C7D3E8" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonSelectedInactivePressedGlyph}" Color="#005BA1" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredGlyph}" Color="#5A5A5A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonHoveredBorder}" Color="#D8DEE9" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonHoveredGlyph}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonPressedBackground}" Color="#DCE6F5" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonPressedBorder}" Color="#C7D3E8" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellTabButtonUnselectedTabHoveredButtonPressedGlyph}" Color="#005BA1" />
+
+    <!--  溢出按钮（标签太多时）  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellOverflowButtonDefaultGlyph}" Color="#5A5A5A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellOverflowButtonHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellOverflowButtonHoveredBorder}" Color="#D8DEE9" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellOverflowButtonHoveredGlyph}" Color="#1F1F1F" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellOverflowButtonPressedBackground}" Color="#DCE6F5" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellOverflowButtonPressedBorder}" Color="#C7D3E8" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DocumentWellOverflowButtonPressedGlyph}" Color="#1F1F1F" />
+
+    <!--  ===== 工具窗口（侧边栏/底部面板）标签页 =====  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabSelectedActiveBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabSelectedActiveText}" Color="#1F1F1F" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabSelectedInactiveBackground}" Color="#F2F5FA" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabSelectedInactiveText}" Color="#6A6A6A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabUnselectedBackground}" Color="Transparent" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabUnselectedText}" Color="#5A5A5A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabUnselectedHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowTabUnselectedHoveredText}" Color="#1F1F1F" />
+
+    <!--  工具窗口标题栏（自动隐藏前的标题区）  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionActiveBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionActiveText}" Color="#1F1F1F" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionActiveGrip}" Color="#C9CEDB" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionInactiveBackground}" Color="#F7F8FA" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionInactiveText}" Color="#6A6A6A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionInactiveGrip}" Color="#DDE1E8" />
+
+    <!--  工具窗口标题栏按钮（浮动/隐藏/关闭）  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonActiveGlyph}" Color="#5A5A5A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonActiveHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonActiveHoveredBorder}" Color="Transparent" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonActiveHoveredGlyph}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonActivePressedBackground}" Color="#DCE6F5" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonActivePressedBorder}" Color="Transparent" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonActivePressedGlyph}" Color="#005BA1" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonInactiveGlyph}" Color="#9A9A9A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonInactiveHoveredBackground}" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonInactiveHoveredBorder}" Color="Transparent" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonInactiveHoveredGlyph}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonInactivePressedBackground}" Color="#DCE6F5" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonInactivePressedBorder}" Color="Transparent" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.ToolWindowCaptionButtonInactivePressedGlyph}" Color="#005BA1" />
+
+    <!--  ===== 浮动窗口 =====  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.FloatingDocumentWindowBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.FloatingDocumentWindowBorder}" Color="#C9CEDB" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.FloatingToolWindowBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.FloatingToolWindowBorder}" Color="#C9CEDB" />
+
+    <!--  ===== 自动隐藏标签（屏幕边缘锚点）=====  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.AutoHideTabDefaultBackground}" Color="#F3F6FB" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.AutoHideTabDefaultBorder}" Color="#E5E5E5" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.AutoHideTabDefaultText}" Color="#5A5A5A" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.AutoHideTabHoveredBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.AutoHideTabHoveredBorder}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.AutoHideTabHoveredText}" Color="#0067C0" />
+
+    <!--  ===== Ctrl+Tab 导航窗口 =====  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.NavigatorWindowBackground}" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.NavigatorWindowForeground}" Color="#1F1F1F" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.NavigatorWindowSelectedBackground}" Color="#E8F1FD" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.NavigatorWindowSelectedText}" Color="#0067C0" />
+
+    <!--  ===== 停靠指示器（拖拽时的方向按钮/预览框）=====  -->
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DockingButtonBackgroundBrushKey}" Color="#CCFFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DockingButtonForegroundBrushKey}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DockingButtonForegroundArrowBrushKey}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DockingButtonStarBorderBrushKey}" Color="#66B3D9FF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DockingButtonStarBackgroundBrushKey}" Color="#40FFFFFF" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.PreviewBoxBorderBrushKey}" Color="#0067C0" />
+    <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.PreviewBoxBackgroundBrushKey}" Color="#200067C0" />
+</ResourceDictionary>

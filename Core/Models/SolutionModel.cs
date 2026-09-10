@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using UI.Attributes;
 using UI.Icons;
 
@@ -82,7 +83,10 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 流程集合
+        /// Newtonsoft.ObjectCreationHandling.Replace：反序列化时整体替换集合（而非向默认集合追加），
+        /// 否则字段初始化器预置的 GoHome/MainTask 会与 JSON 里的流程叠加导致重复。
         /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<FlowModel> Flows { get; set; } =
             new()
             {
@@ -93,16 +97,26 @@ namespace VisionMaster.Models
         /// <summary>
         /// 通讯配置集合（跟着解决方案走）
         /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<Communications.CommunicationConfig> CommunicationConfigs { get; set; } = new();
 
         /// <summary>
         /// 全局变量集合（跟着解决方案走）
         /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<IVariable> GlobalVariables { get; set; } = new();
+
+        /// <summary>
+        /// 变量持久化快照（本地+网络变量统一经此随方案落盘；
+        /// 加载时由 VariablePersistenceService 重建到 Workspace.GlobalVariables）
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<VariableDto> VariableSnapshots { get; set; } = new();
 
         /// <summary>
         /// 动态监视项列表（用于调试时查看变量值）
         /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<WatchItemModel> WatchItems { get; set; } = new();
     }
 }

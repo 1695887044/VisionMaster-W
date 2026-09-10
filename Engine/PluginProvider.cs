@@ -1,9 +1,9 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using UI.CustomControl;
+using Core.Interfaces;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -14,6 +14,13 @@ namespace VisionMaster.Services
     /// </summary>
     public class PluginProvider : IPluginProvider
     {
+        private readonly IUserNotifier _notifier;
+
+        public PluginProvider(IUserNotifier notifier)
+        {
+            _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
+        }
+
         private readonly Dictionary<string, ToolItemModel> _modules = new();
         private readonly Dictionary<string, ToolItemModel> _cameras = new();
         private readonly Dictionary<string, ToolItemModel> _lasers = new();
@@ -61,7 +68,7 @@ namespace VisionMaster.Services
             {
                 if (!_modules.TryAdd(plugin.ModuleTypeName, plugin))
                 {
-                    Notifier.ShowError($"{plugin.ModuleTypeName} 插件命名重复");
+                    _notifier.ShowError($"{plugin.ModuleTypeName} 插件命名重复");
                 }
             }
         }

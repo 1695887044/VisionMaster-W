@@ -63,9 +63,22 @@ namespace VisionMaster.Communications
         public T Read<T>(string address) where T : struct
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            var result = _device.Read(address, 1);
+            // Modbus 读取长度按寄存器粒度：bool/byte/short=1，int/uint/float=2，long/ulong/double=4
+            var result = _device.Read(address, RegisterCount<T>());
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
             return HslHelper.ConvertTo<T>(result.Content);
+        }
+
+        /// <summary>按目标类型计算 Modbus 寄存器数量（每寄存器 2 字节）</summary>
+        private static ushort RegisterCount<T>() where T : struct
+        {
+            var code = System.Type.GetTypeCode(typeof(T));
+            return code switch
+            {
+                TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Single => 2,
+                TypeCode.Int64 or TypeCode.UInt64 or TypeCode.Double => 4,
+                _ => 1
+            };
         }
 
         /// <inheritdoc />

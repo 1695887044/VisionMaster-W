@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Threading;
-using Microsoft.VisualBasic.Logging;
 
 namespace VisionMaster.Core
 {

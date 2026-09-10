@@ -3,7 +3,9 @@ using Prism.Mvvm;
 using Prism.Dialogs;
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
+using System.Windows.Data;
 using VisionMaster.Communications;
 using VisionMaster.Models;
 using UI.CustomControl;
@@ -16,8 +18,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
     /// </summary>
     public class CommunicationSettingsViewModel : BindableBase, IDialogAware
     {
-        // 通讯管理器实例，用于管理通讯连接
-        private readonly ICommunicationManager _communicationManager;
+        // 通讯管理器实例，用于管理通讯连接（具体类型：Connect/Disconnect 不在接口上）
+        private readonly AdvancedCommunicationManager _communicationManager;
 
 
         /// <summary>
@@ -33,6 +35,36 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => field;
             set => SetProperty(ref field, value);
         } = new();
+
+        /// <summary>配置集合过滤视图（搜索/状态筛选）</summary>
+        private readonly ICollectionView _configsView;
+
+        private string _searchText = "";
+        /// <summary>搜索关键字（匹配连接名称 / IP:端口 / 协议）</summary>
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (SetProperty(ref _searchText, value))
+                    _configsView.Refresh();
+            }
+        }
+
+        private string _statusFilter = "全部状态";
+        /// <summary>状态筛选：全部状态 / 在线 / 离线</summary>
+        public string StatusFilter
+        {
+            get => _statusFilter;
+            set
+            {
+                if (SetProperty(ref _statusFilter, value))
+                    _configsView.Refresh();
+            }
+        }
+
+        /// <summary>状态筛选下拉选项</summary>
+        public string[] StatusFilters { get; } = { "全部状态", "在线", "离线" };
 
         /// <summary>
         /// 当前选中的配置
@@ -58,6 +90,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public DelegateCommand<CommunicationConfig> TestConnectionCommand { get; }
 
         /// <summary>
+        /// 连接/断开切换命令：建立常驻连接（轮询变量依赖此状态）
+        /// </summary>
+        public DelegateCommand<CommunicationConfig> ToggleConnectionCommand { get; }
+
+        /// <summary>
+        /// 编辑参数命令（PropertyGrid 弹窗修改 IP/端口等配置）
+        /// </summary>
+        public DelegateCommand<CommunicationConfig> EditCommand { get; }
+
+        /// <summary>
         /// 关闭对话框命令
         /// </summary>
         public DelegateCommand CloseCommand { get; }
@@ -67,15 +109,37 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public string Title => "通讯设置";
 
-        public CommunicationSettingsViewModel(ICommunicationManager communicationManager)
+        public CommunicationSettingsViewModel(AdvancedCommunicationManager communicationManager)
         {
-            // 使用传入的通讯管理器实例
+            // 使用传入的通讯管理器实例（具体类型：Connect/Disconnect 不在接口上）
             _communicationManager = communicationManager;
+            // 初始化过滤视图（搜索/状态筛选的数据源）
+            _configsView = CollectionViewSource.GetDefaultView(Configs);
+            _configsView.Filter = FilterConfig;
             // 初始化命令
             AddCommand = new DelegateCommand(ExecuteAdd);
             DeleteCommand = new DelegateCommand<CommunicationConfig>(ExecuteDelete);
             TestConnectionCommand = new DelegateCommand<CommunicationConfig>(ExecuteTestConnection);
+            ToggleConnectionCommand = new DelegateCommand<CommunicationConfig>(ExecuteToggleConnection);
+            EditCommand = new DelegateCommand<CommunicationConfig>(ExecuteEdit);
             CloseCommand = new DelegateCommand(ExecuteClose);
+        }
+
+        /// <summary>搜索 + 状态过滤谓词</summary>
+        private bool FilterConfig(object obj)
+        {
+            if (obj is not CommunicationConfig config) return false;
+
+            // 状态筛选
+            if (StatusFilter == "在线" && config.State != ConnectionState.Connected) return false;
+            if (StatusFilter == "离线" && config.State == ConnectionState.Connected) return false;
+
+            // 关键字（名称 / IP:端口 / 协议）
+            var query = SearchText?.Trim();
+            if (string.IsNullOrEmpty(query)) return true;
+            return config.ConnectionName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || (config.Config.ToString()?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false)
+                || config.Protocol.ToString().Contains(query, StringComparison.OrdinalIgnoreCase);
         }
 
 
@@ -141,6 +205,51 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 从通讯管理器移除
             _communicationManager.RemoveConnection(config.ConnectionName);
             Configs.Remove(config);
+        }
+
+        /// <summary>
+        /// 编辑参数：PropertyGrid 弹窗修改现有配置（IP/端口/轮询周期等），确定后同步到管理器
+        /// </summary>
+        private void ExecuteEdit(CommunicationConfig? config)
+        {
+            if (config == null) return;
+
+            var ok = EasyDialog.ShowPropertyGridSync($"编辑 [{config.ConnectionName}]", config);
+            if (!ok) return;
+
+            // 同步新配置到通信管理器（已连接时配置在下次重连后生效）
+            _communicationManager.UpdateConnection(config);
+            _configsView.Refresh(); // 名称/IP 变了，刷新搜索结果
+        }
+
+        /// <summary>
+        /// 连接/断开切换：连接成功后保持在线（轮询定时器随 Connect 启动，变量才能刷新）
+        /// </summary>
+        private void ExecuteToggleConnection(CommunicationConfig? config)
+        {
+            if (config == null) return;
+
+            try
+            {
+                if (config.State == ConnectionState.Connected)
+                {
+                    _communicationManager.Disconnect(config.ConnectionName);
+                    Notifier.ShowInfo($"连接 [{config.ConnectionName}] 已断开");
+                }
+                else
+                {
+                    var ok = _communicationManager.Connect(config.ConnectionName);
+                    if (ok)
+                        Notifier.ShowSuccess($"连接 [{config.ConnectionName}] 已建立（轮询已启动）");
+                    else
+                        Notifier.ShowError($"连接 [{config.ConnectionName}] 建立失败，请检查 IP/端口后重试");
+                }
+                _configsView.Refresh(); // 状态变化后同步"在线/离线"筛选结果
+            }
+            catch (Exception ex)
+            {
+                Notifier.ShowError($"连接操作异常：{ex.Message}");
+            }
         }
 
         /// <summary>

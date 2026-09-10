@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -103,12 +103,39 @@ namespace VisionMaster.ViewModels.DialogViewModels
         #endregion
 
         /// <summary>
-        /// 全局变量集合变化事件处理
+        /// 全局变量集合变化事件处理：
+        /// 增删时回调 OnVariableAdded/OnVariableRemoved（供子类挂接变量级监听），再刷新树
         /// </summary>
         protected virtual void OnGlobalVariablesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
+            switch (e.Action)
+            {
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+                    if (e.NewItems != null)
+                        foreach (IVariable v in e.NewItems) OnVariableAdded(v);
+                    break;
+
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+                    if (e.OldItems != null)
+                        foreach (IVariable v in e.OldItems) OnVariableRemoved(v);
+                    break;
+
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
+                    if (e.OldItems != null)
+                        foreach (IVariable v in e.OldItems) OnVariableRemoved(v);
+                    if (e.NewItems != null)
+                        foreach (IVariable v in e.NewItems) OnVariableAdded(v);
+                    break;
+            }
+
             Application.Current.Dispatcher.Invoke(() => RefreshTree());
         }
+
+        /// <summary>变量加入集合时回调（子类在此补挂变量级事件监听）</summary>
+        protected virtual void OnVariableAdded(IVariable variable) { }
+
+        /// <summary>变量移出集合时回调（子类在此退订变量级事件监听）</summary>
+        protected virtual void OnVariableRemoved(IVariable variable) { }
 
         #region IDisposable实现
         public void Dispose()

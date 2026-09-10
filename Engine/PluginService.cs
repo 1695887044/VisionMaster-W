@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
@@ -8,7 +8,6 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using Core.Interfaces;
-using UI.CustomControl;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -20,13 +19,15 @@ namespace VisionMaster.Services
     public class PluginService
     {
         private readonly IPluginProvider _registry;
+        private readonly IUserNotifier _notifier;
 
         /// <summary>
         /// 初始化插件服务
         /// </summary>
-        public PluginService(IPluginProvider registry)
+        public PluginService(IPluginProvider registry, IUserNotifier notifier)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+            _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
         }
 
         /// <summary>
@@ -55,7 +56,7 @@ namespace VisionMaster.Services
                 }
                 catch (Exception ex)
                 {
-                    Notifier.ShowError($"加载插件失败 {dllPath}: {ex.Message}");
+                    _notifier.ShowError($"加载插件失败 {dllPath}: {ex.Message}");
                 }
             }
         }

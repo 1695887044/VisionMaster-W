@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -71,6 +71,11 @@ namespace VisionMaster.Core
         /// 队列当前元素数量
         /// </summary>
         public int Count => _channel.Reader.Count;
+
+        /// <summary>
+        /// 队列是否已完成写入（Complete/Dispose 后为 true，剩余元素仍可取）
+        /// </summary>
+        public bool IsCompleted => _channel.Reader.Completion.IsCompleted;
 
         /// <summary>
         /// 关闭队列（不再接受新元素）

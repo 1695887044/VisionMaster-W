@@ -44,17 +44,6 @@ namespace Core.Halcon.Extensions
             }
             return hTuples;
         }
-        public static HTuple[] GetDrawObjectCenter(this DrawingObjectInfo hDrawingObject)
-        {
-            HTuple[] hTuples = null;
-            if(hDrawingObject.ShapeType == DrawShapeType.Rectangle)
-            {
-                hTuples = new HTuple[2];
-                hTuples[0] = hDrawingObject.HTuples[0] + hDrawingObject.HTuples[3] / 2;
-                hTuples[1] = hDrawingObject.HTuples[1] + hDrawingObject.HTuples[4] / 2;
-            }
-            return hTuples;
-        }
     }
   
 }

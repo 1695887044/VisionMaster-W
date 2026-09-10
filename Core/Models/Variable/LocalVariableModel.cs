@@ -1,10 +1,10 @@
 ﻿using Core.Interfaces;
 using VisionMaster.Communications;
 using System;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using VisionMaster.Helpers;
 namespace VisionMaster.Models
@@ -13,7 +13,7 @@ namespace VisionMaster.Models
     /// 本地变量模型
     /// 实现 IOutputPort 接口，可作为数据端口被其他步骤引用
     /// </summary>
-    public class LocalVariableModel : BindableBase, IVariable
+    public class LocalVariableModel : BindableBase, IVariable, IVariableDisplaySource
     {
         private string _dataTypeString;
         private Type _dataType;
@@ -119,6 +119,24 @@ namespace VisionMaster.Models
                 Value = DefaultValue;
             }
         }
+
+        #region IVariableDisplaySource（HMI 画布组态预留，显式实现避免与模型接口冲突）
+
+        string IVariableDisplaySource.BindingKey => Name;
+
+        string IVariableDisplaySource.DisplayLabel => string.IsNullOrEmpty(Description) ? Name : Description;
+
+        Type IVariableDisplaySource.DataType => DataType;
+
+        object? IVariableDisplaySource.Value => Value;
+
+        string IVariableDisplaySource.SourceLabel => "本地";
+
+        bool IVariableDisplaySource.IsReadOnly => false; // 本地变量内存读写，无只读场景
+
+        void IVariableDisplaySource.WriteValue(object? newValue) => Value = newValue;
+
+        #endregion
     }
 
 

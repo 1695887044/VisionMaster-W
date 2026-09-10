@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Text.Json;
+using Newtonsoft.Json;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -15,10 +15,10 @@ namespace VisionMaster.Services
         private static readonly string ConfigPath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AppConfig.json");
 
-        private static readonly JsonSerializerOptions JsonOptions = new()
+        private static readonly JsonSerializerSettings JsonOptions = new()
         {
-            WriteIndented = true,
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            Formatting = Formatting.Indented,
+            NullValueHandling = NullValueHandling.Ignore
         };
 
         public AppSettingsService()
@@ -44,7 +44,7 @@ namespace VisionMaster.Services
                     return;
                 }
                 var json = File.ReadAllText(ConfigPath, Encoding.UTF8);
-                Current = JsonSerializer.Deserialize<AppConfigModel>(json, JsonOptions) ?? new AppConfigModel();
+                Current = JsonConvert.DeserializeObject<AppConfigModel>(json, JsonOptions) ?? new AppConfigModel();
             }
             catch (Exception ex)
             {
@@ -61,7 +61,7 @@ namespace VisionMaster.Services
         {
             try
             {
-                var json = JsonSerializer.Serialize(Current, JsonOptions);
+                var json = JsonConvert.SerializeObject(Current, JsonOptions);
                 var tmp = ConfigPath + ".tmp";
                 File.WriteAllText(tmp, json, Encoding.UTF8);
                 if (File.Exists(ConfigPath)) File.Replace(tmp, ConfigPath, null);

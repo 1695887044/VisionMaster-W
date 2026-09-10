@@ -1,7 +1,7 @@
-using System;
+﻿using System;
+using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.InteropServices;
-using System.Text.Json.Serialization;
 using UI.Attributes;
 
 namespace VisionMaster.Communications
@@ -11,7 +11,11 @@ namespace VisionMaster.Communications
     {
         [SuperDisplay(Name = "连接名称", GroupPath = "1. 基本设置", Order = 1, ColSpan = 12)]
         [Required(ErrorMessage = "名称不能为空")]
-        public string ConnectionName { get; set; } = DateTime.Now.ToString();
+        public string ConnectionName
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = $"Conn_{DateTime.Now:HHmmss}";
 
         [SuperDisplay(
             Name = "协议类型",
@@ -76,8 +80,15 @@ namespace VisionMaster.Communications
         [JsonIgnore]
         public DateTime LastConnectedTime { get; set; }
 
+        private ConnectionState _state = ConnectionState.Disconnected;
+
+        /// <summary>连接状态（带通知：连接/断开后 UI 状态徽标自动联动）</summary>
         [JsonIgnore]
-        public ConnectionState State { get; set; } = ConnectionState.Disconnected;
+        public ConnectionState State
+        {
+            get => _state;
+            set => SetProperty(ref _state, value);
+        }
 
         public CommunicationConfig() { }
 

@@ -47,12 +47,52 @@ namespace VisionMaster.ViewModels
         }
         StepModel CurrentSelectedStepModel;
 
+        /// <summary>
+        /// 运行时间实时刷新定时器：
+        /// 引擎只记录步骤起始时刻（LastRunStartTime），运行中耗时由 UI 定时器计算写入 CurrentRunTimeMs，
+        /// 否则毫秒级步骤的耗时显示永远停在初始值 0
+        /// </summary>
+        private readonly System.Windows.Threading.DispatcherTimer _runTimeTimer;
+
         public ProcessViewModel(IWorkspaceManager workspace, IDialogService dialogService)
         {
             this.Workspace = workspace;
             this.dialogService = dialogService;
             ModuleActionCommand = new(ModuleActionAsync);
             GlobalEventBus.Subscribe<LinkPathEvent>(OnLinkPathEvent);
+
+            _runTimeTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(200),
+            };
+            _runTimeTimer.Tick += (s, e) => TickRunningTimes(Workspace.CurrentFlow?.Steps);
+            _runTimeTimer.Start();
+        }
+
+        /// <summary>
+        /// 递归刷新运行中步骤的实时耗时（含容器内嵌套步骤）
+        /// 只更新 IsRunningFocus 且 State==Running 的步骤：
+        /// 完成步骤的耗时已在引擎侧冻结为最终值，此处不覆盖
+        /// </summary>
+        private static void TickRunningTimes(IEnumerable<StepModel> steps)
+        {
+            if (steps == null) return;
+
+            foreach (var step in steps)
+            {
+                if (step.IsRunningFocus
+                    && step.State == StepState.Running
+                    && step.LastRunStartTime.HasValue)
+                {
+                    step.CurrentRunTimeMs = (long)(DateTime.Now - step.LastRunStartTime.Value).TotalMilliseconds;
+                }
+
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                        TickRunningTimes(branch.Steps);
+                }
+            }
         }
 
         private void OnLinkPathEvent(LinkPathEvent @event)
