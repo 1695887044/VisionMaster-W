@@ -1,4 +1,4 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -51,7 +51,16 @@ namespace VisionMaster.Models
                         binding.BindContext(context);
                 }
 
-                ExternalPlugin.Execute(context);
+                bool ok = ExternalPlugin.Execute(context);
+                if (!ok)
+                {
+                    // 插件业务失败（RunAlgorithm 不抛异常、写 Success=false）：
+                    // 标记步骤失败 + 落日志；不抛异常，流程按既有语义继续，软件不崩
+                    UpdateStepRuntimeState(context, StepRuntimeState.Failed);
+                    context.Logger?.Error($"步骤[{ExternalPlugin.InstanceName}]执行失败: {ExternalPlugin.LastError}");
+                    return null;
+                }
+
                 UpdateStepRuntimeState(context, StepRuntimeState.Success);
             }
             catch (Exception)

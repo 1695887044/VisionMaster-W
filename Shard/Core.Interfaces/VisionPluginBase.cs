@@ -87,14 +87,17 @@ namespace Core.Interfaces
 
         /// <summary>
         /// 计算时间 变量输入映射  变量输出映射  要可以兼容到动态注册
+        /// 返回插件业务执行结果：RunAlgorithm 把失败写入 Success（不抛异常），
+        /// 这里把它传播给引擎层（CompiledPluginNode 据此标记状态并写日志）
         /// </summary>
-        /// <param name="context"></param>
-        /// <returns></returns>
         public bool Execute(IExecutionContext context)
         {
             RunAlgorithm(context);
-            return true;
+            return Success.Value is true;
         }
+
+        /// <summary>最近一次执行的错误信息（业务失败时由 RunAlgorithm 写入 ErrorMessage）。</summary>
+        public string LastError => ErrorMessage.Value as string ?? string.Empty;
         public abstract void RunAlgorithm(IExecutionContext context);
 
         /// <summary>

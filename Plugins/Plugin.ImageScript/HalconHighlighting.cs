@@ -20,11 +20,38 @@ namespace Plugin.ImageScript
         private static bool _registered;
         private static readonly object Lock = new object();
 
-        /// <summary>获取 Halcon 高亮定义（首次调用时构建并注册）。</summary>
-        public static IHighlightingDefinition GetDefinition()
+        // 动态接口变量定义缓存（变量集合不变则复用）
+        private static string _varsKey;
+        private static IHighlightingDefinition _defWithVars;
+
+        /// <summary>
+        /// 获取高亮定义。传入 variableNames 时返回"算子+接口变量"增强版
+        /// （接口变量用紫色 Variable 色高亮，区别于算子棕黄）。
+        /// </summary>
+        public static IHighlightingDefinition GetDefinition(IEnumerable<string> variableNames = null)
         {
             EnsureRegistered();
-            return HighlightingManager.Instance.GetDefinition(DefinitionName);
+            var baseDef = HighlightingManager.Instance.GetDefinition(DefinitionName);
+
+            var vars = (variableNames ?? Enumerable.Empty<string>())
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(v => v, StringComparer.Ordinal)
+                .ToList();
+            if (vars.Count == 0)
+                return baseDef;
+
+            string key = string.Join("|", vars);
+            if (key == _varsKey && _defWithVars != null)
+                return _defWithVars;
+
+            string xshd = BuildXshd(vars);
+            using var sr = new StringReader(xshd);
+            using var reader = new XmlTextReader(sr);
+            // 不注册到全局管理器，仅作为对象赋给编辑器（避免同名注册冲突）
+            _defWithVars = HighlightingLoader.Load(reader, HighlightingManager.Instance);
+            _varsKey = key;
+            return _defWithVars;
         }
 
         private static void EnsureRegistered()
@@ -34,7 +61,7 @@ namespace Plugin.ImageScript
             {
                 if (_registered) return;
 
-                string xshd = BuildXshd();
+                string xshd = BuildXshd(null);
                 using var sr = new StringReader(xshd);
                 using var reader = new XmlTextReader(sr);
                 // AvalonEdit 6.x：先用 HighlightingLoader 解析 xshd → 定义，再按名注册
@@ -46,8 +73,8 @@ namespace Plugin.ImageScript
             }
         }
 
-        // 用 Keyword.cs 里的常量拼装一份 xshd 文本
-        private static string BuildXshd()
+        // 用 Keyword.cs 里的常量拼装一份 xshd 文本（vars=当前过程接口变量名，可空）
+        private static string BuildXshd(List<string> vars)
         {
             var keywords = Split(Keyword.s_HalconString);          // 流程控制/内置关键字
             var operators = Split(Keyword.s_HalconProcedure);      // Halcon 算子/过程名
@@ -56,11 +83,13 @@ namespace Plugin.ImageScript
             sb.Append("<SyntaxDefinition name=\"").Append(DefinitionName)
               .Append("\" extensions=\".hdev\" xmlns=\"http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008\">");
 
-            sb.Append("<Color name=\"Comment\" foreground=\"#008000\" />");
+            // 配色对齐 VS Light 主题：算子(函数色)/关键字/字符串/数字/注释 高对比区分
+            sb.Append("<Color name=\"Comment\" foreground=\"#008000\" fontStyle=\"italic\" />");
             sb.Append("<Color name=\"Keyword\" foreground=\"#0000FF\" fontWeight=\"bold\" />");
-            sb.Append("<Color name=\"Operator\" foreground=\"#000096\" />");
+            sb.Append("<Color name=\"Operator\" foreground=\"#795E26\" />");
             sb.Append("<Color name=\"String\" foreground=\"#A31515\" />");
-            sb.Append("<Color name=\"Number\" foreground=\"#FF6532\" />");
+            sb.Append("<Color name=\"Number\" foreground=\"#098658\" />");
+            sb.Append("<Color name=\"Variable\" foreground=\"#7E0080\" />");
 
             sb.Append("<RuleSet ignoreCase=\"true\">");
 
@@ -73,6 +102,10 @@ namespace Plugin.ImageScript
 
             // 数字
             sb.Append("<Rule color=\"Number\">\\b[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?\\b</Rule>");
+
+            // 接口变量优先（排在算子前，防止与算子同名时被算子规则吞掉）
+            if (vars != null && vars.Count > 0)
+                AppendKeywords(sb, "Variable", vars);
 
             AppendKeywords(sb, "Operator", operators);
             AppendKeywords(sb, "Keyword", keywords);

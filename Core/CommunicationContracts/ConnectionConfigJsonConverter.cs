@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Newtonsoft.Json.Serialization;
+using Newtonsoft.Json;
 
 namespace VisionMaster.Communications
 {
@@ -17,14 +18,18 @@ namespace VisionMaster.Communications
     {
         private const string ModelsPrefix = "VisionMaster.Models";
         private const string CommsPrefix = "VisionMaster.Communications";
+        // 插件配置类型：.vms 会内嵌插件自定义模型（如图像脚本的过程/变量列表），
+        // 仅放行 Plugin.* 命名空间（与插件加载目录命名约定一致）
+        private const string PluginPrefix = "Plugin.";
 
         public Type BindToType(string? assemblyName, string typeName)
         {
-            // 新格式：完整命名空间名（Newtonsoft TypeNameHandling 输出 FullName）
-            if (typeName.StartsWith(ModelsPrefix) || typeName.StartsWith(CommsPrefix))
+            // 新格式：完整命名空间名（Newtonsoft TypeNameHandling 输出 FullName），
+            // 含系统集合包装泛型（List`1[[Plugin.x, asm]] 等，内层段同样校验）
+            if (IsAllowedFullName(typeName))
             {
                 return ResolveFullName(typeName, assemblyName)
-                    ?? throw new Newtonsoft.Json.JsonSerializationException($"类型未找到: {typeName}, {assemblyName}");
+                    ?? throw new JsonSerializationException($"类型未找到: {typeName}, {assemblyName}");
             }
 
             // 旧格式兼容：短类名（无命名空间）——仅在白名单命名空间内解析
@@ -36,6 +41,32 @@ namespace VisionMaster.Communications
 
             throw new Newtonsoft.Json.JsonSerializationException($"配置文件包含未被允许的类型: {typeName}");
         }
+
+        /// <summary>
+        /// 全名是否可反序列化：白名单命名空间直接放行；
+        /// 系统集合泛型包装（如 List`1[[Plugin.ImageScript.EProcedure, Plugin.ImageScript]]）
+        /// 要求外层是 System.Collections.*，且内层类型段同样命中白名单。
+        /// </summary>
+        private static bool IsAllowedFullName(string typeName)
+        {
+            int bracket = typeName.IndexOf("[[", StringComparison.Ordinal);
+            if (bracket < 0)
+                return IsAllowedNamespace(typeName);
+
+            if (!typeName.StartsWith("System.Collections", StringComparison.Ordinal))
+                return false;
+
+            // 单类型参数泛型：内层形如 "Full.Type.Name, AssemblyName"
+            string inner = typeName.Substring(bracket + 2).TrimEnd(']');
+            int comma = inner.LastIndexOf(", ", StringComparison.Ordinal);
+            string innerType = comma > 0 ? inner.Substring(0, comma) : inner;
+            return IsAllowedFullName(innerType);
+        }
+
+        private static bool IsAllowedNamespace(string typeName) =>
+            typeName.StartsWith(ModelsPrefix, StringComparison.Ordinal)
+            || typeName.StartsWith(CommsPrefix, StringComparison.Ordinal)
+            || typeName.StartsWith(PluginPrefix, StringComparison.Ordinal);
 
         private static Type? ResolveFullName(string typeName, string? assemblyName)
         {

@@ -84,7 +84,10 @@ namespace VisionMaster
 
         protected override void RegisterTypes(IContainerRegistry containerRegistry)
         {
-            MemoryManager.Instance.Start(300, 30);
+            // 定时深度清理已禁用：Aggressive GC + LOH 压缩 + 工作集裁剪每 30s 冻结主线程 2~3s，
+            // 且 WPF+Halcon 宿主常态内存 >300MB 阈值，表现为"空闲双击也卡"。
+            // .NET 自身 GC 对本应用足够高效；如将来确有内存增长问题，再评估温和化巡检。
+            // MemoryManager.Instance.Start(300, 30);
 
             // ===== 基础服务最先注册：Unity 注册工厂时可能提前解析依赖，必须保证已就位 =====
             containerRegistry.RegisterSingleton<ILogService, LogService>();

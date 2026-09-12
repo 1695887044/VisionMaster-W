@@ -43,14 +43,9 @@ namespace Plugin.ImageScript
             return $" {Name} ( {io} : {oo} : {ic} : {oc} )";
         }
 
-        // 生成 HDevelop 可识别的 .hdev（XML）文本
-        public static string GetXMLString(List<EProcedure> eProcedureList)
+        // 构建 HDevelop 可识别的 .hdev XML 文档树
+        private static XmlDocument BuildXmlDocument(List<EProcedure> eProcedureList)
         {
-            if (eProcedureList == null)
-            {
-                return "";
-            }
-
             XmlDocument myXmlDoc = new XmlDocument();
             myXmlDoc.AppendChild(myXmlDoc.CreateXmlDeclaration("1.0", "UTF-8", null));
 
@@ -142,9 +137,7 @@ namespace Plugin.ImageScript
                 }
             }
 
-            using StringWriter sw = new StringWriter();
-            myXmlDoc.Save(sw);
-            return sw.ToString();
+            return myXmlDoc;
         }
 
         // 从 .hdev 文件读取
@@ -165,10 +158,21 @@ namespace Plugin.ImageScript
             return GetEProcedureList(doc);
         }
 
-        // 导出为 .hdev 文件
+        // 导出为 .hdev 文件。
+        // 必须用 XmlWriter 直接写文件：声明(encoding)与字节编码由 writer 统一生成、天然一致。
+        // 教训：先转 string 再 File.WriteAllText 时，XmlWriterSettings.Encoding 对 TextWriter 无效，
+        // 声明恒为 utf-16 而字节是 utf-8，HDevelop 解析报 "labelled UTF-16 but has UTF-8 content"
         public static void SaveToFile(string fileName, List<EProcedure> eProcedureList)
         {
-            File.WriteAllText(fileName, GetXMLString(eProcedureList), new UTF8Encoding(false));
+            var settings = new XmlWriterSettings
+            {
+                Encoding = new UTF8Encoding(false),
+                Indent = true,
+            };
+            using (XmlWriter xw = XmlWriter.Create(fileName, settings))
+            {
+                BuildXmlDocument(eProcedureList ?? new List<EProcedure>()).Save(xw);
+            }
         }
 
         // 解析 XmlDocument 得到 List<EProcedure>

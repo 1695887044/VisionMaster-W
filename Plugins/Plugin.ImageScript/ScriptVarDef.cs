@@ -58,6 +58,14 @@ namespace Plugin.ImageScript
             set { _remark = value; OnPropertyChanged(); }
         }
 
+        private int _displayWindow;
+        /// <summary>该输出显示到主界面第几个视图窗口（0=不显示，1~9=窗口1~9；仅 HImage 输出有效）</summary>
+        public int DisplayWindow
+        {
+            get => _displayWindow;
+            set { _displayWindow = value; OnPropertyChanged(); }
+        }
+
         /// <summary>是否为 iconic（图形）类型——必须链接上游变量，不能手填文本</summary>
         public bool IsIconic =>
             Type == ScriptVarType.HObject ||

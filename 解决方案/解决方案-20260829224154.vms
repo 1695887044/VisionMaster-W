@@ -3,7 +3,7 @@
   "Version": 1.0,
   "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\解决方案\\解决方案-20260829224154.vms",
   "Config": {
-    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"211\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/10/2026 14:39:04\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"267.00000000000006\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/10/2026 14:39:12\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"43.533568904593636*\">\r\n      <LayoutDocumentPane DockHeight=\"0.83125*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/10/2026 14:38:56\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"308\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" ContentId=\"Panel_LogView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/10/2026 09:44:48\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
+    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"211\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/12/2026 22:27:44\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"267.00000000000006\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/12/2026 22:27:45\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"43.533568904593636*\">\r\n      <LayoutDocumentPane DockHeight=\"0.83125*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/12/2026 22:27:39\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"308\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/12/2026 21:18:28\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/12/2026 21:35:15\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"09/12/2026 21:35:15\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"240.0000000000001\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/12/2026 21:18:01\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
     "ImageViewMode": 2
   },
   "Flows": [
@@ -23,7 +23,7 @@
       "FlowID": "02797a28407840209f71a539c6813358",
       "FlowName": "MainTask",
       "Description": "主任务",
-      "Version": 1136411,
+      "Version": 1136517,
       "IsEnabled": true,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
@@ -51,6 +51,113 @@
           },
           "LinkedSources": {},
           "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "8340ec68-3659-48c1-a495-225f6c37a892",
+          "Icon": "",
+          "PluginName": "图像脚本",
+          "PluginTypeName": "Plugin.ImageScript.ImageScriptPlugin, Plugin.ImageScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像脚本_0",
+          "Description": "图像脚本",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 4,
+          "InputValues": {
+            "DisplayViewIndex": 1,
+            "Procedures": {
+              "$type": "System.Collections.Generic.List`1[[Plugin.ImageScript.EProcedure, Plugin.ImageScript]], System.Private.CoreLib",
+              "$values": [
+                {
+                  "Name": "main",
+                  "IconicInputList": [],
+                  "IconicOutputList": [],
+                  "CtrlInputList": [],
+                  "CtrlOutputList": [],
+                  "Body": "read_image (Image, 'printer_chip/printer_chip_01')\r\nText (Image, OutImage, 24, OutValue)\r\ndev_display (OutImage)\r\n"
+                },
+                {
+                  "Name": "Text",
+                  "IconicInputList": [
+                    "Image"
+                  ],
+                  "IconicOutputList": [
+                    "OutImage"
+                  ],
+                  "CtrlInputList": [
+                    "Value"
+                  ],
+                  "CtrlOutputList": [
+                    "OutValue"
+                  ],
+                  "Body": "\r\nthreshold (Image, OutImage, Value, 255)\r\nOutValue:=10.0\r\nreturn ()\r\n"
+                }
+              ]
+            },
+            "SelectedProcedure": "Text",
+            "InputVars": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.ImageScript.ScriptVarDef, Plugin.ImageScript]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "Image",
+                  "Type": 5,
+                  "ManualValue": "",
+                  "Remark": "",
+                  "IsIconic": true
+                },
+                {
+                  "Name": "Value",
+                  "Type": 1,
+                  "ManualValue": "",
+                  "Remark": "",
+                  "IsIconic": false
+                }
+              ]
+            },
+            "OutputVars": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.ImageScript.ScriptVarDef, Plugin.ImageScript]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "OutImage",
+                  "Type": 6,
+                  "ManualValue": "",
+                  "Remark": "",
+                  "IsIconic": true
+                },
+                {
+                  "Name": "OutValue",
+                  "Type": 1,
+                  "ManualValue": "",
+                  "Remark": "",
+                  "IsIconic": false
+                }
+              ]
+            }
+          },
+          "LinkedSources": {
+            "Image": {
+              "TargetStepId": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
+              "TargetPortName": "Image",
+              "DisplayAddress": "图像采集_0.Image"
+            },
+            "Value": {
+              "TargetStepId": "00000000-0000-0000-0000-000000000000",
+              "TargetPortName": "54",
+              "DisplayAddress": "常量值: 54"
+            }
+          },
+          "OutputPortDefinitions": [
+            {
+              "Name": "OutImage",
+              "DataTypeName": "HalconDotNet.HRegion, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8",
+              "Description": "OutImage"
+            },
+            {
+              "Name": "OutValue",
+              "DataTypeName": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "Description": "OutValue"
+            }
+          ]
         }
       ]
     }

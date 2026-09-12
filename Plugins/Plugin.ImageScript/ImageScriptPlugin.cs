@@ -34,13 +34,12 @@ namespace Plugin.ImageScript
         {
             HookVars(InputVars);
             HookVars(OutputVars);
+
+            // 启动期（插件扫描实例化）后台预热 HDevelop 原生引擎，消除首开/首运行卡顿
+            PreWarmEngine();
         }
 
         #region 内嵌配置（随 .vms 持久化）
-
-        /// <summary>结果显示到主界面几号视图（1~9；<=0 不显示）</summary>
-        [StepConfig]
-        public int DisplayViewIndex { get; set; } = 1;
 
         private List<EProcedure> _procedures = new List<EProcedure>();
         /// <summary>全部过程脚本（含接口与过程体），内嵌进配置</summary>
@@ -118,6 +117,27 @@ namespace Plugin.ImageScript
 
         private readonly List<string> _dynamicInputNames = new List<string>();
 
+        private int _portsVersion;
+        /// <summary>
+        /// 端口重建计数器（绑定锚点）：端口对象重建后发属性通知，
+        /// 让行内 Port MultiBinding 自动重取新端口对象，替代视图侧 Items.Refresh
+        /// </summary>
+        public int PortsVersion => _portsVersion;
+
+        private string _validationResult = "";
+        /// <summary>最近一次"校验脚本"的结果文本（空=未校验；✔ 开头=通过；✘ 开头=错误详情）。</summary>
+        public string ValidationResult
+        {
+            get => _validationResult;
+            set => SetProperty(ref _validationResult, value);
+        }
+
+        private void NotifyPortsRebuilt()
+        {
+            _portsVersion++;
+            OnPropertyChanged(nameof(PortsVersion));
+        }
+
         /// <summary>按 InputVars 定义重建动态输入端口。</summary>
         public void RebuildDynamicInputs()
         {
@@ -125,14 +145,17 @@ namespace Plugin.ImageScript
                 RemoveDynamicInput(name);
             _dynamicInputNames.Clear();
 
-            if (InputVars == null) return;
-            foreach (var v in InputVars)
+            if (InputVars != null)
             {
-                if (v == null || string.IsNullOrWhiteSpace(v.Name)) continue;
-                if (_dynamicInputNames.Contains(v.Name)) continue;
-                AddDynamicInput(CreateInputPort(v));
-                _dynamicInputNames.Add(v.Name);
+                foreach (var v in InputVars)
+                {
+                    if (v == null || string.IsNullOrWhiteSpace(v.Name)) continue;
+                    if (_dynamicInputNames.Contains(v.Name)) continue;
+                    AddDynamicInput(CreateInputPort(v));
+                    _dynamicInputNames.Add(v.Name);
+                }
             }
+            NotifyPortsRebuilt();
         }
 
         /// <summary>按 OutputVars 定义重建动态输出端口，并写 StepData 输出快照。</summary>
@@ -160,6 +183,8 @@ namespace Plugin.ImageScript
             // 编译期 StepData 为 null（快照来自已保存的 StepModel），仅配置态写快照
             if (StepData != null)
                 StepData.OutputPortDefinitions = snapshot;
+
+            NotifyPortsRebuilt();
         }
 
         private static IInputPort CreateInputPort(ScriptVarDef v) => v.Type switch
@@ -190,18 +215,58 @@ namespace Plugin.ImageScript
 
         private void HookVars(ObservableCollection<ScriptVarDef> collection)
         {
-            if (collection != null)
-                collection.CollectionChanged += OnVarsCollectionChanged;
+            if (collection == null)
+                return;
+
+            collection.CollectionChanged += OnVarsCollectionChanged;
+            foreach (var v in collection)
+                HookVarDef(v);
+        }
+
+        private void HookVarDef(ScriptVarDef v)
+        {
+            if (v != null)
+                v.PropertyChanged -= OnVarDefPropertyChanged;
+            if (v != null)
+                v.PropertyChanged += OnVarDefPropertyChanged;
+        }
+
+        private void UnhookVarDef(ScriptVarDef v)
+        {
+            if (v != null)
+                v.PropertyChanged -= OnVarDefPropertyChanged;
+        }
+
+        // 类型是端口承载的 CLR 类型来源：用户在下拉改 Type → 端口按新类型重建（纯通知驱动，无事件回环）
+        private void OnVarDefPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ScriptVarDef.Type))
+                return;
+
+            RebuildDynamicInputs();
+            RebuildDynamicOutputs();
         }
 
         private void UnhookVars(ObservableCollection<ScriptVarDef> collection)
         {
-            if (collection != null)
-                collection.CollectionChanged -= OnVarsCollectionChanged;
+            if (collection == null)
+                return;
+
+            collection.CollectionChanged -= OnVarsCollectionChanged;
+            foreach (var v in collection)
+                UnhookVarDef(v);
         }
 
         private void OnVarsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
+            // 同步增删变量项的属性订阅（MergeVars 走 Add/Remove 到这里）
+            if (e.OldItems != null)
+                foreach (ScriptVarDef v in e.OldItems)
+                    UnhookVarDef(v);
+            if (e.NewItems != null)
+                foreach (ScriptVarDef v in e.NewItems)
+                    HookVarDef(v);
+
             // 变量增删 → 端口随之增删
             RebuildDynamicInputs();
             RebuildDynamicOutputs();
@@ -327,7 +392,7 @@ namespace Plugin.ImageScript
         private static readonly Dictionary<string, HDevProcedureCall> CallCache = new Dictionary<string, HDevProcedureCall>();
         private static readonly object CacheLock = new object();
 
-        private HDevProcedureCall EnsureCompiled(out string error)
+        private HDevProcedureCall EnsureCompiled(out string error, bool force = false)
         {
             error = null;
 
@@ -345,16 +410,33 @@ namespace Plugin.ImageScript
             }
 
             string fingerprint = ComputeFingerprint();
-            lock (CacheLock)
+            if (!force)
             {
-                if (CallCache.TryGetValue(fingerprint, out var cached) && cached != null)
-                    return cached;
+                lock (CacheLock)
+                {
+                    if (CallCache.TryGetValue(fingerprint, out var cached) && cached != null)
+                        return cached;
+                }
             }
 
             string temp = Path.Combine(Path.GetTempPath(), $"vm_imgscript_{Guid.NewGuid():N}.hdev");
+            List<EProcedure> resolved = null; // 消毒后的克隆体（catch 里翻译报错要读行文本）
             try
             {
-                EProcedure.SaveToFile(temp, Procedures);
+                // 保存前克隆并做"资源短名→全路径"解析：
+                // 编辑器里保持 read_image (X,'marks') 干净写法，换电脑/换部署路径不用改脚本
+                resolved = Procedures.Select(CloneWithResolvedAssets).ToList();
+
+                // 引擎消毒：剥离代码行尾部的行内注释（HDevelop 要求注释独占一行，中文本身合法），
+                // 编译报错再由 TranslateEngineError 翻译成带行号的中文提示
+                SanitizeForEngine(resolved, out string sanitizeError);
+                if (sanitizeError != null)
+                {
+                    error = sanitizeError;
+                    return null;
+                }
+
+                EProcedure.SaveToFile(temp, resolved);
                 HDevProgram program = new HDevProgram(temp);
                 HDevProcedure procedure = new HDevProcedure(program, SelectedProcedure);
                 var call = new HDevProcedureCall(procedure);
@@ -366,10 +448,259 @@ namespace Plugin.ImageScript
                 }
                 return call;
             }
+            catch (HDevEngineException ex)
+            {
+                // 编译期异常转为业务错误（状态栏红字），不允许上抛造成调试中断/会话崩溃
+                error = TranslateEngineError(ex.Message, resolved);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                error = "脚本编译异常: " + ex.Message;
+                return null;
+            }
             finally
             {
                 try { if (File.Exists(temp)) File.Delete(temp); } catch { /* 临时文件清理失败可忽略 */ }
             }
+        }
+
+        /// <summary>
+        /// 校验脚本（不执行）：强制重编译当前全部过程。
+        /// 返回 null=通过；否则为带行号的语法/引用错误信息。
+        /// 编译成功会写入缓存，运行时直接复用（校验过的内容零成本）。
+        /// </summary>
+        public string ValidateScript()
+        {
+            EnsureCompiled(out string error, force: true);
+            return error;
+        }
+
+        // ───────── 资源短名解析（示例代码免路径机制） ─────────
+
+        /// <summary>克隆过程，仅对 Body 做资源名解析，不污染编辑器原文。</summary>
+        private static EProcedure CloneWithResolvedAssets(EProcedure p)
+        {
+            return new EProcedure
+            {
+                Name = p.Name,
+                IconicInputList = new List<string>(p.IconicInputList),
+                IconicOutputList = new List<string>(p.IconicOutputList),
+                CtrlInputList = new List<string>(p.CtrlInputList),
+                CtrlOutputList = new List<string>(p.CtrlOutputList),
+                Body = ResolveAssetNames(p.Body),
+            };
+        }
+
+        /// <summary>
+        /// 引擎消毒（编译前自动规范化，编辑器里的原文不变）。
+        /// 经独立探针实测（Halcon 23.05 HDevEngine）：
+        ///   ✔ 合法：中文注释、═制表符、中文字符串、紧凑写法 OutValue:=10.0（勿再画蛇添足转写！）
+        ///   ✘ 非法（invalid program line）：代码行尾部拖注释/字符串，
+        ///     如 threshold(...) * 注释、X := 10.0 '备注' —— HDevelop 注释必须独占一行。
+        ///   ✘ 非法：引用未声明的接口/局部变量（引擎同样报 invalid program line，靠翻译报错提示用户）。
+        /// 因此这里只做一件事：把行尾注释剥离（替换为空格占位，行号保持不变）。
+        /// </summary>
+        private static void SanitizeForEngine(List<EProcedure> procs, out string error)
+        {
+            error = null;
+            foreach (var p in procs)
+            {
+                if (string.IsNullOrEmpty(p.Body)) continue;
+
+                var lines = p.Body.Split('\n');
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string line = lines[i].TrimEnd('\r');
+                    bool cr = lines[i].EndsWith("\r");
+                    string trimmed = line.TrimStart();
+                    // 注释行（* 或 ' 开头）原样保留——实测中文/制表符完全合法
+                    if (trimmed.StartsWith("*") || trimmed.StartsWith("'")) continue;
+
+                    string stripped = StripTrailingComment(line);
+                    if (stripped != line)
+                        lines[i] = stripped + (cr ? "\r" : "");
+                }
+                p.Body = string.Join("\n", lines);
+            }
+        }
+
+        /// <summary>
+        /// 剥离代码行尾部的注释（HDevelop 要求注释独占一行）。精确边界，避免误伤真乘号：
+        ///  A) 算子调用行：以 ')' 收尾后还有空格 + 任何内容 → 该内容为行尾注释
+        ///     例：dev_get_window (WindowHandle) * 取窗口   /   read_image (X, 'a') '备注'
+        ///  B) 赋值行：':=' 之后出现 空格*空格 或 空格'字符串' → 视为行尾注释
+        ///     （真乘法写成 X:=A*B 不带空格；HDevelop 惯例如 sqrt (R*R+C*C) 中 * 两侧无空格）
+        /// 用空格替换，保证列位置与行号不变。
+        /// </summary>
+        private static string StripTrailingComment(string line)
+        {
+            bool inStr = false;
+            int depth = 0;
+            int lastNonSp = -1; // 最近一个非空格字符的下标（保证在字符串外）
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+                if (c == '\'')
+                {
+                    if (inStr) { inStr = false; lastNonSp = i; continue; }
+                    // 新字符串开始：前面语句已完整收尾（')' 或引号结尾）→ 这是行尾注释串
+                    if (depth == 0 && (lastNonSp >= 0 && (line[lastNonSp] == ')' || line[lastNonSp] == '\'')))
+                        return BlankFrom(line, i);
+                    inStr = true;
+                    continue;
+                }
+                if (inStr) continue;
+
+                if (c == ' ' || c == '\t') continue;
+
+                if (c == '*')
+                {
+                    char prev = lastNonSp >= 0 ? line[lastNonSp] : '\0';
+                    bool prevComplete = depth == 0 &&
+                        (prev == ')' || char.IsLetterOrDigit(prev) || prev == '_' || prev == '\'');
+                    bool nextBlank = i + 1 >= line.Length || line[i + 1] == ' ' || line[i + 1] == '\t';
+                    if (prevComplete && nextBlank) return BlankFrom(line, i); // 乘号必写作 A*B（两侧无空格）
+                }
+
+                if (c == '(') depth++;
+                else if (c == ')') depth--;
+                lastNonSp = i;
+            }
+            return line;
+        }
+
+        private static string BlankFrom(string line, int start)
+            => line.Substring(0, start) + new string(' ', line.Length - start);
+
+        /// <summary>
+        /// 把 HDevEngine 的天书报错翻译成新手能照做的中文提示。
+        /// 实测（探针）：'invalid program line: N' 的 N 是过程体内 1-based 行号，
+        /// 两大触发场景——① 行内引用了未赋值的控制变量（须先赋值或加入接口变量表）；
+        /// ② 代码行尾部拖了注释/字符串（消毒器已自动剥离，残余场景给提示）。
+        /// </summary>
+        private static string TranslateEngineError(string engineMessage, List<EProcedure> procs)
+        {
+            string msg = (engineMessage ?? "").Replace("\r", "");
+            var hint = "";
+
+            var m = System.Text.RegularExpressions.Regex.Match(
+                msg, @"(invalid program line|unresolved procedure call):\s*(\d+)");
+            if (m.Success)
+            {
+                int lineNo = int.Parse(m.Groups[2].Value); // 1-based
+                string procName = System.Text.RegularExpressions.Regex.Match(
+                    msg, @"procedure '([^']+)'").Groups[1].Value;
+                var proc = (procs ?? new List<EProcedure>())
+                    .FirstOrDefault(p => p.Name == procName) ?? procs?.FirstOrDefault();
+                string badLine = "";
+                if (proc != null && !string.IsNullOrEmpty(proc.Body))
+                {
+                    var lines = proc.Body.Replace("\r", "").Split('\n');
+                    if (lineNo >= 1 && lineNo <= lines.Length) badLine = lines[lineNo - 1].Trim();
+                }
+                hint = $"\n【第 {lineNo} 行】{badLine}" +
+                       "\n可能原因：① 该行用了未赋值的变量——请先 X := 值，或在上方'输入变量'表中声明并给初值；" +
+                       "② 行尾拖了注释——HDevelop 要求注释必须单独一行并以 * 开头；" +
+                       "③ 括号或引号不成对。";
+            }
+            return "脚本编译失败: " + msg + hint;
+        }
+
+        /// <summary>
+        /// 把脚本里的资源"短名"解析为程序目录 ScriptAssets 下的全路径：
+        ///   read_image (X, 'marks')            → ScriptAssets/images/marks.png
+        ///   read_ocr_class_mlp ('Industrial_0-9A-Z_Rej', H) → ScriptAssets/ocr/....omc
+        /// 已是路径（含 / \ :）或找不到的原样保留——装了 Halcon 时官方图像名（如 'fabrik'）
+        /// 由 Halcon 自己的搜索路径兜底，两全其美。
+        /// </summary>
+        private static string ResolveAssetNames(string body)
+        {
+            if (string.IsNullOrEmpty(body)) return body;
+
+            // read_image (Var, 'name')
+            body = System.Text.RegularExpressions.Regex.Replace(
+                body,
+                @"(read_image\s*\(\s*[A-Za-z_]\w*\s*,\s*')([^']+)(')",
+                m =>
+                {
+                    string name = m.Groups[2].Value;
+                    string hit = FindAssetFile("images", name);
+                    return hit != null ? m.Groups[1].Value + hit + m.Groups[3].Value : m.Value;
+                });
+
+            // read_ocr_class_mlp ('name', ...)
+            body = System.Text.RegularExpressions.Regex.Replace(
+                body,
+                @"(read_ocr_class_mlp\s*\(\s*')([^']+)(')",
+                m =>
+                {
+                    string name = m.Groups[2].Value;
+                    string hit = FindAssetFile("ocr", name);
+                    return hit != null ? m.Groups[1].Value + hit + m.Groups[3].Value : m.Value;
+                });
+
+            return body;
+        }
+
+        /// <summary>在 ScriptAssets\{subDir} 找无扩展名匹配的文件，返回正斜杠全路径；找不到返回 null。</summary>
+        private static string FindAssetFile(string subDir, string nameNoExt)
+        {
+            try
+            {
+                // 已经是路径/带扩展名的不处理（Halcon 自己会找）
+                if (string.IsNullOrEmpty(nameNoExt) ||
+                    nameNoExt.IndexOfAny(new[] { '/', '\\', ':' }) >= 0)
+                    return null;
+
+                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ScriptAssets", subDir);
+                if (!Directory.Exists(dir)) return null;
+
+                foreach (string f in Directory.GetFiles(dir))
+                {
+                    if (string.Equals(Path.GetFileNameWithoutExtension(f), nameNoExt,
+                            StringComparison.OrdinalIgnoreCase))
+                        return f.Replace('\\', '/');
+                }
+            }
+            catch
+            {
+                /* 解析失败保持原样，交给 Halcon 报错 */
+            }
+            return null;
+        }
+
+        private static int _prewarmed;
+
+        /// <summary>
+        /// 后台预热 HDevelop 引擎：首次 HDevProgram 构造会加载原生引擎库（可达数秒），
+        /// 在插件启动阶段提前触发，用户打开编辑器/运行时不再等待。
+        /// </summary>
+        public static void PreWarmEngine()
+        {
+            if (System.Threading.Interlocked.Exchange(ref _prewarmed, 1) != 0) return;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                string temp = Path.Combine(Path.GetTempPath(), $"vm_imgscript_prewarm_{Guid.NewGuid():N}.hdev");
+                try
+                {
+                    EProcedure.SaveToFile(temp, new List<EProcedure>
+                    {
+                        new EProcedure { Name = "prewarm", Body = "return ()" }
+                    });
+                    var program = new HDevProgram(temp);
+                    var p = new HDevProcedure(program, "prewarm");
+                    var call = new HDevProcedureCall(p);
+                    call.Execute();
+                }
+                catch { /* 预热失败不影响功能，运行时再走正常路径 */ }
+                finally
+                {
+                    try { if (File.Exists(temp)) File.Delete(temp); } catch { }
+                }
+            });
         }
 
         // 以全部内容（含所选过程 + 各过程接口与过程体）计算指纹
@@ -445,7 +776,6 @@ namespace Plugin.ImageScript
                 call.Execute();
 
                 // —— 收取输出 ——
-                HImage preview = null;
                 if (OutputVars != null)
                 {
                     foreach (var v in OutputVars)
@@ -453,29 +783,46 @@ namespace Plugin.ImageScript
                         if (v == null || string.IsNullOrWhiteSpace(v.Name)) continue;
                         if (!Outputs.TryGetValue(v.Name, out var port)) continue;
 
-                        object result = v.Type switch
+                        object result;
+                        if (v.IsIconic)
                         {
-                            ScriptVarType.Int => (object)call.GetOutputCtrlParamTuple(v.Name).I,
-                            ScriptVarType.Double => (object)call.GetOutputCtrlParamTuple(v.Name).D,
-                            ScriptVarType.String => (object)call.GetOutputCtrlParamTuple(v.Name).S,
-                            ScriptVarType.HTuple => call.GetOutputCtrlParamTuple(v.Name),
-                            ScriptVarType.HObject => call.GetOutputIconicParamObject(v.Name),
-                            ScriptVarType.HImage => call.GetOutputIconicParamImage(v.Name),
-                            ScriptVarType.HRegion => call.GetOutputIconicParamRegion(v.Name),
-                            ScriptVarType.HXld => call.GetOutputIconicParamXld(v.Name),
-                            _ => null
-                        };
+                            result = v.Type switch
+                            {
+                                ScriptVarType.HObject => call.GetOutputIconicParamObject(v.Name),
+                                ScriptVarType.HImage => call.GetOutputIconicParamImage(v.Name),
+                                ScriptVarType.HRegion => call.GetOutputIconicParamRegion(v.Name),
+                                ScriptVarType.HXld => call.GetOutputIconicParamXld(v.Name),
+                                _ => null
+                            };
+                        }
+                        else
+                        {
+                            var t = call.GetOutputCtrlParamTuple(v.Name);
+                            // 空元组=脚本声明了该输出却没赋值，给出可理解的中文错误
+                            // （避免 Halcon 裸报 "Index out of range"）
+                            if (v.Type != ScriptVarType.HTuple && t.Length == 0)
+                            {
+                                Success.Value = false;
+                                ErrorMessage.Value =
+                                    $"输出参数[{v.Name}]在脚本中未被赋值（接口声明了它，但脚本没有写入）";
+                                return;
+                            }
+                            result = v.Type switch
+                            {
+                                ScriptVarType.Int => (object)t.I,
+                                ScriptVarType.Double => t.D,
+                                ScriptVarType.String => t.S,
+                                _ => t
+                            };
+                        }
 
                         port.Value = result;
 
-                        if (v.Type == ScriptVarType.HImage &&
-                            result is HImage hi && hi.IsInitialized() && preview == null)
-                            preview = hi;
+                        // 逐输出显示：该变量行上选了"窗口N"的 HImage 结果直接推送到对应视图
+                        if (v.DisplayWindow >= 1 && result is HImage hi && hi.IsInitialized())
+                            this.PublishPreview(hi, v.DisplayWindow);
                     }
                 }
-
-                if (preview != null && DisplayViewIndex >= 1)
-                    this.PublishPreview(preview, DisplayViewIndex);
 
                 Success.Value = true;
                 ErrorMessage.Value = "";

@@ -49,8 +49,17 @@ namespace Plugin.ImageScript
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            // 语法高亮（关键字来自 Keyword.cs）
+            // 语法高亮（关键字来自 Keyword.cs；接口变量在切换过程时动态并入）
             Editor.SyntaxHighlighting = HalconHighlighting.GetDefinition();
+
+            // 算子智能提示：补全 + 参数模板 + 悬浮文档（接口变量数据源=当前编辑过程）
+            ScriptIntelliSense.Attach(Editor, CollectInterfaceVars);
+
+            // 编辑行为：撤销/自动缩进/括号配对/注释切换/缩放/当前行高亮/查找替换
+            ScriptEditorBehavior.Attach(Editor);
+
+            // 右键菜单：编译 / 注释 / 取消注释 / 插入示例代码（28 个经典场景）
+            BuildEditorContextMenu();
 
             // 运行过程下拉反映持久化的 SelectedProcedure
             BindingRunCombo();
@@ -116,6 +125,38 @@ namespace Plugin.ImageScript
             EditorTitle.Text = proc != null
                 ? proc.GetProcedureMethod()
                 : "（未选择过程）";
+            UpdateEditorIntel();
+        }
+
+        /// <summary>把当前编辑过程的接口变量并入高亮规则（紫色 Variable 色）。</summary>
+        private void UpdateEditorIntel()
+        {
+            Editor.SyntaxHighlighting = HalconHighlighting.GetDefinition(
+                CollectInterfaceVars().Select(v => v.Name));
+        }
+
+        /// <summary>收集当前编辑过程的接口变量（名称/方向/类型），供补全与悬浮使用。</summary>
+        private IList<ScriptIntelliSense.VarInfo> CollectInterfaceVars()
+        {
+            var list = new List<ScriptIntelliSense.VarInfo>();
+            var proc = _editTarget;
+            if (proc == null) return list;
+
+            foreach (var n in proc.IconicInputList.Concat(proc.CtrlInputList))
+                list.Add(new ScriptIntelliSense.VarInfo
+                {
+                    Name = n,
+                    Kind = "输入",
+                    Type = Plugin?.InputVars?.FirstOrDefault(v => v.Name == n)?.Type.ToString() ?? "接口参数",
+                });
+            foreach (var n in proc.IconicOutputList.Concat(proc.CtrlOutputList))
+                list.Add(new ScriptIntelliSense.VarInfo
+                {
+                    Name = n,
+                    Kind = "输出",
+                    Type = Plugin?.OutputVars?.FirstOrDefault(v => v.Name == n)?.Type.ToString() ?? "接口参数",
+                });
+            return list;
         }
 
         private void Editor_TextChanged(object sender, EventArgs e)
@@ -138,20 +179,8 @@ namespace Plugin.ImageScript
 
         #endregion
 
-        #region 变量类型变更 → 端口按新类型重建
-
-        private void VarType_Changed(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_initialized || Plugin == null) return;
-            Plugin.NotifyVariablesChanged();
-            // 端口对象已更换，刷新连线列让 LinkableValueEditor 重新解析 Port
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                InputList.Items.Refresh();
-            }), System.Windows.Threading.DispatcherPriority.Background);
-        }
-
-        #endregion
+        // 变量类型变更由 ScriptVarDef.Type 的 PropertyChanged → 插件重建端口 → PortsVersion 锚点
+        // 驱动行内 Port MultiBinding 自动重解析（无 SelectionChanged 事件回环）
 
         #region 过程操作
 
@@ -201,6 +230,137 @@ namespace Plugin.ImageScript
             if (Plugin == null) return;
             Plugin.RebuildVariablesFromSelectedProcedure();
             RefreshLists();
+            UpdateEditorIntel();
+        }
+
+        /// <summary>校验脚本：强制重编译全部过程，结果显示在编辑器底部并标红错误行（不执行）。</summary>
+        private void Validate_Click(object sender, RoutedEventArgs e)
+        {
+            if (Plugin == null) return;
+
+            // 固化编辑器当前文本，确保校验的是屏幕上的内容
+            if (_editTarget != null) _editTarget.Body = Editor.Text;
+
+            string err = Plugin.ValidateScript();
+            Plugin.ValidationResult = err == null ? "✔ 脚本校验通过（编译无误）" : "✘ " + err;
+            ValidateResultText.Foreground = err == null
+                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0x7D, 0x32))
+                : System.Windows.Media.Brushes.Red;
+
+            // 解析错误行号 → 编辑器标红 + 跳到首个错误行
+            var errorLines = err == null
+                ? null
+                : ParseErrorLines(err, Editor.Document.LineCount);
+            ScriptEditorBehavior.SetErrorLines(Editor, errorLines);
+            if (errorLines != null && errorLines.Count > 0)
+            {
+                int line = errorLines[0];
+                Editor.TextArea.Caret.Line = line;
+                Editor.ScrollToLine(line);
+            }
+        }
+
+        /// <summary>
+        /// 从 HDevelop 编译错误文本提取行号。
+        /// 形如 "there is an unresolved procedure call: 2: OutValue"——行号 0 基，转 1 基。
+        /// </summary>
+        private static System.Collections.Generic.List<int> ParseErrorLines(string err, int maxLine)
+        {
+            var list = new System.Collections.Generic.List<int>();
+            foreach (System.Text.RegularExpressions.Match m in
+                     System.Text.RegularExpressions.Regex.Matches(err, @"(?<![\w:])(\d{1,4})\s*:"))
+            {
+                if (int.TryParse(m.Groups[1].Value, out int zeroBased))
+                {
+                    int line = zeroBased + 1;
+                    if (line >= 1 && line <= maxLine && !list.Contains(line))
+                        list.Add(line);
+                }
+            }
+            return list;
+        }
+
+        /// <summary>格式化当前过程体（只调空白不改语义，可 Ctrl+Z 撤销）。</summary>
+        private void Format_Click(object sender, RoutedEventArgs e)
+        {
+            if (_editTarget == null) return;
+
+            string formatted = ScriptFormatter.Format(Editor.Text);
+            if (formatted == Editor.Text) return;
+
+            // 整篇替换走 Document.Replace：保留撤销栈，一次 Ctrl+Z 可回退
+            Editor.Document.Replace(0, Editor.Document.TextLength, formatted);
+            // TextChanged 已把新文本写回 _editTarget.Body
+        }
+
+        /// <summary>
+        /// 编辑器右键菜单：编译 / 注释 / 取消注释 / 插入示例代码（按 8 大类分组的子菜单）。
+        /// 菜单在代码里构建（28 项模板静态写 XAML 太冗长），属视图层职责，不违反 MVVM。
+        /// </summary>
+        private void BuildEditorContextMenu()
+        {
+            var menu = new System.Windows.Controls.ContextMenu();
+
+            menu.Items.Add(MenuItem("编译（校验脚本）", "检查语法/引用错误并标红错误行",
+                (s, e) => Validate_Click(s, e)));
+            menu.Items.Add(MenuItem("注释", "Ctrl+/ —— 给当前行/选区加 * 注释",
+                (s, e) => ScriptEditorBehavior.SetComment(Editor.TextArea, true)));
+            menu.Items.Add(MenuItem("取消注释", "去掉当前行/选区的 * 注释",
+                (s, e) => ScriptEditorBehavior.SetComment(Editor.TextArea, false)));
+            menu.Items.Add(new System.Windows.Controls.Separator());
+
+            var tplRoot = new System.Windows.Controls.MenuItem { Header = "插入示例代码" };
+            foreach (var grp in System.Linq.Enumerable.GroupBy(
+                     ScriptTemplates.All, t => t.Category))
+            {
+                var catItem = new System.Windows.Controls.MenuItem { Header = grp.Key };
+                foreach (var t in grp)
+                {
+                    var code = t.Code; // 闭包捕获
+                    catItem.Items.Add(MenuItem(t.Title, null, (s, e) => InsertTemplate(code)));
+                }
+                tplRoot.Items.Add(catItem);
+            }
+            menu.Items.Add(tplRoot);
+
+            Editor.ContextMenu = menu;
+        }
+
+        private static System.Windows.Controls.MenuItem MenuItem(
+            string header, string toolTip, System.Windows.RoutedEventHandler onClick)
+        {
+            var item = new System.Windows.Controls.MenuItem { Header = header };
+            if (toolTip != null) item.ToolTip = toolTip;
+            item.Click += onClick;
+            return item;
+        }
+
+        /// <summary>把模板整段插入到光标所在行的下方（不与现有代码粘连），可一次 Ctrl+Z 撤销。</summary>
+        private void InsertTemplate(string code)
+        {
+            // {A} 占位符 → 程序目录下 ScriptAssets 的绝对路径（Halcon 路径用正斜杠）
+            string assets = System.IO.Path
+                .Combine(AppDomain.CurrentDomain.BaseDirectory, "ScriptAssets")
+                .Replace('\\', '/');
+            try
+            {
+                // 模板会往这两个子目录写：模型存盘/NG留档，先确保存在
+                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(assets, "models"));
+                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(assets, "ng_records"));
+            }
+            catch { /* 目录已存在或无权限不影响插入 */ }
+
+            code = code.Replace("{A}", assets);
+
+            var doc = Editor.Document;
+            var line = doc.GetLineByOffset(Editor.TextArea.Caret.Offset);
+
+            string block = code.Replace("\r\n", "\n").Replace('\r', '\n');
+            int insertAt = line.Offset + line.Length;
+            string prefix = line.Length > 0 ? "\n" : "";
+
+            doc.Insert(insertAt, prefix + block);
+            Editor.TextArea.Caret.Offset = insertAt + prefix.Length;
         }
 
         private void Import_Click(object sender, RoutedEventArgs e)
