@@ -1,0 +1,148 @@
+﻿<vb:ModuleViewBase
+    x:Class="Plugin.StartLaser.Views.StartLaserView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+    xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+    xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+    xmlns:local="clr-namespace:Plugin.StartLaser.Views"
+    xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+    xmlns:vm="clr-namespace:Plugin.StartLaser.ViewModels"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter" />
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter" />
+                    <cvt:StatusConverter x:Key="StatusConverter" />
+                </ResourceDictionary>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto" />
+            <RowDefinition />
+            <RowDefinition Height="auto" />
+        </Grid.RowDefinitions>
+        <StackPanel
+            Margin="30,5"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Center"
+            Orientation="Horizontal">
+            <TextBlock
+                Margin="0,0,5,0"
+                VerticalAlignment="Center"
+                Text="激光选择:" />
+            <ComboBox
+                Width="200"
+                BorderThickness="0,0,0,1"
+                DisplayMemberPath="LaserName"
+                ItemsSource="{Binding LaserModels}"
+                SelectedItem="{Binding SelectedLaserModel}" />
+        </StackPanel>
+        <StackPanel Grid.Row="1">
+            <StackPanel
+                Margin="30,5"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center" Text="offsetX:" />
+                <TextBox
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand, Mode=OneWay}"
+                    mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.offSetX}"
+                    mah:TextBoxHelper.Value="{Binding OffsetX.Text}"
+                    mah:TextBoxHelper.Watermark="double"
+                    IsReadOnly="{Binding OffsetX.IsReadOnly}"
+                    Style="{StaticResource LinkTextBox}"
+                    Text="{Binding OffsetX.Value}" />
+            </StackPanel>
+            <StackPanel
+                Margin="30,5"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center" Text="offsetY:" />
+                <TextBox
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand, Mode=OneWay}"
+                    mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.offSetY}"
+                    mah:TextBoxHelper.Value="{Binding OffsetY.Text}"
+                    mah:TextBoxHelper.Watermark="double"
+                    IsReadOnly="{Binding OffsetY.IsReadOnly}"
+                    Style="{StaticResource LinkTextBox}"
+                    Text="{Binding OffsetY.Value}" />
+            </StackPanel>
+            <StackPanel
+                Margin="30,5"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center" Text="offsetR:" />
+                <TextBox
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand, Mode=OneWay}"
+                    mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.offSetR}"
+                    mah:TextBoxHelper.Value="{Binding OffsetR.Text}"
+                    mah:TextBoxHelper.Watermark="double"
+                    IsReadOnly="{Binding OffsetR.IsReadOnly}"
+                    Style="{StaticResource LinkTextBox}"
+                    Text="{Binding OffsetR.Value}" />
+            </StackPanel>
+        </StackPanel>
+        <Border
+            Grid.Row="2"
+            BorderBrush="White"
+            BorderThickness="0,0.5,0,0">
+            <DockPanel LastChildFill="True">
+                <StackPanel
+                    Margin="10,0,0,0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:" />
+                        <Run Text="{Binding ModuleParam.ElapsedTime}" />
+                        <Run Text="ms" />
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:" />
+                        <Run Text="{Binding ModuleParam.Status, Converter={StaticResource StatusConverter}}" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button
+                        x:Name="btnExecute"
+                        Margin="10,0"
+                        HorizontalAlignment="Right"
+                        Command="{Binding ExecuteCommand}"
+                        Content="执行" />
+                    <Button
+                        x:Name="btnCancel"
+                        Margin="10,0"
+                        HorizontalAlignment="Right"
+                        Click="btnCancel_Click"
+                        Content="取消" />
+                    <Button
+                        x:Name="btnConfirm"
+                        Margin="10,0"
+                        HorizontalAlignment="Right"
+                        Background="#FFFF2000"
+                        BorderBrush="#FFFF2000"
+                        Command="{Binding ConfirmCommand}"
+                        Content="确认" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</vb:ModuleViewBase>

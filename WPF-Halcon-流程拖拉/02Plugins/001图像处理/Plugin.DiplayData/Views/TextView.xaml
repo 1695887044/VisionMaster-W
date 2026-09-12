@@ -1,0 +1,69 @@
+﻿<mah:MetroWindow xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                 x:Class="Plugin.DiplayData.Views.TextView"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:cvt ="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                 xmlns:vm="clr-namespace:Plugin.DiplayData.ViewModels"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 xmlns:local="clr-namespace:Plugin.DiplayData.Views" 
+                 mc:Ignorable="d" Icon="/Plugin.DiplayData;component/Assets/Images/Tool/Text.png"
+                 ShowMaxRestoreButton="False" ShowMinButton="False" ResizeMode="NoResize"
+                 Height="380" Width="350" Title="文本设置"
+                 WindowStartupLocation="CenterScreen"
+                >
+    <Window.Resources>
+        <ResourceDictionary Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml" />
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="30 15 0 10">
+                <TextBlock Text="位置X" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding SelectedText.X_Pos}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="30 10">
+                <TextBlock Text="位置Y" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding SelectedText.Y_Pos}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="30 10">
+                <TextBlock Text="颜色链接" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding SelectedText.StatusLink}" IsReadOnly="True"
+                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.StatusLink }"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="30 10">
+                <TextBlock Text="内容链接" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                <TextBox Style="{StaticResource LinkTextBox}" Width="200" 
+                         Text="{Binding SelectedText.DispContent}"
+                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.DispContentLink}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="30 10">
+                <TextBlock Text="前缀" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                <TextBox BorderThickness="0 0 0 1" Width="200" Text="{Binding SelectedText.Prefix}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="30 10">
+                <TextBlock Text="后缀" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                <TextBox BorderThickness="0 0 0 1" Width="200" Text="{Binding SelectedText.Suffix}"/>
+            </StackPanel>
+
+        </StackPanel>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Click="btnConfirm_Click"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</mah:MetroWindow>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata;
@@ -25,14 +26,22 @@ namespace VisionMaster.Services
             new Guid("D5A2E1B0-1111-4F8C-9B3F-2A6E0B6A9F01");
 
         /// <summary>
-        /// 缓存
+        /// 类型缓存（静态共享，跨编译复用）。使用线程安全的 ConcurrentDictionary：
+        /// 流程编译可能在多线程下进行，避免普通 Dictionary 在并发读写时损坏
         /// </summary>
-        static Dictionary<string, Type> TypeCache = new Dictionary<string, Type>(
+        static ConcurrentDictionary<string, Type> TypeCache = new ConcurrentDictionary<string, Type>(
+            1,
             50,
             StringComparer.Ordinal
         );
+
+        /// <summary>
+        /// 创建表达式解释器。DynamicExpresso.Interpreter 不是线程安全的，因此不能跨线程共享单个实例；
+        /// 每次解析表达式时新建一个（构造开销极低，且无状态），从根本上消除并发隐患
+        /// </summary>
+        private Interpreter CreateInterpreter() => new Interpreter().Reference(typeof(Math));
+
         private readonly IWorkspaceManager workspaceManager;
-        private readonly Interpreter _interpreter = new Interpreter().Reference(typeof(Math));
 
         public FlowCompiler(IWorkspaceManager workspaceManager)
         {
@@ -87,6 +96,49 @@ namespace VisionMaster.Services
             return (names, types);
         }
 
+        /// <summary>
+        /// 编译条件/循环节点的局部变量为 DynamicExpresso 参数与类型映射（While / If 共用）
+        /// 负责安全类型校验与类型缓存，返回供表达式解析使用的 delegateParams 及类型映射
+        /// </summary>
+        private (List<Parameter> delegateParams, Dictionary<Guid, Type> compiledVarTypes, List<Guid> compiledVarIds)
+            CompileLocalVarParams(IEnumerable<LocalVariableItem> localVariables, List<string> errors)
+        {
+            var delegateParams = new List<Parameter>();
+            var compiledVarTypes = new Dictionary<Guid, Type>();
+            var compiledVarIds = new List<Guid>();
+
+            foreach (var localVar in localVariables)
+            {
+                Type varType = typeof(double);
+                try
+                {
+                    varType = Type.GetType(localVar.DataTypeName) ?? typeof(double);
+                    if (TypeCache.TryGetValue(localVar.DataTypeName, out var type))
+                    {
+                        varType = type;
+                    }
+                    else
+                    {
+                        varType = TypeHelper.GetActualTypeFromLink(localVar.DataTypeName);
+                        TypeCache[localVar.DataTypeName] = varType;
+                    }
+
+                    if (!TypeHelper.IsSafeExpressionType(varType))
+                    {
+                        errors.Add($"[安全拦截] 变量 '{localVar.Name}' 数据类型不合法！");
+                        continue;
+                    }
+                }
+                catch { }
+
+                delegateParams.Add(new Parameter(localVar.Name, varType));
+                compiledVarTypes[localVar.Id] = varType;
+                compiledVarIds.Add(localVar.Id);
+            }
+
+            return (delegateParams, compiledVarTypes, compiledVarIds);
+        }
+
         public CompilationResult Compile(IEnumerable<StepModel> blueprints, string? flowName = null)
         {
             var result = new CompilationResult();
@@ -137,39 +189,9 @@ namespace VisionMaster.Services
                         var whileNode = new CompiledWhileNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                         nodeLookup.Add(model.StepID, whileNode);
 
-                    var delegateParams = new List<Parameter>();
-                    var compiledVarTypes = new Dictionary<Guid, Type>();
-                    var compiledVarIds = new List<Guid>();
-
-                    // 1. 编译局部变量 (复用你的安全验证与缓存逻辑)
-                    foreach (var localVar in whileModel.LocalVariables)
-                    {
-                        Type varType = typeof(double);
-                        try
-                        {
-                            varType = Type.GetType(localVar.DataTypeName) ?? typeof(double);
-                            if (TypeCache.TryGetValue(localVar.DataTypeName, out var type))
-                            {
-                                varType = type;
-                            }
-                            else
-                            {
-                                varType = TypeHelper.GetActualTypeFromLink(localVar.DataTypeName);
-                                TypeCache[localVar.DataTypeName] = varType;
-                            }
-
-                            if (!TypeHelper.IsSafeExpressionType(varType))
-                            {
-                                errors.Add($"[安全拦截] 变量 '{localVar.Name}' 数据类型不合法！");
-                                continue;
-                            }
-                        }
-                        catch { }
-
-                        delegateParams.Add(new Parameter(localVar.Name, varType));
-                        compiledVarTypes[localVar.Id] = varType;
-                        compiledVarIds.Add(localVar.Id);
-                    }
+                    // 1. 编译局部变量（While / If 共用逻辑，提取至 CompileLocalVarParams）
+                    var (delegateParams, compiledVarTypes, compiledVarIds) =
+                        CompileLocalVarParams(whileModel.LocalVariables, errors);
 
                     // 2. 编译运行时变量引用（从 context.LocalVariables 取值）
                     var (runtimeVarNames, runtimeVarTypes) = CompileRuntimeVarRefs(
@@ -210,7 +232,7 @@ namespace VisionMaster.Services
                         {
                             try
                             {
-                                compiledBranch.ConditionLambda = _interpreter.Parse(
+                                compiledBranch.ConditionLambda = CreateInterpreter().Parse(
                                     loopCollection.Expression,
                                     typeof(bool),
                                     delegateParams.ToArray()
@@ -236,38 +258,9 @@ namespace VisionMaster.Services
                     var ifNode = new CompiledIfNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
                     nodeLookup.Add(model.StepID, ifNode);
 
-                    var delegateParams = new List<Parameter>();
-                    var compiledVarTypes = new Dictionary<Guid, Type>();
-                    var compiledVarIds = new List<Guid>();
-
-                    foreach (var localVar in conditionModel.LocalVariables)
-                    {
-                        Type varType = typeof(double);
-                        try
-                        {
-                            varType = Type.GetType(localVar.DataTypeName) ?? typeof(double);
-                            if (TypeCache.TryGetValue(localVar.DataTypeName, out var type))
-                            {
-                                varType = type;
-                            }
-                            else
-                            {
-                                varType = TypeHelper.GetActualTypeFromLink(localVar.DataTypeName);
-                                TypeCache[localVar.DataTypeName] = varType;
-                            }
-
-                            if (!TypeHelper.IsSafeExpressionType(varType))
-                            {
-                                errors.Add($"[安全拦截] 变量 '{localVar.Name}' 数据类型不合法！");
-                                continue;
-                            }
-                        }
-                        catch { }
-
-                        delegateParams.Add(new Parameter(localVar.Name, varType));
-                        compiledVarTypes[localVar.Id] = varType;
-                        compiledVarIds.Add(localVar.Id);
-                    }
+                    // 编译局部变量（While / If 共用逻辑，提取至 CompileLocalVarParams）
+                    var (delegateParams, compiledVarTypes, compiledVarIds) =
+                        CompileLocalVarParams(conditionModel.LocalVariables, errors);
 
                     // 编译运行时变量引用（从 context.LocalVariables 取值）
                     var (runtimeVarNames, runtimeVarTypes) = CompileRuntimeVarRefs(
@@ -292,7 +285,7 @@ namespace VisionMaster.Services
                         {
                             try
                             {
-                                compiledCondition = _interpreter.Parse(
+                                compiledCondition = CreateInterpreter().Parse(
                                     "true",
                                     typeof(bool),
                                     delegateParams.ToArray()
@@ -310,7 +303,7 @@ namespace VisionMaster.Services
                         {
                             try
                             {
-                                compiledCondition = _interpreter.Parse(
+                                compiledCondition = CreateInterpreter().Parse(
                                     childCollection.Expression,
                                     typeof(bool),
                                     delegateParams.ToArray()
@@ -552,12 +545,6 @@ namespace VisionMaster.Services
                                     );
                                 }
                             }
-
-                            // 自愈功能
-                            string correctAddress =
-                                $"{actualUpstreamName}.{linkRef.TargetPortName}";
-                            if (linkRef.DisplayAddress != correctAddress)
-                                linkRef.DisplayAddress = correctAddress;
                         }
                         else if (nodeLookup.TryGetValue(linkRef.TargetStepId, out var upNode))
                         {

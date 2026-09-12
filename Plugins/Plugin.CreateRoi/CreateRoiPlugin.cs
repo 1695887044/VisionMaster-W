@@ -52,9 +52,6 @@ namespace Plugin.CreateRoi
 
         public InputPort<HImage> SrcImage { get; } = new();
 
-        public OutputPort<HRegion> RoiRegion { get; } = new();
-        public OutputPort<HImage> RoiMask { get; } = new();
-        public OutputPort<HImage> MaskedImage { get; } = new();
         public OutputPort<int> RoiCount { get; } = new();
 
         #endregion
@@ -311,25 +308,10 @@ namespace Plugin.CreateRoi
                 ErrorMessage.Value = "输入图像为空或未初始化";
                 return;
             }
-
-            // 1. 生成并合并所有 ROI 区域（确保空区域句柄被正确初始化）
-            HRegion merged = BuildMergedRegion();
-
-            // 2. 安全清理上一次输出端口的旧对象（杜绝显存/内存堆积）
+            PreviewImage = src;
             DisposeOldOutputs();
 
-            // 3. 赋值区域与数量
-            RoiRegion.Value = merged;
             RoiCount.Value = RoiList.Count;
-
-            // 4. 生成二值掩膜与黑底裁剪图
-            var masked = BuildMaskAndResult(src, merged, MaskInvert, out var mask, out string maskMsg);
-            RoiMask.Value = mask;
-            MaskedImage.Value = masked;
-
-            // 5. 视图与发布
-            PreviewImage = src;
-            this.PublishPreview(src, DisplayViewIndex+1);
 
             // 6. 动态输出端口填值：每个 ROI 裁剪一张图，按端口名 Crop_{ROI名} 输出
             for (int i = 0; i < RoiList.Count && i < _dynamicPortNames.Count; i++)
@@ -338,27 +320,24 @@ namespace Plugin.CreateRoi
                 var portName = _dynamicPortNames[i];
                 using var region = BuildRegion(roi);
                 if (region == null || !Outputs.TryGetValue(portName, out var port)) continue;
-
                 try
                 {
                     HOperatorSet.ReduceDomain(src, region, out HObject cropped);
                     HOperatorSet.CropDomain(cropped, out HObject croppedImg);
                     cropped.Dispose();
-                    ((OutputPort<HImage>)port).Value = new HImage(croppedImg);
+                    var tempRoiImg = new HImage(croppedImg);
+                    ((OutputPort<HImage>)port).Value = tempRoiImg;
+                    this.PublishPreview(tempRoiImg, DisplayViewIndex + 1);
                     croppedImg.Dispose();
                 }
                 catch { /* 单个 ROI 裁剪失败不阻断整体 */ }
             }
-
+         
             Success.Value = true;
-            ErrorMessage.Value = maskMsg;
         }
 
         private void DisposeOldOutputs()
         {
-            try { RoiRegion.TypedValue?.Dispose(); } catch { }
-            try { RoiMask.TypedValue?.Dispose(); } catch { }
-            try { MaskedImage.TypedValue?.Dispose(); } catch { }
             // 动态端口的旧值（HImage）也清理
             foreach (var name in _dynamicPortNames)
             {

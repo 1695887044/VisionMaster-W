@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Root>
+  <User UserId="1000" UserName="开发者" UserPwd="4A0FFEDC0382B329DD6DB9B68D01B131" />
+  <User UserId="1001" UserName="管理员" UserPwd="4A0FFEDC0382B329DD6DB9B68D01B131" />
+  <User UserId="1002" UserName="操作员" UserPwd="4A0FFEDC0382B329DD6DB9B68D01B131" />
+</Root>

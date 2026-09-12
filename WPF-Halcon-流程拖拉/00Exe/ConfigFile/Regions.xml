@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<ArrayOfRoiData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <RoiData>
+    <ID>0</ID>
+    <Name>Line</Name>
+    <Line>
+      <RowBegin>100</RowBegin>
+      <ColumnBegin>100</ColumnBegin>
+      <RowEnd>2747.3029739776953</RowEnd>
+      <ColumnEnd>4667.2706065318825</ColumnEnd>
+      <Color>red</Color>
+    </Line>
+  </RoiData>
+</ArrayOfRoiData>

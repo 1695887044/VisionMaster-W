@@ -1,5 +1,6 @@
 using Core.Halcon;
 using Core.Interfaces.Core;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -61,9 +62,11 @@ namespace Plugin.CreateRoi.Models
         }
 
         /// <summary>列表显示文本</summary>
+        [JsonIgnore]
         public string DisplayText => $"{Name}  [{ShapeType}]";
 
         /// <summary>参数中文名（按形状类型；与 Params 下标一一对应）</summary>
+        [JsonIgnore]
         public IReadOnlyList<string> ParamNames => ShapeType switch
         {
             DrawShapeType.Rectangle => new[] { "中心行(R)", "中心列(C)", "角度(Phi)", "半长(L1)", "半宽(L2)" },
@@ -91,6 +94,12 @@ namespace Plugin.CreateRoi.Models
         /// - 首次访问或长度/形状不匹配时重建
         /// - Params 同长度替换时（拖拽场景）不重建，由 entry 的 Value INPC 通知刷新数值
         /// </summary>
+        /// <remarks>
+        /// [JsonIgnore] 必须：RoiParamEntry 无无参构造且持有 owner 引用（纯 UI 包装，不持久化）。
+        /// Newtonsoft 默认会填充 get-only 集合属性（STJ 则跳过），不加此特性反序列化会抛
+        /// "Unable to find a constructor to use for type RoiParamEntry"
+        /// </remarks>
+        [JsonIgnore]
         public ObservableCollection<RoiParamEntry> ParamEntries
         {
             get

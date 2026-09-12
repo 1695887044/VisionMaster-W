@@ -1,0 +1,837 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="About" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="File" xml:space="preserve">
+    <value>文件(_F)</value>
+  </data>
+  <data name="Help" xml:space="preserve">
+    <value>帮助</value>
+  </data>
+  <data name="Log" xml:space="preserve">
+    <value>日志</value>
+  </data>
+  <data name="Quit" xml:space="preserve">
+    <value>退出</value>
+  </data>
+  <data name="SearchHelp" xml:space="preserve">
+    <value>查看 帮助</value>
+  </data>
+  <data name="StartupSetting" xml:space="preserve">
+    <value>自启动设置</value>
+  </data>
+  <data name="System" xml:space="preserve">
+    <value>系统</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="Chinese" xml:space="preserve">
+    <value>中文</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="OperatorLoginSystem" xml:space="preserve">
+    <value>操作员登录系统。</value>
+  </data>
+  <data name="DeveloperLoginSystem" xml:space="preserve">
+    <value>开发者登录系统。</value>
+  </data>
+  <data name="AdministratorLoginSystem" xml:space="preserve">
+    <value>管理员登录系统。</value>
+  </data>
+  <data name="SoftwareStartupSucceeded" xml:space="preserve">
+    <value>软件启动成功。</value>
+  </data>
+  <data name="Warn" xml:space="preserve">
+    <value>警告</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>错误</value>
+  </data>
+  <data name="Info" xml:space="preserve">
+    <value>信息</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>确 认</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>取 消</value>
+  </data>
+  <data name="Login_Account" xml:space="preserve">
+    <value>登录账号：</value>
+  </data>
+  <data name="Login_ChangePwd" xml:space="preserve">
+    <value>修改密码</value>
+  </data>
+  <data name="Login_Login" xml:space="preserve">
+    <value>登 录</value>
+  </data>
+  <data name="Login_Logout" xml:space="preserve">
+    <value>注 销</value>
+  </data>
+  <data name="Login_Password" xml:space="preserve">
+    <value>登录密码：</value>
+  </data>
+  <data name="Login_UserLogin" xml:space="preserve">
+    <value>用 户 登 录</value>
+  </data>
+  <data name="QuitSystem" xml:space="preserve">
+    <value>确认退出系统吗？</value>
+  </data>
+  <data name="Dock_TemplateObject" xml:space="preserve">
+    <value>[模板对象]</value>
+  </data>
+  <data name="Dock_Log" xml:space="preserve">
+    <value>[日志信息]</value>
+  </data>
+  <data name="Dock_ProductionInfo" xml:space="preserve">
+    <value>[生产信息]</value>
+  </data>
+  <data name="Dock_Curve" xml:space="preserve">
+    <value>[数据曲线]</value>
+  </data>
+  <data name="Dock_Vision" xml:space="preserve">
+    <value>[视觉图像]</value>
+  </data>
+  <data name="Dock_ManufactureParam" xml:space="preserve">
+    <value>[加工参数]</value>
+  </data>
+  <data name="Remove" xml:space="preserve">
+    <value>移除</value>
+  </data>
+  <data name="RemoveAll" xml:space="preserve">
+    <value>全部移除</value>
+  </data>
+  <data name="FileName" xml:space="preserve">
+    <value>文件名</value>
+  </data>
+  <data name="InputStart" xml:space="preserve">
+    <value>启动输入</value>
+  </data>
+  <data name="OutputFinish" xml:space="preserve">
+    <value>完成输出</value>
+  </data>
+  <data name="ObjectName" xml:space="preserve">
+    <value>对象名</value>
+  </data>
+  <data name="Position" xml:space="preserve">
+    <value>位置</value>
+  </data>
+  <data name="Size" xml:space="preserve">
+    <value>尺寸</value>
+  </data>
+  <data name="Recipe" xml:space="preserve">
+    <value>配方</value>
+  </data>
+  <data name="Open" xml:space="preserve">
+    <value>打开</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="OpenFile" xml:space="preserve">
+    <value>打开文档</value>
+  </data>
+  <data name="SaveFile" xml:space="preserve">
+    <value>保存文档</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>编辑</value>
+  </data>
+  <data name="SystemConfig" xml:space="preserve">
+    <value>系统配置</value>
+  </data>
+  <data name="Camera" xml:space="preserve">
+    <value>相机</value>
+  </data>
+  <data name="UserLogin" xml:space="preserve">
+    <value>用户登陆</value>
+  </data>
+  <data name="ScreenCapture" xml:space="preserve">
+    <value>截屏</value>
+  </data>
+  <data name="ReportQuery" xml:space="preserve">
+    <value>报表查询</value>
+  </data>
+  <data name="RedLight" xml:space="preserve">
+    <value>红光</value>
+  </data>
+  <data name="DeviceParam" xml:space="preserve">
+    <value>设备参数</value>
+  </data>
+  <data name="Start" xml:space="preserve">
+    <value>启动</value>
+  </data>
+  <data name="CurrentUser" xml:space="preserve">
+    <value>当前用户:</value>
+  </data>
+  <data name="BarcodeInput" xml:space="preserve">
+    <value>扫码输入</value>
+  </data>
+  <data name="CurrentRecipe" xml:space="preserve">
+    <value>当前配方:</value>
+  </data>
+  <data name="CurrentFile" xml:space="preserve">
+    <value>当前文档:</value>
+  </data>
+  <data name="CurrentProcessingObject" xml:space="preserve">
+    <value>当前加工对象:</value>
+  </data>
+  <data name="Menu_Open" xml:space="preserve">
+    <value>打开(_O)</value>
+  </data>
+  <data name="Menu_Edit" xml:space="preserve">
+    <value>编辑(_E)</value>
+  </data>
+  <data name="Menu_Save" xml:space="preserve">
+    <value>保存(_S)</value>
+  </data>
+  <data name="Menu_OpenFile" xml:space="preserve">
+    <value>载入文件(_F)</value>
+  </data>
+  <data name="Menu_SaveFile" xml:space="preserve">
+    <value>保存文件(_L)</value>
+  </data>
+  <data name="Menu_Param" xml:space="preserve">
+    <value>参数(_P)</value>
+  </data>
+  <data name="Menu_DeviceParam" xml:space="preserve">
+    <value>设备参数(_D)</value>
+  </data>
+  <data name="Menu_SystemParam" xml:space="preserve">
+    <value>系统参数(_S)</value>
+  </data>
+  <data name="Menu_SystemConfig" xml:space="preserve">
+    <value>系统配置(_C)</value>
+  </data>
+  <data name="Menu_View" xml:space="preserve">
+    <value>视图(_V)</value>
+  </data>
+  <data name="Menu_TemplateObject" xml:space="preserve">
+    <value>模板对象</value>
+  </data>
+  <data name="Menu_ManufatureParam" xml:space="preserve">
+    <value>加工参数</value>
+  </data>
+  <data name="Menu_Curve" xml:space="preserve">
+    <value>数据曲线</value>
+  </data>
+  <data name="Menu_Camera" xml:space="preserve">
+    <value>相机</value>
+  </data>
+  <data name="Menu_Log" xml:space="preserve">
+    <value>日志信息</value>
+  </data>
+  <data name="Menu_ProductionInfo" xml:space="preserve">
+    <value>生产信息</value>
+  </data>
+  <data name="Menu_Tools" xml:space="preserve">
+    <value>工具(_T)</value>
+  </data>
+  <data name="Menu_ScreenCapture" xml:space="preserve">
+    <value>截屏(_C)</value>
+  </data>
+  <data name="Menu_SaveLayout" xml:space="preserve">
+    <value>保存布局(_S)</value>
+  </data>
+  <data name="Menu_LoadLayout" xml:space="preserve">
+    <value>加载布局(_L)</value>
+  </data>
+  <data name="Menu_ReportQuery" xml:space="preserve">
+    <value>报表查询(_R)</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>帮助(_H)</value>
+  </data>
+  <data name="Menu_License" xml:space="preserve">
+    <value>激活(_L)</value>
+  </data>
+  <data name="Menu_UserFeedback" xml:space="preserve">
+    <value>建议及反馈(_F)</value>
+  </data>
+  <data name="Menu_HelpDocument" xml:space="preserve">
+    <value>帮助文档(_H)</value>
+  </data>
+  <data name="Menu_About" xml:space="preserve">
+    <value>关于(_A)</value>
+  </data>
+  <data name="ProductionInfo_CapacityOfStatistical" xml:space="preserve">
+    <value>产能统计</value>
+  </data>
+  <data name="ProductionInfo_TotalNum" xml:space="preserve">
+    <value>总数</value>
+  </data>
+  <data name="ProductionInfo_OKNum" xml:space="preserve">
+    <value>合格数量</value>
+  </data>
+  <data name="ProductionInfo_NGNum" xml:space="preserve">
+    <value>不合格数量</value>
+  </data>
+  <data name="ProductionInfo_WeldTime" xml:space="preserve">
+    <value>焊接时间</value>
+  </data>
+  <data name="ProductionInfo_Yield" xml:space="preserve">
+    <value>良率</value>
+  </data>
+  <data name="ConfirmReset" xml:space="preserve">
+    <value>确认重置吗？</value>
+  </data>
+  <data name="ManufactureParamSetSucceeded" xml:space="preserve">
+    <value>加工参数设置成功。</value>
+  </data>
+  <data name="ManufactureParam_AccDist" xml:space="preserve">
+    <value>加速距离(mm)</value>
+  </data>
+  <data name="ManufactureParam_Current" xml:space="preserve">
+    <value>电流(A)</value>
+  </data>
+  <data name="ManufactureParam_EnableACCMode" xml:space="preserve">
+    <value>使能加速模式</value>
+  </data>
+  <data name="Set" xml:space="preserve">
+    <value>设置</value>
+  </data>
+  <data name="ManufactureParam_EndComp" xml:space="preserve">
+    <value>末点补偿</value>
+  </data>
+  <data name="ManufactureParam_EndTC" xml:space="preserve">
+    <value>结束延时(us)</value>
+  </data>
+  <data name="ManufactureParam_Frequency" xml:space="preserve">
+    <value>频率(Hz)</value>
+  </data>
+  <data name="ManufactureParam_JumpLengthLimit" xml:space="preserve">
+    <value>跳转长度极限(mm)</value>
+  </data>
+  <data name="ManufactureParam_JumpSpeed" xml:space="preserve">
+    <value>跳转速度(mm/s)</value>
+  </data>
+  <data name="ManufactureParam_MaxJumpDelayTCUs" xml:space="preserve">
+    <value>最大跳转延时(us)</value>
+  </data>
+  <data name="ManufactureParam_LaserOffTC" xml:space="preserve">
+    <value>激光关闭延时(us)</value>
+  </data>
+  <data name="ManufactureParam_MarkLoop" xml:space="preserve">
+    <value>加工次数</value>
+  </data>
+  <data name="ManufactureParam_MarkSpeed" xml:space="preserve">
+    <value>标刻速度(mm/s)</value>
+  </data>
+  <data name="ManufactureParam_MinJumpDelayTCUs" xml:space="preserve">
+    <value>最小跳转延时(us)</value>
+  </data>
+  <data name="ManufactureParam_PenID" xml:space="preserve">
+    <value>笔号</value>
+  </data>
+  <data name="ManufactureParam_PointTimeMs" xml:space="preserve">
+    <value>打点时间(ms)</value>
+  </data>
+  <data name="ManufactureParam_PolyTC" xml:space="preserve">
+    <value>拐角延时(us)</value>
+  </data>
+  <data name="ManufactureParam_PowerRatio" xml:space="preserve">
+    <value>功率(%)</value>
+  </data>
+  <data name="ManufactureParam_PulseNum" xml:space="preserve">
+    <value>脉冲点数</value>
+  </data>
+  <data name="ManufactureParam_PulsePointMode" xml:space="preserve">
+    <value>脉冲点模式</value>
+  </data>
+  <data name="ManufactureParam_QPulseWidth" xml:space="preserve">
+    <value>Q脉冲宽度</value>
+  </data>
+  <data name="ManufactureParam_SpiContinueMode" xml:space="preserve">
+    <value>SPI连续模式</value>
+  </data>
+  <data name="ManufactureParam_SpiWave" xml:space="preserve">
+    <value>SPI波形选择</value>
+  </data>
+  <data name="ManufactureParam_StartTC" xml:space="preserve">
+    <value>开始延时(us)</value>
+  </data>
+  <data name="ManufactureParam_WobbleDiameter" xml:space="preserve">
+    <value>抖动直径(mm)</value>
+  </data>
+  <data name="ManufactureParam_WobbleDiameterB" xml:space="preserve">
+    <value>抖动直径2(mm)</value>
+  </data>
+  <data name="ManufactureParam_WobbleDist" xml:space="preserve">
+    <value>抖动距离(mm)</value>
+  </data>
+  <data name="ManufactureParam_WobbleMode" xml:space="preserve">
+    <value>抖动模式</value>
+  </data>
+  <data name="ManufactureParam_WobbleSpeed" xml:space="preserve">
+    <value>抖动速度(mm/s)</value>
+  </data>
+  <data name="ManufactureParam_WobbleType" xml:space="preserve">
+    <value>抖动类型</value>
+  </data>
+  <data name="ManufactureParam_YagMarkMode" xml:space="preserve">
+    <value>YAG优化填充模式</value>
+  </data>
+  <data name="LogView_Top" xml:space="preserve">
+    <value>滚到开始</value>
+  </data>
+  <data name="LogView_Bottom" xml:space="preserve">
+    <value>滚到最后</value>
+  </data>
+  <data name="LogView_Time" xml:space="preserve">
+    <value>时间</value>
+  </data>
+  <data name="LogView_Type" xml:space="preserve">
+    <value>类型</value>
+  </data>
+  <data name="LogView_Content" xml:space="preserve">
+    <value>日志内容</value>
+  </data>
+  <data name="DeviceParam_GeneralParam" xml:space="preserve">
+    <value>常用参数</value>
+  </data>
+  <data name="DeviceParam_Camera" xml:space="preserve">
+    <value>相机</value>
+  </data>
+  <data name="DeviceParam_UseCamera" xml:space="preserve">
+    <value>使用相机</value>
+  </data>
+  <data name="DeviceParam_AutoOpenCamera" xml:space="preserve">
+    <value>启动软件时自动打开相机</value>
+  </data>
+  <data name="DeviceParam_IsColumnMirror" xml:space="preserve">
+    <value>视频图像左右翻转</value>
+  </data>
+  <data name="DeviceParam_IsRowMirror" xml:space="preserve">
+    <value>视频图像上下翻转</value>
+  </data>
+  <data name="DeviceParam_SaveManufactureResult" xml:space="preserve">
+    <value>保存加工结果</value>
+  </data>
+  <data name="DeviceParam_Path" xml:space="preserve">
+    <value>路径...</value>
+  </data>
+  <data name="DeviceParam_Else" xml:space="preserve">
+    <value>其他</value>
+  </data>
+  <data name="DeviceParam_CurrentRecipe" xml:space="preserve">
+    <value>当前工艺</value>
+  </data>
+  <data name="DeviceParam_Recipe" xml:space="preserve">
+    <value>工艺</value>
+  </data>
+  <data name="DeviceParam_new RoutedCommandRecipe" xml:space="preserve">
+    <value>新增配方</value>
+  </data>
+  <data name="DeviceParam_ProcessParam" xml:space="preserve">
+    <value>工艺参数</value>
+  </data>
+  <data name="DeviceParam_DeviceParam" xml:space="preserve">
+    <value>设备参数</value>
+  </data>
+  <data name="SystemParam_SystemParam" xml:space="preserve">
+    <value>系统参数</value>
+  </data>
+  <data name="SystemParam_Basis" xml:space="preserve">
+    <value>基础</value>
+  </data>
+  <data name="SystemParam_Language" xml:space="preserve">
+    <value>语言</value>
+  </data>
+  <data name="SystemParam_SoftwareVersion" xml:space="preserve">
+    <value>软件版本</value>
+  </data>
+  <data name="SystemParam_CompanyName" xml:space="preserve">
+    <value>公司名称</value>
+  </data>
+  <data name="SystemParam_ProjectName" xml:space="preserve">
+    <value>项目名称</value>
+  </data>
+  <data name="SystemParam_SoftwareIcon" xml:space="preserve">
+    <value>软件图标</value>
+  </data>
+  <data name="SystemParam_Path" xml:space="preserve">
+    <value>路径...</value>
+  </data>
+  <data name="Application" xml:space="preserve">
+    <value>应用</value>
+  </data>
+  <data name="SystemParam_SoftwareSelfStarting" xml:space="preserve">
+    <value>软件自启动</value>
+  </data>
+  <data name="SystemParam_AutoLoadLayout" xml:space="preserve">
+    <value>软件启动时自动加载已保存的布局</value>
+  </data>
+  <data name="HelpDecomentNotFind" xml:space="preserve">
+    <value>帮助文档不存在！</value>
+  </data>
+  <data name="Time" xml:space="preserve">
+    <value>时间</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>回零</value>
+  </data>
+  <data name="IO" xml:space="preserve">
+    <value>IO</value>
+  </data>
+  <data name="ServoDebug" xml:space="preserve">
+    <value>伺服</value>
+  </data>
+  <data name="Alarm" xml:space="preserve">
+    <value>报警</value>
+  </data>
+  <data name="ClearAlarm" xml:space="preserve">
+    <value>清除报警</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="Power" xml:space="preserve">
+    <value>功率(W)</value>
+  </data>
+  <data name="PowerDownLimit" xml:space="preserve">
+    <value>功率下限</value>
+  </data>
+  <data name="PowerParam" xml:space="preserve">
+    <value>功率参数</value>
+  </data>
+  <data name="PowerPV" xml:space="preserve">
+    <value>当前功率</value>
+  </data>
+  <data name="PowerUpLimit" xml:space="preserve">
+    <value>功率上限</value>
+  </data>
+  <data name="UltralimitSetting" xml:space="preserve">
+    <value>超限报警设置</value>
+  </data>
+  <data name="UltralimitTime" xml:space="preserve">
+    <value>超限检测时间</value>
+  </data>
+  <data name="UltralimitView_Collapse" xml:space="preserve">
+    <value>塌陷(mm)</value>
+  </data>
+  <data name="UltralimitView_HeaderPower" xml:space="preserve">
+    <value>功率</value>
+  </data>
+  <data name="UltralimitView_Power" xml:space="preserve">
+    <value>功率(W)</value>
+  </data>
+  <data name="UltralimitView_Pressure" xml:space="preserve">
+    <value>压力(N)</value>
+  </data>
+  <data name="UltralimitView_Temperature" xml:space="preserve">
+    <value>温度(℃)</value>
+  </data>
+  <data name="UltralimitView_Time" xml:space="preserve">
+    <value>时间(ms)</value>
+  </data>
+  <data name="ColorSetView_PowerDownLimit" xml:space="preserve">
+    <value>功率下限</value>
+  </data>
+  <data name="ColorSetView_PowerPV" xml:space="preserve">
+    <value>当前功率</value>
+  </data>
+  <data name="ColorSetView_PowerUpLimit" xml:space="preserve">
+    <value>功率上限</value>
+  </data>
+  <data name="CurveColorSetting" xml:space="preserve">
+    <value>曲线颜色设置</value>
+  </data>
+  <data name="Display" xml:space="preserve">
+    <value>显示</value>
+  </data>
+  <data name="AlmBarcode" xml:space="preserve">
+    <value>条码报警</value>
+  </data>
+  <data name="AlmPower" xml:space="preserve">
+    <value>功率报警</value>
+  </data>
+  <data name="BarcodeParam" xml:space="preserve">
+    <value>扫码枪参数</value>
+  </data>
+  <data name="Buzzer" xml:space="preserve">
+    <value>蜂鸣器</value>
+  </data>
+  <data name="CurveUpdateRangeX" xml:space="preserve">
+    <value>曲线刷新时X轴区间</value>
+  </data>
+  <data name="Emergency" xml:space="preserve">
+    <value>急停</value>
+  </data>
+  <data name="FinishSignal" xml:space="preserve">
+    <value>完成信号</value>
+  </data>
+  <data name="IOParam" xml:space="preserve">
+    <value>IO参数</value>
+  </data>
+  <data name="IsCheckBarcode" xml:space="preserve">
+    <value>使能检查条码</value>
+  </data>
+  <data name="IsCheckBarcodeLength" xml:space="preserve">
+    <value>使能检查条码长度</value>
+  </data>
+  <data name="IsEnablePowerAlm" xml:space="preserve">
+    <value>使能功率报警</value>
+  </data>
+  <data name="IsRotateMode" xml:space="preserve">
+    <value>旋转模式</value>
+  </data>
+  <data name="LampGreen" xml:space="preserve">
+    <value>绿灯</value>
+  </data>
+  <data name="LampRed" xml:space="preserve">
+    <value>红灯</value>
+  </data>
+  <data name="LampYellow" xml:space="preserve">
+    <value>黄灯</value>
+  </data>
+  <data name="LaserAlm" xml:space="preserve">
+    <value>激光器报警</value>
+  </data>
+  <data name="LaserDebug" xml:space="preserve">
+    <value>激光打点</value>
+  </data>
+  <data name="LaserReady" xml:space="preserve">
+    <value>激光器就绪</value>
+  </data>
+  <data name="LaserWarn" xml:space="preserve">
+    <value>激光器警告</value>
+  </data>
+  <data name="Length" xml:space="preserve">
+    <value>长度</value>
+  </data>
+  <data name="PC_Ready" xml:space="preserve">
+    <value>软件就绪</value>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>复位按钮</value>
+  </data>
+  <data name="Result_NG" xml:space="preserve">
+    <value>不合格信号</value>
+  </data>
+  <data name="Result_OK" xml:space="preserve">
+    <value>合格信号</value>
+  </data>
+  <data name="TwoHandsStart1" xml:space="preserve">
+    <value>双手启动1</value>
+  </data>
+  <data name="TwoHandsStart2" xml:space="preserve">
+    <value>双手启动2</value>
+  </data>
+  <data name="WaterTankAlm" xml:space="preserve">
+    <value>水箱报警</value>
+  </data>
+  <data name="DeviceAlarm" xml:space="preserve">
+    <value>设备报警</value>
+  </data>
+  <data name="PleaseLoginFirst" xml:space="preserve">
+    <value>请先登录!</value>
+  </data>
+  <data name="Developer" xml:space="preserve">
+    <value>开发者</value>
+  </data>
+  <data name="Administrator" xml:space="preserve">
+    <value>管理员</value>
+  </data>
+  <data name="SoftwareIsExiting" xml:space="preserve">
+    <value>软件正在退出中，请稍等！</value>
+  </data>
+  <data name="Dock_Tool" xml:space="preserve">
+    <value>[工具栏]</value>
+  </data>
+  <data name="Dock_Process" xml:space="preserve">
+    <value>[流程栏]</value>
+  </data>
+  <data name="Dock_Data" xml:space="preserve">
+    <value>[数据栏]</value>
+  </data>
+  <data name="Dock_ModuleOut" xml:space="preserve">
+    <value>[模块输出]</value>
+  </data>
+  <data name="NewSolution" xml:space="preserve">
+    <value>新建方案</value>
+  </data>
+  <data name="SolutionList" xml:space="preserve">
+    <value>方案列表</value>
+  </data>
+  <data name="GlobalVar" xml:space="preserve">
+    <value>全局变量</value>
+  </data>
+  <data name="RunCycle" xml:space="preserve">
+    <value>循环运行</value>
+  </data>
+  <data name="RunOnce" xml:space="preserve">
+    <value>运行一次</value>
+  </data>
+  <data name="Stop" xml:space="preserve">
+    <value>停止</value>
+  </data>
+  <data name="CameraSet" xml:space="preserve">
+    <value>相机设置</value>
+  </data>
+  <data name="CommunicationSet" xml:space="preserve">
+    <value>通讯设置</value>
+  </data>
+  <data name="CurrentSolution" xml:space="preserve">
+    <value>当前解决方案</value>
+  </data>
+  <data name="Menu_LoadDefaultLayout" xml:space="preserve">
+    <value>恢复默认布局(_D)</value>
+  </data>
+  <data name="QuickMode" xml:space="preserve">
+    <value>急速模式</value>
+  </data>
+  <data name="Dock_DeviceState" xml:space="preserve">
+    <value>[设备状态]</value>
+  </data>
+  <data name="ProjectInfoSet" xml:space="preserve">
+    <value>项目信息设置</value>
+  </data>
+  <data name="SoluctionAutoLoad" xml:space="preserve">
+    <value>启动时自动加载解决方案</value>
+  </data>
+  <data name="SoluctionAutoRun" xml:space="preserve">
+    <value>启动后自动开始执行</value>
+  </data>
+  <data name="Other" xml:space="preserve">
+    <value>其它</value>
+  </data>
+  <data name="SoluctionPath" xml:space="preserve">
+    <value>项目路径：</value>
+  </data>
+  <data name="MotionSet" xml:space="preserve">
+    <value>轴卡设置</value>
+  </data>
+  <data name="CylConfig" xml:space="preserve">
+    <value>气缸配置</value>
+  </data>
+  <data name="HardwareConfig" xml:space="preserve">
+    <value>硬件配置</value>
+  </data>
+  <data name="UIDesign" xml:space="preserve">
+    <value>UI设计器</value>
+  </data>
+  <data name="LaserSet" xml:space="preserve">
+    <value>激光设置</value>
+  </data>
+</root>

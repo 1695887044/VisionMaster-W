@@ -11,138 +11,292 @@
     d:DesignWidth="250"
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
-    <Grid Background="#F5F6F8">
+    <Grid Background="#F1F5F9">
         <Grid.Resources>
+            <!--  ============ 颜色 Token（对齐 Web :root 精确值）  ============  -->
+            <SolidColorBrush x:Key="PrimaryBrush" Color="#0EA5E9" />
+            <SolidColorBrush x:Key="PrimaryLightBrush" Color="#E0F2FE" />
+            <SolidColorBrush x:Key="PrimaryTextBrush" Color="#0369A1" />
+            <SolidColorBrush x:Key="InputBgBrush" Color="#F8FAFC" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#D7E3F0" />
+            <!--  原 #E2E8F0  -->
+            <SolidColorBrush x:Key="BorderLightBrush" Color="#EEF2F7" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#0F172A" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#64748B" />
+            <!--  原 #475569  -->
+            <SolidColorBrush x:Key="TextMutedBrush" Color="#64748B" />
+            <!--  原 #94A3B8  -->
+
             <!--  拖拽预览：胶囊行  -->
             <DataTemplate x:Key="MyDragAdornerTemplate">
                 <Border
-                    Height="32"
-                    MinWidth="120"
+                    Height="34"
+                    MinWidth="140"
                     Background="#FFFFFF"
-                    BorderBrush="#C9D2DC"
+                    BorderBrush="{StaticResource PrimaryBrush}"
                     BorderThickness="1"
-                    CornerRadius="4">
+                    CornerRadius="8">
+                    <Border.Effect>
+                        <DropShadowEffect
+                            BlurRadius="18"
+                            Direction="270"
+                            Opacity="0.16"
+                            ShadowDepth="4"
+                            Color="#0F172A" />
+                    </Border.Effect>
                     <StackPanel
-                        Margin="10,0"
+                        Margin="12,0"
                         VerticalAlignment="Center"
                         Orientation="Horizontal">
                         <TextBlock
+                            Width="20"
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource Icon}"
                             FontSize="14"
-                            Foreground="#4A5568"
+                            Foreground="{StaticResource TextMutedBrush}"
+                            Text="&#xf142;" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="14"
+                            Foreground="{StaticResource PrimaryBrush}"
                             Text="{Binding Icon}" />
                         <TextBlock
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="12"
-                            Foreground="#2D3748"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextPrimaryBrush}"
                             Text="{Binding Name}" />
                     </StackPanel>
                 </Border>
             </DataTemplate>
+
+            <Style x:Key="GroupExpanderStyle" TargetType="Expander">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Expander">
+                            <Grid Margin="5,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!--  标题行：ToggleButton 驱动 IsExpanded  -->
+                                <ToggleButton
+                                    Grid.Row="0"
+                                    Cursor="Hand"
+                                    IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent">
+                                                <Grid Margin="2,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <ContentPresenter
+                                                        Grid.Column="0"
+                                                        Margin="2,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        ContentSource="Content" />
+
+                                                    <!--  数量徽标  -->
+                                                    <Border
+                                                        Grid.Column="1"
+                                                        MinWidth="22"
+                                                        Margin="0,0,8,0"
+                                                        Padding="6,1"
+                                                        VerticalAlignment="Center"
+                                                        Background="#F0F9FF"
+                                                        CornerRadius="11">
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            FontSize="11"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource TextMutedBrush}"
+                                                            Text="{Binding Children.Count}" />
+                                                    </Border>
+
+                                                    <!--  展开/收起箭头  -->
+                                                    <Path
+                                                        Grid.Column="2"
+                                                        Width="10"
+                                                        Height="10"
+                                                        Margin="5,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="M0,0 L5,5 L10,0"
+                                                        RenderTransformOrigin="0.5,0.5"
+                                                        Stretch="Uniform"
+                                                        Stroke="#64748B"
+                                                        StrokeThickness="1.5">
+                                                        <Path.Style>
+                                                            <Style TargetType="Path">
+                                                                <Setter Property="RenderTransform">
+                                                                    <Setter.Value>
+                                                                        <RotateTransform Angle="-90" />
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                                                        <Setter Property="RenderTransform">
+                                                                            <Setter.Value>
+                                                                                <RotateTransform Angle="0" />
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Path.Style>
+                                                    </Path>
+                                                </Grid>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                    <ContentPresenter ContentSource="Header" />
+                                </ToggleButton>
+
+                                <!--  内容区  -->
+                                <ContentPresenter
+                                    x:Name="ContentSite"
+                                    Grid.Row="1"
+                                    Margin="0,0,0,4"
+                                    Visibility="Collapsed" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsExpanded" Value="True">
+                                    <Setter TargetName="ContentSite" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </Grid.Resources>
+
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!--  搜索工具箱（Win11 输入框风格）  -->
+        <!--  ============ 顶部标题栏：工具箱 + 节点总数  ============  -->
+        <Grid Grid.Row="0" Margin="14,14,14,4">
+            <TextBlock
+                VerticalAlignment="Center"
+                FontSize="15"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="工具箱" />
+            <TextBlock
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="{StaticResource TextMutedBrush}"
+                Text="{Binding TotalCount, StringFormat='共 {0} 个节点'}" />
+        </Grid>
+
+        <!--  ============ 搜索框  ============  -->
         <Border
-            Grid.Row="0"
-            Margin="8,8,8,4"
-            Padding="10,5"
-            Background="#FFFFFF"
-            BorderBrush="#D1D5DB"
+            Grid.Row="1"
+            Margin="14,8,14,12"
+            Padding="10,0"
+            Background="{StaticResource InputBgBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
-            CornerRadius="6">
-            <Grid>
+            CornerRadius="8">
+            <Grid Height="36">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <TextBlock
+                    Grid.Column="0"
+                    Margin="4,0,6,0"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="12"
+                    Foreground="{StaticResource TextMutedBrush}"
+                    Text="&#xf002;" />
                 <TextBox
+                    x:Name="SearchBox"
+                    Grid.Column="1"
                     VerticalContentAlignment="Center"
                     Background="Transparent"
                     BorderThickness="0"
-                    FontSize="12"
-                    Foreground="#333333"
-                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
-                    <TextBox.Resources>
-                        <VisualBrush
-                            x:Key="SearchHint"
-                            AlignmentX="Left"
-                            Stretch="None">
-                            <VisualBrush.Visual>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock
-                                        Margin="0,0,6,0"
-                                        FontFamily="{StaticResource Icon}"
-                                        FontSize="12"
-                                        Foreground="#9AA5B1"
-                                        Text="&#xf002;" />
-                                    <TextBlock
-                                        FontSize="12"
-                                        Foreground="#9AA5B1"
-                                        Text="搜索工具箱" />
-                                </StackPanel>
-                            </VisualBrush.Visual>
-                        </VisualBrush>
-                    </TextBox.Resources>
-                    <TextBox.Style>
-                        <Style TargetType="TextBox">
-                            <Style.Triggers>
-                                <Trigger Property="Text" Value="">
-                                    <Setter Property="Background" Value="{StaticResource SearchHint}" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBox.Style>
-                </TextBox>
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock
                     Grid.Column="1"
+                    Margin="2,0,0,0"
                     VerticalAlignment="Center"
-                    FontFamily="{StaticResource Icon}"
-                    FontSize="13"
-                    Foreground="#9AA5B1"
-                    Text="&#xf002;" />
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextMutedBrush}"
+                    IsHitTestVisible="False"
+                    Text="搜索节点...">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SearchText}" Value="">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Grid>
         </Border>
 
-        <!--  插件分组区（Win11 卡片式：组=独立卡片，行=独立圆角行）  -->
-        <Grid Grid.Row="1">
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <!--  ============ 插件分组区  ============  -->
+        <Grid Grid.Row="2">
+            <ScrollViewer
+                Margin="8,0,8,8"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Hidden">
 
-                <ItemsControl Margin="8,4,8,8" ItemsSource="{Binding FilteredToolBarSource}">
+                <ItemsControl ItemsSource="{Binding FilteredToolBarSource}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <!--  组卡片  -->
+                            <!--  组卡片：圆角 12 + 柔和阴影  -->
                             <Border
-                                Margin="0,4"
-                                Background="#FFFFFF"
-                                BorderBrush="#E5E8EC"
-                                BorderThickness="1"
+                                Margin="0,3"
+                                Background="White"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="0.5"
                                 CornerRadius="6">
+                                <Border.Effect>
+                                    <DropShadowEffect
+                                        BlurRadius="24"
+                                        Direction="270"
+                                        Opacity="0.08"
+                                        ShadowDepth="6"
+                                        Color="#0F172A" />
+                                </Border.Effect>
                                 <Expander
-                                    Background="Transparent"
-                                    BorderThickness="0"
+                                    Padding="10,0"
                                     Header="{Binding Name}"
-                                    IsExpanded="True">
-
+                                    Style="{StaticResource GroupExpanderStyle}">
                                     <Expander.HeaderTemplate>
                                         <DataTemplate>
                                             <TextBlock
-                                                Margin="12,10"
                                                 FontSize="13"
                                                 FontWeight="SemiBold"
-                                                Foreground="{StaticResource PrimaryTextBrush}"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
                                                 Text="{Binding}" />
                                         </DataTemplate>
                                     </Expander.HeaderTemplate>
 
-                                    <!--  工具列表：一行一个工具，行间留隙不连片  -->
+                                    <!--  工具列表  -->
                                     <ItemsControl
-                                        Margin="5,0,5,7"
+                                        Margin="6,0,6,10"
                                         dd:DragDrop.DragAdornerTemplate="{StaticResource MyDragAdornerTemplate}"
                                         dd:DragDrop.IsDragSource="True"
                                         dd:DragDrop.UseDefaultDragAdorner="False"
@@ -159,38 +313,54 @@
                                             <DataTemplate>
                                                 <Border
                                                     x:Name="RowBorder"
-                                                    Height="30"
-                                                    Margin="2,3"
-                                                    Padding="10,0"
-                                                    Background="Transparent"
-                                                    BorderBrush="Gray"
-                                                    BorderThickness="0.1"
-                                                    CornerRadius="4"
+                                                    Height="34"
+                                                    Margin="0,2"
+                                                    Padding="8,0"
+                                                    Background="{StaticResource InputBgBrush}"
+                                                    BorderBrush="Transparent"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
                                                     ToolTip="{Binding Description}">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Style.Triggers>
+                                                                <!--  悬停：Web bg-muted  -->
                                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter Property="Background" Value="#EEF3F8" />
+                                                                    <Setter Property="Background" Value="#E8F3FF" />
+                                                                    <Setter Property="BorderBrush" Value="#BAE3FB" />
                                                                 </Trigger>
+                                                                <!--  选中：Web bg-primary/15 + ring-primary（需节点 VM 暴露 IsSelected）  -->
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource PrimaryLightBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                                                </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Border.Style>
                                                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                                                         <TextBlock
-                                                            Width="20"
+                                                            Width="14"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{StaticResource Icon}"
+                                                            FontSize="11"
+                                                            Foreground="{StaticResource TextMutedBrush}"
+                                                            Text="&#xf142;"
+                                                            TextAlignment="Center" />
+                                                        <TextBlock
+                                                            Width="22"
+                                                            Margin="6,0,0,0"
                                                             VerticalAlignment="Center"
                                                             FontFamily="{StaticResource Icon}"
                                                             FontSize="15"
-                                                            Foreground="#5B6B7C"
+                                                            Foreground="{StaticResource PrimaryBrush}"
                                                             Text="{Binding Icon}"
                                                             TextAlignment="Center"
                                                             TextOptions.TextFormattingMode="Display" />
                                                         <TextBlock
-                                                            Margin="10,0,0,0"
+                                                            Margin="6,0,0,0"
                                                             VerticalAlignment="Center"
                                                             FontSize="12.5"
-                                                            Foreground="#33363D"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
                                                             Text="{Binding Name}"
                                                             TextTrimming="CharacterEllipsis" />
                                                     </StackPanel>

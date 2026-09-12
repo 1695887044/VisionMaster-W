@@ -1,0 +1,18 @@
+﻿<UserControl
+    x:Class="VM.Start.Views.Dock.UIDisplayView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:hw="clr-namespace:VM.Halcon;assembly=VM.Halcon"
+    xmlns:lex="http://wpflocalizeextension.codeplex.com"
+    xmlns:local="clr-namespace:VM.Start.Views.Dock"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    lex:LocalizeDictionary.DesignCulture="zh"
+    lex:LocalizeDictionary.OutputMissingKeys="True"
+    lex:ResxLocalizationProvider.DefaultAssembly="VM.Start"
+    lex:ResxLocalizationProvider.DefaultDictionary="Resource">
+    <Grid Name="grid" Margin="5">
+        <ContentControl Name="contentCtrl" />
+    </Grid>
+</UserControl>

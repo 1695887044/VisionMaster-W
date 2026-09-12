@@ -1,0 +1,282 @@
+<UserControl
+    x:Class="Plugin.ImageScript.ImageScriptView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:avalon="clr-namespace:ICSharpCode.AvalonEdit;assembly=ICSharpCode.AvalonEdit"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:Plugin.ImageScript"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Height="620"
+    Width="1080"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <local:InputPortConverter x:Key="InputPortConv" />
+
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="12" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect
+                            BlurRadius="12"
+                            Direction="270"
+                            Opacity="0.05"
+                            ShadowDepth="2"
+                            Color="Black" />
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="380" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!--  左列：过程管理 + 变量声明 + 输入连线  -->
+        <ScrollViewer
+            Grid.Column="0"
+            Margin="0,0,8,0"
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!--  卡片：过程管理  -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="脚本过程" />
+
+                        <TextBlock
+                            Margin="0,8,0,2"
+                            Style="{StaticResource HintText}"
+                            Text="编辑目标（修改其过程体）" />
+                        <ComboBox
+                            x:Name="EditProcCombo"
+                            Height="26"
+                            HorizontalContentAlignment="Center"
+                            SelectionChanged="EditProcCombo_SelectionChanged" />
+
+                        <TextBlock
+                            Margin="0,8,0,2"
+                            Style="{StaticResource HintText}"
+                            Text="运行过程（执行时调用的过程）" />
+                        <ComboBox
+                            x:Name="RunProcCombo"
+                            Height="26"
+                            HorizontalContentAlignment="Center"
+                            SelectionChanged="RunProcCombo_SelectionChanged" />
+
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button
+                                MinWidth="60"
+                                Margin="0,0,6,6"
+                                Click="NewProc_Click"
+                                Content="新建过程" />
+                            <Button
+                                MinWidth="60"
+                                Margin="0,0,6,6"
+                                Click="DeleteProc_Click"
+                                Content="删除过程" />
+                            <Button
+                                MinWidth="60"
+                                Margin="0,0,6,6"
+                                Click="Import_Click"
+                                Content="导入.hdev" />
+                            <Button
+                                MinWidth="60"
+                                Margin="0,0,6,6"
+                                Click="Export_Click"
+                                Content="导出.hdev" />
+                            <Button
+                                MinWidth="60"
+                                Margin="0,0,6,6"
+                                Click="SyncVars_Click"
+                                Content="同步接口变量" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <!--  卡片：输入变量（声明类型 + 连线/手填）  -->
+                <Border
+                    Margin="0,8,0,0"
+                    Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="输入变量" />
+                        <TextBlock
+                            Margin="0,2,0,6"
+                            Style="{StaticResource HintText}"
+                            Text="类型决定运行时传参方式；连线取上游值，未连线时按类型手填" />
+                        <ItemsControl x:Name="InputList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3,0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="92" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="12"
+                                            Text="{Binding Name}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding Name}" />
+                                        <ComboBox
+                                            Grid.Column="1"
+                                            Height="24"
+                                            Margin="6,0"
+                                            VerticalContentAlignment="Center"
+                                            ItemStringFormat="{}{0}"
+                                            ItemsSource="{Binding DataContext.ScriptVarTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            SelectedItem="{Binding Type}"
+                                            SelectionChanged="VarType_Changed"
+                                            ToolTip="声明类型" />
+                                        <cv:LinkableValueEditor
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            StepData="{Binding DataContext.StepData, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                            <cv:LinkableValueEditor.Port>
+                                                <MultiBinding Converter="{StaticResource InputPortConv}">
+                                                    <Binding Path="Name" />
+                                                    <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                                </MultiBinding>
+                                            </cv:LinkableValueEditor.Port>
+                                        </cv:LinkableValueEditor>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock
+                            x:Name="InputEmptyHint"
+                            Margin="0,4,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="（无输入变量：导入脚本或点“同步接口变量”）" />
+                    </StackPanel>
+                </Border>
+
+                <!--  卡片：输出变量  -->
+                <Border
+                    Margin="0,8,0,0"
+                    Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="输出变量" />
+                        <TextBlock
+                            Margin="0,2,0,6"
+                            Style="{StaticResource HintText}"
+                            Text="输出端口供下游步骤连线；类型须与脚本产出一致" />
+                        <ItemsControl x:Name="OutputList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,3,0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="92" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="12"
+                                            Text="{Binding Name}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding Name}" />
+                                        <ComboBox
+                                            Grid.Column="1"
+                                            Height="24"
+                                            Margin="6,0"
+                                            VerticalContentAlignment="Center"
+                                            ItemsSource="{Binding DataContext.ScriptVarTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            SelectedItem="{Binding Type}"
+                                            SelectionChanged="VarType_Changed"
+                                            ToolTip="声明类型" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Margin="6,0,0,0"
+                                            FontSize="12"
+                                            Foreground="#888888"
+                                            Text="{Binding Remark}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock
+                            x:Name="OutputEmptyHint"
+                            Margin="0,4,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="（无输出变量）" />
+                    </StackPanel>
+                </Border>
+
+                <!--  卡片：结果显示  -->
+                <Border
+                    Margin="0,8,0,0"
+                    Style="{StaticResource CardBorder}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="结果显示窗口" />
+                        <ComboBox
+                            Width="120"
+                            Height="26"
+                            Margin="10,0,0,0"
+                            HorizontalContentAlignment="Center"
+                            SelectedIndex="{Binding DisplayViewIndex}"
+                            ToolTip="首个 HImage 结果显示到主界面几号视图；0 = 不显示">
+                            <ComboBoxItem Content="不显示" />
+                            <ComboBoxItem Content="窗口1" />
+                            <ComboBoxItem Content="窗口2" />
+                            <ComboBoxItem Content="窗口3" />
+                            <ComboBoxItem Content="窗口4" />
+                            <ComboBoxItem Content="窗口5" />
+                            <ComboBoxItem Content="窗口6" />
+                            <ComboBoxItem Content="窗口7" />
+                            <ComboBoxItem Content="窗口8" />
+                            <ComboBoxItem Content="窗口9" />
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  右列：Halcon 脚本编辑器  -->
+        <Border Grid.Column="1" Style="{StaticResource CardBorder}">
+            <DockPanel>
+                <TextBlock
+                    x:Name="EditorTitle"
+                    DockPanel.Dock="Top"
+                    Margin="2,0,0,8"
+                    FontFamily="Consolas"
+                    FontSize="12"
+                    Foreground="#666666"
+                    Text="（未选择过程）" />
+                <avalon:TextEditor
+                    x:Name="Editor"
+                    FontFamily="Consolas"
+                    FontSize="14"
+                    ShowLineNumbers="True"
+                    TextChanged="Editor_TextChanged" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

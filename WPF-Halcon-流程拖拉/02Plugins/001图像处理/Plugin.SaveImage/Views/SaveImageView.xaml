@@ -1,0 +1,97 @@
+﻿<vb:ModuleViewBase x:Class="Plugin.SaveImage.Views.SaveImageView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                   xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                   xmlns:local="clr-namespace:Plugin.SaveImage.Views"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.SaveImage.ViewModels"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+             Height="680" Width="480" Icon="/Plugin.SaveImage;component/Assets/Images/Tool/SaveImage.png" >
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70"/>
+            <RowDefinition Height="100"/>
+            <RowDefinition />
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Border >
+            <GroupBox Header="图像链接">
+                <StackPanel HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Margin="5 0">
+                        <TextBlock Text="输入图像" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0" IsReadOnly="True"
+                                                 Style="{StaticResource LinkTextBox}"
+                                                 Text="{Binding InputImageLinkText}"
+                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.InputImageLink}"/>
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+        </Border>
+        <Border Grid.Row="1">
+            <GroupBox Header="存储类型" >
+                <StackPanel Orientation="Horizontal" Margin="5 0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                    <RadioButton Content="原图" Margin="55 0" 
+                                                 IsChecked="{Binding SelectedSaveType,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eSaveShape.原图}}"/>
+                    <RadioButton Content="截图" Margin="55 0" 
+                                                 IsChecked="{Binding SelectedSaveType,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eSaveShape.截图}}"/>
+                </StackPanel>
+            </GroupBox>
+        </Border>
+        <Border Grid.Row="2">
+            <GroupBox Header="文件设置" >
+                <StackPanel Orientation="Vertical" Margin="5" VerticalAlignment="Top" HorizontalAlignment="Center">
+                    <TextBox Grid.Column="1" Style="{DynamicResource MahApps.Styles.TextBox.Search}" Width="350" Height="25" Text="{Binding FilePath}"
+                                                     mah:TextBoxHelper.ButtonCommand="{Binding FilePathCommand, Mode=OneWay}"/>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="图像格式:" HorizontalAlignment="Center" VerticalAlignment="Center" Width="60"/>
+                        <ComboBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0"
+                                              SelectedIndex="{Binding SelectedIndex}" ItemsSource="{Binding ImageStytleList}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10,0">
+                        <TextBlock Text="保存天数:" VerticalAlignment="Center" Width="60"/>
+                        <mah:NumericUpDown Width="200" Margin="5 0" BorderThickness="0 0 0 1" Value="{Binding SaveDay}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="图片名称:" VerticalAlignment="Center" Width="60"/>
+                        <TextBox Text="{Binding PicName.Text}"
+                         mah:TextBoxHelper.Value="{Binding PicName.Value}"
+                         Style="{StaticResource LinkTextBox}"
+                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.PictureName}"
+                         mah:TextBoxHelper.Watermark="string"
+                         VerticalAlignment="Center" HorizontalAlignment="Center" Width="200"  Margin="5 0"/>
+                    </StackPanel>
+                    <CheckBox Content="以当前时间命名" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0" IsChecked="{Binding ImageNameTime}"/>
+                </StackPanel>
+            </GroupBox>
+        </Border>
+        <Border Grid.Row="3" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</vb:ModuleViewBase>

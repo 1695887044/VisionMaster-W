@@ -1,0 +1,73 @@
+<UserControl
+	x:Class="VM.Start.UIDesign.Control.DataCount" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:local="clr-namespace:VM.Start.UIDesign.Control">
+	<Grid>
+		<GroupBox
+			Header="{Binding 标题}">
+			<Grid>
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition />
+					<ColumnDefinition />
+				</Grid.ColumnDefinitions>
+				<StackPanel>
+					<FrameworkElement.Resources>
+						<ResourceDictionary>
+							<Style
+								TargetType="{x:Type TextBlock}"
+								x:Key="{x:Type TextBlock}">
+								<Setter
+									Property="HorizontalAlignment"
+									Value="Left" />
+								<Setter
+									Property="Margin"
+									Value="5" />
+							</Style>
+						</ResourceDictionary>
+					</FrameworkElement.Resources>
+					<TextBlock
+						Text="OK:"
+						Foreground="{Binding OK颜色}" />
+					<TextBlock
+						Text="NG:"
+						Foreground="{Binding NG颜色}" />
+					<TextBlock
+						Text="总数:" />
+					<TextBlock
+						Text="良率:" />
+				</StackPanel>
+				<StackPanel
+					Grid.Column="1">
+					<FrameworkElement.Resources>
+						<ResourceDictionary>
+							<Style
+								TargetType="{x:Type TextBlock}"
+								x:Key="{x:Type TextBlock}">
+								<Setter
+									Property="HorizontalAlignment"
+									Value="Right" />
+								<Setter
+									Property="Margin"
+									Value="5" />
+							</Style>
+						</ResourceDictionary>
+					</FrameworkElement.Resources>
+					<TextBlock
+						Text="{Binding OKCount}"
+						Foreground="{Binding OK颜色}" />
+					<TextBlock
+						Text="{Binding NGCount}"
+						Foreground="{Binding NG颜色}" />
+					<TextBlock
+						Text="{Binding Total}" />
+					<TextBlock
+						Text="{Binding Yield, StringFormat={}{0} %}" />
+					<Button
+						Content="清空"
+						VerticalAlignment="Center"
+						HorizontalAlignment="Right"
+						Width="60"
+						Click="btnClear_Click" />
+				</StackPanel>
+			</Grid>
+		</GroupBox>
+	</Grid>
+</UserControl>

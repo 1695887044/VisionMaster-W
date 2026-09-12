@@ -24,6 +24,14 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public ObservableCollection<ToolGroupModel> FilteredToolBarSource { get; } = new();
 
+        private int _totalCount;
+        /// <summary>工具箱算子总数（用于标题栏显示）</summary>
+        public int TotalCount
+        {
+            get => _totalCount;
+            private set => SetProperty(ref _totalCount, value);
+        }
+
         private string searchText;
         public string SearchText
         {
@@ -57,8 +65,11 @@ namespace VisionMaster.ViewModels
                 {
                     FilteredToolBarSource.Add(group);
                 }
+                TotalCount = toolBarSource.Sum(g => g.Children.Count);
                 return;
             }
+
+            int matchedTotal = 0;
 
             foreach (var group in toolBarSource)
             {
@@ -73,7 +84,10 @@ namespace VisionMaster.ViewModels
                     copy.Children.Add(tool);
                 }
                 FilteredToolBarSource.Add(copy);
+                matchedTotal += matched.Count;
             }
+
+            TotalCount = matchedTotal;
         }
 
         private static bool Contains(string source, string keyword)

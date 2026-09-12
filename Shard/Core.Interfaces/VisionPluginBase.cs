@@ -68,9 +68,22 @@ namespace Core.Interfaces
 
         /// <summary>
         /// 释放插件持有的非托管资源（HImage、句柄等）
-        /// 仅当插件真正持有需要释放的资源时才需要重写；默认空实现
+        /// 默认实现会释放所有输出端口承载的值（如 Halcon HImage），避免非托管内存泄漏；
+        /// 子类若持有额外资源应重写并在末尾调用 base.Dispose()
         /// </summary>
-        public virtual void Dispose() { }
+        public virtual void Dispose()
+        {
+            // 释放输出端口承载的非托管资源（试运行/正式运行产出的 HImage 等）
+            EnsurePortsDiscovered();
+            foreach (var port in _outputs.Values)
+            {
+                if (port.Value is IDisposable disposable)
+                {
+                    try { disposable.Dispose(); }
+                    catch { /* 释放失败不应打断整体资源回收 */ }
+                }
+            }
+        }
 
         /// <summary>
         /// 计算时间 变量输入映射  变量输出映射  要可以兼容到动态注册
@@ -130,8 +143,9 @@ namespace Core.Interfaces
         /// <summary>
         /// 统一灌值入口（FlowCompiler 正式运行 / PluginTestRunner 试运行 / 配置初始化共用）：
         /// InputValues → 输入端口（链接端口跳过）+ [StepConfig] 配置属性
+        /// virtual：需要动态输入端口的插件可重写，在 base 之后、LinkPorts 之前重建端口
         /// </summary>
-        public void ApplyConfigValues(IStepConfigData stepData)
+        public virtual void ApplyConfigValues(IStepConfigData stepData)
         {
             EnsureConfigPropsDiscovered();
             if (stepData?.InputValues == null) return;
@@ -194,6 +208,12 @@ namespace Core.Interfaces
         }
 
         /// <summary>
+        /// 统一的快照序列化配置：集中管理，避免每次调用重复 new JsonSerializerSettings()（重复构造且易遗漏配置），
+        /// 后续如需加入类型白名单/容错策略，只需在此一处修改
+        /// </summary>
+        private static readonly JsonSerializerSettings SnapshotSettings = new JsonSerializerSettings();
+
+        /// <summary>
         /// 配置属性存快照（JSON 往返拷贝）：复杂配置（如 List&lt;RoiItem&gt;）存进 InputValues 后
         /// 不再与界面上的活对象共享引用——确认后界面继续修改不会污染已确认的数据
         /// </summary>
@@ -204,8 +224,8 @@ namespace Core.Interfaces
             if (type.IsPrimitive || value is string || value is Enum || value is decimal) return value;
             try
             {
-                var json = JsonConvert.SerializeObject(value, type, new JsonSerializerSettings());
-                return JsonConvert.DeserializeObject(json, type, new JsonSerializerSettings());
+                var json = JsonConvert.SerializeObject(value, type, SnapshotSettings);
+                return JsonConvert.DeserializeObject(json, type, SnapshotSettings);
             }
             catch
             {

@@ -1,0 +1,33 @@
+﻿<Application x:Class="VM.Start.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:avalonDock="https://github.com/Dirkster99/AvalonDock"
+             xmlns:local="clr-namespace:VM.Start"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/SkinDark.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/HandyControl;component/Themes/Theme.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Purple.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <Style TargetType="CheckBox" BasedOn="{StaticResource MahApps.Styles.CheckBox.Win10}" >
+                <Setter Property="FontFamily" Value="Microsoft YaHei"/>
+            </Style>
+            <Style TargetType="TextBox" BasedOn="{StaticResource MahApps.Styles.TextBox}">
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Setter Property="Height" Value="25"/>
+                <Setter Property="FontFamily" Value="Microsoft YaHei"/>
+            </Style>
+            <Style TargetType="RadioButton" BasedOn="{StaticResource MahApps.Styles.RadioButton}">
+                <Setter Property="FontFamily" Value="Microsoft YaHei"/>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

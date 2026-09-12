@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.ImageScript</RootNamespace>
+    <AssemblyName>Plugin.ImageScript</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="Prism.Wpf" Version="9.0.537" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+    <Reference Include="hdevenginedotnet">
+      <HintPath>..\..\DLL\Halcon\hdevenginedotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy $(TargetPath) $(SolutionDir)\Modules\$(TargetFileName) /Y" />
+    <!-- 仅部署插件专属依赖 hdevenginedotnet（主程序目录无此件）；halcondotnet 由主程序目录提供，勿拷入 Modules 以免类型标识冲突 -->
+    <Exec Command="copy $(TargetDir)hdevenginedotnet.dll $(SolutionDir)\Modules\hdevenginedotnet.dll /Y" />
+  </Target>
+</Project>
