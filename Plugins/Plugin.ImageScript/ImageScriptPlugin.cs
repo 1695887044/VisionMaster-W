@@ -111,6 +111,39 @@ namespace Plugin.ImageScript
             RebuildDynamicOutputs();
         }
 
+        /// <summary>导出 .hdev 前调用：把变量表同步进当前过程的接口列表，保证导出文件接口完整。</summary>
+        public void SyncInterfaceForExport()
+        {
+            if (CurrentProcedure != null) SyncInterfaceFromTables(CurrentProcedure);
+        }
+
+        /// <summary>
+        /// 反向同步：把输入/输出变量表写回过程的接口四类列表（图形类→io/oo，控制类→ic/oc）。
+        /// 保证"添加变量"后编译时 .hdev 的 &lt;interface&gt; 与表格一致。
+        /// </summary>
+        private void SyncInterfaceFromTables(EProcedure proc)
+        {
+            if (proc == null) return;
+
+            proc.IconicInputList.Clear();
+            proc.IconicOutputList.Clear();
+            proc.CtrlInputList.Clear();
+            proc.CtrlOutputList.Clear();
+
+            if (InputVars != null)
+                foreach (var v in InputVars)
+                {
+                    if (v == null || string.IsNullOrWhiteSpace(v.Name)) continue;
+                    (v.IsIconic ? proc.IconicInputList : proc.CtrlInputList).Add(v.Name.Trim());
+                }
+            if (OutputVars != null)
+                foreach (var v in OutputVars)
+                {
+                    if (v == null || string.IsNullOrWhiteSpace(v.Name)) continue;
+                    (v.IsIconic ? proc.IconicOutputList : proc.CtrlOutputList).Add(v.Name.Trim());
+                }
+        }
+
         #endregion
 
         #region 动态端口重建
@@ -333,7 +366,10 @@ namespace Plugin.ImageScript
             Func<string, bool, ScriptVarType> defaultType)
         {
             var desiredNames = desired.ToList();
-            var existing = list.ToDictionary(v => v.Name, v => v);
+            // 用索引器逐个写入，容忍表里可能出现的重名（后者覆盖前者），
+            // 避免 ToDictionary 遇到重复键抛 ArgumentException 造成"同步接口变量"闪退。
+            var existing = new Dictionary<string, ScriptVarDef>();
+            foreach (var v in list) existing[v.Name] = v;
 
             // 移除不在接口里的
             foreach (var extra in list.Where(v => !desiredNames.Any(d => d.name == v.Name)).ToList())
@@ -409,6 +445,11 @@ namespace Plugin.ImageScript
                 return null;
             }
 
+            // 变量表是接口的唯一真源：每次编译前把表反向同步进过程接口列表，
+            // 否则手动"添加变量"不会进入 .hdev 的 <interface>，
+            // 引擎会因脚本引用了接口里没有的变量而报 invalid program line。
+            SyncInterfaceFromTables(proc);
+
             string fingerprint = ComputeFingerprint();
             if (!force)
             {
@@ -433,6 +474,15 @@ namespace Plugin.ImageScript
                 if (sanitizeError != null)
                 {
                     error = sanitizeError;
+                    return null;
+                }
+
+                // 编译前先做静态体检：全角标点、引号/括号不闭合、算子拆成多行——
+                // 这些问题引擎报的行号经常指不到真凶，这里用编辑器原始行号精确指出。
+                string preErr = PrecheckBody(resolved);
+                if (preErr != null)
+                {
+                    error = "脚本有问题: " + preErr;
                     return null;
                 }
 
@@ -518,6 +568,12 @@ namespace Plugin.ImageScript
                     if (trimmed.StartsWith("*") || trimmed.StartsWith("'")) continue;
 
                     string stripped = StripTrailingComment(line);
+                    // dev_* 系列（dev_display、dev_set_window 等）是 HDevelop 开发环境
+                    // 专用算子，HDevEngine 运行时里没有定义，粘贴进来必报"unresolved"。
+                    // 自动置空（保留空格占位，行号不变）——显示已由输出变量的"窗口N"接管。
+                    string tt = stripped.Trim();
+                    if (tt.StartsWith("dev_") && tt.EndsWith(")"))
+                        stripped = new string(' ', stripped.Length);
                     if (stripped != line)
                         lines[i] = stripped + (cr ? "\r" : "");
                 }
@@ -575,35 +631,99 @@ namespace Plugin.ImageScript
             => line.Substring(0, start) + new string(' ', line.Length - start);
 
         /// <summary>
+        /// 编译前静态体检：把引擎含糊的 "invalid program line" 提前变成精确到行的中文定位。
+        /// 专治粘贴 HDevelop 脚本最常见的三个坑：
+        ///   ① 中文全角标点（，＇（）等——从聊天窗口/文档复制代码时输入法带进来的）；
+        ///   ② 引号不闭合 / 括号不成对（算子被拆成多行续写，引擎不支持）；
+        ///   ③ 行内变量问题仍交给引擎，由 TranslateEngineError 翻译。
+        /// 注释行（* 或 ' 开头）不检查——注释里写什么都合法。
+        /// </summary>
+        private static string PrecheckBody(List<EProcedure> procs)
+        {
+            foreach (var p in procs)
+            {
+                if (string.IsNullOrEmpty(p.Body)) continue;
+                var lines = p.Body.Replace("\r", "").Split('\n');
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string t = lines[i].Trim();
+                    if (t.Length == 0) continue;
+                    if (t.StartsWith("*") || t.StartsWith("'")) continue;
+
+                    bool inStr = false;
+                    int depth = 0;
+                    foreach (char ch in t)
+                    {
+                        if (ch == '\'') { inStr = !inStr; continue; }   // '' 转义=闭合+重开，净效果正确
+                        if (inStr) continue;
+                        if (IsFullWidthChar(ch))
+                            return $"【第 {i + 1} 行】含有中文全角标点“{ch}”——请改成英文半角符号（输入法切到 English 重新输入）：\n{t}";
+                        if (ch == '(') depth++;
+                        else if (ch == ')') depth--;
+                        if (depth < 0)
+                            return $"【第 {i + 1} 行】右括号“)”多于左括号“(”——括号不配对：\n{t}";
+                    }
+                    if (inStr)
+                        return $"【第 {i + 1} 行】单引号 ' 没有闭合——Halcon 算子必须写在一行内，请检查：\n{t}";
+                    if (depth != 0)
+                        return $"【第 {i + 1} 行】括号不配对——若算子被拆成了多行，请合并为一行（引擎不支持续行写法）：\n{t}";
+                }
+            }
+            return null;
+        }
+
+        // 常见中文全角/智能标点（这些字符出现在代码里 Halcon 引擎必报错）
+        private static bool IsFullWidthChar(char ch)
+            => (ch >= '\uFF01' && ch <= '\uFF5E') ||   // 全角！＇（，：等
+               ch == '\u3001' || ch == '\u3002' ||      // 、 。
+               ch == '\u2018' || ch == '\u2019' ||      // ‘ ’
+               ch == '\u201C' || ch == '\u201D' ||      // “ ”
+               ch == '\u300C' || ch == '\u300D' ||      // 「 」
+               ch == '\u00A0';                          // 不间断空格（网页复制常见）
+
+        /// <summary>
         /// 把 HDevEngine 的天书报错翻译成新手能照做的中文提示。
-        /// 实测（探针）：'invalid program line: N' 的 N 是过程体内 1-based 行号，
-        /// 两大触发场景——① 行内引用了未赋值的控制变量（须先赋值或加入接口变量表）；
-        /// ② 代码行尾部拖了注释/字符串（消毒器已自动剥离，残余场景给提示）。
+        /// 实测（探针标定）：'invalid program line: N' 的 N 是"第 N 个非空行"——
+        /// 引擎数行时跳过空行，须映射回编辑器真实行号再提示。
+        /// 触发场景——① 行内变量不在接口表也未赋值（最常见：变量表里没加这个变量）；
+        /// ② 代码行尾部拖了注释/字符串（消毒器已自动剥离，残余场景给提示）；③ 括号引号不成对。
         /// </summary>
         private static string TranslateEngineError(string engineMessage, List<EProcedure> procs)
         {
             string msg = (engineMessage ?? "").Replace("\r", "");
-            var hint = "";
+            string hint = "";
 
             var m = System.Text.RegularExpressions.Regex.Match(
                 msg, @"(invalid program line|unresolved procedure call):\s*(\d+)");
             if (m.Success)
             {
-                int lineNo = int.Parse(m.Groups[2].Value); // 1-based
+                int nonEmptyNo = int.Parse(m.Groups[2].Value); // 第 N 个非空行
                 string procName = System.Text.RegularExpressions.Regex.Match(
                     msg, @"procedure '([^']+)'").Groups[1].Value;
                 var proc = (procs ?? new List<EProcedure>())
                     .FirstOrDefault(p => p.Name == procName) ?? procs?.FirstOrDefault();
                 string badLine = "";
+                int editorLine = nonEmptyNo; // 兜底：默认与引擎行号相同
                 if (proc != null && !string.IsNullOrEmpty(proc.Body))
                 {
                     var lines = proc.Body.Replace("\r", "").Split('\n');
-                    if (lineNo >= 1 && lineNo <= lines.Length) badLine = lines[lineNo - 1].Trim();
+                    int seen = 0;
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        if (lines[i].Trim().Length == 0) continue;  // 引擎跳过空行
+                        seen++;
+                        if (seen == nonEmptyNo) { editorLine = i + 1; badLine = lines[i].Trim(); break; }
+                    }
                 }
-                hint = $"\n【第 {lineNo} 行】{badLine}" +
-                       "\n可能原因：① 该行用了未赋值的变量——请先 X := 值，或在上方'输入变量'表中声明并给初值；" +
-                       "② 行尾拖了注释——HDevelop 要求注释必须单独一行并以 * 开头；" +
-                       "③ 括号或引号不成对。";
+                string kind = m.Groups[1].Value.StartsWith("unresolved")
+                    ? "该行调用的算子在运行引擎里不存在——dev_display、dev_set_window 等 " +
+                      "dev_* 系列是 HDevelop 开发环境专用，粘贴脚本时请删掉这些行" +
+                      "（新版本已自动忽略它们）；显示图像请用输出变量的\u201c窗口N\u201d下拉。"
+                    : "可能原因：① 该行用到的变量没在上方'输入/输出变量'表中声明（脚本里用到的图像/数值变量都要加进表并连线或给初值），或引用了未赋值的变量——请先 X := 值；" +
+                      "② 行尾拖了注释——HDevelop 要求注释必须单独一行并以 * 开头；" +
+                      "③ 括号或引号不成对，或算子被拆成了多行（每个算子必须写在一行内）；" +
+                      "④ 混入了中文全角标点（，＇（）等），请改成英文半角。";
+                hint = $"\n【第 {editorLine} 行】{badLine}\n{kind}";
             }
             return "脚本编译失败: " + msg + hint;
         }
@@ -733,6 +853,9 @@ namespace Plugin.ImageScript
 
             try
             {
+                // 记录第一路图像输入作"底图"：Region/XLD 输出叠加显示时画在它上面
+                HImage baseImage = null;
+
                 // —— 灌输入 ——
                 if (InputVars != null)
                 {
@@ -751,6 +874,8 @@ namespace Plugin.ImageScript
                                 ErrorMessage.Value = $"输入变量[{v.Name}]未链接或图像为空";
                                 return;
                             }
+                            if (baseImage == null && h is HImage him && him.IsInitialized())
+                                baseImage = him;
                             call.SetInputIconicParamObject(v.Name, h);
                             continue;
                         }
@@ -786,14 +911,37 @@ namespace Plugin.ImageScript
                         object result;
                         if (v.IsIconic)
                         {
-                            result = v.Type switch
+                            try
                             {
-                                ScriptVarType.HObject => call.GetOutputIconicParamObject(v.Name),
-                                ScriptVarType.HImage => call.GetOutputIconicParamImage(v.Name),
-                                ScriptVarType.HRegion => call.GetOutputIconicParamRegion(v.Name),
-                                ScriptVarType.HXld => call.GetOutputIconicParamXld(v.Name),
-                                _ => null
-                            };
+                                result = v.Type switch
+                                {
+                                    ScriptVarType.HObject => call.GetOutputIconicParamObject(v.Name),
+                                    ScriptVarType.HImage => call.GetOutputIconicParamImage(v.Name),
+                                    ScriptVarType.HRegion => call.GetOutputIconicParamRegion(v.Name),
+                                    ScriptVarType.HXld => call.GetOutputIconicParamXld(v.Name),
+                                    _ => null
+                                };
+                            }
+                            catch (HalconException hex)
+                            {
+                                // threshold 出区域、edge_out 出轮廓……若输出表里类型选错，
+                                // Halcon 只报天书 "Output object type mismatch (excepted image, got region)"，
+                                // 这里翻译成"改哪个下拉"的可操作指引。
+                                string em = hex.GetErrorMessage() ?? "";
+                                if (em.Contains("type mismatch"))
+                                {
+                                    string got = em.Contains("got region") ? "区域(HRegion)"
+                                               : em.Contains("got xld") ? "轮廓(HXld)"
+                                               : em.Contains("got image") ? "图像(HImage)"
+                                               : "其他类型";
+                                    Success.Value = false;
+                                    ErrorMessage.Value =
+                                        $"输出[{v.Name}]类型不符：脚本实际产出的是{got}，" +
+                                        $"但输出变量表里声明为 {v.Type} —— 请把该变量的\u201c类型\u201d下拉改成{got}";
+                                    return;
+                                }
+                                throw;
+                            }
                         }
                         else
                         {
@@ -818,9 +966,21 @@ namespace Plugin.ImageScript
 
                         port.Value = result;
 
-                        // 逐输出显示：该变量行上选了"窗口N"的 HImage 结果直接推送到对应视图
-                        if (v.DisplayWindow >= 1 && result is HImage hi && hi.IsInitialized())
-                            this.PublishPreview(hi, v.DisplayWindow);
+                        // 逐输出显示：该变量行上选了"窗口N"的图形结果推送到对应视图
+                        // HImage 直接显示；HRegion / HXLD / HObject(区域或轮廓) 叠加画到底图后显示
+                        if (v.DisplayWindow >= 1)
+                        {
+                            // 注意：PublishPreview 经事件总线异步交给 UI 线程复制显示，
+                            // 图像所有权随之转移，这里不能再 Dispose（否则与 UI 回调竞争）。
+                            HImage disp = null;
+                            if (result is HImage hi && hi.IsInitialized())
+                                disp = hi;
+                            else if (result is HObject iconic && iconic.IsInitialized())
+
+                                disp = ComposeIconicToImage(iconic, baseImage);
+                            if (disp != null)
+                                this.PublishPreview(disp, v.DisplayWindow);
+                        }
                     }
                 }
 
@@ -837,6 +997,110 @@ namespace Plugin.ImageScript
                 Success.Value = false;
                 ErrorMessage.Value = $"脚本执行异常: {ex.Message}";
             }
+        }
+
+        #endregion
+
+        #region 图形输出叠底显示
+
+        /// <summary>
+        /// 把 Region / XLD 图形输出合成为可显示的图像：
+        /// 优先叠加画在第一路图像输入（底图）上；无底图时按图形范围生成黑底画布。
+        /// 用纯算子 paint_region / paint_xld 完成合成——不需要开窗口，
+        /// 线程安全、无 GUI 环境依赖（旧"离屏窗口+截屏"方案会抛 #1305 open_window 错误）。
+        /// 为能画出绿色叠加，先把单通道底图复制成 3 通道（compose3）。
+        /// 合成失败返回 null（跳过显示，不影响脚本执行结果）。
+        /// </summary>
+        private static HImage ComposeIconicToImage(HObject iconic, HImage baseImage)
+        {
+            // 本方法内自建的 Halcon 对象（probe/画布/临时RGB）必须显式释放，
+            // 否则产线连续运行会因原生内存堆积而持续增长。
+            HObject probe = null;
+            HImage ownCanvas = null;   // 仅当无输入图、由本方法生成的黑画布才需释放
+            HImage rgb = null;         // 单通道→3通道时本方法自建的 RGB 底图
+            try
+            {
+                // 泛型 HObject 句柄取第1个对象判别类型（SelectObj 按实际对象类型返回）
+                probe = iconic.SelectObj(1);
+                bool isRegion = probe is HRegion;
+                bool isContour = probe is HXLD;
+
+                if (!isRegion && !isContour)
+                    return iconic as HImage;   // 本来就是图像，直接显示
+
+                bool onCanvas = baseImage == null || !baseImage.IsInitialized();
+                if (onCanvas)
+                {
+                    ownCanvas = GenBlankCanvas(iconic, isRegion);
+                    if (ownCanvas == null) return null;
+                    baseImage = ownCanvas;
+                }
+
+                // paint_* 画绿色需 3 通道；单通道用 compose3 复制成 RGB（不改动上游输入图）
+                HImage src = baseImage;
+                int ch = (int)baseImage.CountChannels().D;
+                if (ch == 1)
+                {
+                    HOperatorSet.Compose3(baseImage, baseImage, baseImage, out HObject rgbObj);
+                    rgb = new HImage(rgbObj);
+                    src = rgb;
+                    ch = 3;
+                }
+
+                // 绿色 (R=0,G=255,B=0)；通道不足 3 时退化为高亮白
+                HTuple color = ch >= 3
+                    ? new HTuple(new double[] { 0, 255, 0 })
+                    : new HTuple(255.0);
+
+                // 有底图：只描边界(margin)，不遮挡产品图像；黑画布：涂实(fill)。
+                HObject res;
+                if (isRegion)
+                    HOperatorSet.PaintRegion(iconic, src, out res, color,
+                        onCanvas ? "fill" : "margin");
+                else
+                    HOperatorSet.PaintXld(iconic, src, out res, color);
+
+                return new HImage(res);
+            }
+            catch
+            {
+                return null;   // 显示合成失败不阻断执行
+            }
+            finally
+            {
+                probe?.Dispose();
+                ownCanvas?.Dispose();
+                rgb?.Dispose();
+            }
+        }
+
+        /// <summary>无输入图像时：按图形坐标范围生成黑底画布，保证图形完整可见</summary>
+        private static HImage GenBlankCanvas(HObject iconic, bool isRegion)
+        {
+            int w = 640, h = 480;
+            if (isRegion)
+            {
+                HOperatorSet.AreaCenter(iconic, out HTuple area, out HTuple row, out HTuple col);
+                if (row.Length > 0)
+                {
+                    HOperatorSet.SmallestRectangle1(iconic, out HTuple r1, out HTuple c1, out HTuple r2, out HTuple c2);
+                    h = (int)Math.Clamp(r2.D + 1, 64, 4096);
+                    w = (int)Math.Clamp(c2.D + 1, 64, 4096);
+                }
+            }
+            else
+            {
+                HOperatorSet.GetContourXld(iconic, out HTuple rows, out HTuple cols);
+                if (rows != null && rows.Length > 0)
+                {
+                    h = (int)Math.Clamp(rows.TupleMax().D + 2, 64, 4096);
+                    w = (int)Math.Clamp(cols.TupleMax().D + 2, 64, 4096);
+                }
+            }
+            var canvas = new HImage("byte", w, h);   // 黑底画布
+            if (canvas.IsInitialized()) return canvas;
+            canvas.Dispose();
+            return null;
         }
 
         #endregion

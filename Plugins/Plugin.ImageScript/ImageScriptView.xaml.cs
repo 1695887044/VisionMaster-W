@@ -243,6 +243,8 @@ namespace Plugin.ImageScript
 
             string err = Plugin.ValidateScript();
             Plugin.ValidationResult = err == null ? "✔ 脚本校验通过（编译无误）" : "✘ " + err;
+            // 校验时接口已按变量表反向同步，刷新顶部签名行显示
+            if (_editTarget != null) EditorTitle.Text = _editTarget.GetProcedureMethod();
             ValidateResultText.Foreground = err == null
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0x7D, 0x32))
                 : System.Windows.Media.Brushes.Red;
@@ -250,7 +252,7 @@ namespace Plugin.ImageScript
             // 解析错误行号 → 编辑器标红 + 跳到首个错误行
             var errorLines = err == null
                 ? null
-                : ParseErrorLines(err, Editor.Document.LineCount);
+                : ParseErrorLines(err, Editor.Text);
             ScriptEditorBehavior.SetErrorLines(Editor, errorLines);
             if (errorLines != null && errorLines.Count > 0)
             {
@@ -261,20 +263,25 @@ namespace Plugin.ImageScript
         }
 
         /// <summary>
-        /// 从 HDevelop 编译错误文本提取行号。
-        /// 形如 "there is an unresolved procedure call: 2: OutValue"——行号 0 基，转 1 基。
+        /// 从编译错误文本提取行号并换算成编辑器真实行号。
+        /// 探针标定：HDevEngine 报的 N 是"第 N 个非空行"（数行时跳过空行），
+        /// 因此在正文里找到第 N 个非空行的实际位置返回。
         /// </summary>
-        private static System.Collections.Generic.List<int> ParseErrorLines(string err, int maxLine)
+        private static System.Collections.Generic.List<int> ParseErrorLines(string err, string bodyText)
         {
             var list = new System.Collections.Generic.List<int>();
+            var lines = (bodyText ?? "").Replace("\r", "").Split('\n');
+
             foreach (System.Text.RegularExpressions.Match m in
-                     System.Text.RegularExpressions.Regex.Matches(err, @"(?<![\w:])(\d{1,4})\s*:"))
+                     System.Text.RegularExpressions.Regex.Matches(err, @"(?:program line|procedure call):\s*(\d{1,4})"))
             {
-                if (int.TryParse(m.Groups[1].Value, out int zeroBased))
+                if (!int.TryParse(m.Groups[1].Value, out int nonEmptyNo) || nonEmptyNo < 1) continue;
+                int seen = 0;
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    int line = zeroBased + 1;
-                    if (line >= 1 && line <= maxLine && !list.Contains(line))
-                        list.Add(line);
+                    if (lines[i].Trim().Length == 0) continue;   // 引擎跳过空行
+                    seen++;
+                    if (seen == nonEmptyNo && !list.Contains(i + 1)) { list.Add(i + 1); break; }
                 }
             }
             return list;
@@ -427,8 +434,9 @@ namespace Plugin.ImageScript
 
             try
             {
-                // 导出前把编辑器当前文本固化回内存模型
+                // 导出前把编辑器当前文本固化回内存模型，并同步接口列表
                 if (_editTarget != null) _editTarget.Body = Editor.Text;
+                Plugin.SyncInterfaceForExport();
                 EProcedure.SaveToFile(dlg.FileName, Plugin.Procedures);
                 MessageBox.Show("导出成功。", "提示",
                     MessageBoxButton.OK, MessageBoxImage.Information);

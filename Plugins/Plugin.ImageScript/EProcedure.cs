@@ -128,7 +128,11 @@ namespace Plugin.ImageScript
                 XmlElement body = myXmlDoc.CreateElement("body");
                 procedure.AppendChild(body);
 
-                string[] strArr = eProcedure.Body.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+                // 先归一行尾再拆：编辑器手敲/粘贴的脚本常是 LF(\n) 或 CR(\r)，
+                // 若只按 \r\n 拆，整个脚本会坍缩成一个 <l> 节点，
+                // HDevelop 视为"一行塞多个算子"→ invalid program line: 1
+                string normalized = eProcedure.Body.Replace("\r\n", "\n").Replace("\r", "\n");
+                string[] strArr = normalized.Split('\n');
                 foreach (string str in strArr)
                 {
                     XmlElement line = myXmlDoc.CreateElement(str.Trim().StartsWith("*") ? "c" : "l"); // c=注释行 l=正常行

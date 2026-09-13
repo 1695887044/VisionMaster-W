@@ -213,18 +213,18 @@
                                             ItemsSource="{Binding DataContext.ScriptVarTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             SelectedItem="{Binding Type}"
                                             ToolTip="声明类型" />
-                                        <!--  HImage 输出才有"显示到窗口"下拉  -->
+                                        <!--  图形类输出（HImage/HRegion/HXld/HObject）都有"显示到窗口"下拉  -->
                                         <ComboBox
                                             Grid.Column="2"
                                             Height="24"
                                             VerticalContentAlignment="Center"
                                             SelectedIndex="{Binding DisplayWindow}"
-                                            ToolTip="把该图像结果显示到主界面第几号视图窗口">
+                                            ToolTip="把该图形结果显示到主界面第几号视图窗口（Region/轮廓叠加画在输入图像上）">
                                             <ComboBox.Style>
                                                 <Style TargetType="ComboBox">
                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Type}" Value="HImage">
+                                                        <DataTrigger Binding="{Binding IsIconic}" Value="True">
                                                             <Setter Property="Visibility" Value="Visible" />
                                                         </DataTrigger>
                                                     </Style.Triggers>

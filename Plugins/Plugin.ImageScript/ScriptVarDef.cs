@@ -59,7 +59,7 @@ namespace Plugin.ImageScript
         }
 
         private int _displayWindow;
-        /// <summary>该输出显示到主界面第几个视图窗口（0=不显示，1~9=窗口1~9；仅 HImage 输出有效）</summary>
+        /// <summary>该输出显示到主界面第几个视图窗口（0=不显示，1~9=窗口1~9；图形类输出 HImage/HRegion/HXld/HObject 有效，Region/轮廓叠加画在输入图像上）</summary>
         public int DisplayWindow
         {
             get => _displayWindow;

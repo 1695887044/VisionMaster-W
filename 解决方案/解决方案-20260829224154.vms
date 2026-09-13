@@ -3,7 +3,7 @@
   "Version": 1.0,
   "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\解决方案\\解决方案-20260829224154.vms",
   "Config": {
-    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"211\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/12/2026 22:27:44\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"267.00000000000006\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/12/2026 22:27:45\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"43.533568904593636*\">\r\n      <LayoutDocumentPane DockHeight=\"0.83125*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/12/2026 22:27:39\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"308\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/12/2026 21:18:28\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/12/2026 21:35:15\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"09/12/2026 21:35:15\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"240.0000000000001\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/12/2026 21:18:01\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
+    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"211\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/13/2026 14:17:21\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"261.66666666666674\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/13/2026 14:17:22\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"43.86336866902237*\">\r\n      <LayoutDocumentPane DockHeight=\"0.83125*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/13/2026 14:16:14\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"308\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/13/2026 04:14:27\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/12/2026 21:35:15\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"09/12/2026 21:35:15\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"240.0000000000001\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/12/2026 21:18:01\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
     "ImageViewMode": 2
   },
   "Flows": [
@@ -23,7 +23,7 @@
       "FlowID": "02797a28407840209f71a539c6813358",
       "FlowName": "MainTask",
       "Description": "主任务",
-      "Version": 1136517,
+      "Version": 1136582,
       "IsEnabled": true,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
@@ -62,7 +62,7 @@
           "Description": "图像脚本",
           "SortId": 0,
           "IsDisEnable": false,
-          "State": 4,
+          "State": 2,
           "InputValues": {
             "DisplayViewIndex": 1,
             "Procedures": {
@@ -90,7 +90,7 @@
                   "CtrlOutputList": [
                     "OutValue"
                   ],
-                  "Body": "\r\nthreshold (Image, OutImage, Value, 255)\r\nOutValue:=10.0\r\nreturn ()\r\n"
+                  "Body": "\r\nthreshold (Image, OutImage, 233, 255)\nreduce_domain (Image, OutImage, OutImage)\r\nOutValue:=10.0\r\nreturn ()\r\n"
                 }
               ]
             },
@@ -103,6 +103,7 @@
                   "Type": 5,
                   "ManualValue": "",
                   "Remark": "",
+                  "DisplayWindow": 0,
                   "IsIconic": true
                 },
                 {
@@ -110,6 +111,7 @@
                   "Type": 1,
                   "ManualValue": "",
                   "Remark": "",
+                  "DisplayWindow": 0,
                   "IsIconic": false
                 }
               ]
@@ -119,9 +121,10 @@
               "$values": [
                 {
                   "Name": "OutImage",
-                  "Type": 6,
+                  "Type": 5,
                   "ManualValue": "",
                   "Remark": "",
+                  "DisplayWindow": 1,
                   "IsIconic": true
                 },
                 {
@@ -129,6 +132,7 @@
                   "Type": 1,
                   "ManualValue": "",
                   "Remark": "",
+                  "DisplayWindow": 0,
                   "IsIconic": false
                 }
               ]
@@ -149,7 +153,7 @@
           "OutputPortDefinitions": [
             {
               "Name": "OutImage",
-              "DataTypeName": "HalconDotNet.HRegion, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8",
+              "DataTypeName": "HalconDotNet.HImage, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8",
               "Description": "OutImage"
             },
             {
