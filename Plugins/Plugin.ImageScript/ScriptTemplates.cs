@@ -38,8 +38,8 @@ namespace Plugin.ImageScript
 read_image (Image, 'hull')
 * 彩色转灰度：机器视觉大多在灰度图上做，数据量小一半
 rgb1_to_gray (Image, GrayImage)
-* 自动拉伸：最暗的拉到0，最亮的拉到255，中间按比例放大
-scale_image_max (GrayImage, ScaleImageMax, Max)
+* 自动拉伸：最暗的拉到0，最亮的拉到255，中间按比例放大（只有入图和出图两个参数）
+scale_image_max (GrayImage, ScaleImageMax)
 * 中值滤波：窗口3去噪（数字越大越糊，3~5常用）
 median_image (ScaleImageMax, Result, 'circle', 3, 'mirrored')
 dev_display (Result)"),
@@ -54,12 +54,13 @@ dev_display (Result)"),
 * ──────────────────────────────────────
 read_image (Image, 'mreut4_3')
 rgb1_to_gray (Image, GrayImage)
-* 第1步 高斯：sigma=1.5，噪声重可到3（越大越糊）
-gauss_image (GrayImage, Gauss, 1.5)
+* 第1步 高斯：Size=5 是「掩膜窗口边长」（整数、奇数），不是标准差；噪声重可到7、9（越大越糊）
+gauss_image (GrayImage, Gauss, 5)
 * 第2步 中值：窗口5，孤立黑白点一次清光
 median_image (Gauss, Median, 'circle', 5, 'mirrored')
-* 第3步 双边：窗口5容差20，去噪同时守住边缘（慢，可省略）
-bilateral_filter (Median, Bilateral, 5, 20)
+* 第3步 双边：Sigma=5容差Theta=20，去噪同时守住边缘（慢，可省略）
+* 参数顺序：原图 → 联合引导图(没有就再填一次原图) → 出图 → Sigma → Theta → 两个_gen参数
+bilateral_filter (Median, Median, Bilateral, 5, 20, [], [])
 dev_display (Bilateral)"),
 
             new TemplateDef("A 图像预处理", "光照不均校正（中间亮四周暗）",
@@ -73,7 +74,7 @@ dev_display (Bilateral)"),
 read_image (Image, 'meningg5')
 rgb1_to_gray (Image, GrayImage)
 * 超大窗口中值：只看得见光照渐变，看不见小细节 → 得到背景亮度图
-median_image (GrayImage, Background, 'circular', 51, 'mirrored')
+median_image (GrayImage, Background, 'circle', 51, 'mirrored')
 * 原图-背景+128：亮度梯度拉平，128=不亮不暗的中性灰
 sub_image (GrayImage, Background, Corrected, 1, 128)
 * 校正后一个普通阈值就能全局分割
@@ -97,8 +98,9 @@ orientation_region (TextRegion, Phi)
 * 以图像中心为轴，构造「转回0度」的旋转矩阵
 get_image_size (GrayImage, Width, Height)
 vector_angle_to_rigid (Height / 2, Width / 2, Phi, Height / 2, Width / 2, 0, HomMat2D)
-* 整图执行旋转（'true'=双线性插值，文字边缘不锯齿）
-affine_trans_image (GrayImage, ImageRectified, HomMat2D, 'constant', 'true')
+* 整图执行仿射（插值模式必须写全名：'nearest_neighbor'快、'bilinear'文字边缘不锯齿）
+* 参数顺序：图 → 出图 → 矩阵 → Interpolate → AdaptImageSize('true'=自动扩大画布防裁掉)
+affine_trans_image (GrayImage, ImageRectified, HomMat2D, 'bilinear', 'false')
 dev_display (ImageRectified)"),
 
             new TemplateDef("A 图像预处理", "彩色检测（按颜色找目标）",
@@ -243,7 +245,7 @@ rgb1_to_gray (Image, GrayImage)
 threshold (GrayImage, Region, 128, 255)
 connection (Region, ConnectedRegions)
 * 圆度0~1越接近1越紧凑，十字约0.5~0.8（按实际放宽）
-select_shape (ConnectedRegions, Crosses, ['circularity','area'], 'and', [0.5,300], 1e7)
+select_shape (ConnectedRegions, Crosses, ['circularity','area'], 'and', [0.5,300], [1.0,1e7])
 count_obj (Crosses, Number)
 if (Number >= 1)
     select_obj (Crosses, FirstCross, 1)
@@ -266,9 +268,14 @@ edges_sub_pix (Image, Edges, 'canny', 1, 20, 40)
 * 只留≥100像素的长轮廓（短的=噪声）
 select_contours_xld (Edges, SelectedContours, 'contour_length', 100, 10000, -0.5, 0.5)
 * 拟合圆：输出圆心Row/Column+半径Radius
-fit_circle_contour_xld (SelectedContours, 'algebraic', -1, 0, 0, 5, Row, Column, Radius, StartPhi, EndPhi, PointOrder)
+* 参数顺序：轮廓 → 算法 → MaxNumPoints → MaxClosureDist → ClippingEndPoints → Iterations → ClippingFactor → 6个输出
+fit_circle_contour_xld (SelectedContours, 'algebraic', -1, 0, 0, 5, 2, Row, Column, Radius, StartPhi, EndPhi, PointOrder)
 dev_display (Image)
-dev_display (SelectedContours)"),
+* 把拟合出来的圆画回去，一眼看合得上合不上
+gen_circle_contour_xld (FitCircle, Row, Column, Radius, 0, 6.283, 'positive', 1)
+dev_set_color ('green')
+dev_set_line_width (2)
+dev_display (FitCircle)"),
 
             new TemplateDef("C 定位", "边缘角度定位（测倾角）",
 @"* ──────────────────────────────────────
@@ -301,16 +308,20 @@ read_image (Image, 'marks')
 rgb1_to_gray (Image, GrayImage)
 threshold (GrayImage, Region, 128, 255)
 connection (Region, ConnectedRegions)
-select_shape (ConnectedRegions, Marks, ['circularity','area'], 'and', [0.7,200], 1e7)
+* 坑：Features 给2个时，Min/Max 也必须各给2个值（一一对应），不能只写一个标量
+select_shape (ConnectedRegions, Marks, ['circularity','area'], 'and', [0.7,200], [1.0,1e7])
 count_obj (Marks, Number)
+* ── 示教参数区：设计图纸上Mark1的理论位置（量产由示教/配方写入，这里给示例值保证可跑）──
+RefRow := 120
+RefCol := 100
 if (Number >= 2)
     select_obj (Marks, Mark1, 1)
     select_obj (Marks, Mark2, 2)
     area_center (Mark1, A1, Row1, Col1)
     area_center (Mark2, A2, Row2, Col2)
-    ' Mark1→Mark2连线方向角=工件X轴
+    * Mark1→Mark2连线方向角=工件X轴
     Angle := atan2(Row2 - Row1, Col2 - Col1)
-    ' (RefRow,RefCol)=设计时Mark1位置；之后任何设计坐标一乘就准
+    * (RefRow,RefCol)=设计时Mark1位置；之后任何设计坐标一乘就准
     vector_angle_to_rigid (RefRow, RefCol, 0, Row1, Col1, Angle, HomMat2D)
     affine_trans_pixel (HomMat2D, 100, 200, ActRow, ActCol)
 endif
@@ -329,16 +340,29 @@ dev_display (Marks)"),
 * ──────────────────────────────────────
 read_image (Image, 'fabrik')
 rgb1_to_gray (Image, GrayImage)
+* 坑①：绝不要拿整图建模！fabrik 512x512 整图建模后 find 返回 0 个结果——
+*       'auto' 优化在大图上把特征点剪得只剩几个，搜索直接扑空。
+*       正确做法：只裁「产品本体」一小块建模（示教时用鼠标框，这里写死中心201x201）
+crop_rectangle1 (GrayImage, Template, 156, 156, 356, 356)
 * 建模：金字塔4层,角度0~360°步长3°,'use_polarity'明暗可反转,对比度30
-create_shape_model (Image, 4, 0, rad(3), rad(360), 'auto', 'use_polarity', 30, 10, ModelID)
+* 坑②：参数顺序 NumLevels,AngleStart,AngleExtent,AngleStep —— Extent(跨度)在前、Step(步长)在后
+create_shape_model (Template, 4, 0, rad(360), rad(3), 'auto', 'use_polarity', 30, 10, ModelID)
 * 匹配：分数≥0.5才算找到(误报多调高到0.7),只要1个最优
-find_shape_model (Image, ModelID, 0, rad(360), 0.5, 1, 30, 'none', 0.75, Row, Column, Angle, Score)
-* 把模型轮廓画到匹配位置——肉眼一秒验证匹配对不对
+* 参数顺序：图 → 模型 → 起始角 → 角度范围 → MinScore → NumMatches → MaxOverlap → SubPixel → NumLevels → Greediness → 4个输出
+find_shape_model (GrayImage, ModelID, 0, rad(360), 0.5, 1, 0.5, 'none', 0, 0.5, Row, Column, Angle, Score)
 get_shape_model_contours (ModelContours, ModelID, 1)
-vector_angle_to_rigid (0, 0, 0, Row, Column, Angle, HomMat2D)
-affine_trans_contour_xld (ModelContours, TransContours, HomMat2D)
 dev_display (Image)
-dev_display (TransContours)
+* 坑③：没匹到的时候 Row/Column 是「空数组」，直接喂给 vector_angle_to_rigid
+*       会报 Wrong number of values of control parameter 4 —— 必须先判 |Row|
+if (|Row| == 0)
+    Result := 'NOT_FOUND'
+else
+    * 把模型轮廓画到匹配位置——肉眼一秒验证匹配对不对
+    vector_angle_to_rigid (0, 0, 0, Row, Column, Angle, HomMat2D)
+    affine_trans_contour_xld (ModelContours, TransContours, HomMat2D)
+    dev_display (TransContours)
+    Result := 'OK'
+endif
 * 进阶：模型可 write_shape_model 存盘，量产程序只 read 不 create（省建模时间）"),
 
             new TemplateDef("D 模板匹配", "灰度NCC匹配（纹理型产品）",
@@ -351,14 +375,17 @@ dev_display (TransContours)
 * ──────────────────────────────────────
 read_image (Image, 'engraved')
 rgb1_to_gray (Image, GrayImage)
-* 建NCC模型：金字塔4层,角度0~360°步长3°,不缩放
-create_ncc_model (Image, 4, 0, rad(3), rad(360), 'false', 'auto', ModelID)
+* 建NCC模型：金字塔4层,角度0~360°步长3°
+* 参数顺序：图 → NumLevels → AngleStart → AngleExtent → AngleStep → Metric → ModelID（NCC没有'false'/'auto'这两项）
+create_ncc_model (Image, 4, 0, rad(360), rad(3), 'use_polarity', ModelID)
 * 匹配：MinScore 0.5起步，误报往0.7调
 find_ncc_model (Image, ModelID, 0, rad(360), 0.5, 1, 0.75, 'true', 0, Row, Column, Angle, Score)
 dev_display (Image)
 if (|Row| > 0)
-    ' 十字标出匹配中心
-    disp_cross (24, Row, Column, 30, 'green')
+    * 十字标出匹配中心：臂长30像素，0.7854弧度=45°斜十字（比正十字醒目）
+    gen_cross_contour_xld (Cross, Row, Column, 30, 0.7854)
+    dev_set_color ('green')
+    dev_display (Cross)
 endif"),
 
             new TemplateDef("D 模板匹配", "ROI随匹配位姿联动",
@@ -369,19 +396,32 @@ endif"),
 * 三步：匹配得位姿 → 变换设计ROI → reduce_domain只检ROI内部
 * 坑：RefRow/RefCol必须填「建模时产品中心」，填错ROI会整体偏移
 * ──────────────────────────────────────
-read_image (Image, 'ic_pin')
+read_image (Image, 'clip')
 rgb1_to_gray (Image, GrayImage)
-* 第1步：匹配产品本体（ModelID先用形状匹配例程建好）
-find_shape_model (Image, ModelID, -rad(10), rad(20), 0.5, 1, 30, 'none', 0.75, Row, Column, Angle, Score)
-* 第2步：设计阶段画好的ROI（行100~180，列100~260）
-gen_rectangle1 (ROIDesign, 100, 100, 180, 260)
-* 第3步：设计ROI→实际ROI（跟着产品平移旋转）
-vector_angle_to_rigid (RefRow, RefCol, 0, Row, Column, Angle, HomMat2D)
-affine_trans_region (ROIDesign, ROITrans, HomMat2D, 'false')
-* 第4步：后续检测只在ROI内——又快又稳，视野外干扰全隔绝
-reduce_domain (Image, ROITrans, ImageReduced)
+* 第1步：匹配产品本体
+* ModelID 正常应示教一次后 write_shape_model 存盘、量产只 read_shape_model；
+* 这里为保证示例可直接运行，现场建模一次
+* ⚠ 只裁产品中心建模：整图建模在大图上会被'auto'剪到没特征，find直接返回0个结果
+crop_rectangle1 (GrayImage, Template, 351, 355, 471, 475)
+create_shape_model (Template, 4, 0, rad(360), rad(3), 'auto', 'use_polarity', 30, 10, ModelID)
+find_shape_model (GrayImage, ModelID, -rad(10), rad(20), 0.5, 1, 0.5, 'none', 0, 0.5, Row, Column, Angle, Score)
+* 第2步：设计阶段画好的ROI（行300~380，列300~460）
+gen_rectangle1 (ROIDesign, 300, 300, 380, 460)
+* ── 示教参数区：建模那一刻那块产品中心（填错则ROI整体偏移）──
+RefRow := 411
+RefCol := 415
 dev_display (Image)
-dev_display (ROITrans)"),
+* 第3步：设计ROI→实际ROI（跟着产品平移旋转）
+if (|Row| == 0)
+    * 没匹到就退回设计位置显示；量产时要报警停机，绝不能拿空数组算位姿
+    dev_display (ROIDesign)
+else
+    vector_angle_to_rigid (RefRow, RefCol, 0, Row, Column, Angle, HomMat2D)
+    affine_trans_region (ROIDesign, ROITrans, HomMat2D, 'false')
+    * 第4步：后续检测只在ROI内——又快又稳，视野外干扰全隔绝
+    reduce_domain (Image, ROITrans, ImageReduced)
+    dev_display (ROITrans)
+endif"),
 
             new TemplateDef("D 模板匹配", "多目标匹配（一帧找N个同款）",
 @"* ──────────────────────────────────────
@@ -392,8 +432,12 @@ dev_display (ROITrans)"),
 * ──────────────────────────────────────
 read_image (Image, 'pellets')
 rgb1_to_gray (Image, GrayImage)
-* ModelID 需先对单个颗粒建模（见形状匹配例程）
-find_shape_model (Image, ModelID, 0, rad(360), 0.4, 100, 0.5, 'none', 0.75, Row, Column, Angle, Score)
+* ModelID 正常由示教对「单个颗粒」建一次；这里为保证示例可跑，先裁出一颗现场建模
+* 坑：建模图一定要 crop_rectangle1 / crop_domain 裁到只剩一个产品，
+*     整图建模会把背景边缘当特征学进去，反而匹配不上
+crop_rectangle1 (Image, Template, 100, 100, 200, 200)
+create_shape_model (Template, 4, 0, rad(360), rad(3), 'auto', 'use_polarity', 30, 10, ModelID)
+find_shape_model (Image, ModelID, 0, rad(360), 0.4, 100, 0.5, 'none', 0, 0.75, Row, Column, Angle, Score)
 * 实际找到的个数=结果数组长度
 NumFound := |Score|
 * 遍历拼成CSV文本发给上位机
@@ -418,6 +462,15 @@ dev_display (Image)"),
 read_image (Image, 'ic0')
 rgb1_to_gray (Image, GrayImage)
 get_image_size (GrayImage, Width, Height)
+* ── 示教参数区：卡尺的位置/角度/尺寸 + 像素当量 ──
+* 量产时这几项全部由「示教界面拖动卡尺」得到并存进配方，此处给一组能跑通的示例值
+* 注意：CAPhi=0 时卡尺长边沿水平方向，CAPhi=rad(90) 才是竖直方向
+CARow := 0.5 * Height
+CAColumn := 0.5 * Width
+CAPhi := 0.0
+CAL1 := 0.2 * Width
+CAL2 := 20
+PixelSizeMm := 0.01
 * 第1步 放卡尺：中心(CARow,CAColumn) 方向CAPhi 半长CAL1 半宽CAL2
 gen_measure_rectangle2 (CARow, CAColumn, CAPhi, CAL1, CAL2, Width, Height, 'bilinear', MeasureHandle)
 * 第2步 扫描：Sigma1平滑 Threshold30灵敏度 'all'任意方向跳变全收
@@ -431,19 +484,28 @@ dev_display (Image)"),
 * 例｜量孔径：绕孔扫一圈边缘点，拟合出精确直径（机加工首件检测常用）
 * 比方：量井口直径——拿很多把小尺子沿圆周挨个量到井壁，
 *       所有点连起来套个最合适的圆，直径就出来了
-* 三步：给粗圆心粗半径 → 沿圆周布几十把卡尺 → 扫出的点拟合精确圆
-* 坑：粗半径误差±20%以内没关系，搜索带宽3像素会自己找到真边缘
+* 三步：粗定位圆 → 沿圆周布几十把卡尺 → 扫出的点拟合精确圆
+* 坑：粗半径误差±20%以内没关系，搜索带宽给足会自己找到真边缘
 * ──────────────────────────────────────
 read_image (Image, 'double_circle')
 rgb1_to_gray (Image, GrayImage)
 get_image_size (GrayImage, Width, Height)
-* 沿整圆每5.7°放一把卡尺，搜索带宽3像素
-gen_measure_arc (CoarseRow, CoarseColumn, CoarseRadius, 0, rad(360), rad(0.1), 3, Width, Height, 'bilinear', MeasureHandle)
+* 第1步 粗定位：分割出圆→最小外接圆，拿到粗圆心粗半径（实际项目由示教或匹配给出）
+threshold (GrayImage, Rough, 128, 255)
+smallest_circle (Rough, CoarseRow, CoarseColumn, CoarseRadius)
+* 第2步 沿整圆布卡尺：AnnulusRadius=15像素是搜索带宽，用来容忍粗定位的偏差
+* 参数顺序：粗圆心行 → 粗圆心列 → 粗半径 → 起始角 → 角度范围 → 搜索带宽 → 图宽 → 图高 → 插值 → 句柄
+gen_measure_arc (CoarseRow, CoarseColumn, CoarseRadius, 0, rad(360), 15, Width, Height, 'bilinear', MeasureHandle)
 measure_pos (Image, MeasureHandle, 1, 30, 'all', 'all', RowEdge, ColumnEdge, Amplitude, Distance)
-* 扫到的边缘点串成轮廓→拟合精确圆
+* 第3步 扫到的边缘点串成轮廓→拟合精确圆（最后那个2是ClippingFactor，必给）
 gen_contour_polygon_xld (Contour, RowEdge, ColumnEdge)
-fit_circle_contour_xld (Contour, 'algebraic', -1, 0, 0, 5, Row, Column, Radius, StartPhi, EndPhi, PointOrder)
+fit_circle_contour_xld (Contour, 'algebraic', -1, 0, 0, 5, 2, Row, Column, Radius, StartPhi, EndPhi, PointOrder)
+* 像素当量(毫米/像素)：量产程序里由标定得到，这里给个示例值
+PixelSizeMm := 0.01
 Diameter_mm := Radius * 2 * PixelSizeMm
+* 卡尺句柄用完必须释放，否则连续跑会累积泄漏
+* 注意：算子名是 close_measure（关闭测量对象），不存在 clear_measure
+close_measure (MeasureHandle)
 dev_display (Image)
 dev_display (Contour)"),
 
@@ -457,15 +519,19 @@ dev_display (Contour)"),
 * ──────────────────────────────────────
 read_image (Image, 'fuse')
 rgb1_to_gray (Image, GrayImage)
+get_image_size (GrayImage, Width, Height)
 * 金属丝比背景暗 → 取暗区
 threshold (GrayImage, WireRegion, 0, 100)
 connection (WireRegion, ConnectedRegions)
 * 最大的一段=被测的丝
 select_shape_std (ConnectedRegions, MainWire, 'max_area', 70)
 * 距离变换：每个丝上像素记录「离最近边缘多远」，中心处=半宽
-distance_transform (MainWire, DistImage, 'euclidean', 'max')
+* 参数顺序：区域 → 出图 → 距离类型 → Foreground('true'=算区域内的点) → 图宽 → 图高（宽和后两项必填，没有'max'这个值）
+distance_transform (MainWire, DistImage, 'euclidean', 'true', Width, Height)
 * 丝上距离值的最大/最小=最粗处/最细处半宽
 intensity (MainWire, DistImage, MinDist, MaxDist)
+* 像素当量(毫米/像素)：由标定得到，这里给个示例值
+PixelSizeMm := 0.01
 WidthMax_mm := MaxDist * 2 * PixelSizeMm
 dev_display (Image)
 dev_display (MainWire)"),
@@ -483,6 +549,7 @@ Known_mm := 10.0
 Known_pixel := 512.0
 PixelPerMm := Known_pixel / Known_mm
 * 之后任何测量值：毫米 = 像素 / 系数
+AnyDistance_pixel := 300.0
 Measured_mm := AnyDistance_pixel / PixelPerMm
 * 完整标定（矫正镜头畸变/倾斜视角）：用HDevelop标定助手配calib_data_*算子族
 * 参考图片 'caltab'（Halcon标准标定板）"),
@@ -491,20 +558,41 @@ Measured_mm := AnyDistance_pixel / PixelPerMm
 @"* ──────────────────────────────────────
 * 例｜点线偏差：孔中心偏离理论边多少、边缘直线度等几何量
 * 比方：测墙歪不歪——拉条基准线（拟合直线），量钉子（点）到线的垂距
-* 三步：拟合基准直线 → 拿到目标点 → 叉积公式算垂距
+* 三步：图上拟合出基准直线 → 拿到目标点 → 叉积公式算垂距
 * 坑：公式里的Row/Column顺序别写反；distance_pp是「两点距离」不是点线
 * ──────────────────────────────────────
 read_image (Image, 'numbers_scale')
-* 直线L两端点(LRow1,LCol1)-(LRow2,LCol2) 来自fit_line_contour_xld
-* 目标点P(PRow,PCol) 来自area_center
-* 垂距=向量叉积/线长（一步到位，不用求垂足）
+* 第1步 拟合基准线：亚像素边缘 → 只留≥60像素的长轮廓 → 拟合直线
+* fit_line参数顺序：轮廓 → 算法 → MaxNumPoints → ClippingEndPoints → Iterations → ClippingFactor → 7个输出
+edges_sub_pix (Image, Edges, 'canny', 1, 20, 40)
+select_contours_xld (Edges, LongEdges, 'contour_length', 60, 100000, -0.5, 0.5)
+fit_line_contour_xld (LongEdges, 'regression', -1, 0, 5, 2, LineRows, LineCols, LineEndRows, LineEndCols, Nr, Nc, Dist)
+* 取第一条线做演示（实际项目里按需要 select_obj 挑）
+LRow1 := LineRows[0]
+LCol1 := LineCols[0]
+LRow2 := LineEndRows[0]
+LCol2 := LineEndCols[0]
+* 第2步 目标点：实际项目里来自 area_center，这里取图像中部一个点
+PRow := 120
+PCol := 200
+* 第3步 垂距=向量叉积/线长（一步到位，不用求垂足）
 dRow := LRow2 - LRow1
 dCol := LCol2 - LCol1
 LineLen := sqrt(dRow * dRow + dCol * dCol)
 DistPointLine := abs((PRow - LRow1) * dCol - (PCol - LCol1) * dRow) / LineLen
 * 两点距离直接用 distance_pp：
 distance_pp (PRow, PCol, LRow1, LCol1, DistToStart)
-Deviation_mm := DistPointLine * PixelSizeMm"),
+* 像素当量(毫米/像素)：由标定得到，这里给个示例值
+PixelSizeMm := 0.01
+Deviation_mm := DistPointLine * PixelSizeMm
+* 画出来：基准线 + 目标点十字
+gen_contour_polygon_xld (RefLine, [LRow1,LRow2], [LCol1,LCol2])
+gen_cross_contour_xld (Cross, PRow, PCol, 20, 0.7854)
+dev_display (Image)
+dev_set_color ('yellow')
+dev_display (RefLine)
+dev_set_color ('green')
+dev_display (Cross)"),
 
             // ═══════════════════════ F 识别 ═══════════════════════
 
@@ -524,7 +612,8 @@ binary_threshold (GrayImage, TextRegion, 'max_separability', 'light', UsedThresh
 connection (TextRegion, ConnectedRegions)
 select_shape (ConnectedRegions, Chars, ['height','width','area'], 'and', [8,4,20], [30,30,500])
 * 第3步 按阅读顺序排（像读书一样先上后左）
-sort_region (Chars, SortedChars, 'character', 'true', 'row', 'column')
+* sort_region只有5个参数：区域 → 出区域 → SortMode → Order → RowOrCol（'row'即先行后列，没有第6个）
+sort_region (Chars, SortedChars, 'character', 'true', 'row')
 * 第4步 加载自带「认字字典」(0-9A-Z) 认每个字符
 read_ocr_class_mlp ('Industrial_0-9A-Z_Rej', OCRHandle)
 do_ocr_multi_class_mlp (SortedChars, Image, OCRHandle, Class, Confidence)
@@ -550,7 +639,7 @@ binary_threshold (GrayImage, CharRegion, 'max_separability', 'dark', UsedThresho
 dilation_circle (CharRegion, RegionDilation, 2.0)
 connection (RegionDilation, ConnectedRegions)
 select_shape (ConnectedRegions, Chars, ['height','width'], 'and', [15,8], [40,40])
-sort_region (Chars, SortedChars, 'character', 'true', 'row', 'column')
+sort_region (Chars, SortedChars, 'character', 'true', 'row')
 read_ocr_class_mlp ('Industrial_0-9A-Z_Rej', OCRHandle)
 do_ocr_multi_class_mlp (SortedChars, Image, OCRHandle, Class, Confidence)
 Text := ''
@@ -572,8 +661,11 @@ read_image (Image, 'engraved')
 * 'Data Matrix ECC 200'=最通用的DM码标准
 create_data_code_2d_model ('Data Matrix ECC 200', [], [], DataCodeHandle)
 * 全图搜索（[]=不限ROI）；结果字符串在DecodedDataStrings
-find_data_code_2d (Image, [], [], DataCodeHandle, ResultHandles, DecodedDataStrings)
-count_obj (ResultHandles, Number)
+* 参数顺序：图 → 码的轮廓XLD → 句柄 → 通用参数名[] → 通用参数值[] → 结果句柄 → 解码文本
+find_data_code_2d (Image, SymbolXLDs, DataCodeHandle, [], [], ResultHandles, DecodedDataStrings)
+* 坑：ResultHandles 是「句柄数组」(控制量)，不是图元对象，不能用 count_obj；
+*     数个数直接用 |数组| 取长度
+Number := |ResultHandles|
 if (Number > 0)
     CodeText := DecodedDataStrings[0]
 endif
@@ -590,7 +682,7 @@ read_image (Image, 'audi2')
 rgb1_to_gray (Image, GrayImage)
 create_bar_code_model ([], [], BarCodeHandle)
 * 解码：Region=[]全图搜；找到后Region=条码位置
-find_bar_code (Image, Region, BarCodeHandle, 'Automatic', DecodedDataStrings)
+find_bar_code (Image, Region, BarCodeHandle, 'auto', DecodedDataStrings)
 if (|DecodedDataStrings| > 0)
     Barcode := DecodedDataStrings[0]
 endif
@@ -614,8 +706,11 @@ opening_circle (GlueRegion, GlueClean, 1.5)
 connection (GlueClean, ConnectedRegions)
 count_obj (ConnectedRegions, BeadCount)
 * 最大一段=主胶线，它的面积=胶量指标
+* 注意：23.05 没有 area 这个算子，取面积统一用 area_center，行/列用 _ 占位丢弃
 select_shape_std (ConnectedRegions, MainBead, 'max_area', 70)
-area (MainBead, MainArea)
+area_center (MainBead, MainArea, _, _)
+* ── 示教参数区：合格主胶段的最小面积（由「黄金样品」实测得到，写进配方）──
+MinAreaExpected := 5000
 if (BeadCount > 3 or MainArea < MinAreaExpected)
     Result := 'NG'
 else
@@ -633,13 +728,20 @@ dev_display (MainBead)"),
 * 坑：工件位置会动→先模板匹配定位再圈ROI（见D类ROI联动例程）
 * ──────────────────────────────────────
 read_image (Image, 'clip')
+* ── 示教参数区：ROI四角坐标（量产由示教界面画框得到并存进配方）──
+* 这里取一块 100x200 的示例框；位置会动的产品要先匹配定位再变换ROI（见D类例程）
+ROI_Row1 := 100
+ROI_Col1 := 100
+ROI_Row2 := 200
+ROI_Col2 := 300
 * 第1步 圈定ROI（坐标设计时定死）
 gen_rectangle1 (ROIDesign, ROI_Row1, ROI_Col1, ROI_Row2, ROI_Col2)
 reduce_domain (Image, ROIDesign, ImageReduced)
 * 第2步 ROI内数亮像素（零件比背景亮）
 rgb1_to_gray (ImageReduced, GrayImage)
 threshold (GrayImage, PartRegion, 150, 255)
-area (PartRegion, PartArea)
+* 取面积只用 area_center（没有单独的 area 算子），圆心的行/列用 _ 丢弃
+area_center (PartRegion, PartArea, _, _)
 area_center (ROIDesign, ROIArea, ROIRow, ROICol)
 * 第3步 占比判定（零件实际占ROI约80%→阈值0.6留余量）
 Ratio := PartArea / ROIArea
@@ -662,7 +764,7 @@ dev_display (ROIDesign)"),
 read_image (Image, 'can')
 rgb1_to_gray (Image, GrayImage)
 * 局部均值±标准差判异常：邻域15×15，只查比周围亮的('light')
-var_threshold (GrayImage, DirtyRegion, [15,15], [15,15], 0.4, 2, 'light')
+var_threshold (GrayImage, DirtyRegion, 15, 15, 0.4, 2, 'light')
 connection (DirtyRegion, ConnectedRegions)
 select_shape (ConnectedRegions, Defects, 'area', 'and', 30, 1e6)
 count_obj (Defects, Number)
@@ -679,8 +781,8 @@ dev_display (Defects)"),
 * ──────────────────────────────────────
 read_image (RefImage, 'bga_14x14_model')
 read_image (Image, 'bga_14x14_defects')
-* 逐像素差的绝对值：一样=0，不一样=差值
-abs_diff_image (Image, RefImage, AbsDiff, 'actual', 'false')
+* 逐像素差的绝对值：一样=0，不一样=差值×系数（abs_diff_image 只有4个参数）
+abs_diff_image (Image, RefImage, AbsDiff, 1)
 * 差值>50才算真差异（以下=压缩噪声）
 threshold (AbsDiff, DiffRegion, 50, 255)
 connection (DiffRegion, ConnectedRegions)
@@ -703,18 +805,29 @@ rgb1_to_gray (Image, GrayImage)
 threshold (GrayImage, RimRegion, 100, 255)
 boundary (RimRegion, RegionBorder, 'outer')
 gen_contour_region_xld (RegionBorder, Contour, 'border')
+* ── 圆心：这里先用「区域质心」粗算（更稳的做法是模板匹配或拟合圆给出）──
+area_center (RimRegion, RimArea, CenterRow, CenterCol)
 * 把轮廓「搬」到圆心在原点的位置（仿射矩阵平移）
 affine_trans_contour_xld (Contour, ContourCentered, [1,0,-CenterRow,0,1,-CenterCol])
-get_contour_xld (ContourCentered, Rows, Cols)
-* 每点到圆心距离=半径数组
-RadiusArr := sqrt(Rows * Rows + Cols * Cols)
-tuple_mean (RadiusArr, MeanR)
-MinR := min(RadiusArr)
-* 最浅处比平均半径小15% = 有崩口（按零件实际调）
-if (MinR < MeanR * 0.85)
+* gen_contour_region_xld 一次产出「多条」轮廓，而 get_contour_xld 只吃「一条」
+* 所以先按长度筛出最长的那条（=轮缘外圈），再取点；一条都没有时直接判NG
+select_contours_xld (ContourCentered, LongContours, 'contour_length', 500, 1000000000, -0.5, 0.5)
+count_obj (LongContours, NumContours)
+if (NumContours == 0)
     Result := 'NG'
 else
-    Result := 'OK'
+    select_obj (LongContours, OneContour, 1)
+    get_contour_xld (OneContour, Rows, Cols)
+    * 每点到圆心距离=半径数组
+    RadiusArr := sqrt(Rows * Rows + Cols * Cols)
+    tuple_mean (RadiusArr, MeanR)
+    MinR := min(RadiusArr)
+    * 最浅处比平均半径小15% = 有崩口（按零件实际调）
+    if (MinR < MeanR * 0.85)
+        Result := 'NG'
+    else
+        Result := 'OK'
+    endif
 endif
 dev_display (Image)
 dev_display (Contour)"),
@@ -763,22 +876,36 @@ dev_display (Simplified)"),
 
             new TemplateDef("I 结果显示", "图像标注（文字+十字+圆圈）",
 @"* ──────────────────────────────────────
-* 例｜图上写结果：检测完在图上标NG红字/目标十字/缺陷圈
+* 例｜图上画标注：检完在图上标 NG 红字 / 目标十字 / 缺陷圈
 * 比方：老师批改作业画红圈打勾——机器检完也要「画给操作员看」，
 *       人机互信全靠这一笔
-* 常用件：disp_cross十字 disp_circle圆圈 disp_text文字 set_display_font字体
-* 坑：标注只在dev_display的窗口里看，不影响输出的图像数据本身
+* 三件套：dev_disp_text 文字  gen_cross_contour_xld 十字  gen_circle 圆圈
+* 关键：标注只改「显示效果」，不改图像数据本身（存盘出去的还是干净原图）
+* 坑：网上抄来的 disp_cross / disp_circle / set_display_font 在本插件里
+*     全不可用（HDevEngine 只认 dev_* 那一套），一律换成三行式：
+*     gen_* 生成几何 → dev_set_color 定色 → dev_display 画出来
 * ──────────────────────────────────────
 read_image (Image, 'fabrik')
+get_image_size (Image, Width, Height)
 dev_display (Image)
-* 设字体：字号16等宽加粗（一次设置整个窗口有效）
-set_display_font (24, 16, 'mono', 'true', 'false')
-* 目标中心画十字（大小40）
-disp_cross (24, Row, Column, 40, 'green')
-* 缺陷位置画红圈（半径50）
-disp_circle (24, DefectRow, DefectCol, 50, 'red', 'margin', 'false')
-* 左上角写结果文字
-disp_text (24, 'Result: 3 defects', 'image', 5, 10, 'red')"),
+* ① 目标中心画绿色十字：臂长40像素，角度0.7854弧度（=45°斜十字，更醒目）
+Row := Height * 0.40
+Column := Width * 0.45
+gen_cross_contour_xld (Cross, Row, Column, 40, 0.7854)
+dev_set_color ('green')
+dev_display (Cross)
+* ② 缺陷位置画红圈：margin=只描边（fill会把缺陷整个糊住）
+DefectRow := Height * 0.62
+DefectCol := Width * 0.60
+gen_circle (Defect, DefectRow, DefectCol, 50)
+dev_set_draw ('margin')
+dev_set_color ('red')
+dev_display (Defect)
+* ③ 左上角写结论：'window'=钉在窗口角上，缩放时不跟着跑
+*    末两项给文字垫黑底（box），深色图上照样看得清
+dev_disp_text ('Result: 3 defects', 'window', 'top', 'left', 'red', ['box','box_color'], ['true','black'])
+* ④ 缺陷旁写编号：'image'=用图像坐标，文字跟着缺陷一起缩放
+dev_disp_text ('#1', 'image', DefectRow - 60, DefectCol + 55, 'yellow', [], [])"),
 
             new TemplateDef("I 结果显示", "图像存盘留档（NG追溯）",
 @"* ──────────────────────────────────────
@@ -787,10 +914,13 @@ disp_text (24, 'Result: 3 defects', 'image', 5, 10, 'red')"),
 * 用法：write_image(图,'png',0,'文件名前缀')，-1结尾自动加序号防覆盖
 * 坑：留档目录要定期清理！每天几百张NG图会吃满硬盘（配删除任务）
 * ──────────────────────────────────────
+read_image (Image, 'fabrik')
+* ── 示教参数区：Result 由前面的检测例程给出；这里给个示例值保证脚本可独立跑 ──
+Result := 'NG'
 * 只存NG品（Result来自前面检测例程的判定）
 if (Result == 'NG')
-    ' 存到程序目录 ng_records\ 下，png无损，序号自动递增
-    write_image (Image, 'png', 0, 'ng_records/ng_image')
+    * 存到程序目录下，png无损，末参数自动追加序号防覆盖
+    write_image (Image, 'png', 0, 'ng_image')
 endif
 * 想连「标注画面」一起存：grab_window(24, Screen)抓屏后再write_image(Screen,...)"),
 
@@ -809,11 +939,12 @@ CheckRows := [120,160,200,240,280]
 CheckCols := [300,300,300,300,300]
 Results := []
 for i := 0 to |CheckRows| - 1 by 1
-    ' 以清单项为中心建20x60的ROI并检测（注意：for循环内注释用单引号开头）
+    * 以清单项为中心建20x60的ROI并检测（注意：HDevelop里注释一律用星号开头，单引号会被当成代码而报错）
     gen_rectangle1 (ROI, CheckRows[i] - 10, CheckCols[i] - 30, CheckRows[i] + 10, CheckCols[i] + 30)
     reduce_domain (GrayImage, ROI, ImageReduced)
     threshold (ImageReduced, Bright, 128, 255)
-    area (Bright, BrightArea)
+    * 取面积统一用 area_center，行/列用 _ 丢弃
+    area_center (Bright, BrightArea, _, _)
     Results := [Results,BrightArea]
 endfor
 * 汇总：最小面积=最差检查位（每个>200才算全OK）
@@ -835,8 +966,21 @@ dev_display (ROI)"),
 read_image (Image, 'needle1')
 rgb1_to_gray (Image, GrayImage)
 get_image_size (GrayImage, Width, Height)
-* ── 第1步 定位产品本体（ModelID先按形状匹配例程建好）──
-find_shape_model (Image, ModelID, -rad(10), rad(20), 0.5, 1, 30, 'none', 0.75, MRow, MCol, MAngle, MScore)
+* ── 示教参数区：以下每一项都来自「示教 + 黄金样品」，换型时只改这一段 ──
+* 建模那一刻的产品中心
+RefRow := 0.5 * Height
+RefCol := 0.5 * Width
+* 设计阶段画好的检测框（行/列上下界）
+ROI_R1 := 0.25 * Height
+ROI_C1 := 0.20 * Width
+ROI_R2 := 0.75 * Height
+ROI_C2 := 0.80 * Width
+* 规格限：胶区最小面积、允许最大胶宽(mm)
+MinAreaExpected := 3000
+MaxWidth_mm := 0.6
+* ── 第1步 定位产品本体（正常示教建模后存盘；这里现场建一次保证示例可跑）──
+create_shape_model (Image, 4, 0, rad(360), rad(3), 'auto', 'use_polarity', 30, 10, ModelID)
+find_shape_model (Image, ModelID, -rad(10), rad(20), 0.5, 1, 0.5, 'none', 0, 0.75, MRow, MCol, MAngle, MScore)
 if (|MRow| == 0)
     Result := 'NG-找不到产品'
     return ()
@@ -851,14 +995,16 @@ threshold (ImageReduced, GlueRegion, 0, 100)
 opening_circle (GlueRegion, GlueClean, 1.5)
 connection (GlueClean, ConnectedRegions)
 * ── 第4步 四连判定 ──
-* 4a 有无：胶区总面积
-area (GlueClean, GlueArea)
+* 4a 有无：胶区总面积（没有 area 算子，用 area_center + _ 丢掉圆心）
+area_center (GlueClean, GlueArea, _, _)
 * 4b 连续：段数≤2为连续
 count_obj (ConnectedRegions, BeadCount)
-* 4c 宽度：主段距离变换取最大半宽
+* 4c 宽度：主段距离变换取最大半宽（Foreground='true'，图宽图高必填）
 select_shape_std (ConnectedRegions, MainBead, 'max_area', 70)
-distance_transform (MainBead, DistImage, 'euclidean', 'max')
+distance_transform (MainBead, DistImage, 'euclidean', 'true', Width, Height)
 intensity (MainBead, DistImage, MinDist, HalfWidthMax)
+* 像素当量(毫米/像素)：由标定得到，这里给个示例值
+PixelSizeMm := 0.01
 GlueWidth_mm := HalfWidthMax * 2 * PixelSizeMm
 * 4d 综合判定（规格：面积≥MinArea 段数≤2 宽度≤MaxWidth）
 if (GlueArea < MinAreaExpected)
@@ -894,11 +1040,11 @@ count_obj (Parts, Number)
 * ── 第2步 逐个零件算抓取点+角度 ──
 for i := 1 to Number by 1
     select_obj (Parts, Part, i)
-    ' 抓取点=质心
+    * 抓取点=质心
     area_center (Part, Area, Row, Column)
-    ' 抓取角=最小外接矩形方向（吸盘要顺着零件长边转）
+    * 抓取角=最小外接矩形方向（吸盘要顺着零件长边转）
     smallest_rectangle2 (Part, RC, CC, Phi, Length1, Length2)
-    ' 输出给机器人的数据（示意：拼成字符串走通讯）
+    * 输出给机器人的数据（示意：拼成字符串走通讯）
     tuple_number (Row, RStr)
     tuple_number (Column, CStr)
     tuple_number (deg(Phi), DegStr)
@@ -921,28 +1067,42 @@ rgb1_to_gray (Image, GrayImage)
 * ── 第1步 找所有Mark ──
 threshold (GrayImage, Region, 128, 255)
 connection (Region, ConnectedRegions)
-select_shape (ConnectedRegions, Marks, ['circularity','area'], 'and', [0.7,200], 1e7)
+select_shape (ConnectedRegions, Marks, ['circularity','area'], 'and', [0.7,200], [1.0,1e7])
 area_center (Marks, Area, FoundRows, FoundCols)
 NumFound := |FoundRows|
+* ── 示教参数区：设计时Mark的理论位置（行数组+列数组，一一对应）──
+* 量产时由示教界面逐个点出或从DXF图纸导入；这里给4个Mark的示例坐标
+DesignRows := [120,120,320,320]
+DesignCols := [100,300,100,300]
 * ── 第2步 与设计坐标配对（DesignRows/DesignCols=设计时Mark理论位置数组）──
 Dx := []
 Dy := []
 for i := 0 to NumFound - 1 by 1
-    ' 找离当前Mark最近的设计点（暴力法，几十个Mark足够快）
+    * 找离当前Mark最近的设计点（暴力法，几十个Mark足够快）
     DistArr := sqrt((DesignRows - FoundRows[i]) * (DesignRows - FoundRows[i]) + (DesignCols - FoundCols[i]) * (DesignCols - FoundCols[i]))
-    MinIdx := idx_min(DistArr)
+    * 23.05 没有 idx_min：先按值排序拿到「下标数组」，第一个元素就是最小值的下标
+    tuple_sort_index (DistArr, SortIdx)
+    MinIdx := SortIdx[0]
     Dx := [Dx, FoundCols[i] - DesignCols[MinIdx]]
     Dy := [Dy, FoundRows[i] - DesignRows[MinIdx]]
 endfor
 * ── 第3步 稳健平均：中位数±2MAD剔离群后取均值 ──
-tuple_median (Dx, MedDx)
-tuple_median (Dy, MedDy)
-* 偏差超中位数3倍的剔除（简单离群防护）
 keepDx := Dx
 keepDy := Dy
-* ── 结果：整体平移量=平均偏移，直接叠加到所有设计坐标上 ──
-tuple_mean (keepDx, ShiftX)
-tuple_mean (keepDy, ShiftY)
+* 坑：一个Mark都没找到时 Dx 是空数组，直接 tuple_median 会报
+*     Wrong number of values of control parameter 1 —— 先判空
+if (|Dx| == 0)
+    ShiftX := 0
+    ShiftY := 0
+    Result := 'NO_MARK'
+else
+    tuple_median (Dx, MedDx)
+    tuple_median (Dy, MedDy)
+    * ── 结果：整体平移量=平均偏移，直接叠加到所有设计坐标上 ──
+    tuple_mean (keepDx, ShiftX)
+    tuple_mean (keepDy, ShiftY)
+    Result := 'OK'
+endif
 dev_display (Image)
 dev_display (Marks)"),
 
@@ -958,8 +1118,22 @@ dev_display (Marks)"),
 read_image (Image, 'ic0')
 rgb1_to_gray (Image, GrayImage)
 get_image_size (GrayImage, Width, Height)
-* ── 第1步 定位产品 ──
-find_shape_model (Image, ModelID, -rad(5), rad(10), 0.5, 1, 30, 'none', 0.75, MRow, MCol, MAngle, MScore)
+* ── 示教参数区：以下全部来自「示教 + 设计图纸」，换型只改这一段，代码不动 ──
+* 建模那一刻的产品中心
+RefRow := 0.5 * Height
+RefCol := 0.5 * Width
+* N个引脚卡尺的设计位置：中心行 / 中心列 / 角度（三个数组一一对应）
+PinRows := [150,170,190,210,230]
+PinCols := [200,200,200,200,200]
+PinPhis := [0,0,0,0,0]
+* 卡尺半长/半宽(像素)：半长要横跨整条引脚，半宽是允许的横向抖动带
+PinLen1 := 40
+PinLen2 := 6
+* 判定阈值：各引脚宽度极差超过TolW(像素)即NG
+TolW := 4
+* ── 第1步 定位产品（模型正常示教一次后存盘、量产read；这里现场建保证可跑）──
+create_shape_model (Image, 4, 0, rad(360), rad(3), 'auto', 'use_polarity', 30, 10, ModelID)
+find_shape_model (Image, ModelID, -rad(5), rad(10), 0.5, 1, 0.5, 'none', 0, 0.75, MRow, MCol, MAngle, MScore)
 if (|MRow| == 0)
     Result := 'NG-找不到产品'
     return ()
@@ -968,12 +1142,12 @@ vector_angle_to_rigid (RefRow, RefCol, 0, MRow, MCol, MAngle, HomMat2D)
 * ── 第2步 设计卡尺位逐个变换+测量（PinRows/PinCols/PinPhis=设计数组）──
 Widths := []
 for i := 0 to |PinRows| - 1 by 1
-    ' 设计卡尺位→实际位姿
+    * 设计卡尺位→实际位姿
     affine_trans_pixel (HomMat2D, PinRows[i], PinCols[i], ActRow, ActCol)
     ActPhi := PinPhis[i] + MAngle
     gen_measure_rectangle2 (ActRow, ActCol, ActPhi, PinLen1, PinLen2, Width, Height, 'bilinear', MeasureHandle)
     measure_pairs (Image, MeasureHandle, 1, 30, 'all', 'all', RE1, CE1, A1, RE2, CE2, A2, IntraDist, InterDist)
-    ' 该引脚宽度（没找到记-1）
+    * 该引脚宽度（没找到记-1）
     if (|IntraDist| > 0)
         Widths := [Widths,IntraDist[0]]
     else
@@ -981,7 +1155,9 @@ for i := 0 to |PinRows| - 1 by 1
     endif
 endfor
 * ── 第3步 统计判定：漏检数+宽度极差 ──
-tuple_count (Widths, -1, MissCount)
+* 23.05 没有 tuple_count：逐元素比较得到 0/1 掩码，再求和就是漏检个数
+MissMask := Widths = -1
+tuple_sum (MissMask, MissCount)
 tuple_min (Widths, MinW)
 tuple_max (Widths, MaxW)
 if (MissCount > 0 or (MaxW - MinW) > TolW)
@@ -1034,13 +1210,13 @@ TolOffset := 6
 * ─── 第3步：逐位号检查 ───
 NGList := []
 for i := 0 to |CompRows| - 1 by 1
-    ' 设计坐标→实际坐标（板会放歪放偏，全靠Mark原点换算）
+    * 设计坐标→实际坐标（板会放歪放偏，全靠Mark原点换算）
     ActRow := BoardRow + CompRows[i]
     ActCol := BoardCol + CompCols[i]
-    ' 以实际位为中心开窗（外扩一点容忍偏移）
+    * 以实际位为中心开窗（外扩一点容忍偏移）
     gen_rectangle1 (SearchWin, ActRow - HalfSize - 6, ActCol - HalfSize - 6, ActRow + HalfSize + 6, ActCol + HalfSize + 6)
     reduce_domain (GrayImage, SearchWin, Win)
-    ' 查有无：元件比板暗，暗像素占比>15%算『在』
+    * 查有无：元件比板暗，暗像素占比>15%算『在』
     threshold (Win, DarkIn, 0, 90)
     area_center (DarkIn, DarkArea, CompRow, CompCol)
     gen_rectangle1 (CompBox, ActRow - HalfSize, ActCol - HalfSize, ActRow + HalfSize, ActCol + HalfSize)
@@ -1049,7 +1225,7 @@ for i := 0 to |CompRows| - 1 by 1
     if (Presence < 0.15)
         tuple_concat (NGList, CompNames[i] + ':漏贴', NGList)
     else
-        ' 查偏移：元件实际中心 vs 设计中心
+        * 查偏移：元件实际中心 vs 设计中心
         OffsetDist := sqrt((CompRow - ActRow) * (CompRow - ActRow) + (CompCol - ActCol) * (CompCol - ActCol))
         if (OffsetDist > TolOffset)
             tuple_concat (NGList, CompNames[i] + ':偏移' + OffsetDist$'.1f', NGList)
@@ -1063,13 +1239,11 @@ dev_set_color ('yellow')
 dev_display (SearchWin)
 if (|NGList| > 0)
     Result := NGList
-    dev_set_color ('red')
-    disp_text (24, NGList, 12, 12)
+    dev_disp_text (NGList, 'window', 12, 12, 'red', [], [])
 else
     Result := ['OK']
 endif
-return ()
-"""),
+return ()"),
 
             new TemplateDef("K 工位级综合", "多相机图像拼接（含拼接标定）",
 @"* ════════════════════════════════════════════════
@@ -1102,9 +1276,9 @@ DstCols2 := [560, 1000, 760]
 vector_to_hom_mat2d (SrcRows2, SrcCols2, DstRows2, DstCols2, HomMat2)
 
 * ─── 第2步：拼接执行（每台相机一行，扩展第N台照抄） ───
-* 子图按矩阵变换到全局位置（'nearest'最快；精度要求高用'bilinear'）
-affine_trans_image (Cam1Image, Global1, HomMat1, 'nearest', 'false')
-affine_trans_image (Cam2Image, Global2, HomMat2, 'nearest', 'false')
+* 子图按矩阵变换到全局位置（插值模式必须写全名 'nearest_neighbor' 最快；精度要求高用'bilinear'）
+affine_trans_image (Cam1Image, Global1, HomMat1, 'nearest_neighbor', 'false')
+affine_trans_image (Cam2Image, Global2, HomMat2, 'nearest_neighbor', 'false')
 
 * ─── 第3步：叠显验证（重叠区内容应该严丝合缝对齐） ───
 dev_display (Global1)
@@ -1114,8 +1288,7 @@ dev_display (Global2)
 * 整图送下游算法；这里用叠显演示对齐效果，教学足够
 * 量错位：在重叠区放Mark，拼好后测两路Mark中心距离，>1像素=标定重做
 Result := 'OK'
-return ()
-"""),
+return ()"),
 
             new TemplateDef("K 工位级综合", "手眼标定+抓取引导（9点法）",
 @"* ════════════════════════════════════════════════
@@ -1174,8 +1347,7 @@ affine_trans_point_2d (HomMatInv, RobotCol, RobotRow, ChkRow, ChkCol)
 gen_cross_contour_xld (Cross, ChkRow, ChkCol, 20, 0.785398)
 dev_set_color ('green')
 dev_display (Cross)
-return ()
-"""),
+return ()"),
 
             new TemplateDef("K 工位级综合", "颜色检测（色差判定OK/NG）",
 @"* ════════════════════════════════════════════════
@@ -1187,9 +1359,11 @@ return ()
 * 坑：①光照影响RGB绝对值！先在同一光源下采『标准色』
 *     ②反光/阴影区取均值会被拉偏——ROI避开高光和阴影
 *     ③要求更高用XYZ/Lab色空间（更接近人眼感知），入门用RGB够用
-* 试跑：本例用打包好的 traffic1.png（红绿灯，正好判灯色）
+* 试跑：本例用打包好的 pcb_color.png
+*     ⚠ 资产库 32 张图里只有它是 3 通道，其余全是单通道——
+*       对单通道图 decompose3 会直接报 Wrong number of image channels
 * ════════════════════════════════════════════════
-read_image (Image, 'traffic1')
+read_image (Image, 'pcb_color')
 
 * ─── 第1步：彩色图拆成 R/G/B 三张单通道灰度图 ───
 decompose3 (Image, RChannel, GChannel, BChannel)
@@ -1229,10 +1403,8 @@ endif
 dev_display (Image)
 dev_set_color ('yellow')
 dev_display (CheckROI)
-dev_set_color ('green')
-disp_text (24, ['R:' + MeanR$'.0f','G:' + MeanG$'.0f','B:' + MeanB$'.0f','Main:' + MainColor], 10, 10)
-return ()
-"""),
+dev_disp_text (['R:' + MeanR$'.0f','G:' + MeanG$'.0f','B:' + MeanB$'.0f','Main:' + MainColor], 'window', 10, 10, 'green', [], [])
+return ()"),
 
             new TemplateDef("K 工位级综合", "线序检测（端子排/排线颜色顺序）",
 @"* ════════════════════════════════════════════════
@@ -1268,22 +1440,24 @@ ExpectSeq := [0, 1, 2, 3, 4, 5]
 NGList := []
 InfoList := []
 for i := 0 to |WireRows| - 1 by 1
-    ' 该孔小ROI（半径10，只套住线身）
+    * 该孔小ROI（半径10，只套住线身）
     gen_circle (WireROI, WireRows[i], WireCols[i], 10)
     intensity (WireROI, RChannel, MeanR, _)
     intensity (WireROI, GChannel, MeanG, _)
     intensity (WireROI, BChannel, MeanB, _)
-    ' 到8个色号各算距离，取最小者=识别结果
+    * 到8个色号各算距离，取最小者=识别结果
     DistToColors := []
     for c := 0 to |ColorNames| - 1 by 1
         D := sqrt((MeanR - RefR[c]) * (MeanR - RefR[c]) + (MeanG - RefG[c]) * (MeanG - RefG[c]) + (MeanB - RefB[c]) * (MeanB - RefB[c]))
         tuple_concat (DistToColors, D, DistToColors)
     endfor
-    min_index (DistToColors, BestIdx)
-    ' 每孔实测数据都打出来：RGB实测值→匹配色号→距离（校准色号库全靠它）
+    * 23.05 没有 min_index：tuple_sort_index 给出升序下标，[0]即最近色号
+    tuple_sort_index (DistToColors, SortedIdx)
+    BestIdx := SortedIdx[0]
+    * 每孔实测数据都打出来：RGB实测值→匹配色号→距离（校准色号库全靠它）
     Info := 'W' + (i + 1) + ': RGB(' + MeanR$'.0f' + ',' + MeanG$'.0f' + ',' + MeanB$'.0f' + ') -> ' + ColorNames[BestIdx] + ' d=' + DistToColors[BestIdx]$'.0f'
     tuple_concat (InfoList, Info, InfoList)
-    ' 距离太大=啥色都不像（漏线/反光大）单独报
+    * 距离太大=啥色都不像（漏线/反光大）单独报
     if (DistToColors[BestIdx] > 90)
         tuple_concat (NGList, 'W' + (i + 1) + ': no valid color', NGList)
     elseif (BestIdx != ExpectSeq[i])
@@ -1298,17 +1472,334 @@ for i := 0 to |WireRows| - 1 by 1
     gen_circle (Mark, WireRows[i], WireCols[i], 12)
     dev_display (Mark)
 endfor
-dev_set_color ('yellow')
-disp_text (24, InfoList, 10, 10)
+dev_disp_text (InfoList, 'window', 10, 10, 'yellow', [], [])
 if (|NGList| > 0)
     Result := NGList
-    dev_set_color ('red')
-    disp_text (24, NGList, 10, 400)
+    dev_disp_text (NGList, 'window', 10, 400, 'red', [], [])
 else
     Result := ['OK: wire sequence correct']
 endif
-return ()
-"""),
+return ()"),
+
+            // ═══════════════════════ L 效果图标注 ═══════════════════════
+
+            new TemplateDef("L 效果图标注", "区域显示风格（填充/轮廓/外接框）",
+@"* ════════════════════════════════════════════════
+* 例｜同一批区域，三种画法同框：让效果图自己会说话
+* 比方：验货报告上「涂红的=不良品」「描边的=看着没问题」「画框的=要复测」
+*       —— 数据是同一份，画法不同，读图的人理解速度差十倍
+* 三个开关：
+*   dev_set_draw  ('fill'实心 / 'margin'只描边)
+*   dev_set_shape ('original原形 / rectangle2旋转外接框 / outer_circle最小外接圆 /
+*                  inner_circle最大内切圆 / convex凸包 / ellipse等面积椭圆 / icon / rectangle1)
+*                  ⚠ 23.05 已无老书上的 'all' / 'component'，写了运行期报错
+*   dev_set_line_width (线宽，只对 margin 和轮廓类生效)
+* 坑：插件在脚本「结束时」导出一次画布，所以先后覆盖的显示是看不见的——
+*     要对比就在同一帧里画给不同的对象，本例正是这么做的
+* ════════════════════════════════════════════════
+read_image (Image, 'punched_holes')
+rgb1_to_gray (Image, GrayImage)
+* 取亮区：实测本图正好 6 块（每块约 2.4 万像素），三种风格各分到 2 个，同框对比最直观
+threshold (GrayImage, BrightRegion, 100, 255)
+connection (BrightRegion, Parts)
+select_shape (Parts, Parts, 'area', 'and', 40, 10000000)
+count_obj (Parts, Number)
+dev_display (Image)
+* 三种风格轮流套到相邻的孔上，一张图直接对比
+Mode := 0
+for i := 1 to Number by 1
+    select_obj (Parts, One, i)
+    if (Mode == 0)
+        * 实心填充：一眼看清「有多少、大概多大」，但会盖住底下的图
+        dev_set_draw ('fill')
+        dev_set_shape ('original')
+        dev_set_color ('green')
+    elseif (Mode == 1)
+        * 只描轮廓：看清「真实形状」，且不遮挡图像细节
+        dev_set_draw ('margin')
+        dev_set_line_width (2)
+        dev_set_shape ('original')
+        dev_set_color ('yellow')
+    else
+        * 换成最小外接矩形：这就是给机器人/下游用的「框」
+        dev_set_draw ('margin')
+        dev_set_line_width (1)
+        dev_set_shape ('rectangle2')
+        dev_set_color ('red')
+    endif
+    dev_display (One)
+    Mode := Mode + 1
+    if (Mode > 2)
+        Mode := 0
+    endif
+endfor
+* 收尾复原默认状态——显示状态是「窗口级全局变量」，不改回去会污染后续脚本
+dev_set_shape ('original')
+dev_set_draw ('fill')
+dev_set_line_width (1)
+dev_disp_text ('绿=填充  黄=轮廓  红=外接框  共' + Number$'.0f' + '个', 'window', 12, 12, 'black', ['box','box_color'], ['true','white'])"),
+
+            new TemplateDef("L 效果图标注", "文字与数据标注（dev_disp_text 七参全解）",
+@"* ════════════════════════════════════════════════
+* 例｜把测量值直接印在图上：工程师看截图就等于看设备屏幕
+* dev_disp_text 七个参数：
+*   ①Text        文字。可以是「数组」= 多行，行距自动，比写 N 次调用省事
+*   ②CoordSystem 'window'=钉在窗口上(随缩放不动) / 'image'=钉在像素上(跟着图放大)
+*   ③Row ④Column 数字坐标；当②='window'时还能直接写方位词，九宫格一行搞定：
+*        'top'/'center'/'bottom'  ×  'left'/'center'/'right'
+*   ⑤Color       字色；给数组则「逐行循环配色」
+*   ⑥GenParamName ⑦GenParamValue 外观开关，成对写。23.05 可用：
+*        'box' 'box_color' 'box_shape' 'box_padding' 'border_radius'
+*        'shadow' 'shadow_color' 'shadow_sigma' 'shadow_dx' 'shadow_dy'
+* 坑：①HDevEngine 里不能用 set_display_font / disp_message（那是 HDevelop 自带过程，
+*       插件未挂 procedures 目录），想要大字号就多加几行或加底色，别去找字体算子
+*     ②文字和图像叠在同一个窗口，深色底用白字或一定要开 'box'，否则看不见
+* ════════════════════════════════════════════════
+read_image (Image, 'pellets')
+rgb1_to_gray (Image, GrayImage)
+threshold (GrayImage, Region, 100, 255)
+connection (Region, AllParts)
+* 不卡面积下限会把 1 像素的灰尘也数进去：实测 153 个 → 卡 50 以后 14 个
+select_shape (AllParts, Parts, 'area', 'and', 50, 10000000)
+count_obj (Parts, Number)
+area_center (Parts, Area, Rows, Cols)
+tuple_sum (Area, TotalArea)
+dev_display (Image)
+* ① 左上角标题：带底色方框，任何背景都读得清
+dev_disp_text ('零件计数', 'window', 12, 12, 'black', ['box','box_color'], ['true','yellow'])
+* ② 九宫格：右下角盖「结论章」，位置永远不挡产品
+if (Number > 0)
+    Verdict := 'OK'
+else
+    Verdict := 'NO PART'
+endif
+dev_disp_text (Verdict, 'window', 'bottom', 'right', 'green', ['box','shadow'], ['true','true'])
+* ③ 多行数组 + 中上：一次调用排好一屏统计
+Stats := ['数量: ' + Number$'.0f', '总面积: ' + TotalArea$'.0f', '阈值: 100..255']
+dev_disp_text (Stats, 'window', 'top', 'center', 'blue', ['box','box_color'], ['true','white'])
+* ④ 'image' 坐标系：文字钉死在第 1 个零件的质心上，放大图时它跟着走
+if (Number > 0)
+    dev_set_color ('red')
+    dev_set_line_width (2)
+    gen_circle (Mark, Rows[0], Cols[0], 12)
+    dev_display (Mark)
+    dev_disp_text ('#1', 'image', Rows[0] - 20, Cols[0], 'red', [], [])
+endif"),
+
+            new TemplateDef("L 效果图标注", "几何标注（十字/圆/框/折线/直线）",
+@"* ════════════════════════════════════════════════
+* 例｜五种「图形标注」一次配齐：点、圆、正框、斜框、轨迹
+* 关键认知：新后端不再提供 disp_circle / disp_rectangle1 / disp_arrow 这类
+*   「直接画到窗口」的老算子——统一拆成两步：
+*     第1步 gen_xxx 造出一个对象（region 或 xld-contour）
+*     第2步 dev_display 把它显示出来
+*   好处：对象可以留着复用、可以存盘、可以参与后续运算
+* 五种对象：
+*   gen_cross_contour_xld  十字(XLD)  —— 标记中心点、抓取点
+*   gen_circle             圆(region) —— 标记半径、覆盖范围
+*   gen_rectangle1         正框(region)—— 轴对齐外接框，报坐标最直观
+*   gen_rectangle2         斜框(region)—— 带角度的框，对应机器人吸盘姿态
+*   gen_contour_polygon_xld 折线(XLD) —— 涂胶轨迹、走线路径、轮廓比对
+*   gen_region_line        直线(region)—— 两点一线，画基准边
+* 坑：①XLD 线宽靠 dev_set_line_width，region 轮廓靠 dev_set_line_width+dev_set_draw('margin')
+*     ②dev_set_contour_style 只影响 XLD：'stroke'细线 / 'fill'填充闭合轮廓 /
+*       'stroke_and_fill'。对不闭合的折线设 'fill' 是什么都画不出来的
+*     ③HALCON 坐标一律 (行, 列) = (Y, X)，别写反
+* ════════════════════════════════════════════════
+read_image (Image, 'clip')
+rgb1_to_gray (Image, GrayImage)
+get_image_size (GrayImage, Width, Height)
+CenterRow := 0.5 * Height
+CenterCol := 0.5 * Width
+dev_display (Image)
+* ① 十字：定位点（匹配中心、标定板原点都用它）
+gen_cross_contour_xld (Cross, CenterRow, CenterCol, 28, rad(45))
+dev_set_color ('green')
+dev_set_line_width (2)
+dev_display (Cross)
+* ② 圆：region 型，用 margin 画出来就是一个圆圈
+gen_circle (Circle, CenterRow, CenterCol, 70)
+dev_set_draw ('margin')
+dev_set_color ('cyan')
+dev_set_line_width (2)
+dev_display (Circle)
+* ③ 轴对齐外接框
+gen_rectangle1 (Rect1, CenterRow - 60, CenterCol - 80, CenterRow + 60, CenterCol + 80)
+dev_set_color ('yellow')
+dev_set_line_width (1)
+dev_display (Rect1)
+* ④ 旋转框：中心 + 长轴方向 + 两个半轴（机器人抓取框就是这个）
+gen_rectangle2 (Rect2, CenterRow, CenterCol, rad(30), 95, 50)
+dev_set_color ('red')
+dev_display (Rect2)
+* ⑤ 折线：任意多点轨迹，两个等长数组分别是行、列
+PathRows := [100, 160, 130, 220, 300, 340]
+PathCols := [80, 140, 220, 280, 250, 340]
+gen_contour_polygon_xld (Path, PathRows, PathCols)
+dev_set_color ('orange')
+dev_set_line_width (3)
+dev_display (Path)
+* ⑥ 闭合多边形 + 填充：高亮一块「关注区」，盖半层色不影响看图
+gen_contour_polygon_xld (Poly, [420,420,520,520], [520,640,640,520])
+dev_set_contour_style ('fill')
+dev_display (Poly)
+* 收尾复原（显示状态是窗口级全局的，必须还原）
+dev_set_contour_style ('stroke')
+dev_set_draw ('fill')
+dev_set_line_width (1)
+dev_set_color ('white')"),
+
+            new TemplateDef("L 效果图标注", "伪彩与热力图（dev_set_lut）",
+@"* ════════════════════════════════════════════════
+* 例｜灰度转伪彩：人眼分不出的 3 个灰阶，换成颜色一眼就看出来
+* 比方：天气预报的雨量图——数值画成黑白根本看不出边界，
+*       涂成蓝→绿→黄→红，0.1mm 的差别都能从图上跳出来
+* dev_set_lut 在 23.05 的全部合法值（写别的运行期直接报错）：
+*   灰度曲线类：default linear inverse sqr inv_sqr sqrt inv_sqrt
+*               cube inv_cube cubic_root inv_cubic_root cyclic_gray
+*   分档类    ：three six twelve twenty_four color1 color2 color3 color4
+*   伪彩类    ：rainbow jet jet_inverse temperature cyclic_temperature
+*               change1 change2 change3 hsi
+*   ⚠ 是 'rainbow' 不是 'rain_bow'；老书上的 'heat'、'hot_cold' 在 23.05 已无
+* 坑：①LUT 只改「显示」不改像素！threshold 吃的还是原灰度值，
+*       千万别以为图上变红了数据就变了（要改数据用 scale_image /emphasize）
+*     ②直方图均衡会把噪声一起放大，官方文档原话：可能看出「假边缘」，
+*       所以它只用于「给人看」，不用于「给算法算」
+*     ③dev_set_paint 在 23.05 只剩 3D/矢量场用途('3d_plot','vector_field')，
+*       2D 检测图上没有可用取值，不要照着老教程写
+* ════════════════════════════════════════════════
+read_image (Image, 'meningg5')
+rgb1_to_gray (Image, GrayImage)
+* 这张图中间亮四周暗，「比周围暗一点」的斑在纯灰度下几乎看不见
+* 实测灰度只挤在 112..150 这 38 级里（正常图是 0..255）——等于全图蒙了层灰纱
+* 全局直方图均衡：把这 38 级拉开到 256 级（正名 equ_histo_image，23.05 没有 equ_histogram）
+equ_histo_image (GrayImage, Equalized)
+* 上伪彩：这一步之后 dev_display 出来的图就是彩色的
+dev_set_lut ('jet')
+dev_display (Equalized)
+* 伪彩底 + 白描边，是人眼最好读的组合
+threshold (Equalized, DarkSpots, 0, 12)
+connection (DarkSpots, Spots)
+select_shape (Spots, BigSpots, 'area', 'and', 60, 10000000)
+count_obj (BigSpots, Number)
+dev_set_draw ('margin')
+dev_set_line_width (2)
+dev_set_color ('white')
+dev_display (BigSpots)
+dev_disp_text (['LUT: jet', '异常暗斑: ' + Number$'.0f'], 'window', 12, 12, 'black', ['box','box_color'], ['true','yellow'])
+* 收尾还原：LUT 不动数据，但会污染下一个脚本的显示
+dev_set_lut ('default')"),
+
+            new TemplateDef("L 效果图标注", "局部放大（dev_set_part 放大镜）",
+@"* ════════════════════════════════════════════════
+* 例｜放大镜：把窗口可视范围缩到一小块，3 像素的缺陷直接占满屏幕
+* 比方：手机相册看照片双指一撑——像素没变，变的是「显示区域」
+* dev_set_part (Row1, Column1, Row2, Column2)：
+*   之后所有 dev_display 只画这个矩形内的内容，并拉满整个窗口 = 放大
+*   坐标仍是「原图坐标」，叠加的区域/轮廓不用换算，HALCON 自动对齐
+*   还原全图：dev_set_part (0, 0, Height-1, Width-1)
+* 和 crop_part 的区别（面试常问）：
+*   dev_set_part 只是「看着大」，数据没动，适合给人看
+*   crop_part    是真挖出一张小图，能单独存盘、单独再跑一遍算法
+* 坑：①视野矩形必须落在图内，越界运行期报错 → 用 max2/min2 把四个边夹住
+*     ②线宽是「屏幕像素」单位，放大后不会跟着变粗，所以放大视图常要调细线宽
+*     ③crop_part 参数顺序是 行,列,宽,高（宽在前！和 gen_rectangle1 的 行1列1行2列2 不一样）
+* ════════════════════════════════════════════════
+read_image (Image, 'bga_14x14_defects')
+rgb1_to_gray (Image, GrayImage)
+get_image_size (GrayImage, Width, Height)
+* ─── 先把缺陷找完，再决定放大镜放哪 ───
+* ⚠ 本图极性反直觉：板面是亮的，缺陷是「更亮的点」→ 切高段 200..255（实测 10 个，每个 10~16 像素）
+* ⚠ 面积必须给上限：只写下限的话，整块板面会被当成一个 12 万像素的「超大缺陷」
+threshold (GrayImage, BrightRegion, 200, 255)
+connection (BrightRegion, Spots)
+select_shape (Spots, Defects, 'area', 'and', 10, 3000)
+count_obj (Defects, Number)
+area_center (Defects, Area, Rows, Cols)
+dev_display (Image)
+if (Number == 0)
+    dev_disp_text ('未发现缺陷', 'window', 'top', 'center', 'green', ['box','box_color'], ['true','white'])
+else
+    * 挑面积最大的那颗：23.05 没有 max_index，用排序下标取最后一个
+    tuple_sort_index (Area, Idx)
+    Worst := Idx[|Idx| - 1]
+    select_obj (Defects, One, Worst + 1)
+    smallest_rectangle1 (One, R1, C1, R2, C2)
+    * 以缺陷为中心外扩 40 像素，并用 max2/min2 夹进图像范围内
+    Pad := 40
+    ZR1 := max2(R1 - Pad, 0)
+    ZC1 := max2(C1 - Pad, 0)
+    ZR2 := min2(R2 + Pad, Height - 1)
+    ZC2 := min2(C2 + Pad, Width - 1)
+    dev_set_part (ZR1, ZC1, ZR2, ZC2)
+    dev_display (Image)
+    * 同一批坐标直接叠，位置自动对得上
+    dev_set_draw ('margin')
+    dev_set_line_width (1)
+    dev_set_color ('red')
+    dev_display (One)
+    Box := ['视野: ' + ZR1$'.0f' + ',' + ZC1$'.0f' + ' ~ ' + ZR2$'.0f' + ',' + ZC2$'.0f', '缺陷面积: ' + Area[Worst]$'.0f' + ' px']
+    dev_disp_text (Box, 'window', 12, 12, 'black', ['box','box_color'], ['true','white'])
+    * 想「真挖出来」另存或再算一遍就用 crop_part：行,列,宽,高
+    crop_part (GrayImage, ZoomCrop, ZR1, ZC1, ZC2 - ZC1 + 1, ZR2 - ZR1 + 1)
+    dev_set_part (0, 0, Height - 1, Width - 1)
+endif"),
+
+            new TemplateDef("L 效果图标注", "综合检测报告页（一屏出图即出报告）",
+@"* ════════════════════════════════════════════════
+* 例｜把前几招拼成一张能直接发群里的效果图
+* 版面分层（和画 HMI 画面是同一套思路）：
+*   底层  原图
+*   第1层 缺陷实心红   —— 一眼看到「哪里不行」
+*   第2层 缺陷外接框   —— 给下游/机器人读的坐标框（同一批区域再画一遍）
+*   第3层 左上标题栏   —— 带底色，任何背景都读得清
+*   第4层 右下 OK/NG 章 —— 九宫格定位，永远不挡产品
+* 一条铁律：dev_* 只负责「画」，所有判定（threshold / select_shape / 计数）
+*   必须在画之前就全部算完 —— 效果图是结果的照片，不是算法的一部分
+* ════════════════════════════════════════════════
+read_image (Image, 'bga_14x14_defects')
+rgb1_to_gray (Image, GrayImage)
+get_image_size (GrayImage, Width, Height)
+* ─── 算法段：先算完 ───
+* 极性与面积上限同「局部放大」那条：缺陷是亮点，且必须卡上限甩掉整块板面
+threshold (GrayImage, BrightRegion, 200, 255)
+connection (BrightRegion, All)
+select_shape (All, Defects, 'area', 'and', 10, 3000)
+count_obj (Defects, Number)
+area_center (Defects, Area, Rows, Cols)
+if (Number > 0)
+    tuple_max (Area, MaxArea)
+    Verdict := 'NG'
+else
+    MaxArea := 0
+    Verdict := 'OK'
+endif
+* ─── 绘制段：分层往上叠 ───
+dev_display (Image)
+* 第1层 实心
+dev_set_draw ('fill')
+dev_set_color ('red')
+dev_display (Defects)
+* 第2层 同一批区域换画法再叠一遍：旋转外接框
+dev_set_draw ('margin')
+dev_set_line_width (1)
+dev_set_color ('yellow')
+dev_set_shape ('rectangle2')
+dev_display (Defects)
+dev_set_shape ('original')
+* 第3层 左上标题栏
+Header := ['BGA 焊球检测', '缺陷数: ' + Number$'.0f', '最大缺陷: ' + MaxArea$'.0f' + ' px']
+dev_disp_text (Header, 'window', 12, 12, 'black', ['box','box_color'], ['true','white'])
+* 第4层 右下结论章（红/绿分色，扫一眼就知道结果）
+if (Number > 0)
+    dev_disp_text (Verdict, 'window', 'bottom', 'right', 'red', ['box','box_color','shadow'], ['true','white','true'])
+else
+    dev_disp_text (Verdict, 'window', 'bottom', 'right', 'green', ['box','box_color','shadow'], ['true','white','true'])
+endif
+* 还原默认显示状态，别把它带给下一个脚本
+dev_set_draw ('fill')
+dev_set_line_width (1)
+dev_set_color ('white')"),
         };
     }
 }

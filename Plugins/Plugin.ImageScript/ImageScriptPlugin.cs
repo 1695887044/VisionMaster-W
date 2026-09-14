@@ -421,6 +421,11 @@ namespace Plugin.ImageScript
             e.SetProcedurePath(Path.GetTempPath());
             // 预编译：脚本含大量循环时提速明显
             e.SetEngineAttribute("execute_procedures_jit_compiled", "true");
+            // 注册显示后端：脚本里的 dev_display / dev_disp_text / dev_set_* 会在运行期回调到
+            // HDevDisplayBackend，由它画进离屏 buffer 窗口，最后回读成效果图发到预览窗口1。
+            // 注意：注册后引擎会禁用原生 open_window/set_color/disp_text 等写法，
+            // 那些老写法由 LegacyDisplayShim 在编译前自动改写成 dev_* 兼容。
+            e.SetHDevOperators(new HDevDisplayBackend());
             return e;
         }
 
@@ -549,7 +554,13 @@ namespace Plugin.ImageScript
         ///   ✘ 非法（invalid program line）：代码行尾部拖注释/字符串，
         ///     如 threshold(...) * 注释、X := 10.0 '备注' —— HDevelop 注释必须独占一行。
         ///   ✘ 非法：引用未声明的接口/局部变量（引擎同样报 invalid program line，靠翻译报错提示用户）。
-        /// 因此这里只做一件事：把行尾注释剥离（替换为空格占位，行号保持不变）。
+        /// 本方法做两件事：
+        ///   ① 剥离行尾注释（替换为空格占位，行号保持不变）；
+        ///   ② 老式窗口算子 → dev_* 语法糖改写（见 LegacyDisplayShim）。
+        ///      插件注册了 HDevDisplayBackend 显示后端，原生 open_window / set_color /
+        ///      disp_text / disp_image / dump_window_image 等会被引擎判为非法，
+        ///      改写后脚本里的贴图、贴框、贴字都能真正画进效果图。
+        ///      无法 1 行换 1 行的老算子（disp_rectangle1 等）不改写，直接返回精确到行的中文指引。
         /// </summary>
         private static void SanitizeForEngine(List<EProcedure> procs, out string error)
         {
@@ -568,12 +579,11 @@ namespace Plugin.ImageScript
                     if (trimmed.StartsWith("*") || trimmed.StartsWith("'")) continue;
 
                     string stripped = StripTrailingComment(line);
-                    // dev_* 系列（dev_display、dev_set_window 等）是 HDevelop 开发环境
-                    // 专用算子，HDevEngine 运行时里没有定义，粘贴进来必报"unresolved"。
-                    // 自动置空（保留空格占位，行号不变）——显示已由输出变量的"窗口N"接管。
-                    string tt = stripped.Trim();
-                    if (tt.StartsWith("dev_") && tt.EndsWith(")"))
-                        stripped = new string(' ', stripped.Length);
+                    // 老式显示算子改写（严格 1 行换 1 行，行号不错位）
+                    if (LegacyDisplayShim.TryRewrite(stripped, out string rewritten, out string hint))
+                        stripped = rewritten;
+                    if (hint != null && error == null)
+                        error = $"【第 {i + 1} 行】{hint}：\n{trimmed}";
                     if (stripped != line)
                         lines[i] = stripped + (cr ? "\r" : "");
                 }
@@ -585,7 +595,9 @@ namespace Plugin.ImageScript
         /// 剥离代码行尾部的注释（HDevelop 要求注释独占一行）。精确边界，避免误伤真乘号：
         ///  A) 算子调用行：以 ')' 收尾后还有空格 + 任何内容 → 该内容为行尾注释
         ///     例：dev_get_window (WindowHandle) * 取窗口   /   read_image (X, 'a') '备注'
-        ///  B) 赋值行：':=' 之后出现 空格*空格 或 空格'字符串' → 视为行尾注释
+        ///  B) 赋值行（行内含 :=）：* 一律当乘号，绝不剥离。
+        ///     实测教训：Area := Width * Height 曾被误判成行尾注释、悄悄变成 Area := Width，
+        ///     工业程序里这种「不报错但算错」是最危险的失效模式，宁可放行让引擎报错也不能改值。
         ///     （真乘法写成 X:=A*B 不带空格；HDevelop 惯例如 sqrt (R*R+C*C) 中 * 两侧无空格）
         /// 用空格替换，保证列位置与行号不变。
         /// </summary>
@@ -594,6 +606,7 @@ namespace Plugin.ImageScript
             bool inStr = false;
             int depth = 0;
             int lastNonSp = -1; // 最近一个非空格字符的下标（保证在字符串外）
+            bool isAssign = HasAssignment(line);
 
             for (int i = 0; i < line.Length; i++)
             {
@@ -611,7 +624,7 @@ namespace Plugin.ImageScript
 
                 if (c == ' ' || c == '\t') continue;
 
-                if (c == '*')
+                if (c == '*' && !isAssign)
                 {
                     char prev = lastNonSp >= 0 ? line[lastNonSp] : '\0';
                     bool prevComplete = depth == 0 &&
@@ -625,6 +638,20 @@ namespace Plugin.ImageScript
                 lastNonSp = i;
             }
             return line;
+        }
+
+        /// <summary>字符串字面量之外是否出现 := ——出现即说明本行是表达式/赋值行</summary>
+        private static bool HasAssignment(string line)
+        {
+            bool inStr = false;
+            for (int i = 0; i < line.Length - 1; i++)
+            {
+                char c = line[i];
+                if (c == '\'') { inStr = !inStr; continue; }
+                if (inStr) continue;
+                if (c == ':' && line[i + 1] == '=') return true;
+            }
+            return false;
         }
 
         private static string BlankFrom(string line, int start)
@@ -898,6 +925,10 @@ namespace Plugin.ImageScript
                     }
                 }
 
+                // 脚本自绘效果图：重置本线程绘制状态，把底图先画进离屏 buffer 窗口，
+                // 之后脚本里的 dev_display / dev_disp_text 全叠加在这张底图上。
+                HDevDisplayBackend.Begin(baseImage);
+
                 call.Execute();
 
                 // —— 收取输出 ——
@@ -984,8 +1015,22 @@ namespace Plugin.ImageScript
                     }
                 }
 
+                // 脚本自绘效果图优先：最后覆盖窗口1（输出行的"窗口N"叠加预览先推，脚本图后推）
+                if (HDevDisplayBackend.HasDrawing)
+                {
+                    HImage fx = HDevDisplayBackend.Capture();
+                    if (fx != null)
+                        this.PublishPreview(fx, 1);
+                }
+
                 Success.Value = true;
                 ErrorMessage.Value = "";
+            }
+            catch (DisplayOpException dex)
+            {
+                // 画图环节（离屏窗口/显示算子）失败：与算法错误分开给中文提示
+                Success.Value = false;
+                ErrorMessage.Value = dex.Message;
             }
             catch (HalconException hex)
             {
