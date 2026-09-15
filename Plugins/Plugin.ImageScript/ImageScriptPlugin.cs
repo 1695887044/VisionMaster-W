@@ -419,12 +419,20 @@ namespace Plugin.ImageScript
         {
             var e = new HDevEngine();
             e.SetProcedurePath(Path.GetTempPath());
+            // 自定义算子目录：让脚本里可以直接写 publish_preview (Image, 3)。
+            // 为什么走 .hdvp 文件：.NET 版 HDevelop Engine 根本没有注册外部算子的 API
+            // （反射确认 hdevenginedotnet/halcondotnet 里没有任何 *External* 类型，
+            //   HDevEngine 也没有 RegisterProcedure），教程里那套 HExternalProcedure 是 C++/CLI 的。
+            // 过程体内部再借 IHDevOperators 的显示回调把控制权交回 C#，见 publish_preview.hdvp。
+            string procDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ScriptAssets", "procedures");
+            if (Directory.Exists(procDir)) e.AddProcedurePath(procDir);
             // 预编译：脚本含大量循环时提速明显
             e.SetEngineAttribute("execute_procedures_jit_compiled", "true");
             // 注册显示后端：脚本里的 dev_display / dev_disp_text / dev_set_* 会在运行期回调到
             // HDevDisplayBackend，由它画进离屏 buffer 窗口，最后回读成效果图发到预览窗口1。
-            // 注意：注册后引擎会禁用原生 open_window/set_color/disp_text 等写法，
-            // 那些老写法由 LegacyDisplayShim 在编译前自动改写成 dev_* 兼容。
+            // 注意：注册后端后，原生 open_window/set_color/disp_text 等写法并不会编译失败，
+            // 但它们画的是另一张窗口——效果图会静默变空白且不报错（实测 Capture() 直接返回 null）。
+            // 所以那些老写法由 LegacyDisplayShim 在编译前改写成 dev_*，把输出导航回这张宿主画布。
             e.SetHDevOperators(new HDevDisplayBackend());
             return e;
         }
@@ -927,7 +935,19 @@ namespace Plugin.ImageScript
 
                 // 脚本自绘效果图：重置本线程绘制状态，把底图先画进离屏 buffer 窗口，
                 // 之后脚本里的 dev_display / dev_disp_text 全叠加在这张底图上。
-                HDevDisplayBackend.Begin(baseImage);
+                // 同时挂上输出改道回调：脚本里 publish_preview (Image, N) 的图不进画布，直接发视图 N。
+                HDevDisplayBackend.Begin(baseImage, (obj, view) =>
+                {
+                    // 必须 CopyObj：事件总线是异步交 UI 线程取图的，脚本后面还会继续用同一个对象，
+                    // HALCON 对象非线程安全，不复制就有争用。所有权随发布移交，这里不再 Dispose。
+                    HObject copy;
+                    HOperatorSet.CopyObj(obj, out copy, 1, -1);
+                    HImage frame = copy.GetObjClass().S == "image"
+                        ? new HImage(copy)                            // 图像：直接发
+                        : ComposeIconicToImage(copy, baseImage);      // 区域/轮廓：叠到底图上再发
+                    if (frame != null)
+                        this.PublishPreview(frame, view);
+                });
 
                 call.Execute();
 

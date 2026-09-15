@@ -10,6 +10,7 @@ using System.Reflection.Metadata;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using UI.Attributes;
 using UI.CustomControl;
@@ -70,6 +71,46 @@ namespace VisionMaster
             get { return field; }
             set { SetProperty(ref field, value); }
         }
+        #endregion
+        #region 运行状态（按钮互锁 + 状态栏显示的唯一事实来源）
+        /// <summary>
+        /// 运行控制状态。变化时同时刷新：①ExecutionCommand 的 CanExecute（按钮互锁）
+        /// ②状态栏文字 RunStateText ③指示灯颜色 RunStateBrush。
+        /// </summary>
+        public MainRunState RunState
+        {
+            get { return field; }
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    ExecutionCommand?.RaiseCanExecuteChanged();
+                    // 方案菜单同步互锁：新建/打开/浏览运行中置灰（保存不受限）
+                    SolutionCommand?.RaiseCanExecuteChanged();
+                    RaisePropertyChanged(nameof(RunStateText));
+                    RaisePropertyChanged(nameof(RunStateBrush));
+                    // 向全应用广播运行状态（流程栏编辑锁等消费方经 GlobalEventBus 订阅）；
+                    // setter 必在 UI 线程调用，总线同步派发，订阅者拿不到脏线程上下文
+                    GlobalEventBus.Publish(value);
+                }
+            }
+        }
+
+        /// <summary>状态栏文字：未启动 / 启动中 / 循环运行中</summary>
+        public string RunStateText => RunState switch
+        {
+            MainRunState.RunningOnce => "启动中",
+            MainRunState.RunningContinuous => "循环运行中",
+            _ => "未启动",
+        };
+
+        /// <summary>状态指示灯颜色：灰=未启动，橙=单次运行，绿=循环运行</summary>
+        public Brush RunStateBrush => RunState switch
+        {
+            MainRunState.RunningOnce => Brushes.DarkOrange,
+            MainRunState.RunningContinuous => Brushes.ForestGreen,
+            _ => Brushes.Gray,
+        };
         #endregion
         #region Commands
         public AsyncDelegateCommand<SolutionAction?> SolutionCommand { get; }
@@ -178,8 +219,8 @@ namespace VisionMaster
         )
         {
             StartBackgroundMonitoring();
-            SolutionCommand = new(ExecuteProjectAction);
-            ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction);
+            SolutionCommand = new(ExecuteProjectAction, CanExecuteSolution);
+            ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction, CanExecuteExecution);
             SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
             SwitchCanvasCommand = new DelegateCommand<string>(SwitchCanvas);
             TogglePanelCommand = new DelegateCommand<string>(TogglePanel);
@@ -222,11 +263,24 @@ namespace VisionMaster
         }
 
         /// <summary>
+        /// 方案操作互锁：保存永远可用；新建/打开/浏览列表都会丢弃当前运行中的会话，运行中一律禁用
+        /// </summary>
+        private bool CanExecuteSolution(SolutionAction? action)
+            => action == SolutionAction.Save || RunState == MainRunState.NotStarted;
+
+        /// <summary>
         /// 对于解决方案的操作
         /// </summary>
         /// <param name="action"></param>
         private async Task ExecuteProjectAction(SolutionAction? action)
         {
+            // 防御纵深：菜单/工具栏正常已被 CanExecute 置灰，这里兜住快捷键等旁路调用
+            if (!CanExecuteSolution(action))
+            {
+                Notifier.ShowWarning("流程运行中，禁止新建/打开/切换方案；如需切换请先点击“停止”");
+                return;
+            }
+
             switch (action)
             {
                 case SolutionAction.Create:
@@ -362,6 +416,34 @@ namespace VisionMaster
         }
 
         private FlowSession _currentSession;
+
+        /// <summary>
+        /// 运行按钮互锁规则：未运行时可点"编译/启动/循环"；运行中只留"停止"可点。
+        /// WPF 按钮在 CanExecute=false 时自动置灰，无需在 View 里写任何状态判断。
+        /// </summary>
+        private bool CanExecuteExecution(ExecutionAction? action)
+        {
+            return action == ExecutionAction.Stop
+                ? RunState != MainRunState.NotStarted
+                : RunState == MainRunState.NotStarted;
+        }
+
+        /// <summary>
+        /// 等待本轮启动的所有会话任务结束（单次跑完 / 循环被取消），再把状态复位为"未启动"。
+        /// 从 UI 线程 await，续体自动回到 UI 线程，可安全赋值绑定属性。
+        /// </summary>
+        private async Task TrackRunCompletionAsync(List<Task> tasks)
+        {
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+                // 引擎内部异常/取消已由各自的错误提示与日志反映，这里只负责状态复位
+            }
+            RunState = MainRunState.NotStarted;
+        }
 
         private void OnExecutionAction(ExecutionAction? action)
         {
@@ -616,7 +698,10 @@ namespace VisionMaster
                 return;
             }
 
+            // 进入运行态：立即互锁"编译/启动/循环"，放开"停止"
+            RunState = MainRunState.RunningOnce;
             int runCount = 0;
+            var tasks = new List<Task>();
 
             foreach (var flow in Workspace.CurrentSolution.Flows)
             {
@@ -652,7 +737,7 @@ namespace VisionMaster
 
                 if (session != null && !session.IsRunning)
                 {
-                    _ = flowEngine.RunSessionOnceAsync(session);
+                    tasks.Add(flowEngine.RunSessionOnceAsync(session));
                     runCount++;
                 }
             }
@@ -660,9 +745,13 @@ namespace VisionMaster
             if (runCount > 0)
             {
                 Notifier.ShowSuccess($"已启动 {runCount} 个流程的单次运行");
+                // 所有会话跑完后自动回到"未启动"，按钮互锁随之解除
+                _ = TrackRunCompletionAsync(tasks);
             }
             else
             {
+                // 一个都没启动成功：状态立刻回退，避免按钮被永久锁死
+                RunState = MainRunState.NotStarted;
                 Notifier.ShowWarning("没有可运行的流程（请确保流程已启用且未加密）");
             }
         }
@@ -678,7 +767,10 @@ namespace VisionMaster
                 return;
             }
 
+            // 进入运行态：立即互锁"编译/启动/循环"，放开"停止"
+            RunState = MainRunState.RunningContinuous;
             int runCount = 0;
+            var tasks = new List<Task>();
 
             foreach (var flow in Workspace.CurrentSolution.Flows)
             {
@@ -714,7 +806,8 @@ namespace VisionMaster
 
                 if (session != null && !session.IsRunning)
                 {
-                    _ = flowEngine.RunSessionAsync(session);
+                    // 循环会话的任务只有被"停止"取消后才会结束，因此这里绝不能 await 它
+                    tasks.Add(flowEngine.RunSessionAsync(session));
                     runCount++;
                 }
             }
@@ -722,9 +815,13 @@ namespace VisionMaster
             if (runCount > 0)
             {
                 Notifier.ShowSuccess($"已启动 {runCount} 个流程的连续运行");
+                // 点"停止"→ 引擎取消令牌 → 循环任务结束 → 状态自动回到"未启动"
+                _ = TrackRunCompletionAsync(tasks);
             }
             else
             {
+                // 一个都没启动成功：状态立刻回退，避免按钮被永久锁死
+                RunState = MainRunState.NotStarted;
                 Notifier.ShowWarning("没有可运行的流程（请确保流程已启用且未加密）");
             }
         }

@@ -56,6 +56,11 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter Property="Background" Value="#DCE6F5" />
                             </Trigger>
+                            <!--  禁用态（Command.CanExecute=false 自动触发）：半透明置灰 + 取消手型，让互锁"看得见"  -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.3" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -765,6 +770,23 @@
                     Margin="10,0"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">
+                    <!--  运行状态指示灯 + 文字（唯一事实来源：ShellViewModel.RunState）  -->
+                    <Ellipse
+                        Width="10"
+                        Height="10"
+                        VerticalAlignment="Center"
+                        Fill="{Binding RunStateBrush}" />
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="{Binding RunStateBrush}"
+                        Text="{Binding RunStateText}" />
+                    <TextBlock
+                        Margin="8,0"
+                        FontSize="12"
+                        Foreground="#C9CEDB"
+                        Text="|" />
                     <TextBlock FontSize="12" Text="当前用户：" />
                     <TextBlock
                         x:Name="CurrentUserText"

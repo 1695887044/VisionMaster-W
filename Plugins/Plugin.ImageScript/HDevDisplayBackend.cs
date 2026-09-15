@@ -27,8 +27,11 @@ namespace Plugin.ImageScript
     ///     'invisible'/'visible'/'pixmap' 一律报 #1305 Wrong value of control parameter 5；
     ///   · dev_disp_text 必须是 7 参完整形式，5 参简写编译不过；
     ///   · if / for 分支内、'W=' + Val$'.2f' 动态拼接、中文文本均可正常回调；
-    ///   · 注册后端后引擎的原生 open_window/set_color/disp_text 反而变为编译期非法
-    ///     —— 所以必须配合 <see cref="LegacyDisplayShim"/> 做拼写垫片；
+    ///   · 原生 open_window / set_color / disp_text 注册后端后【照样编译通过、也不报错】，
+    ///     但它们画的是另一个窗口/句柄，效果图会静默变空白（实测：脚本只调 open_window 时
+    ///     Capture() 返回 null，用户拿不到任何报错却什么都看不见）。
+    ///     所以必须配合 <see cref="LegacyDisplayShim"/> 把输出导航回宿主画布——
+    ///     拦它的理由是「防静默丢失」，不是「防编译失败」；
     ///   · 与 execute_procedures_jit_compiled='true' 共存，单次"画框+写字"约 1ms。
     ///
     /// 线程模型：HDevEngine 是进程内 static 单例，多个脚本节点会并发回调同一个后端实例，
@@ -45,6 +48,16 @@ namespace Plugin.ImageScript
         [ThreadStatic] private static int _hintW;       // 无底图时的兜底画布宽
         [ThreadStatic] private static int _hintH;       // 无底图时的兜底画布高
 
+        // ── publish_preview 输出改道（见 ScriptAssets\procedures\publish_preview.hdvp）──
+        // 脚本里 publish_preview (Image, 3) → 展开成 dev_set_window(['vmview',3]) + dev_display(Image)。
+        // _routeView 是 dev_set_window 记下的待改道视图号；_router 由宿主在 Begin 时按线程传入。
+        // 必须 [ThreadStatic]：引擎是 static 单例，多个脚本节点并发执行，不能共用一个回调目标。
+        [ThreadStatic] private static int _routeView;
+        [ThreadStatic] private static Action<HObject, int> _router;
+
+        // 画布窗口的原生字体串（形如 'default-Normal-12'），建窗时抓一次，每轮 Begin 写回。
+        [ThreadStatic] private static HTuple _font0;
+
         private const int MinSide = 16;
         private const int MaxSide = 8192;
         private const int FallbackW = 800;
@@ -58,16 +71,19 @@ namespace Plugin.ImageScript
         /// 预画底图的意义：用户只写一句 dev_disp_text 就能"贴在自己图上"，
         /// 不必强制先写 dev_display (Image)；而他写了 dev_display 时也只是原位重画一次，无副作用。
         /// </summary>
-        public static void Begin(HObject baseImage)
+        public static void Begin(HObject baseImage, Action<HObject, int> router = null)
         {
             _drawn = false;
             _sizeLocked = false;
             _hintW = 0;
             _hintH = 0;
+            _routeView = 0;
+            _router = router;
 
             if (IsImage(baseImage) && TryImageSize(baseImage, out int w, out int h))
             {
                 Ensure(w, h);
+                RestoreFont();
                 _sizeLocked = true;
                 Guard("dev_display (底图)", delegate { HOperatorSet.DispObj(baseImage, _win); });
                 return;
@@ -78,6 +94,7 @@ namespace Plugin.ImageScript
             {
                 try { HOperatorSet.ClearWindow(_win); } catch { }
             }
+            RestoreFont();
         }
 
         /// <summary>把 buffer 窗口内容回读成效果图（返回的 HImage 所有权交给调用方）</summary>
@@ -104,19 +121,28 @@ namespace Plugin.ImageScript
             _winH = 0;
             _sizeLocked = false;
             _drawn = false;
+            _font0 = null;      // 窗口都没了，旧字体串不能留给下一扇窗
         }
 
         // ────────────────────────── 内部工具 ──────────────────────────
 
-        private static bool IsImage(HObject o)
+        /// <summary>
+        /// 对象集里是否真有内容。空对象集（阈值/筛选后一个都没剩下）没有"类型"可言，
+        /// 取元素/取类型都会抛 IndexOutOfRange，唯一安全的判据是先数个数。
+        /// </summary>
+        private static bool HasContent(HObject o)
         {
             if (o == null || !o.IsInitialized()) return false;
-            // 空对象集（阈值/筛选后一个目标都没剩下）取类型会抛 IndexOutOfRange，
-            // 而 HALCON 自己 disp_obj 画空对象是合法的（什么都不画）。
-            // 所以这里先数元素个数：0 个就当作「不是图像」，交给默认画布分支处理。
             HTuple number;
             HOperatorSet.CountObj(o, out number);
-            if (number.Length == 0 || number[0].I == 0) return false;
+            return number.Length > 0 && number[0].I > 0;
+        }
+
+        private static bool IsImage(HObject o)
+        {
+            // HALCON 自己 disp_obj 画空对象是合法的（什么都不画），但取类型会抛——
+            // 所以先判有无内容，0 个就当作「不是图像」，交给默认画布分支处理。
+            if (!HasContent(o)) return false;
             return o.GetObjClass().S == "image";
         }
 
@@ -167,6 +193,30 @@ namespace Plugin.ImageScript
             _win = win;
             _winW = w;
             _winH = h;
+
+            // 刚建好的窗口还没人碰过字体，此刻 get_font 拿到的就是"原生"值，存下来供 Begin 复位。
+            // 实测 get_font/set_font 是逐位忠实的回路（把窗口污染成 34 号后「存→改→写回」，
+            // 落墨面积仍是 34 号那个数），所以这个快照可信。
+            _font0 = null;
+            try { HOperatorSet.GetFont(_win, out _font0); }
+            catch { _font0 = null; }   // 拿不到就算了，复位是锦上添花，绝不能因此弄挂绘制
+        }
+
+        /// <summary>
+        /// 把画布窗口的字体写回原生值。
+        ///
+        /// 为什么由宿主做而不是让每个模板自己收尾：字号是「窗口级」状态，而画布窗口按线程
+        /// 常驻复用（HDevelop 在反复 open/close 时会 #9302 死锁，所以刻意不关）。脚本半路抛异常
+        /// 就漏掉还原，会把大字号串给后面所有脚本——实测串台后下一个只写 dev_disp_text 的
+        /// 脚本落墨面积仍是 18303 px 而不是原生 2500 px，效果图上的字直接糊满半张图。
+        ///
+        /// 也别想用 set_display_font(W, -1, …) 复位：官方过程里 -1 就是 16 号，不是原生 12 号。
+        /// </summary>
+        private static void RestoreFont()
+        {
+            if (_win == null || _font0 == null) return;
+            try { HOperatorSet.SetFont(_win, _font0); }
+            catch { /* 复位失败不影响本轮绘制 */ }
         }
 
         /// <summary>脚本没显示过图像时用的兜底尺寸</summary>
@@ -238,7 +288,27 @@ namespace Plugin.ImageScript
 
         public void DevSetWindow(HTuple window)
         {
-            // 单窗口模型：忽略脚本切窗，后续绘制仍落在宿主效果图窗口上
+            // publish_preview 的带内信令：['vmview',N] —— 只记下视图号，等下一个 dev_display 消费。
+            // 除此之外仍是单窗口模型：忽略脚本切窗，后续绘制都落在宿主效果图窗口上。
+            int view = ReadViewDirective(window);
+            if (view > 0) _routeView = view;
+        }
+
+        /// <summary>
+        /// 识别 dev_set_window 收到的是不是 publish_preview 信令 ['vmview',N]。
+        /// 真窗口句柄由 dev_get_window 交回，是 H5E... 形式的单个句柄，不可能是 2 元素元组，
+        /// 所以这里可以判得很死，不会误伤正常的切窗口写法。
+        /// </summary>
+        private static int ReadViewDirective(HTuple window)
+        {
+            try
+            {
+                if (window == null || window.Length != 2) return 0;
+                if (window[0].S != "vmview") return 0;
+                int v = window[1].I;
+                return (v >= 1 && v <= 9) ? v : 0;
+            }
+            catch { return 0; }
         }
 
         public void DevGetWindow(out HTuple window)
@@ -279,6 +349,17 @@ namespace Plugin.ImageScript
         {
             Guard("dev_display", delegate
             {
+                // publish_preview 改道：这张图交宿主直接发到指定视图，不进效果图画布、
+                // 也不置 _drawn（否则脚本只用 publish_preview 时会多出一张空白的窗口1截图）。
+                // 拿不到宿主回调、或图是空的，就退回正常绘制——绝不把用户的图无声吞掉。
+                int view = _routeView;
+                _routeView = 0;
+                if (view > 0 && _router != null && HasContent(objectValue))
+                {
+                    _router(objectValue, view);
+                    return;
+                }
+
                 if (IsImage(objectValue) && !_sizeLocked && TryImageSize(objectValue, out int w, out int h))
                 {
                     // 第一次显示图像：以它为准定住画布尺寸
@@ -390,10 +471,11 @@ namespace Plugin.ImageScript
     /// <summary>
     /// 老式窗口算子 → HDevelop 标准 dev_* 拼写的行内垫片（送引擎编译前改写，编辑器原文不变）。
     ///
-    /// 为什么必须改写：注册显示后端后，HDevEngine 会反过来把原生
-    /// open_window / set_color / disp_text / disp_message / disp_image / dump_window_image …
-    /// 判为 invalid program line（实测）。而工程师从 HDevelop 或网上粘的代码大量用这些写法，
-    /// 不改写就等于"一上 D 方案，老脚本全编译失败"。
+    /// 为什么必须改写：注册显示后端后，原生 open_window / set_color / disp_text /
+    /// disp_image / dump_window_image … 并【不会】编译失败（这一点早期注释写错了，已实测纠正），
+    /// 真正的问题是它们画在另一张窗口上——效果图会静默变空白且不报错，比编译失败更难查。
+    /// 改写就是把输出导航回宿主那张 buffer 画布。工程师从 HDevelop 或网上粘的代码大量用这些
+    /// 写法，不改写等于"一上 D 方案，老脚本画出来的东西全看不见"。
     ///
     /// 硬约束：只允许 1 行换 1 行 —— 插件的报错翻译依赖行号一一对应。
     /// 因此 disp_rectangle1 / disp_circle / disp_line / write_string 这类
@@ -414,11 +496,26 @@ namespace Plugin.ImageScript
             { "disp_rectangle1", "改成两行：gen_rectangle1 (Rect, Row1, Column1, Row2, Column2) 然后 dev_display (Rect)" },
             { "disp_circle",     "改成两行：gen_circle (Circle, Row, Column, Radius) 然后 dev_display (Circle)" },
             { "disp_line",       "改成两行：gen_region_line (Line, Row1, Column1, Row2, Column2) 然后 dev_display (Line)；要任意粗细的细线用 gen_contour_polygon_xld (Line, [Row1,Row2], [Col1,Col2])" },
-            { "disp_arrow",      "HALCON 里没有 gen_arrow 这个算子（实测 23.05 无），画不出带箭头的轮廓。改成 gen_region_line (Arrow, Row1, Column1, Row2, Column2) + dev_display (Arrow)；要箭头尖端再用 gen_contour_polygon_xld 补一个小三角形" },
+            { "disp_arrow",      "改成 gen_arrow_contour_xld (Arrow, Row1, Column1, Row2, Column2, HeadLength, HeadWidth) 然后 dev_display (Arrow)。注意它是 7 参（1 输出 + 6 入参），多写一个参数会报 invalid program line" },
             { "disp_cross",      "改成两行：gen_cross_contour_xld (Cross, Row, Col, Size, Angle) 然后 dev_display (Cross)" },
             { "disp_polygon",    "改成两行：gen_contour_polygon_xld (Contour, [Row1,Row2,…], [Col1,Col2,…]) 然后 dev_display (Contour)" },
-            { "set_display_font", "删掉它——HDevEngine 不支持设字体，dev_disp_text 用 HALCON 默认字体。想让文字更醒目就加底色：dev_disp_text (Text, 'window', 12, 12, 'black', ['box','box_color'], ['true','yellow'])" },
-            { "set_font",         "删掉它——HDevEngine 不支持设字体，dev_disp_text 用 HALCON 默认字体" },
+            // set_display_font / set_font 原先被列进本字典（=直接判脚本出错），理由写的是
+            // "HDevEngine 不支持设字体"。实测该理由不成立，故摘出黑名单：配 dev_get_window
+            // 拿到的真句柄，两者都能正常执行并真的改变字号（同一行文字 12 号 2500 px → 34 号 18303 px）。
+            // 三条实测出来的坑，写模板时必须记住：
+            //   1) Size 给 -1 **不是**还原默认。官方 set_display_font.hdvp 里是 if(Size=-1)
+            //      Size:=16（Windows 再乘 1.13677），实测 -1 与显式写 16 落墨面积逐位相同（4759 px）。
+            //      画布窗口的原生字体是 default-Normal-12，所以"写 -1 复原"是个看着合理的陷阱。
+            //   2) 唯一忠实的还原回路是 get_font 存原值 + set_font 写回：先把窗口污染成 34 号，
+            //      再「存 → 改 24 → 写回」，落墨面积仍是 34 号的 18303 px，逐位相同。
+            //      不过模板不必自己写这两行——宿主在 Begin() 里每轮自动复位，见 RestoreFont。
+            //   3) 字号是窗口级状态、画布窗口常驻复用，脚本之间会串台；好在 set_display_font
+            //      是幂等的绝对设置，所以模板里"要多大就显式设多大"，不必依赖上游状态。
+            // 另：dev_disp_text 的第 6、7 个参数（GenParam）实测边界——
+            //   ['box'] 有效且**默认就是开的**（关掉才看得出：默认 18303 px vs ['box'],['false'] 3754 px），
+            //   所以再写 ['box'],['true'] 纯属冗余；['box_color'] 有效；['shadow'] 完全无效
+            //   （关框后加不加阴影都是 3754 px）；['font'] / ['size'] 直接让算子失败——
+            //   想改字号只能走上面的窗口级 set_display_font，没有单次调用的路子。
             { "set_tposition",   "删掉它，把行/列直接写进 dev_disp_text 的第 3、4 个参数" },
             { "write_string",    "改成 dev_disp_text (Text, 'image', Row, Column, 'green', [], [])" },
             { "get_window_extents", "HDevEngine 里不可用；效果图尺寸由插件按输入图像自动决定，删掉即可" },

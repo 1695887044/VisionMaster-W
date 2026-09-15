@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="23.05.0.0">
+<procedure name="publish_preview">
+<interface>
+<io>
+<par name="Image" base_type="iconic" dimension="0"/>
+</io>
+<ic>
+<par name="ViewIndex" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>* 把图像直接送到主界面第 ViewIndex 号视图窗口（1~9）。</c>
+<c>* 语义：改道——这张图不再进入本脚本的效果图画布（窗口1）。</c>
+<c>* </c>
+<c>* 实现原理：HDevelop Engine 在 .NET 版没有注册外部算子的 API，</c>
+<c>* 只有 IHDevOperators 这 17 个显示回调能把控制权交回 C#。</c>
+<c>* 这里借「本来就没人用的」 dev_set_window 当带内信令通道：</c>
+<c>*   dev_set_window (['vmview',N]) 只记下视图号，不产生任何绘制；</c>
+<c>*   紧接着的 dev_display (Image) 看到有挂起的视图号，就改为发布到该视图。</c>
+<c>* 真窗口句柄来自 dev_get_window，形如 'H5ED22640010'，绝不会是这种二元组，</c>
+<c>* 因此宿主侧不存在误判的可能。</c>
+<l>dev_set_window (['vmview',ViewIndex])</l>
+<l>dev_display (Image)</l>
+<l>return ()</l>
+</body>
+<docu id="publish_preview">
+<short lang="en_US">Publish an image to the given view window of the host UI.</short>
+<abstract lang="en_US">Send Image to view window number ViewIndex (1-9) of the host application. The image is routed directly to that view and is not drawn into the script result canvas.</abstract>
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>

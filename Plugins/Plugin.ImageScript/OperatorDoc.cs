@@ -914,6 +914,12 @@ namespace Plugin.ImageScript
                     "关闭当前窗口",
                     "调试收尾",
                     A(), A(), A(), A()),
+
+                new OpDoc("publish_preview", "显示",
+                    "把图像直接发布到主界面第 N 号视图窗口（不进本脚本效果图）",
+                    "一个脚本同时往多个视图各推一张不同图",
+                    A(P("Image", "iconic", "要直送的图像")), A(),
+                    A(P("ViewIndex", "integer", "目标视图号 1~9")), A()),
             };
 
             var dict = new Dictionary<string, OpDoc>(StringComparer.Ordinal);

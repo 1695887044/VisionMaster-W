@@ -34,7 +34,9 @@
     <Exec Command="copy $(TargetPath) $(SolutionDir)\Modules\$(TargetFileName) /Y" />
     <!-- 仅部署插件专属依赖 hdevenginedotnet（主程序目录无此件）；halcondotnet 由主程序目录提供，勿拷入 Modules 以免类型标识冲突 -->
     <Exec Command="copy $(TargetDir)hdevenginedotnet.dll $(SolutionDir)\Modules\hdevenginedotnet.dll /Y" />
-    <!-- 示例代码资源（Halcon 官方例程图片+OCR模型）→ 宿主运行目录，供"插入示例代码"直接引用 -->
-    <Exec Command="xcopy &quot;$(ProjectDir)ScriptAssets&quot; &quot;$(SolutionDir)VisionMaster\bin\Debug\net9.0-windows\ScriptAssets\&quot; /E /I /Y /Q" />
+    <!-- 示例代码资源（Halcon 官方例程图片+OCR模型+自定义过程）→ 宿主运行目录，供"插入示例代码"直接引用 -->
+    <!-- 目标必须是 $(ConfigurationName) 而非写死 Debug：images 尚有 HALCON 自带资源目录兜底，
+         而 procedures\publish_preview.hdvp 没有兜底——漏拷会表现为"unresolved procedure call"，极难定位 -->
+    <Exec Command="xcopy &quot;$(ProjectDir)ScriptAssets&quot; &quot;$(SolutionDir)VisionMaster\bin\$(ConfigurationName)\net9.0-windows\ScriptAssets\&quot; /E /I /Y /Q" />
   </Target>
 </Project>

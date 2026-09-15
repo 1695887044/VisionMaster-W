@@ -47,6 +47,7 @@ namespace VisionMaster.Plugins.Util
             int targetDelayMs = DelayTimePort.GetTypedValue();
             ElapsedTime.Value = 0;
             State.Value = false;
+            Success.Value = false;
 
             try
             {
@@ -58,6 +59,7 @@ namespace VisionMaster.Plugins.Util
                     if (context.CancellationToken.IsCancellationRequested)
                     {
                         context.Logger.Warn($"{InstanceName} 收到急停信号，已强制中断！");
+                        Success.Value = false;
                         return;
                     }
                     int currentStep = Math.Min(step, targetDelayMs - elapsed);
@@ -67,11 +69,15 @@ namespace VisionMaster.Plugins.Util
                 }
 
                 State.Value = true;
+                // 框架契约：VisionPluginBase.Execute 以 Success.Value is true 判定业务成功，
+                // 不置 true 会被引擎每轮标记"执行失败"（此前只写了自家 State 输出端口）
+                Success.Value = true;
                 context.Logger.Info($"{InstanceName} 延时 {targetDelayMs}ms 完成。");
             }
             catch (Exception ex)
             {
                 State.Value = false;
+                Success.Value = false;
                 context.Logger.Error($"{InstanceName} 发生异常: {ex.Message}");
                 throw;
             }

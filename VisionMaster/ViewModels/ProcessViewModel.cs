@@ -48,6 +48,19 @@ namespace VisionMaster.ViewModels
         StepModel CurrentSelectedStepModel;
 
         /// <summary>
+        /// 运行状态镜像：由 ShellViewModel 经 GlobalEventBus 广播同步。
+        /// 运行中锁住流程编辑（增删/改名/参数/拖放），防止"边跑边换轮胎"。
+        /// </summary>
+        private MainRunState _runState = MainRunState.NotStarted;
+        private bool IsRunLocked => _runState != MainRunState.NotStarted;
+
+        /// <summary>
+        /// 是否属于"编辑"动作：复制、查看类放行，其余全部受运行锁管控
+        /// </summary>
+        private static bool IsEditingAction(ModuleCommandAction action)
+            => action is not (ModuleCommandAction.Copy or ModuleCommandAction.ShowAll);
+
+        /// <summary>
         /// 运行时间实时刷新定时器：
         /// 引擎只记录步骤起始时刻（LastRunStartTime），运行中耗时由 UI 定时器计算写入 CurrentRunTimeMs，
         /// 否则毫秒级步骤的耗时显示永远停在初始值 0
@@ -60,6 +73,8 @@ namespace VisionMaster.ViewModels
             this.dialogService = dialogService;
             ModuleActionCommand = new(ModuleActionAsync);
             GlobalEventBus.Subscribe<LinkPathEvent>(OnLinkPathEvent);
+            // 订阅主界面运行状态广播（总线同步派发，且发布方在 UI 线程，可直接存字段）
+            GlobalEventBus.Subscribe<MainRunState>(state => _runState = state);
 
             _runTimeTimer = new System.Windows.Threading.DispatcherTimer
             {
@@ -151,6 +166,13 @@ namespace VisionMaster.ViewModels
 
         private async Task ModuleActionAsync(ModuleCommandAction? action)
         {
+            // 运行锁：双击卡片、右键菜单（重命名/删除/禁用/模块参数…）都汇聚到本命令，单点拦截
+            if (action.HasValue && IsRunLocked && IsEditingAction(action.Value))
+            {
+                Notifier.ShowWarning("流程运行中，禁止编辑；如需修改请先点击“停止”");
+                return;
+            }
+
             switch (action)
             {
                 case ModuleCommandAction.Rename:
@@ -371,6 +393,13 @@ namespace VisionMaster.ViewModels
             if (Workspace.CurrentFlow == null)
             {
                 Notifier.ShowError("请先加载流程");
+                return;
+            }
+
+            // 运行锁：从工具箱拖入、卡片间拖拽排序，都会走到这里，一并拦下
+            if (IsRunLocked)
+            {
+                Notifier.ShowWarning("流程运行中，禁止编辑；如需修改请先点击“停止”");
                 return;
             }
 

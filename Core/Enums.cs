@@ -95,6 +95,19 @@ namespace VisionMaster
     }
 
     /// <summary>
+    /// 主界面运行控制状态（UI 唯一事实来源：同时驱动按钮互锁与状态栏显示）
+    /// </summary>
+    public enum MainRunState
+    {
+        /// <summary>未启动</summary>
+        NotStarted,
+        /// <summary>单次运行中</summary>
+        RunningOnce,
+        /// <summary>循环运行中</summary>
+        RunningContinuous
+    }
+
+    /// <summary>
     /// 系统操作枚举
     /// </summary>
     public enum SystemAction

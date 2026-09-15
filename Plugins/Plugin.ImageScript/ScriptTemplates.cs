@@ -881,9 +881,11 @@ dev_display (Simplified)"),
 *       人机互信全靠这一笔
 * 三件套：dev_disp_text 文字  gen_cross_contour_xld 十字  gen_circle 圆圈
 * 关键：标注只改「显示效果」，不改图像数据本身（存盘出去的还是干净原图）
-* 坑：网上抄来的 disp_cross / disp_circle / set_display_font 在本插件里
-*     全不可用（HDevEngine 只认 dev_* 那一套），一律换成三行式：
+* 坑：网上抄来的 disp_cross / disp_circle 在本插件里不可用（HDevEngine 只认
+*     dev_* 那一套），一律换成三行式：
 *     gen_* 生成几何 → dev_set_color 定色 → dev_display 画出来
+*     文字要放大另说：set_display_font 是可用的，但字号是窗口级状态，
+*     收尾得显式写回 12（详见「L 效果图标注 | 大字号箭头标注」）
 * ──────────────────────────────────────
 read_image (Image, 'fabrik')
 get_image_size (Image, Width, Height)
@@ -1551,9 +1553,18 @@ dev_disp_text ('绿=填充  黄=轮廓  红=外接框  共' + Number$'.0f' + '�
 *   ⑥GenParamName ⑦GenParamValue 外观开关，成对写。23.05 可用：
 *        'box' 'box_color' 'box_shape' 'box_padding' 'border_radius'
 *        'shadow' 'shadow_color' 'shadow_sigma' 'shadow_dx' 'shadow_dy'
-* 坑：①HDevEngine 里不能用 set_display_font / disp_message（那是 HDevelop 自带过程，
-*       插件未挂 procedures 目录），想要大字号就多加几行或加底色，别去找字体算子
-*     ②文字和图像叠在同一个窗口，深色底用白字或一定要开 'box'，否则看不见
+* 坑：①字号是「窗口级」状态，不在七个参数里。想放大得先另起两行：
+*       dev_get_window (Window)
+*       set_display_font (Window, 24, 'sans', 'false', 'false')
+*     ②不用自己收尾还原：宿主每轮执行前会把字体复位回原生。但别拿 Size=-1 当还原——
+*       官方过程里 -1 就是 16 号，而画布原生是 default-Normal-12，写 -1 只会越还原越大
+*     ③⑦ 这一对里实测只有 'box' / 'box_color' 真落墨，而且 'box' 默认就是开的：
+*       同一行 12 号字，默认 2500 px，写 ['box'],['false'] 关框后只剩 428 px。
+*       所以再写 ['box'],['true'] 纯属冗余；'shadow' 一个像素都不加（428 → 428）；
+*       'font' / 'size' 更是直接让算子失败——字号没有「单次调用」这条路，只能走②上面那个
+*     ④文字和图像叠在同一个窗口，深色底要么用白字要么给 'box_color' 配个亮色，否则看不见
+*     ⑤disp_message / disp_text 会被插件改写成 dev_disp_text，且多余参数会被截掉，
+*       所以本例统一走 dev_disp_text 全参写法，行为最可控
 * ════════════════════════════════════════════════
 read_image (Image, 'pellets')
 rgb1_to_gray (Image, GrayImage)
@@ -1789,17 +1800,80 @@ dev_display (Defects)
 dev_set_shape ('original')
 * 第3层 左上标题栏
 Header := ['BGA 焊球检测', '缺陷数: ' + Number$'.0f', '最大缺陷: ' + MaxArea$'.0f' + ' px']
-dev_disp_text (Header, 'window', 12, 12, 'black', ['box','box_color'], ['true','white'])
-* 第4层 右下结论章（红/绿分色，扫一眼就知道结果）
+dev_disp_text (Header, 'window', 12, 12, 'black', ['box_color'], ['white'])
+* 第4层 右下 OK/NG 章（红/绿分色，扫一眼就知道结果）
+* 'box' 默认就是开的，这里只改框色；实测 'shadow' 一个像素都不加，所以不写
 if (Number > 0)
-    dev_disp_text (Verdict, 'window', 'bottom', 'right', 'red', ['box','box_color','shadow'], ['true','white','true'])
+    dev_disp_text (Verdict, 'window', 'bottom', 'right', 'red', ['box_color'], ['white'])
 else
-    dev_disp_text (Verdict, 'window', 'bottom', 'right', 'green', ['box','box_color','shadow'], ['true','white','true'])
+    dev_disp_text (Verdict, 'window', 'bottom', 'right', 'green', ['box_color'], ['white'])
 endif
-* 还原默认显示状态，别把它带给下一个脚本
+* 还原默认显示状态，别把它带给下一个脚本（字号不用管，宿主每轮自己复位）
 dev_set_draw ('fill')
 dev_set_line_width (1)
 dev_set_color ('white')"),
+
+            new TemplateDef("L 效果图标注", "大字号箭头标注（指着最大缺陷说话）",
+@"* ════════════════════════════════════════════════
+* 例｜给操作员看的「就是这里」：粗箭头指到最大缺陷 + 大字号说明
+* 比方：老师批卷不会只写个「错」字，她会画个箭头指到你算错的那一步——
+*       箭头的作用是代替说话，让人不用自己找
+* 两个主角：
+*   gen_arrow_contour_xld  只生成箭头的顶点（纯几何，不落笔）
+*   dev_display            才真正把箭头画到画布上
+* 箭头七个参数（1 输出 + 6 输入）：尾部(Row1,Col1) → 头部(Row2,Col2)、两翼长、两翼宽
+*   多写一个参数就报 invalid program line，这是最常见的抄错
+* ════════════════════════════════════════════════
+read_image (Image, 'bga_14x14_defects')
+rgb1_to_gray (Image, GrayImage)
+get_image_size (GrayImage, Width, Height)
+* ─── 算法段：先把缺陷找完并算出最大那个，再开始画 ───
+threshold (GrayImage, BrightRegion, 200, 255)
+connection (BrightRegion, All)
+select_shape (All, Defects, 'area', 'and', 10, 3000)
+count_obj (Defects, Number)
+area_center (Defects, Area, Rows, Cols)
+tuple_max (Area, MaxArea)
+* tuple_find 给的是 0 基数组下标，select_obj 从 1 数，所以 +1
+tuple_find (Area, MaxArea, Hit)
+Idx := Hit[0] + 1
+* ─── 显示段 ───
+dev_display (Image)
+dev_set_draw ('margin')
+dev_set_color ('red')
+dev_display (Defects)
+* 字号是「窗口级」状态，不在 dev_disp_text 的参数里：先拿句柄，再设字号
+dev_get_window (Window)
+set_display_font (Window, 26, 'sans', 'false', 'false')
+if (Number > 0)
+    select_obj (Defects, Worst, Idx)
+    area_center (Worst, WorstArea, WorstRow, WorstCol)
+    dev_disp_text ('最大缺陷 ' + WorstArea$'.0f' + ' px', 'window', 'top', 'left', 'red', [], [])
+    * 箭头从右下角（空处）斜着指到缺陷质心，起点用比例算、换图不用改
+    dev_set_color ('yellow')
+    dev_set_line_width (3)
+    gen_arrow_contour_xld (Arrow, Height * 0.88, Width * 0.9, WorstRow, WorstCol, 45, 28)
+    dev_display (Arrow)
+else
+    dev_disp_text ('无缺陷', 'window', 'top', 'left', 'green', [], [])
+endif
+* ─── 第 3 段：另一条输出路——publish_preview 直送指定视图 ───
+* dev_display 那一套最后会被整张回读成「效果图」发到窗口1；
+* publish_preview 是【改道】：这张图不进画布、不参与效果图，直接送到第 N 号视图。
+* 两路并存，同一个脚本就能一屏往多个窗口各推一张不同的图。
+publish_preview (Image, 2)
+*   ↑ 图像：原样直送窗口2，跟画布/底图无关，也不受 dev_set_part 影响
+publish_preview (GrayImage, 3)
+*   ↑ 还是图像。这一路目前【只能送图像】：区域 / 轮廓送过去会被静默丢掉（窗口不刷新、不报错），
+*     想单独看缺陷分布请走画布那条路（dev_set_color + dev_display），或者直接把它 crop/裁剪成图像再送
+* ─── 关于字号还原：不用自己写 ───
+* 字号是「窗口级」状态，画布窗口又按线程常驻复用，本来会串到下一个脚本。
+* 宿主在每次执行前都会把字体复位回原生，所以脚本里只管「要多大就显式设多大」。
+* 顺带一个看着合理的陷阱：set_display_font 的 Size 写 -1 不等于还原——
+* 官方过程里 -1 就是 16 号，而画布原生是 default-Normal-12。
+dev_set_color ('white')
+dev_set_line_width (1)
+dev_set_draw ('fill')"),
         };
     }
 }
