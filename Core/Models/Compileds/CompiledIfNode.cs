@@ -29,6 +29,10 @@ namespace VisionMaster.Models
         {
             context.CurrentNodeId = Id;
 
+            // 断桥修复：引脚绑定"运行时变量"的代理端口需先注入 context，
+            // UpstreamLinks[varId].Value 才能从 context.LocalVariables 现取最新值
+            BindContextAwarePorts(context);
+
             if (context.CancellationToken.IsCancellationRequested)
                 return null;
 

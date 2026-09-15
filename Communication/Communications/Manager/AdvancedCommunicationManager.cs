@@ -458,10 +458,17 @@ namespace VisionMaster.Communications
                 variable.ConnectionName,
                 _ => new ConcurrentDictionary<string, CommunicationVariable>());
 
-            variables[variable.VariableName] = variable;
+            // D1：覆盖注册先退订旧转发——旧实现每次注册都往对象挂匿名 lambda，
+            // 同名变量重复注册（RebindAll 等路径）会让 OnVarChanged 一次变化转发多遍、旧订阅无法回收。
+            // 无论新旧是否同一实例，登记表里有记录就必须摘除，再挂新的
+            var forwardKey = variable.ConnectionName + "\\" + variable.VariableName;
+            if (variables.TryGetValue(variable.VariableName, out var oldVar)
+                && _varForwardHandlers.TryRemove(forwardKey, out var oldHandler))
+            {
+                oldVar.ValueChanged -= oldHandler;
+            }
 
-            // 订阅变量自身的ValueChanged事件，转发到全局OnVarChanged事件
-            variable.ValueChanged += (sender, newValue) =>
+            EventHandler<object?> handler = (sender, newValue) =>
             {
                 OnVarChanged?.Invoke(this, new VariableChangedEventArgs(
                     variable.ConnectionName,
@@ -469,7 +476,14 @@ namespace VisionMaster.Communications
                     null,
                     newValue));
             };
+            variable.ValueChanged += handler;
+            _varForwardHandlers[forwardKey] = handler;
+
+            variables[variable.VariableName] = variable;
         }
+
+        /// <summary>D1：变量转发处理器登记表（key = 连接名\变量名），覆盖注册/注销时用于精确退订</summary>
+        private readonly ConcurrentDictionary<string, EventHandler<object?>> _varForwardHandlers = new();
 
         public void UnregisterVariable(string connectionName, string variableName)
         {
@@ -480,7 +494,11 @@ namespace VisionMaster.Communications
 
             if (_registeredVariables.TryGetValue(connectionName, out var variables))
             {
-                variables.TryRemove(variableName, out _);
+                if (variables.TryRemove(variableName, out var removed)
+                    && _varForwardHandlers.TryRemove(connectionName + "\\" + variableName, out var handler))
+                {
+                    removed.ValueChanged -= handler; // 转发链随变量生命周期一并解除，防事件泄漏
+                }
 
                 if (variables.IsEmpty)
                     _registeredVariables.TryRemove(connectionName, out _);

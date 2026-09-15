@@ -19,6 +19,13 @@ namespace VisionMaster.Services
         private readonly IWorkspaceManager _workspace;
         private readonly AdvancedCommunicationManager _manager;
 
+        /// <summary>
+        /// B2：本桥接器实际注册过的网络变量清单。
+        /// Clear()（方案切换 Restore）触发 Reset 动作且 OldItems=null，光靠事件参数拿不到旧清单，
+        /// 旧方案网络变量的轮询注册会永久残留（幽灵轮询+对象被闭包钉住不回收）——自建清单才能在 Reset 时全清
+        /// </summary>
+        private readonly HashSet<NetworkVariableModel> _registered = new();
+
         public NetworkVariableBridge(IWorkspaceManager workspace, AdvancedCommunicationManager manager)
         {
             _workspace = workspace;
@@ -36,14 +43,23 @@ namespace VisionMaster.Services
         /// </summary>
         public void RebindAll()
         {
-            foreach (var gv in _workspace.GlobalVariables.OfType<NetworkVariableModel>().ToList())
-                Unregister(gv);
+            foreach (var nv in _registered.ToList())
+                Unregister(nv);
             foreach (var gv in _workspace.GlobalVariables.OfType<NetworkVariableModel>())
                 Register(gv);
         }
 
         private void OnGlobalVariablesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                // Clear()：集合已空，靠 _registered 补注销（见字段注释）
+                foreach (var nv in _registered.ToList())
+                    Unregister(nv);
+                _registered.Clear();
+                return;
+            }
+
             if (e.OldItems != null)
                 foreach (NetworkVariableModel nv in e.OldItems.OfType<NetworkVariableModel>())
                     Unregister(nv);
@@ -59,6 +75,7 @@ namespace VisionMaster.Services
                 return;
 
             nv.Bind(_manager); // 打通写通道
+            _registered.Add(nv);
 
             var commVar = new CommunicationVariable
             {
@@ -84,14 +101,16 @@ namespace VisionMaster.Services
 
         private void Unregister(NetworkVariableModel nv)
         {
+            _registered.Remove(nv);
             if (string.IsNullOrEmpty(nv.ConnectionName)) return;
             _manager.UnregisterVariable(nv.ConnectionName, nv.Name);
         }
 
         public void Dispose()
         {
-            foreach (var gv in _workspace.GlobalVariables.OfType<NetworkVariableModel>().ToList())
-                Unregister(gv);
+            foreach (var nv in _registered.ToList())
+                Unregister(nv);
+            _registered.Clear();
             _workspace.GlobalVariables.CollectionChanged -= OnGlobalVariablesChanged;
         }
     }

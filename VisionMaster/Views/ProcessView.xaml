@@ -493,7 +493,7 @@
                         <Setter TargetName="ExpressionText" Property="Foreground" Value="#909399" />
                     </DataTrigger>
 
-                    <!--  场景 2：Default 循环体 (浅绿)  -->
+                    <!--  场景 2：循环体卡片 (浅绿) —— Default(For) 与 WhileLoop(While) 都要有身份色  -->
                     <DataTrigger Binding="{Binding BranchType}" Value="Default">
                         <Setter TargetName="BranchContainer" Property="Background" Value="#F0F9EB" />
                         <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#C2E7B0" />
@@ -501,29 +501,24 @@
                         <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
                         <Setter TargetName="ExpressionText" Property="Foreground" Value="#67C23A" />
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding BranchType}" Value="WhileLoop">
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#F0F9EB" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#C2E7B0" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#67C23A" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                        <Setter TargetName="ExpressionText" Property="Foreground" Value="#67C23A" />
+                    </DataTrigger>
 
-                    <!--  场景 3：If 表达式为空时，红色危险警告  -->
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding BranchType}" Value="If" />
-                            <Condition Binding="{Binding Expression}" Value="{x:Null}" />
-                        </MultiDataTrigger.Conditions>
+                    <!--  场景 3：缺条件统一红灯——读 StepCollection.IsConditionMissing（P1-⑦）。
+                          旧判定只认 BranchType==If，漏掉 Case/ElseIf/WhileLoop，造成"文字说未绑定、灯却不红"；
+                          现在红点、红字与弹窗校验共用同一属性，一处判定、三处一致。
+                          放在绿卡触发器之后：WhileLoop 空条件时红压绿，正确报警  -->
+                    <DataTrigger Binding="{Binding IsConditionMissing}" Value="True">
                         <Setter TargetName="BranchContainer" Property="Background" Value="#FEF0F0" />
                         <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#FBC4C4" />
                         <Setter TargetName="StatusDot" Property="Fill" Value="#F56C6C" />
                         <Setter TargetName="BranchText" Property="Foreground" Value="#F56C6C" />
-                    </MultiDataTrigger>
-
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding BranchType}" Value="If" />
-                            <Condition Binding="{Binding Expression}" Value="" />
-                        </MultiDataTrigger.Conditions>
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#FEF0F0" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#FBC4C4" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#F56C6C" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#F56C6C" />
-                    </MultiDataTrigger>
+                    </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
 

@@ -224,8 +224,9 @@ namespace VisionMaster.Services
                         // 编译 While 的触发条件
                         if (string.IsNullOrWhiteSpace(loopCollection.Expression))
                         {
+                            // 措辞纠偏：errors.Add 会阻断编译（Success=Errors.Count==0），这是硬错误不是警告
                             errors.Add(
-                                $"[编译警告] '{whileModel.StepName}' 的循环条件表达式为空。"
+                                $"[编译错误] '{whileModel.StepName}' 的循环条件表达式为空。"
                             );
                         }
                         else
@@ -295,8 +296,9 @@ namespace VisionMaster.Services
                         }
                         else if (string.IsNullOrWhiteSpace(childCollection.Expression))
                         {
+                            // 措辞纠偏：errors.Add 会阻断编译（Success=Errors.Count==0），这是硬错误不是警告
                             errors.Add(
-                                $"[编译警告] '{model.StepName}' 的分支 '{childCollection.StepName}' 表达式为空。"
+                                $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' 表达式为空。"
                             );
                         }
                         else
@@ -481,10 +483,36 @@ namespace VisionMaster.Services
                         pluginNode.ContextAwareBindings.Add(proxy);
                         actualUpstreamName = "RuntimeVar";
                     }
+                    else if (targetNode is CompiledIfNode || targetNode is CompiledWhileNode
+                             || targetNode is CompiledForNode)
+                    {
+                        // 🌉 断桥修复：条件节点引脚与 For 的 LoopCount 端口支持引用运行时变量。
+                        // 旧实现"仅普通算子支持"把唯一入口堵死，而条件模型的 RuntimeVariableRefs 又无任何
+                        // UI 写入方——两条路全断，用户根本无法在 If/While/For 里用"变量定义"插件的变量。
+                        // 期望类型：条件节点取 LocalVariables 里该 Guid 的声明类型；For 的 LoopCount 固定 int。
+                        Type expectedType = typeof(object);
+                        if (targetNode is CompiledForNode)
+                        {
+                            expectedType = typeof(int);
+                        }
+                        else if (model is ConditionStep condModel
+                                 && Guid.TryParse(myInputName, out Guid condVarId))
+                        {
+                            var decl = condModel.LocalVariables.FirstOrDefault(x => x.Id == condVarId);
+                            if (decl != null)
+                                expectedType = TypeHelper.GetActualTypeFromLink(decl.DataTypeName);
+                        }
+
+                        var proxy = new RuntimeVariableProxyPort(varName, expectedType);
+                        sourcePort = proxy;
+                        targetNode.ContextAwareBindings.Add(proxy);
+                        // 公共赋值段（L585+ 起）会把 sourcePort 写进 UpstreamLinks[varId] / forNode.LoopCountLink
+                        actualUpstreamName = "RuntimeVar";
+                    }
                     else
                     {
                         errors.Add(
-                            $"[连线错误] '{model.StepName}' 节点类型不支持引用运行时变量（仅普通算子节点支持）"
+                            $"[连线错误] '{model.StepName}' 节点类型不支持引用运行时变量"
                         );
                     }
                 }

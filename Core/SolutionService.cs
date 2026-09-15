@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
 using System.Collections.ObjectModel;
 using System.IO;
 using Newtonsoft.Json;
@@ -103,6 +103,13 @@ namespace VisionMaster.Services
                     return Result<SolutionModel>.NG("方案文件解析失败");
                 }
 
+                // P1-⑦：老方案升级——历史版本 While 循环体误用 BranchType.Default 存储，
+                // 归一化为专属的 WhileLoop，使"未绑定条件"红灯红字与流程栏样式恢复正确判定
+                foreach (var flow in solution.Flows)
+                {
+                    NormalizeBranchTypes(flow.Steps);
+                }
+
                 if (!_solutionModels.Contains(solution))
                 {
                     _solutionModels.Add(solution);
@@ -113,6 +120,28 @@ namespace VisionMaster.Services
             catch (Exception ex)
             {
                 return Result<SolutionModel>.NG($"加载方案失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 递归归一化分支类型（含嵌套在分支内的容器步骤）
+        /// </summary>
+        private static void NormalizeBranchTypes(IEnumerable<StepModel> steps)
+        {
+            if (steps == null) return;
+
+            foreach (var step in steps)
+            {
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                    {
+                        if (step is WhileStep && branch.BranchType == BranchType.Default)
+                            branch.BranchType = BranchType.WhileLoop;
+
+                        NormalizeBranchTypes(branch.Steps);
+                    }
+                }
             }
         }
     }

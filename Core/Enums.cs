@@ -62,6 +62,7 @@ namespace VisionMaster
     }
     /// <summary>
     /// 分支类型枚举
+    /// ⚠ 新增值只允许追加在末尾：JSON 按 int 序列化，插入中间会错位老方案数据
     /// </summary>
     public enum BranchType
     {
@@ -70,6 +71,13 @@ namespace VisionMaster
         Else,
         ElseIf,
         Case,
+
+        /// <summary>
+        /// While 条件循环体：必须书写循环条件。
+        /// 历史上它与 For 循环体共用 Default，导致 UI 层无法区分"可不写条件"（Else/For）
+        /// 与"必须写条件"（While），出现空条件零警告的说谎显示；老数据在方案加载时归一化升级
+        /// </summary>
+        WhileLoop,
     }
 
     /// <summary>

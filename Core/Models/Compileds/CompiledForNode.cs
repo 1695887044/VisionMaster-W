@@ -39,10 +39,24 @@ namespace VisionMaster.Models
         {
             context.CurrentNodeId = Id;
 
+            // 断桥修复：允许 LoopCount 端口绑定运行时变量（如"检测数量"由上游算子定义），
+            // 代理端口先注入 context，下面读 LoopCountLink.Value 即为最新变量值
+            BindContextAwarePorts(context);
+
             int targetCount = DefaultLoopCount;
             if (LoopCountLink != null && LoopCountLink.Value != null)
             {
-                targetCount = Convert.ToInt32(LoopCountLink.Value);
+                // A6：上游值脏（字符串/NaN/越界）时不再抛穿整个流程——回落默认次数并留痕
+                try { targetCount = Convert.ToInt32(LoopCountLink.Value); }
+                catch (Exception ex)
+                {
+                    context.Logger.Warn($"For节点 '{Name}' 的 LoopCount 输入值 [{LoopCountLink.Value}] 无法转为整数，回落默认次数 {DefaultLoopCount}：{ex.Message}");
+                }
+            }
+            if (targetCount < 0)
+            {
+                context.Logger.Warn($"For节点 '{Name}' 循环次数为负 ({targetCount})，按 0 次处理");
+                targetCount = 0;
             }
 
             for (int i = 0; i < targetCount; i++)

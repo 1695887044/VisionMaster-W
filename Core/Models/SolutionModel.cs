@@ -102,8 +102,11 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 全局变量集合（跟着解决方案走）
+        /// E3：变量持久化已统一走 VariableSnapshots（DTO 多态可控），本属性全库无人写入、
+        /// 恒为空却仍参与序列化（且 IVariable 多态 $type 正是数组白名单雷区），
+        /// 保留属性兼容旧文件读取，但不再落盘
         /// </summary>
-        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        [JsonIgnore]
         public ObservableCollection<IVariable> GlobalVariables { get; set; } = new();
 
         /// <summary>

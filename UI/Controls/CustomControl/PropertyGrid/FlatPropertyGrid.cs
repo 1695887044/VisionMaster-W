@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -111,7 +111,9 @@ namespace UI.CustomControl
                 _isRefreshPending = true;
 
                 await Task.Delay(50);
-                Application.Current.Dispatcher.Invoke(() =>
+                // 异步投递而非同步 Invoke：关闭软件时 Dispatcher 取消挂起操作，
+                // 同步 Invoke 会把 TaskCanceledException 抛回属性变更源线程（插件/引擎），改 SafeDispatch 静默兜底
+                VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
                 {
                     try
                     {

@@ -1,4 +1,4 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using VisionMaster.Communications;
 using Prism.Mvvm;
 using System.Windows;
@@ -82,6 +82,59 @@ namespace VisionMaster.Models
             }
         }
 
+        /// <summary>
+        /// 显式写值到设备（工业写操作正门）：
+        /// ① 无条件下发——不经过 Value setter，规避"镜像与目标值相同被 SetProperty 短路而实际没写"的陷阱
+        ///   （设备侧可能被外部改回同值，"再写一次"是命令不是状态设置）；
+        /// ② 返回真实结果——离线/未配置地址/写异常都给出明确原因，UI 必须按结果反馈，禁止无条件报成功。
+        /// 写成功后同步镜像值（走 UpdateMirrorValue，不再二次下发）。
+        /// </summary>
+        public bool TryWriteToValue(object? value, out string? error)
+        {
+            error = null;
+
+            if (AddressConfig == null)
+            {
+                error = $"变量 [{Name}] 未配置设备地址，无法写入";
+                return false;
+            }
+            if (CommunicationManager == null)
+            {
+                error = $"变量 [{Name}] 未绑定通信管理器（连接可能已删除，请在变量管理中重新挂接）";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(ConnectionName))
+            {
+                error = $"变量 [{Name}] 缺少连接名，无法定位设备";
+                return false;
+            }
+
+            var connection = CommunicationManager.GetConnection(ConnectionName);
+            if (connection == null || !connection.IsConnected)
+            {
+                error = $"连接 [{ConnectionName}] 离线，变量 [{Name}] 未写入设备";
+                return false;
+            }
+
+            try
+            {
+                var rawValue = AddressConfig.ConvertToRaw(value);
+                if (rawValue == null)
+                {
+                    error = $"变量 [{Name}] 的值无法转换为设备原始值（检查数据类型与地址配置）";
+                    return false;
+                }
+                connection.Write(AddressConfig.Address, rawValue);
+                UpdateMirrorValue(value); // 写确认成功 → 镜像同步并通知 UI
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"变量 [{Name}] 写入失败：{ex.Message}";
+                return false;
+            }
+        }
+
         [JsonIgnore]
         private EventHandler? _valueChanged;
         
@@ -91,38 +144,32 @@ namespace VisionMaster.Models
             remove => _valueChanged -= value;
         }
 
-        private object? ReadFromDevice(ICommunicationConnection connection)
-        {
-            if (AddressConfig == null) return _value;
-            
-            Type valueType = Nullable.GetUnderlyingType(DataType) ?? DataType;
-            var readMethod = typeof(ICommunicationConnection)
-                .GetMethod(nameof(ICommunicationConnection.Read))!
-                .MakeGenericMethod(valueType);
-            
-            var rawValue = readMethod.Invoke(connection, new object[] { AddressConfig.Address });
-            return AddressConfig.ConvertToEngineering(rawValue);
-        }
-
         private void WriteToDevice(object? value)
         {
             if (AddressConfig == null || CommunicationManager == null) return;
-            
+
             var connection = CommunicationManager.GetConnection(ConnectionName);
             if (connection != null && connection.IsConnected)
             {
                 try
                 {
                     var rawValue = AddressConfig.ConvertToRaw(value);
-                    connection.Write(AddressConfig.Address, rawValue);
+                    if (rawValue != null)
+                        connection.Write(AddressConfig.Address, rawValue);
                 }
                 catch { }
             }
         }
 
+        /// <summary>
+        /// 恢复初始值 = 一次"把默认值写进设备"的命令：
+        /// 走 TryWriteToValue 无条件下发（镜像恰与默认值相同时旧实现会被 SetProperty 短路、设备根本没写）；
+        /// 离线时退化为仅更新镜像，让 UI 至少反映用户意图
+        /// </summary>
         public void ResetToDefault()
         {
-            Value = DefaultValue;
+            if (!TryWriteToValue(DefaultValue, out _))
+                Value = DefaultValue;
         }
 
         #region IVariableDisplaySource（HMI 画布组态预留，显式实现避免与模型接口冲突）

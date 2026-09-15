@@ -67,7 +67,16 @@ namespace VisionMaster.Plugins.Util
                     return;
                 }
 
-                object typedValue = ConvertValue(initialValue, targetType);
+                object? typedValue;
+                if (!TryConvertValue(initialValue, targetType, out typedValue, out var convError))
+                {
+                    // A3：契约"默认成功、显式失败"——旧实现转换失败静默回落 0/false 还报成功，
+                    // 数据被悄悄篡改是最难排查的故障形态，必须当场失败并给出原因
+                    Success.Value = false;
+                    ErrorMessage.Value = convError;
+                    context.Logger.Error($"{InstanceName} {convError}");
+                    return;
+                }
 
                 if (context.LocalVariables.ContainsKey(varName))
                 {
@@ -119,23 +128,36 @@ namespace VisionMaster.Plugins.Util
         }
 
         /// <summary>
-        /// 转换值到目标类型
+        /// 转换值到目标类型（A3：显式失败版——不再"catch 后偷渡默认值"）
         /// </summary>
-        private object ConvertValue(object value, Type targetType)
+        private bool TryConvertValue(object value, Type targetType, out object? result, out string? error)
         {
+            // 初始值为空：给类型默认值是明确语义（用户没填），保留
             if (value == null)
-                return Activator.CreateInstance(targetType);
+            {
+                result = Activator.CreateInstance(targetType);
+                error = null;
+                return true;
+            }
 
             if (value.GetType() == targetType)
-                return value;
+            {
+                result = value;
+                error = null;
+                return true;
+            }
 
             try
             {
-                return Convert.ChangeType(value, targetType);
+                result = Convert.ChangeType(value, targetType);
+                error = null;
+                return true;
             }
-            catch
+            catch (Exception ex)
             {
-                return Activator.CreateInstance(targetType);
+                result = null;
+                error = $"初始值 [{value}] 无法转换为 {targetType.Name}：{ex.Message}";
+                return false;
             }
         }
 

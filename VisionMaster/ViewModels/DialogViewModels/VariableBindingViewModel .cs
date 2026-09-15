@@ -228,17 +228,23 @@ namespace VisionMaster.ViewModels
             }
             var linkRef = new LinkReference(targetId, targetPort, displayName);
 
-            string bindKey;
-            if (Workspace.CurrentStep is ConditionStep)
+            // P0-③：单绑模式下弹窗只负责"把用户选的变量还给出题人"（经 BoundLink 回传），
+            // 绝不能直写 Workspace.CurrentStep.LinkedSources——此时 CurrentStep 可能是条件节点，
+            // bindKey 会落到中文描述上（如"当前准备绑定的变量"），在活模型里留下垃圾键
+            if (!_isSingleBindMode)
             {
-                bindKey = SelectedInputPort.Definition.Description;
-            }
-            else
-            {
-                bindKey = SelectedInputPort.Definition.Name;
-            }
+                string bindKey;
+                if (Workspace.CurrentStep is ConditionStep)
+                {
+                    bindKey = SelectedInputPort.Definition.Description;
+                }
+                else
+                {
+                    bindKey = SelectedInputPort.Definition.Name;
+                }
 
-            Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;
+                Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;
+            }
             SelectedInputPort.LinkedAddress = displayName;
 
             _lastBoundLink = linkRef;
@@ -252,7 +258,9 @@ namespace VisionMaster.ViewModels
                 string bindKey = SelectedInputPort.Definition.Name;
                 string displayName = $"常量值: {ConstantValue}";
                 var linkRef = new LinkReference(Guid.Empty, ConstantValue, displayName);
-                Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;
+                // P0-③：同 DoFinalBind，单绑模式下常量也只回传、不写活模型
+                if (!_isSingleBindMode)
+                    Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;
                 SelectedInputPort.LinkedAddress = displayName;
                 _lastBoundLink = linkRef;
                 _lastBoundPort = new PortDefinition

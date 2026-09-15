@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -139,6 +139,42 @@ namespace VisionMaster.Models
         /// 是否为数组根节点
         /// </summary>
         public bool IsArrayRootNode => Level == 0 && DataType != null && DataType.IsArray;
+
+        /// <summary>
+        /// "初始值"列的类型安全代理（A1）：
+        /// 旧绑定直写 IVariable.DefaultValue(object)，任何字符串都被原样塞进模型——
+        /// 给 int 变量填 "abc" 也"保存成功"，恢复初始值时污染值流入算子端口才爆炸。
+        /// 现按节点 DataType 转换：合法才写模型，非法抛异常交由绑定引擎标记校验失败（模型保持干净）。
+        /// 数组类型不走此入口（走"编辑集合"对话框）。
+        /// </summary>
+        public string DefaultValueText
+        {
+            get => OriginalModel?.DefaultValue?.ToString() ?? "";
+            set
+            {
+                var model = OriginalModel;
+                if (model == null || DataType == null) return;
+
+                Type t = Nullable.GetUnderlyingType(DataType) ?? DataType;
+                if (t.IsArray) return; // 数组初始值只走"编辑集合"
+
+                object? converted;
+                if (string.IsNullOrWhiteSpace(value))
+                    converted = t.IsValueType ? Activator.CreateInstance(t) : null;
+                else
+                {
+                    try { converted = Convert.ChangeType(value, t); }
+                    catch (Exception ex)
+                    {
+                        throw new ArgumentException($"'{value}' 不是有效的 {t.Name} 值：{ex.Message}");
+                    }
+                }
+
+                model.DefaultValue = converted;
+                ChildDefaultValue = converted;
+                RaisePropertyChanged(nameof(ChildDefaultValue));
+            }
+        }
 
         private bool _isExpanded;
         /// <summary>

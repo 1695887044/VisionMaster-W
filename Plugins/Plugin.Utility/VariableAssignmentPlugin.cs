@@ -55,6 +55,26 @@ namespace VisionMaster.Plugins.Util
 
                 if (context.LocalVariables.ContainsKey(varName))
                 {
+                    // A2 类型守门：变量池的类型是条件表达式的"契约"——
+                    // double 变量被塞 string 后，If/While 每次求值都抛异常、所有分支集体不走且流程照常往下跑，
+                    // 是最难排查的静默故障形态。这里对齐既有类型：可转换则转，不可转换显式失败。
+                    var existing = context.LocalVariables[varName];
+                    if (value != null && existing != null && value.GetType() != existing.GetType())
+                    {
+                        try
+                        {
+                            value = Convert.ChangeType(value, existing.GetType());
+                            context.Logger.Warn($"{InstanceName} 赋值 {varName}：值类型已按变量既有类型 {existing.GetType().Name} 自动转换");
+                        }
+                        catch (Exception ex)
+                        {
+                            Success.Value = false;
+                            ErrorMessage.Value = $"变量 {varName} 类型为 {existing.GetType().Name}，值 [{value}] 无法转换：{ex.Message}";
+                            context.Logger.Error($"{InstanceName} {ErrorMessage.Value}");
+                            return;
+                        }
+                    }
+
                     context.LocalVariables[varName] = value;
                     context.Logger.Info($"{InstanceName} 本地变量 {varName} 已赋值");
                     Success.Value = true;

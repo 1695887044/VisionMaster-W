@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -127,16 +127,13 @@ namespace UI.CustomControl
                 if (_isRefreshPending) return;
                 _isRefreshPending = true;
 
-                // =================================================================
-                // 🛡️ 终极防爆机制：异步逃逸
-                // 让当前方法立刻返回，彻底让出 UI 线程。
-                // 强行等待 50 毫秒，让 ComboBox 的下拉弹窗完全关闭，让 WPF 内部所有的
-                // 测量(Measure)、排列(Arrange) 和动画彻底死透！
-                // =================================================================
+                // 强行等待 50 毫秒，让 ComboBox 下拉弹窗完全关闭、WPF 内部测量/排列/动画彻底结束
                 await Task.Delay(50);
 
-                // 50毫秒后，天下太平，我们再安全地切回 UI 线程进行毁灭性重绘
-                Application.Current.Dispatcher.Invoke(() =>
+                // 50毫秒后，天下太平，再切回 UI 线程重绘。
+                // 用 SafeDispatch 异步投递而非同步 Invoke：关闭软件时 Dispatcher 取消挂起操作，
+                // 同步 Invoke 会把 TaskCanceledException 抛回属性变更源线程（插件/引擎层）
+                VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
                 {
                     try
                     {

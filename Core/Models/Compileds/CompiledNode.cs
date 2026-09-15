@@ -1,4 +1,4 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +26,26 @@ namespace VisionMaster.Models
         /// 步骤名称（用于UI显示）
         /// </summary>
         public string StepName { get; set; }
+
+        /// <summary>
+        /// 本节点需要在执行期绑定 context 的代理端口集合（如引用运行时变量的 RuntimeVariableProxyPort）。
+        /// 由 FlowCompiler.LinkPorts 填充；节点执行体前先调 BindContextAwarePorts 注入 context，
+        /// 代理端口才能从 context.LocalVariables 取到最新值。
+        /// （原为 CompiledPluginNode 独有，上移基类后条件/For 节点也能引用运行时变量）
+        /// </summary>
+        public List<IContextAwareOutputPort> ContextAwareBindings { get; } = new();
+
+        /// <summary>
+        /// 执行体前统一注入上下文：把 context 交给所有代理端口并触发下游缓存刷新
+        /// </summary>
+        protected void BindContextAwarePorts(IExecutionContext context)
+        {
+            if (ContextAwareBindings.Count > 0)
+            {
+                foreach (var binding in ContextAwareBindings)
+                    binding.BindContext(context);
+            }
+        }
 
         /// <summary>
         /// 执行节点并获取下一个要执行的节点列表

@@ -45,10 +45,21 @@ namespace VisionMaster.Communications
         /// <summary>
         /// 全名是否可反序列化：白名单命名空间直接放行；
         /// 系统集合泛型包装（如 List`1[[Plugin.ImageScript.EProcedure, Plugin.ImageScript]]）
-        /// 要求外层是 System.Collections.*，且内层类型段同样命中白名单。
+        /// 要求外层是 System.Collections.*，且内层类型段同样命中白名单；
+        /// 一维原素数组（如 System.Int32[]——变量快照 DefaultValue/Value 持数组时 TypeNameHandling 会写出）
+        /// 要求元素为无攻击面的已知基元/值类型。
         /// </summary>
         private static bool IsAllowedFullName(string typeName)
         {
+            // 数组类型（E1 修复）："System.Int32[]" 这类带 [] 后缀的名字不含 "[["，
+            // 旧逻辑走到 Contains('.') 分支被误判为"未允许的类型"→ 含数组变量值的方案保存后无法再打开。
+            // 数组本身无构造攻击面（无参数化反序列化），但元素类型仍须收敛在白名单内：只放行基元/常用值类型。
+            if (typeName.EndsWith("[]", StringComparison.Ordinal))
+            {
+                var element = typeName.Substring(0, typeName.Length - 2).Trim();
+                return IsAllowedArrayElement(element) || IsAllowedFullName(element);
+            }
+
             int bracket = typeName.IndexOf("[[", StringComparison.Ordinal);
             if (bracket < 0)
                 return IsAllowedNamespace(typeName);
@@ -62,6 +73,19 @@ namespace VisionMaster.Communications
             string innerType = comma > 0 ? inner.Substring(0, comma) : inner;
             return IsAllowedFullName(innerType);
         }
+
+        /// <summary>无副作用、无构造攻击面的数组元素类型集合（与 TypeCache/变量类型体系一致）</summary>
+        private static readonly HashSet<string> AllowedArrayElements = new(StringComparer.Ordinal)
+        {
+            "System.Boolean", "System.Byte", "System.SByte",
+            "System.Int16", "System.UInt16", "System.Int32", "System.UInt32",
+            "System.Int64", "System.UInt64", "System.Single", "System.Double",
+            "System.Decimal", "System.Char", "System.String",
+            "System.DateTime", "System.Guid", "System.Object",
+        };
+
+        private static bool IsAllowedArrayElement(string elementTypeName) =>
+            AllowedArrayElements.Contains(elementTypeName);
 
         private static bool IsAllowedNamespace(string typeName) =>
             typeName.StartsWith(ModelsPrefix, StringComparison.Ordinal)

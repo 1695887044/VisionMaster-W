@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace VisionMaster.Models
 {
@@ -24,7 +25,15 @@ namespace VisionMaster.Models
         public BranchType BranchType
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    RaisePropertyChanged(nameof(RequiresExpression));
+                    RaisePropertyChanged(nameof(IsConditionMissing));
+                    RaisePropertyChanged(nameof(DisplayName));
+                }
+            }
         }
 
         /// <summary>
@@ -48,9 +57,29 @@ namespace VisionMaster.Models
             set
             {
                 if (SetProperty(ref field, value))
+                {
+                    RaisePropertyChanged(nameof(IsConditionMissing)); // 表达式变化时同步刷新"缺条件"红灯判定
                     RaisePropertyChanged(nameof(DisplayName)); // 表达式变化时同步更新显示名
+                }
             }
         }
+
+        /// <summary>
+        /// 该分支是否必须书写条件表达式。
+        /// Else/Default（Else 分支与 For 循环体）由编译器强制视为 true，无需条件；
+        /// If/ElseIf/Case/WhileLoop 都必须有条件，空条件在编译时是硬错误
+        /// </summary>
+        [JsonIgnore]
+        public bool RequiresExpression =>
+            BranchType != BranchType.Else && BranchType != BranchType.Default;
+
+        /// <summary>
+        /// 统一红灯判定标准：UI 红点、红字、弹窗灰条全部读这一个属性，
+        /// 杜绝"文字说未绑定、灯却不红"或反过来的多头判定（P1-⑦ 病根）
+        /// </summary>
+        [JsonIgnore]
+        public bool IsConditionMissing =>
+            RequiresExpression && string.IsNullOrWhiteSpace(Expression);
 
         /// <summary>
         /// 显示名称（包含条件表达式）
@@ -59,8 +88,8 @@ namespace VisionMaster.Models
         {
             get
             {
-                // 如果是 Else 或 Default，直接返回步骤名
-                if (BranchType == BranchType.Else || BranchType == BranchType.Default)
+                // 如果是 Else 或 For 循环体（无需条件），直接返回步骤名
+                if (!RequiresExpression)
                 {
                     return StepName;
                 }
@@ -71,7 +100,7 @@ namespace VisionMaster.Models
                     return $"{StepName} [ {Expression} ]";
                 }
 
-                // 提示用户未绑定条件
+                // 提示用户未绑定条件（与 IsConditionMissing 红灯同一判定，Case/WhileLoop 同样生效）
                 return $"{StepName} [ 未绑定条件 ]";
             }
         }

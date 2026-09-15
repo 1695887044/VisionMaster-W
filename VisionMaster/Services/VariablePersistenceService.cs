@@ -27,8 +27,17 @@ namespace VisionMaster.Services
                         // 协议从通信管理器的连接配置取（变量自身只存连接名）
                         var conn = ServiceLocator.CommunicationManager?
                             .GetAllConnections().FirstOrDefault(c => c.ConnectionName == nv.ConnectionName);
-                        if (conn != null)
-                            snapshots.Add(VariableDto.FromNetwork(nv, conn.Protocol));
+                        if (conn == null)
+                        {
+                            // E2：连接被删/改名时旧实现直接不落盘 → 该连接全部网络变量"静默蒸发"。
+                            // 改为照常保留定义：协议从现有地址对象类型反推（不能瞎填，否则恢复时重建出错误地址类）
+                            var addrTypeName = nv.AddressConfig?.GetType().Name ?? "";
+                            System.Diagnostics.Debug.WriteLine($"[VariablePersistence] 网络变量 {nv.Name} 的连接 [{nv.ConnectionName}] 不存在，按离线定义落盘");
+                            snapshots.Add(VariableDto.FromNetwork(nv,
+                                addrTypeName.Contains("S7") ? CommunicationType.SiemensS7 : CommunicationType.ModbusTcp));
+                            break;
+                        }
+                        snapshots.Add(VariableDto.FromNetwork(nv, conn.Protocol));
                         break;
 
                     case LocalVariableModel local:
@@ -64,7 +73,11 @@ namespace VisionMaster.Services
                 if (dto.VarType == "Network")
                 {
                     var address = dto.BuildAddressConfig();
-                    if (address == null || string.IsNullOrEmpty(dto.ConnectionName)) continue;
+                    if (string.IsNullOrEmpty(dto.ConnectionName)) continue;
+                    // E2：地址重建失败（历史脏数据/协议字段缺失）不再连变量一起丢——
+                    // 落为"未配置地址"的离线变量，UI 可见、TryWriteToValue 会给出明确原因
+                    if (address == null)
+                        System.Diagnostics.Debug.WriteLine($"[VariablePersistence] 网络变量 {dto.Name} 地址重建失败，按无地址离线变量恢复");
 
                     workspace.GlobalVariables.Add(new NetworkVariableModel
                     {

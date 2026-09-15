@@ -18,14 +18,7 @@ namespace VisionMaster.Models
         /// </summary>
         public IVisionPlugin ExternalPlugin { get; set; }
 
-        /// <summary>
-        /// 本节点需要绑定 context 的代理端口集合
-        /// 由 FlowCompiler.LinkPorts 填充：当某 InputPort 引用了运行时变量
-        /// （RuntimeVariableProxyPort），编译期被加入此集合
-        /// 执行插件前会逐个 BindContext(context)，触发 ValueChanged，
-        /// 让对应 InputPort 重新 RefreshLinkedCache 读取最新变量值
-        /// </summary>
-        public List<IContextAwareOutputPort> ContextAwareBindings { get; } = new();
+        // ContextAwareBindings 已上移至 CompiledNode 基类（条件/For 节点同样需要引用运行时变量）
 
         /// <summary>
         /// 执行插件节点
@@ -43,13 +36,9 @@ namespace VisionMaster.Models
 
             try
             {
-                // 在执行插件前，把 context 注入所有代理端口
+                // 在执行插件前，把 context 注入所有代理端口（基类统一实现）
                 // 这样引用了运行时变量的 InputPort 在插件内 GetTypedValue() 时能取到最新值
-                if (ContextAwareBindings.Count > 0)
-                {
-                    foreach (var binding in ContextAwareBindings)
-                        binding.BindContext(context);
-                }
+                BindContextAwarePorts(context);
 
                 bool ok = ExternalPlugin.Execute(context);
                 if (!ok)

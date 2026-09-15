@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,10 +19,11 @@ namespace VisionMaster.Models
             : base(icon, pluginName, pluginTypeName, stepName)
         {
             // 覆盖基类的默认分支，While 只需要一个循环体容器
+            // WhileLoop：循环体必须书写循环条件，与 For 的 Default 循环体区分（P1-⑦ 判定标准统一）
             Children.Clear();
             Children.Add(new StepCollection
             {
-                BranchType = BranchType.Default,
+                BranchType = BranchType.WhileLoop,
                 StepName = "循环体",
                 Expression = "" // 用户填写循环条件
             });

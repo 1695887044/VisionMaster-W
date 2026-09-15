@@ -27,6 +27,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
             ToggleNodeCommand = new DelegateCommand<VariableNode>(ToggleNode);
             _workspace.GlobalVariables.CollectionChanged += OnGlobalVariablesCollectionChanged;
+
+            // 存量变量挂接监听并纳入跟踪集（子类 OnVariableAdded 只做事件订阅，不触字段，安全）
+            foreach (var gv in _workspace.GlobalVariables)
+            {
+                if (_trackedVariables.Add(gv))
+                    OnVariableAdded(gv);
+            }
         }
 
         /// <summary>
@@ -104,31 +111,49 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>
         /// 全局变量集合变化事件处理：
-        /// 增删时回调 OnVariableAdded/OnVariableRemoved（供子类挂接变量级监听），再刷新树
+        /// 增删时回调 OnVariableAdded/OnVariableRemoved（供子类挂接变量级监听），再刷新树。
+        /// B2：用 _trackedVariables 跟踪已挂接的变量——Clear() 触发的是 Reset 动作且 OldItems 为 null，
+        /// 旧实现拿不到旧清单，被清掉的变量永远挂着弹窗订阅（切一次方案漏一轮弹窗+幽灵通知）
         /// </summary>
+        private readonly HashSet<IVariable> _trackedVariables = new();
+
+        /// <summary>子类 Dispose 退订时用：本 VM 实际挂过监听的变量全集（含已被 Clear 掉的）</summary>
+        protected IReadOnlyCollection<IVariable> TrackedVariables => _trackedVariables;
+
         protected virtual void OnGlobalVariablesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
             switch (e.Action)
             {
                 case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
                     if (e.NewItems != null)
-                        foreach (IVariable v in e.NewItems) OnVariableAdded(v);
+                        foreach (IVariable v in e.NewItems)
+                            if (_trackedVariables.Add(v)) OnVariableAdded(v);
                     break;
 
                 case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
                     if (e.OldItems != null)
-                        foreach (IVariable v in e.OldItems) OnVariableRemoved(v);
+                        foreach (IVariable v in e.OldItems)
+                            if (_trackedVariables.Remove(v)) OnVariableRemoved(v);
                     break;
 
                 case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
                     if (e.OldItems != null)
-                        foreach (IVariable v in e.OldItems) OnVariableRemoved(v);
+                        foreach (IVariable v in e.OldItems)
+                            if (_trackedVariables.Remove(v)) OnVariableRemoved(v);
                     if (e.NewItems != null)
-                        foreach (IVariable v in e.NewItems) OnVariableAdded(v);
+                        foreach (IVariable v in e.NewItems)
+                            if (_trackedVariables.Add(v)) OnVariableAdded(v);
+                    break;
+
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                    // Clear()：集合已清空，靠跟踪集补退订（方案切换 VariablePersistenceService.Restore 走的就是这里）
+                    foreach (var v in _trackedVariables)
+                        OnVariableRemoved(v);
+                    _trackedVariables.Clear();
                     break;
             }
 
-            Application.Current.Dispatcher.Invoke(() => RefreshTree());
+            VisionMaster.Helpers.SafeDispatch.BeginInvoke(() => RefreshTree());
         }
 
         /// <summary>变量加入集合时回调（子类在此补挂变量级事件监听）</summary>
@@ -156,7 +181,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _disposed = true;
         }
 
-        GlobalVariableViewModelBase()
+        // B5 修正：原代码写成了"无 ~ 的私有构造函数"——永远无人调用（本类构造都走带参重载），
+        // 属误导性死代码；还原为真正的终结器兜底（Dispose(false) 只置标志、不触碰托管对象，符合终结器纪律）
+        ~GlobalVariableViewModelBase()
         {
             Dispose(false);
         }

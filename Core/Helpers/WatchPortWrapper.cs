@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using Core.Interfaces;
+﻿﻿﻿using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -238,10 +238,12 @@ namespace VisionMaster.Helpers
 
         /// <summary>
         /// 端口值变更处理
+        /// SafeDispatch 封送：事件多在流程线程触发，裸用 Application.Current 在关闭瞬间为 null 会 NRE，
+        /// BeginInvoke 排队的操作也可能在 Dispatcher 关机时被取消
         /// </summary>
         private void OnPortValueChanged(object sender, EventArgs e)
         {
-            Application.Current.Dispatcher.BeginInvoke(() => { CurrentValue = CloneHelper.ShallowCopy(_port.Value); });
+            SafeDispatch.BeginInvoke(() => { CurrentValue = CloneHelper.ShallowCopy(_port.Value); });
         }
 
         /// <summary>
@@ -249,7 +251,7 @@ namespace VisionMaster.Helpers
         /// </summary>
         private void OnGlobalVarValueChanged(object sender, EventArgs e)
         {
-            Application.Current.Dispatcher.BeginInvoke(() => { CurrentValue = CloneHelper.ShallowCopy(_globalVar.Value); });
+            SafeDispatch.BeginInvoke(() => { CurrentValue = CloneHelper.ShallowCopy(_globalVar.Value); });
         }
 
         /// <summary>

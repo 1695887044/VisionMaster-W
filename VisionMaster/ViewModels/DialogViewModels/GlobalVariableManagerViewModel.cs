@@ -392,15 +392,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 变量增删 → 来源树计数刷新
             _workspace.GlobalVariables.CollectionChanged += OnVariablesChangedForCountsHandler;
 
-            // 已存在的网络变量挂值变化监听
-            foreach (var gv in _workspace.GlobalVariables)
+            // C4：值变化的全树重建合并刷新——旧实现"每值一变立即整树 Clear+重建"，
+            // 高频变化时右表闪烁、正在编辑的单元格被重建吞掉；改为脏标记 + 800ms 节拍合并
+            _treeRefreshTimer = new System.Windows.Threading.DispatcherTimer
             {
-                gv.ValueChanged += OnVariableValueChanged;
-            }
+                Interval = TimeSpan.FromMilliseconds(800),
+            };
+            _treeRefreshTimer.Tick += (s, e) =>
+            {
+                if (!_treeDirty) return;
+                _treeDirty = false;
+                RefreshTree();
+            };
+            _treeRefreshTimer.Start();
 
             RebuildSourceTree();
             RefreshTree();
         }
+
+        private bool _treeDirty;
+        private readonly System.Windows.Threading.DispatcherTimer _treeRefreshTimer;
 
         protected override VariableNode CreateRootNode(IVariable gv)
         {
@@ -462,9 +473,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private void OnVariableValueChanged(object sender, EventArgs e)
         {
-            // 本地变量值变化需要重建树（子节点默认值联动）；网络变量走镜像 INPC 直达，无需重建
+            // C4：只标脏不打全树——由 800ms 节拍的 DispatcherTimer 合并刷新。
+            // 该事件可能由流程线程触发，故只写 bool 标记（UI 更新统一回到定时器所在的 UI 线程）
             if (sender is LocalVariableModel)
-                Application.Current.Dispatcher.Invoke(RefreshTree);
+                _treeDirty = true;
         }
 
         /// <summary>新建变量补挂值变化监听（此前仅构造时给存量变量挂接，新建变量运行中值不同步）</summary>
@@ -479,7 +491,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             variable.ValueChanged -= OnVariableValueChanged;
         }
 
-        private void OnConnectionStateChangedHandler(object? sender, ConnectionStateChangedEventArgs e) => RefreshSourceStates();
+        // B1：连接状态事件由通信管理器的心跳/重连定时器（线程池）直接触发、不封送，
+        // 直通 RefreshSourceStates → RefreshTree 会在非 UI 线程 Clear ObservableCollection 崩溃；
+        // 断线抖动是产线常态，此处必须异步封送回 UI 线程
+        private void OnConnectionStateChangedHandler(object? sender, ConnectionStateChangedEventArgs e)
+            => VisionMaster.Helpers.SafeDispatch.BeginInvoke(RefreshSourceStates);
 
         private void OnVariablesChangedForCountsHandler(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshSourceCounts();
 
@@ -493,7 +509,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
-            if (_workspace.GlobalVariables.Any(s => s.Name.Equals(NewVarName, StringComparison.Ordinal)))
+            // C3：查重改大小写不敏感——监视栏/搜索匹配均为 OrdinalIgnoreCase，
+            // 旧口径(Ordinal)允许 Var 与 var 共存，两套匹配规则互相矛盾
+            if (_workspace.GlobalVariables.Any(s => s.Name.Equals(NewVarName, StringComparison.OrdinalIgnoreCase)))
             {
                 EasyDialog.ShowSync("底层引擎已存在同名变量，请更换名称！", "提示");
                 return;
@@ -640,6 +658,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var gv = node?.OriginalModel;
             if (gv == null) return;
 
+            // A4：运行中禁删变量——已编译会话持有的是变量【实例引用】，
+            // 运行中删除/重建同名变量，流程会继续吃"尸体"（冻结旧值）且零提示
+            if (_workspace.CurrentFlow?.RunState == FlowRunState.Running)
+            {
+                EasyDialog.ShowSync("流程运行中禁止删除变量。\n请先停止流程——运行中的流程按对象引用取值，删除会让它读到冻结的旧值。", "互锁");
+                return;
+            }
+
             if (EasyDialog.ShowSync(
                     $"确定要删除变量 [{gv.Name}] 吗？\n警告：可能会导致引用它的算子报错！",
                     "删除确认"))
@@ -711,7 +737,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             public ObservableCollection<ArrayItemWrapper> Elements { get; set; } = new();
         }
 
-        /// <summary>网络变量写值：弹出单值输入 → Value setter 直通设备</summary>
+        /// <summary>网络变量写值：弹出单值输入 → 显式下发并按真实结果反馈（禁止无条件报成功）</summary>
         private void ExecuteWriteValue(VariableNode node)
         {
             if (node?.OriginalModel is not NetworkVariableModel netVar) return;
@@ -730,8 +756,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 object converted = Convert.ChangeType(
                     editor.StringValue,
                     Nullable.GetUnderlyingType(netVar.DataType) ?? netVar.DataType);
-                netVar.Value = converted;
-                Notifier.ShowSuccess($"[{netVar.Name}] 已写入 {editor.StringValue}");
+
+                // TryWriteToValue 无条件下发（同值也写，"再写一次"是命令不是状态设置），
+                // 失败原因（离线/未配置地址/驱动异常）如实呈现——旧实现吞掉一切后报"已写入"，是产线安全隐患
+                if (netVar.TryWriteToValue(converted, out var error))
+                    Notifier.ShowSuccess($"[{netVar.Name}] 已写入 {editor.StringValue}");
+                else
+                    EasyDialog.ShowSync($"写入失败：{error}", "错误");
             }
             catch (Exception ex)
             {
@@ -784,8 +815,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (disposing)
             {
-                // 取消所有变量值变化事件订阅
-                foreach (var gv in _workspace.GlobalVariables)
+                // C4：合并刷新定时器随弹窗停机
+                _treeRefreshTimer.Stop();
+
+                // 取消所有变量值变化事件订阅——用基类跟踪集而非当前集合：
+                // 弹窗期间被 Clear/删除的旧变量不在 GlobalVariables 里，旧写法会漏退订导致弹窗连同树泄漏
+                foreach (var gv in TrackedVariables)
                 {
                     gv.ValueChanged -= OnVariableValueChanged;
                 }

@@ -35,6 +35,9 @@ namespace VisionMaster.Models
         {
             context.CurrentNodeId = Id;
 
+            // 断桥修复：代理端口注入 context（每次执行本节点一次即可，context 在循环期间不变）
+            BindContextAwarePorts(context);
+
             if (LoopBranch?.ConditionLambda == null) return null;
 
             int iter = 0;
@@ -47,13 +50,23 @@ namespace VisionMaster.Models
                 var args = new object[totalArgs];
 
                 // 局部变量：从 UpstreamLinks 取值
+                // P2-⑧：未绑定兜底与 CompiledIfNode 对齐——按声明类型给默认值，
+                // 原先一律注 0.0，string/bool 变量会在委托传参时抛转换异常还无人知晓
                 for (int i = 0; i < LoopBranch.LocalVarIds.Count; i++)
                 {
                     Guid varId = LoopBranch.LocalVarIds[i];
+                    Type expectedType = LoopBranch.VarTypes.ContainsKey(varId) ? LoopBranch.VarTypes[varId] : typeof(double);
+
                     if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
+                    {
                         args[i] = sourcePort.Value;
+                    }
                     else
-                        args[i] = 0.0;
+                    {
+                        if (expectedType == typeof(string)) args[i] = string.Empty;
+                        else if (expectedType == typeof(bool)) args[i] = false;
+                        else args[i] = 0.0;
+                    }
                 }
 
                 // 运行时变量：从 context.LocalVariables 取值
@@ -71,7 +84,13 @@ namespace VisionMaster.Models
 
                 bool isTrue = false;
                 try { isTrue = (bool)LoopBranch.ConditionLambda.Invoke(args); }
-                catch { break; }
+                catch (Exception ex)
+                {
+                    // P2-⑧：静默 break 是"隐形故障"——循环莫名提前结束却零日志，
+                    // 与 CompiledIfNode 对齐，条件求值异常必须留痕（保持 break 语义不变）
+                    context.Logger.Error($"While节点 '{Name}' 条件执行异常，循环提前终止: {ex.Message}");
+                    break;
+                }
 
                 if (!isTrue) break;
 
@@ -96,6 +115,12 @@ namespace VisionMaster.Models
                 }
                 iter++;
             }
+
+            // P2-⑧：迭代上限触发说明大概率是死循环，强制退出可以保命，但必须吼一声，
+            // 否则现场排查时会误以为"循环正常跑完"
+            if (iter >= MaxIterations && !context.CancellationToken.IsCancellationRequested)
+                context.Logger.Warn($"While节点 '{Name}' 达到最大迭代次数 {MaxIterations}，已强制退出（疑似死循环，请检查循环条件与变量刷新）");
+
             return null;
         }
     }

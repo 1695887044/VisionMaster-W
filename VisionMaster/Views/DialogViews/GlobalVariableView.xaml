@@ -907,7 +907,8 @@
                                                 FontSize="12"
                                                 Foreground="#606266"
                                                 Style="{x:Null}"
-                                                Text="{Binding OriginalModel.DefaultValue, UpdateSourceTrigger=PropertyChanged}"
+                                                Text="{Binding DefaultValueText, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                                ToolTip="按变量类型校验：与类型不符的值会被拒绝（红框），不会污染模型"
                                                 Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
                                         </Border>
                                         <Button
@@ -1042,7 +1043,7 @@
                     Margin="16,10"
                     FontSize="11"
                     Foreground="{StaticResource TextMutedBrush}"
-                    Text="* 当前值反映运行时实时采集结果，支持手动写入覆盖。" />
+                    Text="* 网络变量：当前值来自轮询采集，写值直达设备。本地变量：值由您在界面上维护；流程内插件创建的运行时变量（Runtime.*）不在此列，请到监视栏查看。" />
             </Grid>
         </Border>
     </Grid>
