@@ -1,4 +1,4 @@
-﻿﻿using Core.Interfaces;
+﻿using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -63,18 +63,13 @@ namespace VisionMaster.Models
                         if (session.FocusedStep != null && !ReferenceEquals(session.FocusedStep, step))
                             session.FocusedStep.IsRunningFocus = false;
                         step.IsRunningFocus = true;
-                        step.LastRunStartTime = DateTime.Now;
+                        step.BeginTiming();
                         session.FocusedStep = step;
                     }
                     else if (state == StepRuntimeState.Success || state == StepRuntimeState.Failed)
                     {
                         // 完成不清焦点（执行指针停留）；耗时冻结在最终值，防止 UI 定时器继续累加
-                        if (step.LastRunStartTime.HasValue)
-                        {
-                            var elapsed = (long)(DateTime.Now - step.LastRunStartTime.Value).TotalMilliseconds;
-                            step.LastRunTimeMs = elapsed;
-                            step.CurrentRunTimeMs = elapsed;
-                        }
+                        step.EndTiming();
                     }
                     else if (state == StepRuntimeState.Skipped && ReferenceEquals(session.FocusedStep, step))
                     {

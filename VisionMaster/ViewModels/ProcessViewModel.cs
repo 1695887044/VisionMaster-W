@@ -62,7 +62,7 @@ namespace VisionMaster.ViewModels
 
         /// <summary>
         /// 运行时间实时刷新定时器：
-        /// 引擎只记录步骤起始时刻（LastRunStartTime），运行中耗时由 UI 定时器计算写入 CurrentRunTimeMs，
+        /// 引擎只记录步骤起始时间戳（LastRunStartTimestamp），运行中耗时由 UI 定时器计算写入 CurrentRunTimeMs，
         /// 否则毫秒级步骤的耗时显示永远停在初始值 0
         /// </summary>
         private readonly System.Windows.Threading.DispatcherTimer _runTimeTimer;
@@ -97,9 +97,9 @@ namespace VisionMaster.ViewModels
             {
                 if (step.IsRunningFocus
                     && step.State == StepState.Running
-                    && step.LastRunStartTime.HasValue)
+                    && step.LastRunStartTimestamp.HasValue)
                 {
-                    step.CurrentRunTimeMs = (long)(DateTime.Now - step.LastRunStartTime.Value).TotalMilliseconds;
+                    step.CurrentRunTimeMs = step.LiveElapsedMs();
                 }
 
                 if (step is IContainerStep container && container.Children != null)

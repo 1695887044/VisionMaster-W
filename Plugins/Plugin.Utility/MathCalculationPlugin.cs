@@ -75,6 +75,9 @@ namespace VisionMaster.Plugins.Util
             {
                 context.Logger.Error($"{InstanceName} 运算失败: {ex.Message}");
                 Result.Value = double.NaN;
+                // 契约"默认成功、显式失败"：吞异常路径必须显式报失败，否则会被预置的 true 误放行
+                Success.Value = false;
+                ErrorMessage.Value = ex.Message;
             }
         }
 

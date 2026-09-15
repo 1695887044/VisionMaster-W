@@ -244,23 +244,13 @@
                 <DataTemplate.Triggers>
 
                     <DataTrigger Binding="{Binding LastRunTimeMs, Converter={ui:GreaterThanZeroConverter}}" Value="True">
-                        <Setter TargetName="TimeText" Property="Text" Value="{Binding LastRunTimeMs, StringFormat='{}{0} ms'}" />
+                        <Setter TargetName="TimeText" Property="Text" Value="{Binding LastRunTimeMs, StringFormat='{}{0:0.#} ms'}" />
                         <Setter TargetName="TimeBadge" Property="Visibility" Value="Visible" />
                     </DataTrigger>
 
-                    <!--  已成功但耗时不足 1ms（整数截断为 0）：显示 <1 ms，不让徽章整个消失造成"没运行"的错觉  -->
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding State}" Value="Success" />
-                            <Condition Binding="{Binding LastRunTimeMs}" Value="0" />
-                        </MultiDataTrigger.Conditions>
-                        <Setter TargetName="TimeText" Property="Text" Value="&lt;1 ms" />
-                        <Setter TargetName="TimeBadge" Property="Visibility" Value="Visible" />
-                    </MultiDataTrigger>
-
                     <!--  正在执行本步：绿色高亮卡片  -->
                     <DataTrigger Binding="{Binding IsRunningFocus}" Value="True">
-                        <Setter TargetName="TimeText" Property="Text" Value="{Binding CurrentRunTimeMs, StringFormat='{}{0} ms'}" />
+                        <Setter TargetName="TimeText" Property="Text" Value="{Binding CurrentRunTimeMs, StringFormat='{}{0:0.#} ms'}" />
                         <Setter TargetName="TimeBadge" Property="Visibility" Value="Visible" />
                         <Setter TargetName="RootBorder" Property="Background" Value="#F0F9EB" />
                         <Setter TargetName="RootBorder" Property="BorderBrush" Value="#B3E19D" />

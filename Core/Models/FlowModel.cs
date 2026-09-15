@@ -161,16 +161,6 @@ namespace VisionMaster.Models
             set { SetProperty(ref field, value); }
         }
 
-        /// <summary>
-        /// 当前运行时间（毫秒）
-        /// </summary>
-        [JsonIgnore]
-        public long CurrentRunTimeMs
-        {
-            get { return field; }
-            set { SetProperty(ref field, value); }
-        }
-
         private ObservableCollection<StepModel> _steps = new();
 
         /// <summary>

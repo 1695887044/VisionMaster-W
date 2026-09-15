@@ -31,15 +31,8 @@ namespace VisionMaster.Plugins.Util
         /// </summary>
         public InputPort<bool> CreateIfNotExists { get; } = new InputPort<bool>("CreateIfNotExists", false, "变量不存在时是否自动创建");
 
-        /// <summary>
-        /// 赋值是否成功输出端口
-        /// </summary>
-        public OutputPort<bool> Success { get; } = new OutputPort<bool>("Success", "是否赋值成功");
-
-        /// <summary>
-        /// 错误信息输出端口
-        /// </summary>
-        public OutputPort<string> ErrorMessage { get; } = new OutputPort<string>("ErrorMessage", "错误信息");
+        // Success / ErrorMessage 复用基类端口：此前自声明同名属性会"影子隐藏"基类成员，
+        // 插件写派生端口、引擎读基类端口，导致永远报失败且错误日志为空（CS0108 教训）
 
         /// <summary>
         /// 执行变量赋值
@@ -78,10 +71,9 @@ namespace VisionMaster.Plugins.Util
                     {
                         Success.Value = false;
                         ErrorMessage.Value = $"本地变量 {varName} 不存在";
+                        return; // 必须短路：原先此处直落会在下一行把 ErrorMessage 洗成空，引擎日志丢失失败原因
                     }
                 }
-
-                ErrorMessage.Value = string.Empty;
             }
             catch (Exception ex)
             {

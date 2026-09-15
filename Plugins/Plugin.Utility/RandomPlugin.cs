@@ -67,6 +67,9 @@ namespace VisionMaster.Plugins.Util
             {
                 context.Logger.Warn($"{InstanceName} 最小值必须小于最大值");
                 Result.Value = min;
+                // 契约"默认成功、显式失败"：非法输入静默降级必须显式报失败，否则会被预置的 true 误放行
+                Success.Value = false;
+                ErrorMessage.Value = "最小值必须小于最大值";
                 return;
             }
 

@@ -1,6 +1,7 @@
-﻿using GongSolutions.Wpf.DragDrop;
+using GongSolutions.Wpf.DragDrop;
 using Core.Interfaces;
 using System;
+using System.Diagnostics;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -72,33 +73,68 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
-        /// 最后运行开始时间
+        /// 最后运行起始的高精度时间戳（Stopwatch.GetTimestamp 的原始读数），null 表示未开始计时。
+        /// 不用 DateTime：墙钟受系统校时影响，且 Tick 粒度粗，测不出亚毫秒耗时。
         /// </summary>
         [JsonIgnore]
-        public DateTime? LastRunStartTime
+        public long? LastRunStartTimestamp
         {
             get => field;
             set => SetProperty(ref field, value);
         }
 
         /// <summary>
-        /// 最后运行时间（毫秒）
+        /// 最后运行耗时（毫秒，亚毫秒精度）
+        /// 跨线程读写（引擎线程写 / UI 线程定时器读）：double 为 8 字节，
+        /// 依赖 x64 进程下对齐 64 位写入的原子性（CLR 实现保证）。若将来出现 32 位宿主，
+        /// 必须改用 Interlocked/Volatile 或加锁，否则存在撕裂读风险。
         /// </summary>
         [JsonIgnore]
-        public long LastRunTimeMs
+        public double LastRunTimeMs
         {
             get => field;
             set => SetProperty(ref field, value);
         }
 
         /// <summary>
-        /// 当前运行时间（毫秒，实时更新）
+        /// 当前运行耗时（毫秒，运行中由 UI 定时器实时刷新）
+        /// 原子性前提同 LastRunTimeMs：依赖 x64 进程。
         /// </summary>
         [JsonIgnore]
-        public long CurrentRunTimeMs
+        public double CurrentRunTimeMs
         {
             get => field;
             set => SetProperty(ref field, value);
+        }
+
+        /// <summary>开始计时：记录 Stopwatch 起始读数并清零实时耗时</summary>
+        public void BeginTiming()
+        {
+            LastRunStartTimestamp = Stopwatch.GetTimestamp();
+            CurrentRunTimeMs = 0;
+        }
+
+        /// <summary>
+        /// 结束计时：把区间耗时冻结到 LastRunTimeMs 并返回；未开始计时则返回 0
+        /// </summary>
+        public double EndTiming()
+        {
+            if (!LastRunStartTimestamp.HasValue)
+                return 0;
+
+            double elapsedMs = Stopwatch.GetElapsedTime(LastRunStartTimestamp.Value).TotalMilliseconds;
+            LastRunTimeMs = elapsedMs;
+            CurrentRunTimeMs = elapsedMs;
+            return elapsedMs;
+        }
+
+        /// <summary>读取"此刻已耗时"（不冻结），供 UI 定时器刷新运行中的实时数字</summary>
+        public double LiveElapsedMs()
+        {
+            if (!LastRunStartTimestamp.HasValue)
+                return 0;
+
+            return Stopwatch.GetElapsedTime(LastRunStartTimestamp.Value).TotalMilliseconds;
         }
 
         public Dictionary<string, object> InputValues { get; set; } = new Dictionary<string, object>();
@@ -189,7 +225,7 @@ namespace VisionMaster.Models
             State = StepState.Idle;
             IsRunningFocus = false;
             CurrentRunTimeMs = 0;
-            LastRunStartTime = null;
+            LastRunStartTimestamp = null;
         }
 
     }

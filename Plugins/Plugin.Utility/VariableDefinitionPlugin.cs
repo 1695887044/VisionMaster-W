@@ -36,15 +36,8 @@ namespace VisionMaster.Plugins.Util
         /// </summary>
         public InputPort<bool> Overwrite { get; } = new InputPort<bool>("Overwrite", false, "是否覆盖已存在的同名变量");
 
-        /// <summary>
-        /// 定义是否成功输出端口
-        /// </summary>
-        public OutputPort<bool> Success { get; } = new OutputPort<bool>("Success", "是否定义成功");
-
-        /// <summary>
-        /// 错误信息输出端口
-        /// </summary>
-        public OutputPort<string> ErrorMessage { get; } = new OutputPort<string>("ErrorMessage", "错误信息");
+        // Success / ErrorMessage 复用基类端口：此前自声明同名属性会"影子隐藏"基类成员，
+        // 插件写派生端口、引擎读基类端口，导致永远报失败且错误日志为空（CS0108 教训）
 
         /// <summary>
         /// 定义变量

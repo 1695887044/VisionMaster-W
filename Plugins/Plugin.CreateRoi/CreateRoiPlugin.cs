@@ -330,7 +330,11 @@ namespace Plugin.CreateRoi
                     this.PublishPreview(tempRoiImg, DisplayViewIndex + 1);
                     croppedImg.Dispose();
                 }
-                catch { /* 单个 ROI 裁剪失败不阻断整体 */ }
+                catch (Exception ex)
+                {
+                    // 单个 ROI 裁剪失败不阻断整体，但必须留痕：否则坏件无痕迹，现场无法追查
+                    context.Logger.Warn($"{InstanceName} ROI[{portName}] 裁剪失败：{ex.Message}");
+                }
             }
          
             Success.Value = true;

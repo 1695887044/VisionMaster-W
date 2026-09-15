@@ -29,7 +29,8 @@ namespace VisionMaster.Plugins.Util
 
         public OutputPort<object> Result { get; } = new OutputPort<object>("Result", "转换结果");
 
-        public OutputPort<bool> Success { get; } = new OutputPort<bool>("Success", "转换是否成功");
+        // Success 复用基类端口：此前自声明同名属性会"影子隐藏"基类 Success，
+        // 插件写的是派生端口、引擎 Execute 读的是基类端口，导致永远报失败（CS0108 教训）
 
         public override void RunAlgorithm(IExecutionContext context)
         {

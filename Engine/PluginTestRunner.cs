@@ -94,12 +94,14 @@ namespace VisionMaster.Services
                     MarkStepState(session, stepData.StepId, StepState.Running, 0);
                     try
                     {
-                        configPlugin.Execute(context);
-                        MarkStepState(session, stepData.StepId, StepState.Success, sw.ElapsedMilliseconds);
+                        // 按 Execute 返回值标记步骤卡：业务失败（不抛异常）时流程图与对话框结论保持一致
+                        bool ok = configPlugin.Execute(context);
+                        MarkStepState(session, stepData.StepId,
+                            ok ? StepState.Success : StepState.Failed, sw.Elapsed.TotalMilliseconds);
                     }
                     catch (Exception)
                     {
-                        MarkStepState(session, stepData.StepId, StepState.Failed, sw.ElapsedMilliseconds);
+                        MarkStepState(session, stepData.StepId, StepState.Failed, sw.Elapsed.TotalMilliseconds);
                         throw;
                     }
                 }
@@ -210,7 +212,7 @@ namespace VisionMaster.Services
         /// 手动更新目标步骤的运行状态（配置实例执行绕过了 CompiledNode 的状态回报，这里补上，
         /// 使流程图上目标步骤同样显示 运行中/成功/失败）
         /// </summary>
-        private static void MarkStepState(FlowSession session, Guid stepId, StepState state, long elapsedMs)
+        private static void MarkStepState(FlowSession session, Guid stepId, StepState state, double elapsedMs)
         {
             var step = session.Blueprints.FirstOrDefault(s => s.StepID == stepId);
             if (step == null)
@@ -221,7 +223,7 @@ namespace VisionMaster.Services
             if (state == StepState.Running)
             {
                 step.IsRunningFocus = true;
-                step.LastRunStartTime = DateTime.Now;
+                step.BeginTiming();
             }
             else
             {
