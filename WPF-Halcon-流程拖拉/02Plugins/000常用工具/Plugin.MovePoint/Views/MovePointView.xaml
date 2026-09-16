@@ -1,0 +1,491 @@
+﻿<vb:ModuleViewBase xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   x:Class="Plugin.MovePoint.Views.MovePointView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                   xmlns:cvt ="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:vm="clr-namespace:Plugin.MovePoint.ViewModels"
+                   xmlns:local="clr-namespace:Plugin.MovePoint.Views"
+                   mc:Ignorable="d" Icon="/Plugin.MovePoint;component/Assets/Images/Tool/MovePoint.png"
+                   ShowMaxRestoreButton="False" 
+                   ShowMinButton="False" 
+                   WindowStartupLocation="CenterScreen"
+                   ResizeMode="NoResize" x:Name="window"
+                 Height="680" Width="980" Closed="window_Closed"
+    >
+  
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                    <cvt:Bool2VisibilityConverter x:Key="Bool2VisibilityConverter"/>
+                </ResourceDictionary>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Border BorderThickness="3">
+            <TabControl Style="{StaticResource VerTabControl}">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem" BasedOn="{StaticResource VerTabItem}"/>
+                </TabControl.Resources>
+                <TabItem Header="点位运动">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="600"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="80"/>
+                            </Grid.RowDefinitions>
+                            <DataGrid Grid.Row="0" AutoGenerateColumns="False" x:Name="dg_AxisList"
+                                                  EnableColumnVirtualization="True"
+                                                  EnableRowVirtualization="True"
+                                                  VirtualizingPanel.IsVirtualizing="True"
+                                                  ItemsSource="{Binding Axis}" SelectedItem="{Binding   SelectedAxis}"
+                                                  FontSize="12" 
+                                                  RowHeaderWidth="20"
+                                                  SelectionUnit="FullRow"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="All"
+                                                  IsReadOnly="True" CanUserAddRows="False">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="轴号" IsReadOnly="True" Width="50">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{ Binding AxisID}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="轴名称" IsReadOnly="True" Width="60">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox Content="{Binding AxisName}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="目标位置" IsReadOnly="True" Width="auto">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding GoalPt}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="偏移量" IsReadOnly="True">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding OffsetLinkText}"       
+                                         IsReadOnly="True"
+                                         Style="{StaticResource LinkTextBox}"
+                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.JogVelLink}"
+                                         mah:TextBoxHelper.Watermark="double"
+                                         VerticalAlignment="Center" HorizontalAlignment="Left" Width="150" Margin="5 0"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="轴状态" IsReadOnly="True" Width="auto">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border Background="{Binding Pot,Converter={StaticResource BoolToLimeBrushConverter}}" Width="14" Height="14" CornerRadius="7" HorizontalAlignment="Center"/>
+                                                        <TextBlock Text="正限位"/>
+                                                        <Border Background="{Binding Alm,Converter={StaticResource BoolToLimeBrushConverter}}" Width="14" Height="14" CornerRadius="7" HorizontalAlignment="Center"/>
+                                                        <TextBlock Text="报警状态"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border Background="{Binding Net,Converter={StaticResource BoolToLimeBrushConverter}}" Width="14" Height="14" CornerRadius="7" HorizontalAlignment="Center"/>
+                                                        <TextBlock Text="负限位"/>
+                                                        <Border Background="{Binding Busy,Converter={StaticResource BoolToLimeBrushConverter}}" Width="14" Height="14" CornerRadius="7" HorizontalAlignment="Center"/>
+                                                        <TextBlock Text="运动状态"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="Jog- / Jog+" IsReadOnly="True" Width="auto">
+                                        <DataGridTemplateColumn.CellTemplate >
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Border Background="{DynamicResource MahApps.Brushes.Accent}" Width="40" Height="25" Margin="4" CornerRadius="8" DataContext="{Binding ElementName=window,Path=DataContext}">
+                                                        <TextBlock Text="负" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <b:Interaction.Triggers>
+                                                            <b:EventTrigger EventName="MouseLeftButtonDown">
+                                                                <helper:EventTriggerAction Command="{Binding MouseDownCommand}" CommandParameter="Pot"/>
+                                                            </b:EventTrigger>
+                                                            <b:EventTrigger EventName="MouseLeftButtonUp">
+                                                                <helper:EventTriggerAction Command="{Binding MouseUpCommand}" CommandParameter="Pot"/>
+                                                            </b:EventTrigger>
+                                                        </b:Interaction.Triggers>
+                                                    </Border>
+                                                    <Border Background="{DynamicResource MahApps.Brushes.Accent}" Width="40" Height="25" Margin="4" CornerRadius="8" DataContext="{Binding ElementName=window,Path=DataContext}">
+                                                        <TextBlock Text="正" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <b:Interaction.Triggers>
+                                                            <b:EventTrigger EventName="MouseLeftButtonDown">
+                                                                <helper:EventTriggerAction Command="{Binding MouseDownCommand}" CommandParameter="Net"/>
+                                                            </b:EventTrigger>
+                                                            <b:EventTrigger EventName="MouseLeftButtonUp">
+                                                                <helper:EventTriggerAction Command="{Binding MouseUpCommand}" CommandParameter="Net"/>
+                                                            </b:EventTrigger>
+                                                        </b:Interaction.Triggers>
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Orientation="Horizontal" Grid.Row="1">
+                                <CheckBox IsChecked="{Binding xxx}" Content="采用点位配置坐标"/>
+                                <StackPanel VerticalAlignment="Center">
+                                    <RadioButton Content="固定坐标" IsChecked="{Binding uiu}"  Margin="6 3" GroupName="x"/>
+                                    <RadioButton Content="动态索引"  IsChecked="{Binding uiu}" Margin="6 3"  GroupName="x"/>
+                                </StackPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" >
+                                        <TextBlock Text="名    称" Margin="5" Width="45" Foreground="White"/>
+                                        <ComboBox  Width="180"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" >
+                                        <TextBlock Text="索引ID" HorizontalAlignment="Center" Margin="5"  Width="45" Foreground="White"/>
+                                        <TextBox Text="{Binding OffsetLinkText}"  
+                                         IsReadOnly="True"
+                                         Style="{StaticResource LinkTextBox}"
+                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.JogVelLink}"
+                                         mah:TextBoxHelper.Watermark="double"
+                                         VerticalAlignment="Center" HorizontalAlignment="Left" Width="180"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" >
+                                        <TextBlock Text="Jog低速" Margin="5" Width="45" Foreground="White"/>
+                                        <TextBox  Width="50"/>
+                                        <TextBlock Text="mm/s"  Foreground="White" VerticalAlignment="Center" Margin="2"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" >
+                                        <TextBlock Text="Jog高速" HorizontalAlignment="Center" Margin="5"  Width="45" Foreground="White"/>
+                                        <TextBox Text="{Binding OffsetLinkText}" Width="50"/>
+                                        <TextBlock Text="mm/s"  Foreground="White" VerticalAlignment="Center" Margin="2"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                        <Grid Grid.Column="1">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="1*"/>
+                                <RowDefinition Height="1.2*"/>
+                            </Grid.RowDefinitions>
+                            <Border BorderThickness="3" Grid.Row="0">
+                                <GroupBox Header="示教参数">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                    
+                                        <RadioButton Content="连续移动" HorizontalAlignment="Left"/>
+                                        <RadioButton Content="单次移动" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Left"/>
+                                        <RadioButton Content="移动距离" Margin="0"  Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                        <StackPanel  Grid.Row="0" Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Left">
+                                            <TextBox Width="50" VerticalAlignment="Center"/>
+                                            <TextBlock Text="毫米" Margin="5" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <!--第二行-->
+                                        <RadioButton Content="0.001毫米" HorizontalAlignment="Left"  Grid.Row="1" Grid.Column="0"/>
+                                        <RadioButton Content="0.01毫米" HorizontalAlignment="Left"  Grid.Row="1" Grid.Column="1"/>
+                                        <RadioButton Content="0.1毫米" HorizontalAlignment="Left"  Grid.Row="1" Grid.Column="2"/>
+                                        <RadioButton Content="1毫米" HorizontalAlignment="Left"  Grid.Row="1" Grid.Column="3"/>
+                                        <!--第3行-->
+                                        <RadioButton Content="5毫米" HorizontalAlignment="Left"  Grid.Row="2" Grid.Column="0"/>
+                                        <RadioButton Content="10毫米" HorizontalAlignment="Left"  Grid.Row="2" Grid.Column="1"/>
+                                        <RadioButton Content="20毫米" HorizontalAlignment="Left"  Grid.Row="2" Grid.Column="2"/>
+                                        <RadioButton Content="50" HorizontalAlignment="Left"  Grid.Row="2" Grid.Column="3"/>
+                                        <Button Grid.Row="3" Grid.ColumnSpan="4" Width="200" Content="更新位置"/>
+                                    </Grid>
+                                </GroupBox>
+                            </Border>
+                            <Border BorderThickness="3" Grid.Row="1">
+                                <GroupBox Header="整体参数">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="40">
+                                            <TextBlock Text="运动卡" Margin="50 5" VerticalAlignment="Center"/>
+                                            <ComboBox Margin="20 5" Width="100"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"  VerticalAlignment="Center">
+                                            <TextBlock Text="安全光幕" Margin="50 8" VerticalAlignment="Center"/>
+                                            <ComboBox Margin="8 8" Width="100"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"  VerticalAlignment="Center" Height="40">
+                                            <CheckBox Content="等待停止"/>
+                                            <CheckBox Content="位置检查"/>
+                                            <CheckBox Content="停止原因"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"  VerticalAlignment="Center">
+                                            <TextBlock Text="位置检测等待时间" VerticalAlignment="Center" Margin="10 5"/>
+                                            <TextBox Text="{Binding OffsetLinkText}"       
+                                         IsReadOnly="True"
+                                         Margin="10"
+                                         Style="{StaticResource LinkTextBox}"
+                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.JogVelLink}"
+                                         mah:TextBoxHelper.Watermark="double"
+                                         VerticalAlignment="Center" HorizontalAlignment="Left" Width="200"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"  VerticalAlignment="Center">
+                                            <TextBlock Text="位置检测容忍误差" VerticalAlignment="Center" Margin="10 5"/>
+                                            <TextBox Text="{Binding OffsetLinkText}" 
+                                                     Margin="10"
+                                         IsReadOnly="True"
+                                         Style="{StaticResource LinkTextBox}"
+                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.JogVelLink}"
+                                         mah:TextBoxHelper.Watermark="double"
+                                         VerticalAlignment="Center" HorizontalAlignment="Left" Width="200"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10 5">
+                                            <TextBlock Text="调试最大速度" VerticalAlignment="Center" Margin="5 5" HorizontalAlignment="Left"/>
+                                            <TextBox Text="{Binding xxx}" VerticalAlignment="Center" Width="200" Margin=" 30  10"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </GroupBox>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="点位配置">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="60"/>
+                        </Grid.RowDefinitions>
+                        <ScrollViewer>
+                            <DataGrid AutoGenerateColumns="False"
+                                                  EnableColumnVirtualization="True"
+                                                  EnableRowVirtualization="True"
+                                                  VirtualizingPanel.IsVirtualizing="True"
+                                                  ItemsSource="{Binding DI}" SelectedItem="{Binding SelectedDI}"
+                                                  FontSize="12" 
+                                                  RowHeaderWidth="20"
+                                                  SelectionUnit="FullRow"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="All"
+                                                  IsReadOnly="True" CanUserAddRows="False">
+                                <!--<b:Interaction.Triggers>
+                                    <b:EventTrigger EventName="MouseLeftButtonUp">
+                                        <helper:EventTriggerAction Command="{Binding MouseUpCommand}" CommandParameter="DI"/>
+                                    </b:EventTrigger>
+                                </b:Interaction.Triggers>-->
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="ID" IsReadOnly="True" Width="auto">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding InputID}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="点位名称" IsReadOnly="True">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{Binding State,Converter={StaticResource BoolToLimeBrushConverter}}" Width="14" Height="14" CornerRadius="7" HorizontalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="运动卡名称" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="轴ID：轴坐标" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </ScrollViewer>
+                        <StackPanel Orientation="Horizontal" Grid.Row="1" >
+                            <Button Content="跟新点位到当前行" Width="150"  Height=" 40" Margin="40 10"/>
+                            <Button Content="跟新点位到当前行" Width="150"  Height=" 40" Margin="40 10"/>
+                            <Button Content="跟新点位到当前行" Width="150"  Height=" 40" Margin="40 10"/>
+                            <Button Content="跟新点位到当前行" Width="150"  Height=" 40" Margin="40 10"/>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="安全区域配置">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <GroupBox Grid.Row="0" Header="轴安全区设置" Foreground="Red">
+                            <DataGrid AutoGenerateColumns="False"
+                                                  EnableColumnVirtualization="True"
+                                                  EnableRowVirtualization="True"
+                                                  VirtualizingPanel.IsVirtualizing="True"
+                                                  ItemsSource="{Binding DI}" SelectedItem="{Binding SelectedDI}"
+                                                  FontSize="12" 
+                                                  RowHeaderWidth="20"
+                                                  SelectionUnit="FullRow"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="All"
+                                                  IsReadOnly="True" CanUserAddRows="False">
+                                <!--<b:Interaction.Triggers>
+                                    <b:EventTrigger EventName="MouseLeftButtonUp">
+                                        <helper:EventTriggerAction Command="{Binding MouseUpCommand}" CommandParameter="DI"/>
+                                    </b:EventTrigger>
+                                </b:Interaction.Triggers>-->
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="运动卡名称" IsReadOnly="True" Width="auto">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding InputID}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="轴号" IsReadOnly="True">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{Binding State,Converter={StaticResource BoolToLimeBrushConverter}}" Width="14" Height="14" CornerRadius="7" HorizontalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="安全坐标(Min)" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="安全坐标(Max)" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="说明" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="坐标类型" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </GroupBox>
+                        <GroupBox Header="IO安全区设置" Grid.Row="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <DataGrid AutoGenerateColumns="False"
+                                                  EnableColumnVirtualization="True"
+                                                  EnableRowVirtualization="True"
+                                                  VirtualizingPanel.IsVirtualizing="True"
+                                                  ItemsSource="{Binding DI}" SelectedItem="{Binding SelectedDI}"
+                                                  FontSize="12" 
+                                                  RowHeaderWidth="20"
+                                                  SelectionUnit="FullRow"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="All"
+                                                  IsReadOnly="True" CanUserAddRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="IO卡号" IsReadOnly="True" Width="auto">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding InputID}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="IO名称" IsReadOnly="True">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{Binding State,Converter={StaticResource BoolToLimeBrushConverter}}" Width="14" Height="14" CornerRadius="7" HorizontalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="IO值" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="检测类型" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Name}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="轴安全区域用于在运动之前检测指定轴位置是否在指定范围内，若不在，弹窗警告" Margin="10 30"/>
+                                    <TextBlock Text="IO安全区用于在运动之前检测IO是否在安全状态上，若IO不是安全状态值，弹窗警告" Margin="10 30"/>
+                                    <TextBlock Text="模拟安全光幕是吧一个普通IO映射成安全光幕处理，以避免设置成安全光幕类型对其&#x0a;他模块的影响" Margin="10 30" Height="60"/>
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Border>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border> 
+    </Grid>
+</vb:ModuleViewBase>

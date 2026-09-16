@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -20,11 +20,7 @@ namespace Plugin.ImageAcquisition
 
         /// <summary>文件夹批量采集（按索引读取）</summary>
         [Display(Name = "文件目录")]
-        Folder,
-
-        /// <summary>相机实时采集（预留接口）</summary>
-        [Display(Name = "相机采集")]
-        Camera
+        Folder
     }
 
     #endregion

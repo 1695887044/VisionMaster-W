@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.CSharpScript</RootNamespace>
+    <AssemblyName>Plugin.CSharpScript</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 把 NuGet 包（Roslyn 全链）的运行时 dll 真实复制到本插件输出目录，
+         供 PostBuild 拷入 Modules；否则 dotnet CLI 构建下包依赖只记于 deps.json、不落盘 -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- C# 脚本宿主：Roslyn 交互式脚本引擎（离线缓存已含 4.12.0 全链传递依赖） -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.12.0" />
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+    <PackageReference Include="Prism.Wpf" Version="9.0.537" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy $(TargetPath) $(SolutionDir)\Modules\$(TargetFileName) /Y" />
+    <!-- Roslyn 脚本引擎依赖：宿主默认 ALC 通过 LoadFrom 连续性从 Modules 目录解析插件私有依赖，
+         故把 Microsoft.CodeAnalysis* 全套拷入 Modules（halcondotnet 由主程序目录提供，勿拷入 Modules 以免类型标识冲突） -->
+    <Exec Command="copy &quot;$(TargetDir)Microsoft.CodeAnalysis*.dll&quot; &quot;$(SolutionDir)\Modules\&quot; /Y" />
+  </Target>
+</Project>

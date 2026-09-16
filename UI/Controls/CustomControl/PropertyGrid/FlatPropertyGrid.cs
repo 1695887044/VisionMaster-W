@@ -99,6 +99,21 @@ namespace UI.CustomControl
         // 🌟 注意：方法签名加上了 async 关键字！
         private async void OnBindingObjectPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // 【线程兜底】这里是"直接订阅 INotifyPropertyChanged"，不是 WPF 绑定引擎——
+            // 事件在**属性变更源线程**上执行。而属性变更可能来自后台线程：
+            //   ① 连接专属线程改 CommunicationConfig.State（连接/断开/重连）
+            //   ② 轮询线程改 NetworkVariableModel 的镜像值
+            //   ③ 流程引擎/插件线程改算子参数（PreProcessingView 的 BindingObject）
+            // 属性值本身可以跨线程读，但 BindingObject 是 DependencyProperty，
+            // 有严格的线程亲和性：只有创建本控件的 UI 线程才能 GetValue，否则
+            // Dispatcher.VerifyAccess 直接抛 InvalidOperationException。
+            // 所以统一先封送回 UI 线程再重入本方法，把三条来源的隐患一次抹平。
+            if (!Dispatcher.CheckAccess())
+            {
+                VisionMaster.Helpers.SafeDispatch.BeginInvoke(() => OnBindingObjectPropertyChanged(sender, e));
+                return;
+            }
+
             if (BindingObject == null || string.IsNullOrEmpty(e.PropertyName)) return;
 
             var propInfo = BindingObject.GetType().GetProperty(e.PropertyName, BindingFlags.Public | BindingFlags.Instance);

@@ -1,0 +1,277 @@
+﻿<vb:ModuleViewBase x:Class="Plugin.MeasureRect.Views.MeasureRectView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                   xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.MeasureRect.ViewModels"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                   xmlns:local="clr-namespace:Plugin.MeasureRect.Views"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+                   xmlns:hw="clr-namespace:VM.Halcon;assembly=VM.Halcon"
+                   Icon="/Plugin.MeasureRect;component/Assets/Images/Tool/MeasureRect.png"
+                   Height="680" Width="980"
+                   Loaded="ModuleViewBase_Loaded">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                </ResourceDictionary>
+                <ResourceDictionary Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid >
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid >
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <TabControl Style="{StaticResource VerTabControl}">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem" BasedOn="{StaticResource VerTabItem}"/>
+                </TabControl.Resources>
+                <TabItem Header="基本参数">
+                    <Grid x:Name="gd">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="70"/>
+                            <RowDefinition Height="220"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border>
+                            <GroupBox Header="图像链接">
+                                <StackPanel Orientation="Horizontal" Margin="5 0">
+                                    <TextBlock Text="输入图像" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0"
+                                     Style="{StaticResource LinkTextBox}"
+                                     Text="{Binding InputImageLinkText}"
+                                     mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                     mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.InputImageLink}"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </Border>
+                        <Border Grid.Row="1">
+                            <GroupBox Header="ROI信息">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="长边l1:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Style="{StaticResource LinkTextBox}" Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 Text="{Binding RectL1.Text}" 
+                                                 IsReadOnly="False"
+                                                 mah:TextBoxHelper.Value="{Binding RectL1.Value}"
+                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.RectL1}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="短边l2:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Style="{StaticResource LinkTextBox}" Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 Text="{Binding RectL2.Text}" 
+                                                 IsReadOnly="False"
+                                                 mah:TextBoxHelper.Value="{Binding RectL2.Value}"
+                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.RectL2}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="中心X:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Style="{StaticResource LinkTextBox}" Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 Text="{Binding RectPX.Text}" 
+                                                 IsReadOnly="False"
+                                                 mah:TextBoxHelper.Value="{Binding RectPX.Value}"
+                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.RectPX}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="中心Y:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Style="{StaticResource LinkTextBox}" Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 Text="{Binding RectPY.Text}" 
+                                                 IsReadOnly="False"
+                                                 mah:TextBoxHelper.Value="{Binding RectPY.Value}"
+                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.RectPY}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="角度:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Style="{StaticResource LinkTextBox}" Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 Text="{Binding RectAngle.Text}" 
+                                                 IsReadOnly="False"
+                                                 mah:TextBoxHelper.Value="{Binding RectAngle.Value}"
+                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.RectAngle}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+                        </Border>
+                        <Border Grid.Row="2">
+                            <GroupBox Header="屏蔽区域">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="40"/>
+                                        <RowDefinition/>
+                                    </Grid.RowDefinitions>
+                                    <Border BorderThickness="0 0 0 1" BorderBrush="Gray"/>
+                                    <StackPanel Orientation="Horizontal" Margin="5 10" VerticalAlignment="Top" HorizontalAlignment="Center">
+                                        <RadioButton Content="手绘区域" Margin="5 0" 
+                                                 IsChecked="{Binding ShieldRegion,Converter={StaticResource EnumConverter},ConverterParameter={x:Static enum:eShieldRegion.手绘区域}}"/>
+                                        <RadioButton Content="链接区域" Margin="35 0" 
+                                                 IsChecked="{Binding ShieldRegion,Converter={StaticResource EnumConverter},ConverterParameter={x:Static enum:eShieldRegion.链接区域}}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Margin="5 10"
+                                                Visibility="{Binding ShieldRegion,Converter={StaticResource EnumToVisibilityConverter},ConverterParameter={x:Static enum:eShieldRegion.手绘区域}}">
+                                        <RadioButton Content="正常显示" Margin="15"/>
+                                        <RadioButton Content="绘制涂抹" Margin="15"/>
+                                        <RadioButton Content="绘制涂抹" Margin="15"/>
+                                        <CheckBox Content="涂抹跟随坐标系" Margin="15 5"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Margin="30 70"
+                                                Visibility="{Binding ShieldRegion,Converter={StaticResource EnumToVisibilityConverter},ConverterParameter={x:Static enum:eShieldRegion.链接区域}}">
+                                        <TextBox Style="{StaticResource LinkTextBox}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </GroupBox>
+                        </Border>
+                    </Grid>
+
+                </TabItem>
+                <TabItem Header="参数设置">
+                    <Grid x:Name="gd1">
+                        <GroupBox Header="拟合参数">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <TextBlock Text="卡尺宽度:" VerticalAlignment="Center" Width="60"/>
+                                    <mah:NumericUpDown Width="150" Margin="5 0" BorderThickness="0 0 0 1" Value="{Binding MeasInfo.Length2}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <TextBlock Text="卡尺高度:" VerticalAlignment="Center" Width="60"/>
+                                    <mah:NumericUpDown Width="150" Margin="5 0" BorderThickness="0 0 0 1" Value="{Binding MeasInfo.Length1}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <TextBlock Text="灰度阈值:" VerticalAlignment="Center" Width="60"/>
+                                    <mah:NumericUpDown Width="150" Margin="5 0" BorderThickness="0 0 0 1" Value="{Binding MeasInfo.Threshold}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <TextBlock Text="卡尺间隔:" VerticalAlignment="Center" Width="60"/>
+                                    <mah:NumericUpDown Width="150" Margin="5 0" BorderThickness="0 0 0 1" Value="{Binding MeasInfo.MeasDis}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <TextBlock Text="颜色模式:" VerticalAlignment="Center" Width="60"/>
+                                    <ComboBox Width="150" Margin="5 0" BorderThickness="0 0 0 1" SelectedItem="{Binding MeasInfo.MeasMode}" ItemsSource="{Binding MeasInfo.MeasModes}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <TextBlock Text="点筛选:" VerticalAlignment="Center" Width="60"/>
+                                    <ComboBox Width="150" Margin="5 0" BorderThickness="0 0 0 1" SelectedItem="{Binding MeasInfo.MeasSelect}" ItemsSource="{Binding MeasInfo.MeasSelects}"/>
+                                </StackPanel>
+                                <CheckBox Content="限定最小分数" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0"/>
+                                <CheckBox Content="使用阈值连接" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0"/>
+                                <CheckBox Content="限定sigma" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0"/>
+                                <CheckBox Content="启用剔除点" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0"/>
+                                <CheckBox Content="输出世界坐标" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="数据结果">
+                    <Grid x:Name="gd2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="220"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border DockPanel.Dock="Top" Width="{Binding ElementName=gd2,Path=ActualWidth}">
+                            <GroupBox Header="结果直线" Width="{Binding ElementName=gd2,Path=ActualWidth}">
+                                <StackPanel Orientation="Vertical" Margin="5 0">
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="长边l1:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 IsReadOnly="True" Text="{Binding OutRect.Length1}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="短边l2:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 IsReadOnly="True" Text="{Binding OutRect.Length2}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="中心X:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 IsReadOnly="True" Text="{Binding OutRect.MidC}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="中心Y:" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 IsReadOnly="True" Text="{Binding OutRect.MidR}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="角度(°):" VerticalAlignment="Center" Width="60"/>
+                                        <TextBox Width="200" Margin="5 0" BorderThickness="0 0 0 1"
+                                                 IsReadOnly="True" Text="{Binding RectDeg}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+                        </Border>
+                        <Border Width="{Binding ElementName=gd2,Path=ActualWidth}" Grid.Row="1">
+                            <GroupBox Header="显示设置" Height="{Binding ElementName=gd,Path=ActualHeight}" Grid.Row="1" VerticalAlignment="Top" Width="{Binding ElementName=dp,Path=ActualWidth}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <CheckBox Content="显示结果点" IsChecked="{Binding ShowResultPoint}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <CheckBox Content="显示结果矩形" IsChecked="{Binding ShowResultRect}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <CheckBox Content="显示测量轮廓" IsChecked="{Binding ShowMeasContour}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="矩形颜色:" VerticalAlignment="Center" Width="60"/>
+                                        <Border Width="210">
+                                            <mah:ColorPicker mah:TextBoxHelper.AutoWatermark="True"
+                                                             mah:TextBoxHelper.ClearTextButton="True"
+                                                             mah:TextBoxHelper.UseFloatingWatermark="True"
+                                                             SelectedColor="{Binding ColorLinkText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+                        </Border>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+            <GridSplitter Grid.Column="1"/>
+            <WinFormHost:WindowsFormsHost Margin="5" Grid.Column="2" x:Name="winFormHost">
+            </WinFormHost:WindowsFormsHost>
+
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</vb:ModuleViewBase>

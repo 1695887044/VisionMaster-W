@@ -1,0 +1,840 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="File" xml:space="preserve">
+    <value>_File</value>
+  </data>
+  <data name="Help" xml:space="preserve">
+    <value>Help</value>
+  </data>
+  <data name="Log" xml:space="preserve">
+    <value>Log</value>
+  </data>
+  <data name="Quit" xml:space="preserve">
+    <value>Quit</value>
+  </data>
+  <data name="SearchHelp" xml:space="preserve">
+    <value>SearchHelp</value>
+  </data>
+  <data name="StartupSetting" xml:space="preserve">
+    <value>StartupSetting</value>
+  </data>
+  <data name="System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Chinese" xml:space="preserve">
+    <value>Chinese</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="OperatorLoginSystem" xml:space="preserve">
+    <value>Operator login system.</value>
+  </data>
+  <data name="DeveloperLoginSystem" xml:space="preserve">
+    <value>Developer login system.</value>
+  </data>
+  <data name="AdministratorLoginSystem" xml:space="preserve">
+    <value>Administrator login system.</value>
+  </data>
+  <data name="SoftwareStartupSucceeded" xml:space="preserve">
+    <value>Software startup succeeded.</value>
+  </data>
+  <data name="Warn" xml:space="preserve">
+    <value>Warn</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Info" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="Confirm" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Login_ChangePwd" xml:space="preserve">
+    <value>ChangePwd</value>
+  </data>
+  <data name="Login_Login" xml:space="preserve">
+    <value>Login</value>
+  </data>
+  <data name="Login_Logout" xml:space="preserve">
+    <value>Logout</value>
+  </data>
+  <data name="Login_Password" xml:space="preserve">
+    <value>Password:</value>
+  </data>
+  <data name="Login_UserLogin" xml:space="preserve">
+    <value>User Login</value>
+  </data>
+  <data name="Login_Account" xml:space="preserve">
+    <value>Account:</value>
+  </data>
+  <data name="QuitSystem" xml:space="preserve">
+    <value>Do you really want to exit the system?</value>
+  </data>
+  <data name="Dock_TemplateObject" xml:space="preserve">
+    <value>[TemplateObject]</value>
+  </data>
+  <data name="Dock_Log" xml:space="preserve">
+    <value>[Log]</value>
+  </data>
+  <data name="Dock_ProductionInfo" xml:space="preserve">
+    <value>[ProductionInfo]</value>
+  </data>
+  <data name="Dock_Curve" xml:space="preserve">
+    <value>[Curve]</value>
+  </data>
+  <data name="Dock_Vision" xml:space="preserve">
+    <value>[Vision]</value>
+  </data>
+  <data name="Dock_ManufactureParam" xml:space="preserve">
+    <value>[ManufactureParam]</value>
+  </data>
+  <data name="Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="RemoveAll" xml:space="preserve">
+    <value>RemoveAll</value>
+  </data>
+  <data name="FileName" xml:space="preserve">
+    <value>FileName</value>
+  </data>
+  <data name="InputStart" xml:space="preserve">
+    <value>InputStart</value>
+  </data>
+  <data name="OutputFinish" xml:space="preserve">
+    <value>OutputFinish</value>
+  </data>
+  <data name="ObjectName" xml:space="preserve">
+    <value>ObjectName</value>
+  </data>
+  <data name="Position" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="Size" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="Recipe" xml:space="preserve">
+    <value>Recipe</value>
+  </data>
+  <data name="Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="OpenFile" xml:space="preserve">
+    <value>OpenFile</value>
+  </data>
+  <data name="SaveFile" xml:space="preserve">
+    <value>SaveFile</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="SystemConfig" xml:space="preserve">
+    <value>SysConfig</value>
+  </data>
+  <data name="Camera" xml:space="preserve">
+    <value>Camera</value>
+  </data>
+  <data name="UserLogin" xml:space="preserve">
+    <value>UserLogin</value>
+  </data>
+  <data name="ScreenCapture" xml:space="preserve">
+    <value>ScreenCap</value>
+  </data>
+  <data name="ReportQuery" xml:space="preserve">
+    <value>Report</value>
+  </data>
+  <data name="RedLight" xml:space="preserve">
+    <value>RedLight</value>
+  </data>
+  <data name="DeviceParam" xml:space="preserve">
+    <value>DevicePar</value>
+  </data>
+  <data name="Start" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="CurrentUser" xml:space="preserve">
+    <value>Current User:</value>
+  </data>
+  <data name="BarcodeInput" xml:space="preserve">
+    <value>Barcode Input</value>
+  </data>
+  <data name="CurrentRecipe" xml:space="preserve">
+    <value>Current Recipe:</value>
+  </data>
+  <data name="CurrentFile" xml:space="preserve">
+    <value>Current File:</value>
+  </data>
+  <data name="CurrentProcessingObject" xml:space="preserve">
+    <value>Current ProcessingObject:</value>
+  </data>
+  <data name="Menu_Open" xml:space="preserve">
+    <value>_Open</value>
+  </data>
+  <data name="Menu_Edit" xml:space="preserve">
+    <value>_Edit</value>
+  </data>
+  <data name="Menu_Save" xml:space="preserve">
+    <value>_Save</value>
+  </data>
+  <data name="Menu_OpenFile" xml:space="preserve">
+    <value>Open_File</value>
+  </data>
+  <data name="Menu_SaveFile" xml:space="preserve">
+    <value>SaveFi_le</value>
+  </data>
+  <data name="Menu_Param" xml:space="preserve">
+    <value>_Param</value>
+  </data>
+  <data name="Menu_DeviceParam" xml:space="preserve">
+    <value>_DeviceParam</value>
+  </data>
+  <data name="Menu_SystemParam" xml:space="preserve">
+    <value>_SystemParam</value>
+  </data>
+  <data name="Menu_SystemConfig" xml:space="preserve">
+    <value>System_Config</value>
+  </data>
+  <data name="Menu_View" xml:space="preserve">
+    <value>_View</value>
+  </data>
+  <data name="Menu_TemplateObject" xml:space="preserve">
+    <value>TemplateObject</value>
+  </data>
+  <data name="Menu_ManufatureParam" xml:space="preserve">
+    <value>ManufatureParam</value>
+  </data>
+  <data name="Menu_Curve" xml:space="preserve">
+    <value>Curve</value>
+  </data>
+  <data name="Menu_Camera" xml:space="preserve">
+    <value>Camera</value>
+  </data>
+  <data name="Menu_Log" xml:space="preserve">
+    <value>Log</value>
+  </data>
+  <data name="Menu_ProductionInfo" xml:space="preserve">
+    <value>ProductionInfo</value>
+  </data>
+  <data name="Menu_Tools" xml:space="preserve">
+    <value>_Tool</value>
+  </data>
+  <data name="Menu_ScreenCapture" xml:space="preserve">
+    <value>ScreenCapture</value>
+  </data>
+  <data name="Menu_SaveLayout" xml:space="preserve">
+    <value>SaveLayout</value>
+  </data>
+  <data name="Menu_LoadLayout" xml:space="preserve">
+    <value>_LoadLayout</value>
+  </data>
+  <data name="Menu_ReportQuery" xml:space="preserve">
+    <value>_ReportQuery</value>
+  </data>
+  <data name="Menu_Help" xml:space="preserve">
+    <value>_Help</value>
+  </data>
+  <data name="Menu_License" xml:space="preserve">
+    <value>_License</value>
+  </data>
+  <data name="Menu_UserFeedback" xml:space="preserve">
+    <value>User_Feedback</value>
+  </data>
+  <data name="Menu_HelpDocument" xml:space="preserve">
+    <value>_HelpDocument</value>
+  </data>
+  <data name="Menu_About" xml:space="preserve">
+    <value>_About</value>
+  </data>
+  <data name="ProductionInfo_CapacityOfStatistical" xml:space="preserve">
+    <value>Capacity of Statistical</value>
+  </data>
+  <data name="ProductionInfo_TotalNum" xml:space="preserve">
+    <value>TotalNum</value>
+  </data>
+  <data name="ProductionInfo_OKNum" xml:space="preserve">
+    <value>OKNum</value>
+  </data>
+  <data name="ProductionInfo_NGNum" xml:space="preserve">
+    <value>NGNum</value>
+  </data>
+  <data name="ProductionInfo_WeldTime" xml:space="preserve">
+    <value>WeldTime</value>
+  </data>
+  <data name="ProductionInfo_Yield" xml:space="preserve">
+    <value>Yield</value>
+  </data>
+  <data name="ConfirmReset" xml:space="preserve">
+    <value>Are you sure to reset?</value>
+  </data>
+  <data name="ManufactureParamSetSucceeded" xml:space="preserve">
+    <value>The Manufacture param set succeeded.</value>
+  </data>
+  <data name="ManufactureParam_AccDist" xml:space="preserve">
+    <value>AccDist(mm)</value>
+  </data>
+  <data name="ManufactureParam_Current" xml:space="preserve">
+    <value>Current(A)</value>
+  </data>
+  <data name="ManufactureParam_EnableACCMode" xml:space="preserve">
+    <value>EnableACCMode</value>
+  </data>
+  <data name="Set" xml:space="preserve">
+    <value>Set</value>
+  </data>
+  <data name="ManufactureParam_EndComp" xml:space="preserve">
+    <value>EndComp</value>
+  </data>
+  <data name="ManufactureParam_EndTC" xml:space="preserve">
+    <value>EndTC(us)</value>
+  </data>
+  <data name="ManufactureParam_Frequency" xml:space="preserve">
+    <value>Frequency(Hz)</value>
+  </data>
+  <data name="ManufactureParam_JumpLengthLimit" xml:space="preserve">
+    <value>JumpLengthLimit(mm)</value>
+  </data>
+  <data name="ManufactureParam_JumpSpeed" xml:space="preserve">
+    <value>MarkSpeed(mm/s)</value>
+  </data>
+  <data name="ManufactureParam_MaxJumpDelayTCUs" xml:space="preserve">
+    <value>MaxJumpDelayTCUs(us)</value>
+  </data>
+  <data name="ManufactureParam_LaserOffTC" xml:space="preserve">
+    <value>LaserOffTC(us)</value>
+  </data>
+  <data name="ManufactureParam_MarkLoop" xml:space="preserve">
+    <value>MarkLoop</value>
+  </data>
+  <data name="ManufactureParam_MarkSpeed" xml:space="preserve">
+    <value>MarkSpeed(mm/s)</value>
+  </data>
+  <data name="ManufactureParam_MinJumpDelayTCUs" xml:space="preserve">
+    <value>MaxJumpDelayTCUs(us)</value>
+  </data>
+  <data name="ManufactureParam_PenID" xml:space="preserve">
+    <value>PenID</value>
+  </data>
+  <data name="ManufactureParam_PointTimeMs" xml:space="preserve">
+    <value>PointTime(ms)</value>
+  </data>
+  <data name="ManufactureParam_PolyTC" xml:space="preserve">
+    <value>PolyTC(us)</value>
+  </data>
+  <data name="ManufactureParam_PowerRatio" xml:space="preserve">
+    <value>PowerRatio(%)</value>
+  </data>
+  <data name="ManufactureParam_PulseNum" xml:space="preserve">
+    <value>PulseNum</value>
+  </data>
+  <data name="ManufactureParam_PulsePointMode" xml:space="preserve">
+    <value>PulsePointMode</value>
+  </data>
+  <data name="ManufactureParam_QPulseWidth" xml:space="preserve">
+    <value>QPulseWidth</value>
+  </data>
+  <data name="ManufactureParam_SpiContinueMode" xml:space="preserve">
+    <value>SpiContinueMode</value>
+  </data>
+  <data name="ManufactureParam_SpiWave" xml:space="preserve">
+    <value>SpiWave</value>
+  </data>
+  <data name="ManufactureParam_StartTC" xml:space="preserve">
+    <value>StartTC(us)</value>
+  </data>
+  <data name="ManufactureParam_WobbleDiameter" xml:space="preserve">
+    <value>WobbleDiameter(mm)</value>
+  </data>
+  <data name="ManufactureParam_WobbleDiameterB" xml:space="preserve">
+    <value>DiameterB(mm)</value>
+  </data>
+  <data name="ManufactureParam_WobbleDist" xml:space="preserve">
+    <value>WobbleDist(mm)</value>
+  </data>
+  <data name="ManufactureParam_WobbleMode" xml:space="preserve">
+    <value>WobbleMode</value>
+  </data>
+  <data name="ManufactureParam_WobbleSpeed" xml:space="preserve">
+    <value>WobbleSpeed(mm/s)</value>
+  </data>
+  <data name="ManufactureParam_WobbleType" xml:space="preserve">
+    <value>WobbleType</value>
+  </data>
+  <data name="ManufactureParam_YagMarkMode" xml:space="preserve">
+    <value>YagMarkMode</value>
+  </data>
+  <data name="LogView_Top" xml:space="preserve">
+    <value>Top</value>
+  </data>
+  <data name="LogView_Bottom" xml:space="preserve">
+    <value>Bottom</value>
+  </data>
+  <data name="LogView_Time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="LogView_Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="LogView_Content" xml:space="preserve">
+    <value>Content</value>
+  </data>
+  <data name="DeviceParam_GeneralParam" xml:space="preserve">
+    <value>GeneralParam</value>
+  </data>
+  <data name="DeviceParam_Camera" xml:space="preserve">
+    <value>Camera</value>
+  </data>
+  <data name="DeviceParam_UseCamera" xml:space="preserve">
+    <value>UseCamera</value>
+  </data>
+  <data name="DeviceParam_AutoOpenCamera" xml:space="preserve">
+    <value>Auto open camera</value>
+  </data>
+  <data name="DeviceParam_IsRowMirror" xml:space="preserve">
+    <value>Flip image up and down</value>
+  </data>
+  <data name="DeviceParam_IsColumnMirror" xml:space="preserve">
+    <value>Flip image left and right</value>
+  </data>
+  <data name="DeviceParam_SaveManufactureResult" xml:space="preserve">
+    <value>Save manufacture result</value>
+  </data>
+  <data name="DeviceParam_Path" xml:space="preserve">
+    <value>Path...</value>
+  </data>
+  <data name="DeviceParam_Else" xml:space="preserve">
+    <value>Else</value>
+  </data>
+  <data name="DeviceParam_CurrentRecipe" xml:space="preserve">
+    <value>Current recipe</value>
+  </data>
+  <data name="DeviceParam_Recipe" xml:space="preserve">
+    <value>Recipe</value>
+  </data>
+  <data name="DeviceParam_new RoutedCommandRecipe" xml:space="preserve">
+    <value>new RoutedCommand Recipe</value>
+  </data>
+  <data name="DeviceParam_ProcessParam" xml:space="preserve">
+    <value>Process Param</value>
+  </data>
+  <data name="DeviceParam_DeviceParam" xml:space="preserve">
+    <value>Device Param</value>
+  </data>
+  <data name="SystemParam_SystemParam" xml:space="preserve">
+    <value>System Param</value>
+  </data>
+  <data name="SystemParam_Basis" xml:space="preserve">
+    <value>Basis</value>
+  </data>
+  <data name="SystemParam_Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="SystemParam_SoftwareVersion" xml:space="preserve">
+    <value>SoftwareVersion</value>
+  </data>
+  <data name="SystemParam_CompanyName" xml:space="preserve">
+    <value>Company Name</value>
+  </data>
+  <data name="SystemParam_ProjectName" xml:space="preserve">
+    <value>Project Name</value>
+  </data>
+  <data name="SystemParam_SoftwareIcon" xml:space="preserve">
+    <value>Software Icon</value>
+  </data>
+  <data name="SystemParam_Path" xml:space="preserve">
+    <value>Path...</value>
+  </data>
+  <data name="Application" xml:space="preserve">
+    <value>Application</value>
+  </data>
+  <data name="SystemParam_SoftwareSelfStarting" xml:space="preserve">
+    <value>Software self-starting</value>
+  </data>
+  <data name="SystemParam_AutoLoadLayout" xml:space="preserve">
+    <value>Auto load layout</value>
+  </data>
+  <data name="HelpDecomentNotFind" xml:space="preserve">
+    <value>The help document does not exist!</value>
+  </data>
+  <data name="Time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="IO" xml:space="preserve">
+    <value>IO</value>
+  </data>
+  <data name="ServoDebug" xml:space="preserve">
+    <value>Servo</value>
+  </data>
+  <data name="Alarm" xml:space="preserve">
+    <value>Alarm</value>
+  </data>
+  <data name="ClearAlarm" xml:space="preserve">
+    <value>ClearAlarm</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Power" xml:space="preserve">
+    <value>Power(W)</value>
+  </data>
+  <data name="PowerDownLimit" xml:space="preserve">
+    <value>PowerLowLimit</value>
+  </data>
+  <data name="PowerParam" xml:space="preserve">
+    <value>Power Param</value>
+  </data>
+  <data name="PowerPV" xml:space="preserve">
+    <value>PowerPV</value>
+  </data>
+  <data name="PowerUpLimit" xml:space="preserve">
+    <value>PowerUpLimit</value>
+  </data>
+  <data name="UltralimitSetting" xml:space="preserve">
+    <value>Ultralimit Setting</value>
+  </data>
+  <data name="UltralimitTime" xml:space="preserve">
+    <value>UltralimitTime</value>
+  </data>
+  <data name="UltralimitView_Collapse" xml:space="preserve">
+    <value>Collapse(mm)</value>
+  </data>
+  <data name="UltralimitView_HeaderPower" xml:space="preserve">
+    <value>Power</value>
+  </data>
+  <data name="UltralimitView_Power" xml:space="preserve">
+    <value>Power(W)</value>
+  </data>
+  <data name="UltralimitView_Pressure" xml:space="preserve">
+    <value>Pressure(N)</value>
+  </data>
+  <data name="UltralimitView_Temperature" xml:space="preserve">
+    <value>T(℃)</value>
+  </data>
+  <data name="UltralimitView_Time" xml:space="preserve">
+    <value>Time(ms)</value>
+  </data>
+  <data name="ColorSetView_PowerDownLimit" xml:space="preserve">
+    <value>PowerDownLimit</value>
+  </data>
+  <data name="ColorSetView_PowerPV" xml:space="preserve">
+    <value>PowerPV</value>
+  </data>
+  <data name="ColorSetView_PowerUpLimit" xml:space="preserve">
+    <value>PowerUpLimit</value>
+  </data>
+  <data name="CurveColorSetting" xml:space="preserve">
+    <value>CurveColorSetting</value>
+  </data>
+  <data name="Display" xml:space="preserve">
+    <value>Display</value>
+  </data>
+  <data name="AlmBarcode" xml:space="preserve">
+    <value>AlmBarcode</value>
+  </data>
+  <data name="AlmPower" xml:space="preserve">
+    <value>AlmPower</value>
+  </data>
+  <data name="BarcodeParam" xml:space="preserve">
+    <value>BarcodeParam</value>
+  </data>
+  <data name="Buzzer" xml:space="preserve">
+    <value>Buzzer</value>
+  </data>
+  <data name="CurveUpdateRangeX" xml:space="preserve">
+    <value>Curve Update RangeX</value>
+  </data>
+  <data name="Emergency" xml:space="preserve">
+    <value>Emergency</value>
+  </data>
+  <data name="FinishSignal" xml:space="preserve">
+    <value>FinishSignal</value>
+  </data>
+  <data name="IOParam" xml:space="preserve">
+    <value>IOParam</value>
+  </data>
+  <data name="IsCheckBarcode" xml:space="preserve">
+    <value>CheckBarcode</value>
+  </data>
+  <data name="IsCheckBarcodeLength" xml:space="preserve">
+    <value>CheckBarcodeLength</value>
+  </data>
+  <data name="IsEnablePowerAlm" xml:space="preserve">
+    <value>IsEnablePowerAlm</value>
+  </data>
+  <data name="IsRotateMode" xml:space="preserve">
+    <value>IsRotateMode</value>
+  </data>
+  <data name="LampGreen" xml:space="preserve">
+    <value>LampGreen</value>
+  </data>
+  <data name="LampRed" xml:space="preserve">
+    <value>LampRed</value>
+  </data>
+  <data name="LampYellow" xml:space="preserve">
+    <value>LampYellow</value>
+  </data>
+  <data name="LaserAlm" xml:space="preserve">
+    <value>LaserAlm</value>
+  </data>
+  <data name="LaserDebug" xml:space="preserve">
+    <value>Laser</value>
+  </data>
+  <data name="LaserReady" xml:space="preserve">
+    <value>LaserReady</value>
+  </data>
+  <data name="LaserWarn" xml:space="preserve">
+    <value>LaserWarn</value>
+  </data>
+  <data name="Length" xml:space="preserve">
+    <value>Length</value>
+  </data>
+  <data name="PC_Ready" xml:space="preserve">
+    <value>PC_Ready</value>
+  </data>
+  <data name="Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Result_NG" xml:space="preserve">
+    <value>Result_NG</value>
+  </data>
+  <data name="Result_OK" xml:space="preserve">
+    <value>Result_OK</value>
+  </data>
+  <data name="TwoHandsStart1" xml:space="preserve">
+    <value>TwoHandsStart1</value>
+  </data>
+  <data name="TwoHandsStart2" xml:space="preserve">
+    <value>TwoHandsStart2</value>
+  </data>
+  <data name="WaterTankAlm" xml:space="preserve">
+    <value>WaterTankAlm</value>
+  </data>
+  <data name="DeviceAlarm" xml:space="preserve">
+    <value>DeviceAlarm</value>
+  </data>
+  <data name="PleaseLoginFirst" xml:space="preserve">
+    <value>Please login first!</value>
+  </data>
+  <data name="Developer" xml:space="preserve">
+    <value>Developer</value>
+  </data>
+  <data name="Administrator" xml:space="preserve">
+    <value>Administrator</value>
+  </data>
+  <data name="Operator" xml:space="preserve">
+    <value>Operator</value>
+  </data>
+  <data name="SoftwareIsExiting" xml:space="preserve">
+    <value>The software is exiting, please wait a moment!</value>
+  </data>
+  <data name="Dock_Tool" xml:space="preserve">
+    <value>[Tool]</value>
+  </data>
+  <data name="Dock_Process" xml:space="preserve">
+    <value>[Process]</value>
+  </data>
+  <data name="Dock_Data" xml:space="preserve">
+    <value>[Data]</value>
+  </data>
+  <data name="Dock_ModuleOut" xml:space="preserve">
+    <value>[ModuleOut]</value>
+  </data>
+  <data name="NewSolution" xml:space="preserve">
+    <value>NewSol</value>
+  </data>
+  <data name="SolutionList" xml:space="preserve">
+    <value>SolList</value>
+  </data>
+  <data name="GlobalVar" xml:space="preserve">
+    <value>GlobalVar</value>
+  </data>
+  <data name="RunCycle" xml:space="preserve">
+    <value>RunCycle</value>
+  </data>
+  <data name="RunOnce" xml:space="preserve">
+    <value>RunOnce</value>
+  </data>
+  <data name="Stop" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="CameraSet" xml:space="preserve">
+    <value>CamSet</value>
+  </data>
+  <data name="CommunicationSet" xml:space="preserve">
+    <value>ComSet</value>
+  </data>
+  <data name="CurrentSolution" xml:space="preserve">
+    <value>CurrentSolution:</value>
+  </data>
+  <data name="Menu_LoadDefaultLayout" xml:space="preserve">
+    <value>Load_DefaultLayout</value>
+  </data>
+  <data name="QuickMode" xml:space="preserve">
+    <value>QuickMod</value>
+  </data>
+  <data name="Dock_DeviceState" xml:space="preserve">
+    <value>[DeviceState]</value>
+  </data>
+  <data name="ProjectInfoSet" xml:space="preserve">
+    <value>ProjectInfoSet</value>
+  </data>
+  <data name="SoluctionAutoLoad" xml:space="preserve">
+    <value>Soluction auto load</value>
+  </data>
+  <data name="SoluctionAutoRun" xml:space="preserve">
+    <value>Soluction auto run</value>
+  </data>
+  <data name="Other" xml:space="preserve">
+    <value>Other</value>
+  </data>
+  <data name="SoluctionPath" xml:space="preserve">
+    <value>Soluction path</value>
+  </data>
+  <data name="MotionSet" xml:space="preserve">
+    <value>MotionSet</value>
+  </data>
+  <data name="CylConfig" xml:space="preserve">
+    <value>CylConfig</value>
+  </data>
+  <data name="HardwareConfig" xml:space="preserve">
+    <value>HwConfig</value>
+  </data>
+  <data name="UIDesign" xml:space="preserve">
+    <value>UIDesign</value>
+  </data>
+  <data name="LaserSet" xml:space="preserve">
+    <value>LaserSet</value>
+  </data>
+</root>

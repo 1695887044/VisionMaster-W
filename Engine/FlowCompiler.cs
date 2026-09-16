@@ -15,15 +15,8 @@ namespace VisionMaster.Services
 {
     public class FlowCompiler
     {
-        /// <summary>
-        /// 运行时变量引用标记 Guid
-        /// LinkReference.TargetStepId 等于此值时，表示该连线引用的是
-        /// IExecutionContext.LocalVariables 中的运行时本地变量，
-        /// TargetPortName 即变量名
-        /// 选用一个零概率随机值，避免与真实 StepID 冲突
-        /// </summary>
-        public static readonly Guid RuntimeVariableMarkerGuid =
-            new Guid("D5A2E1B0-1111-4F8C-9B3F-2A6E0B6A9F01");
+        // 运行时变量标记 Guid 已上收到协议层 Core.Interfaces.LinkProtocol，
+        // 因为生产端（变量绑定弹窗）与消费端（此处）必须共用同一份定义。
 
         /// <summary>
         /// 类型缓存（静态共享，跨编译复用）。使用线程安全的 ConcurrentDictionary：
@@ -49,14 +42,27 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 构造带步骤定位的编译错误。
+        /// 统一走这里，避免各处漏填 StepId 导致画布无法把错误红框定位到节点。
+        /// </summary>
+        private static CompilationError Err(StepModel owner, string message)
+            => new CompilationError
+            {
+                StepId = owner?.StepID,
+                StepName = owner?.StepName,
+                Message = message,
+            };
+
+        /// <summary>
         /// 将条件步骤中引用的运行时变量添加到 delegateParams
         /// 返回运行时变量名称列表和类型映射，供运行时从 context.LocalVariables 取值
         /// </summary>
         private (List<string> runtimeVarNames, Dictionary<string, Type> runtimeVarTypes) 
             CompileRuntimeVarRefs(
+                StepModel owner,
                 IEnumerable<LocalVariableItem> runtimeRefs,
                 List<Parameter> delegateParams,
-                List<string> errors)
+                List<CompilationError> errors)
         {
             var names = new List<string>();
             var types = new Dictionary<string, Type>();
@@ -82,7 +88,7 @@ namespace VisionMaster.Services
 
                     if (!TypeHelper.IsSafeExpressionType(varType))
                     {
-                        errors.Add($"[安全拦截] 运行时变量 '{runtimeVar.Name}' 数据类型不合法！");
+                        errors.Add(Err(owner, $"[安全拦截] 运行时变量 '{runtimeVar.Name}' 数据类型不合法！"));
                         continue;
                     }
                 }
@@ -101,7 +107,7 @@ namespace VisionMaster.Services
         /// 负责安全类型校验与类型缓存，返回供表达式解析使用的 delegateParams 及类型映射
         /// </summary>
         private (List<Parameter> delegateParams, Dictionary<Guid, Type> compiledVarTypes, List<Guid> compiledVarIds)
-            CompileLocalVarParams(IEnumerable<LocalVariableItem> localVariables, List<string> errors)
+            CompileLocalVarParams(StepModel owner, IEnumerable<LocalVariableItem> localVariables, List<CompilationError> errors)
         {
             var delegateParams = new List<Parameter>();
             var compiledVarTypes = new Dictionary<Guid, Type>();
@@ -125,7 +131,7 @@ namespace VisionMaster.Services
 
                     if (!TypeHelper.IsSafeExpressionType(varType))
                     {
-                        errors.Add($"[安全拦截] 变量 '{localVar.Name}' 数据类型不合法！");
+                        errors.Add(Err(owner, $"[安全拦截] 变量 '{localVar.Name}' 数据类型不合法！"));
                         continue;
                     }
                 }
@@ -153,6 +159,11 @@ namespace VisionMaster.Services
 
                 LinkPorts(blueprints, nodeLookup, pluginLookup, dependencyMap, result.Errors);
 
+                // 结构层取数检查（M2-1）：数据依赖倒序 / 跨分支取数。
+                // 必须在 LinkPorts 之后：那条链路里的 [致命断连] 等错误要保持原有文案与顺序不变，
+                // 本检查只做追加；放在 result.Success 赋值之前才能保证非法图纸编不出 CompiledFlow。
+                CheckLinkOrder(blueprints, result.Errors);
+
                 result.Success = result.Errors.Count == 0;
                 if (result.Success)
                 {
@@ -161,7 +172,11 @@ namespace VisionMaster.Services
             }
             catch (Exception ex)
             {
-                result.Errors.Add("系统崩溃级错误: " + ex.Message);
+                result.Errors.Add(new CompilationError
+                {
+                    // 异常发生在步骤遍历之外，无法归属到具体步骤，StepId 留空表示流程级错误
+                    Message = "系统崩溃级错误: " + ex.Message,
+                });
             }
             return result;
         }
@@ -171,7 +186,7 @@ namespace VisionMaster.Services
             string? flowName,
             Dictionary<Guid, IVisionPlugin> pluginLookup,
             Dictionary<Guid, CompiledNode> nodeLookup,
-            List<string> errors
+            List<CompilationError> errors
         )
         {
             var compiledNodes = new List<CompiledNode>();
@@ -191,11 +206,11 @@ namespace VisionMaster.Services
 
                     // 1. 编译局部变量（While / If 共用逻辑，提取至 CompileLocalVarParams）
                     var (delegateParams, compiledVarTypes, compiledVarIds) =
-                        CompileLocalVarParams(whileModel.LocalVariables, errors);
+                        CompileLocalVarParams(model, whileModel.LocalVariables, errors);
 
                     // 2. 编译运行时变量引用（从 context.LocalVariables 取值）
                     var (runtimeVarNames, runtimeVarTypes) = CompileRuntimeVarRefs(
-                        whileModel.RuntimeVariableRefs, delegateParams, errors);
+                        model, whileModel.RuntimeVariableRefs, delegateParams, errors);
 
                     // 3. 提取唯一的循环分支
                     var loopCollection = whileModel.Children.FirstOrDefault();
@@ -226,7 +241,7 @@ namespace VisionMaster.Services
                         {
                             // 措辞纠偏：errors.Add 会阻断编译（Success=Errors.Count==0），这是硬错误不是警告
                             errors.Add(
-                                $"[编译错误] '{whileModel.StepName}' 的循环条件表达式为空。"
+                                Err(model, $"[编译错误] '{whileModel.StepName}' 的循环条件表达式为空。")
                             );
                         }
                         else
@@ -242,7 +257,7 @@ namespace VisionMaster.Services
                             catch (Exception ex)
                             {
                                 errors.Add(
-                                    $"[语法错误] While节点 '{whileModel.StepName}' 编译失败: {ex.Message}"
+                                    Err(model, $"[语法错误] While节点 '{whileModel.StepName}' 编译失败: {ex.Message}")
                                 );
                             }
                         }
@@ -261,11 +276,11 @@ namespace VisionMaster.Services
 
                     // 编译局部变量（While / If 共用逻辑，提取至 CompileLocalVarParams）
                     var (delegateParams, compiledVarTypes, compiledVarIds) =
-                        CompileLocalVarParams(conditionModel.LocalVariables, errors);
+                        CompileLocalVarParams(model, conditionModel.LocalVariables, errors);
 
                     // 编译运行时变量引用（从 context.LocalVariables 取值）
                     var (runtimeVarNames, runtimeVarTypes) = CompileRuntimeVarRefs(
-                        conditionModel.RuntimeVariableRefs, delegateParams, errors);
+                        model, conditionModel.RuntimeVariableRefs, delegateParams, errors);
 
                     // 编译分支
                     foreach (var childCollection in conditionModel.Children)
@@ -298,7 +313,7 @@ namespace VisionMaster.Services
                         {
                             // 措辞纠偏：errors.Add 会阻断编译（Success=Errors.Count==0），这是硬错误不是警告
                             errors.Add(
-                                $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' 表达式为空。"
+                                Err(model, $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' 表达式为空。")
                             );
                         }
                         else
@@ -314,7 +329,7 @@ namespace VisionMaster.Services
                             catch (Exception ex)
                             {
                                 errors.Add(
-                                    $"[语法错误] 节点 '{model.StepName}' 编译失败: {ex.Message}"
+                                    Err(model, $"[语法错误] 节点 '{model.StepName}' 编译失败: {ex.Message}")
                                 );
                             }
                         }
@@ -395,7 +410,7 @@ namespace VisionMaster.Services
                     }
                     catch (Exception ex)
                     {
-                        errors.Add($"[加载失败] 算子 '{model.StepName}': {ex.Message}");
+                        errors.Add(Err(model, $"[加载失败] 算子 '{model.StepName}': {ex.Message}"));
                         continue;
                     }
 
@@ -431,7 +446,7 @@ namespace VisionMaster.Services
             Dictionary<Guid, CompiledNode> nodeLookup,
             Dictionary<Guid, IVisionPlugin> pluginLookup, // 只有真正的算子才能作为【数据源】提供输出
             Dictionary<Guid, List<Guid>> dependencyMap,   // 节点依赖表：接线成功时记录 下游 -> 上游
-            List<string> errors
+            List<CompilationError> errors
         )
         {
             foreach (var model in models)
@@ -453,16 +468,16 @@ namespace VisionMaster.Services
                     IOutputPort sourcePort = null;
                     string actualUpstreamName = "未知";
 
-                    // 运行时变量引用：TargetStepId == RuntimeVariableMarkerGuid
-                // 表示该连线引用的是 context.LocalVariables 中的运行时本地变量
-                // TargetPortName 即变量名。编译期不解析具体实例，运行期由 CompiledPluginNode 绑定 context
-                if (linkRef.TargetStepId == RuntimeVariableMarkerGuid)
+                    // 按显式 Kind 分派数据源。旧工程 Kind 缺失时先按旧规则回填，
+                    // 使"常量 vs 全局变量"不再依赖 DisplayAddress 的文案前缀
+                var linkKind = linkRef.NormalizeKind();
+                if (linkKind == LinkKind.RuntimeVariable)
                 {
                     var varName = linkRef.TargetPortName;
                     if (string.IsNullOrWhiteSpace(varName))
                     {
                         errors.Add(
-                            $"[连线错误] '{model.StepName}' 引用的运行时变量名为空"
+                            Err(model, $"[连线错误] '{model.StepName}' 引用的运行时变量名为空")
                         );
                     }
                     else if (targetNode is CompiledPluginNode pluginNode)
@@ -512,35 +527,34 @@ namespace VisionMaster.Services
                     else
                     {
                         errors.Add(
-                            $"[连线错误] '{model.StepName}' 节点类型不支持引用运行时变量"
+                            Err(model, $"[连线错误] '{model.StepName}' 节点类型不支持引用运行时变量")
                         );
                     }
                 }
-                else if (linkRef.TargetStepId == Guid.Empty)
+                else if (linkKind == LinkKind.Constant)
                 {
-                    if (!string.IsNullOrEmpty(linkRef.DisplayAddress) && linkRef.DisplayAddress.StartsWith("常量值: "))
+                    // 常量：TargetPortName 直接就是常量值字符串，无需再看显示串前缀
+                    var constantValue = linkRef.TargetPortName;
+                    actualUpstreamName = "常量";
+                    Type targetType = typeof(string);
+                    if (targetNode is CompiledPluginNode pluginNode && pluginNode.ExternalPlugin?.Inputs?.TryGetValue(myInputName, out var targetPort) == true)
                     {
-                        var constantValue = linkRef.TargetPortName;
-                        actualUpstreamName = "常量";
-                        Type targetType = typeof(string);
-                        if (targetNode is CompiledPluginNode pluginNode && pluginNode.ExternalPlugin?.Inputs?.TryGetValue(myInputName, out var targetPort) == true)
-                        {
-                            targetType = targetPort?.DataType ?? typeof(string);
-                        }
-                        sourcePort = new ConstantOutputPort(constantValue, targetType);
+                        targetType = targetPort?.DataType ?? typeof(string);
                     }
-                    else
-                    {
-                        sourcePort = workspaceManager.GlobalVariables.FirstOrDefault(s =>
-                            s.Name == linkRef.TargetPortName
-                        );
-                        if (sourcePort == null)
-                            errors.Add(
-                                $"[连线断开] '{model.StepName}' 找不到全局变量: '{linkRef.TargetPortName}'"
-                            );
-                        actualUpstreamName = "Global";
-                    }
+                    sourcePort = new ConstantOutputPort(constantValue, targetType);
                 }
+                else if (linkKind == LinkKind.GlobalVariable)
+                {
+                    sourcePort = workspaceManager.GlobalVariables.FirstOrDefault(s =>
+                        s.Name == linkRef.TargetPortName
+                    );
+                    if (sourcePort == null)
+                        errors.Add(
+                                Err(model, $"[连线断开] '{model.StepName}' 找不到全局变量: '{linkRef.TargetPortName}'")
+                            );
+                    actualUpstreamName = "Global";
+                }
+                    // 其余即 StepPort：上游一定是个真正的 Plugin，去 pluginLookup 找输出端口
                     else
                     {
                         // 🌟 上游一定是一个真正的 Plugin，所以去 pluginLookup 找输出端口
@@ -569,7 +583,7 @@ namespace VisionMaster.Services
                                 else
                                 {
                                     errors.Add(
-                                        $"[连线断开] 上游 '{actualUpstreamName}' 不存在输出 '{cleanPortName}'"
+                                        Err(model, $"[连线断开] 上游 '{actualUpstreamName}' 不存在输出 '{cleanPortName}'")
                                     );
                                 }
                             }
@@ -590,7 +604,7 @@ namespace VisionMaster.Services
                         else
                         {
                             errors.Add(
-                                $"[致命断连] '{model.StepName}' 引用的上游节点 (ID:{linkRef.TargetStepId}) 不存在！"
+                                Err(model, $"[致命断连] '{model.StepName}' 引用的上游节点 (ID:{linkRef.TargetStepId}) 不存在！")
                             );
                         }
                     }
@@ -642,7 +656,7 @@ namespace VisionMaster.Services
                     {
                         if (input.IsRequired && input.LinkedSource == null)
                             errors.Add(
-                                $"[参数缺失] '{model.StepName}' 的必填参数 '{input.Name}' 未配置！"
+                                Err(model, $"[参数缺失] '{model.StepName}' 的必填参数 '{input.Name}' 未配置！")
                             );
                     }
                 }
@@ -675,6 +689,153 @@ namespace VisionMaster.Services
 
             if (!deps.Contains(upstream))
                 deps.Add(upstream);
+        }
+
+        /// <summary>
+        /// 结构层取数合法性检查：把「数据依赖倒序」与「跨分支取数」挡在编译期。
+        ///
+        /// 为什么必须报错（而不是"能跑就行"）：
+        /// dependencyMap 只服务单步试运行——试运行会先把上游链跑一遍，于是倒序/跨分支的连线"看起来是对的"；
+        /// 而全速运行严格按步骤集合的下标顺序执行，同一份图纸会取到 null 或上一轮的陈旧值。
+        /// 两种跑法结果不同的问题在现场根本排查不出来，只能编译期挡死。
+        ///
+        /// 为什么写成 internal static：不依赖 workspaceManager、不依赖已编译节点，
+        /// 纯函数便于断言程序直接调用（无需为了测试去凑一个 IWorkspaceManager）。
+        /// </summary>
+        /// <param name="blueprints">流程图纸（含各层容器步骤）</param>
+        /// <param name="errors">错误收集器；本方法只追加，绝不改动已有错误的文案与顺序</param>
+        internal static void CheckLinkOrder(IEnumerable<StepModel> blueprints, List<CompilationError> errors)
+        {
+            if (blueprints == null || errors == null)
+                return;
+
+            // 拓扑快照一次遍历建索引；Positions 已覆盖全部嵌套层级（含 For 循环体），
+            // 所以此处不再自己写递归——少一套递归，就少一次"漏了某种容器"的机会。
+            var topology = FlowTopology.Build(blueprints);
+
+            foreach (var consumer in topology.Positions)
+            {
+                // FlowTopology.Walk 建行前已剔除空步骤，故 consumer / consumer.Step 恒非空；
+                // 这里仍保留一层判空，将来若改了 Walk 也不会在这里变成静默 NRE
+                StepModel model = consumer.Step;
+                if (model == null || model.IsDisEnable)
+                    continue;
+
+                // LinkedSources 以"输入端口名"为键，因此天然满足"同一对 (消费步骤, 输入端口) 只报一条"
+                if (model.LinkedSources == null)
+                    continue;
+
+                foreach (var linkKvp in model.LinkedSources)
+                {
+                    LinkReference linkRef = linkKvp.Value;
+                    if (linkRef == null)
+                        continue;
+
+                    // 只检查"取别的步骤的输出"：全局变量 / 运行时变量 / 常量与步骤执行顺序无关，一律跳过
+                    if (linkRef.NormalizeKind() != LinkKind.StepPort)
+                        continue;
+
+                    // 找不到 producer：连线指向野 Id，LinkPorts 已报 [致命断连]，此处不重复报
+                    if (!topology.TryGet(linkRef.TargetStepId, out var producer))
+                        continue;
+
+                    // 产出步骤被禁用时同样不报：它压根不参与执行，
+                    // 且强行报倒序会与已有的"致命断连"类错误重复，同一根因刷两条只会干扰排查
+                    if (producer.Step == null || producer.Step.IsDisEnable)
+                        continue;
+
+                    LinkLegality legality = topology.Classify(producer.StepId, consumer.StepId);
+                    string? message = legality switch
+                    {
+                        // 自连：结构上"自己取自己"永远不可能先产出再取用，归入依赖倒序，
+                        // 但提示语必须换成自环的说法，否则会生成"把 A 拖到 A 之前"这种无意义指引
+                        LinkLegality.SameListReversed when producer.StepId == consumer.StepId
+                            => $"[依赖倒序] '{StepName(model)}' 的输入引用了自身的输出（本层第 {consumer.IndexInOwner + 1} 步 → 第 {producer.IndexInOwner + 1} 步）。" +
+                               "自己不可能先于自己产出，连续运行时取到的必是上一轮的陈旧值。" +
+                               "请改由真正的上游步骤提供该输入，若确实要跨轮次取值请改用运行时变量。",
+
+                        // 同层排在后面却取前面的输出，以及"跨层但产出方排在包住消费方的容器之后"，
+                        // 本质都是同一件事：执行到这一步时上游还没跑，统一按依赖倒序报
+                        LinkLegality.SameListReversed
+                            or LinkLegality.ProducerAfterEnclosingContainer
+                            => $"[依赖倒序] '{StepName(model)}' 排在 '{StepName(producer.Step)}' 之后" +
+                               $"（{DescribeOrder(topology, consumer, producer)}），却引用了 '{StepName(producer.Step)}' 的输出。" +
+                               "全速运行时将取到空值或上一轮的陈旧值；单步调试会掩盖该问题。" +
+                               $"请把 '{StepName(producer.Step)}' 拖到 '{StepName(model)}' 之前，若确实要跨轮次取值请改用运行时变量。",
+
+                        // 兄弟分支互取、或取了别人子树里的输出：这一轮根本轮不到对方执行
+                        LinkLegality.CrossBranch
+                            => $"[跨分支取数] '{StepName(model)}'（{DescribePosition(topology, consumer)}）" +
+                               $"引用了另一分支中 '{StepName(producer.Step)}'（{DescribePosition(topology, producer)}）的输出，" +
+                               "该分支本次可能未执行，取到的是空值或陈旧值。请改用全局变量或运行时变量传递。",
+
+                        // 其余（SameListBefore / ProducerIsAncestor 合法，Unknown 说明 Id 已失效）不报
+                        _ => null,
+                    };
+
+                    if (message != null)
+                        errors.Add(Err(model, message));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 描述倒序连线双方的执行序号（1 基，面向操作人员；内部下标是 0 基，直接展示会让人差一位）。
+        /// 双方同层时用"本层第 N 步 → 第 M 步"（与既有报错样例一致），跨层时各自带作用域路径。
+        /// </summary>
+        private static string DescribeOrder(FlowTopology topology, StepPosition consumer, StepPosition producer)
+        {
+            if (ReferenceEquals(consumer.Owner, producer.Owner))
+                return $"本层第 {consumer.IndexInOwner + 1} 步 → 第 {producer.IndexInOwner + 1} 步";
+
+            return $"{DescribePosition(topology, consumer)} → {DescribePosition(topology, producer)}";
+        }
+
+        /// <summary>单个步骤的位置描述：作用域 + 本层序号（1 基）</summary>
+        private static string DescribePosition(FlowTopology topology, StepPosition position)
+        {
+            string seq = $"第 {position.IndexInOwner + 1} 步";
+            return position.Depth == 0 ? $"流程{seq}" : $"{DescribeScope(topology, position)} {seq}";
+        }
+
+        /// <summary>
+        /// 步骤所在的可读作用域：顶层写"流程"，嵌套写「容器名/分支名」由外及里的路径。
+        /// 一个容器步骤可能有 If/Else 多个分支，只报容器名不足以定位，所以必须带上分支名。
+        /// 祖先链走 FlowTopology.AncestorChain 这个公开入口（StepPosition 内部的数组是 internal，
+        /// 跨程序集不可见，也不该为了让编译器省事而把快照的索引细节升格成公开契约）。
+        /// </summary>
+        private static string DescribeScope(FlowTopology topology, StepPosition position)
+        {
+            if (position.Depth == 0)
+                return "流程";
+
+            var ancestors = topology.AncestorChain(position);
+            var segments = new string[ancestors.Count];
+            for (int i = 0; i < ancestors.Count; i++)
+            {
+                // AncestorChain 是由近及远（[父, 祖父, ...]），报错要按人读路径的习惯由外及里，故倒序填
+                StepPosition ancestor = ancestors[i];
+                StepPosition holder = i == 0 ? position : ancestors[i - 1];
+                segments[ancestors.Count - 1 - i] =
+                    $"'{StepName(ancestor.Step)}/{BranchName(holder.Branch)}'";
+            }
+
+            return string.Join(" → ", segments);
+        }
+
+        private static string StepName(StepModel? step)
+            => string.IsNullOrWhiteSpace(step?.StepName) ? "(未命名步骤)" : step.StepName;
+
+        /// <summary>
+        /// 分支名：优先用分支自身的 StepName（如"循环体"、"Else 分支"），
+        /// 老数据可能没写名字，退化成枚举名，保证文案里永远不会出现空串
+        /// </summary>
+        private static string BranchName(StepCollection? branch)
+        {
+            if (branch == null)
+                return "流程";
+
+            return string.IsNullOrWhiteSpace(branch.StepName) ? branch.BranchType.ToString() : branch.StepName;
         }
     }
 }

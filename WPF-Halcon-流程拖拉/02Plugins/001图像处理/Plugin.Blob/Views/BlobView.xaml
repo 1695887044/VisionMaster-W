@@ -1,0 +1,231 @@
+﻿<vb:ModuleViewBase x:Class="Plugin.Blob.Views.BlobView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                   xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                   xmlns:local="clr-namespace:Plugin.Blob.Views"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.Blob.ViewModels"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+                   Icon="/Plugin.Blob;component/Assets/Images/Tool/Blob.png" 
+                   Height="680" Width="980"
+                   >
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="363*"/>
+            <ColumnDefinition Width="617*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid Grid.ColumnSpan="2" Margin="0,0,0,55" Grid.RowSpan="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="370"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <TabControl Style="{StaticResource VerTabControl}">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem" BasedOn="{StaticResource VerTabItem}"/>
+                </TabControl.Resources>
+                <TabItem Header="基本参数">
+                    <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden">
+                        <Grid x:Name="gd">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="auto"/>
+                                <RowDefinition Height="auto"/>
+                                <RowDefinition Height="auto"/>
+                                <RowDefinition Height="auto" />
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border>
+                                <Expander Header="图像链接" IsExpanded="True">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Margin="5 0">
+                                            <TextBlock Text="输入图像" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0" IsReadOnly="True"
+                                                 Style="{StaticResource LinkTextBox}"
+                                                 Text="{Binding InputImageLinkText}"
+                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.InputImageLink}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="5 10">
+                                            <CheckBox Content="输出ROI裁剪图像" IsChecked="{Binding IsOutImageReduced}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Expander>
+                            </Border>
+                            <Border Grid.Row="1">
+                                <Expander  Header="分割参数" IsExpanded="True">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="分割阈值:" VerticalAlignment="Center"  Margin="5,1,5,1"/>
+                                            <mah:RangeSlider Width="200"    
+                                     Margin="4"
+                                     mah:SliderHelper.ChangeValueBy="LargeChange"
+                                     mah:SliderHelper.EnableMouseWheel="MouseHover"
+                                     AutoToolTipPlacement="TopLeft"
+                                     LargeChange="1"
+                                     LowerValue="{Binding ThresholdMin}"
+                                     Maximum="255"
+                                     Minimum="0"
+                                     Orientation="Horizontal"
+                                     SmallChange="1"
+                                     UpperValue="{Binding ThresholdMax}">
+                                                <mah:RangeSlider.AutoToolTipRangeValuesTemplate>
+                                                    <DataTemplate DataType="mah:RangeSliderAutoTooltipValues">
+                                                        <UniformGrid Columns="2" Rows="2">
+                                                            <TextBlock HorizontalAlignment="Right" Text="From:" />
+                                                            <TextBlock HorizontalAlignment="Right" Text="{Binding LowerValue, StringFormat='{}{0:N2}'}" />
+                                                            <TextBlock HorizontalAlignment="Right" Text="To:" />
+                                                            <TextBlock HorizontalAlignment="Right" Text="{Binding UpperValue, StringFormat='{}{0:N2}'}" />
+                                                        </UniformGrid>
+                                                    </DataTemplate>
+                                                </mah:RangeSlider.AutoToolTipRangeValuesTemplate>
+                                            </mah:RangeSlider>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Height="40" Visibility="{Binding IsThreeChannel,Converter={StaticResource Bool2VisibilityConverter}}">
+                                            <TextBlock Text="图像通道选择:" Width="80" VerticalAlignment="Center"/>
+                                            <RadioButton Content="R" Width="60" Margin="5 0" IsChecked="{Binding SelectedImageChannel,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eChannels.R}}"/>
+                                            <RadioButton Content="G" Width="60" Margin="5 0" IsChecked="{Binding SelectedImageChannel,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eChannels.G}}"/>
+                                            <RadioButton Content="B" Width="60" Margin="5 0" IsChecked="{Binding SelectedImageChannel,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eChannels.B}}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Expander>
+
+                            </Border>
+                            <Border Grid.Row="2">
+                                <Expander Header="ROI类型" IsExpanded="True">
+                                    <StackPanel Orientation="Horizontal" Margin="5 0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <RadioButton Content="矩形" Margin="5 0" 
+                                                 IsChecked="{Binding SelectedROIType,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eDrawShape.矩形}}"/>
+                                        <RadioButton Content="圆形" Margin="35 0" 
+                                                 IsChecked="{Binding SelectedROIType,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eDrawShape.圆形}}"/>
+                                        <RadioButton Content="输入图片" Margin="35 0" 
+                                                 IsChecked="{Binding SelectedROIType,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eDrawShape.输入图像}}"/>
+                                    </StackPanel>
+                                </Expander>
+                            </Border>
+                            <Border x:Name="bd" Grid.Row="3">
+                                <Expander Header="ROI信息"  IsExpanded="True">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="AUTO"/>
+                                            <RowDefinition/>
+                                        </Grid.RowDefinitions>
+                                        <Grid Visibility="{Binding SelectedROIType,Converter={StaticResource EnumToVisibilityConverter},ConverterParameter={x:Static vm:eDrawShape.矩形}}">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="长度1:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding Rectangle2Region.Length1}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="长度2:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding Rectangle2Region.Length2}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="中心X:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding Rectangle2Region.MidC}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="中心Y:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding Rectangle2Region.MidR}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="角度:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding Rectangle2Region.Deg}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="5">
+                                                    <RadioButton Content="正常显示" Margin="5 0" 
+                                                 IsChecked="{Binding EditMode,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eEditMode.正常显示}}"/>
+                                                    <RadioButton Content="绘制涂抹" Margin="35 0" 
+                                                 IsChecked="{Binding EditMode,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eEditMode.绘制涂抹}}"/>
+                                                    <RadioButton Content="擦除涂抹" Margin="5 0" 
+                                                 IsChecked="{Binding EditMode,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eEditMode.擦除涂抹}}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0 20 5 5">
+                                                    <TextBlock Text="涂抹形状:" VerticalAlignment="Center" Margin="5 0"/>
+                                                    <ComboBox Width="80" Margin="5 0" SelectedItem="{Binding DrawShape}" ItemsSource="{Binding DrawShapes}" Height="25"/>
+                                                    <mah:NumericUpDown Value="{Binding DrawSize}" Width="80" Height="25" Margin="5 0"/>
+                                                    <Button Content="清除涂抹" Command="{Binding ClearPaintCommand}" Margin="5 0"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Visibility="{Binding SelectedROIType,Converter={StaticResource EnumToVisibilityConverter},ConverterParameter={x:Static vm:eDrawShape.圆形}}">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="圆心X:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding CircleRegion.CenterX}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="圆心Y:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding CircleRegion.CenterY}"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="30 10">
+                                                    <TextBlock Text="半径:" VerticalAlignment="Center" HorizontalAlignment="Center" Width="60"/>
+                                                    <TextBox Style="{StaticResource LinkTextBox}" Width="200" Text="{Binding CircleRegion.Radius}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid Visibility="{Binding SelectedROIType,Converter={StaticResource EnumToVisibilityConverter},ConverterParameter={x:Static vm:eDrawShape.输入图像}}">
+
+                                        </Grid>
+                                    </Grid>
+                                </Expander>
+                            </Border>
+                            <Border  Grid.Row="4">
+                                <Expander Header="检测结果" IsExpanded="True">
+                                    <StackPanel Orientation="Horizontal" Margin="5">
+                                        <TextBlock Text="面积:"  Margin="2 8" Width="60" />
+                                        <TextBox Style="{StaticResource LinkTextBox}" Text="{Binding Area}"  VerticalAlignment="Top"/>
+                                    </StackPanel>
+                                </Expander>
+                            </Border>
+
+                        </Grid>
+                    </ScrollViewer>
+                </TabItem>
+                <TabItem Header="输出筛选">
+                    <Border BorderThickness="3">
+                        <GroupBox Header="参数设置">
+                            <StackPanel >
+                                <CheckBox Content="最大面积" Margin="3" IsChecked="{Binding OutPutMaxArea}"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </Border>
+                </TabItem>
+            </TabControl>
+            <GridSplitter Grid.Column="1"/>
+            <WinFormHost:WindowsFormsHost Margin="5" Grid.Column="2" x:Name="winFormHost">
+            </WinFormHost:WindowsFormsHost>
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0" Grid.ColumnSpan="2">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</vb:ModuleViewBase>

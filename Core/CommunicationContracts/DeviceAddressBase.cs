@@ -165,14 +165,20 @@ namespace VisionMaster.Communications
                 double offset = eng - EngineeringOffset;
                 double result = Scale.HasValue ? offset / Scale.Value : offset;
 
-                // 根据数据类型进行舍入
+                // 根据数据类型进行舍入并转回目标 CLR 类型。
+                // 修复点：旧实现整数分支返回 Math.Round 后的 double——写链路按 double 编 8 字节，
+                // 导致 Int16/Int32 等下发时长度与字节序全部错位。
                 return DataType switch
                 {
                     DataValueType.Boolean => Convert.ToBoolean(result),
-                    DataValueType.SByte or DataValueType.Byte or
-                    DataValueType.Int16 or DataValueType.UInt16 or
-                    DataValueType.Int32 or DataValueType.UInt32 or
-                    DataValueType.Int64 or DataValueType.UInt64 => Math.Round(result, 0),
+                    DataValueType.SByte => Convert.ToSByte(Math.Round(result, 0)),
+                    DataValueType.Byte => Convert.ToByte(Math.Round(result, 0)),
+                    DataValueType.Int16 => Convert.ToInt16(Math.Round(result, 0)),
+                    DataValueType.UInt16 => Convert.ToUInt16(Math.Round(result, 0)),
+                    DataValueType.Int32 => Convert.ToInt32(Math.Round(result, 0)),
+                    DataValueType.UInt32 => Convert.ToUInt32(Math.Round(result, 0)),
+                    DataValueType.Int64 => Convert.ToInt64(Math.Round(result, 0)),
+                    DataValueType.UInt64 => Convert.ToUInt64(Math.Round(result, 0)),
                     _ => result
                 };
             }
@@ -233,6 +239,16 @@ namespace VisionMaster.Communications
         /// <para>子类必须实现此方法。</para>
         /// </summary>
         protected abstract string BuildAddress();
+
+        /// <summary>
+        /// <para>尝试生成结构化的轮询地址（供批量轮询规划器使用，避免解析字符串）。</para>
+        /// <para>不支持批量读的协议返回 false，调用方应回退到单变量字符串地址读。</para>
+        /// </summary>
+        public virtual bool TryCreatePollAddress(out PollAddress? poll)
+        {
+            poll = null;
+            return false;
+        }
 
         /// <summary>
         /// <para>验证地址配置是否有效。</para>

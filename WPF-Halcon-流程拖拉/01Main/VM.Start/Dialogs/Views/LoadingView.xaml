@@ -1,0 +1,46 @@
+﻿<mah:MetroWindow x:Class="VM.Start.Dialogs.Views.LoadingView"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:local="clr-namespace:VM.Start.Dialogs.Views"
+                 xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                 xmlns:lex="http://wpflocalizeextension.codeplex.com"
+                 lex:LocalizeDictionary.DesignCulture="zh"
+                 lex:LocalizeDictionary.OutputMissingKeys="True"
+                 lex:ResxLocalizationProvider.DefaultAssembly="VM.Start"
+                 lex:ResxLocalizationProvider.DefaultDictionary="Resource"
+                 AllowsTransparency="False" WindowStartupLocation="CenterScreen"
+                 FontFamily="Microsoft YaHei" FontWeight="ExtraLight"
+                 ResizeMode="NoResize"
+                 TextElement.FontWeight="Medium"
+                 TextElement.FontSize="14"
+                 NonActiveGlowBrush="#CDFF0000"
+                 ShowTitleBar="True"
+                 Background="{StaticResource MahApps.Brushes.ThemeBackground}"
+                 mc:Ignorable="d" GlowBrush="{StaticResource MahApps.Brushes.Accent}" 
+                 d:DesignHeight="230" MinWidth="400" MinHeight="200" MaxHeight="730" MaxWidth="1000"
+                 Window.SizeToContent="WidthAndHeight" WindowStyle="SingleBorderWindow">
+    <mah:MetroWindow.LeftWindowCommands>
+        <mah:WindowCommands>
+            <Image Source="{Binding Icon}" Stretch="Fill" Width="25" Height="24" OpacityMask="#FFFFFFFF" Margin="5 0 5 0"/>
+            <TextBlock Text="{Binding ToolBarMsg}" VerticalAlignment="Center"  Margin="5 0 5 0" />
+        </mah:WindowCommands>
+    </mah:MetroWindow.LeftWindowCommands>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition MinHeight="150" Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="30"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="30"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="30">
+            <mah:ProgressRing Margin="0 0 10 0"/>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Hidden">
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" LineHeight="22" VerticalAlignment="Center" MaxWidth="800" Foreground="White"/>
+            </ScrollViewer>
+        </StackPanel>
+    </Grid>
+</mah:MetroWindow>

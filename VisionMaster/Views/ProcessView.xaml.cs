@@ -23,7 +23,27 @@ namespace VisionMaster.Views
         public ProcessView()
         {
             InitializeComponent();
+
+            // 入树/离树成对挂摘订阅：AvalonDock 切换标签页、隐藏面板都会触发 Unloaded，
+            // 所以清理必须可逆（离树摘干净让旧 VM 可 GC，入树重新挂上），不能用一次性 Dispose。
+            Loaded += OnViewLoaded;
+            Unloaded += OnViewUnloaded;
+            DataContextChanged += OnViewDataContextChanged;
         }
+
+        // Prism 的 AutoWireViewModel 可能晚于 Loaded 才把 VM 装进 DataContext，
+        // 此时入树事件已经过去，需要在这里补挂一次（Activate 幂等，不会重复订阅）
+        private void OnViewDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (IsLoaded)
+                (e.NewValue as ViewModels.ProcessViewModel)?.Activate();
+        }
+
+        private void OnViewLoaded(object sender, RoutedEventArgs e)
+            => (DataContext as ViewModels.ProcessViewModel)?.Activate();
+
+        private void OnViewUnloaded(object sender, RoutedEventArgs e)
+            => (DataContext as ViewModels.ProcessViewModel)?.Deactivate();
         private void moduleTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             //获取鼠标位置的TreeViewItem 然后选中

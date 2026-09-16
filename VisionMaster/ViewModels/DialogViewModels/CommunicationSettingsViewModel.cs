@@ -147,6 +147,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public void OnDialogClosed()
         {
+            // 订阅必须成对：Manager 是单例，不退订会导致每次打开对话框泄漏一份订阅
+            _communicationManager.ConnectionStateChanged -= OnConnectionStateChanged;
         }
 
         /// <summary>
@@ -155,7 +157,56 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <param name="parameters">对话框参数</param>
         public void OnDialogOpened(IDialogParameters parameters)
         {
+            // 非阻塞的连接/断开由状态事件回报结果，所以打开时订阅、关闭时退订
+            _communicationManager.ConnectionStateChanged += OnConnectionStateChanged;
             LoadConfigs(_communicationManager.GetAllConnections());
+        }
+
+        /// <summary>本对话框发起的"连接"等待回报的连接名（收到状态事件即清空，保证只提示一次）</summary>
+        private string? _pendingConnect;
+
+        /// <summary>本对话框发起的"断开"等待回报的连接名</summary>
+        private string? _pendingDisconnect;
+
+        /// <summary>
+        /// 连接状态变化回报。
+        /// 事件由连接专属线程触发，而 Notifier 与集合视图都只能在 UI 线程碰：必须先封送。
+        /// </summary>
+        private void OnConnectionStateChanged(object? sender, ConnectionStateChangedEventArgs e)
+            => VisionMaster.Helpers.SafeDispatch.BeginInvoke(() => HandleStateChanged(e));
+
+        private void HandleStateChanged(ConnectionStateChangedEventArgs e)
+        {
+            if (e.ConnectionName == _pendingConnect)
+            {
+                if (e.NewState == ConnectionState.Connected)
+                {
+                    _pendingConnect = null;
+                    Notifier.ShowSuccess($"连接 [{e.ConnectionName}] 已建立（轮询已启动）");
+                }
+                else if (e.NewState == ConnectionState.Reconnecting)
+                {
+                    // 首次建连失败：如实说"后台仍在重试"，而不是报"建立失败"（那是终态语气，
+                    // 实际 Worker 还会按退避继续连，直到重试预算用尽才进 Error）
+                    _pendingConnect = null;
+                    Notifier.ShowError($"连接 [{e.ConnectionName}] 未建立，后台按退避重试中");
+                }
+                else
+                {
+                    return; // Connecting 等中间态不提示，避免刷屏
+                }
+            }
+            else if (e.ConnectionName == _pendingDisconnect && e.NewState == ConnectionState.Disconnected)
+            {
+                _pendingDisconnect = null;
+                Notifier.ShowInfo($"连接 [{e.ConnectionName}] 已断开");
+            }
+            else
+            {
+                return;
+            }
+
+            _configsView.Refresh(); // 状态变了，"在线/离线"筛选结果要跟着变
         }
 
         /// <summary>
@@ -208,22 +259,40 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>
-        /// 编辑参数：PropertyGrid 弹窗修改现有配置（IP/端口/轮询周期等），确定后同步到管理器
+        /// 编辑参数：在**副本**上用 PropertyGrid 修改，确定后才回写到活对象。
+        /// 直接编辑活对象会留下"点了取消也已经被改脏"的隐患——PropertyGrid 是即时写入属性值的，
+        /// 而 ShellViewModel 关闭时会无条件 SaveConfigAsync()，脏数据就会落盘。
         /// </summary>
         private void ExecuteEdit(CommunicationConfig? config)
         {
             if (config == null) return;
 
-            var ok = EasyDialog.ShowPropertyGridSync($"编辑 [{config.ConnectionName}]", config);
-            if (!ok) return;
+            // Clone() 会深拷链路配置且不触碰活对象，但它刻意把名字加了 "_Copy" 后缀；
+            // 这里改回原名只是为了弹窗显示正常——用户一旦在弹窗里改名字，副本名就会与原名不同，
+            // 正好当作"是否改名"的判据
+            var copy = config.Clone();
+            copy.ConnectionName = config.ConnectionName;
 
-            // 同步新配置到通信管理器（已连接时配置在下次重连后生效）
-            _communicationManager.UpdateConnection(config);
-            _configsView.Refresh(); // 名称/IP 变了，刷新搜索结果
+            var ok = EasyDialog.ShowPropertyGridSync($"编辑 [{config.ConnectionName}]", copy);
+            if (!ok) return; // 取消：活对象从未被改动，无需回滚
+
+            if (!string.Equals(copy.ConnectionName, config.ConnectionName, StringComparison.Ordinal))
+            {
+                // 禁止改名：Manager.UpdateConnection 是按 ConnectionName 定位旧连接的，
+                // 名字一变就变成"新增一条 + 旧连接无人更新"，旧连接被孤立、已注册变量也会静默失联
+                Notifier.ShowWarning($"不允许修改连接名称，[{config.ConnectionName}] 的本次修改已放弃。如需改名请删除后重新添加。");
+                return;
+            }
+
+            config.CopyFrom(copy);
+            _communicationManager.UpdateConnection(config); // 已连接时新参数在下次重连后生效
+            _configsView.Refresh(); // 参与搜索的字段（IP/端口/协议）可能变了，刷新筛选结果
         }
 
         /// <summary>
-        /// 连接/断开切换：连接成功后保持在线（轮询定时器随 Connect 启动，变量才能刷新）
+        /// 连接/断开切换（**非阻塞**）：只登记意图后立即返回，真正的建连/断开由连接专属线程排队执行，
+        /// 结果经 <see cref="AdvancedCommunicationManager.ConnectionStateChanged"/> 回报（见 HandleStateChanged）。
+        /// 旧实现走同步 Connect/Disconnect，会在 UI 线程上硬等一个 TimeoutMs（默认 3 秒）而卡住界面。
         /// </summary>
         private void ExecuteToggleConnection(CommunicationConfig? config)
         {
@@ -233,27 +302,33 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (config.State == ConnectionState.Connected)
                 {
-                    _communicationManager.Disconnect(config.ConnectionName);
-                    Notifier.ShowInfo($"连接 [{config.ConnectionName}] 已断开");
+                    // 先登记等待标记再发起：状态事件可能来得极快，标记晚设就会漏掉回报
+                    _pendingDisconnect = config.ConnectionName;
+                    _communicationManager.RequestDisconnect(config.ConnectionName);
+                    Notifier.ShowInfo($"正在断开 [{config.ConnectionName}] …");
                 }
                 else
                 {
-                    var ok = _communicationManager.Connect(config.ConnectionName);
-                    if (ok)
-                        Notifier.ShowSuccess($"连接 [{config.ConnectionName}] 已建立（轮询已启动）");
-                    else
-                        Notifier.ShowError($"连接 [{config.ConnectionName}] 建立失败，请检查 IP/端口后重试");
+                    _pendingConnect = config.ConnectionName;
+                    _communicationManager.RequestConnect(config.ConnectionName);
+                    Notifier.ShowInfo($"正在连接 [{config.ConnectionName}] …");
                 }
-                _configsView.Refresh(); // 状态变化后同步"在线/离线"筛选结果
             }
             catch (Exception ex)
             {
+                // 登记阶段就失败（例如该连接不存在、命令队列已满）必须清掉等待标记，
+                // 否则后面一条无关的状态事件会被误当成"本次操作的结果"来提示
+                _pendingConnect = null;
+                _pendingDisconnect = null;
                 Notifier.ShowError($"连接操作异常：{ex.Message}");
             }
         }
 
         /// <summary>
-        /// 执行测试连接操作
+        /// 测试连接（**只探测，不改变连接状态**）。
+        /// 旧实现先 Disconnect 再 Connect 最后又 Disconnect，会把正在使用的连接打断，
+        /// 还绕过连接专属线程直接用裸连接，与状态机打架；<see cref="AdvancedCommunicationManager.TestConnection"/>
+        /// 对已连接的连接直接返回成功，不触碰现有链路。
         /// </summary>
         /// <param name="config">要测试的配置</param>
         private void ExecuteTestConnection(CommunicationConfig? config)
@@ -262,46 +337,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             try
             {
-                // 使用通讯管理器测试连接
-                var connection = _communicationManager.GetConnection(config.ConnectionName);
-                if (connection != null)
-                {
-                    if (connection.IsConnected)
-                    {
-                        connection.Disconnect();
-                    }
-                    if (connection.Connect())
-                    {
-                        Notifier.ShowSuccess($"连接 [{config.ConnectionName}] 测试成功");
-                        connection.Disconnect();
-                    }
-                    else
-                    {
-                        Notifier.ShowError($"连接 [{config.ConnectionName}] 测试失败");
-                    }
-                }
+                var ok = _communicationManager.TestConnection(config.ConnectionName);
+                if (ok)
+                    Notifier.ShowSuccess($"连接 [{config.ConnectionName}] 测试成功");
                 else
-                {
-                    // 连接不存在，创建临时连接测试
-                    if (_communicationManager.AddConnection(config))
-                    {
-                        var testConnection = _communicationManager.GetConnection(config.ConnectionName);
-                        if (testConnection != null && testConnection.Connect())
-                        {
-                            Notifier.ShowSuccess($"连接 [{config.ConnectionName}] 测试成功");
-                            testConnection.Disconnect();
-                        }
-                        else
-                        {
-                            Notifier.ShowError($"连接 [{config.ConnectionName}] 测试失败");
-                        }
-                        _communicationManager.RemoveConnection(config.ConnectionName);
-                    }
-                    else
-                    {
-                        Notifier.ShowError($"创建连接 [{config.ConnectionName}] 失败");
-                    }
-                }
+                    Notifier.ShowError($"连接 [{config.ConnectionName}] 测试失败，请检查 IP/端口后重试");
             }
             catch (Exception ex)
             {

@@ -280,6 +280,15 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_FlowCanvasView"
+                                Header="流程画布"
+                                  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf5cb;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_DeviceStateView"
                                 Header="设备状态"
                                  >
@@ -693,6 +702,15 @@
                                 CanHide="True"
                                 ContentId="Panel_ProcessView">
                                 <views:ProcessView />
+                            </avalonDock:LayoutAnchorable>
+                            <!--  流程节点画布：与流程栏同 pane（标签页），可拖出成上下/左右分屏对照。  -->
+                            <!--  树表达执行顺序（SortId），画布表达数据流（LinkedSources），两者共用同一份 FlowModel  -->
+                            <avalonDock:LayoutAnchorable
+                                Title="流程画布"
+                                CanClose="False"
+                                CanHide="False"
+                                ContentId="Panel_FlowCanvasView">
+                                <views:FlowCanvasView />
                             </avalonDock:LayoutAnchorable>
                         </avalonDock:LayoutAnchorablePane>
 

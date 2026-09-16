@@ -1,14 +1,14 @@
 {
-  "SolutionName": "解决方案-20260830221247",
+  "SolutionName": "解决方案-20260916193845",
   "Version": 1.0,
   "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\解决方案\\解决方案-20260829224154.vms",
   "Config": {
-    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"211\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/15/2026 11:52:20\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"261.66666666666674\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/15/2026 11:52:39\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"43.86336866902237*\">\r\n      <LayoutDocumentPane DockHeight=\"0.83125*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/15/2026 11:52:19\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"308\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/15/2026 10:27:58\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/15/2026 10:01:13\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"09/15/2026 10:01:12\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"240.0000000000001\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/15/2026 11:29:57\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
-    "ImageViewMode": 2
+    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"152\" FloatingWidth=\"162.28571428571428\" FloatingHeight=\"856\" FloatingLeft=\"412\" FloatingTop=\"623.4285714285714\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" FloatingLeft=\"412\" FloatingTop=\"623.4285714285714\" FloatingWidth=\"162.28571428571428\" FloatingHeight=\"856\" LastActivationTimeStamp=\"09/16/2026 23:15:24\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"f4898d63-4ba0-4843-a050-c326dfc9a7c0\" DockWidth=\"407.8571428571429\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" FloatingLeft=\"-70.85714285714285\" FloatingTop=\"604\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" FloatingLeft=\"-70.85714285714285\" FloatingTop=\"604\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" LastActivationTimeStamp=\"09/16/2026 23:15:26\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"58.25924597335084*\">\r\n      <LayoutDocumentPane DockHeight=\"1.1232142857142855*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/16/2026 23:15:04\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"121.14285714285722\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/16/2026 20:07:10\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/16/2026 22:18:56\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows>\r\n    <LayoutAnchorableFloatingWindow>\r\n      <LayoutAnchorablePaneGroup Orientation=\"Horizontal\" DockWidth=\"438.14285714285717\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" FloatingLeft=\"1004.5714285714286\" FloatingTop=\"299.4285714285714\">\r\n        <LayoutAnchorablePane Id=\"c95e6729-7865-4bb5-8c43-18cb5ce8da06\" DockWidth=\"438.14285714285717\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" FloatingLeft=\"1004.5714285714286\" FloatingTop=\"299.4285714285714\" />\r\n      </LayoutAnchorablePaneGroup>\r\n    </LayoutAnchorableFloatingWindow>\r\n  </FloatingWindows>\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" IsSelected=\"True\" ContentId=\"Panel_FlowCanvasView\" FloatingLeft=\"1004.5714285714286\" FloatingTop=\"299.4285714285714\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" LastActivationTimeStamp=\"09/16/2026 23:15:04\" PreviousContainerId=\"c95e6729-7865-4bb5-8c43-18cb5ce8da06\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "ImageViewMode": 5
   },
   "Flows": [
     {
-      "FlowID": "d5020dad06b54a41837b74b513020dc9",
+      "FlowID": "a71be042facf45a78efe0bfe0b77fb10",
       "FlowName": "GoHome",
       "Description": "回原",
       "Version": 0,
@@ -17,22 +17,46 @@
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
       "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
       "Steps": []
     },
     {
-      "FlowID": "02797a28407840209f71a539c6813358",
+      "FlowID": "7ef4e7adc09448a8ae8b19d83980d2c8",
       "FlowName": "MainTask",
       "Description": "主任务",
-      "Version": 1146874,
+      "Version": 292,
       "IsEnabled": true,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
       "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {
+          "c9a6c519-7623-4a0d-b2c0-d89dd7e83b27": {
+            "X": 286.0,
+            "Y": 2005.0,
+            "Collapsed": false
+          },
+          "86749aca-11ba-45c3-aab0-5e0a5ae023e3": {
+            "X": 617.0,
+            "Y": 2085.0,
+            "Collapsed": false
+          },
+          "75cbcb6d-0bbb-421d-b5f7-1d3b95cc501d": {
+            "X": 0.0,
+            "Y": 2095.0,
+            "Collapsed": false
+          }
+        },
+        "Count": 3
+      },
       "Steps": [
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
+          "StepID": "c9a6c519-7623-4a0d-b2c0-d89dd7e83b27",
           "Icon": "",
           "PluginName": "图像采集",
           "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -42,144 +66,110 @@
           "IsDisEnable": false,
           "State": 2,
           "InputValues": {
-            "FilePath": "D:\\Halcon\\HALCON-23.05-Progress\\examples\\images\\fabrics\\fabrics_03.png",
-            "FolderPath": "",
-            "FileIndex": 0,
-            "CameraIndex": 0,
-            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\board\\board-01.png",
+            "FolderPath": "D:\\Halcon\\HALCON-23.05-Progress\\examples\\images",
+            "Mode": 1,
             "DisplayViewIndex": 1
           },
-          "LinkedSources": {},
+          "LinkedSources": {
+            "FileIndex": {
+              "Kind": 2,
+              "TargetStepId": "00000000-0000-0000-0000-000000000000",
+              "TargetPortName": "NGCount",
+              "DisplayAddress": "全局变量 (Global).NGCount"
+            }
+          },
           "OutputPortDefinitions": []
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "8340ec68-3659-48c1-a495-225f6c37a892",
-          "Icon": "",
-          "PluginName": "图像脚本",
-          "PluginTypeName": "Plugin.ImageScript.ImageScriptPlugin, Plugin.ImageScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "图像脚本_0",
-          "Description": "图像脚本",
+          "StepID": "75cbcb6d-0bbb-421d-b5f7-1d3b95cc501d",
+          "Icon": "",
+          "PluginName": "ROI",
+          "PluginTypeName": "Plugin.CreateRoi.CreateRoiPlugin, Plugin.CreateRoi, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "ROI_0",
+          "Description": "ROI",
           "SortId": 0,
           "IsDisEnable": false,
           "State": 2,
           "InputValues": {
-            "DisplayViewIndex": 1,
-            "Procedures": {
-              "$type": "System.Collections.Generic.List`1[[Plugin.ImageScript.EProcedure, Plugin.ImageScript]], System.Private.CoreLib",
+            "DisplayViewIndex": 0,
+            "MaskInvert": false,
+            "RoiList": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CreateRoi.Models.RoiItem, Plugin.CreateRoi]], System.ObjectModel",
               "$values": [
                 {
-                  "Name": "main",
-                  "IconicInputList": [],
-                  "IconicOutputList": [],
-                  "CtrlInputList": [],
-                  "CtrlOutputList": [],
-                  "Body": ""
-                },
-                {
-                  "Name": "Text",
-                  "IconicInputList": [
-                    "Image"
-                  ],
-                  "IconicOutputList": [
-                    "OutImage"
-                  ],
-                  "CtrlInputList": [
-                    "Value"
-                  ],
-                  "CtrlOutputList": [
-                    "OutValue"
-                  ],
-                  "Body": "OutImage:=Image\r\nthreshold (Image, Image1, 233, 255)\nreduce_domain (Image, Image1, Image2)\npublish_preview (Image2, 3)\r\nOutValue:=10.0\r\nreturn ()\r\n"
+                  "Name": "ROI_0",
+                  "ShapeType": 0,
+                  "Params": [
+                    236.88587951660156,
+                    402.9066162109375,
+                    0.0031454158015549183,
+                    105.79622650146484,
+                    124.5602798461914
+                  ]
                 }
               ]
             },
-            "SelectedProcedure": "Text",
-            "InputVars": {
-              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.ImageScript.ScriptVarDef, Plugin.ImageScript]], System.ObjectModel",
-              "$values": [
-                {
-                  "Name": "Image",
-                  "Type": 5,
-                  "ManualValue": "",
-                  "Remark": "",
-                  "DisplayWindow": 0,
-                  "IsIconic": true
-                },
-                {
-                  "Name": "Value",
-                  "Type": 1,
-                  "ManualValue": "",
-                  "Remark": "",
-                  "DisplayWindow": 0,
-                  "IsIconic": false
-                }
-              ]
-            },
-            "OutputVars": {
-              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.ImageScript.ScriptVarDef, Plugin.ImageScript]], System.ObjectModel",
-              "$values": [
-                {
-                  "Name": "OutImage",
-                  "Type": 5,
-                  "ManualValue": "",
-                  "Remark": "",
-                  "DisplayWindow": 1,
-                  "IsIconic": true
-                },
-                {
-                  "Name": "OutValue",
-                  "Type": 1,
-                  "ManualValue": "",
-                  "Remark": "",
-                  "DisplayWindow": 0,
-                  "IsIconic": false
-                }
-              ]
-            }
+            "SmearDrawData": "",
+            "SmearEraseData": ""
           },
           "LinkedSources": {
-            "Image": {
-              "TargetStepId": "79d0a445-09b8-493d-9ddd-87d1ea6280b1",
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "c9a6c519-7623-4a0d-b2c0-d89dd7e83b27",
               "TargetPortName": "Image",
               "DisplayAddress": "图像采集_0.Image"
-            },
-            "Value": {
-              "TargetStepId": "00000000-0000-0000-0000-000000000000",
-              "TargetPortName": "54",
-              "DisplayAddress": "常量值: 54"
             }
           },
           "OutputPortDefinitions": [
             {
-              "Name": "OutImage",
+              "Name": "Crop_ROI_0",
               "DataTypeName": "HalconDotNet.HImage, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8",
-              "Description": "OutImage"
-            },
-            {
-              "Name": "OutValue",
-              "DataTypeName": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
-              "Description": "OutValue"
+              "Description": "ROI 'ROI_0' 的裁剪图"
             }
           ]
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "3464aff5-56f5-42d7-a234-660e02668211",
-          "Icon": "",
-          "PluginName": "延时",
-          "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "延时_0",
-          "Description": "延时",
+          "StepID": "86749aca-11ba-45c3-aab0-5e0a5ae023e3",
+          "Icon": "",
+          "PluginName": "图像预处理",
+          "PluginTypeName": "Plugin.PreProcessing.PreProcessingPlugin, Plugin.PreProcessing, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像预处理_0",
+          "Description": "图像预处理",
           "SortId": 0,
           "IsDisEnable": false,
-          "State": 4,
-          "InputValues": {},
+          "State": 2,
+          "InputValues": {
+            "DisplayViewIndex": 2,
+            "Chain": {
+              "$type": "System.Collections.Generic.List`1[[Plugin.PreProcessing.Models.OperatorStepItem, Plugin.PreProcessing]], System.Private.CoreLib",
+              "$values": [
+                {
+                  "OperatorKey": "emphasize",
+                  "Enabled": true,
+                  "Params": {
+                    "Width": "23",
+                    "Height": "3",
+                    "Factor": "1"
+                  }
+                }
+              ]
+            }
+          },
           "LinkedSources": {
-            "Delay": {
-              "TargetStepId": "00000000-0000-0000-0000-000000000000",
-              "TargetPortName": "500",
-              "DisplayAddress": "常量值: 500"
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "75cbcb6d-0bbb-421d-b5f7-1d3b95cc501d",
+              "TargetPortName": "Crop_ROI_0",
+              "DisplayAddress": "ROI_0.Crop_ROI_0"
+            },
+            "DisplayViewIndex": {
+              "Kind": 1,
+              "TargetStepId": "c9a6c519-7623-4a0d-b2c0-d89dd7e83b27",
+              "TargetPortName": "CurrentIndex",
+              "DisplayAddress": "图像采集_0.CurrentIndex"
             }
           },
           "OutputPortDefinitions": []
@@ -189,7 +179,7 @@
   ],
   "CommunicationConfigs": [
     {
-      "ConnectionName": "Conn_100401",
+      "ConnectionName": "PLC1",
       "Protocol": 0,
       "Config": {
         "$type": "VisionMaster.Communications.ModbusTcpConfig, VM.Core",
@@ -202,14 +192,245 @@
         "RetryCount": 3,
         "RetryIntervalMs": 1000
       },
-      "ReadCycleMs": 1000,
+      "ReadCycleMs": 200,
       "AutoStart": true,
       "AutoReconnect": true,
       "IsEnabled": true,
       "Description": ""
     }
   ],
-  "GlobalVariables": [],
-  "VariableSnapshots": [],
+  "VariableSnapshots": [
+    {
+      "VarType": "Local",
+      "Name": "RecipeName",
+      "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "当前加载的产品模型配方名称",
+      "DefaultValue": "Product_Type_A",
+      "Value": "Product_Type_A",
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "ProductCode",
+      "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "当前识别到的条码或二维码信息",
+      "DefaultValue": "QR202310240001",
+      "Value": "QR202310240001",
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "TotalCount",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "设备运行以来的累计生产总数",
+      "DefaultValue": 1500,
+      "Value": 1500,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "OKCount",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "累计检测良品总数",
+      "DefaultValue": 1485,
+      "Value": 1485,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "NGCount",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "累计检测不良品总数",
+      "DefaultValue": 15,
+      "Value": 15,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "ScoreThreshold",
+      "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "模板匹配的最小及格分数 (0-100)",
+      "DefaultValue": 85.5,
+      "Value": 85.5,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "Exposure_Time",
+      "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "主相机的曝光时间 (ms)",
+      "DefaultValue": 25.0,
+      "Value": 25.0,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "YieldRate",
+      "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "当前的实时良率 (%)",
+      "DefaultValue": 99.0,
+      "Value": 99.0,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "PLC_Ready",
+      "DataTypeString": "System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "外部PLC通讯握手信号",
+      "DefaultValue": true,
+      "Value": true,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "BarcodeResults",
+      "DataTypeString": "System.String[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "单次触发读取到的所有条码集合",
+      "DefaultValue": {
+        "$type": "System.String[], System.Private.CoreLib",
+        "$values": [
+          "SN2026-A01",
+          "SN2026-A02",
+          "SN2026-B01"
+        ]
+      },
+      "Value": {
+        "$type": "System.String[], System.Private.CoreLib",
+        "$values": [
+          "SN2026-A01",
+          "SN2026-A02",
+          "SN2026-B01"
+        ]
+      },
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "HoleCoordinatesX",
+      "DataTypeString": "System.Double[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "所有定位孔的 X 坐标集合 (mm)",
+      "DefaultValue": {
+        "$type": "System.Double[], System.Private.CoreLib",
+        "$values": [
+          12.5,
+          45.2,
+          88.9,
+          120.0
+        ]
+      },
+      "Value": {
+        "$type": "System.Double[], System.Private.CoreLib",
+        "$values": [
+          12.5,
+          45.2,
+          88.9,
+          120.0
+        ]
+      },
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Local",
+      "Name": "CameraROI",
+      "DataTypeString": "System.Int32[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "相机的动态检测区域 [X, Y, Width, Height]",
+      "DefaultValue": {
+        "$type": "System.Int32[], System.Private.CoreLib",
+        "$values": [
+          100,
+          100,
+          800,
+          600
+        ]
+      },
+      "Value": {
+        "$type": "System.Int32[], System.Private.CoreLib",
+        "$values": [
+          100,
+          100,
+          800,
+          600
+        ]
+      },
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "PollIntervalMs": 1000
+    },
+    {
+      "VarType": "Network",
+      "Name": "Data1",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "ConnectionName": "PLC1",
+      "Protocol": "ModbusTcp",
+      "Area": "HoldingRegisters",
+      "Offset": "1",
+      "BitOffset": -1,
+      "DataValueType": "Int32",
+      "DbNumber": 1,
+      "PollIntervalMs": 500
+    },
+    {
+      "VarType": "Network",
+      "Name": "Data2",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "",
+      "ConnectionName": "PLC1",
+      "Protocol": "ModbusTcp",
+      "Area": "HoldingRegisters",
+      "Offset": "23",
+      "BitOffset": -1,
+      "DataValueType": "Int32",
+      "DbNumber": 1,
+      "PollIntervalMs": 500
+    },
+    {
+      "VarType": "Network",
+      "Name": "Data3",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "",
+      "ConnectionName": "PLC1",
+      "Protocol": "ModbusTcp",
+      "Area": "HoldingRegisters",
+      "Offset": "12",
+      "BitOffset": -1,
+      "DataValueType": "Int32",
+      "DbNumber": 1,
+      "PollIntervalMs": 500
+    }
+  ],
   "WatchItems": []
 }

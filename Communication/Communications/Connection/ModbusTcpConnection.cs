@@ -64,30 +64,29 @@ namespace VisionMaster.Communications
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
             // Modbus 读取长度按寄存器粒度：bool/byte/short=1，int/uint/float=2，long/ulong/double=4
-            var result = _device.Read(address, RegisterCount<T>());
+            var result = _device.Read(address, HslHelper.RegisterCount<T>());
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
             return HslHelper.ConvertTo<T>(result.Content);
-        }
-
-        /// <summary>按目标类型计算 Modbus 寄存器数量（每寄存器 2 字节）</summary>
-        private static ushort RegisterCount<T>() where T : struct
-        {
-            var code = System.Type.GetTypeCode(typeof(T));
-            return code switch
-            {
-                TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Single => 2,
-                TypeCode.Int64 or TypeCode.UInt64 or TypeCode.Double => 4,
-                _ => 1
-            };
         }
 
         /// <inheritdoc />
         public void Write(string address, object value)
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            var bytes = HslHelper.GetValueArray(value);
-            var result = _device.Write(address, bytes);
+            // 按值类型分发 HSL 强类型重载：bool→FC5/15、short/ushort→FC6、多寄存器→FC16
+            HslHelper.WriteTyped(_device, address, value, WriteProtocolFamily.Modbus);
+        }
+
+        /// <inheritdoc />
+        public bool[] ReadBits(string address, ushort count)
+        {
+            if (!_isConnected) throw new InvalidOperationException("设备未连接");
+            // 富地址 "x=2;" 为离散输入（FC2），其余位区地址按线圈（FC1）处理
+            var result = address.StartsWith("x=2;", StringComparison.Ordinal)
+                ? _device.ReadDiscrete(address, count)
+                : _device.ReadCoil(address, count);
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
+            return result.Content;
         }
 
         /// <inheritdoc />

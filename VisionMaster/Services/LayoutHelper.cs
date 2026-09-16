@@ -42,6 +42,7 @@ namespace VisionMaster.Services
         {
             ["Panel_ToolView"] = () => new Views.ToolView(),
             ["Panel_ProcessView"] = () => new Views.ProcessView(),
+            ["Panel_FlowCanvasView"] = () => new Views.FlowCanvasView(),
             ["Panel_FlowListView"] = () => new Views.FlowListView(),
             ["Panel_ImageView"] = () => new Views.ImageView(),
             ["Panel_LogView"] = () => new Views.LogView(),
@@ -163,6 +164,16 @@ namespace VisionMaster.Services
                 var manager = FindManager();
                 if (manager == null) return false;
 
+                // 布局文件是"结构快照"：AvalonDock 只会还原文件里声明过的面板，不会凭空补出
+                // 新版本新增的 ContentId。若在此处照常反序列化，新面板将永远不出现。
+                // 因此先校验覆盖度，不通过就直接放弃本次恢复，让 Shell.xaml 声明的默认布局生效。
+                // 必须在 Deserialize 之前判断——一旦应用过旧布局，现场就被改坏了，返回 false 也无法回滚。
+                if (!LayoutXmlCoversAllPanels(layoutXml))
+                {
+                    Console.WriteLine("布局文件未覆盖全部面板（多为版本升级新增），已回退默认布局");
+                    return false;
+                }
+
                 var serializer = new XmlLayoutSerializer(manager);
                 using (var reader = new StringReader(layoutXml))
                 {
@@ -171,6 +182,11 @@ namespace VisionMaster.Services
 
                 // 反序列化只还原结构，按 ContentId 回填面板内容
                 FillContents(manager);
+
+                // 双保险（A 方案第 2 层）：对已经被旧 vms 持久化到 Hidden 的关键面板强制拉回可见。
+                // CanHide=False 只能从源头禁止后续关闭，已持久化的 Hidden 条目仍需此处兜底。
+                EnsureCriticalPanelsVisible(manager);
+
                 LayoutLoaded?.Invoke();
                 return true;
             }
@@ -183,6 +199,21 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 校验布局 XML 是否覆盖了 ContentFactories 登记的全部面板。
+        /// 以工厂注册表为权威清单，新增面板时无需再改这里——注册即生效。
+        /// </summary>
+        private static bool LayoutXmlCoversAllPanels(string layoutXml)
+        {
+            foreach (var contentId in ContentFactories.Keys)
+            {
+                if (!layoutXml.Contains($"ContentId=\"{contentId}\"", StringComparison.Ordinal))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// 重置布局：立即恢复出厂默认布局（DefaultLayout.xml），并删除用户布局文件
         /// </summary>
         public static bool Reset()
@@ -192,8 +223,24 @@ namespace VisionMaster.Services
             {
                 if (File.Exists(DefaultLayoutFilePath))
                 {
-                    restored = LoadFromString(
-                        File.ReadAllText(DefaultLayoutFilePath), deleteFileOnError: false);
+                    var snapshot = File.ReadAllText(DefaultLayoutFilePath);
+
+                    // 出厂快照是"首次启动那一刻的 XAML 布局"，新增面板后它就过期了。
+                    // 过期快照不能用于恢复（同样缺面板），直接作废，让下次启动重新捕获。
+                    if (LayoutXmlCoversAllPanels(snapshot))
+                    {
+                        restored = LoadFromString(snapshot, deleteFileOnError: false);
+                    }
+                    else
+                    {
+                        Console.WriteLine("出厂布局快照未覆盖全部面板（版本升级新增），已作废待重新捕获");
+                    }
+
+                    if (!restored)
+                    {
+                        try { File.Delete(DefaultLayoutFilePath); }
+                        catch { /* 文件被占用则忽略，下次启动会重新捕获 */ }
+                    }
                 }
             }
             catch (Exception ex)
@@ -260,6 +307,33 @@ namespace VisionMaster.Services
             if (content is LayoutAnchorable anchorable && !anchorable.IsVisible)
                 anchorable.IsVisible = true;
             content.IsActive = true;
+        }
+
+        /// <summary>
+        /// 关键面板 ContentId 集（必须在任何布局中可见，用户不能把它们藏进 Hidden）
+        /// 画布 + 流程栏 = 核心工作流入口，工具箱（ToolView）在侧栏自动隐藏区是合法态不动
+        /// </summary>
+        private static readonly HashSet<string> CriticalPanelContentIds = new()
+        {
+            "Panel_FlowCanvasView",
+            "Panel_ProcessView",
+        };
+
+        /// <summary>
+        /// 反序列化后兜底：把被持久化到 Hidden 区的关键面板强制拉回可见。
+        /// （Shell.xaml 的 CanHide=False 只拦后续关闭，已经被隐藏保存的旧 vms 仍需此处救治）
+        /// </summary>
+        private static void EnsureCriticalPanelsVisible(DockingManager manager)
+        {
+            foreach (var content in EnumerateContents(manager))
+            {
+                if (!CriticalPanelContentIds.Contains(content.ContentId)) continue;
+                if (content is LayoutAnchorable anchorable && !anchorable.IsVisible)
+                {
+                    anchorable.IsVisible = true;
+                    Console.WriteLine($"关键面板 {content.ContentId} 从 Hidden 区强制恢复可见");
+                }
+            }
         }
 
         /// <summary>

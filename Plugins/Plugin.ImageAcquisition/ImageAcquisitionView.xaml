@@ -55,12 +55,15 @@
                         <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
                             <RadioButton Content="指定图像" IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:AcquisitionMode.SingleFile}}" />
                             <RadioButton Content="文件目录" IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:AcquisitionMode.Folder}}" />
-                            <RadioButton Content="相机采集" IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:AcquisitionMode.Camera}}" />
                         </StackPanel>
                     </GroupBox>
-                    <GroupBox Grid.Row="1" Header="指定图像">
+                    <!--  指定图像：仅在 Mode=SingleFile 时显示  -->
+                    <GroupBox
+                        Grid.Row="1"
+                        Header="指定图像"
+                        Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:AcquisitionMode.SingleFile}}">
                         <StackPanel VerticalAlignment="Center">
-                            <!--  可链接参数编辑器：固定值输入 + 变量链接切换（VisionMaster 风格）  -->
+                            <!--  可链接参数编辑器：固定值输入 + 变量链接切换（VisionMaster 风格），双击可浏览  -->
                             <cv:LinkableValueEditor
                                 Width="300"
                                 Margin="10"
@@ -71,111 +74,77 @@
                                 StepData="{Binding StepData}" />
                         </StackPanel>
                     </GroupBox>
-                    <!--<GroupBox Grid.Row="1" Header="文件目录">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                <CheckBox Content="循环" />
-                                <TextBlock Width="300" VerticalAlignment="Center">
-                                    <Run Text="https://www.doubao.com/chat/38438581576764162" />
-                                </TextBlock>
-                                <Button Content="加载" />
+                    <!--  文件目录：仅在 Mode=Folder 时显示  -->
+                    <GroupBox
+                        Grid.Row="1"
+                        Header="文件目录"
+                        Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:AcquisitionMode.Folder}}">
+                        <StackPanel VerticalAlignment="Top">
+                            <cv:LinkableValueEditor
+                                Margin="10,12,10,4"
+                                BrowseCommand="{Binding BrowseFolderCommand}"
+                                Label="文件夹路径"
+                                Port="{Binding FolderPathPort}"
+                                StepData="{Binding StepData}" />
+                            <cv:LinkableValueEditor
+                                Margin="10,4"
+                                Label="文件索引"
+                                Port="{Binding FileIndexPort}"
+                                StepData="{Binding StepData}" />
+                            <StackPanel Margin="10,8,10,4" Orientation="Horizontal">
+                                <Button
+                                    Padding="12,2"
+                                    Command="{Binding RefreshPreviewCommand}"
+                                    Content="刷新预览" />
                             </StackPanel>
-                            <ListBox Grid.Row="1">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding}" />
-                                            <Button Content="删除" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
-                    </GroupBox>-->
+                            <StackPanel Margin="10,4" Orientation="Horizontal">
+                                <TextBlock Foreground="#666" Text="当前文件：" />
+                                <TextBlock Foreground="#333" Text="{Binding CurrentFileName}" />
+                                <TextBlock
+                                    Margin="6,0,0,0"
+                                    Foreground="#999"
+                                    Text="{Binding FileCount, StringFormat=（共 {0} 张）}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </GroupBox>
                 </Grid>
 
             </TabItem>
             <TabItem Header="图像参数">
                 <Grid x:Name="gd1">
-                    <GroupBox Header="图像参数">
-                        <StackPanel>
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="流程结束时显示结果图像" />
-                            <StackPanel Margin="10" Orientation="Horizontal">
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Text="显示窗体" />
-                                <ComboBox
-                                    Width="200"
-                                    Margin="5,0"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    BorderThickness="0,0,0,1"
-                                    SelectedIndex="{Binding DisplayViewIndex}"
-                                    ToolTip="采集图像显示到主界面几号视图窗口；0 = 不显示" >
-                                    <ComboBoxItem>图像窗口1</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口2</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口3</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口4</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口5</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口6</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口7</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口8</ComboBoxItem>
-                                    <ComboBoxItem>图像窗口9</ComboBoxItem>
-                                </ComboBox>
-                            </StackPanel>
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="链接测量标定" />
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="链接拍照位置数据" />
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="离线图像增加标记" />
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="链接畸变标定" />
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="裁剪镭射图像" />
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="镭射反向扫描" />
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="手动阈值" />
-                            <CheckBox
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Content="输出亮度图" />
-                            <Button
-                                Margin="10,10,0,0"
-                                HorizontalAlignment="Left"
-                                Content="触发line1" />
+                    <GroupBox
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Top"
+                        Header="图像参数">
+                        <StackPanel Margin="6" Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Text="显示窗体" />
+                            <!--  ItemsSource 绑定 0~9 整数数组，SelectedItem 直接对应 DisplayViewIndex（0=不显示，1~9=窗口号）  -->
+                            <ComboBox
+                                Width="200"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                ItemsSource="{StaticResource ViewIndexes}"
+                                SelectedItem="{Binding DisplayViewIndex}"
+                                ToolTip="采集图像显示到主界面几号视图窗口；选择“不显示”则运行时不弹出预览">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock>
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{Binding StringFormat=图像窗口{0}}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding}" Value="0">
+                                                            <Setter Property="Text" Value="不显示" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </StackPanel>
                     </GroupBox>
                 </Grid>
@@ -195,8 +164,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <h:ImageReadOnly HImage="{Binding PreviewImage}" />
-                <!--  信息栏  -->
-                <!--
+                <!--  信息栏：来源路径（左）+ 操作状态（右），三模式统一反馈  -->
                 <Border
                     Grid.Row="1"
                     Margin="0,8,0,0"
@@ -207,18 +175,18 @@
                         <TextBlock
                             DockPanel.Dock="Right"
                             FontSize="12"
-                            Foreground="#666"
+                            Foreground="#0A7"
                             Text="{Binding StatusMessage}"
                             TextWrapping="Wrap" />
                         <TextBlock
-                            MaxWidth="200"
+                            MaxWidth="420"
                             VerticalAlignment="Center"
                             FontSize="12"
                             Foreground="#444"
                             Text="{Binding PreviewImagePath}"
                             TextTrimming="CharacterEllipsis" />
                     </DockPanel>
-                </Border>-->
+                </Border>
             </Grid>
         </Border>
     </Grid>

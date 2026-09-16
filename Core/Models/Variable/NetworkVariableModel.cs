@@ -109,6 +109,7 @@ namespace VisionMaster.Models
                 return false;
             }
 
+            // 离线预检：只读连接状态（拿裸连接读状态是允许的，做 I/O 不允许——I/O 必须走 Manager）
             var connection = CommunicationManager.GetConnection(ConnectionName);
             if (connection == null || !connection.IsConnected)
             {
@@ -124,7 +125,9 @@ namespace VisionMaster.Models
                     error = $"变量 [{Name}] 的值无法转换为设备原始值（检查数据类型与地址配置）";
                     return false;
                 }
-                connection.Write(AddressConfig.Address, rawValue);
+                // 经 Manager → 连接专属线程下发：与轮询、其他写命令在同一条线程上串行执行，
+                // 不再出现"两个线程同时操作一个 socket"（旧实现直接拿裸连接写，绕过了 Worker）
+                CommunicationManager.WriteVariable(ConnectionName, AddressConfig.Address, rawValue);
                 UpdateMirrorValue(value); // 写确认成功 → 镜像同步并通知 UI
                 return true;
             }
@@ -155,9 +158,14 @@ namespace VisionMaster.Models
                 {
                     var rawValue = AddressConfig.ConvertToRaw(value);
                     if (rawValue != null)
-                        connection.Write(AddressConfig.Address, rawValue);
+                        CommunicationManager.WriteVariable(ConnectionName, AddressConfig.Address, rawValue);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // setter 不是用户的显式命令，不弹窗打扰；但也不能像旧实现那样 catch {} 一吞了之——
+                    // 写失败必须留痕，否则"赋值了却没进设备"永远查不出来
+                    System.Diagnostics.Debug.WriteLine($"[NetworkVariable] 变量 {Name} 隐式写失败：{ex.Message}");
+                }
             }
         }
 

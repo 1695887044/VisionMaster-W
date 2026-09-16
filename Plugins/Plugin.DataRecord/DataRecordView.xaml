@@ -1,0 +1,561 @@
+<UserControl
+    x:Class="Plugin.DataRecord.DataRecordView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:Plugin.DataRecord"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="760"
+    d:DesignWidth="520"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <local:InputPortConverter x:Key="InputPortConv" />
+            <local:CnEnumLabelConverter x:Key="CnEnum" />
+            <local:SourceToVisibilityConverter x:Key="SourceVis" />
+            <local:NotOffToVisibilityConverter x:Key="NotOffVis" />
+
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="12" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect
+                            BlurRadius="12"
+                            Direction="270"
+                            Opacity="0.05"
+                            ShadowDepth="2"
+                            Color="Black" />
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#444444" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Width" Value="72" />
+            </Style>
+            <Style x:Key="FieldBox" TargetType="TextBox">
+                <Setter Property="Height" Value="24" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+            <!--  现代下拉基础样式：自绘圆角边框 + 悬停/聚焦高亮 + 自绘箭头（宿主默认 ComboBox 模板放在本视图外层作用域会失效，故完整自绘）  -->
+            <Style x:Key="ModernComboBase" TargetType="ComboBox">
+                <Setter Property="Height" Value="24" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#D5D5D5" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBox">
+                            <Grid>
+                                <ToggleButton
+                                    x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    ClickMode="Press"
+                                    Cursor="Hand"
+                                    Focusable="False"
+                                    IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border
+                                                x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4">
+                                                <Path
+                                                    x:Name="Arrow"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0,0,9,0"
+                                                    Data="M 0 0 L 4 4 L 8 0 Z"
+                                                    Fill="#8A8A8A" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#2196F3" />
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#2196F3" />
+                                                    <Setter TargetName="Arrow" Property="Fill" Value="#2196F3" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <ContentPresenter
+                                    Margin="8,0,24,0"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    IsHitTestVisible="False" />
+                                <Popup
+                                    AllowsTransparency="True"
+                                    Placement="Bottom"
+                                    PopupAnimation="Fade"
+                                    IsOpen="{TemplateBinding IsDropDownOpen}"
+                                    StaysOpen="False">
+                                    <Border
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Margin="0,3,0,0"
+                                        Background="White"
+                                        BorderBrush="#D5D5D5"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <Border.Effect>
+                                            <DropShadowEffect
+                                                BlurRadius="10"
+                                                Direction="270"
+                                                Opacity="0.15"
+                                                ShadowDepth="2"
+                                                Color="Black" />
+                                        </Border.Effect>
+                                        <ScrollViewer Margin="2">
+                                            <ItemsPresenter />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  条目容器：圆角、悬停浅灰、选中浅蓝（系统蓝色高亮模板一并替换）  -->
+            <Style x:Key="ModernComboItem" TargetType="ComboBoxItem">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBoxItem">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="3">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F0F4F8" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#E3F0FB" />
+                                    <Setter Property="Foreground" Value="#1565C0" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  格式下拉（png/jpg/bmp）：现代外观 + 裸 ComboBoxItem  -->
+            <Style
+                x:Key="ModernFormatCombo"
+                BasedOn="{StaticResource ModernComboBase}"
+                TargetType="ComboBox">
+                <Setter Property="ItemContainerStyle" Value="{StaticResource ModernComboItem}" />
+            </Style>
+
+            <!--  枚举下拉：条目显示中文标签（转换器），SelectedItem 仍是枚举本身  -->
+            <Style
+                x:Key="EnumCombo"
+                BasedOn="{StaticResource ModernComboBase}"
+                TargetType="ComboBox">
+                <Setter Property="ItemContainerStyle" Value="{StaticResource ModernComboItem}" />
+                <Setter Property="ItemTemplate">
+                    <Setter.Value>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource CnEnum}}" />
+                        </DataTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10">
+
+            <!--  卡片1：账本文件  -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="账本文件" />
+                    <TextBlock
+                        Margin="0,2,0,6"
+                        Style="{StaticResource HintText}"
+                        Text="目录/文件名支持占位符：{StepName} {yyyy} {yyyy-MM} {yyyy-MM-dd}。默认每月一个目录、每天一个文件；UTF-8 带 BOM，Excel 双击直接打开不乱码" />
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="记录目录" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding DirectoryTemplate, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="例：D:\Records\{StepName}\{yyyy-MM}\" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="文件名" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding FileNamePattern, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="例：{yyyy-MM-dd}.csv（按天滚动）" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="保留天数" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding KeepDays, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="0 = 永不清理（追溯数据的删除必须显式决定）" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="0=永久保留；&gt;0 每天自动删一次过期文件" />
+                    </Grid>
+                    <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                        <CheckBox
+                            Margin="0,0,14,0"
+                            Content="新文件写表头"
+                            IsChecked="{Binding WriteHeader}" />
+                        <CheckBox
+                            Margin="0,0,14,0"
+                            Content="每行立即落盘"
+                            IsChecked="{Binding FlushEveryRow}"
+                            ToolTip="断电保真，牺牲节拍；默认 500 毫秒批量写" />
+                        <CheckBox
+                            Content="写入失败阻断流程"
+                            IsChecked="{Binding BlockOnFailure}"
+                            ToolTip="宁停线不丢账：队列满/被拒时让本步骤失败" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片2：列定义  -->
+            <Border
+                Margin="0,8,0,0"
+                Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Style="{StaticResource CardTitle}"
+                            Text="列定义（一行 = 一次执行）" />
+                        <Button
+                            HorizontalAlignment="Right"
+                            Click="AddColumn_Click"
+                            Content="+ 添加列" />
+                    </Grid>
+                    <TextBlock
+                        Margin="0,2,0,6"
+                        Style="{StaticResource HintText}"
+                        Text="来源=端口：列名即输入端口名，连线取上游值（未连线可手填）；来源=变量：取运行期变量；内置：时间/序号/步骤名/耗时/图片路径" />
+                    <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="26" />
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="62" />
+                            <ColumnDefinition Width="28" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            FontSize="11"
+                            Foreground="#888888"
+                            Text="用" />
+                        <TextBlock
+                            Grid.Column="1"
+                            FontSize="11"
+                            Foreground="#888888"
+                            Text="列名" />
+                        <TextBlock
+                            Grid.Column="2"
+                            FontSize="11"
+                            Foreground="#888888"
+                            Text="来源" />
+                        <TextBlock
+                            Grid.Column="3"
+                            FontSize="11"
+                            Foreground="#888888"
+                            Text="取值（连线 / 变量名 / 内置项）" />
+                        <TextBlock
+                            Grid.Column="4"
+                            FontSize="11"
+                            Foreground="#888888"
+                            Text="格式" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Columns}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="90" />
+                                                                               <ColumnDefinition Width="76" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="62" />
+                                        <ColumnDefinition Width="28" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsChecked="{Binding Enabled}"
+                                        ToolTip="启用该列" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource FieldBox}"
+                                        Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="列名 = CSV 表头；来源=端口时亦为端口名（勿含空格/逗号）" />
+                                    <ComboBox
+                                        Grid.Column="2"
+                                        Margin="4,0"
+                                        Style="{StaticResource EnumCombo}"
+                                        ItemsSource="{Binding DataContext.ColumnSources, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        SelectedItem="{Binding Source}"
+                                        ToolTip="取值来源" />
+
+                                    <!--  来源=端口：行内连线编辑器  -->
+                                    <cv:LinkableValueEditor
+                                        Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        StepData="{Binding DataContext.StepData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Visibility="{Binding Source, Converter={StaticResource SourceVis}, ConverterParameter=Port}">
+                                        <cv:LinkableValueEditor.Port>
+                                            <MultiBinding Converter="{StaticResource InputPortConv}">
+                                                <Binding Path="Name" />
+                                                <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                                <!--  PortsVersion：端口重建锚点，改列名/来源后自动重取新端口  -->
+                                                <Binding
+                                                    Path="DataContext.PortsVersion"
+                                                    RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                            </MultiBinding>
+                                        </cv:LinkableValueEditor.Port>
+                                    </cv:LinkableValueEditor>
+
+                                    <!--  来源=变量：填变量名  -->
+                                    <TextBox
+                                        Grid.Column="3"
+                                        Margin="0,0,4,0"
+                                        Style="{StaticResource FieldBox}"
+                                        Text="{Binding VariableName, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="运行期变量名（变量定义/脚本 SetVar 写入的键）"
+                                        Visibility="{Binding Source, Converter={StaticResource SourceVis}, ConverterParameter=Variable}" />
+
+                                    <!--  来源=内置：下拉选字段  -->
+                                    <ComboBox
+                                        Grid.Column="3"
+                                        Margin="0,0,4,0"
+                                        Style="{StaticResource EnumCombo}"
+                                        ItemsSource="{Binding DataContext.BuiltInFields, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        SelectedItem="{Binding BuiltIn}"
+                                        ToolTip="内置字段"
+                                        Visibility="{Binding Source, Converter={StaticResource SourceVis}, ConverterParameter=BuiltIn}" />
+
+                                    <TextBox
+                                        Grid.Column="4"
+                                        Style="{StaticResource FieldBox}"
+                                        Text="{Binding Format, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip=".NET 格式串：F2 / 0.000 / HH:mm 等；空 = 默认" />
+                                    <Button
+                                        Grid.Column="5"
+                                        Width="24"
+                                        Height="24"
+                                        Margin="4,0,0,0"
+                                        Padding="0"
+                                        Click="DelColumn_Click"
+                                        Content="✕"
+                                        Tag="{Binding}"
+                                        ToolTip="删除该列" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片3：图片记录  -->
+            <Border
+                Margin="0,8,0,0"
+                Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="图片记录（可选）" />
+                    <TextBlock
+                        Margin="0,2,0,6"
+                        Style="{StaticResource HintText}"
+                        Text="图片不进 CSV：账本里记的是路径，相册靠路径列关联。端口给 HImage=存副本（后台线程落盘不占节拍）；给文本=只记现成路径" />
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="记录方式" />
+                        <ComboBox
+                            Grid.Column="1"
+                            Style="{StaticResource EnumCombo}"
+                            ItemsSource="{Binding ImageSaveModes}"
+                            SelectedItem="{Binding ImageSaveMode}"
+                            ToolTip="不存图 / 仅NG存图 / 每件存图" />
+                    </Grid>
+                    <!--  图片连线：非"不存图"时出现，直接在这里把上游图像/路径连给"图片"端口（不必去画布找端口）  -->
+                    <Grid
+                        Margin="0,2"
+                        Visibility="{Binding ImageSaveMode, Converter={StaticResource NotOffVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="图片源" />
+                        <cv:LinkableValueEditor
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            StepData="{Binding StepData}">
+                            <cv:LinkableValueEditor.Port>
+                                <MultiBinding Converter="{StaticResource InputPortConv}">
+                                    <Binding Path="ImagePortNameValue" />
+                                    <Binding Path="." />
+                                    <!--  PortsVersion：切换记录方式会重建图片端口，靠它重新取端口  -->
+                                    <Binding Path="PortsVersion" />
+                                </MultiBinding>
+                            </cv:LinkableValueEditor.Port>
+                        </cv:LinkableValueEditor>
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="结果列" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding ResultColumn, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="用哪个列判断 NG（填列名）" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="8,0,4,0"
+                            Style="{StaticResource FieldLabel}"
+                            Text="NG值" />
+                        <TextBox
+                            Grid.Column="3"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding NgValue, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="结果列的值等于它就存图" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="60" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="命名模板" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding ImageNameTemplate, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="可用 {序号} 与任意列名占位符，如 {序号}_{结果}" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="8,0,4,0"
+                            Style="{StaticResource FieldLabel}"
+                            Text="格式" />
+                        <ComboBox
+                            Grid.Column="3"
+                            Style="{StaticResource ModernFormatCombo}"
+                            SelectedValuePath="Content"
+                            SelectedValue="{Binding ImageFormat}">
+                            <ComboBoxItem Content="png" />
+                            <ComboBoxItem Content="jpg" />
+                            <ComboBoxItem Content="bmp" />
+                        </ComboBox>
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="图片子目录" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding ImageDirName, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="记录目录下的子文件夹名，默认 img" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片4：测试  -->
+            <Border
+                Margin="0,8,0,0"
+                Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource CardTitle}" Text="试写一行验证配置" />
+                        </StackPanel>
+                        <Button
+                            HorizontalAlignment="Right"
+                            Padding="12,2"
+                            Click="TestWrite_Click"
+                            Content="测试写一行"
+                            ToolTip="绕过队列，立即向当前配置的目标文件追加一行样例" />
+                    </Grid>
+                    <TextBlock
+                        x:Name="TestResultText"
+                        Margin="0,6,0,0"
+                        FontSize="12"
+                        Text="{Binding TestResult}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

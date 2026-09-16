@@ -83,7 +83,9 @@ namespace VisionMaster.Communications
         public T Read<T>(string address) where T : struct
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            var result = _device.Read(address, 1);
+            // 修复点：旧实现固定读 1 个寄存器，int/float 只拿到 2 字节、long/double 拿到 2 字节，
+            // 高半部分永远丢失——与 ModbusTcp 共用寄存器粒度计算。
+            var result = _device.Read(address, HslHelper.RegisterCount<T>());
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
             return HslHelper.ConvertTo<T>(result.Content);
         }
@@ -92,9 +94,20 @@ namespace VisionMaster.Communications
         public void Write(string address, object value)
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            var bytes = HslHelper.GetValueArray(value);
-            var result = _device.Write(address, bytes);
+            // 按值类型分发 HSL 强类型重载：bool→FC5/15、short/ushort→FC6、多寄存器→FC16
+            HslHelper.WriteTyped(_device, address, value, WriteProtocolFamily.Modbus);
+        }
+
+        /// <inheritdoc />
+        public bool[] ReadBits(string address, ushort count)
+        {
+            if (!_isConnected) throw new InvalidOperationException("设备未连接");
+            // 富地址 "x=2;" 为离散输入（FC2），其余位区地址按线圈（FC1）处理
+            var result = address.StartsWith("x=2;", StringComparison.Ordinal)
+                ? _device.ReadDiscrete(address, count)
+                : _device.ReadCoil(address, count);
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
+            return result.Content;
         }
 
         /// <inheritdoc />

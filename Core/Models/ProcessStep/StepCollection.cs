@@ -42,7 +42,15 @@ namespace VisionMaster.Models
         public string StepName
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set
+            {
+                if (SetProperty(ref field, value))
+                {
+                    // DisplayName 由 StepName 派生（分支卡片、画布泳道标题绑的都是 DisplayName），
+                    // 只改分支名时若不补发通知，界面上会停在旧值——与 Expression/BranchType 的写法保持一致
+                    RaisePropertyChanged(nameof(DisplayName));
+                }
+            }
         }
 
         /// <summary>

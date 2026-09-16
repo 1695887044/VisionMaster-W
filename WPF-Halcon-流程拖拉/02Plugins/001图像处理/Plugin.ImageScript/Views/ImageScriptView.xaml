@@ -1,0 +1,214 @@
+﻿<vb:ModuleViewBase x:Class="Plugin.ImageScript.Views.ImageScriptView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                   xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"      
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                   xmlns:local="clr-namespace:Plugin.ImageScript.Views"
+                   Icon="/Plugin.ImageScript;component/Assets/Images/Tool/ImageScript.png" 
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.ImageScript.ViewModels"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+                   xmlns:hw="clr-namespace:VM.Halcon;assembly=VM.Halcon"
+                   Height="680" Width="980"
+                   >
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                </ResourceDictionary>
+                <ResourceDictionary Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="390"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <TabControl Style="{StaticResource VerTabControl}">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem" BasedOn="{StaticResource VerTabItem}"/>
+                </TabControl.Resources>
+                <TabItem Header="基本参数">
+                    <Grid x:Name="gd">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="70"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <Button Content="导入" 
+                                    Command="{Binding OperateCommand}" CommandParameter="{x:Static local:eOperateCommand.Import}"/>
+                            <Button Content="导出" Margin="50 0 0 0"
+                                    Command="{Binding OperateCommand}" CommandParameter="{x:Static local:eOperateCommand.Export}"/>
+                        </StackPanel>
+                        <Border Grid.Row="1">
+                            <GroupBox Header="运行参数">
+                                <StackPanel Orientation="Horizontal" Margin="10 0" HorizontalAlignment="Center">
+                                    <TextBlock Text="运行程序:" VerticalAlignment="Center" Width="60"/>
+                                    <ComboBox BorderThickness="0 0 0 1" Height="25" Width="240" x:Name="runProcedureMethodComboBox" SelectedItem="{Binding SelectedProcedure}"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </Border>
+                    </Grid>
+
+                </TabItem>
+                <TabItem Header="输入链接">
+                    <Grid>
+                        <GroupBox Header="输入变量设置">
+                            <DataGrid AutoGenerateColumns="False" x:Name="dgInput"
+                                                  EnableColumnVirtualization="True"
+                                                  EnableRowVirtualization="True"
+                                                  VirtualizingPanel.IsVirtualizing="True"
+                                                  SelectedItem="{Binding SelectedInputVar}"
+                                                  ItemsSource="{Binding InputVars}"
+                                                  FontSize="12" 
+                                                  RowHeaderWidth="20"
+                                                  SelectionUnit="FullRow"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="All"
+                                                  CanUserAddRows="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Width="auto" Header="名称" Binding="{Binding Name}" CanUserSort="False"/>
+                                    <DataGridComboBoxColumn Width="80" Header="类型" ItemsSource="{x:Static vm:ImageScriptViewModel.Types}" SelectedItemBinding="{Binding Type}"/>
+                                    <DataGridTemplateColumn Header="值" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding Var.Text}"
+                                                         IsReadOnly="{Binding Var.IsReadOnly}"
+                                                         BorderThickness="0 0 0 0"
+                                                         mah:TextBoxHelper.Value="{Binding Var.Value}"
+                                                         Style="{StaticResource LinkTextBox}"
+                                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                         VerticalAlignment="Center" HorizontalAlignment="Center" Background="Transparent" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                        </GroupBox>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="输出变量">
+                    <Grid>
+                        <GroupBox Header="输出变量设置">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="AUTO"/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+                                <!--<StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="10 10">
+                                    <TextBlock Text="类型选择:" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    <ComboBox Height="25" Width="250" BorderThickness="0 0 0 1" Margin="5 0 0 0"/>
+                                </StackPanel>-->
+                                <DataGrid Grid.Row="1" AutoGenerateColumns="False" x:Name="dgOutput"
+                                                  EnableColumnVirtualization="True"
+                                                  EnableRowVirtualization="True"
+                                                  VirtualizingPanel.IsVirtualizing="True"
+                                                  ItemsSource="{Binding OutputVars}" 
+                                                  SelectedItem="{Binding SelectedOutputVar}"
+                                                  FontSize="12" 
+                                                  RowHeaderWidth="20"
+                                                  SelectionUnit="FullRow"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="All"
+                                                  CanUserAddRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Width="auto" Header="名称" Binding="{Binding Name}" CanUserSort="False"/>
+                                        <DataGridComboBoxColumn Width="80" Header="类型" ItemsSource="{x:Static vm:ImageScriptViewModel.Types}" SelectedItemBinding="{Binding Type}"/>
+                                        <DataGridTextColumn Width="*" Header="值" Binding="{Binding Value}" CanUserSort="False"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                            </Grid>
+
+                        </GroupBox>
+                    </Grid>
+
+                </TabItem>
+                <TabItem Header="其他选项">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <GroupBox Header="密码设置">
+                            <StackPanel  Margin="5 0">
+                                <CheckBox Content="启用密码" IsChecked="{Binding IsEnablePassword}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0 5" 
+                                            Visibility="{Binding IsEnablePassword,Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="密码:" VerticalAlignment="Center" Width="60"/>
+                                    <PasswordBox Style="{StaticResource MahApps.Styles.PasswordBox.Win8}" 
+                                                 BorderThickness="0 0 0 1" Width="220"
+                                                 Margin="5 0"
+                                                 helper:PasswordHelper.PasswordContent="{Binding Password}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0 5"
+                                            Visibility="{Binding IsEnablePassword,Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="确认密码:" VerticalAlignment="Center" Width="60"/>
+                                    <PasswordBox Style="{StaticResource MahApps.Styles.PasswordBox.Win8}" 
+                                                 BorderThickness="0 0 0 1" Width="220"
+                                                 Margin="5 0"
+                                                 helper:PasswordHelper.PasswordContent="{Binding ConfirmPassword}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Grid.Row="1" Header="远程调试">
+                            <CheckBox IsChecked="{Binding IsEnableDebug}" Content="启用远程调试(端口：57786)" VerticalAlignment="Top" Margin="5 0"/>
+                        </GroupBox>
+                    </Grid>
+
+                </TabItem>
+
+            </TabControl>
+            <GridSplitter Grid.Column="1"/>
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="30"/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <ComboBox x:Name="procedureMethodComboBox" BorderThickness="0" SelectionChanged="procedureMethodComboBox_SelectionChanged"/>
+                <WinFormHost:WindowsFormsHost Margin="1" Grid.Row="1" x:Name="winFormHost">
+                                                                              
+                </WinFormHost:WindowsFormsHost>
+            </Grid>
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</vb:ModuleViewBase>

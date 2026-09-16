@@ -1,0 +1,35 @@
+<ListBox
+	x:Class="VM.Start.UIDesign.ErrorListView" xmlns="http://schemas.microsoft.com/netfx/2007/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:Services="clr-namespace:ICSharpCode.WpfDesign.Designer.Services;assembly=ICSharpCode.WpfDesign.Designer" xmlns:uidesign="clr-namespace:VM.Start.UIDesign">
+	<FrameworkElement.Resources>
+		<ResourceDictionary>
+			<DataTemplate
+				DataType="{x:Type Services:XamlError}"
+				x:Key="{DataTemplateKey {x:Type Services:XamlError}}">
+				<StackPanel
+					Orientation="Horizontal">
+					<Image
+						Source="Images/Error.png"
+						Stretch="None"
+						Margin="2" />
+					<TextBlock
+						TextAlignment="Right"
+						Width="25"
+						VerticalAlignment="Center"
+						Text="{Binding Line}" />
+					<TextBlock
+						Text=" / "
+						VerticalAlignment="Center" />
+					<TextBlock
+						Width="25"
+						VerticalAlignment="Center"
+						Text="{Binding Column}" />
+					<TextBlock
+						Text=" - " />
+					<TextBlock
+						VerticalAlignment="Center"
+						Text="{Binding Message}" />
+				</StackPanel>
+			</DataTemplate>
+		</ResourceDictionary>
+	</FrameworkElement.Resources>
+</ListBox>

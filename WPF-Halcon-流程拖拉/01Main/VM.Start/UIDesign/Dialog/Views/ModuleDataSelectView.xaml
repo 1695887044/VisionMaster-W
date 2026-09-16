@@ -1,0 +1,164 @@
+<mah:MetroWindow
+    x:Class="VM.Start.UIDesign.Dialog.Views.ModuleDataSelectView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+    xmlns:const="clr-namespace:VM.Start.Common.Const"
+    xmlns:cvt="clr-namespace:VM.Start.Assets.Converter"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helper="clr-namespace:VM.Start.Common.Helper"
+    xmlns:lex="http://wpflocalizeextension.codeplex.com"
+    xmlns:local="clr-namespace:VM.Start.UIDesign.Dialog.Views"
+    xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:rightControl="clr-namespace:VM.Start.Common.RightControl"
+    Width="980"
+    Height="680"
+    lex:LocalizeDictionary.DesignCulture="zh"
+    lex:LocalizeDictionary.OutputMissingKeys="True"
+    lex:ResxLocalizationProvider.DefaultAssembly="VM.Start"
+    lex:ResxLocalizationProvider.DefaultDictionary="Resource"
+    mah:NonActiveGlowBrush="#CDFF0000"
+    mah:ShowIconOnTitleBar="True"
+    mah:ShowTitleBar="True"
+    AllowsTransparency="False"
+    ResizeMode="CanResizeWithGrip"
+    TextElement.FontSize="12"
+    TextElement.FontWeight="Medium"
+    TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+    Topmost="False"
+    WindowStartupLocation="CenterScreen">
+    <FrameworkElement.Resources>
+        <ResourceDictionary>
+            <cvt:Bool2VisibilityConverter x:Key="Bool2VisibilityConverter" />
+            <cvt:ObjectToStringConverter x:Key="ObjectToStringConverter" />
+            <rightControl:RightControl x:Key="RightControl" />
+        </ResourceDictionary>
+    </FrameworkElement.Resources>
+    <mah:MetroWindow.LeftWindowCommands>
+        <mah:WindowCommands>
+            <TextBlock
+                Margin="5,0"
+                VerticalAlignment="Center"
+                FontFamily="{DynamicResource iconfont}"
+                FontSize="16"
+                FontWeight="Light"
+                Text="" />
+            <TextBlock
+                Margin="5,0"
+                VerticalAlignment="Center"
+                FontWeight="Light"
+                Text="模块数据" />
+        </mah:WindowCommands>
+    </mah:MetroWindow.LeftWindowCommands>
+    <Grid Margin="0,5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto" />
+            <RowDefinition />
+            <RowDefinition Height="55" />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal">
+            <TextBlock
+                VerticalAlignment="Center"
+                Foreground="#FFFFFFFF"
+                Text="流程:" />
+            <ComboBox
+                Name="combProList"
+                Width="200"
+                BorderThickness="0,0,0,1"
+                ItemsSource="{Binding ProList}"
+                SelectedIndex="{Binding SelectedIndex_Pro}"
+                SelectedItem="{Binding SelectPro}" />
+        </StackPanel>
+        <TabControl
+            Name="tcModuleList"
+            Grid.Row="1"
+            ItemsSource="{Binding Modules}"
+            SelectedIndex="{Binding ModuleIndex}"
+            Style="{StaticResource ModuleListHorTabControl}">
+            <FrameworkElement.Resources>
+                <ResourceDictionary>
+                    <Style
+                        x:Key="{x:Type TabItem}"
+                        BasedOn="{StaticResource ModuleListVerTabItem}"
+                        TargetType="{x:Type TabItem}" />
+                </ResourceDictionary>
+            </FrameworkElement.Resources>
+            <TabControl.ContentTemplate>
+                <DataTemplate>
+                    <!--  未知连接 ID：4  -->
+                    <DataGrid
+                        AutoGenerateColumns="False"
+                        CanUserAddRows="False"
+                        EnableColumnVirtualization="True"
+                        EnableRowVirtualization="True"
+                        FontSize="12"
+                        GridLinesVisibility="All"
+                        HeadersVisibility="Column"
+                        ItemsSource="{Binding VarModels}"
+                        RowHeaderWidth="20"
+                        SelectedItem="{Binding Path=DataContext.Var, RelativeSource={RelativeSource AncestorType={x:Type local:ModuleDataSelectView}}}"
+                        SelectionUnit="FullRow"
+                        VirtualizingPanel.IsVirtualizing="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Width="auto"
+                                MinWidth="80"
+                                Binding="{Binding DataType}"
+                                CanUserSort="False"
+                                Header="类型"
+                                IsReadOnly="True" />
+                            <DataGridTextColumn
+                                Width="auto"
+                                MinWidth="80"
+                                Binding="{Binding Name}"
+                                CanUserSort="False"
+                                Header="名称"
+                                IsReadOnly="True" />
+                            <DataGridTextColumn
+                                Width="auto"
+                                MinWidth="80"
+                                Binding="{Binding Value, Converter={StaticResource ObjectToStringConverter}}"
+                                CanUserSort="False"
+                                Header="值"
+                                IsReadOnly="True" />
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding Note}"
+                                CanUserSort="False"
+                                Header="注释"
+                                IsReadOnly="True" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+        <Border
+            Grid.Row="2"
+            BorderBrush="#FFFFFFFF"
+            BorderThickness="0,0.5,0,0">
+            <DockPanel LastChildFill="True">
+                <StackPanel
+                    Margin="10,0,0,0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button
+                        Name="btnCancel"
+                        Margin="10,0"
+                        HorizontalAlignment="Right"
+                        Click="btnCancel_Click"
+                        Content="取消" />
+                    <Button
+                        Name="btnConfirm"
+                        Margin="10,0"
+                        HorizontalAlignment="Right"
+                        Background="#FFFF2000"
+                        BorderBrush="#FFFF2000"
+                        Command="{Binding ConfirmCommand}"
+                        Content="确认" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</mah:MetroWindow>

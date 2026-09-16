@@ -37,7 +37,7 @@ namespace VisionMaster.Models
                 {
                     if (!string.IsNullOrEmpty(oldName) && oldName != value)
                     {
-                        GlobalEventBus.Publish(new StepRenamedMessage(oldName, value));
+                        GlobalEventBus.Publish(new StepRenamedMessage(StepID, oldName, value));
                     }
                 }
             }
@@ -56,6 +56,10 @@ namespace VisionMaster.Models
             set => SetProperty(ref field, value);
         } 
 
+        /// <summary>
+        /// 步骤执行状态。纯运行时，不改变流程语义 → 不递增 Version
+        /// </summary>
+        [RuntimeState]
         public StepState State
         {
             get => field;
@@ -65,6 +69,7 @@ namespace VisionMaster.Models
         /// <summary>
         /// 是否为当前运行焦点
         /// </summary>
+        [RuntimeState]
         [JsonIgnore]
         public bool IsRunningFocus
         {
@@ -76,6 +81,7 @@ namespace VisionMaster.Models
         /// 最后运行起始的高精度时间戳（Stopwatch.GetTimestamp 的原始读数），null 表示未开始计时。
         /// 不用 DateTime：墙钟受系统校时影响，且 Tick 粒度粗，测不出亚毫秒耗时。
         /// </summary>
+        [RuntimeState]
         [JsonIgnore]
         public long? LastRunStartTimestamp
         {
@@ -89,6 +95,7 @@ namespace VisionMaster.Models
         /// 依赖 x64 进程下对齐 64 位写入的原子性（CLR 实现保证）。若将来出现 32 位宿主，
         /// 必须改用 Interlocked/Volatile 或加锁，否则存在撕裂读风险。
         /// </summary>
+        [RuntimeState]
         [JsonIgnore]
         public double LastRunTimeMs
         {
@@ -100,6 +107,7 @@ namespace VisionMaster.Models
         /// 当前运行耗时（毫秒，运行中由 UI 定时器实时刷新）
         /// 原子性前提同 LastRunTimeMs：依赖 x64 进程。
         /// </summary>
+        [RuntimeState]
         [JsonIgnore]
         public double CurrentRunTimeMs
         {

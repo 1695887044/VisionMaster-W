@@ -21,6 +21,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
     }
 
     /// <summary>
+    /// 存储区下拉项：把枚举包一层，界面显示中文，取值仍用原始枚举（显示与数据解耦）
+    /// </summary>
+    public class AreaOption
+    {
+        public Enum Value { get; init; }
+        public string DisplayName { get; init; }
+    }
+
+    /// <summary>
     /// 来源树节点：本地池 + 每条通信连接一个子节点
     /// </summary>
     public class VariableSourceNode : BindableBase
@@ -66,7 +75,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     UpdateFilteredList();
                     // 联动新建变量区的本地/网络胶囊：选本地→本地模式，选网络连接→网络模式
                     if (value != null)
+                    {
                         IsNetworkSource = value.IsNetwork;
+
+                        // 来源树是创建表单的上下文。选中网络设备时同步选中对应连接，
+                        // 使网络变量的存储区、地址和协议配置立即可编辑。
+                        if (value.IsNetwork)
+                            SelectedConnection = Connections.FirstOrDefault(c => c.ConnectionName == value.Key);
+                        else
+                            SelectedConnection = null;
+                    }
                 }
             }
         }
@@ -229,10 +247,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        public ObservableCollection<Enum> AreaOptions { get; } = new();
+        public ObservableCollection<AreaOption> AreaOptions { get; } = new();
 
-        private Enum? _selectedAreaType;
-        public Enum? SelectedAreaType
+        private AreaOption? _selectedAreaType;
+        public AreaOption? SelectedAreaType
         {
             get => _selectedAreaType;
             set
@@ -267,7 +285,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public bool IsBitMode => SelectedType?.ActualType == typeof(bool) && NewBitOffset >= 0 && !IsCoilOrDiscrete;
 
         /// <summary>所选存储区是否线圈/离散输入（仅 bool 合法）</summary>
-        public bool IsCoilOrDiscrete => SelectedAreaType is ModbusArea.Coils or ModbusArea.DiscreteInputs;
+        public bool IsCoilOrDiscrete => SelectedAreaType?.Value is ModbusArea.Coils or ModbusArea.DiscreteInputs;
 
         private int _newPollIntervalMs = 1000;
         public int NewPollIntervalMs
@@ -276,18 +294,33 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set => SetProperty(ref _newPollIntervalMs, value);
         }
 
+        private static readonly System.Collections.Generic.Dictionary<Enum, string> AreaDisplayNames = new()
+        {
+            [ModbusArea.Coils] = "线圈 (0x, 读写布尔)",
+            [ModbusArea.DiscreteInputs] = "离散输入 (1x, 只读布尔)",
+            [ModbusArea.InputRegisters] = "输入寄存器 (3x, 只读字)",
+            [ModbusArea.HoldingRegisters] = "保持寄存器 (4x, 读写字)",
+            [S7Area.DB] = "数据块 (DB)",
+            [S7Area.I] = "输入映像区 (I)",
+            [S7Area.Q] = "输出映像区 (Q)",
+            [S7Area.M] = "内部标志位 (M)",
+            [S7Area.V] = "V 区 (S7-200 Smart)",
+        };
+
         private void RefreshAreaOptions()
         {
             AreaOptions.Clear();
             switch (SelectedConnection?.Protocol)
             {
                 case CommunicationType.ModbusTcp:
-                    foreach (ModbusArea a in Enum.GetValues(typeof(ModbusArea))) AreaOptions.Add(a);
-                    SelectedAreaType = ModbusArea.HoldingRegisters;
+                    foreach (ModbusArea a in Enum.GetValues(typeof(ModbusArea)))
+                        AreaOptions.Add(new AreaOption { Value = a, DisplayName = AreaDisplayNames[a] });
+                    SelectedAreaType = AreaOptions.First(o => Equals(o.Value, ModbusArea.HoldingRegisters));
                     break;
                 case CommunicationType.SiemensS7:
-                    foreach (S7Area a in Enum.GetValues(typeof(S7Area))) AreaOptions.Add(a);
-                    SelectedAreaType = S7Area.M;
+                    foreach (S7Area a in Enum.GetValues(typeof(S7Area)))
+                        AreaOptions.Add(new AreaOption { Value = a, DisplayName = AreaDisplayNames[a] });
+                    SelectedAreaType = AreaOptions.First(o => Equals(o.Value, S7Area.M));
                     break;
             }
         }
@@ -586,7 +619,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     case CommunicationType.ModbusTcp:
                         address = new ModbusAddress
                         {
-                            Area = (ModbusArea)SelectedAreaType,
+                            Area = (ModbusArea)SelectedAreaType.Value,
                             Offset = NewOffset,
                             DataType = ToDataValueType(targetType),
                             BitOffset = IsBitMode ? NewBitOffset : -1
@@ -595,7 +628,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     case CommunicationType.SiemensS7:
                         address = new S7Address
                         {
-                            Area = (S7Area)SelectedAreaType,
+                            Area = (S7Area)SelectedAreaType.Value,
                             Offset = NewOffset,
                             DataType = ToDataValueType(targetType),
                             BitOffset = IsBitMode ? NewBitOffset : -1

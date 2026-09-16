@@ -212,10 +212,12 @@ namespace VisionMaster.ViewModels
         {
             Guid targetId = SelectedNode.Id;
             string targetPort = port.Name;
+            // 连线类型由候选节点自带（FlowQueryHelper 构造时指定），不再靠 Id 是否为空反推
+            LinkKind kind = SelectedNode.DefaultLinkKind;
             string displayName;
 
-            // 运行时变量引用：使用 Runtime. 前缀，与 FlowCompiler 的 marker Guid 约定一致
-            if (targetId == FlowCompiler.RuntimeVariableMarkerGuid)
+            // 运行时变量引用：使用 Runtime. 前缀，与协议层 marker Guid 约定一致
+            if (kind == LinkKind.RuntimeVariable)
             {
                 displayName = $"Runtime.{port.Name}";
             }
@@ -226,7 +228,7 @@ namespace VisionMaster.ViewModels
                         ? $"{SelectedNode.Name}.{port.Name}[{index}]"
                         : $"{SelectedNode.Name}.{port.Name}";
             }
-            var linkRef = new LinkReference(targetId, targetPort, displayName);
+            var linkRef = new LinkReference(kind, targetId, targetPort, displayName);
 
             // P0-③：单绑模式下弹窗只负责"把用户选的变量还给出题人"（经 BoundLink 回传），
             // 绝不能直写 Workspace.CurrentStep.LinkedSources——此时 CurrentStep 可能是条件节点，
@@ -256,8 +258,8 @@ namespace VisionMaster.ViewModels
             if (!string.IsNullOrWhiteSpace(ConstantValue) && SelectedInputPort != null)
             {
                 string bindKey = SelectedInputPort.Definition.Name;
-                string displayName = $"常量值: {ConstantValue}";
-                var linkRef = new LinkReference(Guid.Empty, ConstantValue, displayName);
+                string displayName = $"{LinkProtocol.ConstantDisplayPrefix}{ConstantValue}";
+                var linkRef = new LinkReference(LinkKind.Constant, Guid.Empty, ConstantValue, displayName);
                 // P0-③：同 DoFinalBind，单绑模式下常量也只回传、不写活模型
                 if (!_isSingleBindMode)
                     Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;

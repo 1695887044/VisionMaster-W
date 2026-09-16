@@ -1,0 +1,173 @@
+﻿<vb:ModuleViewBase x:Class="Plugin.PLCCommunicate.Views.PLCCommunicateView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                   xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"      
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                   xmlns:local="clr-namespace:Plugin.PLCCommunicate.Views"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.PLCCommunicate.ViewModels"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+                   xmlns:hw="clr-namespace:VM.Halcon;assembly=VM.Halcon"
+                   Icon="/Plugin.PLCCommunicate;component/Assets/Images/Tool/PLCCommunicate.png"
+                   Height="580" Width="980"
+                   Loaded="ModuleViewBase_Loaded" Activated="ModuleViewBase_Activated">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                </ResourceDictionary>
+                <ResourceDictionary Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid Margin="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="25"/>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="25"/>
+                <ColumnDefinition Width="0.8*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center"
+                       Text="&#xe639;" FontFamily="{StaticResource iconfont}" FontSize="20" Foreground="Lime"/>
+            <TextBlock Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Center"
+                       Text="&#xe639;" FontFamily="{StaticResource iconfont}" FontSize="20" Foreground="Lime"/>
+            <GroupBox Header="通讯设置">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="端口:" VerticalAlignment="Center" Width="80"/>
+                        <ComboBox Width="120" BorderThickness="0 0 0 1" 
+                                  ItemsSource="{Binding ComKeys}" SelectedItem="{Binding CurKey}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="通讯备注:" VerticalAlignment="Center" Width="80"/>
+                        <TextBox Width="120" BorderThickness="0 0 0 0.5" Text="{Binding Remaks, UpdateSourceTrigger=PropertyChanged}" 
+                                 />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="PLC类型:" VerticalAlignment="Center" Width="80"/>
+                        <ComboBox Width="120" BorderThickness="0 0 0 1"
+                                  ItemsSource="{Binding PlcCommunicationTypes}"
+                                  SelectedItem="{Binding PlcCommunicationType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="解析格式:" VerticalAlignment="Center" Width="80"/>
+                        <ComboBox Width="120" BorderThickness="0 0 0 1"
+                                  ItemsSource="{Binding PLCDataFormats}"
+                                  SelectedItem="{Binding PLCDataFormat, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="站号:" VerticalAlignment="Center" Width="80"/>
+                        <mah:NumericUpDown Width="120" BorderThickness="0 0 0 1"
+                                           Value="{Binding StationNumber}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="首地址为零:" VerticalAlignment="Center" Width="80"/>
+                        <CheckBox IsChecked="{Binding AddressStartWithZero}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="说明:" VerticalAlignment="Center" Width="80"/>
+                        <TextBlock VerticalAlignment="Center" Width="145" TextWrapping="Wrap" Text="批量读写D寄存器，只需要在PLC读写模块中设置其实D寄存器地址即可，需要在右侧配置数据类型的格式&#x000A;&#x000A;一个PLC通讯模块对应一个端口，不可用多个PLC模块对应一个端口"/>
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <GroupBox Header="Bool类型-占用1个D存储">
+                    <TextBlock Text="0为Fales，                 1为True" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                </GroupBox>
+                <GroupBox Grid.Row="1" Header="Int类型-占用2个D存储">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <RadioButton Content="Int(16)" Margin="10" 
+                                                 IsChecked="{Binding IntDataLength,Converter={StaticResource EnumConverter},ConverterParameter={x:Static enum:PLCIntDataLengthEnum._16位}}"/>
+                        <RadioButton Content="Int(32)" Margin="10" 
+                                                 IsChecked="{Binding IntDataLength,Converter={StaticResource EnumConverter},ConverterParameter={x:Static enum:PLCIntDataLengthEnum._32位}}"/>
+                        <RadioButton Content="Int(64)" Margin="10" 
+                                                 IsChecked="{Binding IntDataLength,Converter={StaticResource EnumConverter},ConverterParameter={x:Static enum:PLCIntDataLengthEnum._64位}}"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Grid.Row="2" Header="Double类型-占用2个D存储">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <RadioButton Content="Float(32)" Margin="10" 
+                                                 IsChecked="{Binding DoubleDataLength,Converter={StaticResource EnumConverter},ConverterParameter={x:Static enum:PLCDoubleDataLengthEnum._32位}}"/>
+                        <RadioButton Content="Double(64)" Margin="10" 
+                                                 IsChecked="{Binding DoubleDataLength,Converter={StaticResource EnumConverter},ConverterParameter={x:Static enum:PLCDoubleDataLengthEnum._64位}}"/>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Grid.Row="3" Header="String类型-占用5个D存储">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="字符长度:" VerticalAlignment="Center"/>
+                        <mah:NumericUpDown Value="10" BorderThickness="0 0 0 1" Width="120" Margin="5 0"/>
+                        <CheckBox Content="高低字节转换"/>
+                    </StackPanel>
+                </GroupBox>
+            </Grid>
+            <GroupBox Grid.Column="4" Header="高级设置">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="端口:" VerticalAlignment="Center" Width="80"/>
+                        <CheckBox x:Name="cbMergeAddr"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10" Visibility="{Binding ElementName=cbMergeAddr,Path=IsChecked,Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="合并首地址:" VerticalAlignment="Center" Width="80"/>
+                        <mah:NumericUpDown Width="120" BorderThickness="0 0 0 1"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10" Visibility="{Binding ElementName=cbMergeAddr,Path=IsChecked}">
+                        <TextBlock Text="合并首地址:" VerticalAlignment="Center" Width="80"/>
+                        <RadioButton Content="2个" Margin="5 0"/>
+                        <RadioButton Content="4个" Margin="5 0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="10">
+                        <TextBlock Text="说明:" VerticalAlignment="Center" Width="80"/>
+                        <TextBlock  Width="145" TextWrapping="Wrap"
+                                    Text="当PLC讲多个寄存器合并为一个的时候，启用该功能，启用后，将值能读取32或64为数据的int和double"/>
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</vb:ModuleViewBase>

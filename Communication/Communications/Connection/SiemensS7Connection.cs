@@ -66,7 +66,7 @@ namespace VisionMaster.Communications
         public T Read<T>(string address) where T : struct
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            // S7 按字节粒度读取：bool=1，byte/short/ushort=2，int/uint/float=4，long/ulong/double=8
+            // S7 按字节粒度读取：bool/byte=1，short/ushort=2，int/uint/float=4，long/ulong/double=8
             var result = _device.Read(address, (ushort)System.Runtime.InteropServices.Marshal.SizeOf<T>());
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
             return HslHelper.ConvertTo<T>(result.Content);
@@ -76,9 +76,15 @@ namespace VisionMaster.Communications
         public void Write(string address, object value)
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            var bytes = HslHelper.GetValueArray(value);
-            var result = _device.Write(address, bytes);
-            if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
+            // 按值类型分发：位地址 bool→WriteBit 指令，字节地址 bool→1 字节 0/1，数值→强类型重载
+            HslHelper.WriteTyped(_device, address, value, WriteProtocolFamily.SiemensS7);
+        }
+
+        /// <inheritdoc />
+        public bool[] ReadBits(string address, ushort count)
+        {
+            // S7 没有位区批量读语义：位点随字节段（MB/DBB）批量读回后由规划器按位切片解码
+            throw new NotSupportedException("S7 不支持位区批量读，请使用字节段批量读 + 位切片解码");
         }
 
         /// <inheritdoc />

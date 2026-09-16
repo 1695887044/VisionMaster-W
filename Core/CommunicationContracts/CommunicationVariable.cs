@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Newtonsoft.Json;
 
 namespace VisionMaster.Communications
@@ -22,6 +22,14 @@ namespace VisionMaster.Communications
         /// 通讯地址
         /// </summary>
         public string Address { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 地址配置对象引用（不参与序列化）。
+        /// 注册时若带上结构化地址对象，轮询/批量规划就不必再解析地址字符串；
+        /// 为 null 时回退到 <see cref="Address"/> 字符串解析（兼容旧数据）。
+        /// </summary>
+        [JsonIgnore]
+        public DeviceAddressBase? AddressConfig { get; set; }
 
         /// <summary>
         /// 值类型

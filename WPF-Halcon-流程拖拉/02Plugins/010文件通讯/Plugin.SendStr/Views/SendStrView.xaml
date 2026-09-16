@@ -1,0 +1,92 @@
+﻿<vb:ModuleViewBase xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   x:Class="Plugin.SendStr.Views.SendStrView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                   xmlns:vm="clr-namespace:Plugin.SendStr.ViewModels"
+                   xmlns:cvt ="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:local="clr-namespace:Plugin.SendStr.Views"
+                   mc:Ignorable="d" Icon="/Plugin.SendStr;component/Assets/Images/Tool/SendStr.png"
+                   ShowMaxRestoreButton="False" ShowMinButton="False" ResizeMode="NoResize"
+                   Height="335" Width="430" Activated="ModuleViewBase_Activated" Loaded="ModuleViewBase_Loaded"
+                >
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                    <cvt:Bool2VisibilityConverter x:Key="Bool2VisibilityConverter"/>
+                </ResourceDictionary>
+                <ResourceDictionary Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <StackPanel Margin="10" HorizontalAlignment="Center" VerticalAlignment="Top">
+            <StackPanel Orientation="Horizontal" Margin="0 10" Height="30" 
+                        HorizontalAlignment="Center" VerticalAlignment="Top">
+                <TextBlock Text="通讯设置:" VerticalAlignment="Center"/>
+                <ComboBox BorderThickness="0 0 0 1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="200"  Margin="5 0"
+                          ItemsSource="{Binding ComKeys}" SelectedItem="{Binding CurKey}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0 10" Height="30" 
+                        HorizontalAlignment="Center" VerticalAlignment="Top">
+                <TextBlock Text="通讯备注:" VerticalAlignment="Center"/>
+                <TextBox BorderThickness="0 0 0 1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="200"  Margin="5 0"
+                         Text="{Binding Remarks}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0 10" Height="30" 
+                        HorizontalAlignment="Center" VerticalAlignment="Top">
+                <TextBlock Text="发送内容:" VerticalAlignment="Center"/>
+                <TextBox VerticalAlignment="Center" HorizontalAlignment="Center" Width="200"  Margin="5 0"
+                         Style="{StaticResource LinkTextBox}"
+                         Text="{Binding SendStr.Text}"
+                         IsReadOnly="{Binding SendStr.IsReadOnly}"
+                         mah:TextBoxHelper.Value="{Binding SendStr.Value}"
+                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand}"
+                         mah:TextBoxHelper.Watermark="string"
+                         />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0 8" Height="20" 
+                        HorizontalAlignment="Center" VerticalAlignment="Top">
+                <TextBlock Text="结束符:" VerticalAlignment="Center" Width="50"/>
+                <RadioButton Content="无" Margin="10 0" IsChecked="{Binding eEnableEndstr,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eEnableEndStr.No } }" />
+                <RadioButton Content="\r\n" Margin="10 0" IsChecked="{Binding eEnableEndstr,Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eEnableEndStr.Have } }" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" >
+                <CheckBox Content="以16进制发送" IsChecked="{Binding IsSendByHex}" Height="40" Width="100"/>
+                <CheckBox Content="Continue" IsChecked="{Binding Continue}" Height="40"/>
+            </StackPanel>
+            
+        </StackPanel>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border> 
+    </Grid>
+</vb:ModuleViewBase>

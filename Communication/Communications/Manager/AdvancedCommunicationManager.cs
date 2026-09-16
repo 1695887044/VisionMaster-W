@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Communications
@@ -17,10 +15,11 @@ namespace VisionMaster.Communications
         // ✅ 全部改为线程安全集合
         private readonly ConcurrentDictionary<string, ICommunicationConnection> _connections = new();
         private readonly ConcurrentDictionary<string, CommunicationConfig> _configCache = new();
-        private readonly ConcurrentDictionary<string, Timer> _reconnectTimers = new();
-        private readonly ConcurrentDictionary<string, int> _reconnectAttempts = new(); // 重连计数（独立存储，勿复用 ReadCycleMs——它驱动变量轮询周期）
-        private readonly ConcurrentDictionary<string, Timer> _heartbeatTimers = new();
-        private readonly ConcurrentDictionary<string, Timer> _variablePollingTimers = new();
+
+        // ✅ 连接专属工作线程：每个连接一条线程，把建连/读/写/轮询/断开全部串行化到同一线程。
+        // 旧实现用"重连 + 心跳 + 变量轮询"三套 Timer 并发驱动同一设备对象，而 HSL 设备对象不是线程安全的，
+        // 于是出现随机错包、半开连接检测不出来、多个重连叠加发起等问题——现在统一由 Worker 状态机接管。
+        private readonly ConcurrentDictionary<string, ConnectionWorker> _workers = new();
 
         // ✅ 完美适配你的 CommunicationVariable 类
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, CommunicationVariable>> _registeredVariables = new();
@@ -29,8 +28,9 @@ namespace VisionMaster.Communications
         private readonly object _connectionsListLock = new();
         private readonly ObservableCollection<CommunicationConfig> _connectionsList = new();
 
-        // ✅ 读取方法缓存（避免重复反射）
-        private static readonly ConcurrentDictionary<Type, MethodInfo> _readMethodCache = new();
+        // ✅ 通信故障限流：退避重连期间同一条故障会反复上报，不限流会把日志窗口刷满
+        private readonly ConcurrentDictionary<string, long> _throttleTicks = new();
+        private const long ThrottleMs = 5000;
 
         // ✅ 恢复使用你的 ConnectionFactoryManager
         private readonly ConnectionFactoryManager _factoryManager = ConnectionFactoryManager.Instance;
@@ -44,13 +44,13 @@ namespace VisionMaster.Communications
 
         public ObservableCollection<CommunicationConfig> ConnectionsList => _connectionsList;
         public int ConnectionCount => _connections.Count;
-        public int ConnectedCount => _connections.Count(c => c.Value.IsConnected);
+        public int ConnectedCount => _workers.Count(w => w.Value.IsConnected);
         public bool IsRunning { get; private set; } = false;
         public string ConfigFilePath { get; set; } =
             Path.Combine(AppContext.BaseDirectory, "communications.json"); // 固定 exe 目录，避免工作目录漂移
         public bool AutoReconnectEnabled { get; set; } = true;
+        /// <summary>重连基准间隔（连接配置里的 RetryIntervalMs 优先，未配置时用它）</summary>
         public int GlobalReconnectIntervalMs { get; set; } = 5000;
-        public int HeartbeatIntervalMs { get; set; } = 30000;
         public int MaxReconnectAttempts { get; set; } = 0; // 0表示无限重连
 
         #endregion
@@ -105,6 +105,10 @@ namespace VisionMaster.Communications
             }
         }
 
+        /// <summary>
+        /// 启动通讯子系统：按 <see cref="CommunicationConfig.AutoStart"/> 发起自动连接并置运行标志。
+        /// 建连不在此等待（见 <see cref="ConnectAll"/>），调用方不必担心被离线设备阻塞。
+        /// </summary>
         public void StartAll()
         {
             LogInfo("正在启动所有连接...");
@@ -138,6 +142,13 @@ namespace VisionMaster.Communications
                 _connections[config.ConnectionName] = connection;
                 _configCache[config.ConnectionName] = config;
 
+                // 每个连接配一条专属工作线程：此后该连接的所有设备 I/O 都只在这条线程上发生
+                var worker = new ConnectionWorker(connection);
+                worker.StateChanged += (oldState, newState) => OnWorkerStateChanged(config.ConnectionName, oldState, newState);
+                worker.CommunicationError += ex => OnWorkerCommunicationError(config.ConnectionName, ex);
+                _workers[config.ConnectionName] = worker;
+                worker.Start();
+
                 lock (_connectionsListLock)
                 {
                     _connectionsList.Add(config);
@@ -164,31 +175,36 @@ namespace VisionMaster.Communications
 
             LogInfo($"正在移除连接: {connectionName}");
 
-            // 停止所有定时器
-            StopReconnectTimer(connectionName);
-            StopHeartbeatTimer(connectionName);
-            StopVariablePollingTimer(connectionName);
-
-            // 断开并释放连接
-            if (_connections.TryRemove(connectionName, out var connection))
+            // 工作线程负责停轮询、断开设备、释放连接对象：Dispose 返回后该连接已彻底不可用
+            if (_workers.TryRemove(connectionName, out var worker))
             {
                 try
                 {
-                    connection.Disconnect();
-                    if (connection is IDisposable disposable)
-                        disposable.Dispose();
-
-                    LogInfo($"连接已断开并释放: {connectionName}");
+                    worker.Dispose();
+                    LogInfo($"连接工作线程已停止: {connectionName}");
+                }
+                catch (Exception ex)
+                {
+                    LogError($"释放连接工作线程时发生错误: {connectionName}", ex);
+                }
+            }
+            else if (_connections.TryGetValue(connectionName, out var orphan))
+            {
+                // 兜底：没有工作线程的连接（正常流程下不存在）仍按旧路径释放
+                try
+                {
+                    orphan.Disconnect();
+                    orphan.Dispose();
                 }
                 catch (Exception ex)
                 {
                     LogError($"断开连接时发生错误: {connectionName}", ex);
                 }
             }
+            _connections.TryRemove(connectionName, out _);
 
             // 移除配置缓存
             _configCache.TryRemove(connectionName, out _);
-            _reconnectAttempts.TryRemove(connectionName, out _);
 
             // 移除注册的变量
             _registeredVariables.TryRemove(connectionName, out _);
@@ -212,69 +228,69 @@ namespace VisionMaster.Communications
 
             LogInfo($"正在更新连接: {config.ConnectionName}");
 
+            // B1：连接对象会被重建，但"该连接下已注册的变量"必须延续。
+            // 旧实现直接 Remove + Add，而 RemoveConnection 会连变量注册一起清空——
+            // 于是"改个超时时间"就把这条连接所有变量的轮询悄悄停掉，且无任何提示。
+            var keepVariables = _registeredVariables.TryGetValue(config.ConnectionName, out var existing)
+                ? existing.Values.ToList()
+                : new List<CommunicationVariable>();
+
             RemoveConnection(config.ConnectionName);
-            return AddConnection(config);
+            bool ok = AddConnection(config);
+            if (!ok)
+                return false;
+
+            foreach (var variable in keepVariables)
+            {
+                try
+                {
+                    RegisterVariable(variable); // 内部会重建轮询计划
+                }
+                catch (Exception ex)
+                {
+                    LogError($"更新连接后恢复变量注册失败: {config.ConnectionName}.{variable.VariableName}", ex);
+                }
+            }
+
+            return true;
         }
 
         public bool Connect(string connectionName)
         {
             if (string.IsNullOrWhiteSpace(connectionName))
                 throw new ArgumentNullException(nameof(connectionName));
-            if (!_connections.TryGetValue(connectionName, out var connection))
+            if (!_connections.ContainsKey(connectionName))
                 throw new InvalidOperationException($"连接不存在: {connectionName}");
             if (!_configCache.TryGetValue(connectionName, out var config))
                 return false;
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                return false;
+
+            ConfigureWorker(worker, config);
+
+            // 连接前统一编译一次轮询计划（注册变量时不编译，避免批量注册触发 N 次重建）
+            RebuildPollPlan(connectionName);
+
+            LogInfo($"正在连接: {connectionName}");
 
             try
             {
-                if (connection.IsConnected)
-                    return true;
-
-                LogInfo($"正在连接: {connectionName}");
-                config.State = ConnectionState.Connecting;
-                OnConnectionStateChanged(connectionName, ConnectionState.Disconnected, ConnectionState.Connecting);
-
-                var result = connection.Connect();
-
-                if (result)
+                // 建连与失败重连都由 Worker 状态机负责；这里只等待"首次建连"的结果。
+                // 超时返回 false ≠ 放弃：Worker 仍在后台按退避重连，状态变化会经事件广播出来。
+                int timeoutMs = config.Config?.TimeoutMs > 0 ? config.Config.TimeoutMs : 3000;
+                if (!worker.Connect(timeoutMs).GetAwaiter().GetResult())
                 {
-                    config.State = ConnectionState.Connected;
-                    config.UpdateLastConnectedTime();
-                    _reconnectAttempts[connectionName] = 0; // 重置重连计数（勿复用 ReadCycleMs，它驱动变量轮询周期）
-                    OnConnectionStateChanged(connectionName, ConnectionState.Connecting, ConnectionState.Connected);
-
-                    LogInfo($"连接成功: {connectionName}");
-
-                    if (AutoReconnectEnabled && config.AutoReconnect)
-                        StartHeartbeatTimer(connectionName);
-
-                    // ✅ 连接成功后自动启动变量轮询（使用连接配置的ReadCycleMs）
-                    StartVariablePollingTimer(connectionName, config.ReadCycleMs);
-                }
-                else
-                {
-                    config.State = ConnectionState.Error;
-                    OnConnectionStateChanged(connectionName, ConnectionState.Connecting, ConnectionState.Error);
-
-                    LogError($"连接失败: {connectionName}", null);
-
-                    if (AutoReconnectEnabled && config.AutoReconnect)
-                        StartReconnectTimer(connectionName, config.Config.RetryIntervalMs);
+                    LogWarning($"连接未在 {timeoutMs}ms 内建立: {connectionName}（后台按退避继续重连）");
+                    return false;
                 }
 
-                return result;
+                LogInfo($"连接成功: {connectionName}");
+                return true;
             }
             catch (Exception ex)
             {
-                config.State = ConnectionState.Error;
-                OnConnectionStateChanged(connectionName, ConnectionState.Connecting, ConnectionState.Error);
-                OnConnectionError(connectionName, ex);
-
                 LogError($"连接异常: {connectionName}", ex);
-
-                if (AutoReconnectEnabled && config.AutoReconnect)
-                    StartReconnectTimer(connectionName, config.Config.RetryIntervalMs);
-
+                OnConnectionError(connectionName, ex);
                 return false;
             }
         }
@@ -283,24 +299,17 @@ namespace VisionMaster.Communications
         {
             if (string.IsNullOrWhiteSpace(connectionName))
                 return;
-            if (!_connections.TryGetValue(connectionName, out var connection))
+            if (!_configCache.ContainsKey(connectionName))
                 return;
-            if (!_configCache.TryGetValue(connectionName, out var config))
+            if (!_workers.TryGetValue(connectionName, out var worker))
                 return;
 
             LogInfo($"正在断开连接: {connectionName}");
 
-            // 停止所有定时器
-            StopReconnectTimer(connectionName);
-            StopHeartbeatTimer(connectionName);
-            StopVariablePollingTimer(connectionName);
-
             try
             {
-                connection.Disconnect();
-                config.State = ConnectionState.Disconnected;
-                OnConnectionStateChanged(connectionName, ConnectionState.Connected, ConnectionState.Disconnected);
-
+                // 断开即停止自动重连；config.State 与状态事件由 Worker 的 StateChanged 回调统一同步
+                worker.Disconnect().GetAwaiter().GetResult();
                 LogInfo($"连接已断开: {connectionName}");
             }
             catch (Exception ex)
@@ -310,6 +319,57 @@ namespace VisionMaster.Communications
             }
         }
 
+        /// <summary>
+        /// <para>发起单条连接的建连（**非阻塞**）：只向工作线程登记"维持连接"意图立即返回，
+        /// 真正的 socket 建连由连接专属线程执行，结果经 <see cref="ConnectionStateChanged"/> 广播。</para>
+        /// <para>供 UI"连接"按钮等**不能等** <c>Config.TimeoutMs</c> 的调用方使用；
+        /// 需要拿到"这一次到底连上没有"的调用方请用同步版 <see cref="Connect"/>。</para>
+        /// </summary>
+        public void RequestConnect(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                return;
+            if (!_configCache.TryGetValue(connectionName, out var config))
+                return;
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                return;
+
+            // 灌参数 + 编译轮询计划都是本地计算，必须先做：Worker 一被唤醒就能用正确参数与计划工作
+            ConfigureWorker(worker, config);
+            RebuildPollPlan(connectionName);
+
+            // timeoutMs = 0：登记意图立即返回（与 ConnectAll 同语义）
+            _ = worker.Connect(0);
+        }
+
+        /// <summary>
+        /// <para>发起单条连接的断开（**非阻塞**）：立即停止自动重连，断开动作排队给工作线程执行，
+        /// 结果经 <see cref="ConnectionStateChanged"/> 广播。</para>
+        /// <para>需要确认"已经断开"的调用方请用同步版 <see cref="Disconnect"/>。
+        /// 注意：Worker 若正在做一次阻塞建连，排队中的断开命令要等它返回才执行——这正是本方法
+        /// 存在的意义（不让调用线程陪着一起等）。</para>
+        /// </summary>
+        public void RequestDisconnect(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                return;
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                return;
+
+            worker.Disconnect().ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    LogWarning($"断开连接异常: {connectionName} - {t.Exception?.GetBaseException().Message}");
+            }, TaskScheduler.Default);
+        }
+
+        /// <summary>
+        /// <para>对"已启用且勾选自动启动"的连接发起建连（<see cref="StartAll"/> 的执行体）。</para>
+        /// <para>非阻塞：只向工作线程登记"维持连接"意图，真正的 socket 建连由连接专属线程执行，
+        /// 状态变化经 <see cref="ConnectionStateChanged"/> 广播。
+        /// 旧实现在这里逐条同步等待 <c>Config.TimeoutMs</c>，现场设备离线时启动会被串行冻结 3N 秒
+        /// （且发生在 Splash 显示之前，用户只看到"点了没反应"）。</para>
+        /// </summary>
         public void ConnectAll()
         {
             var enabledConfigs = new List<CommunicationConfig>();
@@ -318,11 +378,14 @@ namespace VisionMaster.Communications
                 enabledConfigs = _connectionsList.Where(c => c.IsEnabled && c.AutoStart).ToList();
             }
 
+            if (enabledConfigs.Count > 0)
+                LogInfo($"{enabledConfigs.Count} 条连接标记为自动启动，正在后台建立连接");
+
             foreach (var config in enabledConfigs)
             {
                 try
                 {
-                    Connect(config.ConnectionName);
+                    RequestConnect(config.ConnectionName);
                 }
                 catch (Exception ex)
                 {
@@ -348,13 +411,22 @@ namespace VisionMaster.Communications
 
         public bool TestConnection(string connectionName)
         {
-            if (!_connections.TryGetValue(connectionName, out var connection))
+            if (!_workers.TryGetValue(connectionName, out var worker))
                 return false;
+
+            // 已连上的连接直接判定成功：TestConnection 的实现是"连一次再关掉"，
+            // 对活连接调用会把正在用的 socket 关掉（而 Worker 状态仍是 Connected），属于自毁行为
+            if (worker.IsConnected)
+            {
+                LogDebug($"连接已处于连接状态，跳过测试: {connectionName}");
+                return true;
+            }
 
             try
             {
                 LogInfo($"正在测试连接: {connectionName}");
-                bool result = connection.TestConnection();
+                // 走 Worker 线程执行，避免与状态机的建连动作并发操作同一个设备对象
+                bool result = worker.Invoke(c => c.TestConnection()).GetAwaiter().GetResult();
                 LogInfo($"连接测试结果: {connectionName} = {(result ? "成功" : "失败")}");
                 return result;
             }
@@ -375,14 +447,17 @@ namespace VisionMaster.Communications
                 throw new ArgumentNullException(nameof(connectionName));
             if (string.IsNullOrWhiteSpace(address))
                 throw new ArgumentNullException(nameof(address));
-            if (!_connections.TryGetValue(connectionName, out var connection))
+            if (!_connections.ContainsKey(connectionName))
                 throw new InvalidOperationException($"连接不存在: {connectionName}");
-            if (!connection.IsConnected)
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                throw new InvalidOperationException($"连接不存在: {connectionName}");
+            if (!worker.IsConnected)
                 throw new InvalidOperationException($"连接未建立: {connectionName}");
 
             try
             {
-                var value = connection.Read<T>(address);
+                // 投递到连接专属线程执行：与轮询、写命令天然串行，不再出现两个线程同时操作一个 socket
+                var value = worker.Invoke(c => c.Read<T>(address)).GetAwaiter().GetResult();
                 LogDebug($"读取成功: {connectionName}.{address} = {value}");
                 DataReceived?.Invoke(this, new CommunicationDataEventArgs(connectionName, address, value));
                 return value;
@@ -403,14 +478,16 @@ namespace VisionMaster.Communications
                 throw new ArgumentNullException(nameof(address));
             if (value == null)
                 throw new ArgumentNullException(nameof(value));
-            if (!_connections.TryGetValue(connectionName, out var connection))
+            if (!_connections.ContainsKey(connectionName))
                 throw new InvalidOperationException($"连接不存在: {connectionName}");
-            if (!connection.IsConnected)
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                throw new InvalidOperationException($"连接不存在: {connectionName}");
+            if (!worker.IsConnected)
                 throw new InvalidOperationException($"连接未建立: {connectionName}");
 
             try
             {
-                connection.Write(address, value);
+                worker.Invoke(c => { c.Write(address, value); return true; }).GetAwaiter().GetResult();
                 LogDebug($"写入成功: {connectionName}.{address} = {value}");
             }
             catch (Exception ex)
@@ -433,7 +510,25 @@ namespace VisionMaster.Communications
 
         public void TriggerWrite(string connectionName, string address, object value, Type valueType)
         {
-            Write(connectionName, address, value);
+            if (string.IsNullOrWhiteSpace(connectionName))
+                throw new ArgumentNullException(nameof(connectionName));
+            if (string.IsNullOrWhiteSpace(address))
+                throw new ArgumentNullException(nameof(address));
+            if (value == null)
+                throw new ArgumentNullException(nameof(value));
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                throw new InvalidOperationException($"连接不存在: {connectionName}");
+
+            // B7 真异步：立即返回，写命令排入 Worker 队列按序执行（旧实现直接调同步 Write，调用方照样被网络阻塞）。
+            // 调用方没有等待点，故失败只能记录 + 上报，不能回抛。
+            _ = worker.EnqueueWrite(address, value).ContinueWith(t =>
+            {
+                if (!t.IsFaulted) return;
+
+                var ex = t.Exception?.GetBaseException();
+                LogError($"异步写入失败: {connectionName}.{address}", ex);
+                OnConnectionError(connectionName, ex ?? new InvalidOperationException("异步写入失败"));
+            }, TaskScheduler.Default);
         }
 
         #endregion
@@ -480,6 +575,9 @@ namespace VisionMaster.Communications
             _varForwardHandlers[forwardKey] = handler;
 
             variables[variable.VariableName] = variable;
+
+            // 轮询计划变了：已连接的连接立刻重编译；未连接的等 Connect 时统一编译
+            RequestPollPlanRebuild(variable.ConnectionName);
         }
 
         /// <summary>D1：变量转发处理器登记表（key = 连接名\变量名），覆盖注册/注销时用于精确退订</summary>
@@ -502,6 +600,9 @@ namespace VisionMaster.Communications
 
                 if (variables.IsEmpty)
                     _registeredVariables.TryRemove(connectionName, out _);
+
+                // 变量已移出轮询清单，同步重编译（变量清空时 PollAction 会被置空，轮询线程不再空转）
+                RequestPollPlanRebuild(connectionName);
             }
         }
 
@@ -509,105 +610,49 @@ namespace VisionMaster.Communications
 
         #region 变量轮询（核心功能）
 
-        private void StartVariablePollingTimer(string connectionName, int intervalMs)
+        /// <summary>把连接配置里的运行参数灌进工作线程（轮询周期、重连节奏、是否保持自动重连）</summary>
+        private void ConfigureWorker(ConnectionWorker worker, CommunicationConfig config)
         {
-            StopVariablePollingTimer(connectionName);
+            worker.PollIntervalMs = config.ReadCycleMs > 0 ? config.ReadCycleMs : 1000;
 
-            if (intervalMs <= 0)
-            {
-                LogWarning($"连接 {connectionName} 的轮询周期无效，跳过变量轮询");
-                return;
-            }
+            int baseInterval = config.Config?.RetryIntervalMs > 0
+                ? config.Config.RetryIntervalMs
+                : GlobalReconnectIntervalMs;
+            worker.ReconnectBaseIntervalMs = baseInterval;
+            worker.MaxReconnectAttempts = MaxReconnectAttempts;
 
-            LogInfo($"启动变量轮询定时器: {connectionName}, 间隔: {intervalMs}ms");
-
-            var timer = new Timer(_ =>
-            {
-                try
-                {
-                    if (_disposed) return;
-                    if (!_connections.TryGetValue(connectionName, out var connection) || !connection.IsConnected)
-                        return;
-
-                    PollVariables(connectionName, connection);
-                }
-                catch (Exception ex)
-                {
-                    LogError($"变量轮询异常: {connectionName}", ex);
-                }
-            }, null, intervalMs, intervalMs);
-
-            _variablePollingTimers[connectionName] = timer;
+            // 连接级"自动重连"开关 + 管理器总开关：关掉后失败即停在 Error 终态，等外部重新 Connect
+            worker.AutoReconnect = AutoReconnectEnabled && config.AutoReconnect;
         }
 
-        private void StopVariablePollingTimer(string connectionName)
+        /// <summary>请求重编译轮询计划：已连接的立即重编译；未连接的推迟到 Connect（批量注册变量时避免 N 次重建）</summary>
+        private void RequestPollPlanRebuild(string connectionName)
         {
-            if (_variablePollingTimers.TryRemove(connectionName, out var timer))
-            {
-                using (timer)
-                {
-                    timer.Change(Timeout.Infinite, Timeout.Infinite);
-                }
-                LogDebug($"变量轮询定时器已停止: {connectionName}");
-            }
-        }
-
-        private void PollVariables(string connectionName, ICommunicationConnection connection)
-        {
-            if (!_registeredVariables.TryGetValue(connectionName, out var variables))
-                return;
-
-            foreach (var variable in variables.Values)
-            {
-                try
-                {
-                    // 跳过只写变量
-                    if (variable.AccessMode == VariableAccessMode.WriteOnly)
-                        continue;
-
-                    // 将ValueType字符串转换为Type
-                    Type valueType = Type.GetType(variable.ValueType);
-                    if (valueType == null)
-                    {
-                        LogError($"变量 {variable.VariableName} 的值类型无效: {variable.ValueType}");
-                        continue;
-                    }
-
-                    // 反射调用Read<T>方法
-                    object? rawValue = ReadValueByType(connection, variable.Address, valueType);
-
-                    // 更新变量值（会自动触发ValueChanged事件）
-                    variable.UpdateValue(rawValue);
-                }
-                catch (Exception ex)
-                {
-                    LogError($"读取变量失败: {connectionName}.{variable.VariableName}", ex);
-                }
-            }
+            if (_workers.TryGetValue(connectionName, out var worker) && worker.IsConnected)
+                RebuildPollPlan(connectionName);
         }
 
         /// <summary>
-        /// 根据数据类型调用对应的Read<T>方法
+        /// <para>把"已注册变量清单"编译成批量轮询计划并挂到工作线程的 <see cref="ConnectionWorker.PollAction"/>。</para>
+        /// <para>编译在注册/连接时发生，轮询热路径上只有"段读 + 内存切片解码"，没有字符串解析也没有反射。</para>
         /// </summary>
-        private object? ReadValueByType(ICommunicationConnection connection, string address, Type valueType)
+        private void RebuildPollPlan(string connectionName)
         {
-            // 处理可空值类型
-            Type underlyingType = Nullable.GetUnderlyingType(valueType) ?? valueType;
+            if (!_workers.TryGetValue(connectionName, out var worker))
+                return;
 
-            // 从缓存获取读取方法
-            if (!_readMethodCache.TryGetValue(underlyingType, out var readMethod))
+            if (!_registeredVariables.TryGetValue(connectionName, out var variables) || variables.IsEmpty)
             {
-                // 反射获取Read<T>方法
-                readMethod = typeof(ICommunicationConnection)
-                    .GetMethod(nameof(ICommunicationConnection.Read))!
-                    .MakeGenericMethod(underlyingType);
-
-                // 缓存方法信息
-                _readMethodCache[underlyingType] = readMethod;
+                worker.PollAction = null; // 无变量 → 不空转（连接活性改由读写命令刷新）
+                LogDebug($"连接 {connectionName} 无已注册变量，已停止轮询");
+                return;
             }
 
-            // 调用Read<T>方法
-            return readMethod.Invoke(connection, new object[] { address });
+            var planner = PollBatchPlanner.Build(variables.Values, LogWarning);
+            worker.PollAction = planner.PollItemCount > 0 ? planner.Poll : null;
+
+            LogInfo($"轮询计划已更新: {connectionName} 变量 {variables.Count} 个 → 每轮 {planner.SegmentCount} 次段读 + " +
+                    $"{planner.FallbackCount} 次单读，周期 {worker.PollIntervalMs}ms");
         }
 
         #endregion
@@ -648,7 +693,13 @@ namespace VisionMaster.Communications
             }
         }
 
-        public async Task LoadConfigAsync()
+        /// <summary>
+        /// <para>同步加载连接配置（启动链路专用入口）。</para>
+        /// <para>启动期的加载发生在 UI 线程**且必须早于自检与界面构造**：通信自检要按配置逐条测连通，
+        /// 配置没加载完它只能看到空列表（旧实现在 ShellViewModel 构造函数里加载，自检永远报"无通讯配置"）。
+        /// 此处只有一次几 KB 的本地文件读取，同步完成可避免 UI 线程 await 造成的时序不确定。</para>
+        /// </summary>
+        public void LoadConfig()
         {
             if (!File.Exists(ConfigFilePath))
             {
@@ -659,32 +710,44 @@ namespace VisionMaster.Communications
             try
             {
                 LogInfo($"正在加载配置: {ConfigFilePath}");
-
-                var json = await File.ReadAllTextAsync(ConfigFilePath);
-                var configs = Newtonsoft.Json.JsonConvert.DeserializeObject<List<CommunicationConfig>>(json, _configJsonSettings);
-
-                if (configs != null)
-                {
-                    foreach (var config in configs)
-                    {
-                        try
-                        {
-                            AddConnection(config);
-                        }
-                        catch (Exception ex)
-                        {
-                            LogError($"加载连接配置失败: {config.ConnectionName}", ex);
-                        }
-                    }
-                }
-
-                LogInfo($"配置加载完成: 共加载 {configs?.Count ?? 0} 个连接");
+                ApplyConfigJson(File.ReadAllText(ConfigFilePath));
             }
             catch (Exception ex)
             {
                 LogError("加载配置失败", ex);
                 throw;
             }
+        }
+
+        /// <summary>异步加载连接配置：文件读写挪到线程池，供非启动期的重载入口使用</summary>
+        public async Task LoadConfigAsync()
+        {
+            await Task.Run(LoadConfig).ConfigureAwait(false);
+        }
+
+        /// <summary>反序列化并逐条登记连接（单条失败只记日志，不影响其余连接）</summary>
+        private void ApplyConfigJson(string json)
+        {
+            var configs = Newtonsoft.Json.JsonConvert.DeserializeObject<List<CommunicationConfig>>(json, _configJsonSettings);
+            if (configs == null)
+            {
+                LogInfo("配置加载完成: 文件内容为空");
+                return;
+            }
+
+            foreach (var config in configs)
+            {
+                try
+                {
+                    AddConnection(config);
+                }
+                catch (Exception ex)
+                {
+                    LogError($"加载连接配置失败: {config.ConnectionName}", ex);
+                }
+            }
+
+            LogInfo($"配置加载完成: 共加载 {configs.Count} 个连接");
         }
 
         public async Task ExportConfigAsync(string filePath)
@@ -754,107 +817,60 @@ namespace VisionMaster.Communications
 
         #endregion
 
-        #region 定时器管理
+        #region 工作线程事件（状态同步 + 故障上报）
 
-        private void StartReconnectTimer(string name, int intervalMs)
+        /// <summary>
+        /// Worker 状态机是连接状态的唯一真相源：状态一变就同步到配置对象（UI 徽标绑定它）并对外广播。
+        /// 旧实现由"谁发起的操作谁改状态"拼凑而成，重连线程改的状态没人通知 UI。
+        /// </summary>
+        private void OnWorkerStateChanged(string connectionName, ConnectionState oldState, ConnectionState newState)
         {
-            // 先停止旧的定时器
-            StopReconnectTimer(name);
-
-            if (intervalMs <= 0)
-                intervalMs = GlobalReconnectIntervalMs;
-
-            LogInfo($"启动重连定时器: {name}, 间隔: {intervalMs}ms");
-
-            var timer = new Timer(_ =>
+            if (_configCache.TryGetValue(connectionName, out var config))
             {
-                try
+                // 【必须回 UI 线程赋值】本方法由连接专属线程回调，而 config 是**直接绑定到界面的模型**
+                // （通讯设置对话框的状态徽标等）。赋值会触发 INotifyPropertyChanged，
+                // 若在后台线程发出，凡是"直接订阅 PropertyChanged"的控件（如 FlatPropertyGrid）
+                // 就会在后台线程读到自己的 DependencyProperty → 抛
+                // "调用线程无法访问此对象，因为另一个线程拥有该对象"。
+                // 这里是整条链路的源头，改在源头赋值最彻底；控件层的线程兜底只是第二道保险。
+                VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
                 {
-                    if (_disposed) return;
-                    if (!_configCache.TryGetValue(name, out var config)) return;
+                    if (newState == ConnectionState.Connected)
+                        config.UpdateLastConnectedTime();
 
-                    // 检查重连次数限制
-                    if (MaxReconnectAttempts > 0 && _reconnectAttempts.GetOrAdd(name, 0) >= MaxReconnectAttempts)
-                    {
-                        LogError($"连接 {name} 达到最大重连次数 {MaxReconnectAttempts}，停止重连");
-                        StopReconnectTimer(name);
-                        return;
-                    }
-
-                    int attempt = _reconnectAttempts.AddOrUpdate(name, 1, (_, c) => c + 1);
-                    LogInfo($"正在尝试第 {attempt} 次重连: {name}");
-
-                    var result = Connect(name);
-                    if (result)
-                    {
-                        LogInfo($"重连成功: {name}");
-                        StopReconnectTimer(name);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogError($"重连异常: {name}", ex);
-                }
-            }, null, intervalMs, intervalMs);
-
-            _reconnectTimers[name] = timer;
-        }
-
-        private void StopReconnectTimer(string name)
-        {
-            if (_reconnectTimers.TryRemove(name, out var timer))
-            {
-                using (timer)
-                {
-                    timer.Change(Timeout.Infinite, Timeout.Infinite);
-                }
-                LogDebug($"重连定时器已停止: {name}");
+                    config.State = newState;
+                });
             }
+
+            // 连上即重编译轮询计划：变量可能在"已登记连接意图但尚未连上"期间注册
+            // （RegisterVariable 只在 IsConnected 时立即重编译，否则推迟到"建连时"），
+            // 这里是"建连时"的唯一可靠落点，否则那批变量会静默不参与轮询。
+            // 纯数据结构操作（不动 UI），保持在 Worker 线程同步执行，避免改变建连时序
+            if (newState == ConnectionState.Connected)
+                RebuildPollPlan(connectionName);
+
+            OnConnectionStateChanged(connectionName, oldState, newState);
         }
 
-        private void StartHeartbeatTimer(string name)
+        /// <summary>Worker 侧通信故障（建连失败/轮询失败）：限流上报，避免退避重连期间刷屏</summary>
+        private void OnWorkerCommunicationError(string connectionName, Exception? ex)
         {
-            StopHeartbeatTimer(name);
-            if (HeartbeatIntervalMs <= 0) return;
+            if (IsThrottled($"commerr:{connectionName}"))
+                return;
 
-            LogInfo($"启动心跳定时器: {name}, 间隔: {HeartbeatIntervalMs}ms");
-
-            var timer = new Timer(_ =>
-            {
-                try
-                {
-                    if (_disposed) return;
-
-                    if (!_connections.TryGetValue(name, out var c) || !c.IsConnected)
-                    {
-                        LogWarning($"连接 {name} 心跳检测失败，启动重连");
-                        StartReconnectTimer(name, GlobalReconnectIntervalMs);
-                        StopHeartbeatTimer(name);
-                    }
-                    else
-                    {
-                        LogDebug($"心跳检测正常: {name}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogError($"心跳检测异常: {name}", ex);
-                }
-            }, null, HeartbeatIntervalMs, HeartbeatIntervalMs);
-
-            _heartbeatTimers[name] = timer;
+            LogWarning($"通信故障: {connectionName} — {ex?.Message ?? "未知错误"}");
+            OnConnectionError(connectionName, ex ?? new InvalidOperationException("未知通信故障"));
         }
 
-        private void StopHeartbeatTimer(string name)
+        /// <summary>同一 key 在 <see cref="ThrottleMs"/> 窗口内的重复调用返回 true（应被抑制）</summary>
+        private bool IsThrottled(string key)
         {
-            if (_heartbeatTimers.TryRemove(name, out var timer))
-            {
-                using (timer)
-                {
-                    timer.Change(Timeout.Infinite, Timeout.Infinite);
-                }
-                LogDebug($"心跳定时器已停止: {name}");
-            }
+            long now = Environment.TickCount64;
+            if (_throttleTicks.TryGetValue(key, out long last) && now - last < ThrottleMs)
+                return true;
+
+            _throttleTicks[key] = now;
+            return false;
         }
 
         #endregion
@@ -877,9 +893,15 @@ namespace VisionMaster.Communications
 
         #region 日志方法
 
+        // ===== 日志（双通道：Console 保留给调试器；LogSink 由 App 启动时挂接 ILogService）=====
+        // 旧实现只有 Console.WriteLine——WPF 应用没有控制台，"变量注册/轮询启动/读取失败"
+        // 全部诊断黑洞（网络变量当前值不刷新时无从排查的根因），必须接入 UI 日志窗口
+        public static global::Core.Interfaces.ILogService? LogSink { get; set; }
+
         private void LogInfo(string message)
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [INFO] {message}");
+            LogSink?.Info($"[Comm] {message}");
         }
 
         private void LogDebug(string message)
@@ -890,11 +912,13 @@ namespace VisionMaster.Communications
         private void LogWarning(string message)
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [WARNING] {message}");
+            LogSink?.Warn($"[Comm] {message}");
         }
 
         private void LogError(string message, Exception? ex =null)
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [ERROR] {message}");
+            LogSink?.Error($"[Comm] {message}{(ex != null ? " | " + ex.Message : "")}");
             if (ex != null)
             {
                 Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [ERROR] 异常详情: {ex}");
@@ -915,56 +939,32 @@ namespace VisionMaster.Communications
 
             LogInfo("正在释放 AdvancedCommunicationManager 资源...");
 
-            // 停止所有轮询
+            // 停止所有连接（Worker.Disconnect 会同时停止自动重连并把状态置为 Disconnected）
             StopAll();
 
-            // 释放所有定时器
-            foreach (var timer in _reconnectTimers.Values)
-            {
-                using (timer)
-                {
-                    timer.Change(Timeout.Infinite, Timeout.Infinite);
-                }
-            }
-            _reconnectTimers.Clear();
-
-            foreach (var timer in _heartbeatTimers.Values)
-            {
-                using (timer)
-                {
-                    timer.Change(Timeout.Infinite, Timeout.Infinite);
-                }
-            }
-            _heartbeatTimers.Clear();
-
-            foreach (var timer in _variablePollingTimers.Values)
-            {
-                using (timer)
-                {
-                    timer.Change(Timeout.Infinite, Timeout.Infinite);
-                }
-            }
-            _variablePollingTimers.Clear();
-
-            // 释放所有连接
-            foreach (var connection in _connections.Values)
+            // 释放所有连接工作线程：Dispose 内部会 Join 线程、断连并释放连接对象。
+            // 旧实现这里释放的是"重连/心跳/变量轮询"三套 Timer，它们已随 Worker 状态机整体移除。
+            foreach (var worker in _workers.Values)
             {
                 try
                 {
-                    connection.Disconnect();
-                    if (connection is IDisposable disposable)
-                        disposable.Dispose();
+                    worker.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    LogError("释放连接时发生错误", ex);
+                    LogError("释放连接工作线程时发生错误", ex);
                 }
             }
+            _workers.Clear();
+
+            // 连接对象已随 Worker 一并释放，这里只清理引用
             _connections.Clear();
 
             // 清空集合
             _configCache.Clear();
             _registeredVariables.Clear();
+            _varForwardHandlers.Clear();
+            _throttleTicks.Clear();
 
             lock (_connectionsListLock)
             {

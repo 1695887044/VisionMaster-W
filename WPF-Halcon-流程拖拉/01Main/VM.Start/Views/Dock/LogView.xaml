@@ -1,0 +1,131 @@
+﻿<UserControl x:Class="VM.Start.Views.Dock.LogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:VM.Start.Views.Dock"
+             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:lex="http://wpflocalizeextension.codeplex.com"
+             lex:LocalizeDictionary.DesignCulture="zh"
+             lex:LocalizeDictionary.OutputMissingKeys="True"
+             lex:ResxLocalizationProvider.DefaultAssembly="VM.Start"
+             lex:ResxLocalizationProvider.DefaultDictionary="Resource"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto"/>
+            <RowDefinition />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal" Margin="0 2 0 2">
+            <StackPanel.Resources>
+                <Style TargetType="ToggleButton" x:Key="ToggleButtonLogView" BasedOn="{StaticResource MahApps.Styles.ToggleButton.Flat}">
+                    <Setter Property="Margin" Value="0 0 2 0"/>
+                    <Setter Property="Height" Value="26"/>
+                    <Setter Property="mah:ControlsHelper.CornerRadius" Value="5"/>
+                    <Setter Property="FontSize" Value="13"/>
+                    <Setter Property="FontWeight" Value="Normal"/>
+                    <Setter Property="Background" Value="{StaticResource MahApps.Brushes.Accent4}"/>
+                    <Setter Property="FontFamily" Value="{StaticResource iconfont}"/>
+                    <Setter Property="Padding" Value="2"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsChecked" Value="False">
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="{StaticResource MahApps.Brushes.Accent3}"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Resources>
+            <ToggleButton IsChecked="{Binding InfoFilter}" Style="{StaticResource ToggleButtonLogView}">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="/Assets/Images/Info.png" Width="16" Height="16"/>
+                    <TextBlock VerticalAlignment="Center" Margin="5 0">
+                        <Run Text="{lex:Loc Key=Info}"/>
+                        <Run Text="{Binding InfoCount}"/>
+                    </TextBlock>
+                </StackPanel>
+            </ToggleButton>
+            <ToggleButton IsChecked="{Binding WarnFilter}" Style="{StaticResource ToggleButtonLogView}">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="/Assets/Images/Warn.png" Width="16" Height="16"/>
+                    <TextBlock VerticalAlignment="Center" Margin="5 0">
+                        <Run Text="{lex:Loc Key=Warn}"/>
+                        <Run Text="{Binding WarnCount}"/>
+                    </TextBlock>
+                </StackPanel>
+            </ToggleButton>
+            <ToggleButton IsChecked="{Binding ErrorFilter}" Style="{StaticResource ToggleButtonLogView}">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="/Assets/Images/Error.png" Width="16" Height="16"/>
+                    <TextBlock VerticalAlignment="Center" Margin="5 0">
+                        <Run Text="{lex:Loc Key=Error}"/>
+                        <Run Text="{Binding ErrorCount}"/>
+                    </TextBlock>
+                </StackPanel>
+            </ToggleButton>
+            <ToggleButton IsChecked="{Binding AlarmFilter}" Style="{StaticResource ToggleButtonLogView}">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="/Assets/Images/Alarm.png" Width="16" Height="16"/>
+                    <TextBlock VerticalAlignment="Center" Margin="5 0">
+                        <Run Text="{lex:Loc Key=Alarm}"/>
+                        <Run Text="{Binding AlarmCount}"/>
+                    </TextBlock>
+                </StackPanel>
+            </ToggleButton>
+
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="2" HorizontalAlignment="Right">
+            <Button  Content="&#xe684;"  Margin="0 0 0 0"  Width="30" Height="26" FontFamily="{DynamicResource iconfont}" FontSize="18" 
+                     Background="{StaticResource MahApps.Brushes.Accent4}"
+                     BorderBrush="{StaticResource MahApps.Brushes.Accent4}"
+                     Click="btnScrollIntoTop_Click"/>
+            <Button  Content="&#xe683;"  Margin="2 0 0 0"  Width="30" Height="26" FontFamily="{DynamicResource iconfont}" FontSize="18"
+                     Background="{StaticResource MahApps.Brushes.Accent4}"
+                     BorderBrush="{StaticResource MahApps.Brushes.Accent4}"
+                     Click="btnScrollIntoEnd_Click"/>
+        </StackPanel>
+        <DataGrid Grid.Row="1" AutoGenerateColumns="False" x:Name="dg"
+                  EnableColumnVirtualization="True"
+                  EnableRowVirtualization="True"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  ItemsSource="{Binding DisplayLogCollection}" 
+                  FontSize="12" 
+                  RowHeaderWidth="20"
+                  SelectionUnit="FullRow"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="All"
+                  IsReadOnly="True" CanUserAddRows="False"
+        >
+            <DataGrid.ContextMenu>
+                <ContextMenu StaysOpen="True">
+                    <MenuItem Header="{lex:Loc Key=ClearAlarm}" Click="ClearAlarm"/>
+                </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="{lex:Loc Key=LogView_Time}" IsReadOnly="True" Width="150">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding CreateTime,StringFormat=\{0:yyyy/MM/dd HH:mm:ss fff\}}" HorizontalAlignment="Left" Foreground="{Binding LogColor}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="{lex:Loc Key=LogView_Type}" IsReadOnly="True" Width="50">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding LogType}" HorizontalAlignment="Left" Foreground="{Binding LogColor}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="{lex:Loc Key=LogView_Content}" IsReadOnly="True" Width="*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Content}" HorizontalAlignment="Left" Foreground="{Binding LogColor}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

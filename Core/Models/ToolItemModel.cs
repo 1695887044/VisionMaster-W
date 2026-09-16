@@ -1,10 +1,11 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
+using Core.Interfaces;
 
 namespace VisionMaster.Models
 {
@@ -18,6 +19,13 @@ namespace VisionMaster.Models
         /// 工具唯一标识
         /// </summary>
         public Guid Id { get; init; }
+
+        /// <summary>
+        /// 把本项作为数据源绑定时应产出的连线类型。
+        /// 由候选列表构造方（FlowQueryHelper）指定，绑定弹窗直接读取，
+        /// 不再靠"Id 是否为空 / 显示串前缀"反推。
+        /// </summary>
+        public LinkKind DefaultLinkKind { get; init; } = LinkKind.StepPort;
 
         /// <summary>
         /// 图标编码（Font Awesome 图标）

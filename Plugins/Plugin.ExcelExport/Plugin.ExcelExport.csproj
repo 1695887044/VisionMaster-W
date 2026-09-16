@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.ExcelExport</RootNamespace>
+    <AssemblyName>Plugin.ExcelExport</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--  插件私有依赖要随插件目录交付：把 NuGet 包内 dll 复制到输出目录，
+          再由下面的 PostBuild 一并拷进宿主 Modules\ ——宿主默认 ALC 靠 LoadFrom 连续性从 Modules 解析插件私有依赖（同 CSharpScript 的 Roslyn 交付方式）  -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MiniExcel" Version="1.46.0" />
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy $(TargetPath) $(SolutionDir)\Modules\$(TargetFileName) /Y" />
+    <Exec Command="copy &quot;$(TargetDir)MiniExcel.dll&quot; &quot;$(SolutionDir)\Modules\&quot; /Y" />
+  </Target>
+</Project>

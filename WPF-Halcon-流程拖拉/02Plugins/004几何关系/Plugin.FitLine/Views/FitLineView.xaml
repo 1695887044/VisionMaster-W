@@ -1,0 +1,186 @@
+﻿<vb:ModuleViewBase x:Class="Plugin.FitLine.Views.FitLineView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                   xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                   xmlns:local="clr-namespace:Plugin.FitLine.Views"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.FitLine.ViewModels"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+                   Icon="/Plugin.FitLine;component/Assets/Images/Tool/FitLine.png" 
+                   Height="680" Width="1070"
+                   >
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="460"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <TabControl Style="{StaticResource VerTabControl}">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem" BasedOn="{StaticResource VerTabItem}"/>
+                </TabControl.Resources>
+                <TabItem Header="基本参数">
+                    <Grid x:Name="gd">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="80"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0">
+                            <GroupBox Header="图像链接">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="5 0">
+                                    <TextBlock Text="输入图像" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0" IsReadOnly="True"
+                                     Style="{StaticResource LinkTextBox}"
+                                     Text="{Binding InputImageLinkText}"
+                                     mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                     mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.InputImageLinkText}"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </Border>
+                        <Border Grid.Row="1">
+                            <GroupBox Header="坐标参数">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="AUTO"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5 0">
+                                        <Button  Content="&#xe657;" Width="30" Height="26" FontFamily="{DynamicResource iconfont}" FontSize="18" 
+                                                 Background="{StaticResource MahApps.Brushes.Accent4}"
+                                                 BorderBrush="{StaticResource MahApps.Brushes.Accent4}" 
+                                                 ToolTip="添加" Command="{Binding DataOperateCommand}" CommandParameter="Add"/>
+                                        <Button  Content="&#xe692;"  Width="30" Height="26" FontFamily="{DynamicResource iconfont}" FontSize="18" 
+                                                 Background="{StaticResource MahApps.Brushes.Accent4}"
+                                                 BorderBrush="{StaticResource MahApps.Brushes.Accent4}" Margin="5 0" 
+                                                 ToolTip="删除" Command="{Binding DataOperateCommand}" CommandParameter="Delete"/>
+                                    </StackPanel>
+                                    <DataGrid Grid.Row="1" AutoGenerateColumns="False" x:Name="dg"
+                  EnableColumnVirtualization="True"
+                  EnableRowVirtualization="True"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  ItemsSource="{Binding CoordinateXY}" 
+                  FontSize="12" 
+                  RowHeaderWidth="20"
+                  SelectionUnit="FullRow"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="All"
+                  CanUserAddRows="False"
+                  SelectedIndex="{Binding nSelectIndex}"
+        >
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="索引" Binding="{Binding Index}" CanUserSort="True" IsReadOnly="True"/>
+                                            <DataGridTemplateColumn Header="坐标X" Width="*">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBox Text="{Binding LinkX.Text,UpdateSourceTrigger=PropertyChanged}"
+                                                                 IsReadOnly="True"
+                                                                 BorderThickness="0 0 0 0"
+                                                                 mah:TextBoxHelper.Value="{Binding LinkX.Value}"
+                                                                 Style="{StaticResource LinkTextBox}"
+                                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.LinkX}"
+                                                                 VerticalAlignment="Center" HorizontalAlignment="Center" Background="Transparent" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="坐标Y" Width="*">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBox Text="{Binding LinkY.Text,UpdateSourceTrigger=PropertyChanged}"
+                                                                 IsReadOnly="True"
+                                                                 BorderThickness="0 0 0 0"
+                                                                 mah:TextBoxHelper.Value="{Binding LinkY.Value}"
+                                                                 Style="{StaticResource LinkTextBox}"
+                                                                 mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                                                 mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.LinkY}"
+                                                                 VerticalAlignment="Center" HorizontalAlignment="Center" Background="Transparent" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </GroupBox>
+                        </Border>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="数据结果">
+                    <Grid x:Name="gd1">
+                        <GroupBox Header="返回数据">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5,5">
+                                    <TextBlock Text="起点X:" VerticalAlignment="Center" Width="60"/>
+                                    <TextBox Width="200" Margin="5 0" BorderThickness="0 00 0 1"
+                                                 IsReadOnly="True" Text="{Binding ResultLineX1}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5,5">
+                                    <TextBlock Text="起点Y:" VerticalAlignment="Center" Width="60"/>
+                                    <TextBox Width="200" Margin="5 0" BorderThickness="0 00 0 1"
+                                                 IsReadOnly="True" Text="{Binding ResultLineY1}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5,5">
+                                    <TextBlock Text="终点X:" VerticalAlignment="Center" Width="60"/>
+                                    <TextBox Width="200" Margin="5 0" BorderThickness="0 00 0 1"
+                                                 IsReadOnly="True" Text="{Binding ResultLineX2}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5,5">
+                                    <TextBlock Text="终点Y:" VerticalAlignment="Center" Width="60"/>
+                                    <TextBox Width="200" Margin="5 0" BorderThickness="0 00 0 1"
+                                                 IsReadOnly="True" Text="{Binding ResultLineY2}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="显示设置">
+                    <Grid x:Name="gd2">
+                        <GroupBox Header="图像参数">
+                            <StackPanel>
+                                <CheckBox Content="显示拟合参数" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0" IsChecked="{Binding ShowCoordinateXY}"/>
+                                <CheckBox Content="显示拟合直线" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0" IsChecked="{Binding ShowResultLine}"/>
+                                <CheckBox Content="显示OK日志" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0" IsChecked="{Binding ShowOkLog}"/>
+                                <CheckBox Content="显示NG日志" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10 10 0 0" IsChecked="{Binding ShowNgLog}"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+            <GridSplitter Grid.Column="1"/>
+            <WinFormHost:WindowsFormsHost Margin="5" Grid.Column="2" x:Name="winFormHost">
+            </WinFormHost:WindowsFormsHost>
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</vb:ModuleViewBase>

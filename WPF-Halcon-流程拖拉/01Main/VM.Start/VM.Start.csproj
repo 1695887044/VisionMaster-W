@@ -1,0 +1,1082 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{F14F6AD4-BE2A-460A-A579-813B12513250}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>VM.Start</RootNamespace>
+    <AssemblyName>VM.Start</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <WarningLevel>4</WarningLevel>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\..\00Exe\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\..\00Exe\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>VM.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>..\..\00Exe\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <OutputPath>bin\x86\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="ControlzEx, Version=5.0.0.0, Culture=neutral, PublicKeyToken=69f1c32f803d307e, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\ControlzEx.5.0.2\lib\net462\ControlzEx.dll</HintPath>
+    </Reference>
+    <Reference Include="halcondotnet, Version=20.11.1.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\00Exe\Plugins\halcondotnet.dll</HintPath>
+    </Reference>
+    <Reference Include="HandyControl, Version=3.4.0.0, Culture=neutral, PublicKeyToken=45be8712787a1e5b, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\HandyControl.3.4.0\lib\net472\HandyControl.dll</HintPath>
+    </Reference>
+    <Reference Include="HslCommunication">
+      <HintPath>..\..\00Exe\HslCommunication.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory">
+      <HintPath>..\..\03ThirdPartyDll\Dll\ICSharpCode.NRefactory.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory.Cecil">
+      <HintPath>..\..\03ThirdPartyDll\Dll\ICSharpCode.NRefactory.Cecil.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory.CSharp">
+      <HintPath>..\..\03ThirdPartyDll\Dll\ICSharpCode.NRefactory.CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory.IKVM">
+      <HintPath>..\..\03ThirdPartyDll\Dll\ICSharpCode.NRefactory.IKVM.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory.Xml">
+      <HintPath>..\..\03ThirdPartyDll\Dll\ICSharpCode.NRefactory.Xml.dll</HintPath>
+    </Reference>
+    <Reference Include="IKVM.Reflection">
+      <HintPath>..\..\03ThirdPartyDll\Dll\IKVM.Reflection.dll</HintPath>
+    </Reference>
+    <Reference Include="Interop.IWshRuntimeLibrary">
+      <HintPath>..\..\03ThirdPartyDll\Dll\Interop.IWshRuntimeLibrary.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="Microsoft.WindowsAPICodePack, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Microsoft.WindowsAPICodePack-Core.1.1.0.0\lib\Microsoft.WindowsAPICodePack.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.WindowsAPICodePack.Shell, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Microsoft.WindowsAPICodePack-Shell.1.1.0.0\lib\Microsoft.WindowsAPICodePack.Shell.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.WindowsAPICodePack.ShellExtensions, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Microsoft.WindowsAPICodePack-Shell.1.1.0.0\lib\Microsoft.WindowsAPICodePack.ShellExtensions.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xaml.Behaviors, Version=1.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Microsoft.Xaml.Behaviors.Wpf.1.1.31\lib\net45\Microsoft.Xaml.Behaviors.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Cecil">
+      <HintPath>..\..\03ThirdPartyDll\Dll\Mono.Cecil.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Newtonsoft.Json.13.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="NLog, Version=5.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\NLog.5.1.1\lib\net46\NLog.dll</HintPath>
+    </Reference>
+    <Reference Include="NModbus, Version=3.0.72.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\NModbus.3.0.72\lib\net46\NModbus.dll</HintPath>
+    </Reference>
+    <Reference Include="ScottPlot, Version=4.1.60.0, Culture=neutral, PublicKeyToken=86698dc10387c39e, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\ScottPlot.4.1.60\lib\net462\ScottPlot.dll</HintPath>
+    </Reference>
+    <Reference Include="ScottPlot.WPF, Version=4.1.60.0, Culture=neutral, PublicKeyToken=e53b06131e34a3aa, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\ScottPlot.WPF.4.1.60\lib\net472\ScottPlot.WPF.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\03ThirdPartyDll\MahApps.Metro-develop\src\MahApps.Metro\bin\Debug\net472\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Data.SQLite, Version=1.0.117.0, Culture=neutral, PublicKeyToken=db937bc2d44ff139, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.117.0\lib\net46\System.Data.SQLite.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Drawing.Common, Version=7.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Drawing.Common.7.0.0\lib\net462\System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\03ThirdPartyDll\MahApps.Metro-develop\src\MahApps.Metro\bin\Debug\net472\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Runtime.InteropServices.RuntimeInformation, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Runtime.InteropServices.RuntimeInformation.4.3.0\lib\net45\System.Runtime.InteropServices.RuntimeInformation.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Runtime.Serialization.Primitives, Version=4.1.2.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Runtime.Serialization.Primitives.4.3.0\lib\net46\System.Runtime.Serialization.Primitives.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.ValueTuple.4.5.0\lib\net47\System.ValueTuple.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Web" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xaml">
+      <RequiredTargetFramework>4.0</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsFormsIntegration" />
+    <Reference Include="WPFLocalizeExtension, Version=3.9.4.0, Culture=neutral, PublicKeyToken=c726e0262981a1eb, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\WPFLocalizeExtension.3.9.4\lib\net452\WPFLocalizeExtension.dll</HintPath>
+    </Reference>
+    <Reference Include="XAMLMarkupExtensions, Version=2.1.3.0, Culture=neutral, PublicKeyToken=c726e0262981a1eb, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\XAMLMarkupExtensions.2.1.3\lib\net472\XAMLMarkupExtensions.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
+    <Compile Include="Assets\Converter\ActiveDocumentConverter.cs" />
+    <Compile Include="Assets\Converter\Bool2LimeConverter.cs" />
+    <Compile Include="Assets\Converter\Bool2GreenColorConverter.cs" />
+    <Compile Include="Assets\Converter\BoolToLimeBrushConverter.cs" />
+    <Compile Include="Assets\Converter\BoolToRedBrushConverter.cs" />
+    <Compile Include="Assets\Converter\BrushRoundConverter.cs" />
+    <Compile Include="Assets\Converter\EnumToVisibilityConverter_2.cs" />
+    <Compile Include="Assets\Converter\FalseWhenZero.cs" />
+    <Compile Include="Assets\Converter\LevelConverter.cs" />
+    <Compile Include="Assets\Converter\NullableToVisibilityConverter.cs" />
+    <Compile Include="Assets\Converter\Object2IntOrDoubleConverter.cs" />
+    <Compile Include="Assets\Converter\InvertBool2VisibilityConverter.cs" />
+    <Compile Include="Assets\Converter\ObjectToStringConverter.cs" />
+    <Compile Include="Assets\Converter\PanesStyleSelector.cs" />
+    <Compile Include="Assets\Converter\StatusConverter.cs" />
+    <Compile Include="Assets\Converter\Bool2VisibilityHiddenConverter.cs" />
+    <Compile Include="Assets\Converter\EnumToVisibilityConverter.cs" />
+    <Compile Include="Assets\Converter\ExpanderToBooleanConverter.cs" />
+    <Compile Include="Assets\Converter\EnumConverter.cs" />
+    <Compile Include="Assets\Converter\CollapsedWhenFalse.cs" />
+    <Compile Include="Attributes\ModuleImageNameAttribute.cs" />
+    <Compile Include="Common\Extension\ObservableCollectionExtension.cs" />
+    <Compile Include="Common\Helper\AsyncObservableCollection.cs" />
+    <Compile Include="Common\Helper\CloneObject.cs" />
+    <Compile Include="Common\Helper\ImageTool.cs" />
+    <Compile Include="Common\Helper\ItemsControlHelp.cs" />
+    <Compile Include="Common\Helper\MiniDump.cs" />
+    <Compile Include="Common\Helper\PasswordHelper.cs" />
+    <Compile Include="Common\Helper\SJappAutoStartUp.cs" />
+    <Compile Include="Common\Helper\WPFCursorTool.cs" />
+    <Compile Include="Common\Helper\WPFElementTool.cs" />
+    <Compile Include="Common\Struct\Structs.cs" />
+    <Compile Include="Communacation\EComInfo.cs" />
+    <Compile Include="Communacation\EComManageer.cs" />
+    <Compile Include="Communacation\ECommunacation.cs" />
+    <Compile Include="Communacation\SerialPort\MySerialPort.cs" />
+    <Compile Include="Communacation\Socket\Command.cs" />
+    <Compile Include="Communacation\Socket\DMTcpClient.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Communacation\Socket\DMTcpServer.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Communacation\Socket\DMUdpClient.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Communacation\Socket\IDataCell.cs" />
+    <Compile Include="Communacation\Socket\MsgCell.cs" />
+    <Compile Include="Communacation\Socket\MsgType.cs" />
+    <Compile Include="Communacation\Socket\MsgTypeCell.cs" />
+    <Compile Include="Communacation\Socket\ReceiveDataEventArgs.cs" />
+    <Compile Include="Communacation\Socket\ReceiveDataEventHandler.cs" />
+    <Compile Include="Communacation\Socket\ResponeTraFransfersFile.cs" />
+    <Compile Include="Communacation\Socket\SerHelper.cs" />
+    <Compile Include="Communacation\Socket\SocketError.cs" />
+    <Compile Include="Communacation\Socket\SocketState.cs" />
+    <Compile Include="Communacation\Socket\UdpLibrary.cs" />
+    <Compile Include="Communacation\Tool\HexTool.cs" />
+    <Compile Include="Assets\Styles\Chip.cs" />
+    <Compile Include="Core\CameraBase.cs" />
+    <Compile Include="Core\ILaserDevice.cs" />
+    <Compile Include="Core\MotionViewBase.cs" />
+    <Compile Include="Core\MotionBase.cs" />
+    <Compile Include="Core\ModuleViewBase.cs" />
+    <Compile Include="Dialogs\ViewModels\EditRemarksViewModel.cs" />
+    <Compile Include="Dialogs\Views\EditRemarksView.xaml.cs">
+      <DependentUpon>EditRemarksView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Events\HardwareChangedEvent.cs" />
+    <Compile Include="Events\ModuleOutChangedEvent.cs" />
+    <Compile Include="Events\ProjStopEvent.cs" />
+    <Compile Include="Events\RecipeChangedEvent.cs" />
+    <Compile Include="Events\ValueChangeEvent.cs" />
+    <Compile Include="Events\MotionConnectEvent.cs" />
+    <Compile Include="Events\OpenVarLinkViewEvent.cs" />
+    <Compile Include="Events\AddCameraEvent.cs" />
+    <Compile Include="Events\VarChangedEvent.cs" />
+    <Compile Include="Events\NewSolutionEvent.cs" />
+    <Compile Include="Models\CameraInfoModel.cs" />
+    <Compile Include="Models\CameraModel.cs" />
+    <Compile Include="Models\CommunicationModel.cs" />
+    <Compile Include="Models\DragDropModel.cs" />
+    <Compile Include="Models\InputVarModel.cs" />
+    <Compile Include="Models\InterpolateDataModel.cs" />
+    <Compile Include="Models\LinkVarModel.cs" />
+    <Compile Include="Models\MeasInfoModel.cs" />
+    <Compile Include="Models\ModuleList.cs" />
+    <Compile Include="Models\ModuleNode.cs" />
+    <Compile Include="Models\ModuleToolNode.cs" />
+    <Compile Include="Models\OutputVarModel.cs" />
+    <Compile Include="Models\Rectangle1Model.cs" />
+    <Compile Include="Common\RightControl\IsEnableControl.cs" />
+    <Compile Include="Models\UIElementInfo.cs" />
+    <Compile Include="Models\UILayoutManager.cs" />
+    <Compile Include="Models\VarModel.cs" />
+    <Compile Include="Assets\Converter\PanesTemplateSelector.cs" />
+    <Compile Include="Script\ScriptMethods.cs" />
+    <Compile Include="Script\ExpressionScriptSupport.cs" />
+    <Compile Include="Script\ExpressionScriptTemplate.cs" />
+    <Compile Include="Script\BoolScriptSupport.cs" />
+    <Compile Include="Script\BoolScriptTemplate.cs" />
+    <Compile Include="Script\ScriptProvider.cs" />
+    <Compile Include="Services\DataIn.cs" />
+    <Compile Include="Services\DataOut.cs" />
+    <Compile Include="Services\PluginService.cs" />
+    <Compile Include="Services\Project.cs" />
+    <Compile Include="Services\Solution.cs" />
+    <Compile Include="Services\SolutionInfo.cs" />
+    <Compile Include="UIDesign\ComponentPropertyService.cs" />
+    <Compile Include="UIDesign\Control\AxisOperate.xaml.cs" />
+    <Compile Include="UIDesign\Control\DataCount.xaml.cs" />
+    <Compile Include="UIDesign\Control\ModuleSetButton.cs" />
+    <Compile Include="UIDesign\Control\RunOnceProjectButton.cs" />
+    <Compile Include="UIDesign\Control\UICheckBox.cs" />
+    <Compile Include="UIDesign\Control\UINumericUpDown.cs" />
+    <Compile Include="UIDesign\Control\UITextBlock.cs" />
+    <Compile Include="UIDesign\Control\UITextBox.cs" />
+    <Compile Include="UIDesign\Dialog\ViewModels\AxisSelectViewModel.cs" />
+    <Compile Include="UIDesign\Dialog\ViewModels\ModuleDataSelectViewModel.cs" />
+    <Compile Include="UIDesign\Dialog\Views\AxisSelectView.xaml.cs" />
+    <Compile Include="UIDesign\Dialog\Views\ModuleDataSelectView.xaml.cs" />
+    <Compile Include="UIDesign\Document.cs" />
+    <Compile Include="UIDesign\DocumentMode.cs" />
+    <Compile Include="UIDesign\DocumentView.xaml.cs" />
+    <Compile Include="UIDesign\Editor\CheckBoxBoolLinkEditor.xaml.cs" />
+    <Compile Include="UIDesign\Editor\ModuleLinkEditor.xaml.cs" />
+    <Compile Include="UIDesign\Editor\RunOnceProjectLinkEditor.xaml.cs" />
+    <Compile Include="UIDesign\Editor\SelectAxisLinkEditor.xaml.cs" />
+    <Compile Include="UIDesign\Editor\TextBoxTextLinkEditor.xaml.cs" />
+    <Compile Include="UIDesign\ErrorListView.xaml.cs" />
+    <Compile Include="UIDesign\ExtensionMethods.cs" />
+    <Compile Include="UIDesign\MyTypeFinder.cs" />
+    <Compile Include="ViewModels\AssemblyNode.cs" />
+    <Compile Include="ViewModels\ControlNode.cs" />
+    <Compile Include="ViewModels\FooEnum.cs" />
+    <Compile Include="ViewModels\FooNode.cs" />
+    <Compile Include="ViewModels\UIShowTypes.cs" />
+    <Compile Include="ViewModels\HardwareConfigViewModel.cs" />
+    <Compile Include="ViewModels\CameraSetViewModel.cs" />
+    <Compile Include="ViewModels\Dock\VisionViewModel.cs" />
+    <Compile Include="ViewModels\Dock\DataViewModel.cs" />
+    <Compile Include="ViewModels\Dock\DeviceStateViewModel.cs" />
+    <Compile Include="ViewModels\Dock\DockViewModel.cs" />
+    <Compile Include="ViewModels\Dock\LogViewModel.cs" />
+    <Compile Include="ViewModels\Dock\ModuleOutViewModel.cs" />
+    <Compile Include="ViewModels\Dock\ProcessViewModel.cs" />
+    <Compile Include="ViewModels\Dock\ToolViewModel.cs" />
+    <Compile Include="ViewModels\CanvasSetViewModel.cs" />
+    <Compile Include="ViewModels\CommunicationSetViewModel.cs" />
+    <Compile Include="ViewModels\LaserSetViewModel.cs" />
+    <Compile Include="ViewModels\ProjectSetViewModel.cs" />
+    <Compile Include="ViewModels\UIDesignViewModel.cs" />
+    <Compile Include="ViewModels\VarLinkViewModel.cs" />
+    <Compile Include="ViewModels\GlobalVarViewModel.cs" />
+    <Compile Include="ViewModels\SolutionListViewModel.cs" />
+    <Compile Include="ViewModels\SystemParamViewModel.cs" />
+    <Compile Include="Views\Dock\UIDisplayView.xaml.cs">
+      <DependentUpon>UIDisplayView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\HardwareConfigView.xaml.cs">
+      <DependentUpon>HardwareConfigView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CameraSetView.xaml.cs">
+      <DependentUpon>CameraSetView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\VisionView.xaml.cs">
+      <DependentUpon>VisionView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\DataView.xaml.cs">
+      <DependentUpon>DataView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\DeviceStateView.xaml.cs">
+      <DependentUpon>DeviceStateView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\DockView.xaml.cs">
+      <DependentUpon>DockView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\LogView.xaml.cs">
+      <DependentUpon>LogView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\ModuleOutView.xaml.cs">
+      <DependentUpon>ModuleOutView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\ProcessView.xaml.cs">
+      <DependentUpon>ProcessView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\Dock\ToolView.xaml.cs">
+      <DependentUpon>ToolView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CanvasSetView.xaml.cs">
+      <DependentUpon>CanvasSetView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CommunicationSetView.xaml.cs">
+      <DependentUpon>CommunicationSetView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\LaserSetView.xaml.cs">
+      <DependentUpon>LaserSetView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ProjectSetView.xaml.cs">
+      <DependentUpon>ProjectSetView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\UIDesignView.xaml.cs">
+      <DependentUpon>UIDesignView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\UIToolboxView.xaml.cs">
+      <DependentUpon>UIToolboxView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\VarLinkView.xaml.cs">
+      <DependentUpon>VarLinkView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\GlobalVarView.xaml.cs">
+      <DependentUpon>GlobalVarView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SolutionListView.xaml.cs">
+      <DependentUpon>SolutionListView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\SystemParamView.xaml.cs">
+      <DependentUpon>SystemParamView.xaml</DependentUpon>
+    </Compile>
+    <Page Include="Assets\Collection.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Assets\Images\SplashScreen\SplashScreenWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Assets\Styles\BackrgroundStyle.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Assets\Styles\Chip.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Assets\Styles\ButtonStyle.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Assets\Styles\Converter.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Assets\Styles\Icon.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Assets\Styles\MenuStyle.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Assets\Styles\TabControlStyle.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Assets\Styles\TextBoxStyle.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Assets\Styles\TreeViewStyle.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Page>
+    <Page Include="Controls\CurveBaseView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Dialogs\Views\AboutView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Dialogs\Views\ChangePwdView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Dialogs\Views\EncryptionView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Dialogs\Views\LoadingView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Dialogs\Views\LoginView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Dialogs\Views\EditRemarksView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Dialogs\Views\MessageView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Assets\Converter\Bool2ColorConverter.cs" />
+    <Compile Include="Assets\Converter\Bool2VisibilityConverter.cs" />
+    <Compile Include="Assets\Converter\BoolToBrushConverter.cs" />
+    <Compile Include="Assets\Converter\IntToWobbleTypeConverter.cs" />
+    <Compile Include="Assets\Converter\InvertBoolConverter.cs" />
+    <Compile Include="Assets\Converter\MediaColorToDrawingColorConverter.cs" />
+    <Compile Include="Assets\Converter\ProcessModeToEnableConverter.cs" />
+    <Compile Include="Assets\Converter\RowToIndexConverter.cs" />
+    <Compile Include="Assets\Images\SplashScreen\SplashScreenWindow.xaml.cs">
+      <DependentUpon>SplashScreenWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Common\CommonMethods.cs" />
+    <Compile Include="Common\Const\AlarmNotes.cs" />
+    <Compile Include="Common\Const\LanguageNames.cs" />
+    <Compile Include="Common\Const\RegionNames.cs" />
+    <Compile Include="Common\Const\UserType.cs" />
+    <Compile Include="Common\Const\Version.cs" />
+    <Compile Include="Common\Enum\EnumType.cs" />
+    <Compile Include="Common\Helper\ClearMemoryHelper.cs" />
+    <Compile Include="Common\Helper\CommandBase.cs" />
+    <Compile Include="Common\Helper\Encrypt\DesEncrypt.cs" />
+    <Compile Include="Common\Helper\Encrypt\MD5Provider.cs" />
+    <Compile Include="Common\Helper\EventTriggerAction.cs" />
+    <Compile Include="Common\Helper\FileHelper.cs" />
+    <Compile Include="Common\Helper\FilePaths.cs" />
+    <Compile Include="Common\Helper\HotKey\HotKeyHelper.cs" />
+    <Compile Include="Common\Helper\HotKey\HotKeyManager.cs" />
+    <Compile Include="Common\Helper\HotKey\HotKeyModel.cs" />
+    <Compile Include="Common\Helper\NotifyPropertyBase.cs" />
+    <Compile Include="Common\Helper\R_TRIG.cs" />
+    <Compile Include="Common\Helper\SerializeHelp.cs" />
+    <Compile Include="Common\Helper\Tcp\AsyncTcpClient.cs" />
+    <Compile Include="Common\Helper\Tcp\AsyncTcpServer.cs" />
+    <Compile Include="Common\Helper\TON.cs" />
+    <Compile Include="Common\Provide\Logger.cs" />
+    <Compile Include="Common\RightControl\RightControl.cs" />
+    <Compile Include="Controls\CurveBaseView.xaml.cs">
+      <DependentUpon>CurveBaseView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Core\ModuleBase.cs" />
+    <Compile Include="DataAccess\SQLiteHelper.cs" />
+    <Compile Include="Dialogs\ViewModels\AboutViewModel.cs" />
+    <Compile Include="Dialogs\ViewModels\LoadingViewModel.cs" />
+    <Compile Include="Dialogs\ViewModels\MessageViewModel.cs" />
+    <Compile Include="Dialogs\Views\AboutView.xaml.cs">
+      <DependentUpon>AboutView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Dialogs\Views\ChangePwdView.xaml.cs">
+      <DependentUpon>ChangePwdView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Dialogs\Views\EncryptionView.xaml.cs">
+      <DependentUpon>EncryptionView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Dialogs\Views\LoadingView.xaml.cs">
+      <DependentUpon>LoadingView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Dialogs\Views\LoginView.xaml.cs">
+      <DependentUpon>LoginView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Dialogs\Views\MessageView.xaml.cs">
+      <DependentUpon>MessageView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Events\CurrentUserChangedEvent.cs" />
+    <Compile Include="Events\LanguageChangedEvent.cs" />
+    <Compile Include="Events\SoftwareExitEvent.cs" />
+    <Page Include="MainView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Control\AxisOperate.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Control\DataCount.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Dialog\Views\AxisSelectView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Dialog\Views\ModuleDataSelectView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\DocumentView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UIDesign\Editor\CheckBoxBoolLinkEditor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Editor\ModuleLinkEditor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Editor\RunOnceProjectLinkEditor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Editor\SelectAxisLinkEditor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\Editor\TextBoxTextLinkEditor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="UIDesign\ErrorListView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Dock\UIDisplayView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\HardwareConfigView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\CameraSetView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\Dock\VisionView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\Dock\DataView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Dock\DeviceStateView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Dock\DockView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Dock\LogView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Dock\ModuleOutView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Dock\ProcessView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\Dock\ToolView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\CanvasSetView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\CommunicationSetView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\LaserSetView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\ProjectSetView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\UIDesignView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\UIToolboxView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\VarLinkView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\GlobalVarView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\SolutionListView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\SystemParamView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Localization\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resource.resx</DependentUpon>
+    </Compile>
+    <Compile Include="MainView.xaml.cs">
+      <DependentUpon>MainView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="MainViewModel.cs" />
+    <Compile Include="Models\AlarmModel.cs" />
+    <Compile Include="Models\AlarmSummaryModel.cs" />
+    <Compile Include="Models\CurveModel.cs" />
+    <Compile Include="Models\IoInfoModel.cs" />
+    <Compile Include="Models\IoModel.cs" />
+    <Compile Include="Models\LogModel.cs" />
+    <Compile Include="Models\MachineModel.cs" />
+    <Compile Include="Models\ModuleParam.cs" />
+    <Compile Include="Models\ObjectModel.cs" />
+    <Compile Include="Models\PenParModel.cs" />
+    <Compile Include="Models\PluginsInfo.cs" />
+    <Compile Include="Models\PointModel.cs" />
+    <Compile Include="Models\ProductDataModel.cs" />
+    <Compile Include="Models\ProjectInfo.cs" />
+    <Compile Include="Models\ReportModel.cs" />
+    <Compile Include="Models\RippleEditModel.cs" />
+    <Compile Include="Models\ScatterLineModel.cs" />
+    <Compile Include="Models\TemplateModel.cs" />
+    <Compile Include="Models\UserModel.cs" />
+    <Compile Include="PersistentData\Persistent.cs" />
+    <Compile Include="PersistentData\SystemConfig.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+    <EmbeddedResource Include="Localization\Resource.en.resx">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Localization\Resource.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Localization\Resource.zh.resx" />
+    <Resource Include="Assets\Fonts\iconfont.ttf" />
+    <Resource Include="Assets\Images\Tool\DisplayData.png" />
+    <Resource Include="Assets\Images\Tool\Text.png" />
+    <Resource Include="Assets\Images\Tool\BuildLl.png" />
+    <Resource Include="Assets\Images\Tool\ReceiveStr.png" />
+    <Resource Include="Assets\Images\Tool\SendStr.png" />
+    <Resource Include="Assets\Images\Tool\Coordinate.png" />
+    <Resource Include="Assets\Images\Tool\CoordinateAffine.png" />
+    <Resource Include="Assets\Images\Tool\主流程.png" />
+    <Resource Include="Assets\Images\Tool\子流程.png" />
+    <Resource Include="Assets\Images\Tool\LinesDistance.png" />
+    <Resource Include="Assets\Images\Tool\PLCCommunicate.png" />
+    <Resource Include="Assets\Images\Tool\PLCRead.png" />
+    <Resource Include="Assets\Images\Tool\PLCWrite.png" />
+    <Resource Include="Assets\Images\Tool\RunProject.png" />
+    <Resource Include="Assets\Images\Tool\AssignmentStr.png" />
+    <Resource Include="Assets\Images\Tool\MultiAxisInterpolation.png" />
+    <Resource Include="Assets\Images\Tool\SingleAxisMove.png" />
+    <Resource Include="Assets\Images\Tool\NPointCal.png" />
+    <Resource Include="Assets\Images\Tool\DistancePP.png" />
+    <Resource Include="Assets\Images\Tool\DistancePL.png" />
+    <Resource Include="Assets\Images\Tool\QRCode.png" />
+    <Resource Include="Assets\Images\Tool\Blob.png" />
+    <Resource Include="Assets\Images\Tool\CalculateOffset.png" />
+    <Resource Include="Assets\Images\Tool\StrFormat.png" />
+    <Resource Include="Assets\Images\Tool\Table.png" />
+    <Resource Include="Assets\Images\Tool\ShowPoint.png" />
+    <Resource Include="Assets\Images\Tool\VarSet.png" />
+    <Resource Include="Assets\Images\Tool\Matching1.png" />
+    <Resource Include="Assets\Images\Tool\DataCheck.png" />
+    <Resource Include="Assets\Images\Tool\TimeSlice.png" />
+    <Resource Include="Assets\Images\Tool\CreateString.png" />
+    <Resource Include="Assets\Images\Tool\SplitString.png" />
+    <Resource Include="Assets\Images\Tool\CreatePoints.png" />
+    <Resource Include="Assets\Images\Tool\FitCircle.png" />
+    <Resource Include="Assets\Images\Tool\FitLine.png" />
+    <Resource Include="Assets\Images\Tool\RotateNewPoint.png" />
+    <Resource Include="Assets\Images\Tool\SystemTime.png" />
+    <Resource Include="Assets\Images\Tool\WriteText.png" />
+    <Resource Include="Assets\Images\Tool\MovePoint.png" />
+    <Resource Include="Assets\Images\Tool\DataIn.png" />
+    <Resource Include="Assets\Images\Tool\DataOut.png" />
+    <Resource Include="Assets\Images\Tool\ShowImage.png" />
+    <Content Include="NLog.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Resource Include="Assets\Fonts\digital_display.ttf" />
+    <None Include="packages.config" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Alarm.png" />
+    <Resource Include="Assets\Images\Error.png" />
+    <Resource Include="Assets\Images\Info.png" />
+    <Resource Include="Assets\Images\Logo.png" />
+    <Resource Include="Assets\Images\SplashScreen.png" />
+    <Resource Include="Assets\Images\SplashScreen\SplashScreenBackground.png" />
+    <Resource Include="Assets\Images\Warn.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="VM.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\ToolBar\DESIGN_ui.cn.png" />
+    <Resource Include="Assets\Images\ToolBar\solutionList.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbCamera.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbCommunication.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbGlobalVar.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbInfo.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbNewSlotion.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbOpenSolution.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbUserManger.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\ToolBar\btnAddProject.png" />
+    <Resource Include="Assets\Images\ToolBar\btnDeleteProject.png" />
+    <Resource Include="Assets\Images\ToolBar\disable.png" />
+    <Resource Include="Assets\Images\ToolBar\else.png" />
+    <Resource Include="Assets\Images\ToolBar\elseif.png" />
+    <Resource Include="Assets\Images\ToolBar\end.png" />
+    <Resource Include="Assets\Images\ToolBar\export.png" />
+    <Resource Include="Assets\Images\ToolBar\function.png" />
+    <Resource Include="Assets\Images\ToolBar\if.png" />
+    <Resource Include="Assets\Images\ToolBar\import.png" />
+    <Resource Include="Assets\Images\ToolBar\loadRun.png" />
+    <Resource Include="Assets\Images\ToolBar\lookup.png" />
+    <Resource Include="Assets\Images\ToolBar\recycleEnd.png" />
+    <Resource Include="Assets\Images\ToolBar\recycleStart.png" />
+    <Resource Include="Assets\Images\ToolBar\right.png" />
+    <Resource Include="Assets\Images\ToolBar\rightFlow.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbCopyModule.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbPastemModule.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbRunCycle.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbRunOnce.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbSaveSolution.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbSettingModule.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbSettingProject.png" />
+    <Resource Include="Assets\Images\ToolBar\tsbStop.png" />
+    <Resource Include="Assets\Images\ToolBar\unloadRun.png" />
+    <Resource Include="Assets\Images\ToolBar\主流程.png" />
+    <Resource Include="Assets\Images\ToolBar\子流程.png" />
+    <Resource Include="Assets\Images\ToolBar\工具箱.png" />
+    <Resource Include="Assets\Images\ToolBar\箭头-右.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\ToolBar\ExpandUpAndDown.png" />
+    <Resource Include="Assets\Images\ToolBar\OnlyDisplayProcessManage.png" />
+    <Resource Include="Assets\Images\ToolBar\OnlyDisplayTool.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\ToolBar\Continue.png" />
+    <Resource Include="Assets\Images\ToolBar\OnceStart.png" />
+    <Resource Include="Assets\Images\ToolBar\Start.png" />
+    <Resource Include="Assets\Images\ToolBar\StepExecute.png" />
+    <Resource Include="Assets\Images\ToolBar\Stop.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\plugin %2810%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %28101%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %28102%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %28103%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %28105%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %28106%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %28107%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %28108%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2811%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2812%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2813%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2817%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2818%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2819%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %282%29.png" />
+    <Resource Include="Assets\Images\Tool\MeasureCircle.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2821%29.png" />
+    <Resource Include="Assets\Images\Tool\VarDefine.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2823%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2824%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2825%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2826%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2827%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2828%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2829%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %283%29.png" />
+    <Resource Include="Assets\Images\Tool\StopWhile.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2831%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2833%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2835%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2837%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2838%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2839%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %284%29.png" />
+    <Resource Include="Assets\Images\Tool\While.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2842%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2843%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2844%29.png" />
+    <Resource Include="Assets\Images\Tool\PerProcessing.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2849%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2850%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2852%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2853%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2854%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2855%29.png" />
+    <Resource Include="Assets\Images\Tool\MeasureRect.png" />
+    <Resource Include="Assets\Images\Tool\MeasureLine.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2858%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2859%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2860%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2861%29.png" />
+    <Resource Include="Assets\Images\Tool\Matching.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2863%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2864%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2865%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2866%29.png" />
+    <Resource Include="Assets\Images\Tool\If.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2869%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %287%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2871%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2872%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2873%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2874%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2875%29.png" />
+    <Resource Include="Assets\Images\Tool\Delay.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2877%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2879%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %288%29.png" />
+    <Resource Include="Assets\Images\Tool\SplitText.png" />
+    <Resource Include="Assets\Images\Tool\CreateROI.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2883%29.png" />
+    <Resource Include="Assets\Images\Tool\CallRun.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2887%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2888%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2889%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %289%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2891%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2893%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2894%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2895%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2897%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2898%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin %2899%29.png" />
+    <Resource Include="Assets\Images\Tool\plugin.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\SaveImage.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\GrabImage.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\Default.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\Folder.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\ImageScript.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\ToolBar\SelectedExecute.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\流程.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\方法.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.7.2 %28x86 和 x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\CSharpScript.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\else.png" />
+    <Resource Include="Assets\Images\Tool\elseif.png" />
+    <Resource Include="Assets\Images\Tool\end.png" />
+    <Resource Include="Assets\Images\Tool\IfStart.png" />
+    <Resource Include="Assets\Images\Tool\recycleEnd.png" />
+    <Resource Include="Assets\Images\Tool\recycleStart.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\03ThirdPartyDll\AvalonDock.Themes.VS2013\AvalonDock.Themes.VS2013.csproj">
+      <Project>{e79aff2c-f9bc-4e08-89a1-225d8b4f1530}</Project>
+      <Name>AvalonDock.Themes.VS2013</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\AvalonDock\AvalonDock.csproj">
+      <Project>{68f7183f-28c8-42d8-853c-aec8564c6798}</Project>
+      <Name>AvalonDock</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\EventMgrLib\EventMgrLib.csproj">
+      <Project>{5c575024-743e-46fd-ba02-6d36c172f20b}</Project>
+      <Name>EventMgrLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\ICSharpCode.AvalonEdit\ICSharpCode.AvalonEdit.csproj">
+      <Project>{6c55b776-26d4-4db3-a6ab-87e783b2f3d1}</Project>
+      <Name>ICSharpCode.AvalonEdit</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\ICSharpCode.CodeCompletion\ICSharpCode.CodeCompletion.csproj">
+      <Project>{82c28fbb-0408-466a-be20-bd4a3ce76a75}</Project>
+      <Name>ICSharpCode.CodeCompletion</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\MahApps.Metro-2.4.9\src\MahApps.Metro\MahApps.Metro.csproj">
+      <Project>{08ac6ac6-0412-4bfb-a8e2-2647db55937b}</Project>
+      <Name>MahApps.Metro</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\MyScript\ICSharpCode.MyScript.csproj">
+      <Project>{4391a168-6784-450e-807c-4edef55ff03b}</Project>
+      <Name>ICSharpCode.MyScript</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\VM.Halcon\VM.Halcon.csproj">
+      <Project>{74eff4f8-e9a8-41a9-a9c4-ef6f70080f4f}</Project>
+      <Name>VM.Halcon</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\WpfDesign.Design.ExpressionBlendInteractionAddon\WpfDesign.Designer.ExpressionBlendInteractionAddon.csproj">
+      <Project>{4fc00673-5944-4fd5-bc66-9c52d93d04fe}</Project>
+      <Name>WpfDesign.Designer.ExpressionBlendInteractionAddon</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\WpfDesign.Designer\Project\WpfDesign.Designer.csproj">
+      <Project>{f280c95c-353f-4ecc-9cbf-90aa5feb2b03}</Project>
+      <Name>WpfDesign.Designer</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\WpfDesign.XamlDom\Project\WpfDesign.XamlDom.csproj">
+      <Project>{107521d2-051e-4f49-b52b-bf4e75002ef0}</Project>
+      <Name>WpfDesign.XamlDom</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\03ThirdPartyDll\WpfDesign\Project\WpfDesign.csproj">
+      <Project>{1e992ba6-a8cc-4a3a-bb37-530902f49308}</Project>
+      <Name>WpfDesign</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Images\Tool\GlobalVar.png" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.117.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets" Condition="Exists('..\..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.117.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>这台计算机上缺少此项目引用的 NuGet 程序包。使用“NuGet 程序包还原”可下载这些程序包。有关更多信息，请参见 http://go.microsoft.com/fwlink/?LinkID=322105。缺少的文件是 {0}。</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.117.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.117.0\build\net46\Stub.System.Data.SQLite.Core.NetFramework.targets'))" />
+  </Target>
+</Project>

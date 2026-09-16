@@ -45,6 +45,11 @@ namespace VisionMaster
                     d.Dispose();
             }));
 
+            // 通信层日志接进 UI 日志窗口：manager 内部日志原本只写 Console（WPF 无控制台=黑洞），
+            // 变量注册/轮询/读取失败等诊断必须可见。
+            // 必须在模块初始化之前挂接：通讯模块的启动装配（加载配置 + 自动连接）日志也在其中
+            AdvancedCommunicationManager.LogSink = Container.Resolve<ILogService>();
+
             foreach (var module in _modules)
                 module.Initialize(Container, _lifetime); // 模块注册自检项/退出任务，须在自检前完成
 

@@ -1,0 +1,417 @@
+<UserControl
+    x:Class="Plugin.PreProcessing.PreProcessingView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:local="clr-namespace:Plugin.PreProcessing"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.UI.com/ui"
+    d:DesignHeight="620"
+    d:DesignWidth="1120"
+    mc:Ignorable="d">
+
+    <!--
+        尺寸策略：本视图不写 Width/Height（写死会把宿主窗口撑爆，外壳固定 880×600，
+        右侧"处理链/算子参数"直接被裁掉）。
+        打开时的初始大小由代码后置在 Loaded 时把宿主窗口"只放大不缩小"地撑到舒适尺寸；
+        d:Design* 只喂设计器，不影响运行。
+    -->
+
+    <UserControl.InputBindings>
+        <!--  Del 删除当前编辑框（CanExecute 守卫：焦点在文本框时不触发，Delete 是正常编辑键）  -->
+        <KeyBinding Command="{Binding DeleteBoxCommand}" Key="Delete" />
+    </UserControl.InputBindings>
+
+    <!--
+        布局：左「算子库」→ 中「图像预览」→ 右「处理链 + 参数面板」
+        读图顺序即操作顺序：挑算子 → 看效果 → 调参数。
+        样式与 CreateRoiView 保持同一套（卡片、标题、提示文字、列表行），避免两个插件长得不像一家人。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  链列表步号：AlternationIndex 从 0 起算，界面要给人看 1 起算  -->
+            <local:StepNumberConverter x:Key="StepNumber" />
+
+            <!--  Win11 风格卡片  -->
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="14" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect
+                            BlurRadius="12"
+                            Direction="270"
+                            Opacity="0.05"
+                            ShadowDepth="2"
+                            Color="Black" />
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <!--  链列表行：透明 + 悬浮/选中高亮  -->
+            <Style x:Key="ChainListBoxItem" TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="6,4" />
+                <Setter Property="Margin" Value="0,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F5F5F5" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#E8F1FD" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  算子库里的"添加"按钮：去掉默认边框阴影，做成一行可点的文字条目  -->
+            <Style x:Key="LibraryItemButton" TargetType="Button">
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="Margin" Value="0,1" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#E8F1FD" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="210" />
+            <ColumnDefinition Width="*" MinWidth="300" />
+            <ColumnDefinition Width="360" />
+        </Grid.ColumnDefinitions>
+
+        <!--  ================= 左：图像输入 + 算子库 =================  -->
+        <Grid Grid.Column="0" Margin="0,0,8,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="图像输入" />
+                    <cv:LinkableValueEditor
+                        Margin="0,10,0,0"
+                        HorizontalAlignment="Stretch"
+                        Label="图像路径"
+                        Port="{Binding SrcImage}"
+                        StepData="{Binding StepData}" />
+                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="显示窗口" />
+                        <ComboBox
+                            Width="110"
+                            Margin="8,0,0,0"
+                            HorizontalContentAlignment="Center"
+                            SelectedIndex="{Binding DisplayViewIndex}"
+                            ToolTip="预处理结果运行时显示到主界面几号视图窗口；0 = 不显示">
+                            <ComboBoxItem Content="不显示" />
+                            <ComboBoxItem Content="窗口1" />
+                            <ComboBoxItem Content="窗口2" />
+                            <ComboBoxItem Content="窗口3" />
+                            <ComboBoxItem Content="窗口4" />
+                            <ComboBoxItem Content="窗口5" />
+                            <ComboBoxItem Content="窗口6" />
+                            <ComboBoxItem Content="窗口7" />
+                            <ComboBoxItem Content="窗口8" />
+                            <ComboBoxItem Content="窗口9" />
+                        </ComboBox>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!--  算子库：完全由 OperatorRegistry 反射出来的分组驱动，新增算子这里自动多一行  -->
+            <Border
+                Grid.Row="1"
+                Margin="0,8,0,0"
+                Style="{StaticResource CardBorder}">
+                <DockPanel>
+                    <TextBlock
+                        DockPanel.Dock="Top"
+                        Style="{StaticResource CardTitle}"
+                        Text="算子库" />
+                    <TextBlock
+                        Margin="0,4,0,6"
+                        DockPanel.Dock="Top"
+                        Style="{StaticResource HintText}"
+                        Text="点击添加到处理链末尾" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding OperatorLibrary}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,8">
+                                        <TextBlock
+                                            Margin="2,0,0,2"
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Foreground="#5B8FF9"
+                                            Text="{Binding Name}" />
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button
+                                                        Command="{Binding DataContext.AddOperatorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="{Binding DisplayName}"
+                                                        Style="{StaticResource LibraryItemButton}"
+                                                        ToolTip="{Binding Description}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!--  ================= 中：图像预览 =================  -->
+        <Border Grid.Column="1" Margin="8,0" Style="{StaticResource CardBorder}">
+            <DockPanel>
+                <Border
+                    DockPanel.Dock="Top"
+                    Padding="0,0,0,8"
+                    BorderBrush="#EEEEEE"
+                    BorderThickness="0,0,0,1">
+                    <DockPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                Text="预览" />
+                            <!--  预览目标三选一：整张原图 / 选中那一步的输入 / 选中那一步的输出  -->
+                            <RadioButton
+                                Content="原图"
+                                GroupName="PreviewTarget"
+                                IsChecked="{Binding ShowSourcePreview, Mode=TwoWay}" />
+                            <RadioButton
+                                Margin="8,0,0,0"
+                                Content="输入图"
+                                GroupName="PreviewTarget"
+                                IsChecked="{Binding ShowInputPreview, Mode=TwoWay}"
+                                ToolTip="显示当前选中算子这一步的输入；带框算子在这一态下拖框——框的坐标基准就是这张图" />
+                            <RadioButton
+                                Margin="8,0,0,0"
+                                Content="算子输出"
+                                GroupName="PreviewTarget"
+                                IsChecked="{Binding ShowOutputPreview, Mode=TwoWay}"
+                                ToolTip="显示当前选中算子那一步的输出" />
+                        </StackPanel>
+                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                            <Button
+                                MinWidth="72"
+                                Command="{Binding ExportChainCommand}"
+                                Content="导出图片"
+                                ToolTip="按 前缀_步号_算子名.png 一次导出每一步的输出，同目录再生成参数清单(.txt)和链快照(.json)。&#10;想单独存当前这一张，画布上右键用「保存原始图像」更快" />
+                            <Button
+                                MinWidth="64"
+                                Margin="6,0,0,0"
+                                Command="{Binding RefreshPreviewCommand}"
+                                Content="刷新"
+                                ToolTip="改完参数画面会延迟半秒自动重算，这里只是手动兜底" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                    <TextBlock
+                        Foreground="#D83B01"
+                        Style="{StaticResource HintText}"
+                        Text="{Binding LoadWarning}" />
+                    <!--  复制/粘贴/导出的结果都落在这行：配置界面拿不到日志通道，只能靠文字反馈  -->
+                    <TextBlock
+                        Foreground="#1A7F4B"
+                        Style="{StaticResource HintText}"
+                        Text="{Binding ActionHint}" />
+                </StackPanel>
+                <!--  图像显示；带框算子选中时，画布上会多出一个可拖拽的编辑框（框参数与算子参数双向同步）  -->
+                <h:ImageEdit
+                    ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
+                    DrawObjectList="{Binding CanvasRois}"
+                    HImage="{Binding DisplayImage, Mode=OneWay}" />
+            </DockPanel>
+        </Border>
+
+        <!--  ================= 右：处理链 + 参数面板 =================  -->
+        <Grid Grid.Column="2" Margin="8,0,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="2*" MinHeight="200" />
+                <RowDefinition Height="8" />
+                <RowDefinition Height="3*" MinHeight="220" />
+            </Grid.RowDefinitions>
+
+            <Border Style="{StaticResource CardBorder}">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top">
+                        <TextBlock Style="{StaticResource CardTitle}" Text="处理链" />
+                        <TextBlock
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource HintText}"
+                            Text="{Binding Operators.Count, StringFormat='共 {0} 步'}" />
+                    </Grid>
+                    <StackPanel Margin="0,8,0,0" DockPanel.Dock="Bottom">
+                        <StackPanel Orientation="Horizontal">
+                            <Button
+                                MinWidth="52"
+                                Command="{Binding MoveUpCommand}"
+                                Content="上移" />
+                            <Button
+                                MinWidth="52"
+                                Margin="6,0,0,0"
+                                Command="{Binding MoveDownCommand}"
+                                Content="下移" />
+                            <Button
+                                MinWidth="52"
+                                Margin="6,0,0,0"
+                                Command="{Binding RemoveOperatorCommand}"
+                                Content="删除" />
+                            <Button
+                                MinWidth="52"
+                                Margin="6,0,0,0"
+                                Command="{Binding ClearChainCommand}"
+                                Content="清空" />
+                        </StackPanel>
+                        <!--  整链搬运：复制出来的是纯文本，贴到另一台机、另一个方案都能还原  -->
+                        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                            <Button
+                                MinWidth="52"
+                                Command="{Binding CopyChainCommand}"
+                                Content="复制整链"
+                                ToolTip="把当前所有步骤（含参数与启用状态）拷成文本放进剪贴板" />
+                            <Button
+                                MinWidth="52"
+                                Margin="6,0,0,0"
+                                Command="{Binding PasteChainCommand}"
+                                Content="粘贴到链尾"
+                                ToolTip="把剪贴板里的链追加到当前链的末尾，原有步骤保留；认不出的算子会跳过并提示" />
+                        </StackPanel>
+                    </StackPanel>
+                    <ListBox
+                        Margin="0,10,0,0"
+                        AlternationCount="1000"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        ItemContainerStyle="{StaticResource ChainListBoxItem}"
+                        ItemsSource="{Binding Operators}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        SelectedItem="{Binding SelectedOperator}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid x:Name="RowRoot">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        MinWidth="16"
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="#AAAAAA"
+                                        Text="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource StepNumber}}" />
+                                    <!--  取消勾选 = 这一步透传，图像原样流到下一步  -->
+                                    <CheckBox
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        IsChecked="{Binding Enabled}"
+                                        ToolTip="启用/停用（停用后图像原样流向下一个算子）" />
+                                    <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                        <TextBlock FontSize="12" Text="{Binding DisplayName}" />
+                                        <TextBlock
+                                            FontSize="11"
+                                            Foreground="#888888"
+                                            Text="{Binding Summary}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding Description}" />
+                                    </StackPanel>
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <!--  停用的算子整行淡掉，一眼看出链上哪几步没干活  -->
+                                    <!--  根元素是 Grid（没有 Foreground），所以调整行透明度而不是字色  -->
+                                    <DataTrigger Binding="{Binding IsMuted}" Value="True">
+                                        <Setter TargetName="RowRoot" Property="Opacity" Value="0.4" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!--  参数面板：全部交给反射生成，插件不写一行参数控件代码  -->
+            <Border
+                Grid.Row="2"
+                Padding="0"
+                Style="{StaticResource CardBorder}">
+                <DockPanel>
+                    <DockPanel DockPanel.Dock="Top" Margin="14,12,14,0">
+                        <TextBlock Style="{StaticResource CardTitle}" Text="算子参数" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource HintText}"
+                            Text="{Binding SelectedOperator.DisplayName, TargetNullValue='在上方选中一个算子', FallbackValue='在上方选中一个算子'}" />
+                    </DockPanel>
+                    <ui:FlatPropertyGrid BindingObject="{Binding SelectedOperator}" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

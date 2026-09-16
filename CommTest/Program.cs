@@ -25,6 +25,9 @@ namespace CommTest
             Console.WriteLine("Modbus TCP: 127.0.0.1:502 | Siemens S7: 127.0.0.1:108 (S1200)");
             Console.WriteLine();
 
+            // 纯单元断言先行：模拟器离线也要能验证字节序转换层（历史 bug 的回归防线）
+            RunEndianUnitChecks();
+
             using var manager = new AdvancedCommunicationManager { AutoReconnectEnabled = false };
 
             // ============ 建立两条连接（等同 UI 通讯设置里"添加连接"）============
@@ -196,6 +199,57 @@ namespace CommTest
                 manager.UnregisterVariable("Test_Modbus", "Poll_Short");
             }
 
+            // ============ [G] 字节序交叉验证（第三方视角） ============
+            // 历史教训：本测试此前全是"软件自己写、自己读"——小端写+小端读两次颠倒抵消，
+            // 字节序 bug 永远测不出来（实测暗号：写 21 设备端变 5376，设备写 1221 软件读成 50436）。
+            // 本节用 HSL 标准强类型接口（独立实现，Modbus 大端）交叉核对软件写入的原始寄存器值。
+            if (mOk)
+            {
+                Console.WriteLine();
+                Console.WriteLine("---- [G] 字节序交叉验证（软件写 → HSL 标准读） ----");
+                try
+                {
+                    using var probe = new HslCommunication.ModBus.ModbusTcpNet("127.0.0.1", 502);
+                    if (!probe.ConnectServer().IsSuccess)
+                    {
+                        Check("探针连接 502", false, "无法建立第二条 Modbus 连接");
+                    }
+                    else
+                    {
+                        // 经软件链路写 short 21（0x0015）到 40100
+                        var addrG = new ModbusAddress { Area = ModbusArea.HoldingRegisters, Offset = "99", DataType = DataValueType.Int16 };
+                        var netVarG = (NetworkVariableModel)VariableFactory.CreateNetwork(
+                            "MB_EndianProbe", typeof(short), "Test_Modbus", addrG, "字节序探针");
+                        InjectManager(netVarG, manager);
+                        netVarG.Value = (short)21;
+
+                        // HSL 标准大端读同一寄存器：修复后应得 21；旧小端实现会得 0x1500=5376
+                        var r16 = probe.ReadInt16("40100");
+                        Check("short 字节序：软件写 21 → HSL 标准读", r16.IsSuccess && r16.Content == 21,
+                            $"期望 21 实际 {r16.Content}（5376=字节颠倒）");
+
+                        // int 32 位 ABCD 字序：软件写 1221（0x000004C5）→ HSL 标准读
+                        var addrG32 = new ModbusAddress { Area = ModbusArea.HoldingRegisters, Offset = "98", DataType = DataValueType.Int32 };
+                        var netVarG32 = (NetworkVariableModel)VariableFactory.CreateNetwork(
+                            "MB_EndianProbe32", typeof(int), "Test_Modbus", addrG32, "字节序探针32");
+                        InjectManager(netVarG32, manager);
+                        netVarG32.Value = 1221;
+                        var r32 = probe.ReadInt32("40099"); // Offset=98 → 40099，占 40099+40100
+                        Check("int 字序(ABCD)：软件写 1221 → HSL 标准读", r32.IsSuccess && r32.Content == 1221,
+                            $"期望 1221 实际 {r32.Content}");
+
+                        // 清零复原，不破坏模拟器状态
+                        netVarG.Value = (short)0;
+                        netVarG32.Value = 0;
+                        probe.ConnectClose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Check("字节序交叉验证", false, ex.Message);
+                }
+            }
+
             // ============ [D] 清理 ============
             Console.WriteLine();
             try
@@ -222,6 +276,47 @@ namespace CommTest
             var field = typeof(NetworkVariableModel).GetField(
                 "CommunicationManager", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             field?.SetValue(netVar, manager);
+        }
+
+        /// <summary>
+        /// [H] 字节序纯单元断言（不依赖模拟器，验证转换层本身）。
+        /// HslHelper 是 Communication 程序集的 internal 类，反射调用。
+        /// Modbus PDU 寄存器数据为大端：short 21 → 字节流必须是 [0x00,0x15]，
+        /// 大端字节流 [0x04,0xC5] → 必须解释为 1221（旧小端实现分别得 [0x15,0x00] / 50436——
+        /// 正是现场"写 21 设备显示 5376、设备写 1221 软件显示 50436"的暗号）
+        /// </summary>
+        private static void RunEndianUnitChecks()
+        {
+            Console.WriteLine("---- [H] 字节序纯单元断言（反射 HslHelper） ----");
+            try
+            {
+                var asm = typeof(AdvancedCommunicationManager).Assembly;
+                var helper = asm.GetType("VisionMaster.Communications.HslHelper")
+                    ?? throw new Exception("找不到 HslHelper（改名了？）");
+                var getValueArray = helper.GetMethod("GetValueArray")!;
+                var convertTo = helper.GetMethod("ConvertTo")!;
+
+                var bytes21 = (byte[])getValueArray.Invoke(null, new object[] { (short)21 })!;
+                Check("short 21 → 大端字节流", bytes21.Length == 2 && bytes21[0] == 0x00 && bytes21[1] == 0x15,
+                    $"实际 [{string.Join(",", bytes21.Select(x => "0x" + x.ToString("X2")))}]");
+
+                var read1221 = convertTo.MakeGenericMethod(typeof(short))
+                    .Invoke(null, new object[] { new byte[] { 0x04, 0xC5 } });
+                Check("大端字节流 → short 1221", (short)read1221! == 1221, $"实际 {read1221}（50436=旧小端特征值）");
+
+                var bytesI = (byte[])getValueArray.Invoke(null, new object[] { 1221 })!;
+                Check("int 1221 → 大端字节流(ABCD)", bytesI.Length == 4 && bytesI[0] == 0x00 && bytesI[1] == 0x00
+                    && bytesI[2] == 0x04 && bytesI[3] == 0xC5,
+                    $"实际 [{string.Join(",", bytesI.Select(x => "0x" + x.ToString("X2")))}]");
+
+                var readI = convertTo.MakeGenericMethod(typeof(int))
+                    .Invoke(null, new object[] { new byte[] { 0x00, 0x00, 0x04, 0xC5 } });
+                Check("大端字节流 → int 1221", (int)readI! == 1221, $"实际 {readI}");
+            }
+            catch (Exception ex)
+            {
+                Check("字节序纯单元断言", false, ex.Message);
+            }
         }
 
         private static void Check(string name, bool ok, string detail)

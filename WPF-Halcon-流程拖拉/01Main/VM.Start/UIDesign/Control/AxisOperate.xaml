@@ -1,0 +1,359 @@
+<UserControl
+	x:Class="VM.Start.UIDesign.Control.AxisOperate" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls" xmlns:local="clr-namespace:VM.Start.UIDesign.Control">
+	<Grid
+		Row="1"
+		DataContext="{Binding SelectedAxis}">
+		<FrameworkElement.Resources>
+			<ResourceDictionary>
+				<Style
+					TargetType="{x:Type TextBlock}"
+					x:Key="{x:Type TextBlock}">
+					<Setter
+						Property="VerticalAlignment"
+						Value="Center" />
+					<Setter
+						Property="HorizontalAlignment"
+						Value="Center" />
+				</Style>
+			</ResourceDictionary>
+		</FrameworkElement.Resources>
+		<Grid.RowDefinitions>
+			<RowDefinition
+				Height="0" />
+			<RowDefinition
+				Height="0" />
+			<RowDefinition
+				Height="30" />
+			<RowDefinition
+				Height="auto" />
+			<RowDefinition
+				Height="*" />
+		</Grid.RowDefinitions>
+		<GridSplitter
+			Grid.Row="1" />
+		<Border
+			Grid.Row="2"
+			Background="#FF00FF00">
+			<FrameworkElement.Resources>
+				<ResourceDictionary>
+					<Style
+						TargetType="{x:Type mah:NumericUpDown}"
+						x:Key="{x:Type mah:NumericUpDown}">
+						<Style.Setters>
+							<Setter
+								Property="Width"
+								Value="100" />
+							<Setter
+								Property="mah:NumericUpDown.IsReadOnly"
+								Value="True" />
+							<Setter
+								Property="FontSize"
+								Value="16" />
+							<Setter
+								Property="FontFamily"
+								Value="{StaticResource digital_display}" />
+							<Setter
+								Property="Background"
+								Value="#FF000000" />
+							<Setter
+								Property="Foreground"
+								Value="#FF90EE90" />
+							<Setter
+								Property="FontWeight"
+								Value="Bold" />
+							<Setter
+								Property="mah:NumericUpDown.HideUpDownButtons"
+								Value="True" />
+							<Setter
+								Property="Foreground"
+								Value="#FF90EE90" />
+						</Style.Setters>
+					</Style>
+				</ResourceDictionary>
+			</FrameworkElement.Resources>
+			<StackPanel
+				Orientation="Horizontal">
+				<TextBlock
+					MinWidth="100"
+					Margin="15 0"
+					Foreground="#FF000000"
+					FontWeight="Bold"
+					FontSize="15"
+					Text="{Binding AxisName}" />
+				<mah:NumericUpDown
+					Value="{Binding CurPos}" />
+			</StackPanel>
+		</Border>
+		<GroupBox
+			Header="轴状态"
+			Height="120"
+			Grid.Row="3">
+			<Grid
+				ShowGridLines="True">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition />
+					<ColumnDefinition />
+					<ColumnDefinition />
+					<ColumnDefinition />
+				</Grid.ColumnDefinitions>
+				<Grid.RowDefinitions>
+					<RowDefinition />
+					<RowDefinition />
+					<RowDefinition />
+					<RowDefinition />
+				</Grid.RowDefinitions>
+				<TextBlock
+					Text="使能" />
+				<TextBlock
+					Text="原点"
+					Grid.Column="1" />
+				<TextBlock
+					Text="正限"
+					Grid.Column="2" />
+				<TextBlock
+					Text="负限"
+					Grid.Column="3" />
+				<Border
+					Grid.Row="1"
+					Grid.Column="0"
+					Width="14"
+					Height="14"
+					CornerRadius="7"
+					Background="{Binding SvOn, Converter={StaticResource BoolToLimeBrushConverter}}" />
+				<Border
+					Grid.Row="1"
+					Grid.Column="1"
+					Width="14"
+					Height="14"
+					CornerRadius="7"
+					Background="{Binding Org, Converter={StaticResource BoolToLimeBrushConverter}}" />
+				<Border
+					Grid.Row="1"
+					Grid.Column="2"
+					Width="14"
+					Height="14"
+					CornerRadius="7"
+					Background="{Binding Pot, Converter={StaticResource BoolToRedBrushConverter}}" />
+				<Border
+					Grid.Row="1"
+					Grid.Column="3"
+					Width="14"
+					Height="14"
+					CornerRadius="7"
+					Background="{Binding Net, Converter={StaticResource BoolToRedBrushConverter}}" />
+				<TextBlock
+					Grid.Row="2"
+					Text="报警" />
+				<TextBlock
+					Grid.Row="2"
+					Text="急停"
+					Grid.Column="1" />
+				<TextBlock
+					Grid.Row="2"
+					Text="回零完成"
+					Grid.Column="2" />
+				<TextBlock
+					Grid.Row="2"
+					Text="运动中"
+					Grid.Column="3" />
+				<Border
+					Grid.Row="3"
+					Width="14"
+					Height="14"
+					ToolTip="清除报警"
+					Cursor="Hand"
+					CornerRadius="7"
+					Background="{Binding Alm, Converter={StaticResource BoolToRedBrushConverter}}"
+					PreviewMouseDown="ClearAlm" />
+				<Border
+					Grid.Row="3"
+					Grid.Column="1"
+					Width="14"
+					Height="14"
+					CornerRadius="7"
+					Background="{Binding Emg, Converter={StaticResource BoolToRedBrushConverter}}" />
+				<Border
+					Grid.Row="3"
+					Grid.Column="2"
+					Width="14"
+					Height="14"
+					CornerRadius="7"
+					Background="{Binding HomeDone, Converter={StaticResource BoolToLimeBrushConverter}}" />
+				<Border
+					Grid.Row="3"
+					Grid.Column="3"
+					Width="14"
+					Height="14"
+					CornerRadius="7"
+					Background="{Binding Busy, Converter={StaticResource BoolToLimeBrushConverter}}" />
+			</Grid>
+		</GroupBox>
+		<ScrollViewer
+			HorizontalScrollBarVisibility="Hidden"
+			VerticalScrollBarVisibility="Hidden"
+			Grid.Row="4">
+			<StackPanel>
+				<Expander
+					Header="JOG运动"
+					IsExpanded="True">
+					<Grid>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition />
+							<ColumnDefinition />
+							<ColumnDefinition />
+						</Grid.ColumnDefinitions>
+						<Grid.RowDefinitions>
+							<RowDefinition
+								Height="40" />
+							<RowDefinition />
+						</Grid.RowDefinitions>
+						<TextBlock
+							Text="JOG速度" />
+						<mah:NumericUpDown
+							Grid.Column="1"
+							Width="AUTO"
+							NumericInputMode="Decimal"
+							Height="25"
+							Value="{Binding JogVel}" />
+						<TextBlock
+							Grid.Column="2">
+							<Run
+								Text="{Binding Unit}" /> <Run
+								Text="/s" /></TextBlock>
+						<Button
+							Grid.Row="1"
+							Content="JOG-"
+							Width="60"
+							PreviewMouseLeftButtonDown="btnJogBak_MouseDown"
+							PreviewMouseLeftButtonUp="btnJogBak_MouseUp" />
+						<Button
+							Grid.Row="1"
+							Grid.Column="1"
+							Content="使能"
+							Margin="5 0"
+							Width="60"
+							Click="btnEnable_Click" />
+						<Button
+							Grid.Row="1"
+							Grid.Column="2"
+							Content="JOG+"
+							Width="60"
+							PreviewMouseLeftButtonDown="btnJogFwd_MouseDown"
+							PreviewMouseLeftButtonUp="btnJogFwd_MouseUp" />
+					</Grid>
+				</Expander>
+				<Expander
+					Header="绝对运动"
+					IsExpanded="False">
+					<Grid>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition />
+							<ColumnDefinition />
+							<ColumnDefinition />
+						</Grid.ColumnDefinitions>
+						<Grid.RowDefinitions>
+							<RowDefinition
+								Height="40" />
+							<RowDefinition
+								Height="40" />
+							<RowDefinition />
+						</Grid.RowDefinitions>
+						<TextBlock
+							Text="目标位置" />
+						<mah:NumericUpDown
+							Grid.Column="1"
+							Width="AUTO"
+							NumericInputMode="Decimal"
+							Height="25"
+							Value="{Binding RunPos}" />
+						<TextBlock
+							Grid.Column="2"
+							Text="{Binding Unit}" />
+						<TextBlock
+							Grid.Row="1"
+							Text="运行速度" />
+						<mah:NumericUpDown
+							Grid.Row="1"
+							Grid.Column="1"
+							Width="AUTO"
+							NumericInputMode="Decimal"
+							Height="25"
+							Value="{Binding RunVel}" />
+						<TextBlock
+							Grid.Row="1"
+							Grid.Column="2">
+							<Run
+								Text="{Binding Unit}" /> <Run
+								Text="/s" /></TextBlock>
+						<Button
+							Grid.Row="2"
+							Content="移动"
+							Width="60"
+							Click="btnMove_Click" />
+						<CheckBox
+							Grid.Row="2"
+							Grid.Column="1"
+							Content="相对运动"
+							IsChecked="{Binding IsRelMove}" />
+						<Button
+							Grid.Row="2"
+							Grid.Column="2"
+							Content="停止"
+							Width="60"
+							Click="btnStop_Click" />
+					</Grid>
+				</Expander>
+				<Expander
+					Header="回零运动"
+					IsExpanded="True">
+					<Grid>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition />
+							<ColumnDefinition />
+							<ColumnDefinition />
+						</Grid.ColumnDefinitions>
+						<Grid.RowDefinitions>
+							<RowDefinition
+								Height="40" />
+							<RowDefinition
+								Height="40" />
+							<RowDefinition />
+						</Grid.RowDefinitions>
+						<TextBlock
+							Text="回零状态:" />
+						<TextBlock
+							Grid.Column="1"
+							Grid.ColumnSpan="2"
+							HorizontalAlignment="Left"
+							Text="{Binding HomeMsg}" />
+						<TextBlock
+							Grid.Row="1"
+							Text="回零偏移" />
+						<mah:NumericUpDown
+							Grid.Row="1"
+							Grid.Column="1"
+							Width="AUTO"
+							NumericInputMode="Decimal"
+							Height="25"
+							Value="{Binding HomeOffset}" />
+						<TextBlock
+							Grid.Row="1"
+							Grid.Column="2"
+							Text="{Binding Unit}" />
+						<Button
+							Grid.Row="2"
+							Content="回零"
+							Width="60"
+							Click="btnHome_Click" />
+						<Button
+							Grid.Row="2"
+							Grid.Column="2"
+							Content="停止"
+							Width="60"
+							Click="btnStop_Click" />
+					</Grid>
+				</Expander>
+			</StackPanel>
+		</ScrollViewer>
+	</Grid>
+</UserControl>

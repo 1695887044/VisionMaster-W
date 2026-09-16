@@ -1,0 +1,261 @@
+﻿<vb:ModuleViewBase xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   x:Class="Plugin.SingleAxisMove.Views.SingleAxisMoveView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                   xmlns:cvt ="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:vm="clr-namespace:Plugin.SingleAxisMove.ViewModels"
+                   xmlns:local="clr-namespace:Plugin.SingleAxisMove.Views"
+                   mc:Ignorable="d" Icon="/Plugin.SingleAxisMove;component/Assets/Images/Tool/SingleAxisMove.png"
+                   ShowMaxRestoreButton="False" 
+                   ShowMinButton="False" 
+                   WindowStartupLocation="CenterScreen"
+                   ResizeMode="NoResize" x:Name="window"
+                   Height="800" Width="400"
+                >
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                    <cvt:Bool2VisibilityConverter x:Key="Bool2VisibilityConverter"/>
+                </ResourceDictionary>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="165"/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <GroupBox Header="参数" Margin="0 2 0 0">
+                <StackPanel Margin="0 10" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="30 5">
+                        <TextBlock Text="轴卡选择:" VerticalAlignment="Center" Margin="0 0 5 0" Width="60"/>
+                        <ComboBox BorderThickness="0 0 0 1" Width="200" 
+                                      ItemsSource="{Binding MotionModels}" 
+                                      DisplayMemberPath="Remarks" 
+                                      SelectedItem="{Binding SelectedMotion}" 
+                                      SelectedIndex="{Binding SelectedIndexMotion}"
+                                      />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="30 5">
+                        <TextBlock Text="轴选择:" VerticalAlignment="Center" Margin="0 0 5 0" Width="60"/>
+                        <ComboBox x:Name="cbAxis" BorderThickness="0 0 0 1" Width="200" DisplayMemberPath="AxisName" 
+                                  ItemsSource="{Binding SelectedMotion.Axis}"
+                                  SelectedItem="{Binding SelectedAxis}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="30 5">
+                        <TextBlock Text="操作模式:" VerticalAlignment="Center" Margin="0 0 5 0" Width="60"/>
+                        <ComboBox BorderThickness="0 0 0 1" Width="120" Height="25" DataContext="{Binding ElementName=window,Path=DataContext}"
+                                  ItemsSource="{Binding OperateModes}"
+                                  SelectedItem="{Binding OperateMode}"/>
+                        <CheckBox Content="不等待运动完成" IsChecked="{Binding NotWaitMotionFinish}" Margin="5 0"/>
+                    </StackPanel>
+
+                </StackPanel>
+            </GroupBox>
+            <Grid Grid.Row="1" x:Name="gd">
+                <Grid.Resources>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                    </Style>
+                </Grid.Resources>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="30"/>
+                    <RowDefinition Height="auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" Background="Lime">
+                    <Border.Resources>
+                        <Style TargetType="mah:NumericUpDown">
+                            <Style.Setters>
+                                <Setter Property="Width" Value="100"/>
+                                <Setter Property="IsReadOnly" Value="True"/>
+                                <Setter Property="FontSize" Value="16"/>
+                                <Setter Property="FontFamily" Value="{StaticResource digital_display}"/>
+                                <Setter Property="Background" Value="Black"/>
+                                <Setter Property="Foreground" Value="LightGreen"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                                <Setter Property="HideUpDownButtons" Value="True"/>
+                                <Setter Property="Foreground" Value="LightGreen"/>
+                            </Style.Setters>
+                        </Style>
+                    </Border.Resources>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock MinWidth="100" Margin="15 0" FontWeight="Bold" FontSize="15">
+                            <Run Text="{Binding AxisName}" Foreground="Black"/>
+                            <Run Text="当前位置:" Foreground="Black"/>
+                        </TextBlock>
+                        <mah:NumericUpDown Value="{Binding CurPos}"/>
+                    </StackPanel>
+                </Border>
+                <GroupBox Header="轴状态" Height="120" Grid.Row="1">
+                    <Grid ShowGridLines="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="使能"/>
+                        <TextBlock Text="原点" Grid.Column="1"/>
+                        <TextBlock Text="正限" Grid.Column="2"/>
+                        <TextBlock Text="负限" Grid.Column="3"/>
+                        <Border Grid.Row="1" Grid.Column="0" Width="14" Height="14" CornerRadius="7" Background="{Binding SvOn,Converter={StaticResource BoolToLimeBrushConverter}}"/>
+                        <Border Grid.Row="1" Grid.Column="1" Width="14" Height="14" CornerRadius="7" Background="{Binding Org,Converter={StaticResource BoolToLimeBrushConverter}}"/>
+                        <Border Grid.Row="1" Grid.Column="2" Width="14" Height="14" CornerRadius="7" Background="{Binding Pot,Converter={StaticResource BoolToRedBrushConverter}}"/>
+                        <Border Grid.Row="1" Grid.Column="3" Width="14" Height="14" CornerRadius="7" Background="{Binding Net,Converter={StaticResource BoolToRedBrushConverter}}"/>
+
+                        <TextBlock Grid.Row="2" Text="报警"/>
+                        <TextBlock Grid.Row="2" Text="急停" Grid.Column="1"/>
+                        <TextBlock Grid.Row="2" Text="回零完成" Grid.Column="2"/>
+                        <TextBlock Grid.Row="2"  Text="运动中" Grid.Column="3"/>
+                        <Border Grid.Row="3" Width="14" Height="14" ToolTip="清除报警" Cursor="Hand" CornerRadius="7" Background="{Binding Alm,Converter={StaticResource BoolToRedBrushConverter}}" PreviewMouseDown="ClearAlm"/>
+                        <Border Grid.Row="3" Grid.Column="1" Width="14" Height="14" CornerRadius="7" Background="{Binding Emg,Converter={StaticResource BoolToRedBrushConverter}}"/>
+                        <Border Grid.Row="3" Grid.Column="2" Width="14" Height="14" CornerRadius="7" Background="{Binding HomeDone,Converter={StaticResource BoolToLimeBrushConverter}}"/>
+                        <Border Grid.Row="3" Grid.Column="3" Width="14" Height="14" CornerRadius="7" Background="{Binding Busy,Converter={StaticResource BoolToLimeBrushConverter}}"/>
+
+                    </Grid>
+
+                </GroupBox>
+                <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" Grid.Row="2">
+                    <StackPanel>
+                        <Expander Header="JOG运动" IsExpanded="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="JOG速度"/>
+                                <TextBox Grid.Column="1" Text="{Binding JogVel.Text}" DataContext="{Binding ElementName=window,Path=DataContext}"
+                                         mah:TextBoxHelper.Value="{Binding JogVel.Value}"
+                                         IsReadOnly="{Binding JogVel.IsReadOnly}"
+                                         Style="{StaticResource LinkTextBox}"
+                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.JogVelLink}"
+                                         mah:TextBoxHelper.Watermark="double"
+                                         VerticalAlignment="Center" HorizontalAlignment="Center" Width="200"  Margin="5 0"/>
+                                <TextBlock Grid.Column="2">
+                                    <Run Text="{Binding Unit}"/>
+                                    <Run Text="/s"/>
+                                </TextBlock>
+                                <Button Grid.Row="1" Content="JOG-" Width="60" PreviewMouseLeftButtonDown="btnJogBak_MouseDown" PreviewMouseLeftButtonUp="btnJogBak_MouseUp"/>
+                                <Button Grid.Row="1" Grid.Column="1" Content="使能" Margin="5 0" Width="60" Click="btnEnable_Click"/>
+                                <Button Grid.Row="1" Grid.Column="2" Content="JOG+" Width="60" PreviewMouseLeftButtonDown="btnJogFwd_MouseDown" PreviewMouseLeftButtonUp="btnJogFwd_MouseUp"/>
+                            </Grid>
+                        </Expander>
+                        <Expander Header="绝对运动" IsExpanded="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="目标位置"/>
+                                <TextBox Grid.Column="1" Text="{Binding RunPos.Text}" DataContext="{Binding ElementName=window,Path=DataContext}"
+                                         mah:TextBoxHelper.Value="{Binding RunPos.Value}"
+                                         IsReadOnly="{Binding RunPos.IsReadOnly}"
+                                         Style="{StaticResource LinkTextBox}"
+                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.RunPosLink}"
+                                         mah:TextBoxHelper.Watermark="double"
+                                         VerticalAlignment="Center" HorizontalAlignment="Center" Width="200" Margin="5 0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Unit}"/>
+                                <TextBlock Grid.Row="1" Text="运行速度"/>
+                                <TextBox Grid.Column="1" Grid.Row="1" Text="{Binding RunVel.Text}" DataContext="{Binding ElementName=window,Path=DataContext}"
+                                         mah:TextBoxHelper.Value="{Binding RunVel.Value}"
+                                         IsReadOnly="{Binding RunVel.IsReadOnly}"
+                                         Style="{StaticResource LinkTextBox}"
+                                         mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                         mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.RunVelLink}"
+                                         mah:TextBoxHelper.Watermark="double"
+                                         VerticalAlignment="Center" HorizontalAlignment="Center" Width="200"  Margin="5 0"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2">
+                                    <Run Text="{Binding Unit}" />
+                                    <Run Text="/s"/>
+                                </TextBlock>
+
+                                <Button Grid.Row="2" Content="移动" Width="60" Click="btnMove_Click"/>
+                                <CheckBox Grid.Row="2" Grid.Column="1" Content="相对运动" IsChecked="{Binding IsRelMove}" x:Name="cbIsRelMove" DataContext="{Binding ElementName=window,Path=DataContext}"/>
+                                <Button Grid.Row="2" Grid.Column="2" Content="停止" Width="60" Click="btnStop_Click"/>
+                            </Grid>
+                        </Expander>
+                        <Expander Header="回零运动" IsExpanded="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="回零状态:"/>
+                                <TextBlock Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding HomeMsg}" HorizontalAlignment="Left"/>
+                                <TextBlock Grid.Row="1" Text="回零偏移"/>
+                                <mah:NumericUpDown Grid.Row="1" Grid.Column="1" Width="AUTO" NumericInputMode="Decimal" Height="25" Value="{Binding HomeOffset}"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Unit}"/>
+
+                                <Button Grid.Row="2" Content="回零" Width="60" Click="btnHome_Click"/>
+                                <Button Grid.Row="2" Grid.Column="2" Content="停止" Width="60" Click="btnStop_Click"/>
+                            </Grid>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border> 
+    </Grid>
+</vb:ModuleViewBase>

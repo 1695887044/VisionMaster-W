@@ -18,6 +18,7 @@ namespace VisionMaster.Services
     {
         private readonly IWorkspaceManager _workspace;
         private readonly AdvancedCommunicationManager _manager;
+        private readonly global::Core.Interfaces.ILogService _logger;
 
         /// <summary>
         /// B2：本桥接器实际注册过的网络变量清单。
@@ -26,10 +27,11 @@ namespace VisionMaster.Services
         /// </summary>
         private readonly HashSet<NetworkVariableModel> _registered = new();
 
-        public NetworkVariableBridge(IWorkspaceManager workspace, AdvancedCommunicationManager manager)
+        public NetworkVariableBridge(IWorkspaceManager workspace, AdvancedCommunicationManager manager, global::Core.Interfaces.ILogService logger)
         {
             _workspace = workspace;
             _manager = manager;
+            _logger = logger;
 
             // 变量增删 → 自动注册/注销
             _workspace.GlobalVariables.CollectionChanged += OnGlobalVariablesChanged;
@@ -72,7 +74,11 @@ namespace VisionMaster.Services
         private void Register(NetworkVariableModel nv)
         {
             if (nv.AddressConfig == null || string.IsNullOrEmpty(nv.ConnectionName))
+            {
+                // 静默不注册是"当前值永远空"的头号暗坑——出声：变量存在但不轮询，必须留痕
+                _logger.Warn($"[NetVar] 变量 [{nv.Name}] 缺少地址配置或连接名，未接入轮询（当前值不会刷新）");
                 return;
+            }
 
             nv.Bind(_manager); // 打通写通道
             _registered.Add(nv);
@@ -82,6 +88,8 @@ namespace VisionMaster.Services
                 ConnectionName = nv.ConnectionName,
                 VariableName = nv.Name,
                 Address = nv.AddressConfig.Address,
+                // 带上结构化地址对象：轮询路径直接取字段，不再解析字符串
+                AddressConfig = nv.AddressConfig,
                 ValueType = (Nullable.GetUnderlyingType(nv.DataType) ?? nv.DataType).AssemblyQualifiedName,
                 AccessMode = VariableAccessMode.ReadWrite,
                 // 轮询新值 → 推回网络变量镜像（UI 订阅 ValueChanged 自动刷新）
@@ -94,8 +102,8 @@ namespace VisionMaster.Services
             }
             catch (Exception ex)
             {
-                // 注册失败（如连接不存在）不阻断：变量仍在列表，连接后 RebindAll 恢复
-                System.Diagnostics.Debug.WriteLine($"[NetVarBridge] 注册失败 {nv.Name}: {ex.Message}");
+                // 注册失败（如连接不存在）不阻断：变量仍在列表，连接后 RebindAll 恢复——但必须可见
+                _logger.Warn($"[NetVar] 变量 [{nv.Name}] 接入轮询失败：{ex.Message}");
             }
         }
 

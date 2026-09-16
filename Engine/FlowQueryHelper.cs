@@ -1,10 +1,11 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
+using Core.Interfaces;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
@@ -39,6 +40,7 @@ namespace VisionMaster.Helpers
                 var globalNode = new ToolItemModel()
                 {
                     ModuleGroup = "Global",
+                    DefaultLinkKind = LinkKind.GlobalVariable,
                     Name = "全局变量 (Global)",
                     Icon = "\uf0ac",
                     Description = "全局共享变量",
@@ -65,8 +67,9 @@ namespace VisionMaster.Helpers
             {
                 var runtimeNode = new ToolItemModel()
                 {
-                    Id = FlowCompiler.RuntimeVariableMarkerGuid,
+                    Id = LinkProtocol.RuntimeVariableMarkerGuid,
                     ModuleGroup = "Runtime",
+                    DefaultLinkKind = LinkKind.RuntimeVariable,
                     Name = "运行时变量 (Runtime)",
                     Icon = "\uf085",
                     Description = "流程执行中由变量定义节点动态创建的本地变量",

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.InteropServices;
@@ -155,6 +155,29 @@ namespace VisionMaster.Communications
                 AutoStart = AutoStart,
                 Description = Description,
             };
+
+        /// <summary>
+        /// 把 <paramref name="other"/> 的**可编辑字段**复制到本实例（"副本编辑、确定才回写" 的落地手段）。
+        /// 只覆盖用户在属性面板能改的项，<see cref="State"/>/<c>CreatedTime</c>/<c>LastConnectedTime</c>
+        /// 等运行时状态一律保留本实例的值——它们反映真实连接实况，不能被编辑弹窗清掉。
+        /// </summary>
+        public void CopyFrom(CommunicationConfig other)
+        {
+            if (other == null)
+                throw new ArgumentNullException(nameof(other));
+
+            // 顺序不可颠倒：Protocol 的 setter 内部会 OnChanged() 重建一份默认 Config，
+            // 先赋 Protocol 再赋 Config，最终落到 Config 上的才是副本里的那份配置
+            Protocol = other.Protocol;
+            Config = other.Config?.Clone(); // 再深拷一份：避免活对象与副本共享同一条链路配置子对象
+            ConnectionName = other.ConnectionName;
+            ReadCycleMs = other.ReadCycleMs;
+            IsEnabled = other.IsEnabled;
+            AutoReconnect = other.AutoReconnect;
+            AutoStart = other.AutoStart;
+            Description = other.Description;
+            UpdateModifiedTime();
+        }
 
         public void UpdateLastConnectedTime() => LastConnectedTime = DateTime.Now;
 

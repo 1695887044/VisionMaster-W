@@ -55,13 +55,50 @@ namespace VisionMaster.Communications
         {
             return dataType switch
             {
-                DataValueType.Boolean => "X",
+                // 无位偏移的 Boolean 按 1 字节读：旧 "DBX"+纯数字 会让 HSL 剥前缀后解析空串炸掉
+                DataValueType.Boolean => "B",
                 DataValueType.SByte or DataValueType.Byte => "B",
                 DataValueType.Int16 or DataValueType.UInt16 => "W",
                 DataValueType.Int32 or DataValueType.UInt32 or DataValueType.Float => "D",
-                DataValueType.Int64 or DataValueType.UInt64 or DataValueType.Double => "L",
+                // "L" 不在 HSL 的类型前缀剥离白名单里（DBL0 会解析失败），8 字节类型统一用 "D" 定位字节偏移
+                DataValueType.Int64 or DataValueType.UInt64 or DataValueType.Double => "D",
                 _ => "B"
             };
+        }
+
+        /// <summary>
+        /// <para>生成结构化轮询地址：区域分组键 + 字节粒度段前缀（"MB"/"DB7.DBB"/"VB"）。</para>
+        /// <para>这些形式均已核对 HSL 的 S7AddressData.ParseFrom 可直接解析。</para>
+        /// </summary>
+        public override bool TryCreatePollAddress(out PollAddress? poll)
+        {
+            poll = null;
+            if (!int.TryParse(Offset, out int start) || start < 0) return false;
+
+            string group, prefix;
+            if (Area == S7Area.DB)
+            {
+                group = $"DB{DbNumber}";
+                prefix = $"DB{DbNumber}.DBB";
+            }
+            else
+            {
+                group = Area.ToString();          // M / I / Q / V
+                prefix = $"{Area}B";              // MB / IB / QB / VB
+            }
+
+            poll = new PollAddress
+            {
+                Protocol = PollProtocol.S7,
+                GroupKey = group,
+                SegmentPrefix = prefix,
+                Start = start,
+                SpanUnits = IsBitType ? 1 : Math.Max(1, TotalBytes),
+                IsBitArea = false,
+                IsBitAccess = IsBitType,
+                BitOffset = IsBitType ? BitOffset : -1
+            };
+            return true;
         }
 
         public override (bool IsValid, string ErrorMessage) Validate()

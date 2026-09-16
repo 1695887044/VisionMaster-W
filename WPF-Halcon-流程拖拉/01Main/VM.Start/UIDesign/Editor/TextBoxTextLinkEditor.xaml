@@ -1,0 +1,27 @@
+<UserControl
+	x:Class="VM.Start.UIDesign.Editor.TextBoxTextLinkEditor" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:d="http://schemas.microsoft.com/expression/blend/2008" xmlns:local="clr-namespace:VM.Start.UIDesign.Editor">
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition
+				Width="*" />
+			<ColumnDefinition
+				Width="15" />
+		</Grid.ColumnDefinitions>
+		<TextBox
+			Grid.Column="0"
+			IsReadOnly="True"
+			Foreground="#FFFFFFFF"
+			Visibility="Collapsed"
+			Text="{Binding ValueString}"
+			TextChanged="TextBox_TextChanged" />
+		<TextBlock
+			Name="showText"
+			Grid.Column="0"
+			VerticalAlignment="Center" />
+		<Button
+			Grid.Column="1"
+			Content="..."
+			Width="15"
+			Click="Button_Click" />
+	</Grid>
+</UserControl>

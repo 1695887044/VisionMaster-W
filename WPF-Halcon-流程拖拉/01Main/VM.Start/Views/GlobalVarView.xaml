@@ -1,0 +1,347 @@
+﻿<mah:MetroWindow
+    x:Class="VM.Start.Views.GlobalVarView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+    xmlns:const="clr-namespace:VM.Start.Common.Const"
+    xmlns:converter="clr-namespace:VM.Start.Assets.Converter"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helper="clr-namespace:VM.Start.Common.Helper"
+    xmlns:lex="http://wpflocalizeextension.codeplex.com"
+    xmlns:local="clr-namespace:VM.Start.Views"
+    xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:rightControl="clr-namespace:VM.Start.Common.RightControl"
+    x:Name="window"
+    Width="980"
+    Height="680"
+    lex:LocalizeDictionary.DesignCulture="zh"
+    lex:LocalizeDictionary.OutputMissingKeys="True"
+    lex:ResxLocalizationProvider.DefaultAssembly="VM.Start"
+    lex:ResxLocalizationProvider.DefaultDictionary="Resource"
+    AllowsTransparency="False"
+    FontFamily="Microsoft YaHei"
+    NonActiveGlowBrush="#CDFF0000"
+    ResizeMode="CanResizeWithGrip"
+    ShowIconOnTitleBar="True"
+    ShowTitleBar="True"
+    TextElement.FontSize="12"
+    TextElement.FontWeight="Medium"
+    TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+    Topmost="False"
+    WindowStartupLocation="CenterScreen"
+    mc:Ignorable="d">
+    <b:Interaction.Triggers>
+        <b:EventTrigger EventName="Activated">
+            <helper:EventTriggerAction Command="{Binding ActivatedCommand}" />
+        </b:EventTrigger>
+        <b:EventTrigger EventName="Loaded">
+            <helper:EventTriggerAction Command="{Binding LoadedCommand}" />
+        </b:EventTrigger>
+        <b:EventTrigger EventName="Unloaded">
+            <helper:EventTriggerAction Command="{Binding UnloadedCommand}" />
+        </b:EventTrigger>
+
+    </b:Interaction.Triggers>
+    <Window.Resources>
+        <ResourceDictionary>
+            <converter:Bool2VisibilityConverter x:Key="Bool2VisibilityConverter" />
+            <rightControl:RightControl x:Key="RightControl" />
+        </ResourceDictionary>
+    </Window.Resources>
+    <mah:MetroWindow.LeftWindowCommands>
+        <mah:WindowCommands>
+            <TextBlock
+                Margin="5,0"
+                VerticalAlignment="Center"
+                FontFamily="{DynamicResource iconfont}"
+                FontSize="16"
+                FontWeight="Light"
+                Text="&#xe629;" />
+            <TextBlock
+                Margin="5,0"
+                VerticalAlignment="Center"
+                FontWeight="Light"
+                Text="{lex:Loc Key=GlobalVar}" />
+        </mah:WindowCommands>
+    </mah:MetroWindow.LeftWindowCommands>
+
+    <Grid Margin="0,5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="auto" />
+            <RowDefinition />
+            <RowDefinition Height="50" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition />
+            <ColumnDefinition Width="135" />
+        </Grid.ColumnDefinitions>
+        <Expander Header="配方管理" IsExpanded="True">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="auto" />
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="180" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        Margin="5"
+                        VerticalAlignment="Center"
+                        Text="当前配方" />
+                    <Border
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Height="28"
+                        BorderBrush="{StaticResource MahApps.Brushes.AccentBase}"
+                        BorderThickness="1"
+                        CornerRadius="5"
+                        SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{DynamicResource iconfont}"
+                                FontSize="20"
+                                Foreground="#DDD"
+                                Text="" />
+                            <ComboBox
+                                Name="cobCurrentRepice"
+                                Grid.Column="2"
+                                Background="#00FFFFFF"
+                                BorderThickness="0"
+                                Foreground="#DDD"
+                                ItemsSource="{Binding RecipeList}"
+                                SelectedItem="{Binding CurrentRecipe}">
+                                <b:Interaction.Triggers>
+                                    <b:EventTrigger EventName="SelectionChanged">
+                                        <helper:EventTriggerAction Command="{Binding CobCurrentRepice_SelectionChanged}" />
+                                    </b:EventTrigger>
+                                    <b:EventTrigger EventName="MouseEnter">
+                                        <helper:EventTriggerAction Command="{Binding CobCurrentRepice_MouseEnter}" />
+                                    </b:EventTrigger>
+                                </b:Interaction.Triggers>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                        <Button
+                            Name="btnNewRepice"
+                            Command="{Binding NewRepiceCommand}"
+                            Content=""
+                            FontSize="25"
+                            Foreground="{DynamicResource MahApps.Brushes.AccentBase}"
+                            IsEnabled="{Binding Source={StaticResource RightControl}, Path=Ins.DeviceParam}"
+                            Style="{StaticResource NavOperateButtonStyle}"
+                            ToolTip="新建配方" />
+                        <Button
+                            Name="btnSaveRepice"
+                            Grid.Column="2"
+                            Command="{Binding SaveRepiceCommand}"
+                            Content=""
+                            FontSize="25"
+                            Foreground="{DynamicResource MahApps.Brushes.AccentBase}"
+                            IsEnabled="{Binding Source={StaticResource RightControl}, Path=Ins.DeviceParam}"
+                            Style="{StaticResource NavOperateButtonStyle}"
+                            ToolTip="保存配方" />
+                        <Button
+                            Name="btnDeleteRepice"
+                            Grid.Column="2"
+                            Command="{Binding DeleteRepiceCommand}"
+                            Content=""
+                            FontSize="25"
+                            Foreground="#FFFF0000"
+                            IsEnabled="{Binding Source={StaticResource RightControl}, Path=Ins.DeviceParam}"
+                            Style="{StaticResource NavOperateButtonStyle}"
+                            ToolTip="删除配方" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Expander>
+        <TabControl Grid.Row="1" Style="{StaticResource VerTabControl}">
+            <TabItem Header="全部" Style="{StaticResource VerTabItem}">
+                <DataGrid
+                    x:Name="dg"
+                    AutoGenerateColumns="False"
+                    CanUserAddRows="False"
+                    EnableColumnVirtualization="True"
+                    EnableRowVirtualization="True"
+                    FontSize="12"
+                    GridLinesVisibility="All"
+                    HeadersVisibility="Column"
+                    ItemsSource="{Binding SysVar}"
+                    RowHeaderWidth="20"
+                    SelectionUnit="FullRow"
+                    VirtualizingPanel.IsVirtualizing="True">
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Command="{Binding DeleteCommand}" Header="删除" />
+                            <MenuItem
+                                Command="{Binding MoveCommand}"
+                                CommandParameter="Up"
+                                Header="上移" />
+                            <MenuItem
+                                Command="{Binding MoveCommand}"
+                                CommandParameter="Down"
+                                Header="下移" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Binding="{Binding Index}"
+                            CanUserSort="True"
+                            Header="索引"
+                            IsReadOnly="True" />
+                        <DataGridTextColumn
+                            Width="auto"
+                            Binding="{Binding DataType}"
+                            CanUserSort="True"
+                            Header="类型"
+                            IsReadOnly="True" />
+                        <DataGridTextColumn
+                            Width="auto"
+                            Binding="{Binding Name}"
+                            CanUserSort="False"
+                            Header="名称"
+                            IsReadOnly="False" />
+                        <DataGridTextColumn
+                            Width="100"
+                            Binding="{Binding Value}"
+                            CanUserSort="False"
+                            Header="值"
+                            IsReadOnly="False" />
+                        <DataGridTextColumn
+                            Width="*"
+                            Binding="{Binding Note}"
+                            CanUserSort="False"
+                            Header="注释"
+                            IsReadOnly="False" />
+
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+        </TabControl>
+        <StackPanel Grid.RowSpan="2" Grid.Column="1">
+            <StackPanel Orientation="Horizontal">
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="int"
+                    Content="int" />
+                <Button
+                    Width="60"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="int[]"
+                    Content="int[]" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="double"
+                    Content="double" />
+                <Button
+                    Width="60"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="double[]"
+                    Content="double[]" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="string"
+                    Content="string" />
+                <Button
+                    Width="60"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="string[]"
+                    Content="string[]" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="bool"
+                    Content="bool" />
+                <Button
+                    Width="60"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="bool[]"
+                    Content="bool[]" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="Region"
+                    Content="Region" />
+                <Button
+                    Width="60"
+                    Command="{Binding AddVarCommand}"
+                    CommandParameter="Image[]"
+                    Content="Image[]" />
+            </StackPanel>
+            <StackPanel>
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding DeleteCommand}"
+                    Content="删除" />
+            </StackPanel>
+            <StackPanel>
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding MoveCommand}"
+                    CommandParameter="Up"
+                    Content="上移" />
+            </StackPanel>
+            <StackPanel>
+                <Button
+                    Width="60"
+                    Margin="5,10"
+                    Command="{Binding MoveCommand}"
+                    CommandParameter="Down"
+                    Content="下移" />
+            </StackPanel>
+        </StackPanel>
+        <DockPanel
+            Grid.Row="2"
+            Grid.ColumnSpan="2"
+            LastChildFill="True">
+            <StackPanel>
+                <CheckBox Margin="30,0" Content="保存更新后的值" />
+            </StackPanel>
+            <StackPanel
+                Grid.Row="1"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal">
+                <Button
+                    x:Name="btnCancel"
+                    HorizontalAlignment="Right"
+                    Click="btnCancel_Click"
+                    Content="{lex:Loc Key=Cancel}" />
+                <Button
+                    x:Name="btnConfirm"
+                    Margin="20,0,20,0"
+                    HorizontalAlignment="Right"
+                    Background="#FFFF2000"
+                    BorderBrush="#FFFF2000"
+                    Command="{Binding ConfirmCommand}"
+                    Content="{lex:Loc Key=Confirm}" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</mah:MetroWindow>

@@ -1,0 +1,155 @@
+﻿<vb:ModuleViewBase x:Class="Plugin.SplitString.Views.SplitStringView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+                   xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"      
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                   xmlns:local="clr-namespace:Plugin.SplitString.Views"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.SplitString.ViewModels"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+                   xmlns:hw="clr-namespace:VM.Halcon;assembly=VM.Halcon" 
+                   Icon="/Plugin.SplitString;component/Assets/Images/Tool/SplitString.png"
+                   Height="680" Width="800"
+                   Loaded="ModuleViewBase_Loaded">
+    <Window.DataContext>
+        <vm:SplitStringViewModel/>
+    </Window.DataContext>
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                </ResourceDictionary>
+                <ResourceDictionary   Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="100"/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <Border>
+                    <GroupBox Header="文本来源" Margin="3">
+                        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock Text="数据链接" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <TextBox HorizontalAlignment="Center" VerticalAlignment="Center"  Width="300" Margin="5 0" IsReadOnly="True"
+                                     Style="{StaticResource LinkTextBox}" Text="{Binding DataLinkText}"
+                                     mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                     mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.DataLink}"/>
+                        </StackPanel>
+                    </GroupBox>
+                </Border>
+                <Border Grid.Column="1">
+                    <GroupBox Header="数据分割模式" Margin="3">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/>
+                                <ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <RadioButton Content="固定长度" IsChecked="{Binding SelectSplitMode, Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eSplitMode.固定长度}}" Margin="15,0"/>
+                                <RadioButton Content="分隔符" IsChecked="{Binding SelectSplitMode, Converter={StaticResource EnumConverter},ConverterParameter={x:Static vm:eSplitMode.分隔符}}" Margin="15,0"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Visibility="{Binding SelectSplitMode,Converter={StaticResource EnumToVisibilityConverter},ConverterParameter={x:Static vm:eSplitMode.固定长度}}" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="等分长度:" VerticalAlignment="Center"/>
+                                <mah:NumericUpDown Minimum="1" Value="{Binding SplitNum}" Width="150" Margin="5 0" BorderThickness="0 0 0 1" TextAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Visibility="{Binding SelectSplitMode,Converter={StaticResource EnumToVisibilityConverter},ConverterParameter={x:Static vm:eSplitMode.分隔符}}" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="分割符号:" VerticalAlignment="Center"/>
+                                <TextBox BorderThickness="0,0,0,1" Text="{Binding SplitPoint}" Width="150" Margin="5,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                </Border>
+            </Grid>
+            <Border Grid.Row="1">
+                <GroupBox Header="数据结果" Margin="3">
+                    <Grid>
+                        <Grid.Resources>
+                            <Style TargetType="Button" BasedOn="{StaticResource VmButton}">
+                                <Setter Property="Margin" Value="0,0,0,15"/>
+                            </Style>
+                        </Grid.Resources>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="100"/>
+                        </Grid.ColumnDefinitions>
+                        <DataGrid AutoGenerateColumns="False" x:Name="dg1"
+                                  EnableColumnVirtualization="True"
+                                  EnableRowVirtualization="True"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  ItemsSource="{Binding Data}" 
+                                  SelectedItem="{Binding SelectedData}"
+                                  FontSize="12" 
+                                  RowHeaderWidth="20"
+                                  SelectionUnit="FullRow"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  CanUserAddRows="False"
+                                  CanUserSortColumns="False"
+                        >
+                            <DataGrid.Columns>
+                                <DataGridTextColumn  Header="类型" IsReadOnly="True" Binding="{Binding DataType}" Width="0.5*"/>
+                                <DataGridTextColumn Header="名称" IsReadOnly="False" Binding="{Binding DataName}" Width="1*"/>
+                                <DataGridTextColumn Header="前缀" IsReadOnly="False" Binding="{Binding Prefix}" Width="0.5*"/>
+                                <DataGridTextColumn Header="值" IsReadOnly="true" Binding="{Binding DataValue}" Width="2*"/>
+                                <DataGridTextColumn Header="后缀" IsReadOnly="False" Binding="{Binding Suffix}" Width="0.5*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Border Grid.Column="1" BorderThickness="1,0,0,0" BorderBrush="Gray">
+                            <StackPanel VerticalAlignment="Center">
+                                <Button Content="添加 int" Command="{Binding DataOperateCommand}"  CommandParameter="int"/>
+                                <Button Content="添加 string" Command="{Binding DataOperateCommand}"  CommandParameter="string"/>
+                                <Button Content="添加 double" Command="{Binding DataOperateCommand}"  CommandParameter="double"/>
+                                <Button Content="添加 bool" Command="{Binding DataOperateCommand}"  CommandParameter="bool" Margin="0,0,0,30"/>
+                                <Button Content="删除" Command="{Binding DataOperateCommand}"  CommandParameter="Delete"/>
+                                <!--<Button Content="上移" Command="{Binding DataOperateCommand}"  CommandParameter="UpMove"/>
+                                <Button Content="下移" Command="{Binding DataOperateCommand}"  CommandParameter="DownMove"/>-->
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </GroupBox>
+            </Border>
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</vb:ModuleViewBase>

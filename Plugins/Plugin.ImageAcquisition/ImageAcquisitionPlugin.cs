@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace Plugin.ImageAcquisition
 {
@@ -24,7 +23,7 @@ namespace Plugin.ImageAcquisition
     [Display(
         Name = "图像采集",
         GroupName = "常用工具",
-        Description = "从文件/文件夹/相机获取图像，供后续视觉处理使用",
+        Description = "从文件或文件夹获取图像，供后续视觉处理使用",
         ShortName = "\uf1c5"
     )]
     public class ImageAcquisitionPlugin : VisionPluginBase, IPluginCustomViewProvider
@@ -33,7 +32,7 @@ namespace Plugin.ImageAcquisition
 
         private AcquisitionMode _mode;
         /// <summary>
-        /// 采集模式: 0=单图文件, 1=文件夹, 2=相机
+        /// 采集模式: 0=单图文件, 1=文件夹
         /// </summary>
         [StepConfig]
         public AcquisitionMode Mode
@@ -42,7 +41,7 @@ namespace Plugin.ImageAcquisition
             set => SetProperty(ref _mode, value);
         }
 
-        private int _displayViewIndex = 0;
+        private int _displayViewIndex = 1;
         /// <summary>
         /// 显示窗口索引：采集图像发布到主界面几号视图窗口（1~9），0=不显示
         /// </summary>
@@ -84,17 +83,6 @@ namespace Plugin.ImageAcquisition
             "FileIndex",
             0,
             "文件夹内的文件索引（0-based）"
-        )
-        { IsRequired = false };
-
-
-        /// <summary>
-        /// 相机索引号（预留）
-        /// </summary>
-        public InputPort<int> CameraIndexPort { get; } = new(
-            "CameraIndex",
-            0,
-            "相机索引号（预留，默认 0）"
         )
         { IsRequired = false };
 
@@ -140,12 +128,20 @@ namespace Plugin.ImageAcquisition
 
         private HImage _previewImage = new();
         /// <summary>
-        /// 预览图像
+        /// 预览图像（换图即弃旧：SetProperty 成功后释放旧实例，避免非托管内存泄漏）
+        /// 安全性：ImageReadOnly 的 HImage 依赖属性持引用不复制，绑定在 UI 线程同步刷新，
+        /// SetProperty 已把 DP 切到新值并完成重绘，此处释放的是"已不被 UI 引用"的旧图
         /// </summary>
         public HImage PreviewImage
         {
             get => _previewImage;
-            set => SetProperty(ref _previewImage, value);
+            set
+            {
+                var old = _previewImage;
+                if (ReferenceEquals(old, value)) return;
+                if (SetProperty(ref _previewImage, value))
+                    old?.Dispose();
+            }
         }
 
         private string _previewImagePath = string.Empty;
@@ -189,13 +185,28 @@ namespace Plugin.ImageAcquisition
         }
 
         /// <summary>
-        /// 浏览选择图像文件（供 LinkableValueEditor 的 BrowseCommand 使用）
+        /// 浏览选择图像文件（供"指定图像"LinkableValueEditor 的 BrowseCommand 使用）
         /// </summary>
         public DelegateCommand BrowseFileCommand { get; }
+
+        /// <summary>
+        /// 浏览选择图像文件夹（供"文件目录"LinkableValueEditor 的 BrowseCommand 使用）
+        /// </summary>
+        public DelegateCommand BrowseFolderCommand { get; }
+
+        /// <summary>
+        /// 刷新文件夹预览（切换文件索引后重新载入预览图）
+        /// </summary>
+        public DelegateCommand RefreshPreviewCommand { get; }
 
         #endregion
 
         #region 私有状态
+
+        /// <summary>
+        /// 支持的图像扩展名（唯一事实源：执行核心、文件夹列表、浏览 filter 均由此派生）
+        /// </summary>
+        private const string ImageExtensions = ".bmp,.jpg,.jpeg,.png,.tif,.tiff";
 
         private List<string> _cachedFiles = new();
         private string _cachedFolderPath = string.Empty;
@@ -206,6 +217,8 @@ namespace Plugin.ImageAcquisition
         public ImageAcquisitionPlugin()
         {
             BrowseFileCommand = new DelegateCommand(BrowseFile);
+            BrowseFolderCommand = new DelegateCommand(BrowseFolder);
+            RefreshPreviewCommand = new DelegateCommand(RefreshFolderFiles);
         }
 
         #region IPluginCustomViewProvider
@@ -243,8 +256,7 @@ namespace Plugin.ImageAcquisition
             AcquisitionMode mode,
             string filePath,
             string folderPath,
-            int fileIndex,
-            int cameraIndex)
+            int fileIndex)
         {
             switch (mode)
             {
@@ -252,10 +264,7 @@ namespace Plugin.ImageAcquisition
                     return AcquireSingleFile(filePath);
 
                 case AcquisitionMode.Folder:
-                    return AcquireFromFolder(folderPath, fileIndex, ".bmp,.jpg,.jpeg,.png,.tif,.tiff");
-
-                case AcquisitionMode.Camera:
-                    return AcquireFromCamera(cameraIndex);
+                    return AcquireFromFolder(folderPath, fileIndex, ImageExtensions);
 
                 default:
                     return new CoreResult { Error = $"未知的采集模式: {mode}" };
@@ -330,45 +339,6 @@ namespace Plugin.ImageAcquisition
             };
         }
 
-        private CoreResult AcquireFromCamera(int cameraIndex)
-        {
-            // TODO: 接入相机SDK (Basler/Hikvision/Daheng等)
-            // 占位图：640x480 灰度渐变（含相机索引偏移），保证下游图像处理节点可用
-            const int width = 640;
-            const int height = 480;
-            var pixels = new byte[width * height];
-            for (int y = 0; y < height; y++)
-            {
-                int row = y * width;
-                for (int x = 0; x < width; x++)
-                {
-                    pixels[row + x] = (byte)((x / 4 + y / 4 + cameraIndex * 30) % 256);
-                }
-            }
-
-            IntPtr ptr = Marshal.AllocHGlobal(pixels.Length);
-            try
-            {
-                Marshal.Copy(pixels, 0, ptr, pixels.Length);
-                HImage image = new HImage();
-                image.GenImage1("byte", width, height, ptr);
-
-                return new CoreResult
-                {
-                    Success = true,
-                    Image = image,
-                    CurrentPath = $"Camera_{cameraIndex}",
-                    CurrentIndex = cameraIndex,
-                    TotalFiles = 0,
-                    Error = $"相机采集为占位模式，相机索引: {cameraIndex}"
-                };
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(ptr);
-            }
-        }
-
         #endregion
 
         #region 正式运行（唯一执行方法；数据源：端口 = InputValues 灌值 + 链接变量覆盖）
@@ -386,8 +356,7 @@ namespace Plugin.ImageAcquisition
                     Mode,
                     FilePathPort.GetTypedValue(),
                     FolderPathPort.GetTypedValue(),
-                    FileIndexPort.GetTypedValue(),
-                    CameraIndexPort.GetTypedValue());
+                    FileIndexPort.GetTypedValue());
 
                 Success.Value = result.Success;
 
@@ -400,9 +369,9 @@ namespace Plugin.ImageAcquisition
                     TotalFiles.Value = result.TotalFiles;
                     context.Logger.Info($"{InstanceName} {result.Error}");
 
-                    // 发布到主程序视图（A1：事件传原图引用，UI 侧复制副本显示；0=不显示）
-
-                        this.PublishPreview(result.Image, DisplayViewIndex+1);
+                    // 发布到主程序视图（DisplayViewIndex 已是真实窗口号 1~9；0=不显示则跳过）
+                    if (DisplayViewIndex > 0)
+                        this.PublishPreview(result.Image, DisplayViewIndex);
                 }
                 else
                 {
@@ -445,7 +414,7 @@ namespace Plugin.ImageAcquisition
         {
             var dlg = new OpenFileDialog
             {
-                Filter = "图像文件|*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.gif|所有文件|*.*",
+                Filter = $"图像文件|{string.Join(";", ImageExtensions.Split(',').Select(e => "*" + e))}|所有文件|*.*",
                 Title = "选择图像文件"
             };
 
@@ -484,7 +453,7 @@ namespace Plugin.ImageAcquisition
 
             try
             {
-                var files = ListFolderImages(folderPath, ".bmp,.jpg,.jpeg,.png,.tif,.tiff");
+                var files = ListFolderImages(folderPath, ImageExtensions);
                 FileCount = files.Count;
 
                 if (files.Count == 0)
@@ -570,8 +539,7 @@ namespace Plugin.ImageAcquisition
                 OutputImage.Value = null;
             }
 
-            // 配置实例关闭时释放预览图（非托管资源）
-            PreviewImage?.Dispose();
+            // 配置实例关闭时释放预览图：置 null 由 setter 统一释放旧实例，避免重复 Dispose
             PreviewImage = null;
         }
 

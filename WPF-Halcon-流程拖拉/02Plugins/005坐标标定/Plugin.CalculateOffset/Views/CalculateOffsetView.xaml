@@ -1,0 +1,133 @@
+﻿<vb:ModuleViewBase xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                   x:Class="Plugin.CalculateOffset.Views.CalculateOffsetView"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                   xmlns:local="clr-namespace:Plugin.CalculateOffset.Views" 
+                   xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                   xmlns:helper="clr-namespace:VM.Start.Common.Helper;assembly=VM.Start"
+                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                   xmlns:enum="clr-namespace:VM.Start.Common.Enums;assembly=VM.Start"
+                   xmlns:vm="clr-namespace:Plugin.CalculateOffset.ViewModels"
+                   xmlns:cvt="clr-namespace:VM.Start.Assets.Converter;assembly=VM.Start"
+                   xmlns:WinFormHost="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
+                   xmlns:hw="clr-namespace:VM.Halcon;assembly=VM.Halcon"
+                   mc:Ignorable="d" Icon="/Plugin.CalculateOffset;component/Assets/Images/Tool/CalculateOffset.png"
+                   WindowStartupLocation="CenterScreen" Height="680" Width="980"
+                >
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <cvt:EnumConverter x:Key="EnumConverter"/>
+                    <cvt:EnumToVisibilityConverter x:Key="EnumToVisibilityConverter"/>
+                    <cvt:StatusConverter x:Key="StatusConverter"/>
+                </ResourceDictionary>
+                <ResourceDictionary Source="pack://application:,,,/VM.Start;component/Assets/Collection.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition Height="55"/>
+        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="370"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <Grid x:Name="gd" Margin="0 5">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="70"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border DockPanel.Dock="Top" Width="{Binding ElementName=gd,Path=ActualWidth}">
+                    <GroupBox Header="图像链接" Width="{Binding ElementName=gd,Path=ActualWidth}">
+                        <StackPanel Orientation="Horizontal" Margin="5 0">
+                            <TextBlock Text="输入图像" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0" IsReadOnly="True"
+                                     Style="{StaticResource LinkTextBox}"
+                                     Text="{Binding InputImageLinkText}"
+                                     mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                     mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.InputImageLink}"/>
+                        </StackPanel>
+                    </GroupBox>
+                </Border>
+                <Border x:Name="bd" Width="{Binding ElementName=gd,Path=ActualWidth}" Grid.Row="1">
+                    <GroupBox Header="坐标参数" Height="{Binding ElementName=gd,Path=ActualHeight}" Grid.Row="1" VerticalAlignment="Top" Width="{Binding ElementName=dp,Path=ActualWidth}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="17*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="10,10,10,70" >
+                                <StackPanel Orientation="Horizontal" Margin="10">
+                                    <TextBlock Text="原点X:" HorizontalAlignment="Center" VerticalAlignment="Center" Width="60"/>
+                                    <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0" IsReadOnly="True"
+                                             Style="{StaticResource LinkTextBox}"
+                                             Text="{Binding XLinkText.Text}"
+                                             mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                             mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.XLink}"
+                                             mah:TextBoxHelper.Watermark="double"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="10">
+                                    <TextBlock Text="原点Y:" HorizontalAlignment="Center" VerticalAlignment="Center" Width="60"/>
+                                    <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0" IsReadOnly="True"
+                                             Style="{StaticResource LinkTextBox}"
+                                             Text="{Binding YLinkText.Text}"
+                                             mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                             mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.YLink}"
+                                             mah:TextBoxHelper.Watermark="double"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="10">
+                                    <TextBlock Text="角度:" HorizontalAlignment="Center" VerticalAlignment="Center" Width="60"/>
+                                    <TextBox HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="0 0 0 1" Width="200" Margin="5 0" IsReadOnly="True"
+                                             Style="{StaticResource LinkTextBox}"
+                                             Text="{Binding DegLinkText.Text}"
+                                             mah:TextBoxHelper.LinkButtonCommand="{Binding LinkCommand,Mode=OneWay}"
+                                             mah:TextBoxHelper.LinkButtonCommandParameter="{x:Static vm:eLinkCommand.DegLink}"
+                                             mah:TextBoxHelper.Watermark="double"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="转换关系:" HorizontalAlignment="Center" VerticalAlignment="Center" Width="60" ToolTip="九点标定得到的文件"/>
+                                    <TextBox Grid.Column="1" Style="{DynamicResource MahApps.Styles.TextBox.Search}" Height="25"  Width="210" Margin="5 0" IsReadOnly="True"  Text="{Binding Hommat2DFilePath}"
+                                                     mah:TextBoxHelper.ButtonCommand="{Binding OpenFileCommand}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <CheckBox Content="使用旋转中心" IsChecked="{Binding EnableRotateCenter}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                </Border>
+            </Grid>
+            <GridSplitter Grid.Column="1"/>
+            <WinFormHost:WindowsFormsHost Margin="5" Grid.Column="2" x:Name="winFormHost">
+            </WinFormHost:WindowsFormsHost>
+        </Grid>
+        <Border Grid.Row="1" BorderBrush="White" BorderThickness="0 0.5 0 0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Margin="10 0 0 0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock>
+                        <Run Text="耗时:"/>
+                        <Run Text="{Binding ModuleParam.ElapsedTime}"/>
+                        <Run Text="ms"/>
+                    </TextBlock>
+                    <TextBlock>
+                        <Run Text="状态:"/>
+                        <Run Text="{Binding ModuleParam.Status,Converter={StaticResource StatusConverter}}"/>
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="btnExecute" Content="执行" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ExecuteCommand}"/>
+                    <!--<Button x:Name="btnCancel" Content="取消" HorizontalAlignment="Right" Margin="10 0" Click="btnCancel_Click"/>-->
+                    <Button x:Name="btnConfirm" Content="确认" HorizontalAlignment="Right" Margin="10 0" Command="{Binding ConfirmCommand}"
+                            Background="#FFFF2000" BorderBrush="#FFFF2000"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</vb:ModuleViewBase>

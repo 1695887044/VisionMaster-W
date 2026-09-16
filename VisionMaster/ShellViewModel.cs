@@ -239,8 +239,9 @@ namespace VisionMaster
             // Core 层持久化服务的通信管理器引用（保存/加载方案时需要按协议重建地址）
             Services.ServiceLocator.CommunicationManager = communicationManager;
 
-            // 启动时恢复上次保存的连接配置（communications.json；通信设置对话框关闭时保存）
-            _ = communicationManager.LoadConfigAsync();
+            // 连接配置的恢复与自动连接已由 CommunicationModule 在启动装配阶段完成
+            // （必须早于通讯自检与 Shell 构造，见 CommunicationModule.Initialize），此处不再重复加载，
+            // 否则会出现"两处都能加载配置"的真相源分裂。
         }
 
         private void SwitchCanvas(string obj)
@@ -602,7 +603,7 @@ namespace VisionMaster
             {
                 foreach (var item in result.Errors)
                 {
-                    Notifier.ShowError(item);
+                    Notifier.ShowError(item.Message);
                 }
                 return;
             }

@@ -1,0 +1,13 @@
+﻿<vb:ModuleViewBase xmlns:vb="clr-namespace:VM.Start.Core;assembly=VM.Start"
+                x:Class="Plugin.Folder.Views.FolderView"
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                xmlns:local="clr-namespace:Plugin.Folder.Views"
+                mc:Ignorable="d" Icon="/Plugin.Folder;component/Assets/Images/Tool/Folder.png"
+                >
+    <Grid>
+            
+    </Grid>
+</vb:ModuleViewBase>

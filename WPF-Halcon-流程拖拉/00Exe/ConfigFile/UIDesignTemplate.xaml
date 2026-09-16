@@ -1,0 +1,20 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        Width="1027"
+        Height="800">
+  <Canvas>
+    <Border Width="813"
+            Height="633"
+            Background="AliceBlue"
+            Canvas.Left="54"
+            Canvas.Top="53" />
+    <TextBox Width="113"
+             Height="26"
+             Background="#FF473636"
+             Foreground="#FFB75050"
+             Text="21321"
+             Canvas.Left="89"
+             Canvas.Top="90" />
+  </Canvas>
+</Window>

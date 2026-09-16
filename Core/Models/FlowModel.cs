@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -161,6 +162,21 @@ namespace VisionMaster.Models
             set { SetProperty(ref field, value); }
         }
 
+        /// <summary>
+        /// 画布布局（视图元数据，StepID → 坐标/折叠态）。
+        ///
+        /// 刻意写成「不通知」的普通属性：它不在 Steps 的 PropertyChanged 订阅链上，
+        /// 也不调用 SetProperty，因此改动布局不会递增 Version、不会触发重编译。
+        /// setter 挡 null 是为了让画布侧可以无脑使用 Layout 而不必判空。
+        /// </summary>
+        public FlowLayoutStore Layout
+        {
+            get => _layout;
+            set => _layout = value ?? new FlowLayoutStore();
+        }
+
+        private FlowLayoutStore _layout = new();
+
         private ObservableCollection<StepModel> _steps = new();
 
         /// <summary>
@@ -211,17 +227,53 @@ namespace VisionMaster.Models
             if (e.OldItems != null)
             {
                 foreach (StepModel item in e.OldItems)
+                {
                     item.PropertyChanged -= OnStepPropertyChanged;
+                    // 步骤删除时同步清理布局，避免残留垃圾项。
+                    // 注意此处不能走 Layout 的事件，删除语义由 Version++ 表达
+                    Layout.Remove(item.StepID);
+                }
             }
         }
 
         /// <summary>
-        /// 步骤属性变更处理
-        /// 更新版本号（排除不影响逻辑的属性）
+        /// 纯运行时属性名集合（由 [RuntimeState] 标记），静态构建一次。
+        /// 这些属性变化不改变流程语义，因此不递增 Version。
+        /// </summary>
+        private static readonly HashSet<string> s_runtimePropertyNames = CollectRuntimePropertyNames();
+
+        private static HashSet<string> CollectRuntimePropertyNames()
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var type in typeof(StepModel).Assembly.GetTypes())
+            {
+                if (!typeof(StepModel).IsAssignableFrom(type)) continue;
+
+                // DeclaredOnly：只看各类型自己声明的属性，避免基类属性被重复扫描
+                foreach (var prop in type.GetProperties(
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                {
+                    if (prop.GetCustomAttribute<RuntimeStateAttribute>() != null)
+                        names.Add(prop.Name);
+                }
+            }
+
+            return names;
+        }
+
+        /// <summary>
+        /// 步骤属性变更处理：仅语义属性递增版本号。
+        ///
+        /// 排除名单由 [RuntimeState] 特性反射得出，不再手写字符串——
+        /// 旧实现写死 "IsSelected" / "LastRunTime"，前者 StepModel 从未拥有，
+        /// 后者在耗时 Stopwatch 改造后已更名为 LastRunTimeMs，名单静默失效，
+        /// 导致 BeginTiming/EndTiming/ResetState 每步合计约 8 次 Version++，
+        /// 每次运行前都被迫全量重编译。
         /// </summary>
         private void OnStepPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == "IsSelected" || e.PropertyName == "LastRunTime")
+            if (e.PropertyName != null && s_runtimePropertyNames.Contains(e.PropertyName))
                 return;
 
             Version++;

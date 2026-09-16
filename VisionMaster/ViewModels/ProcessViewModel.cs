@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
@@ -27,6 +28,12 @@ namespace VisionMaster.ViewModels
             SelectStep is ConditionStep step && step.PluginName.Contains("Switch");
         public IWorkspaceManager Workspace { get; init; }
 
+        /// <summary>
+        /// 构造时的 Workspace INotifyPropertyChanged 引用，Dispose 时用于解绑。
+        /// IWorkspaceManager 是业务接口不继承 INotifyPropertyChanged，只有运行时实例才是 INPC。
+        /// </summary>
+        private readonly INotifyPropertyChanged? _workspaceChanged;
+
         public AsyncDelegateCommand<ModuleCommandAction?> ModuleActionCommand { get; init; }
         public object SelectStep
         {
@@ -42,10 +49,21 @@ namespace VisionMaster.ViewModels
                 CurrentSelectedStepModel = value as StepModel;
                 RaisePropertyChanged(nameof(IsIfNodeSelected));
                 RaisePropertyChanged(nameof(IsSwitchNodeSelected));
-                Workspace.SwitchStep(CurrentSelectedStepModel);
+
+                // 反向推送来的值本来就是 Workspace 自己发出来的，再 SwitchStep 一次纯属回环
+                if (!_syncingFromWorkspace)
+                    Workspace.SwitchStep(CurrentSelectedStepModel);
             }
         }
         StepModel CurrentSelectedStepModel;
+
+        /// <summary>
+        /// true = 正在把 Workspace.CurrentStep 推给 SelectStep。
+        /// 联动只有一条总线：Workspace.CurrentStep。画布（或任何编辑端）改当前步骤 → 这里收到通知
+        /// → 更新 SelectStep → TreeViewBehavior 的双向绑定把流程树选中并逐级展开过去。
+        /// 反向（流程树点选 → SwitchStep）走 SelectStep 的 setter，两条路径靠这个标志互相隔断。
+        /// </summary>
+        private bool _syncingFromWorkspace;
 
         /// <summary>
         /// 运行状态镜像：由 ShellViewModel 经 GlobalEventBus 广播同步。
@@ -72,16 +90,83 @@ namespace VisionMaster.ViewModels
             this.Workspace = workspace;
             this.dialogService = dialogService;
             ModuleActionCommand = new(ModuleActionAsync);
-            GlobalEventBus.Subscribe<LinkPathEvent>(OnLinkPathEvent);
-            // 订阅主界面运行状态广播（总线同步派发，且发布方在 UI 线程，可直接存字段）
-            GlobalEventBus.Subscribe<MainRunState>(state => _runState = state);
+
+            _workspaceChanged = workspace as INotifyPropertyChanged;
 
             _runTimeTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(200),
             };
-            _runTimeTimer.Tick += (s, e) => TickRunningTimes(Workspace.CurrentFlow?.Steps);
+            _runTimeTimer.Tick += OnRunTimeTimerTick;
+
+            // 订阅与计时器统一由 Activate 挂接；View 的 Loaded / Unloaded 会成对调用
+            // Activate / Deactivate。构造即视为"已入树"，所以这里先挂一次。
+            Activate();
+        }
+
+        private bool _subscribed;
+
+        /// <summary>
+        /// 挂接全局订阅与运行耗时计时器（幂等）。
+        ///
+        /// 为什么不做成一次性的 Dispose：AvalonDock 切换标签页、隐藏面板都会让 View 触发
+        /// Unloaded（之后不会自动 Loaded），一次性清理会让面板恢复显示后失去流程联动。
+        /// 因此清理必须是**可逆**的挂/摘——离树时摘干净让旧 VM 可被 GC，入树时重新挂上。
+        /// </summary>
+        public void Activate()
+        {
+            if (_subscribed) return;
+            _subscribed = true;
+
+            GlobalEventBus.Subscribe<LinkPathEvent>(OnLinkPathEvent);
+            // 用命名方法而非 lambda：GlobalEventBus.Unsubscribe 依赖委托的 Target+Method 匹配
+            GlobalEventBus.Subscribe<MainRunState>(OnMainRunStateChanged);
+
+            if (_workspaceChanged != null)
+                _workspaceChanged.PropertyChanged += OnWorkspacePropertyChanged;
+
             _runTimeTimer.Start();
+        }
+
+        /// <summary>
+        /// 摘除全部长生命周期订阅并停表（幂等）。
+        /// 摘干净后本 VM 不再被 GlobalEventBus 静态表 / Workspace 单例 / 计时器泵引用，可被 GC。
+        /// </summary>
+        public void Deactivate()
+        {
+            if (!_subscribed) return;
+            _subscribed = false;
+
+            _runTimeTimer.Stop();
+
+            GlobalEventBus.Unsubscribe<LinkPathEvent>(OnLinkPathEvent);
+            GlobalEventBus.Unsubscribe<MainRunState>(OnMainRunStateChanged);
+
+            if (_workspaceChanged != null)
+                _workspaceChanged.PropertyChanged -= OnWorkspacePropertyChanged;
+        }
+
+        private void OnMainRunStateChanged(MainRunState state) => _runState = state;
+
+        private void OnRunTimeTimerTick(object? sender, EventArgs e)
+            => TickRunningTimes(Workspace.CurrentFlow?.Steps);
+
+        private void OnWorkspacePropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(IWorkspaceManager.CurrentStep)) return;
+
+            var step = Workspace.CurrentStep;
+            if (ReferenceEquals(step, SelectStep)) return;
+
+            _syncingFromWorkspace = true;
+            try
+            {
+                SelectStep = step;
+            }
+            finally
+            {
+                _syncingFromWorkspace = false;
+            }
         }
 
         /// <summary>

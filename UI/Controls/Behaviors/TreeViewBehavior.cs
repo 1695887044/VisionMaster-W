@@ -17,24 +17,121 @@ namespace UI.Behaviors
                 new RoutedPropertyChangedEventHandler<object>(GlobalTreeView_SelectedItemChanged));
         }
 
+        /// <summary>
+        /// 双向：TreeView 选中 → 写回 VM；VM 改选中项 → 推送给 TreeView（选中并逐级展开到该节点）。
+        /// 反向推送必须挂 PropertyChangedCallback，否则「画布双击下钻 → 流程树跟着跳过去」这类
+        /// 程序端改选中项的场景，界面上完全没有反应（原来只有 TreeView→VM 单向）。
+        /// </summary>
         public static readonly DependencyProperty BindableSelectedItemProperty =
             DependencyProperty.RegisterAttached(
                 "BindableSelectedItem",
                 typeof(object),
                 typeof(TreeViewBehavior),
-                new FrameworkPropertyMetadata(default, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+                new FrameworkPropertyMetadata(
+                    default,
+                    FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+                    OnBindableSelectedItemChanged));
 
         public static object GetBindableSelectedItem(DependencyObject obj) => obj.GetValue(BindableSelectedItemProperty);
         public static void SetBindableSelectedItem(DependencyObject obj, object value) => obj.SetValue(BindableSelectedItemProperty, value);
 
+        /// <summary>true = 正在由 VM 往 TreeView 推送选中项，此时树自身冒出的选中变更不再写回 VM</summary>
+        private static bool _syncingFromViewModel;
+
+        /// <summary>true = 类处理器正把 TreeView 的选中项写进 DP，此时 DP 回调不再反向推送（回环防护）</summary>
+        private static bool _updatingFromTreeView;
+
         // 3. 全局统一处理逻辑
         private static void GlobalTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            if (sender is TreeView treeView)
+            if (_syncingFromViewModel) return;
+            if (sender is not TreeView treeView) return;
+
+            _updatingFromTreeView = true;
+            try
             {
                 SetBindableSelectedItem(treeView, e.NewValue);
             }
+            finally
+            {
+                _updatingFromTreeView = false;
+            }
         }
+
+        #region 反向推送：VM 改选中项 → 展开路径 + 选中该节点
+
+        private static void OnBindableSelectedItemChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is not TreeView tree) return;
+            if (_updatingFromTreeView) return;   // 树自己写进来的，不需要推回去
+            if (e.NewValue == null) return;
+            if (ReferenceEquals(e.NewValue, tree.SelectedItem)) return;
+
+            // 容器生成要等布局完成，直接在 DP 回调里走一遍 UpdateLayout 属"布局过程中触发布局"，
+            // 可能抛异常或找不到容器；因此推迟到 Background 优先级（布局与渲染都已完成）。
+            tree.Dispatcher.BeginInvoke(
+                new Action(() => SyncSelectionFromViewModel(tree, e.NewValue)),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private static void SyncSelectionFromViewModel(TreeView tree, object target)
+        {
+            // 排队期间用户可能又改了选中项 / 切了流程：以当前 DP 值为准，过期请求直接丢弃
+            var current = GetBindableSelectedItem(tree);
+            if (current == null || !ReferenceEquals(current, target)) return;
+            if (ReferenceEquals(target, tree.SelectedItem)) return;
+
+            _syncingFromViewModel = true;
+            try
+            {
+                // 找不到（目标不属于当前 ItemsSource、或该层被虚拟化未生成）就静默放弃：
+                // 选中项不同步只是观感问题，抛异常会让整条绑定链断掉
+                if (TrySelectDescendant(tree, target))
+                    return;
+
+                // 目标就在根层但上面没命中（例如 ItemsSource 尚未就绪）——不再重试，避免与用户点选打架
+            }
+            finally
+            {
+                _syncingFromViewModel = false;
+            }
+        }
+
+        /// <summary>
+        /// 深度优先在容器树里找目标数据项：途经的分支逐级展开，命中后置选中并滚动到可见。
+        /// 每展开一层都 UpdateLayout，强制 ItemContainerGenerator 生成子容器（TreeView 默认不虚拟化）。
+        /// </summary>
+        private static bool TrySelectDescendant(ItemsControl host, object target)
+        {
+            host.UpdateLayout();
+
+            for (int i = 0; i < host.Items.Count; i++)
+            {
+                if (host.ItemContainerGenerator.ContainerFromIndex(i) is not TreeViewItem container)
+                    continue;   // 容器尚未生成：交给下一次显式操作，这里不猜索引
+
+                if (ReferenceEquals(container.DataContext, target))
+                {
+                    container.IsSelected = true;
+                    container.BringIntoView();
+                    return true;
+                }
+
+                if (!container.HasItems) continue;
+
+                bool wasExpanded = container.IsExpanded;
+                container.IsExpanded = true;
+
+                if (TrySelectDescendant(container, target))
+                    return true;
+
+                container.IsExpanded = wasExpanded;   // 这条子树里没有，恢复原展开态，不把整棵树摊开
+            }
+
+            return false;
+        }
+
+        #endregion
 
         #region 双击命令（双击节点 = 选中该节点 + 执行命令，View 零 code-behind）
 
