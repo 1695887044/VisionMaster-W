@@ -228,7 +228,12 @@ namespace VisionMaster.ViewModels
                         ? $"{SelectedNode.Name}.{port.Name}[{index}]"
                         : $"{SelectedNode.Name}.{port.Name}";
             }
-            var linkRef = new LinkReference(kind, targetId, targetPort, displayName);
+            var linkRef = new LinkReference(kind, targetId, targetPort, displayName)
+            {
+                // 全局变量连线带上稳定身份：变量改名后仍能命中，不必依赖 TargetPortName 里的旧名字。
+                // 非变量来源的端口这里是 Guid.Empty，解析器按"无身份"处理并退回按名查找。
+                TargetVariableId = port.VariableId
+            };
 
             // P0-③：单绑模式下弹窗只负责"把用户选的变量还给出题人"（经 BoundLink 回传），
             // 绝不能直写 Workspace.CurrentStep.LinkedSources——此时 CurrentStep 可能是条件节点，

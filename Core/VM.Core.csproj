@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Scada\VM.Scada.csproj" />
     <ProjectReference Include="..\Shard\Core.Controls\Core.Controls.csproj" />
     <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>

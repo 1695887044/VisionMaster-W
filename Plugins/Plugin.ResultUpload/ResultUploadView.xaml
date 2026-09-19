@@ -1,0 +1,608 @@
+<UserControl
+    x:Class="Plugin.ResultUpload.ResultUploadView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:Plugin.ResultUpload"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="760"
+    d:DesignWidth="540"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <local:EnumLabelConverter x:Key="EnumLabel" />
+            <local:EnumInToVisibilityConverter x:Key="EnumInVis" />
+            <local:InverseBoolConverter x:Key="NotBool" />
+
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="12" />
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect
+                            BlurRadius="12"
+                            Direction="270"
+                            Opacity="0.05"
+                            ShadowDepth="2"
+                            Color="Black" />
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <!--  预览报文：等宽字体 + 浅蓝底，一眼分清"配置文本"和"实际发出的 JSON"  -->
+            <Style x:Key="PreviewText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontFamily" Value="Consolas, Microsoft YaHei" />
+                <Setter Property="Foreground" Value="#1565C0" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#444444" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Width" Value="72" />
+            </Style>
+            <Style x:Key="FieldBox" TargetType="TextBox">
+                <Setter Property="Height" Value="24" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+            <!--  字段表/请求头行内的小输入框  -->
+            <Style x:Key="RowBox" TargetType="TextBox">
+                <Setter Property="Height" Value="22" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Padding" Value="2,0" />
+            </Style>
+            <Style x:Key="MiniButton" TargetType="Button">
+                <Setter Property="Padding" Value="8,3" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Cursor" Value="Hand" />
+            </Style>
+            <Style x:Key="PrimaryButton" TargetType="Button">
+                <Setter Property="Padding" Value="16,5" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Cursor" Value="Hand" />
+            </Style>
+            <!--  现代下拉基础样式：自绘圆角边框 + 悬停/聚焦高亮 + 自绘箭头（宿主默认 ComboBox 模板放在本视图外层作用域会失效，故完整自绘）  -->
+            <Style x:Key="ModernComboBase" TargetType="ComboBox">
+                <Setter Property="Height" Value="24" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#D5D5D5" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBox">
+                            <Grid>
+                                <ToggleButton
+                                    x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="1"
+                                    ClickMode="Press"
+                                    Cursor="Hand"
+                                    Focusable="False"
+                                    IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border
+                                                x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4">
+                                                <Path
+                                                    x:Name="Arrow"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0,0,9,0"
+                                                    Data="M 0 0 L 4 4 L 8 0 Z"
+                                                    Fill="#8A8A8A" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#2196F3" />
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#2196F3" />
+                                                    <Setter TargetName="Arrow" Property="Fill" Value="#2196F3" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <ContentPresenter
+                                    Margin="8,0,24,0"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    IsHitTestVisible="False" />
+                                <Popup
+                                    AllowsTransparency="True"
+                                    Placement="Bottom"
+                                    PopupAnimation="Fade"
+                                    IsOpen="{TemplateBinding IsDropDownOpen}"
+                                    StaysOpen="False">
+                                    <Border
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Margin="0,3,0,0"
+                                        Background="White"
+                                        BorderBrush="#D5D5D5"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <Border.Effect>
+                                            <DropShadowEffect
+                                                BlurRadius="10"
+                                                Direction="270"
+                                                Opacity="0.15"
+                                                ShadowDepth="2"
+                                                Color="Black" />
+                                        </Border.Effect>
+                                        <ScrollViewer Margin="2">
+                                            <ItemsPresenter />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  条目容器：圆角、悬停浅灰、选中浅蓝（系统蓝色高亮模板一并替换）  -->
+            <Style x:Key="ModernComboItem" TargetType="ComboBoxItem">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBoxItem">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="3">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F0F4F8" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#E3F0FB" />
+                                    <Setter Property="Foreground" Value="#1565C0" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  枚举下拉：条目显示中文标签（通用枚举标签转换器），SelectedItem 仍是枚举本身  -->
+            <Style
+                x:Key="EnumCombo"
+                BasedOn="{StaticResource ModernComboBase}"
+                TargetType="ComboBox">
+                <Setter Property="ItemContainerStyle" Value="{StaticResource ModernComboItem}" />
+                <Setter Property="ItemTemplate">
+                    <Setter.Value>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource EnumLabel}}" />
+                        </DataTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <!--  行内小号枚举下拉  -->
+            <Style
+                x:Key="RowEnumCombo"
+                BasedOn="{StaticResource EnumCombo}"
+                TargetType="ComboBox">
+                <Setter Property="Height" Value="22" />
+                <Setter Property="FontSize" Value="11" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10">
+
+            <!--  卡片1：报文预设（往哪发、什么格式）  -->
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="① 报文预设" />
+                    <TextBlock
+                        Margin="0,2,0,6"
+                        Style="{StaticResource HintText}"
+                        Text="MES 上传 / 钉钉·企微通知 / 自定义协议——底层都是往一个 URL 发一条 JSON" />
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="报文格式" />
+                        <ComboBox
+                            Grid.Column="1"
+                            Style="{StaticResource EnumCombo}"
+                            ItemsSource="{Binding PayloadKinds}"
+                            SelectedItem="{Binding PayloadKind}"
+                            ToolTip="MES字段表=字段表就是JSON载荷；钉钉/企微=群机器人文本通知；原始JSON=自己写模板（兜底奇葩协议）" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="目标 URL" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="MES 接口地址；钉钉机器人：https://oapi.dingtalk.com/robot/send?access_token=xxx；企业微信：https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="超时 ms" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding TimeoutMs}"
+                            ToolTip="单次请求超时（毫秒），默认 3000" />
+                    </Grid>
+
+                    <!--  自定义请求头（Key-Value 行编辑）  -->
+                    <TextBlock
+                        Margin="0,6,0,2"
+                        Style="{StaticResource HintText}"
+                        Text="请求头（MES 常要 Authorization；钉钉/企微 webhook 不用填）" />
+                    <ItemsControl ItemsSource="{Binding Headers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="26" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox
+                                        Style="{StaticResource RowBox}"
+                                        Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="请求头名，如 Authorization" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Margin="4,0,0,0"
+                                        Style="{StaticResource RowBox}"
+                                        Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="请求头值，如 Bearer xxxx" />
+                                    <Button
+                                        Grid.Column="2"
+                                        Margin="4,0,0,0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Click="RemoveHeader_Click"
+                                        Content="✕"
+                                        Cursor="Hand"
+                                        FontSize="11"
+                                        Foreground="#C62828"
+                                        ToolTip="删除此请求头" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button
+                        HorizontalAlignment="Left"
+                        Margin="0,4,0,0"
+                        Click="AddHeader_Click"
+                        Content="+ 添加请求头"
+                        Style="{StaticResource MiniButton}" />
+                </StackPanel>
+            </Border>
+
+            <!--  卡片2：上传内容（字段表 + 模板 + 预览）  -->
+            <Border
+                Margin="0,8,0,0"
+                Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="② 上传内容（字段表）" />
+                    <TextBlock
+                        Margin="0,2,0,4"
+                        Style="{StaticResource HintText}"
+                        Text="MES字段表模式：这张表就是 JSON 载荷本身（数字不带引号）。" />
+                    <TextBlock
+                        Margin="0,0,0,4"
+                        Style="{StaticResource HintText}"
+                        Text="通知/原始JSON模式：这张表是模板占位符的值池——来源=端口的字段会生成输入端口，画布上连线供值。" />
+
+                    <!--  字段表  -->
+                    <ItemsControl ItemsSource="{Binding Fields}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="92" />
+                                        <ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="26" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox
+                                        IsChecked="{Binding Enabled}"
+                                        VerticalAlignment="Center"
+                                        ToolTip="是否参与上报（临时停用不必删除）" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Margin="2,0"
+                                        Style="{StaticResource RowBox}"
+                                        Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="字段名（JSON 键 / 占位符名；来源=端口时也是端口名）" />
+                                    <ComboBox
+                                        Grid.Column="2"
+                                        Margin="2,0"
+                                        Style="{StaticResource RowEnumCombo}"
+                                        ItemsSource="{Binding DataContext.FieldSources, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        SelectedItem="{Binding Source}"
+                                        ToolTip="取值来源：端口=画布连线 / 变量=运行期变量池 / 内置=自动供给" />
+                                    <TextBox
+                                        Grid.Column="3"
+                                        Margin="2,0"
+                                        Style="{StaticResource RowBox}"
+                                        Text="{Binding VariableName, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="变量名（运行期变量池的键，如『变量定义』步骤写入的名字）"
+                                        Visibility="{Binding Source, Converter={StaticResource EnumInVis}, ConverterParameter=Variable}" />
+                                    <ComboBox
+                                        Grid.Column="3"
+                                        Margin="2,0"
+                                        Style="{StaticResource RowEnumCombo}"
+                                        ItemsSource="{Binding DataContext.BuiltInFields, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        SelectedItem="{Binding BuiltIn}"
+                                        ToolTip="内置字段：时间戳=上报时刻；步骤名=本步骤实例名"
+                                        Visibility="{Binding Source, Converter={StaticResource EnumInVis}, ConverterParameter=BuiltIn}" />
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        Margin="6,0,0,0"
+                                        FontSize="11"
+                                        Foreground="#2E7D32"
+                                        Text="画布上连线供值"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding Source, Converter={StaticResource EnumInVis}, ConverterParameter=Port}" />
+                                    <Button
+                                        Grid.Column="4"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Click="RemoveField_Click"
+                                        Content="✕"
+                                        Cursor="Hand"
+                                        FontSize="11"
+                                        Foreground="#C62828"
+                                        ToolTip="删除此字段" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button
+                        HorizontalAlignment="Left"
+                        Margin="0,4,0,0"
+                        Click="AddField_Click"
+                        Content="+ 添加字段"
+                        Style="{StaticResource MiniButton}" />
+
+                    <!--  通知内容模板（钉钉/企微）  -->
+                    <Grid
+                        Margin="0,8,0,0"
+                        Visibility="{Binding PayloadKind, Converter={StaticResource EnumInVis}, ConverterParameter='DingTalkText,WeComText'}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource HintText}" Text="通知内容（占位符：&#x7B;字段名&#x7D; &#x7B;时间&#x7D; &#x7B;日期&#x7D; &#x7B;步骤名&#x7D;，例：件&#x7B;sn&#x7D;判定&#x7B;result&#x7D;）" />
+                        <TextBox
+                            Grid.Row="1"
+                            Margin="0,3,0,0"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding MessageTemplate, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="例：件&#x7B;sn&#x7D;判定&#x7B;result&#x7D;，直径&#x7B;value1&#x7D;" />
+                    </Grid>
+
+                    <!--  原始 JSON 模板  -->
+                    <Grid
+                        Margin="0,8,0,0"
+                        Visibility="{Binding PayloadKind, Converter={StaticResource EnumInVis}, ConverterParameter=RawJson}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource HintText}" Text="JSON 模板（&#x7B;名&#x7D;=转义字符串注入；&#x7B;#名&#x7D;=原样注入，数字/布尔/JSON片段不带引号）" />
+                        <TextBox
+                            Grid.Row="1"
+                            Margin="0,3,0,0"
+                            MinHeight="52"
+                            AcceptsReturn="True"
+                            FontFamily="Consolas, Microsoft YaHei"
+                            FontSize="11"
+                            Text="{Binding RawJsonTemplate, UpdateSourceTrigger=PropertyChanged}"
+                            TextWrapping="Wrap"
+                            ToolTip="例：&#x7B;&quot;sn&quot;:&quot;&#x7B;sn&#x7D;&quot;,&quot;value&quot;:&#x7B;#value1&#x7D;&#x7D;" />
+                    </Grid>
+
+                    <!--  报文预览  -->
+                    <Border
+                        Margin="0,6,0,0"
+                        Padding="8,5"
+                        Background="#F5F9FE"
+                        CornerRadius="4">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource HintText}" Text="实际发出 →" />
+                            <TextBlock Style="{StaticResource PreviewText}" Text="{Binding PayloadPreview}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片3：发送策略  -->
+            <Border
+                Margin="0,8,0,0"
+                Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CardTitle}" Text="③ 发送策略" />
+                    <Grid Margin="0,4,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="上报时机" />
+                        <ComboBox
+                            Grid.Column="1"
+                            Style="{StaticResource EnumCombo}"
+                            ItemsSource="{Binding SendTimings}"
+                            SelectedItem="{Binding SendTiming}"
+                            ToolTip="每次执行=MES逐件上报；仅NG=IM通知的常规姿势；触发端口=收工信号触发" />
+                    </Grid>
+
+                    <!--  上报时机=触发端口 时出现：把上游信号连给"上报触发"端口  -->
+                    <Grid
+                        Margin="0,2"
+                        Visibility="{Binding SendTiming, Converter={StaticResource EnumInVis}, ConverterParameter=OnTrigger}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="触发信号" />
+                        <cv:LinkableValueEditor
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            StepData="{Binding StepData}"
+                            Port="{Binding TriggerPort}" />
+                    </Grid>
+
+                    <!--  上报时机=仅NG 时出现：判定字段 + NG 值  -->
+                    <Grid
+                        Margin="0,2"
+                        Visibility="{Binding SendTiming, Converter={StaticResource EnumInVis}, ConverterParameter=OnlyNG}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="判定字段" />
+                        <ComboBox
+                            Grid.Column="1"
+                            IsEditable="True"
+                            Style="{StaticResource EnumCombo}"
+                            Text="{Binding JudgeFieldName}"
+                            ItemsSource="{Binding JudgeFieldNames}"
+                            ToolTip="看哪个字段的值（从字段表里选，也可手填字段名）" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="8,0,4,0"
+                            Style="{StaticResource FieldLabel}"
+                            Width="Auto"
+                            Text="等于" />
+                        <TextBox
+                            Grid.Column="3"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding NgValue, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="判定字段的值等于它（不区分大小写）即视为 NG" />
+                    </Grid>
+
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        Style="{StaticResource HintText}"
+                        Text="异步队列（推荐）：组报文入队微秒级返回，网络再烂也拖不垮节拍" />
+                    <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
+                        <CheckBox
+                            Margin="0,0,14,0"
+                            Content="异步队列"
+                            IsChecked="{Binding AsyncMode}"
+                            ToolTip="取消勾选=同步等响应（下游要用 Response/状态码时用，超时会拖节拍）" />
+                        <CheckBox
+                            Content="上报失败阻断流程"
+                            IsChecked="{Binding BlockOnFailure}"
+                            ToolTip="默认不勾：宁漏报不停线；MES 没收到就停线的场合才勾" />
+                    </StackPanel>
+                    <Grid Margin="0,4,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="60" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="失败重试" />
+                        <TextBox
+                            Grid.Column="1"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding RetryCount}"
+                            ToolTip="失败后再试几次（退避 0.5s/1s/1.5s… 封顶 3s），0~10" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Style="{StaticResource FieldLabel}"
+                            Width="Auto"
+                            Text="成功关键字" />
+                        <TextBox
+                            Grid.Column="3"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding SuccessKeyword, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="非空时：HTTP 2xx 且响应体包含它才算业务成功（如钉钉响应里的 errcode）。留空=2xx 即成功" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片4：测试发送  -->
+            <Border
+                Margin="0,8,0,0"
+                Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource CardTitle}" Text="④ 测试发送" />
+                            <TextBlock
+                                Margin="8,0,0,0"
+                                Style="{StaticResource HintText}"
+                                Text="按上面的配置真发一条，当场验证 URL/报文/鉴权（端口没值用(空)占位）" />
+                        </StackPanel>
+                        <Button
+                            HorizontalAlignment="Right"
+                            Content="立即发送"
+                            IsEnabled="{Binding IsTesting, Converter={StaticResource NotBool}}"
+                            Click="TestSend_Click"
+                            Style="{StaticResource PrimaryButton}"
+                            ToolTip="后台线程发送，不卡界面" />
+                    </Grid>
+                    <TextBlock
+                        x:Name="ResultText"
+                        Margin="0,6,0,0"
+                        FontSize="12"
+                        Text="{Binding LastResult}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

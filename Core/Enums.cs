@@ -127,7 +127,13 @@ namespace VisionMaster
         HardwareSettings,
         ReportQuery,
         ReturnToZero,
-        UIDesign
+        UIDesign,
+        /// <summary>
+        /// 运行窗口设置：组态运行窗口是依附主窗口（全屏）还是独立窗口（并排）。
+        /// 刻意加在末尾而不是插在中间——枚举的整数值可能已经落进过 Layout.xml / 旧配置文件，
+        /// 中间插一个会把后面所有成员的值整体挪一位，读回来就是另一个动作了。
+        /// </summary>
+        RuntimeWindowSettings
     }
 
     /// <summary>
@@ -267,6 +273,14 @@ namespace VisionMaster
         ReadOnly,
         WriteOnly,
         ReadWrite
+    }
+
+    // 10. 变量质量戳（简化三档，语义对齐 OPC UA StatusCode）
+    public enum VariableQuality
+    {
+        Good,       // 最近一次读成功，值为新鲜值
+        Uncertain,  // 最近一次读失败（段读/单读/解码失败），当前显示的是旧值
+        Bad         // 连接断开或从未读到过任何值
     }
     // 校验位
     public enum ParityMode

@@ -1,15 +1,22 @@
 
+using System;
 using VisionMaster.Communications;
 
 namespace VisionMaster.Models
 {
     public static class VariableFactory
     {
-        public static IVariable CreateLocal(string name, Type dataType,string description, object? defaultValue = null)
+        /// <summary>
+        /// 创建本地变量。
+        /// variableId 仅在"按方案快照还原变量"时传入（保持身份不变）；
+        /// 常规新建留空即自动生成新身份。
+        /// </summary>
+        public static IVariable CreateLocal(string name, Type dataType, string description, object? defaultValue = null, Guid? variableId = null)
         {
             return new LocalVariableModel
             {
                 Name = name,
+                VariableId = variableId ?? Guid.NewGuid(),
                 DataType = dataType,
                 Description = description,
                 DefaultValue = defaultValue,
@@ -24,18 +31,18 @@ namespace VisionMaster.Models
             DeviceAddressBase addressConfig,
             string description,
             object? defaultValue = null,
-            int pollIntervalMs = 500)
+            Guid? variableId = null)
         {
             return new NetworkVariableModel
             {
                 Name = name,
+                VariableId = variableId ?? Guid.NewGuid(),
                 DataType = dataType,
                 ConnectionName = connectionName,
                 AddressConfig = addressConfig,
                 Description = description,
                 DefaultValue = defaultValue,
-                Value = defaultValue,
-                PollIntervalMs = pollIntervalMs
+                Value = defaultValue
             };
         }
     }

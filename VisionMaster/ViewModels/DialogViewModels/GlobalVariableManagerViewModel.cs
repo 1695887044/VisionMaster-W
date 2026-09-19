@@ -287,13 +287,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>所选存储区是否线圈/离散输入（仅 bool 合法）</summary>
         public bool IsCoilOrDiscrete => SelectedAreaType?.Value is ModbusArea.Coils or ModbusArea.DiscreteInputs;
 
-        private int _newPollIntervalMs = 1000;
-        public int NewPollIntervalMs
-        {
-            get => _newPollIntervalMs;
-            set => SetProperty(ref _newPollIntervalMs, value);
-        }
-
         private static readonly System.Collections.Generic.Dictionary<Enum, string> AreaDisplayNames = new()
         {
             [ModbusArea.Coils] = "线圈 (0x, 读写布尔)",
@@ -392,6 +385,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>复制变量名（HMI 控件绑定预留入口）</summary>
         public DelegateCommand<VariableNode> CopyNameCommand { get; }
 
+        /// <summary>重命名变量（经注册表统一入口，连线/监视项/轮询注册自动跟随）</summary>
+        public DelegateCommand<VariableNode> RenameCommand { get; }
+
         public DelegateCommand<VariableSourceNode> SelectSourceCommand { get; }
 
         public GlobalVariableManagerViewModel(
@@ -413,6 +409,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             CopyNameCommand = new DelegateCommand<VariableNode>(
                 n => Clipboard.SetText(n?.Name ?? ""),
                 n => n != null && n.IsRootNode);
+            RenameCommand = new DelegateCommand<VariableNode>(
+                RenameVariable,
+                n => n != null && n.IsRootNode && n.OriginalModel != null);
 
             SelectSourceCommand = new DelegateCommand<VariableSourceNode>(node => SelectedSource = node);
 
@@ -648,7 +647,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 var netVar = (NetworkVariableModel)VariableFactory.CreateNetwork(
                     NewVarName, targetType, SelectedConnection.ConnectionName,
-                    address, NewVarDescription, pollIntervalMs: NewPollIntervalMs);
+                    address, NewVarDescription);
 
                 _workspace.GlobalVariables.Add(netVar); // 桥接器监听集合 → 自动 Bind + RegisterVariable + 镜像接线
 
@@ -710,6 +709,35 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void ResetVariable(VariableNode node)
         {
             (node?.OriginalModel)?.ResetToDefault();
+        }
+
+        /// <summary>
+        /// 变量改名：唯一入口是 <c>IVariableRegistry.TryRename</c>。
+        ///
+        /// 为什么不能直接写 <c>node.OriginalModel.Name = 新名</c>：
+        /// 变量名在 Id 落地之前就是"地址"——连线（LinkReference.TargetPortName）、
+        /// 监视项（WatchItemModel.GlobalVariableName）、网络变量轮询注册（连接名+变量名）
+        /// 全都以名字为键。直接改模型名只会让这些引用静默失联（而且不报错），
+        /// 而 TryRename 把"写模型 + 修索引 + 广播"一次做完，广播后由工作区的级联
+        /// 把连线显示串/老连线寻址键、监视项名字一并改写过来。
+        /// </summary>
+        private void RenameVariable(VariableNode? node)
+        {
+            var model = node?.OriginalModel;
+            if (model == null) return;
+
+            var (confirmed, newName) = EasyDialog.ShowTextInputSync("重命名变量", model.Name);
+            if (!confirmed) return;
+
+            // 失败原因（空名/重名/该类型不支持改名）由注册表直接给出可展示的中文文案
+            if (!_workspace.VariableRegistry.TryRename(model, newName, out var error))
+            {
+                EasyDialog.ShowSync(error, "重命名失败");
+                return;
+            }
+
+            Notifier.ShowSuccess($"变量已重命名为 [{model.Name}]");
+            RefreshTree(); // 索引与引用已由级联更新，这里只刷新本弹窗的树/表
         }
 
         /// <summary>数组编辑器（本地数组变量）</summary>

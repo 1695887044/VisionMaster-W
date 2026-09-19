@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SCADA 领域层（画面 / 图元 / 绑定）。
+
+    刻意只依赖 net9.0（不带 -windows）、不引用 WPF、不引用 VM.Core：
+    1) 领域层不应知道"怎么画"——颜色/字体一律用字符串或基础类型承载，
+       转 System.Windows.Media.Color 的活由 Scada.Controls（S2）负责；
+    2) 不引用 VM.Core 是为了让依赖保持单向 VM.Core → VM.Scada
+       （SolutionModel 要持有 ScadaPages，反向引用会成环）；
+    3) 副作用是领域层可以在无界面场景（网关/报表/离线校验）里复用它。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Newtonsoft：与解决方案其余部分共享 13.0.4，保证 .vms 的 $type 写法一致 -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- Prism.Core：只为拿 BindableBase / SetProperty，与 VM.Core 的模型基类保持一致 -->
+    <PackageReference Include="Prism.Core" Version="9.0.537" />
+  </ItemGroup>
+
+</Project>

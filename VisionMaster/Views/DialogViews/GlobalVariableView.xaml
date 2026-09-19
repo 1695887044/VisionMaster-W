@@ -796,24 +796,18 @@
                                         SelectedItem="{Binding SelectedAreaType}"
                                         Style="{StaticResource ComboInGroup}" />
 
-                                    <UniformGrid Margin="0,0,0,12" Columns="3">
+                                    <UniformGrid Margin="0,0,0,12" Columns="2">
                                         <StackPanel Margin="0,0,10,0">
                                             <TextBlock Style="{StaticResource FormLabel}" Text="偏移量" />
                                             <TextBox
                                                 Style="{StaticResource InputInGroup}"
                                                 Text="{Binding NewOffset, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
-                                        <StackPanel Margin="0,0,10,0">
+                                        <StackPanel>
                                             <TextBlock Style="{StaticResource FormLabel}" Text="位偏移" />
                                             <TextBox
                                                 Style="{StaticResource InputInGroup}"
                                                 Text="{Binding NewBitOffset, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource FormLabel}" Text="轮询(ms)" />
-                                            <TextBox
-                                                Style="{StaticResource InputInGroup}"
-                                                Text="{Binding NewPollIntervalMs, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
                                     </UniformGrid>
 
@@ -1143,16 +1137,64 @@
                                             CornerRadius="13"
                                             Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
                                             <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <!--  质量色点：绿=采集正常 / 黄=最近一次读取失败(显示旧值) / 灰=断线或从未读到；本地变量无质量概念 → 不显示  -->
+                                                <Ellipse
+                                                    Grid.Column="0"
+                                                    Width="5"
+                                                    Height="5"
+                                                    Margin="8,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="采集质量：绿=正常 / 黄=最近一次读取失败（显示旧值） / 灰=断线或从未读到">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="#FFC0C4CC" />
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Good">
+                                                                    <Setter Property="Fill" Value="#FF67C23A" />
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Uncertain">
+                                                                    <Setter Property="Fill" Value="#FFE6A23C" />
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Bad">
+                                                                    <Setter Property="Fill" Value="#FFC0C4CC" />
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
                                                 <TextBlock
-                                                    Padding="10,0"
+                                                    Grid.Column="1"
+                                                    Margin="3,0,10,0"
                                                     VerticalAlignment="Center"
                                                     FontSize="12"
                                                     FontWeight="SemiBold"
-                                                    Foreground="{StaticResource PrimaryTextBrush}"
                                                     Text="{Binding OriginalModel.Value, Mode=OneWay}"
                                                     TextTrimming="CharacterEllipsis"
-                                                    Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                                    Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <!--  Foreground 必须放进 Style：attribute 形式的本地值优先级高于 DataTrigger，Bad 时打不灰  -->
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Bad">
+                                                                    <Setter Property="Foreground" Value="#FF909399" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <Button
+                                                    Grid.Column="0"
+                                                    Grid.ColumnSpan="2"
+                                                    HorizontalAlignment="Left"
                                                     Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                     CommandParameter="{Binding}"
                                                     Content="强制覆盖集合..."
@@ -1175,7 +1217,7 @@
                         </DataGridTemplateColumn>
 
                             <!--  操作  -->
-                            <DataGridTemplateColumn Width="128" Header="操作">
+                            <DataGridTemplateColumn Width="162" Header="操作">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel
@@ -1194,6 +1236,18 @@
                                                     FontSize="13"
                                                     Foreground="{StaticResource TextMutedBrush}"
                                                     Text="&#xf0c5;" />
+                                            </Button>
+                                            <!--  重命名（经注册表统一入口，连线/监视项/轮询注册自动跟随）  -->
+                                            <Button
+                                                Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource IconButton}"
+                                                ToolTip="重命名变量">
+                                                <TextBlock
+                                                    FontFamily="{StaticResource Icon}"
+                                                    FontSize="13"
+                                                    Foreground="{StaticResource TextMutedBrush}"
+                                                    Text="&#xf044;" />
                                             </Button>
                                             <!--  写值到设备（仅网络变量）  -->
                                             <Button

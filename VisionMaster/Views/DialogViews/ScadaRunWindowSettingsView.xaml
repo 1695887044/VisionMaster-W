@@ -1,0 +1,171 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.ScadaRunWindowSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="560"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    mc:Ignorable="d">
+
+    <!--  ==========================================  -->
+    <!--  组态「运行窗口设置」弹窗  -->
+    <!--  只做一件事：选运行窗口是"依附主窗口"还是"独立窗口"。  -->
+    <!--  两个选项各自对应一个真实场景（现场跑生产 / 开发调试），  -->
+    <!--  所以卡片上写的是"什么时候用它"，不是"它长什么样"。  -->
+    <!--  ==========================================  -->
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="NoResize" />
+            <Setter Property="SizeToContent" Value="WidthAndHeight" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <UserControl.Resources>
+        <!--  选项卡片：整块可点。选中态用主题蓝（#409EFF），与其它弹窗同一套配色。  -->
+        <Style x:Key="ModeCardStyle" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="Foreground" Value="#303133" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="15">
+        <Border Background="White" CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="15"
+                    Direction="270"
+                    Opacity="0.15"
+                    ShadowDepth="3"
+                    Color="Black" />
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="45" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="56" />
+                </Grid.RowDefinitions>
+
+                <!--  标题栏（无系统边框的弹窗靠它拖动）  -->
+                <Border
+                    Grid.Row="0"
+                    ui:WindowDragBehavior.IsWindowDraggable="True"
+                    Background="#F8F9FA"
+                    BorderBrush="#EBEEF5"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0">
+                    <TextBlock
+                        Margin="20,0"
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="#303133"
+                        Text="运行窗口设置" />
+                </Border>
+
+                <!--  内容区  -->
+                <StackPanel Grid.Row="1" Margin="20,16,20,0">
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#909399"
+                        Text="点「运行」时，组态运行窗口以哪种方式显示？"
+                        TextWrapping="Wrap" />
+
+                    <!--  选项一：依附主窗口（默认）  -->
+                    <RadioButton
+                        Margin="0,14,0,0"
+                        GroupName="RunWindowMode"
+                        IsChecked="{Binding IsAttached, Mode=TwoWay}"
+                        Style="{StaticResource ModeCardStyle}">
+                        <StackPanel MaxWidth="470">
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="#303133"
+                                Text="依附主窗口" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="#909399"
+                                Text="无边框铺满整个主界面，运行画面就是唯一界面。现场触摸屏 / 一体机跑生产用这个。"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <!--  选项二：独立窗口  -->
+                    <RadioButton
+                        Margin="0,14,0,0"
+                        GroupName="RunWindowMode"
+                        IsChecked="{Binding IsIndependent, Mode=TwoWay}"
+                        Style="{StaticResource ModeCardStyle}">
+                        <StackPanel MaxWidth="470">
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="#303133"
+                                Text="独立窗口" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="#909399"
+                                Text="带标题栏、可自由拖动与缩放，与主界面（含视觉图像）并排显示。开发调试用这个，运行画面不会再盖住图像。"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <!--  口径说明  -->
+                    <TextBlock
+                        Margin="0,18,0,0"
+                        FontSize="11"
+                        Foreground="#C0C4CC"
+                        Text="* 这是软件级设置（存 AppConfig.json，与方案文件无关），下次点「运行」即生效，无需重启。"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!--  底部按钮  -->
+                <StackPanel
+                    Grid.Row="2"
+                    Margin="20,10"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,12,0"
+                        Padding="28,8"
+                        Background="#FFFFFF"
+                        BorderBrush="#DCDFE6"
+                        Command="{Binding CancelCommand}"
+                        Content="取消"
+                        Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                    <Button
+                        Padding="28,8"
+                        Background="#409EFF"
+                        BorderThickness="0"
+                        Command="{Binding ConfirmCommand}"
+                        Content="确定"
+                        Cursor="Hand"
+                        FontWeight="SemiBold"
+                        Foreground="White">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

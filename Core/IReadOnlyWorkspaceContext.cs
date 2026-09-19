@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Core.Events;
 using Core.Interfaces;
+using VisionMaster.Binding;
 using VisionMaster.EventModel;
 using VisionMaster.Models;
 
@@ -51,6 +52,16 @@ namespace VisionMaster.Services
         public ObservableCollection<IVariable> GlobalVariables { get; set; }
 
         /// <summary>
+        /// 变量解析索引：与 <see cref="GlobalVariables"/> 是同一份数据，额外提供 Id/Name 双路查找，
+        /// 并把"连线引用 → 变量对象"的解析收敛到一处。
+        ///
+        /// 为什么挂在工作区上而不是各自 new：索引必须跟着变量集合的增删改变，
+        /// 每处消费者各建一个索引，就会出现"一个索引知道新变量、另一个不知道"的分裂。
+        /// 连线编译、监视项、HMI 画面绑定一律走这里，不要再自行遍历 GlobalVariables。
+        /// </summary>
+        IVariableRegistry VariableRegistry { get; }
+
+        /// <summary>
         /// 切换当前方案
         /// </summary>
         void SwitchSolution(SolutionModel solution);
@@ -72,10 +83,36 @@ namespace VisionMaster.Services
     /// </summary>
     public class WorkspaceContext : BindableBase, IWorkspaceManager
     {
+        private ObservableCollection<IVariable> _globalVariables = new();
+
         /// <summary>
-        /// 全局变量集合
+        /// 全局变量集合。
+        ///
+        /// setter 不是摆设：集合实例一旦被整体替换（如 InitializeCommonVariables、
+        /// 方案重载换容器），索引必须同步重挂到新实例上，否则会"看得见幽灵变量、看不见新变量"。
+        /// 这条同步在 setter 内完成，任何替换路径都绕不过去。
         /// </summary>
-        public ObservableCollection<IVariable> GlobalVariables { get; set; } = new();
+        public ObservableCollection<IVariable> GlobalVariables
+        {
+            get => _globalVariables;
+            set
+            {
+                var next = value ?? new ObservableCollection<IVariable>();
+                if (ReferenceEquals(_globalVariables, next))
+                    return;
+
+                _globalVariables = next;
+                _variableRegistry?.Attach(next);
+            }
+        }
+
+        private readonly VariableRegistry _variableRegistry;
+
+        /// <summary>
+        /// 变量解析索引（Id/Name 双路查找）。实现类型固定为本工程的 VariableRegistry，
+        /// 对外只暴露接口，消费者不依赖具体实现
+        /// </summary>
+        public IVariableRegistry VariableRegistry => _variableRegistry;
 
         private SolutionModel _currentSolution;
         /// <summary>
@@ -106,7 +143,16 @@ namespace VisionMaster.Services
         public WorkspaceContext()
         {
             InitializeCommonVariables();
+            // 索引必须在变量初始化之后建立：InitializeCommonVariables 会整体替换集合实例，
+            // 先建索引就会挂在一个随即被丢弃的旧集合上（看得见 12 个演示变量，看不见真实变量）
+            _variableRegistry = new VariableRegistry(_globalVariables);
             GlobalEventBus.Subscribe<StepRenamedMessage>(OnStepRenamed);
+
+            // 变量改名的级联入口。为什么订阅注册表的实例事件而不是走 GlobalEventBus：
+            // 改名不是"广播给所有关心的人"的公告，而是"注册表改了自己的索引后必须通知依赖它的引用"——
+            // 事件源头就是索引本身，订阅者与事件源同生共死（本类是单例，注册表字段只读），无需退订。
+            // 这一条订阅是整个 S0-b 的落点：少了它，改完名连线/监视项全部静默失联。
+            _variableRegistry.VariableRenamed += OnVariableRenamed;
         }
 
         /// <summary>
@@ -196,6 +242,156 @@ namespace VisionMaster.Services
                     foreach (var branch in container.Children)
                         RefreshStepPortDisplayAddresses(branch.Steps, args);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 变量改名的级联：把"引用侧"所有按旧名挂着的显示文案与兜底键改成新名。
+        ///
+        /// 与步骤改名的区别（这是 S0-b 的核心认识）：
+        /// 步骤改名的引用判据是 TargetStepId，改完名引用天然还成立，只需要刷新显示串；
+        /// 而变量引用在 Id 落地之前是"名字即地址"（TargetVariableId 为空、TargetPortName 存名字），
+        /// 改名就等于换地址——光刷新显示串不够，必须把寻址键一起改写，否则编译期直接断链。
+        /// 所以这里对老连线做一次性自愈（补 Id + 换名字），对新连线只刷新显示串。
+        /// </summary>
+        private void OnVariableRenamed(object? sender, VariableRenamedEventArgs args)
+        {
+            var variable = args?.Variable;
+            if (variable == null || variable.VariableId == Guid.Empty)
+                return;
+
+            var variableId = variable.VariableId;
+            var newName = variable.Name;
+
+            // ① 连线：显示串 + 老连线的兜底寻址键
+            if (CurrentSolution?.Flows != null)
+            {
+                foreach (var flow in CurrentSolution.Flows)
+                    RefreshGlobalVariableLinks(flow.Steps, variableId, args!.OldName, newName);
+            }
+
+            // ② 监视项：改 GlobalVariableName（展示）并按需补 VariableId（自愈）
+            RefreshWatchItems(variableId, args!.OldName, newName);
+
+            // ③ 画面绑定：口径与连线完全一致（Id 优先、名字兜底），
+            //    老绑定按名命中时顺带把 Id 补回来，一次改名即完成迁移。
+            //    少这一步的后果很隐蔽：改完名当场看不出问题，直到下次打开方案
+            //    才发现画面上的数值控件全空——因为绑定还按旧名找变量。
+            CurrentSolution?.Scada.RefreshVariableReferences(variableId, args.OldName, newName);
+        }
+
+        /// <summary>
+        /// 递归刷新引用了被改名变量的全局变量连线（含所有嵌套容器分支）。
+        /// </summary>
+        private static void RefreshGlobalVariableLinks(
+            IEnumerable<StepModel> steps,
+            Guid variableId,
+            string? oldName,
+            string newName)
+        {
+            foreach (var step in steps)
+            {
+                foreach (var link in step.LinkedSources.Values)
+                {
+                    if (link == null) continue;
+
+                    // 只看全局变量连线：步骤端口/运行时变量/常量的寻址与变量名无关
+                    // 注意必须判 Kind 而不是判 TargetStepId 是否为空 —— 全局变量与常量的
+                    // TargetStepId 都是 Guid.Empty，只能靠 Kind 区分（历史教训见 LinkKind 落地记录）
+                    if (link.NormalizeKind() != LinkKind.GlobalVariable) continue;
+
+                    // 命中判据有两路：
+                    // ① 已自愈/新绑定的连线：TargetVariableId 就是权威键，改名不受影响，只需刷新显示；
+                    // ② 老连线（Id 为空、只有名字）：用旧名兜底认领，顺手把 Id 补上完成自愈。
+                    //    这是唯一一处"按名字认领引用"的地方——改名动作本身保证了新名唯一，
+                    //    且此刻名字已经从索引里摘掉，认领不会与别的变量混淆。
+                    bool byId = link.TargetVariableId == variableId;
+                    bool byLegacyName =
+                        link.TargetVariableId == Guid.Empty
+                        && !string.IsNullOrEmpty(oldName)
+                        && string.Equals(link.TargetPortName, oldName, StringComparison.OrdinalIgnoreCase);
+
+                    if (!byId && !byLegacyName) continue;
+
+                    if (byLegacyName)
+                    {
+                        // 自愈：老连线的 TargetPortName 存的就是变量名，改成新名并把稳定身份补上。
+                        // 不补的话，下次编译 ResolveGlobalLink 会按新名……也命中不了（它还拿着旧名），直接断链
+                        link.TargetPortName = newName;
+                        link.TargetVariableId = variableId;
+                    }
+
+                    link.DisplayAddress = RebuildVariableDisplayAddress(link.DisplayAddress, newName);
+                }
+
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                        RefreshGlobalVariableLinks(branch.Steps, variableId, oldName, newName);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 重算全局变量连线的显示串：只把"变量名那一段"换成新名，前缀与下标后缀照搬。
+        ///
+        /// 为什么不按 <c>{变量名}</c> 直接拼一个新串：显示串是绑定弹窗按
+        /// <c>{来源节点名}.{变量名}</c> 拼的，来源节点名历史上有 "Global" 与 "全局变量 (Global)"
+        /// 两种写法（旧方案文件里两种都存着），数组元素绑定还带 <c>[i]</c> 后缀。
+        /// 只换尾段既不用在 Core 里硬编码任何展示文案，也能一次性覆盖所有历史格式。
+        /// （DisplayAddress 是纯展示字段，编译器不读它做判定，改错也不会影响寻址。）
+        /// </summary>
+        private static string RebuildVariableDisplayAddress(string? displayAddress, string newName)
+        {
+            if (string.IsNullOrEmpty(displayAddress))
+                return newName;
+
+            var display = displayAddress!;
+
+            // 摘下数组下标后缀（形如 "[0]"），只对名字段动手
+            var suffix = string.Empty;
+            if (display.EndsWith("]", StringComparison.Ordinal))
+            {
+                var open = display.LastIndexOf('[');
+                if (open > display.LastIndexOf('.'))
+                {
+                    suffix = display.Substring(open);
+                    display = display.Substring(0, open);
+                }
+            }
+
+            var dot = display.LastIndexOf('.');
+            var prefix = dot >= 0 ? display.Substring(0, dot + 1) : string.Empty;
+            return prefix + newName + suffix;
+        }
+
+        /// <summary>
+        /// 刷新监视项里的全局变量引用：改展示名，并给老数据补上稳定身份。
+        /// </summary>
+        private void RefreshWatchItems(Guid variableId, string? oldName, string newName)
+        {
+            var watchItems = WatchItems;
+            if (watchItems == null) return;
+
+            foreach (var item in watchItems)
+            {
+                if (item == null || item.ItemType != WatchItemType.GlobalVariable) continue;
+
+                bool byId = item.VariableId == variableId;
+
+                // 老监视项只存了变量名（VariableId 为空），按旧名认领并补 Id ——
+                // 不补的话它下次仍会按旧名去找变量，改名后永远显示"(未知变量)"
+                bool byLegacyName =
+                    item.VariableId == Guid.Empty
+                    && !string.IsNullOrEmpty(oldName)
+                    && string.Equals(item.GlobalVariableName, oldName, StringComparison.OrdinalIgnoreCase);
+
+                if (!byId && !byLegacyName) continue;
+
+                if (byLegacyName)
+                    item.VariableId = variableId;
+
+                item.GlobalVariableName = newName;
             }
         }
 

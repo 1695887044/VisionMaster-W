@@ -289,6 +289,33 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ScadaEditorView"
+                                Header="组态画面"
+                                  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf1fc;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ScadaToolboxView"
+                                Header="图元工具箱"
+                                  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf552;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ScadaPropertyView"
+                                Header="属性"
+                                  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf013;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_DeviceStateView"
                                 Header="设备状态"
                                  >
@@ -467,6 +494,15 @@
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf2db;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.RuntimeWindowSettings}"
+                                Header="运行窗口设置"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf2d0;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                             <MenuItem
@@ -656,6 +692,14 @@
                             IsChecked="{Binding IsToolboxActive, Mode=OneWay}"
                             Style="{StaticResource ActivityToggle}"
                             ToolTip="工具箱" />
+                        <!--  f1fc = draw-polygon（矢量图元），与菜单里组态画面同一码位、同字体，图形存在性已验证  -->
+                        <ToggleButton
+                            Command="{Binding TogglePanelCommand}"
+                            CommandParameter="Panel_ScadaToolboxView"
+                            Content="&#xf1fc;"
+                            IsChecked="{Binding IsScadaToolboxActive, Mode=OneWay}"
+                            Style="{StaticResource ActivityToggle}"
+                            ToolTip="图元工具箱" />
                     </StackPanel>
                     <StackPanel DockPanel.Dock="Bottom">
                         <Button
@@ -717,11 +761,21 @@
                         <!--  2. 中央工作区：视觉图像（文档标签，可拆分/浮动）  -->
                         <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="70*">
                             <avalonDock:LayoutDocumentPane>
+                                <!--  IsSelected 是必要的：一个 pane 里有多个文档时，默认激活哪一个不保证是第一个，  -->
+                                <!--  不写这一行就可能让"组态画面"抢走启动时的前台标签，改变现有用户的默认视角。  -->
                                 <avalonDock:LayoutDocument
                                     Title="视觉图像"
                                     CanClose="False"
-                                    ContentId="Panel_ImageView">
+                                    ContentId="Panel_ImageView"
+                                    IsSelected="True">
                                     <views:ImageView />
+                                </avalonDock:LayoutDocument>
+                                <!--  组态画面编辑器：与视觉图像同为中央文档区，可拖出成分屏对照着调画面  -->
+                                <avalonDock:LayoutDocument
+                                    Title="组态画面"
+                                    CanClose="False"
+                                    ContentId="Panel_ScadaEditorView">
+                                    <views:ScadaEditorView />
                                 </avalonDock:LayoutDocument>
                             </avalonDock:LayoutDocumentPane>
 
@@ -749,23 +803,47 @@
                             </avalonDock:LayoutAnchorablePane>
                         </avalonDock:LayoutPanel>
 
-                    </avalonDock:LayoutPanel>
+                        <!--  4. 右侧属性栏：图元属性面板  -->
+                        <!--  为什么是顶层并列的定宽栏，而不是塞进中央那个竖向 LayoutPanel：  -->
+                        <!--  竖向面板里的子项只有高度方向说话（DockHeight），宽度会被整个面板拉平，  -->
+                        <!--  属性栏就会跟着日志栏一起吞掉工作区宽度。定像素（不用星号）是因为  -->
+                        <!--  一列"标签 + 输入框"需要的是稳定可读宽度，1080 与 2560 下都是 260 最舒服。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="260">
+                            <avalonDock:LayoutAnchorable
+                                Title="属性"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ScadaPropertyView">
+                                <views:ScadaPropertyView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
 
-                    <!--  右侧自动隐藏区：工具箱（平时缩成侧边细标签，点击滑出，失焦自动收回）  -->
-                    <avalonDock:LayoutRoot.RightSide>
-                        <avalonDock:LayoutAnchorSide>
-                            <avalonDock:LayoutAnchorGroup>
-                                <avalonDock:LayoutAnchorable
-                                    Title="工具箱"
-                                    CanClose="False"
-                                    CanHide="True"
-                                    AutoHideWidth="300"
-                                    ContentId="Panel_ToolView">
-                                    <views:ToolView />
-                                </avalonDock:LayoutAnchorable>
-                            </avalonDock:LayoutAnchorGroup>
-                        </avalonDock:LayoutAnchorSide>
-                    </avalonDock:LayoutRoot.RightSide>
+                        <!--  5. 右侧工具箱停靠栏：插件工具箱 + 图元工具箱（互斥标签页共享一列宽度）  -->
+                        <!--  为什么不再用 LayoutRoot.RightSide 自动隐藏滑出区：那种面板一失去鼠标焦点就收回，  -->
+                        <!--  从图元工具箱往画布拖图元拖到一半会被收走；常驻停靠栏全程可见，拖动链路不被打断。  -->
+                        <!--  为什么图元工具箱从左侧"程序"pane 挪过来：图元调色板和插件工具箱是同一类  -->
+                        <!--  "往画布上放东西"的资源面板，用户要找应该在同一个停靠栏里，而不是语义无关的"程序"旁边。  -->
+                        <!--  两栏顺序：属性栏贴着中央工作区（改属性时抬眼即见），工具箱列在最右缘——  -->
+                        <!--  与原自动隐藏区同侧边缘，老用户的肌肉记忆平移最小；且工具箱是低频拖拽源，让位给高频核对的属性。  -->
+                        <!--  共享一列（标签页互斥）而非各占一列，避免不碰 SCADA 的用户长期白丢一条工作区宽度。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="300">
+                            <avalonDock:LayoutAnchorable
+                                Title="工具箱"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ToolView">
+                                <views:ToolView />
+                            </avalonDock:LayoutAnchorable>
+                            <avalonDock:LayoutAnchorable
+                                Title="图元工具箱"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ScadaToolboxView">
+                                <views:ScadaToolboxView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
+
+                    </avalonDock:LayoutPanel>
                 </avalonDock:LayoutRoot>
             </avalonDock:DockingManager>
         </Grid>

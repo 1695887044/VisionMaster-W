@@ -407,6 +407,26 @@ namespace VisionMaster.Services
                             : $"{flowName}.{model.StepName}";
 
                         pluginLookup.Add(model.StepID, plugin);
+
+                        // "端口误写成字段"是最阴的坑：框架反射只认 public 属性，
+                        // 字段端口静默失效、最终表现为让人摸不着头脑的"必填参数未配置"。
+                        // 编译期逮住直接报自解释错误（不拦截编译，让其余错误也一并暴露）
+                        foreach (var field in plugin.GetType().GetFields(
+                            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance
+                        ))
+                        {
+                            if (
+                                typeof(IInputPort).IsAssignableFrom(field.FieldType)
+                                || typeof(IOutputPort).IsAssignableFrom(field.FieldType)
+                            )
+                                errors.Add(
+                                    Err(
+                                        model,
+                                        $"[端口声明错误] '{model.StepName}' 把端口 '{field.Name}' 声明成了 public 字段，框架无法发现它。"
+                                            + $"请改为属性：{field.FieldType.Name} {field.Name} {{ get; }} = new(...);"
+                                    )
+                                );
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -545,9 +565,11 @@ namespace VisionMaster.Services
                 }
                 else if (linkKind == LinkKind.GlobalVariable)
                 {
-                    sourcePort = workspaceManager.GlobalVariables.FirstOrDefault(s =>
-                        s.Name == linkRef.TargetPortName
-                    );
+                    // 解析走变量索引：Id 优先、Name 兜底，并在"只有名字命中"时自愈回填 Id
+                    // （旧工程迁移的自愈点——补上后下次保存即落盘，此后改名不再断链）。
+                    // 旧实现是 workspaceManager.GlobalVariables.FirstOrDefault(按名相等)：
+                    // O(连线数 × 变量数)，且变量一改名连线就静默断掉、只在编译报错里露一句"找不到全局变量"。
+                    sourcePort = workspaceManager.VariableRegistry.ResolveGlobalLink(linkRef);
                     if (sourcePort == null)
                         errors.Add(
                                 Err(model, $"[连线断开] '{model.StepName}' 找不到全局变量: '{linkRef.TargetPortName}'")
@@ -620,14 +642,39 @@ namespace VisionMaster.Services
                                     out var myInPort
                                 )
                             )
-                                myInPort.LinkedSource = sourcePort;
+                            {
+                                // 编译期类型检查：不匹配时归因到下游节点并跳过连线，
+                                // 避免把异常留到运行时才在 RefreshLinkedCache 里炸出来（且异常会穿透回上游节点）
+                                if (
+                                    TryValidateLink(
+                                        model,
+                                        sourcePort,
+                                        myInPort.DataType,
+                                        $"输入端口 '{myInPort.Name}'",
+                                        actualUpstreamName,
+                                        errors
+                                    )
+                                )
+                                    myInPort.LinkedSource = sourcePort;
+                            }
                         }
                         else if (targetNode is CompiledIfNode ifNode)
                         {
                             // 🌟 If 算子：myInputName 其实是 Guid 的 ToString()！直接转回 Guid 存进去！
                             if (Guid.TryParse(myInputName, out Guid varId))
                             {
-                                ifNode.UpstreamLinks[varId] = sourcePort;
+                                // 期望类型取条件变量的声明类型；声明解析不到则放行
+                                if (
+                                    TryValidateLink(
+                                        model,
+                                        sourcePort,
+                                        ResolveConditionVarType(model, varId),
+                                        "条件变量",
+                                        actualUpstreamName,
+                                        errors
+                                    )
+                                )
+                                    ifNode.UpstreamLinks[varId] = sourcePort;
                             }
                         }
                         // 🌟🌟 补全：While 算子的连线逻辑 (和 If 一模一样，都是接收 Guid 作为键)
@@ -635,7 +682,17 @@ namespace VisionMaster.Services
                         {
                             if (Guid.TryParse(myInputName, out Guid varId))
                             {
-                                whileNode.UpstreamLinks[varId] = sourcePort;
+                                if (
+                                    TryValidateLink(
+                                        model,
+                                        sourcePort,
+                                        ResolveConditionVarType(model, varId),
+                                        "条件变量",
+                                        actualUpstreamName,
+                                        errors
+                                    )
+                                )
+                                    whileNode.UpstreamLinks[varId] = sourcePort;
                             }
                         }
                         // 🌟🌟 补全：For 算子接收外部传来的循环次数 (连线名我们在注册时叫 "LoopCount")
@@ -643,7 +700,18 @@ namespace VisionMaster.Services
                         {
                             if (myInputName == "LoopCount")
                             {
-                                forNode.LoopCountLink = sourcePort;
+                                // LoopCount 期望类型固定 int（与 RuntimeVariable 分支的 expectedType 一致）
+                                if (
+                                    TryValidateLink(
+                                        model,
+                                        sourcePort,
+                                        typeof(int),
+                                        "循环次数 LoopCount",
+                                        actualUpstreamName,
+                                        errors
+                                    )
+                                )
+                                    forNode.LoopCountLink = sourcePort;
                             }
                         }
                     }
@@ -677,6 +745,145 @@ namespace VisionMaster.Services
                             LinkPorts(branch.Steps, nodeLookup, pluginLookup, dependencyMap, errors);
                 }
             }
+        }
+
+        /// <summary>
+        /// 编译期连线类型检查 + 报错。检查不过时把错误归到下游节点（model），
+        /// 并返回 false 让调用方跳过连线赋值——宁可断线后由"必填参数未配置"兜底，
+        /// 也不让类型不匹配的连线进入运行时（否则 InvalidCastException 会从
+        /// InputPort.RefreshLinkedCache 穿透出来，堆栈落在上游节点的执行路径上，归因错乱）。
+        /// </summary>
+        /// <param name="model">下游消费者步骤（报错归属）</param>
+        /// <param name="sourcePort">上游输出端口</param>
+        /// <param name="targetType">下游期望类型；null 表示未知（如条件变量声明缺失），一律放行</param>
+        /// <param name="targetDescription">报错用描述，如"输入端口 'InImage'"</param>
+        /// <param name="upstreamName">报错用上游名字</param>
+        /// <param name="errors">错误收集器</param>
+        private static bool TryValidateLink(
+            StepModel model,
+            IOutputPort sourcePort,
+            Type targetType,
+            string targetDescription,
+            string upstreamName,
+            List<CompilationError> errors
+        )
+        {
+            Type sourceType = sourcePort?.DataType;
+            if (targetType == null || sourceType == null || IsLinkable(sourceType, targetType))
+                return true;
+
+            errors.Add(
+                Err(
+                    model,
+                    $"[连线类型不匹配] '{model.StepName}' 的{targetDescription}期望 {DescribeType(targetType)}，"
+                        + $"但上游 '{upstreamName}' 提供的是 {DescribeType(sourceType)}。"
+                        + "请在变量绑定处改选类型兼容的输出，或调整上游算子的输出类型。"
+                )
+            );
+            return false;
+        }
+
+        /// <summary>
+        /// 判断上游输出类型能否被下游端口消费。
+        ///
+        /// 规则与运行时实际转换能力严格对齐（InputPort.RefreshLinkedCache → ValueConverter.Convert）：
+        /// - 引用类型：派生→基类、实现接口（IsAssignableFrom）
+        /// - 枚举目标 + 字符串源：运行时走 Enum.Parse
+        /// - 数值族互转、字符串⇄数值/布尔：Convert.ChangeType 支持
+        /// - bool→数值 / 数值→bool：Convert.ChangeType 不支持，明确拒绝
+        /// - 任何一方类型未知（object 或 null，如 ArrayIndexProxyPort）：放行，交给运行时兜底
+        ///
+        /// 为什么写成 internal static：纯函数，不依赖 workspaceManager，
+        /// 便于断言程序直接调用（与 CheckLinkOrder 同一理由）。
+        /// </summary>
+        internal static bool IsLinkable(Type sourceType, Type targetType)
+        {
+            if (sourceType == null || targetType == null)
+                return true;
+
+            sourceType = Nullable.GetUnderlyingType(sourceType) ?? sourceType;
+            targetType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+            // 一方是 object：编译期无从判断，放行（运行时值到了才知道实际类型）
+            if (sourceType == typeof(object) || targetType == typeof(object))
+                return true;
+
+            // 同类型 / 派生→基类 / 实现接口
+            if (targetType.IsAssignableFrom(sourceType))
+                return true;
+
+            // 枚举目标 + 字符串源：运行时 Enum.Parse 按名字解析
+            if (targetType.IsEnum && sourceType == typeof(string))
+                return true;
+
+            bool srcNum = IsNumeric(sourceType);
+            bool dstNum = IsNumeric(targetType);
+
+            // 数值族互转（含 char）：Convert.ChangeType 支持
+            if (srcNum && dstNum)
+                return true;
+
+            // 字符串 ⇄ 数值/布尔：Convert.ChangeType 支持（"123"→int、true→"True" 等）
+            if (sourceType == typeof(string) && (dstNum || targetType == typeof(bool)))
+                return true;
+            if (targetType == typeof(string) && (srcNum || sourceType == typeof(bool)))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// 数值族判断。注意 bool 不属于数值族——Convert.ChangeType 在 bool↔数值两个方向都会抛异常。
+        /// </summary>
+        private static bool IsNumeric(Type type)
+        {
+            return type == typeof(byte)
+                || type == typeof(sbyte)
+                || type == typeof(short)
+                || type == typeof(ushort)
+                || type == typeof(int)
+                || type == typeof(uint)
+                || type == typeof(long)
+                || type == typeof(ulong)
+                || type == typeof(float)
+                || type == typeof(double)
+                || type == typeof(decimal)
+                || type == typeof(char);
+        }
+
+        /// <summary>
+        /// 类型名友好化：剥 Nullable，显示短名（int / double / HImage），报错文案专用
+        /// </summary>
+        private static string DescribeType(Type type)
+        {
+            if (type == null)
+                return "未知";
+            var underlying = Nullable.GetUnderlyingType(type);
+            return (underlying ?? type).Name;
+        }
+
+        /// <summary>
+        /// 解析 If/While 条件变量的声明类型（LocalVariables 里该 Guid 的 DataTypeName）。
+        /// 解析不到（模型缺失、类型名非法）返回 null → 检查放行，与 RuntimeVariable 分支的宽松策略一致。
+        /// </summary>
+        private static Type ResolveConditionVarType(StepModel model, Guid varId)
+        {
+            if (model is ConditionStep condModel && condModel.LocalVariables != null)
+            {
+                var decl = condModel.LocalVariables.FirstOrDefault(x => x.Id == varId);
+                if (decl != null)
+                {
+                    try
+                    {
+                        return TypeHelper.GetActualTypeFromLink(decl.DataTypeName);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+            }
+            return null;
         }
 
         /// <summary>

@@ -1,0 +1,36 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        本程序集的默认控件样式入口。
+
+        WPF 要求它<b>必须</b>叫 Themes/Generic.xaml 并放在程序集根目录的 Themes 文件夹下；
+        配合 Properties/AssemblyInfo.cs 里的
+        [assembly: ThemeInfo(ResourceDictionaryLocation.None, ResourceDictionaryLocation.SourceAssembly)]
+        （第二个参数就是"默认样式在本程序集里"），自定义控件才能自动找到样式。
+
+        这里只做合并，不写具体样式：一个图元一个文件，新增图元 = 新增一个 xaml + 在这里加一行，
+        定位外观问题时不必在上千行的 XAML 里翻找。
+
+        Source 用 "/VM.Scada.Controls;component/…" 这种程序集限定写法而不是相对路径：
+        相对路径是相对"引用方"解析的，主程序引用本库时会解析到主程序的资源里去，找不到就静默失败。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaElementBase.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/RectangleElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/EllipseElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/TextElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ButtonElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/IndicatorElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ProgressBarElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/IOFieldElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/LampElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ClockElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/GaugeElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ValveElement.xaml" />
+
+        <!-- 画布宿主不是图元，但它同样是"默认样式在本程序集"的自定义控件，缺这一行就是一块空白面板 -->
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaCanvas.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

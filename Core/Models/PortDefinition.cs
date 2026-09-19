@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,6 +26,17 @@ namespace VisionMaster.Models
         /// 数据类型名称（如 "System.Double"）
         /// </summary>
         public string DataTypeName { get; set; }
+
+        /// <summary>
+        /// 本端口若代表一个全局变量，这里是该变量的稳定身份。
+        ///
+        /// 为什么借用端口定义来捎带：变量绑定弹窗的候选列表本身就是 PortDefinition 列表
+        /// （见 FlowQueryHelper.GetAvailableVariablesTree，全局变量分组把每个变量铺成一个端口），
+        /// 绑定动作发生在端口被点中的那一刻——身份必须跟着端口一起走到 DoFinalBind，
+        /// 否则那里只能拿到变量名，又退回按名寻址。
+        /// 非变量来源的端口保持 Guid.Empty，消费者按 Guid.Empty 即"无身份"处理。
+        /// </summary>
+        public Guid VariableId { get; set; }
 
         /// <summary>
         /// 是否为功能性枚举端口

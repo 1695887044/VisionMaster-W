@@ -19,6 +19,13 @@ namespace VisionMaster.Models
 
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>
+        /// 变量稳定身份（GUID）：随方案落盘并按原值还原，使连线/监视项/SCADA 绑定的锚点
+        /// 在方案存取往返、变量改名后依然有效。
+        /// 旧方案数据无此字段 → Guid.Empty，由持久化层补发新 Id（迁移，下次保存即回写）
+        /// </summary>
+        public Guid VariableId { get; set; }
+
         /// <summary>TypeCache 类型键（如 "Int32"、"String[]"）</summary>
         public string DataTypeString { get; set; } = "Int32";
 
@@ -49,8 +56,6 @@ namespace VisionMaster.Models
 
         /// <summary>S7 专用：DB 块编号</summary>
         public int DbNumber { get; set; } = 1;
-
-        public int PollIntervalMs { get; set; } = 1000;
 
         /// <summary>
         /// 从 JSON 令牌/装箱值按目标类型还原值。
@@ -137,6 +142,7 @@ namespace VisionMaster.Models
             {
                 VarType = "Network",
                 Name = nv.Name,
+                VariableId = nv.VariableId,
                 DataTypeString = nv.DataTypeString,
                 Description = nv.Description,
                 DefaultValue = nv.DefaultValue,
@@ -145,8 +151,7 @@ namespace VisionMaster.Models
                 Protocol = protocol.ToString(),
                 Offset = addr?.Offset ?? "0",
                 BitOffset = addr?.BitOffset ?? -1,
-                DataValueType = addr?.DataType.ToString(),
-                PollIntervalMs = nv.PollIntervalMs
+                DataValueType = addr?.DataType.ToString()
             };
 
             // Area/DbNumber 在泛型派生类上（ModbusAddress/S7Address），Core 无法直接转型，反射读取

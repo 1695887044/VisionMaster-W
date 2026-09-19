@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -48,6 +48,8 @@ namespace VisionMaster.Helpers
                         .Select(gv => new PortDefinition
                         {
                             Name = gv.Name,
+                            // 带上稳定身份：绑定弹窗据此把 Id 写进连线，改名后连线仍能命中
+                            VariableId = gv.VariableId,
                             DataTypeName = gv.DataType.AssemblyQualifiedName,
                             Description = gv.VariableType == VariableType.Communication
                                 ? $"[网络变量] {gv.Description} (连接: {gv.ConnectionName})"

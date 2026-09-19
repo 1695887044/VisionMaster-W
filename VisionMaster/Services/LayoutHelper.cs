@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Xml.Linq;
 using UI.Core;
 
 namespace VisionMaster.Services
@@ -30,6 +31,22 @@ namespace VisionMaster.Services
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DefaultLayout.xml");
 
         /// <summary>
+        /// 布局结构版本：Shell.xaml 默认布局的面板归属/停靠语义一变就要递增。
+        /// 为什么不能只靠 ContentId 覆盖度校验：像"图元工具箱挪到右侧停靠栏、
+        /// 工具箱从自动隐藏区改为常驻停靠栏"这类重排，ContentId 全部复用，
+        /// 旧的 Layout.xml / .vms 内嵌布局照样通过覆盖度检查被原样恢复回来，
+        /// 改造在老用户机器上等于没发生。版本属性就是 ContentId 之外的结构指纹。
+        /// </summary>
+        private const int CurrentLayoutSchemaVersion = 2;
+
+        /// <summary>
+        /// 布局结构版本的根元素属性名：保存时写入，下发给反序列化器之前摘除。
+        /// XmlLayoutSerializer 对 LayoutRoot 上未知属性的行为不可靠，
+        /// 绝不能让它看到我们自己塞进去的私有属性。
+        /// </summary>
+        private const string LayoutSchemaVersionAttributeName = "LayoutSchemaVersion";
+
+        /// <summary>
         /// 布局加载/重载完成后触发（活动栏等外部状态在此同步；
         /// 反序列化会创建新的 LayoutContent 实例，订阅方必须重新挂接监听）
         /// </summary>
@@ -47,6 +64,9 @@ namespace VisionMaster.Services
             ["Panel_ImageView"] = () => new Views.ImageView(),
             ["Panel_LogView"] = () => new Views.LogView(),
             ["Panel_MonitorView"] = () => new Views.MonitorView(),
+            ["Panel_ScadaEditorView"] = () => new Views.ScadaEditorView(),
+            ["Panel_ScadaToolboxView"] = () => new Views.ScadaToolboxView(),
+            ["Panel_ScadaPropertyView"] = () => new Views.ScadaPropertyView(),
             // Panel_DeviceStateView：占位面板，无内容
         };
 
@@ -140,7 +160,10 @@ namespace VisionMaster.Services
                 using (var writer = new StringWriter())
                 {
                     serializer.Serialize(writer);
-                    return writer.ToString();
+                    // 出厂前打上结构版本戳：这是升级时判定"旧布局必须让位"的唯一依据
+                    var doc = XDocument.Parse(writer.ToString());
+                    doc.Root?.SetAttributeValue(LayoutSchemaVersionAttributeName, CurrentLayoutSchemaVersion);
+                    return doc.ToString();
                 }
             }
             catch (Exception ex)
@@ -165,17 +188,24 @@ namespace VisionMaster.Services
                 if (manager == null) return false;
 
                 // 布局文件是"结构快照"：AvalonDock 只会还原文件里声明过的面板，不会凭空补出
-                // 新版本新增的 ContentId。若在此处照常反序列化，新面板将永远不出现。
-                // 因此先校验覆盖度，不通过就直接放弃本次恢复，让 Shell.xaml 声明的默认布局生效。
+                // 新版本新增的 ContentId；而 ContentId 全不变的布局重排，光靠覆盖度也查不出来。
+                // 因此统一走"结构版本闸门 + 覆盖度"守卫，在下发之前拦截，不通过就放弃本次恢复，
+                // 让 Shell.xaml 声明的默认布局生效。
                 // 必须在 Deserialize 之前判断——一旦应用过旧布局，现场就被改坏了，返回 false 也无法回滚。
-                if (!LayoutXmlCoversAllPanels(layoutXml))
+                // 版本不符只跳过恢复、不删用户的 Layout.xml：那是旧结构下的现场记录，删了才是真丢数据。
+                if (!IsLayoutXmlUsable(layoutXml, out var rejectReason))
                 {
-                    Console.WriteLine("布局文件未覆盖全部面板（多为版本升级新增），已回退默认布局");
+                    Console.WriteLine($"布局文件被拒绝，已回退默认布局。原因：{rejectReason}");
                     return false;
                 }
 
+                // 校验通过后、下发之前摘掉私有版本属性：
+                // XmlLayoutSerializer 对未知根属性的行为不可靠，不能让它看见我们塞进去的东西
+                var doc = XDocument.Parse(layoutXml);
+                doc.Root?.Attribute(LayoutSchemaVersionAttributeName)?.Remove();
+
                 var serializer = new XmlLayoutSerializer(manager);
-                using (var reader = new StringReader(layoutXml))
+                using (var reader = new StringReader(doc.ToString()))
                 {
                     serializer.Deserialize(reader);
                 }
@@ -214,6 +244,45 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 布局 XML 下发前的统一守卫：结构版本闸门 + 面板覆盖度校验。
+        /// LoadFromString 与 Reset 共用——出厂快照同样是结构快照，
+        /// 改造前捕获的旧 DefaultLayout.xml 版本号必然过期，若放行，
+        /// "恢复默认布局"就会把刚被替换掉的旧布局又搬回来。
+        /// 一切解析异常一律按"不可用"处理，不许往外抛。
+        /// </summary>
+        private static bool IsLayoutXmlUsable(string layoutXml, out string reason)
+        {
+            try
+            {
+                var versionAttr = XDocument.Parse(layoutXml).Root?.Attribute(LayoutSchemaVersionAttributeName);
+
+                // 属性缺失 = 版本机制引入之前的历史布局，视为 0 版
+                int version = versionAttr != null && int.TryParse(versionAttr.Value, out var parsed) ? parsed : 0;
+                if (version < CurrentLayoutSchemaVersion)
+                {
+                    reason = versionAttr == null
+                        ? $"布局文件无结构版本属性（历史版本，视为 0），当前要求版本 {CurrentLayoutSchemaVersion}"
+                        : $"布局结构版本 {version} 落后于当前版本 {CurrentLayoutSchemaVersion}";
+                    return false;
+                }
+
+                if (!LayoutXmlCoversAllPanels(layoutXml))
+                {
+                    reason = "布局文件未覆盖全部面板（多为版本升级新增）";
+                    return false;
+                }
+
+                reason = null;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                reason = $"布局 XML 解析失败：{ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
         /// 重置布局：立即恢复出厂默认布局（DefaultLayout.xml），并删除用户布局文件
         /// </summary>
         public static bool Reset()
@@ -225,15 +294,16 @@ namespace VisionMaster.Services
                 {
                     var snapshot = File.ReadAllText(DefaultLayoutFilePath);
 
-                    // 出厂快照是"首次启动那一刻的 XAML 布局"，新增面板后它就过期了。
-                    // 过期快照不能用于恢复（同样缺面板），直接作废，让下次启动重新捕获。
-                    if (LayoutXmlCoversAllPanels(snapshot))
+                    // 出厂快照是"首次启动那一刻的 XAML 布局"，新增面板或布局重排后它就过期了
+                    // （结构版本落后 / 缺面板）。过期快照不能用于恢复，直接作废删除，
+                    // 下次启动 CaptureDefaultLayoutSnapshot 会按新布局重新捕获出厂快照。
+                    if (IsLayoutXmlUsable(snapshot, out var snapshotReason))
                     {
                         restored = LoadFromString(snapshot, deleteFileOnError: false);
                     }
                     else
                     {
-                        Console.WriteLine("出厂布局快照未覆盖全部面板（版本升级新增），已作废待重新捕获");
+                        Console.WriteLine($"出厂布局快照过期，已作废待重新捕获。原因：{snapshotReason}");
                     }
 
                     if (!restored)
@@ -311,7 +381,7 @@ namespace VisionMaster.Services
 
         /// <summary>
         /// 关键面板 ContentId 集（必须在任何布局中可见，用户不能把它们藏进 Hidden）
-        /// 画布 + 流程栏 = 核心工作流入口，工具箱（ToolView）在侧栏自动隐藏区是合法态不动
+        /// 画布 + 流程栏 = 核心工作流入口，工具箱（ToolView）已改为右侧常驻停靠栏，用户主动收起属合法态不动
         /// </summary>
         private static readonly HashSet<string> CriticalPanelContentIds = new()
         {

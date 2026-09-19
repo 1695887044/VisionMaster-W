@@ -88,7 +88,7 @@ namespace Core.Interfaces
         /// <summary>
         /// 计算时间 变量输入映射  变量输出映射  要可以兼容到动态注册
         /// 契约：默认成功、显式失败——进入 RunAlgorithm 前预置 Success=true 并清空 ErrorMessage；
-        /// 业务失败路径必须显式 Success=false（有原因写 ErrorMessage），未捕获异常由引擎层兜底。
+        /// 业务失败路径用 Fail("原因") 一行表达（或直接抛异常，由本方法统一转成失败——见 RethrowOnException）。
         /// 这里把结果传播给引擎层（CompiledPluginNode 据此标记状态并写日志）。
         /// </summary>
         public bool Execute(IExecutionContext context)
@@ -97,8 +97,86 @@ namespace Core.Interfaces
             // 在 RunAlgorithm 开头自行清 false 的插件（采集/延时等）会覆盖此初值，行为不变
             Success.Value = true;
             ErrorMessage.Value = string.Empty;
-            RunAlgorithm(context);
+
+            // 轮首回收上一轮输出的非托管值（HImage 等），插件不再需要手写 DisposeOldOutputs
+            if (AutoDisposeRoundOutputs)
+                DisposePreviousRoundOutputs();
+
+            try
+            {
+                RunAlgorithm(context);
+            }
+            catch (Exception ex)
+            {
+                // 未捕获异常自动落到失败契约： ErrorMessage 有原因、日志有记录、
+                // 归因仍在本节点——插件开发者不写 try/catch 也守得住约定
+                Fail($"{ex.GetType().Name}: {ex.Message}");
+                context?.Logger?.Error($"[{InstanceName}] 未捕获异常已转为步骤失败：{ex.Message}");
+                if (RethrowOnException)
+                    throw; // 策略声明型例外：信息已落 ErrorMessage，仍交引擎中断当轮
+            }
             return Success.Value is true;
+        }
+
+        /// <summary>
+        /// 异常策略（默认 false = 异常转失败、流程继续）。
+        /// 个别"出错后绝不能带着脏状态继续跑"的插件（如安全互锁类）可重写为 true：
+        /// 异常信息照样写入 ErrorMessage，但继续上抛让引擎中断当轮。
+        /// </summary>
+        protected virtual bool RethrowOnException => false;
+
+        /// <summary>
+        /// 是否轮首自动回收输出端口的非托管旧值（默认 true）。
+        /// 回收时机 = RunAlgorithm 之前，与插件手写的"开轮 Dispose 上一轮输出"完全等价；
+        /// 与上游链接当前值同引用的值（透传场景）自动跳过，不会误杀上游图像。
+        /// 确有特殊生命周期需求的插件可重写为 false 并自行管理。
+        /// </summary>
+        protected virtual bool AutoDisposeRoundOutputs => true;
+
+        /// <summary>
+        /// 失败契约一行表达：置 Success=false + 写 ErrorMessage。
+        /// 用法：if (img == null) { Fail("输入图像为空"); return; }
+        /// </summary>
+        protected void Fail(string message)
+        {
+            Success.Value = false;
+            ErrorMessage.Value = message;
+        }
+
+        /// <summary>
+        /// 释放上一轮输出端口承载的非托管值并置空（置空防下轮重复释放）。
+        /// Success/ErrorMessage（bool/string）天然不是 IDisposable，不受影响。
+        /// </summary>
+        private void DisposePreviousRoundOutputs()
+        {
+            EnsurePortsDiscovered();
+            foreach (var port in _outputs.Values)
+            {
+                if (port.Value is not IDisposable old)
+                    continue;
+
+                // 透传防御：本端口当前值若与某条上游链接的当前值是同一引用，
+                // 说明"我输出的其实是上游的图"——释放权归生产者，跳过
+                if (IsUpstreamLinkedValue(old))
+                    continue;
+
+                try { old.Dispose(); }
+                catch { /* 释放失败不打断整体回收 */ }
+                port.Value = null;
+            }
+        }
+
+        /// <summary>
+        /// 判断值是否与某输入端口的上游链接当前值同引用（透传场景识别，端口数量级为个位，线性扫描即可）
+        /// </summary>
+        private bool IsUpstreamLinkedValue(object value)
+        {
+            foreach (var input in _inputs.Values)
+            {
+                if (input.LinkedSource != null && ReferenceEquals(input.LinkedSource.Value, value))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>最近一次执行的错误信息（业务失败时由 RunAlgorithm 写入 ErrorMessage）。</summary>

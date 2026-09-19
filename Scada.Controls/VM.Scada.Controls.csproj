@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SCADA 图元控件库（S2）。
+
+    依赖方向：VM.Scada（画面领域层）→ VM.Scada.Controls（本工程）。
+    本工程是"把属性袋里的字符串翻译成画面"的唯一地方：
+      · 领域层只知道 TypeKey 与 key/value 字符串；
+      · 本工程用 ElementDescriptor 声明每个键是什么、默认值多少、对应控件上哪个依赖属性；
+      · 颜色（"#AARRGGBB"）→ Brush 的转换只在这里发生，一处解释、一处使用。
+
+    刻意不引用 UI 工程：本库要能在纯净宿主（无主题、无 UI 程序集）里单独加载，
+    自带 Themes/Generic.xaml 提供全部默认外观（ThemeInfo 声明了 SourceAssembly）。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RootNamespace>VisionMaster.Scada.Controls</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 画面领域层：图元模型（ScadaElement / ScadaBinding / ScadaPage） -->
+    <ProjectReference Include="..\Scada\VM.Scada.csproj" />
+  </ItemGroup>
+
+</Project>

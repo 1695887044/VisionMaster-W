@@ -1,0 +1,37 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        文本图元的外观：一个 TextBlock，没有任何形状。
+
+        VerticalAlignment 接到控件的 VerticalContentAlignment 上——那个依赖属性
+        Control 本来就带（VerticalAlignment 类型），两边类型一致，不必自己再声明一个。
+        水平方向用基类上的 TextAlignment（ScadaElementBase.TextAlignmentProperty）：
+        TextBlock 只认 System.Windows.TextAlignment，与 HorizontalAlignment 不是同一套枚举。
+
+        TextWrapping 固定为 Wrap：SCADA 里的说明文字经常要折行，
+        而"到底折不折"交给框的宽高去决定（框宽了自然不折），不必再加一个开关属性。
+    -->
+    <Style TargetType="{x:Type local:TextElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:TextElement}">
+                    <TextBlock
+                        Text="{TemplateBinding Text}"
+                        Foreground="{TemplateBinding Foreground}"
+                        FontFamily="{TemplateBinding FontFamily}"
+                        FontSize="{TemplateBinding FontSize}"
+                        FontWeight="{TemplateBinding FontWeight}"
+                        TextAlignment="{TemplateBinding TextAlignment}"
+                        TextWrapping="Wrap"
+                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

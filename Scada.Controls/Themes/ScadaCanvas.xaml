@@ -1,0 +1,68 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        画布宿主的默认样式。
+
+        模板结构就是画布的三层职责，顺序即叠放次序：
+          PART_Surface        画面本身（尺寸=设计像素，带 RenderTransform 做缩放平移）
+            PART_GridLayer    设计网格（一个平铺 DrawingBrush，不是几百条 Line）
+            PART_ElementLayer 图元层（Canvas，子控件位置由模型经 ScadaElementBase 落地）
+            PART_SelectionLayer 选中层（选中框与手柄，画在画面坐标系里所以天然跟着缩放走）
+            PART_DiagnosticLayer 诊断层（运行态角标，S6：哪个图元没接上变量、哪个值转不过去）
+
+        两个容易忽略但会直接坏事的细节：
+        ① 外层 Border 的画刷必须接 TemplateBinding Background（样式给的 #FF141414）：
+           一是命中测试——WPF 里 null 画刷不参与命中，"点空白取消选中"就没了实现依据；
+           二是视口底色——写死 Transparent 时画面外的区域一片空白，操作员看不出"画面边界在哪"。
+        ② 外层 Border 的 ClipToBounds="True"：缩放平移后画面会跑到视口外，
+           不裁剪就会盖住相邻面板（AvalonDock 的浮出边界首当其冲）。
+
+        PART_Surface 的宽高由代码按 PageWidth/PageHeight 写入，而它<b>必须</b>待在一个 Canvas 里。
+        理由不是"显式尺寸会被夹小"——实测 RenderSize 始终等于整幅画面，调试器里看着完全正常。
+        真正的机制是：<b>元素被 arrange 进多大的布局槽，超出的部分就不被绘制</b>。
+        直接挂在 Border 下时，Border 把"视口有多大"当作槽位传下去，于是 1920×1080 的画面
+        只有左上角 800×600 那块画得出来，X 靠右的图元全部凭空消失——数据一条没少，
+        尺寸一条没错，就是不出图（这条踩过两次，[X] 组用位图像素采样钉住）。
+        Canvas 给子元素的测量与排布约束都是无限大，槽位 = 子元素自身尺寸，画面才铺得开。
+        溢出由外层 Border 的 ClipToBounds 收口，不会盖到相邻面板。
+    -->
+    <Style TargetType="{x:Type local:ScadaCanvas}">
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Background" Value="#FF141414" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:ScadaCanvas}">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        ClipToBounds="True">
+                        <!-- 这层 Canvas 是"无限约束"的载体，删掉它画面就会被布局槽裁掉，见注释①② -->
+                        <Canvas ClipToBounds="False">
+                            <Border
+                                x:Name="PART_Surface"
+                                Canvas.Left="0"
+                                Canvas.Top="0"
+                                Background="{TemplateBinding PageBackground}"
+                                SnapsToDevicePixels="True">
+                                <Grid>
+                                    <Rectangle
+                                        x:Name="PART_GridLayer"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Top" />
+                                    <Canvas x:Name="PART_ElementLayer" />
+                                    <Canvas x:Name="PART_SelectionLayer" />
+                                    <!--  诊断层在最后：必须压在选中层之上，否则角标会被选中框/手柄盖住  -->
+                                    <Canvas x:Name="PART_DiagnosticLayer" />
+                                </Grid>
+                            </Border>
+                        </Canvas>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

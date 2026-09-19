@@ -92,6 +92,22 @@ namespace VisionMaster.Communications
         /// </summary>
         public Func<ICommunicationConnection, bool>? PollAction { get; set; }
 
+        // H1：轮询计划脏标记——Manager 增删变量时只置位（O(1)），
+        // Worker 在下一轮轮询拍前触发重编译（O(N) 编译每批注册只做一次，替代旧的"每次注册全量重建"）
+        private volatile bool _pollPlanDirty;
+
+        /// <summary>标脏轮询计划（Manager 注册/注销变量时调用，O(1)；下一拍由 <see cref="PollPlanDirtyHandler"/> 消费）</summary>
+        public void MarkPollPlanDirty() => _pollPlanDirty = true;
+
+        /// <summary>清脏标记（Manager 重编译完成后调用，保证任何重建落点之后无残留脏标记）</summary>
+        public void ClearPollPlanDirty() => _pollPlanDirty = false;
+
+        /// <summary>
+        /// 拍前重编译回调（Manager 在 ConfigureWorker 时挂接）：Worker 在轮询拍前发现脏标记时调用，
+        /// 回调内部重编译并重挂 <see cref="PollAction"/>；回调抛异常时脏标记未清，下一拍自动重试
+        /// </summary>
+        public Action? PollPlanDirtyHandler { get; set; }
+
         /// <summary>状态变化（旧状态, 新状态）——在 Worker 线程上触发，订阅方自行处理 UI 调度</summary>
         public event Action<ConnectionState, ConnectionState>? StateChanged;
 
@@ -228,7 +244,12 @@ namespace VisionMaster.Communications
                         DrainQueue();
                     }
 
-                    // 3) 已连接 → 按节拍驱动一轮轮询
+                    // 3) 拍前消费"轮询计划脏"标记（H1）：必须独立于轮询分支——
+                    //    "在线且从零注册第一个变量"时 PollAction 为 null，进不了下面的轮询分支，脏标记会被饿死
+                    if (State == ConnectionState.Connected && _pollPlanDirty)
+                        PollPlanDirtyHandler?.Invoke();
+
+                    // 4) 已连接 → 按节拍驱动一轮轮询
                     if (State == ConnectionState.Connected && PollAction != null && ShouldPollNow())
                     {
                         RunPollCycle();

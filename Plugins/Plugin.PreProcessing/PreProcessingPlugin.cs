@@ -956,8 +956,7 @@ namespace Plugin.PreProcessing
             var src = SrcImage.ActualValue;
             if (src == null || !src.IsInitialized())
             {
-                Success.Value = false;
-                ErrorMessage.Value = "输入图像为空或未初始化";
+                Fail("输入图像为空或未初始化");
                 return;
             }
 
@@ -975,8 +974,8 @@ namespace Plugin.PreProcessing
             }
             catch (Exception ex)
             {
-                Success.Value = false;
-                ErrorMessage.Value = $"图像预处理失败：{ex.Message}";
+                // 保留业务 catch 是为了带上下文前缀（比基类兜底的"异常类型: 消息"更好排查）
+                Fail($"图像预处理失败：{ex.Message}");
                 context.Logger.Error($"{InstanceName} {ErrorMessage.Value}");
                 return;
             }
@@ -996,7 +995,7 @@ namespace Plugin.PreProcessing
             if (DisplayViewIndex > 0)
                 TryPublishPreview(final, context);
 
-            Success.Value = true;
+            // Success 基类已预置 true（默认成功、显式失败），无需再写
         }
 
         /// <summary>

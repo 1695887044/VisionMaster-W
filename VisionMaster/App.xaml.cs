@@ -5,12 +5,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using VisionMaster.Binding;
 using VisionMaster.Communications;
 using VisionMaster.Core;
 using VisionMaster.Engine;
 using VisionMaster.Lifetime;
 using VisionMaster.Lifetime.Checks;
 using VisionMaster.Services;
+using VisionMaster.Scada;
 using VisionMaster.ViewModels;
 using VisionMaster.ViewModels.DialogViewModels;
 using VisionMaster.Views;
@@ -116,11 +118,36 @@ namespace VisionMaster
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
             containerRegistry.RegisterForNavigation<MonitorView, MonitorViewModel>();
             containerRegistry.RegisterForNavigation<ToolView, ToolViewModel>();
+            // 组态编辑器的视图模型必须是单例：画布宿主与属性面板要靠"同一个 SelectedElement"联动，
+            // 各自一份就得引入事件总线才能对齐选中态。RegisterForNavigation 造视图时经由容器
+            // 解析视图模型，singleton 覆盖默认的单次构造，所以两处拿到的是同一个实例。
+            containerRegistry.RegisterSingleton<ScadaEditorViewModel>();
+            containerRegistry.RegisterForNavigation<ScadaEditorView, ScadaEditorViewModel>();
+            containerRegistry.RegisterForNavigation<ScadaToolboxView, ScadaToolboxViewModel>();
+            containerRegistry.RegisterForNavigation<ScadaPropertyView, ScadaPropertyViewModel>();
+            // 运行态宿主必须是单例：它管的就是"同一时刻只允许一个运行窗口"这条策略，
+            // 每个调用方解析出一份新实例，等于这条策略根本不存在（两份会话各自写同一批变量）。
+            containerRegistry.RegisterSingleton<IScadaRuntimeHost, ScadaRuntimeHost>();
+            // 运行态的数据通道：把工作区的变量注册表接成领域层认的"值源"（见 IScadaValueSource）。
+            // 走工厂而不是类型映射，是因为注册表挂在 WorkspaceContext 上、不单独注册——
+            // 这样"变量只有一个索引"这条约束不会被绕开（多一份索引就会分裂）。
+            containerRegistry.RegisterSingleton<IScadaValueSource>(
+                c => new RegistryScadaValueSource(c.Resolve<IWorkspaceManager>().VariableRegistry));
+            // 动作分发器同样是单例：它无状态（只往日志/变量/导航出口递话），而每次运行都 new 一份
+            // 只会让人误以为"动作的执行状态存在某处"——将来接 S6 写变量时这里换成带状态的实现也不动调用方。
+            containerRegistry.RegisterSingleton<IScadaActionDispatcher, ScadaActionDispatcher>();
+            // 组态「选变量」入口：属性面板只说"给我一个变量"，弹窗怎么弹、弹哪个由这一层决定。
+            // 面板与事件行因此能在无 WPF 宿主下被直接构造、直接断言（ScadaChecks 就是这么测的）。
+            containerRegistry.RegisterSingleton<IScadaVariablePicker, ScadaVariablePicker>();
+            containerRegistry.RegisterDialog<ScadaVariablePickerView, ScadaVariablePickerViewModel>(
+                ScadaVariablePicker.DialogName);
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
             containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
             containerRegistry.RegisterDialog<CommunicationSettingsView, CommunicationSettingsViewModel>("CommunicationSettingsView");
+            // 运行窗口形态设置（依附主窗口 / 独立窗口）：软件级偏好，落 AppConfig.json
+            containerRegistry.RegisterDialog<ScadaRunWindowSettingsView, ScadaRunWindowSettingsViewModel>("ScadaRunWindowSettingsView");
             containerRegistry.RegisterDialog<PluginConfigShellView, PluginConfigShellViewModel>("PluginConfigShell");
             containerRegistry.RegisterDialog<SolutionListView, SolutionListViewModel>("SolutionListView");
             containerRegistry.RegisterForNavigation<Shell, ShellViewModel>();

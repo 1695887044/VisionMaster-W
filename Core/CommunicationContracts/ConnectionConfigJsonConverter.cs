@@ -9,9 +9,11 @@ namespace VisionMaster.Communications
     /// $type 反序列化白名单：
     /// Newtonsoft TypeNameHandling 反序列化 $type 时按此白名单限定可实例化的类型，
     /// 防止恶意方案文件（.vms）或配置文件借 $type 执行任意类型构造。
-    /// 白名单范围：本项目 Models / Communications 命名空间。
+    /// 白名单范围：本项目 Models / Communications / Scada 命名空间，以及插件 Plugin.*。
     /// 兼容：旧版（System.Text.Json 时代）方案文件 $type 只有短类名（如 ActionStep），
-    /// 短名仅在白名单命名空间内解析，安全边界与全名校验一致。
+    /// 短名仅在 Models / Communications 命名空间内解析（Scada 类型是新增的，
+    /// 不存在旧短名文件，故不放进短名解析，避免无谓放宽），
+    /// 安全边界与全名校验一致。
     /// 注意：ISerializationBinder 位于 Newtonsoft.Json.Serialization 命名空间（非根命名空间）。
     /// </summary>
     public class ConnectionConfigSerializationBinder : ISerializationBinder
@@ -21,6 +23,12 @@ namespace VisionMaster.Communications
         // 插件配置类型：.vms 会内嵌插件自定义模型（如图像脚本的过程/变量列表），
         // 仅放行 Plugin.* 命名空间（与插件加载目录命名约定一致）
         private const string PluginPrefix = "Plugin.";
+        // SCADA 组态类型（画面/图元/绑定，VisionMaster.Scada 命名空间）。
+        // 这些字段当前都是具体类型、Json.NET 不会为其写出 $type，但只要将来出现一处
+        // 多态位置（图元属性袋值、动作绑定、报警条件…），$type 就会被写出，
+        // 而白名单不含它 → 方案能存不能开（E1 那类"保存后打不开"的坑）。
+        // 该命名空间属本项目程序集，放行不引入外部类型构造面。
+        private const string ScadaPrefix = "VisionMaster.Scada";
 
         public Type BindToType(string? assemblyName, string typeName)
         {
@@ -90,7 +98,8 @@ namespace VisionMaster.Communications
         private static bool IsAllowedNamespace(string typeName) =>
             typeName.StartsWith(ModelsPrefix, StringComparison.Ordinal)
             || typeName.StartsWith(CommsPrefix, StringComparison.Ordinal)
-            || typeName.StartsWith(PluginPrefix, StringComparison.Ordinal);
+            || typeName.StartsWith(PluginPrefix, StringComparison.Ordinal)
+            || typeName.StartsWith(ScadaPrefix, StringComparison.Ordinal);
 
         private static Type? ResolveFullName(string typeName, string? assemblyName)
         {
@@ -122,6 +131,7 @@ namespace VisionMaster.Communications
                 {
                     if (t.Name != shortName) continue;
                     var ns = t.Namespace ?? string.Empty;
+                    // 刻意不含 ScadaPrefix：SCADA 类型从未以短名落过盘，无需兼容
                     if (ns.StartsWith(ModelsPrefix) || ns.StartsWith(CommsPrefix))
                         return t;
                 }

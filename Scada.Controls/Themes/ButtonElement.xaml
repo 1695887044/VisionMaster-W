@@ -1,0 +1,72 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        按钮图元的外观：带圆角的矩形 + 居中文字 + 一层"悬停提亮"覆盖层。
+
+        与基类样式（Focusable=False）的三处差别写在这里：
+        ① Focusable / IsTabStop 改成 True——按钮要能用键盘操作，操作员戴手套点不准时靠 Tab；
+        ② Cursor 改成 Hand——第一眼就告诉你"这里能点"；
+        ③ 悬停/按下反馈：Hover 层是一个白色半透明矩形，Opacity 从 0 提亮到 0.12。
+           用"覆盖层改透明度"而不是"换填充色"，是因为填充色是用户配的（可能来自变量绑定），
+           我们要的是在它<b>之上</b>叠一层亮度，不去动用户的颜色。
+
+        注意 IsPressed 用不了：那是 ButtonBase 的属性，本控件是 ContentControl 派生，
+        没有"按下"这个状态。运行态的按下反馈（含长按/确认弹窗）由 S4 接管。
+    -->
+    <Style TargetType="{x:Type local:ButtonElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="IsTabStop" Value="True" />
+        <Setter Property="Cursor" Value="Hand" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:ButtonElement}">
+                    <Grid>
+                        <Rectangle
+                            Margin="{TemplateBinding Padding}"
+                            Fill="{TemplateBinding Fill}"
+                            Stroke="{TemplateBinding Stroke}"
+                            StrokeThickness="{TemplateBinding StrokeThickness}"
+                            RadiusX="{TemplateBinding CornerRadius}"
+                            RadiusY="{TemplateBinding CornerRadius}" />
+
+                        <Rectangle
+                            x:Name="HoverLayer"
+                            Margin="{TemplateBinding Padding}"
+                            Fill="White"
+                            Opacity="0"
+                            RadiusX="{TemplateBinding CornerRadius}"
+                            RadiusY="{TemplateBinding CornerRadius}"
+                            IsHitTestVisible="False" />
+
+                        <TextBlock
+                            Margin="{TemplateBinding Padding}"
+                            Text="{TemplateBinding Text}"
+                            Foreground="{TemplateBinding Foreground}"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            FontWeight="{TemplateBinding FontWeight}"
+                            TextAlignment="Center"
+                            TextWrapping="Wrap"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HoverLayer" Property="Opacity" Value="0.12" />
+                        </Trigger>
+
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

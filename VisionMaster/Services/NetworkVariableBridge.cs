@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.Linq;
+using VisionMaster.Binding;
 using VisionMaster.Communications;
 using VisionMaster.Models;
 
@@ -35,6 +36,9 @@ namespace VisionMaster.Services
 
             // 变量增删 → 自动注册/注销
             _workspace.GlobalVariables.CollectionChanged += OnGlobalVariablesChanged;
+
+            // 变量改名 → 按旧名注销、按新名重注册（详见处理器注释）
+            _workspace.VariableRegistry.VariableRenamed += OnVariableRenamed;
 
             // 已存在的网络变量立即接线（桥接器可能在变量创建后才构造）
             RebindAll();
@@ -93,7 +97,9 @@ namespace VisionMaster.Services
                 ValueType = (Nullable.GetUnderlyingType(nv.DataType) ?? nv.DataType).AssemblyQualifiedName,
                 AccessMode = VariableAccessMode.ReadWrite,
                 // 轮询新值 → 推回网络变量镜像（UI 订阅 ValueChanged 自动刷新）
-                MirrorCallback = v => nv.UpdateMirrorValue(v)
+                MirrorCallback = v => nv.UpdateMirrorValue(v),
+                // 质量变化 → 推回网络变量（UI 色点显示采集健康度）
+                QualityCallback = q => nv.UpdateQuality(q)
             };
 
             try
@@ -114,12 +120,33 @@ namespace VisionMaster.Services
             _manager.UnregisterVariable(nv.ConnectionName, nv.Name);
         }
 
+        /// <summary>
+        /// 网络变量改名：轮询注册在通信管理器里是以 (连接名, 变量名) 为键的，
+        /// 改名后旧键仍留在管理器里（幽灵轮询：旧名继续读数、旧实例被闭包钉住不回收），
+        /// 因此必须"用旧名注销、再按新名重注册"。注意不能用 <see cref="Unregister"/>——
+        /// 它读的是 <c>nv.Name</c>（此时已是新名），拿新名去注销旧键等于没注销。
+        /// </summary>
+        private void OnVariableRenamed(object? sender, VariableRenamedEventArgs e)
+        {
+            if (e?.Variable is not NetworkVariableModel nv) return;
+
+            // 没注册过（缺连接名/地址，见 Register 的警告分支）就无需重排，等补齐配置走集合事件
+            if (!_registered.Contains(nv)) return;
+
+            _registered.Remove(nv);
+            if (!string.IsNullOrEmpty(nv.ConnectionName) && !string.IsNullOrEmpty(e.OldName))
+                _manager.UnregisterVariable(nv.ConnectionName, e.OldName);
+
+            Register(nv);
+        }
+
         public void Dispose()
         {
             foreach (var nv in _registered.ToList())
                 Unregister(nv);
             _registered.Clear();
             _workspace.GlobalVariables.CollectionChanged -= OnGlobalVariablesChanged;
+            _workspace.VariableRegistry.VariableRenamed -= OnVariableRenamed;
         }
     }
 }

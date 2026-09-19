@@ -10,22 +10,25 @@ using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
 using ICSharpCode.AvalonEdit.Search;
 
-namespace Plugin.ImageScript
+namespace Core.Editing
 {
     /// <summary>
     /// 脚本编辑器行为集合（视图层职责，不涉及 VM）：
     /// 撤销/重做、自动缩进、括号配对、Ctrl+/ 注释切换、Ctrl+滚轮缩放、
     /// 当前行高亮、错误行高亮、查找(Ctrl+F)/替换(Ctrl+H)。
+    /// 与脚本语言无关：注释前缀由调用方指定（C# 用 "//"，Halcon 用 "*"）。
     /// </summary>
     public static class ScriptEditorBehavior
     {
-        public static void Attach(TextEditor editor)
+        /// <param name="editor">目标编辑器</param>
+        /// <param name="commentPrefix">行注释前缀，如 "//"（C#）或 "*"（Halcon）</param>
+        public static void Attach(TextEditor editor, string commentPrefix = "//")
         {
             var textArea = editor.TextArea;
 
             AttachUndoRedo(textArea);
             AttachAutoIndentAndBrackets(textArea);
-            AttachCommentToggle(textArea);
+            AttachCommentToggle(textArea, commentPrefix);
             AttachZoom(editor, textArea);
             AttachLineHighlight(textArea);
             AttachFindReplace(editor, textArea);
@@ -93,25 +96,26 @@ namespace Plugin.ImageScript
 
         // ---------- 7. Ctrl+/ 注释切换 ----------
 
-        private static void AttachCommentToggle(TextArea textArea)
+        private static void AttachCommentToggle(TextArea textArea, string commentPrefix)
         {
             textArea.PreviewKeyDown += (s, e) =>
             {
                 if (e.Key != Key.OemQuestion || Keyboard.Modifiers != ModifierKeys.Control) return;
                 e.Handled = true;
-                ToggleComments(textArea, null);
+                ToggleComments(textArea, null, commentPrefix);
             };
         }
 
         /// <summary>强制注释（add=true）或取消注释（add=false）当前行/选区——右键菜单用。</summary>
-        public static void SetComment(TextArea textArea, bool add) => ToggleComments(textArea, add);
+        public static void SetComment(TextArea textArea, bool add, string commentPrefix = "//")
+            => ToggleComments(textArea, add, commentPrefix);
 
         // Selection 端点是 TextViewPosition(Line/Column)，转文档偏移
         private static int SelOffset(TextDocument doc, TextViewPosition p) =>
             doc.GetOffset(p.Line, p.Column);
 
         /// <summary>force=null 自动判断方向；true/false 强制注释/取消。</summary>
-        private static void ToggleComments(TextArea textArea, bool? force)
+        private static void ToggleComments(TextArea textArea, bool? force, string prefix)
         {
             var doc = textArea.Document;
             int startLine, endLine;
@@ -135,7 +139,7 @@ namespace Plugin.ImageScript
             {
                 string t = doc.GetText(l.Offset, l.Length);
                 return t.Trim().Length == 0
-                    || t.TrimStart().StartsWith("*", StringComparison.Ordinal);
+                    || t.TrimStart().StartsWith(prefix, StringComparison.Ordinal);
             });
             bool doComment = force ?? !allCommented;
 
@@ -149,17 +153,18 @@ namespace Plugin.ImageScript
 
                     if (!doComment)
                     {
-                        int idx = t.IndexOf('*', StringComparison.Ordinal);
+                        int idx = t.IndexOf(prefix, StringComparison.Ordinal);
                         if (idx >= 0)
                         {
-                            int removeLen = (idx + 1 < t.Length && t[idx + 1] == ' ') ? 2 : 1;
+                            int removeLen = (idx + prefix.Length < t.Length && t[idx + prefix.Length] == ' ')
+                                ? prefix.Length + 1 : prefix.Length;
                             doc.Replace(l.Offset + idx, removeLen, "");
                         }
                     }
                     else
                     {
                         int indent = t.Length - t.TrimStart().Length;
-                        doc.Insert(l.Offset + indent, "* ");
+                        doc.Insert(l.Offset + indent, prefix + " ");
                     }
                 }
             }
@@ -199,7 +204,7 @@ namespace Plugin.ImageScript
             };
         }
 
-        private static Window _replaceWin;
+        private static Window? _replaceWin;
 
         private static void ShowReplaceDialog(TextEditor editor, TextArea textArea)
         {
@@ -378,16 +383,17 @@ namespace Plugin.ImageScript
             }
         }
 
-        private static LineBackgroundRenderer _renderer;
+        private static LineBackgroundRenderer? _renderer;
 
         private static void AttachLineHighlight(TextArea textArea)
         {
-            _renderer = new LineBackgroundRenderer();
-            textArea.TextView.BackgroundRenderers.Add(_renderer);
+            var renderer = new LineBackgroundRenderer();
+            _renderer = renderer;
+            textArea.TextView.BackgroundRenderers.Add(renderer);
 
             void Refresh()
             {
-                _renderer.CaretLine = textArea.Caret.Line;
+                renderer.CaretLine = textArea.Caret.Line;
                 textArea.TextView.InvalidateLayer(KnownLayer.Background);
             }
 
@@ -396,15 +402,15 @@ namespace Plugin.ImageScript
             // 编辑后行号可能错位：清除错误高亮（重新校验会再标）
             textArea.Document.Changed += (s, e) =>
             {
-                if (_renderer.ErrorLines.Count > 0)
-                    _renderer.ErrorLines.Clear();
+                if (renderer.ErrorLines.Count > 0)
+                    renderer.ErrorLines.Clear();
                 textArea.TextView.InvalidateLayer(KnownLayer.Background);
             };
             Refresh();
         }
 
         /// <summary>标记校验失败的行（红色背景）；传 null/空清除。跳转由调用方负责。</summary>
-        public static void SetErrorLines(TextEditor editor, IEnumerable<int> lines)
+        public static void SetErrorLines(TextEditor editor, IEnumerable<int>? lines)
         {
             if (_renderer == null) return;
             _renderer.ErrorLines.Clear();

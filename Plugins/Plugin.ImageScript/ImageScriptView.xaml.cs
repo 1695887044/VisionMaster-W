@@ -1,3 +1,4 @@
+using Core.Editing;
 using Core.Interfaces;
 using ICSharpCode.AvalonEdit.Highlighting;
 using Microsoft.Win32;
@@ -55,8 +56,8 @@ namespace Plugin.ImageScript
             // 算子智能提示：补全 + 参数模板 + 悬浮文档（接口变量数据源=当前编辑过程）
             ScriptIntelliSense.Attach(Editor, CollectInterfaceVars);
 
-            // 编辑行为：撤销/自动缩进/括号配对/注释切换/缩放/当前行高亮/查找替换
-            ScriptEditorBehavior.Attach(Editor);
+            // 编辑行为：撤销/自动缩进/括号配对/注释切换/缩放/当前行高亮/查找替换（Halcon 行注释前缀 *）
+            ScriptEditorBehavior.Attach(Editor, "*");
 
             // 右键菜单：编译 / 注释 / 取消注释 / 插入示例代码（28 个经典场景）
             BuildEditorContextMenu();
@@ -311,9 +312,9 @@ namespace Plugin.ImageScript
             menu.Items.Add(MenuItem("编译（校验脚本）", "检查语法/引用错误并标红错误行",
                 (s, e) => Validate_Click(s, e)));
             menu.Items.Add(MenuItem("注释", "Ctrl+/ —— 给当前行/选区加 * 注释",
-                (s, e) => ScriptEditorBehavior.SetComment(Editor.TextArea, true)));
+                (s, e) => ScriptEditorBehavior.SetComment(Editor.TextArea, true, "*")));
             menu.Items.Add(MenuItem("取消注释", "去掉当前行/选区的 * 注释",
-                (s, e) => ScriptEditorBehavior.SetComment(Editor.TextArea, false)));
+                (s, e) => ScriptEditorBehavior.SetComment(Editor.TextArea, false, "*")));
             menu.Items.Add(new System.Windows.Controls.Separator());
 
             var tplRoot = new System.Windows.Controls.MenuItem { Header = "插入示例代码" };

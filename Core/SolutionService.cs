@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
 using System.Collections.ObjectModel;
 using System.IO;
 using Newtonsoft.Json;
@@ -109,6 +109,10 @@ namespace VisionMaster.Services
                 {
                     NormalizeBranchTypes(flow.Steps);
                 }
+
+                // 画面/图元补发稳定身份：SCADA 领域模型引入 Id 之前写出的方案文件没有这些字段，
+                // 读入后补一次（幂等），使按 Id 寻址的绑定、画面跳转从第一次打开起就是稳定的
+                solution.Scada.EnsureIdentity();
 
                 if (!_solutionModels.Contains(solution))
                 {

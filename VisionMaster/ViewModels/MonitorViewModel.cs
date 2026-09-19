@@ -12,6 +12,7 @@ using UI.Helper;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
+using VisionMaster.Binding;
 
 namespace VisionMaster.ViewModels
 {
@@ -27,6 +28,14 @@ namespace VisionMaster.ViewModels
         public bool IsInput { get; set; }
         public bool IsGlobalVariable { get; set; }
         public string VariableName { get; set; }
+
+        /// <summary>
+        /// 全局变量的稳定身份（仅 <see cref="IsGlobalVariable"/> 为 true 时有意义；
+        /// 算子/端口联想项恒为 <see cref="Guid.Empty"/>）。
+        /// 为什么联想项也要带 Id：用户从下拉里选中一项就落成一条监视项，
+        /// 若只带名字，落成的监视项就退化成"按名寻址"，变量一改名即失联。
+        /// </summary>
+        public Guid VariableId { get; set; }
     }
 
     /// <summary>
@@ -106,6 +115,12 @@ namespace VisionMaster.ViewModels
 
             // 全局变量集合变化（增删变量）→ 重查监视项有效性
             _workspace.GlobalVariables.CollectionChanged += OnGlobalVariablesChanged;
+
+            // 全局变量改名 → 重建监视栏。
+            // 为什么集合事件盯不住这件事：变量改名是"集合内某个元素变化"，不触发 CollectionChanged；
+            // 而 WatchPortWrapper.DisplayName 是构造时快照、WatchItemModel.GlobalVariableName 是普通自动属性，
+            // 工作区那头把数据显示改对了，UI 这边也不会自己动——只有重建包装器才能刷出新名字
+            _workspace.VariableRegistry.VariableRenamed += OnVariableRenamed;
 
             // 方案切换（启动自动加载/打开方案）→ 重挂监视集合订阅并刷新。
             // 关键1：订阅必须跟随 CurrentSolution 实例，否则方案加载后添加监视项写进新集合，
@@ -293,7 +308,7 @@ namespace VisionMaster.ViewModels
                 // 全局变量联想：Global.变量名
                 var varMatches = _workspace.GlobalVariables.Where(gv => gv.Name.Contains(portQuery, StringComparison.OrdinalIgnoreCase));
                 foreach (var gv in varMatches)
-                    SuggestedItems.Add(new SearchSuggestion { DisplayText = $"Global.{gv.Name} [全局变量]", IsGlobalVariable = true, VariableName = gv.Name });
+                    SuggestedItems.Add(new SearchSuggestion { DisplayText = $"Global.{gv.Name} [全局变量]", IsGlobalVariable = true, VariableName = gv.Name, VariableId = gv.VariableId });
             }
             else
             {
@@ -306,7 +321,7 @@ namespace VisionMaster.ViewModels
                 var globalVars = _workspace.GlobalVariables.Where(gv => gv.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
                 foreach (var gv in globalVars)
                 {
-                    SuggestedItems.Add(new SearchSuggestion { DisplayText = $"Global.{gv.Name} [全局变量]", IsGlobalVariable = true, VariableName = gv.Name });
+                    SuggestedItems.Add(new SearchSuggestion { DisplayText = $"Global.{gv.Name} [全局变量]", IsGlobalVariable = true, VariableName = gv.Name, VariableId = gv.VariableId });
                 }
             }
         }
@@ -318,7 +333,8 @@ namespace VisionMaster.ViewModels
                 var newItem = new WatchItemModel
                 {
                     ItemType = WatchItemType.GlobalVariable,
-                    GlobalVariableName = suggestion.VariableName
+                    GlobalVariableName = suggestion.VariableName,
+                    VariableId = suggestion.VariableId
                 };
                 _workspace.CurrentSolution.WatchItems.Add(newItem);
             }
@@ -342,12 +358,13 @@ namespace VisionMaster.ViewModels
             {
                 foreach (var gv in _workspace.GlobalVariables)
                 {
-                    if (!_workspace.CurrentSolution.WatchItems.Any(w => w.ItemType == WatchItemType.GlobalVariable && w.GlobalVariableName == gv.Name))
+                    if (!IsWatchingGlobalVariable(gv.VariableId, gv.Name))
                     {
                         var newItem = new WatchItemModel
                         {
                             ItemType = WatchItemType.GlobalVariable,
-                            GlobalVariableName = gv.Name
+                            GlobalVariableName = gv.Name,
+                            VariableId = gv.VariableId
                         };
                         _workspace.CurrentSolution.WatchItems.Add(newItem);
                     }
@@ -356,12 +373,17 @@ namespace VisionMaster.ViewModels
             else if (portName.StartsWith("Global."))
             {
                 var varName = portName.Substring(7);
-                if (!_workspace.CurrentSolution.WatchItems.Any(w => w.ItemType == WatchItemType.GlobalVariable && w.GlobalVariableName == varName))
+
+                // 用户手输的是名字：查注册表换取稳定 Id 再落盘。
+                // 查不到也照样添加（监视栏会以失效项变色提示），只是这时的 Id 只能为空
+                var variable = _workspace.VariableRegistry.FindByName(varName);
+                if (!IsWatchingGlobalVariable(variable?.VariableId ?? Guid.Empty, varName))
                 {
                     var newItem = new WatchItemModel
                     {
                         ItemType = WatchItemType.GlobalVariable,
-                        GlobalVariableName = varName
+                        GlobalVariableName = variable?.Name ?? varName,
+                        VariableId = variable?.VariableId ?? Guid.Empty
                     };
                     _workspace.CurrentSolution.WatchItems.Add(newItem);
                 }
@@ -393,6 +415,20 @@ namespace VisionMaster.ViewModels
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// 该全局变量是否已在监视栏里（判重）。
+        /// 优先按稳定 Id 比对——改名后仍认得出是同一个变量；
+        /// Id 为空说明是旧方案数据，退回按名兜底（大小写不敏感，与注册表索引口径一致）。
+        /// </summary>
+        private bool IsWatchingGlobalVariable(Guid variableId, string variableName)
+        {
+            return _workspace.CurrentSolution.WatchItems.Any(w =>
+                w.ItemType == WatchItemType.GlobalVariable &&
+                ((variableId != Guid.Empty && w.VariableId == variableId)
+                 || (w.VariableId == Guid.Empty
+                     && string.Equals(w.GlobalVariableName, variableName, StringComparison.OrdinalIgnoreCase))));
         }
 
         private void RemoveWatchItem(WatchPortWrapper wrapper)
@@ -440,6 +476,28 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
+        /// 全局变量改名：全量重建监视栏（刷新显示名，并让名字解析不到而失效的项恢复）。
+        /// 改名可能来自"变量管理"弹窗等路径，统一切回 UI 线程再动 ObservableCollection
+        /// </summary>
+        private void OnVariableRenamed(object sender, VariableRenamedEventArgs e)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null) return;
+
+            dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    RefreshDisplayPorts();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Monitor] 变量改名刷新失败: {ex.Message}");
+                }
+            }), System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        /// <summary>
         /// 有效性重查（编译完成/方案加载后触发）：全量重建监视项，
         /// 已恢复的目标解除失效状态，仍不存在的保持变色提示
         /// </summary>
@@ -458,7 +516,15 @@ namespace VisionMaster.ViewModels
         {
             if (config.ItemType == WatchItemType.GlobalVariable)
             {
-                var globalVar = _workspace.GlobalVariables.FirstOrDefault(gv => gv.Name == config.GlobalVariableName);
+                // 按稳定身份解析（Id 优先、名字兜底）：旧写法 GlobalVariables.FirstOrDefault(gv => gv.Name == ...)
+                // 是纯按名寻址，变量一改名这一项立刻变成"(未知变量)"，而且不报错
+                var globalVar = _workspace.VariableRegistry.Resolve(config.VariableId, config.GlobalVariableName);
+
+                // 旧数据自愈：监视项只存了变量名时按名命中，顺手补齐稳定身份，
+                // 此后（下次保存落盘起）该项改为按 Id 寻址，改名不再失联
+                if (globalVar != null && config.VariableId != globalVar.VariableId)
+                    config.VariableId = globalVar.VariableId;
+
                 if (globalVar != null)
                 {
                     DisplayPorts.Add(new WatchPortWrapper(config, globalVar));

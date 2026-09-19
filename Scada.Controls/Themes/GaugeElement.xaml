@@ -1,0 +1,90 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        表盘图元的外观：表盘面（内接圆）+ 量程弧与刻度线 + 指针 + 可选的数值文字。
+
+        模板里<b>一个算术都没有</b>：三条 Path 分别绑只读几何属性 FaceGeometry / ScaleGeometry /
+        NeedleGeometry，数值那行绑只读的 ValueText。所有"角度、半径、刻度端点、指针长度"的换算
+        都在控件代码里（见 GaugeElement.UpdateDial）——与棒图绑 FillLength、多态灯绑 LampBrush
+        是同一条纪律：外观由输入推导，推导只写一遍，模板只负责摆放。
+
+        为什么不用 Ellipse / Line 这类形状元素直接拼：
+        ① 表盘面是<b>内接圆</b>。控件不是正方形时 Ellipse 会被拉成椭圆，而刻度线的端点仍按圆周算，
+           两者立刻错位；几何量算在代码里就只有一个"半径"，天然自洽。
+        ② 刻度线的每个端点都在圆周上、指针长度与线宽随表盘缩放，这些都不是与尺寸无关的常量。
+        几何量随 SizeChanged 重算（见控件构造），所以拖动改变大小时刻度跟着重排。
+
+        图层次序（同一个 Grid 里从下往上）：盘面 → 刻度 → 指针 → 数值。
+        指针压在刻度上，读数是"针尖指到哪一格"，针被刻度盖住就看不出来了。
+
+        ShowValue=False 时收起数值那行：默认 True，因为一个没有读数的表盘在工业现场几乎没用。
+    -->
+    <Style TargetType="{x:Type local:GaugeElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:GaugeElement}">
+                    <Grid>
+                        <!-- 盘面：Fill 是盘底色，Stroke 是外圈。几何量已按半线宽内缩，外沿落在标注尺寸上 -->
+                        <Path
+                            x:Name="Face"
+                            Data="{TemplateBinding FaceGeometry}"
+                            Fill="{TemplateBinding TrackColor}"
+                            Stroke="{TemplateBinding Stroke}"
+                            StrokeThickness="{TemplateBinding StrokeThickness}" />
+
+                        <!-- 量程弧 + 刻度线：整组几何共用一个线宽，刻度粗细与表盘大小无关 -->
+                        <Path
+                            x:Name="Scale"
+                            Data="{TemplateBinding ScaleGeometry}"
+                            Stroke="{TemplateBinding ScaleColor}"
+                            StrokeThickness="1.5" />
+
+                        <!--
+                            指针：一根线 + 中心一个轴环，同属一份几何。
+                            Fill 与 Stroke 同时设成 Fill——线只有描边（无面积），轴环则描边加填充，
+                            于是"针"与"轴"是同一个颜色，不必为轴环再开一个颜色属性。
+                            线帽取圆头：针尖不削成斜口，转动时不会看到一个跳动的尖角。
+                        -->
+                        <Path
+                            x:Name="Needle"
+                            Data="{TemplateBinding NeedleGeometry}"
+                            Fill="{TemplateBinding Fill}"
+                            Stroke="{TemplateBinding Fill}"
+                            StrokeThickness="{TemplateBinding NeedleThickness}"
+                            StrokeStartLineCap="Round"
+                            StrokeEndLineCap="Round" />
+
+                        <!-- 数值压在表盘下方缺口处（默认量程 135°~405°，缺口正好在正下方） -->
+                        <TextBlock
+                            x:Name="ValueLabel"
+                            Text="{TemplateBinding ValueText}"
+                            Foreground="{TemplateBinding Foreground}"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            FontWeight="{TemplateBinding FontWeight}"
+                            TextAlignment="{TemplateBinding TextAlignment}"
+                            TextTrimming="CharacterEllipsis"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Margin="0,0,0,4" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <!-- 用 Binding 而不是 TemplateBinding——TemplateBinding 不能出现在触发器的 Binding 位置 -->
+                        <DataTrigger
+                            Binding="{Binding ShowValue, RelativeSource={RelativeSource TemplatedParent}}"
+                            Value="False">
+                            <Setter TargetName="ValueLabel" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

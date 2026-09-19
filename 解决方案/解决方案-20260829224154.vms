@@ -3,7 +3,7 @@
   "Version": 1.0,
   "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\解决方案\\解决方案-20260829224154.vms",
   "Config": {
-    "DockLayoutXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<LayoutRoot>\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"152\" FloatingWidth=\"162.28571428571428\" FloatingHeight=\"856\" FloatingLeft=\"412\" FloatingTop=\"623.4285714285714\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" FloatingLeft=\"412\" FloatingTop=\"623.4285714285714\" FloatingWidth=\"162.28571428571428\" FloatingHeight=\"856\" LastActivationTimeStamp=\"09/16/2026 23:15:24\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"f4898d63-4ba0-4843-a050-c326dfc9a7c0\" DockWidth=\"407.8571428571429\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" FloatingLeft=\"-70.85714285714285\" FloatingTop=\"604\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" FloatingLeft=\"-70.85714285714285\" FloatingTop=\"604\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" LastActivationTimeStamp=\"09/16/2026 23:15:26\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"58.25924597335084*\">\r\n      <LayoutDocumentPane DockHeight=\"1.1232142857142855*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/16/2026 23:15:04\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"121.14285714285722\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/16/2026 20:07:10\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup>\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/16/2026 22:18:56\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows>\r\n    <LayoutAnchorableFloatingWindow>\r\n      <LayoutAnchorablePaneGroup Orientation=\"Horizontal\" DockWidth=\"438.14285714285717\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" FloatingLeft=\"1004.5714285714286\" FloatingTop=\"299.4285714285714\">\r\n        <LayoutAnchorablePane Id=\"c95e6729-7865-4bb5-8c43-18cb5ce8da06\" DockWidth=\"438.14285714285717\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" FloatingLeft=\"1004.5714285714286\" FloatingTop=\"299.4285714285714\" />\r\n      </LayoutAnchorablePaneGroup>\r\n    </LayoutAnchorableFloatingWindow>\r\n  </FloatingWindows>\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" IsSelected=\"True\" ContentId=\"Panel_FlowCanvasView\" FloatingLeft=\"1004.5714285714286\" FloatingTop=\"299.4285714285714\" FloatingWidth=\"1114.857142857143\" FloatingHeight=\"856\" LastActivationTimeStamp=\"09/16/2026 23:15:04\" PreviousContainerId=\"c95e6729-7865-4bb5-8c43-18cb5ce8da06\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"25\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"25\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"70*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/18/2026 06:06:14\" />\r\n        <LayoutDocument Title=\"组态画面\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"09/18/2026 11:46:32\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane DockWidth=\"260\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"09/18/2026 11:48:20\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"300\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" />\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"09/18/2026 11:46:33\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
     "ImageViewMode": 5
   },
   "Flows": [
@@ -76,6 +76,7 @@
               "Kind": 2,
               "TargetStepId": "00000000-0000-0000-0000-000000000000",
               "TargetPortName": "NGCount",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "全局变量 (Global).NGCount"
             }
           },
@@ -119,6 +120,7 @@
               "Kind": 1,
               "TargetStepId": "c9a6c519-7623-4a0d-b2c0-d89dd7e83b27",
               "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.Image"
             }
           },
@@ -163,12 +165,14 @@
               "Kind": 1,
               "TargetStepId": "75cbcb6d-0bbb-421d-b5f7-1d3b95cc501d",
               "TargetPortName": "Crop_ROI_0",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "ROI_0.Crop_ROI_0"
             },
             "DisplayViewIndex": {
               "Kind": 1,
               "TargetStepId": "c9a6c519-7623-4a0d-b2c0-d89dd7e83b27",
               "TargetPortName": "CurrentIndex",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.CurrentIndex"
             }
           },
@@ -179,7 +183,7 @@
   ],
   "CommunicationConfigs": [
     {
-      "ConnectionName": "PLC1",
+      "ConnectionName": "Conn_014013",
       "Protocol": 0,
       "Config": {
         "$type": "VisionMaster.Communications.ModbusTcpConfig, VM.Core",
@@ -192,7 +196,7 @@
         "RetryCount": 3,
         "RetryIntervalMs": 1000
       },
-      "ReadCycleMs": 200,
+      "ReadCycleMs": 1000,
       "AutoStart": true,
       "AutoReconnect": true,
       "IsEnabled": true,
@@ -203,114 +207,115 @@
     {
       "VarType": "Local",
       "Name": "RecipeName",
+      "VariableId": "5b9d8ff3-e50b-47e7-a253-ffe261be7b68",
       "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "当前加载的产品模型配方名称",
       "DefaultValue": "Product_Type_A",
       "Value": "Product_Type_A",
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "ProductCode",
+      "VariableId": "fbfb00a6-c2ff-4c24-8a17-6eb310bcd0a6",
       "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "当前识别到的条码或二维码信息",
       "DefaultValue": "QR202310240001",
       "Value": "QR202310240001",
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "TotalCount",
+      "VariableId": "17bffd07-1ab7-49fe-9b51-b086522a4bcd",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "设备运行以来的累计生产总数",
       "DefaultValue": 1500,
       "Value": 1500,
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "OKCount",
+      "VariableId": "b2b32ed5-5729-419f-bf27-f31b50bca7e2",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "累计检测良品总数",
       "DefaultValue": 1485,
       "Value": 1485,
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "NGCount",
+      "VariableId": "4fc441d2-1986-4814-ab17-ee90e2c7eb6c",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "累计检测不良品总数",
       "DefaultValue": 15,
       "Value": 15,
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "ScoreThreshold",
+      "VariableId": "b60d1822-6747-4263-ac0f-9186575e4125",
       "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "模板匹配的最小及格分数 (0-100)",
       "DefaultValue": 85.5,
       "Value": 85.5,
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "Exposure_Time",
+      "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
       "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "主相机的曝光时间 (ms)",
       "DefaultValue": 25.0,
       "Value": 25.0,
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "YieldRate",
+      "VariableId": "cb143be5-5f61-4862-a883-65cf2afe0579",
       "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "当前的实时良率 (%)",
       "DefaultValue": 99.0,
       "Value": 99.0,
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "PLC_Ready",
+      "VariableId": "659d0fe1-2133-4ed4-a556-c11d86117669",
       "DataTypeString": "System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "外部PLC通讯握手信号",
       "DefaultValue": true,
       "Value": true,
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "BarcodeResults",
+      "VariableId": "1c5deffe-3672-4977-85aa-538ff176a190",
       "DataTypeString": "System.String[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "单次触发读取到的所有条码集合",
       "DefaultValue": {
@@ -331,12 +336,12 @@
       },
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "HoleCoordinatesX",
+      "VariableId": "c90136f1-1a66-4827-827c-d27096f4250d",
       "DataTypeString": "System.Double[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "所有定位孔的 X 坐标集合 (mm)",
       "DefaultValue": {
@@ -359,12 +364,12 @@
       },
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Local",
       "Name": "CameraROI",
+      "VariableId": "d935577b-d176-41d7-a4d0-151736320dda",
       "DataTypeString": "System.Int32[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "相机的动态检测区域 [X, Y, Width, Height]",
       "DefaultValue": {
@@ -387,25 +392,26 @@
       },
       "Offset": "0",
       "BitOffset": -1,
-      "DbNumber": 1,
-      "PollIntervalMs": 1000
+      "DbNumber": 1
     },
     {
       "VarType": "Network",
       "Name": "Data1",
+      "VariableId": "34d597e9-5165-4bed-94dd-dd5e1020d32f",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "",
       "ConnectionName": "PLC1",
       "Protocol": "ModbusTcp",
       "Area": "HoldingRegisters",
       "Offset": "1",
       "BitOffset": -1,
       "DataValueType": "Int32",
-      "DbNumber": 1,
-      "PollIntervalMs": 500
+      "DbNumber": 1
     },
     {
       "VarType": "Network",
       "Name": "Data2",
+      "VariableId": "4d1099a9-4b2b-4a02-8f70-fb4d93ea3841",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "",
       "ConnectionName": "PLC1",
@@ -414,12 +420,12 @@
       "Offset": "23",
       "BitOffset": -1,
       "DataValueType": "Int32",
-      "DbNumber": 1,
-      "PollIntervalMs": 500
+      "DbNumber": 1
     },
     {
       "VarType": "Network",
       "Name": "Data3",
+      "VariableId": "a6e4b802-a4f6-43c1-9b97-885eb7f7ad3a",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "",
       "ConnectionName": "PLC1",
@@ -428,9 +434,194 @@
       "Offset": "12",
       "BitOffset": -1,
       "DataValueType": "Int32",
-      "DbNumber": 1,
-      "PollIntervalMs": 500
+      "DbNumber": 1
     }
   ],
-  "WatchItems": []
+  "WatchItems": [],
+  "Scada": {
+    "SchemaVersion": 1,
+    "Pages": [
+      {
+        "PageId": "80444b77-7455-4e53-b08e-ea3199948a00",
+        "Name": "画面_1",
+        "Description": "",
+        "Width": 1920.0,
+        "Height": 1080.0,
+        "Background": "#FF1E1E1E",
+        "ShowGrid": true,
+        "GridSize": 10.0,
+        "SnapToGrid": true,
+        "Elements": [
+          {
+            "ElementId": "1bad11ec-ab96-4df7-818d-537ae9382672",
+            "Name": "椭圆",
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "TypeKey": "Hmi.Ellipse",
+            "X": 580.0,
+            "Y": 310.0,
+            "Width": 100.0,
+            "Height": 100.0,
+            "Rotation": 0.0,
+            "ZIndex": 1,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [],
+            "EventHooks": []
+          },
+          {
+            "ElementId": "2869c96a-48d3-42f6-be0a-667d8d5d3a68",
+            "Name": "文本",
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "TypeKey": "Hmi.Text",
+            "X": 570.0,
+            "Y": 550.0,
+            "Width": 120.0,
+            "Height": 24.0,
+            "Rotation": 0.0,
+            "ZIndex": 2,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [],
+            "EventHooks": []
+          },
+          {
+            "ElementId": "b48d5efb-2ee2-4e4a-a325-532ec2a4f9ce",
+            "Name": "按钮",
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "TypeKey": "Hmi.Button",
+            "X": 180.0,
+            "Y": 110.0,
+            "Width": 88.0,
+            "Height": 32.0,
+            "Rotation": 0.0,
+            "ZIndex": 3,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [],
+            "EventHooks": []
+          },
+          {
+            "ElementId": "e6104b63-cdab-4d14-a42a-2b13e897a396",
+            "Name": "矩形",
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "TypeKey": "Hmi.Rectangle",
+            "X": 190.0,
+            "Y": 290.0,
+            "Width": 120.0,
+            "Height": 60.0,
+            "Rotation": 0.0,
+            "ZIndex": 4,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [],
+            "EventHooks": []
+          },
+          {
+            "ElementId": "f33c4f98-8ea2-429b-8e5a-1116056690cd",
+            "Name": "按钮_2",
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "TypeKey": "Hmi.Button",
+            "X": 590.0,
+            "Y": 470.0,
+            "Width": 88.0,
+            "Height": 32.0,
+            "Rotation": 0.0,
+            "ZIndex": 5,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [],
+            "EventHooks": [
+              {
+                "Event": 2,
+                "Actions": [
+                  {
+                    "Type": 1,
+                    "VariableId": "00000000-0000-0000-0000-000000000000",
+                    "TargetPageId": "00000000-0000-0000-0000-000000000000",
+                    "Detail": ""
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Layers": [
+          {
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "Name": "图层_1",
+            "IsVisible": true,
+            "IsLocked": false
+          }
+        ],
+        "EventHooks": [
+          {
+            "Event": 0,
+            "Actions": [
+              {
+                "Type": 1,
+                "VariableId": "00000000-0000-0000-0000-000000000000",
+                "TargetPageId": "00000000-0000-0000-0000-000000000000",
+                "Detail": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "PageId": "58d568be-a59e-4924-95d5-fad4b11e1812",
+        "Name": "画面_2",
+        "Description": "",
+        "Width": 1920.0,
+        "Height": 1080.0,
+        "Background": "#FF1E1E1E",
+        "ShowGrid": true,
+        "GridSize": 10.0,
+        "SnapToGrid": true,
+        "Elements": [
+          {
+            "ElementId": "4544dd29-918b-46c9-a864-699348ced2ab",
+            "Name": "指示灯",
+            "LayerId": "f64041f5-7d8e-4103-bb7d-9d97422cf7d7",
+            "TypeKey": "Hmi.Indicator",
+            "X": 130.0,
+            "Y": 50.0,
+            "Width": 40.0,
+            "Height": 56.0,
+            "Rotation": 0.0,
+            "ZIndex": 1,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [],
+            "EventHooks": []
+          },
+          {
+            "ElementId": "cfcdfd55-67d4-4895-8526-6a7b3633cac8",
+            "Name": "指示灯_2",
+            "LayerId": "f64041f5-7d8e-4103-bb7d-9d97422cf7d7",
+            "TypeKey": "Hmi.Indicator",
+            "X": 240.0,
+            "Y": 40.0,
+            "Width": 40.0,
+            "Height": 56.0,
+            "Rotation": 0.0,
+            "ZIndex": 2,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [],
+            "EventHooks": []
+          }
+        ],
+        "Layers": [
+          {
+            "LayerId": "f64041f5-7d8e-4103-bb7d-9d97422cf7d7",
+            "Name": "图层_1",
+            "IsVisible": true,
+            "IsLocked": false
+          }
+        ],
+        "EventHooks": []
+      }
+    ],
+    "StartupPageId": "00000000-0000-0000-0000-000000000000"
+  }
 }

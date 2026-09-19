@@ -71,6 +71,17 @@ namespace Core.Interfaces
         public string TargetPortName { get; set; }
 
         /// <summary>
+        /// 来源变量的稳定身份（仅 Kind == GlobalVariable 时有效；RuntimeVariable 走执行期上下文，暂不适用）。
+        ///
+        /// 为什么与 TargetPortName 并存而不是替换它：
+        /// TargetPortName 存的是变量名，是唯一能读懂旧工程数据的兜底键，不能删；
+        /// TargetVariableId 是新写入数据的权威键——变量改名后依然命中。
+        /// 解析时 Id 优先、Name 兜底（见 IVariableRegistry.ResolveGlobalLink），
+        /// 旧工程数据（无此字段 → Guid.Empty）按名命中后会被自愈回填，下次保存即完成迁移。
+        /// </summary>
+        public Guid TargetVariableId { get; set; }
+
+        /// <summary>
         /// 显示地址（如 "Blob定位.中心X"、"常量值: 3.14"）。
         /// 纯展示用途：改名级联时重算它，编译器不得读取它做判定。
         /// </summary>

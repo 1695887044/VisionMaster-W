@@ -206,8 +206,18 @@ namespace VisionMaster.Communications
             // 移除配置缓存
             _configCache.TryRemove(connectionName, out _);
 
-            // 移除注册的变量
-            _registeredVariables.TryRemove(connectionName, out _);
+            // 移除注册的变量。
+            // H3：整连接移除必须同步摘除转发 handler——handler 闭包捕获变量对象，
+            // 漏清理会让删连接后的变量对象被转发表钉住无法回收（几万点删连接 = 几万对象滞留）。
+            // UnregisterVariable / Dispose 都有清理，唯独这里曾遗漏
+            if (_registeredVariables.TryRemove(connectionName, out var removedVars))
+            {
+                foreach (var kv in removedVars)
+                {
+                    if (_varForwardHandlers.TryRemove(connectionName + "\\" + kv.Key, out var forwardHandler))
+                        kv.Value.ValueChanged -= forwardHandler;
+                }
+            }
 
             // 从UI集合中移除
             lock (_connectionsListLock)
@@ -244,7 +254,7 @@ namespace VisionMaster.Communications
             {
                 try
                 {
-                    RegisterVariable(variable); // 内部会重建轮询计划
+                    RegisterVariable(variable); // H1：内部只标脏，重建由 Connect 前的统一编译 / Worker 拍前消费兜底
                 }
                 catch (Exception ex)
                 {
@@ -547,7 +557,8 @@ namespace VisionMaster.Communications
             if (string.IsNullOrWhiteSpace(variable.ValueType))
                 throw new ArgumentException("值类型不能为空", nameof(variable));
 
-            LogInfo($"注册变量: {variable.ConnectionName}.{variable.VariableName} ({variable.Address})");
+            // H2：注册日志已删除——几万点批量注册（加载方案/RebindAll）会刷爆 UI 日志窗口，
+            // 注册成功的可观测性由 RebuildPollPlan 的"轮询计划已更新"汇总 + UI 变量列表本身承担
 
             var variables = _registeredVariables.GetOrAdd(
                 variable.ConnectionName,
@@ -565,7 +576,13 @@ namespace VisionMaster.Communications
 
             EventHandler<object?> handler = (sender, newValue) =>
             {
-                OnVarChanged?.Invoke(this, new VariableChangedEventArgs(
+                // OnVarChanged 当前零订阅者（业务侧全走变量级 ValueChanged 按点订阅）。
+                // 必须先判空再构造参数：?.Invoke 不会阻止 new 先执行，
+                // 几万点 @1s = 每秒几万个事件参数对象白白进 GC。
+                var listeners = OnVarChanged;
+                if (listeners == null) return;
+
+                listeners.Invoke(this, new VariableChangedEventArgs(
                     variable.ConnectionName,
                     variable.VariableName,
                     null,
@@ -576,7 +593,8 @@ namespace VisionMaster.Communications
 
             variables[variable.VariableName] = variable;
 
-            // 轮询计划变了：已连接的连接立刻重编译；未连接的等 Connect 时统一编译
+            // H1：轮询计划标脏（O(1)），不在此重编译——在线时 Worker 下一拍前重建一次，
+            // 离线时由 Connect / 建连成功统一编译；批量注册 N 个变量从 O(N²) 降为 O(N)
             RequestPollPlanRebuild(variable.ConnectionName);
         }
 
@@ -588,7 +606,7 @@ namespace VisionMaster.Communications
             if (string.IsNullOrWhiteSpace(connectionName) || string.IsNullOrWhiteSpace(variableName))
                 return;
 
-            LogInfo($"注销变量: {connectionName}.{variableName}");
+            // H2：注销日志已删除（与注册日志同理由）
 
             if (_registeredVariables.TryGetValue(connectionName, out var variables))
             {
@@ -601,7 +619,7 @@ namespace VisionMaster.Communications
                 if (variables.IsEmpty)
                     _registeredVariables.TryRemove(connectionName, out _);
 
-                // 变量已移出轮询清单，同步重编译（变量清空时 PollAction 会被置空，轮询线程不再空转）
+                // H1：标脏即可——在线时 Worker 下一拍前重编译（变量清空时 PollAction 置空，轮询停止最多延后一个周期）
                 RequestPollPlanRebuild(connectionName);
             }
         }
@@ -623,13 +641,22 @@ namespace VisionMaster.Communications
 
             // 连接级"自动重连"开关 + 管理器总开关：关掉后失败即停在 Error 终态，等外部重新 Connect
             worker.AutoReconnect = AutoReconnectEnabled && config.AutoReconnect;
+
+            // H1：拍前重编译回调——注册/注销变量只标脏（O(1)），Worker 在下一轮轮询拍前回调这里重编译。
+            // 重建后脏标记由 RebuildPollPlan 清除；回调异常时脏标记保留，Worker 下一拍自动重试
+            worker.PollPlanDirtyHandler = () => RebuildPollPlan(config.ConnectionName);
         }
 
-        /// <summary>请求重编译轮询计划：已连接的立即重编译；未连接的推迟到 Connect（批量注册变量时避免 N 次重建）</summary>
+        /// <summary>
+        /// <para>请求更新轮询计划（H1 改造：只标脏，不重建）。</para>
+        /// <para>旧实现在线时立即全量重编译——批量注册 N 个变量 = N 次 O(N) 编译 = O(N²)，几万点加载方案分钟级卡死。</para>
+        /// <para>现在统一收敛到三个重建落点：<see cref="Connect"/> 建连前、OnWorkerStateChanged(建连成功)、
+        /// Worker 轮询拍前消费脏标记（在线场景最迟一个轮询周期后生效）。</para>
+        /// </summary>
         private void RequestPollPlanRebuild(string connectionName)
         {
-            if (_workers.TryGetValue(connectionName, out var worker) && worker.IsConnected)
-                RebuildPollPlan(connectionName);
+            if (_workers.TryGetValue(connectionName, out var worker))
+                worker.MarkPollPlanDirty();
         }
 
         /// <summary>
@@ -644,12 +671,14 @@ namespace VisionMaster.Communications
             if (!_registeredVariables.TryGetValue(connectionName, out var variables) || variables.IsEmpty)
             {
                 worker.PollAction = null; // 无变量 → 不空转（连接活性改由读写命令刷新）
+                worker.ClearPollPlanDirty();
                 LogDebug($"连接 {connectionName} 无已注册变量，已停止轮询");
                 return;
             }
 
             var planner = PollBatchPlanner.Build(variables.Values, LogWarning);
             worker.PollAction = planner.PollItemCount > 0 ? planner.Poll : null;
+            worker.ClearPollPlanDirty(); // 重建完成 → 计划已反映最新注册表；放这里保证任何重建落点之后无残留脏标记
 
             LogInfo($"轮询计划已更新: {connectionName} 变量 {variables.Count} 个 → 每轮 {planner.SegmentCount} 次段读 + " +
                     $"{planner.FallbackCount} 次单读，周期 {worker.PollIntervalMs}ms");
@@ -848,6 +877,15 @@ namespace VisionMaster.Communications
             // 纯数据结构操作（不动 UI），保持在 Worker 线程同步执行，避免改变建连时序
             if (newState == ConnectionState.Connected)
                 RebuildPollPlan(connectionName);
+
+            // 断线/重连中/错误终态：该连接所有变量质量戳打为 Bad（UI 灰点，值不再可信）。
+            // 与"连上重编译"对称：离开 Connected 就标记。已是 Bad 的在 SetQuality 内被幂等拦截，
+            // 不会重复发通知；重连成功后首轮轮询自动把读到的变量翻回 Good
+            if (newState != ConnectionState.Connected && _registeredVariables.TryGetValue(connectionName, out var vars))
+            {
+                foreach (var variable in vars.Values)
+                    variable.MarkBad();
+            }
 
             OnConnectionStateChanged(connectionName, oldState, newState);
         }

@@ -1,0 +1,109 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        阀门图元的外观：阀体（蝴蝶结轮廓）+ 按开度推进的介质填充 + 位号与开度两行字。
+
+        模板里<b>一个算术都没有</b>：
+          · 阀体轮廓 Data 绑只读几何 ValveGeometry；
+          · 介质填充 Data 也绑 ValveGeometry（与阀体<b>共用同一份几何</b>），
+            再用 Clip 绑只读几何 FillClipGeometry 裁到"开了多少"的宽度上；
+          · 开度文字绑只读的 OpeningText。
+        所有"顶点位置、内缩量、裁剪宽度"的换算都在控件代码里（见 ValveElement.UpdateValve）——
+        与表盘绑 NeedleGeometry、棒图绑 FillLength 是同一条纪律：
+        外观由输入推导，推导只写一遍，模板只负责摆放。
+
+        为什么填充不是"另画一根会伸缩的条"：
+        蝴蝶结是尖角朝内的形状，任何从边上量长度的条子都塞不进它的轮廓。
+        共用同一份几何 + 矩形裁剪，无论阀体怎么缩放，填充都严丝合缝地落在轮廓里，
+        比例也天然是对的——宽度为 0 的裁剪矩形合法，正好等于"一点都没开"，不必为全关单开分支。
+
+        图层次序（同一个 Grid 里从下往上）：空腔 → 介质填充 → 轮廓 → 位号 → 开度。
+        空腔只负责"没介质时露出来的底色"，轮廓压在填充之上（理由见 Outline 那段注释），
+        两行字再压在全部图形之上。
+
+        为什么两行字都往上下两个凹口里放：
+        蝴蝶结的上下各有一个 V 形空档（靠边最宽、越往中间越窄），那正是文字的容身处；
+        于是图元不必为文字额外留高度，文字也不会盖住阀体本身。
+
+        ShowValue=False 时收起开度那行（读数交给旁边的数值域），位号仍保留。
+        触发器用 Binding 而不是 TemplateBinding——TemplateBinding 不能出现在触发器的 Binding 位置。
+    -->
+    <Style TargetType="{x:Type local:ValveElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:ValveElement}">
+                    <Grid>
+                        <!-- 空腔：阀体轮廓的底色，只填不描边 -->
+                        <Path
+                            x:Name="Cavity"
+                            Data="{TemplateBinding ValveGeometry}"
+                            Fill="{TemplateBinding TrackColor}" />
+
+                        <!--
+                            介质填充：与空腔共用 ValveGeometry，靠 Clip 裁出"开了多少"。
+                            也只填不描边——描边是下面 Outline 的活儿。
+                        -->
+                        <Path
+                            x:Name="Flow"
+                            Data="{TemplateBinding ValveGeometry}"
+                            Fill="{TemplateBinding ValveBrush}"
+                            Clip="{TemplateBinding FillClipGeometry}" />
+
+                        <!--
+                            轮廓最后画：填充是按"可画矩形"裁的，它的上/下/左边缘正好压在轮廓线上，
+                            先描边就会被填充吃掉半个线宽（粗轮廓时左边框看着像断了）。
+                            把描边放在最上面，填充无论怎么推进都盖不住轮廓。
+                        -->
+                        <Path
+                            x:Name="Outline"
+                            Data="{TemplateBinding ValveGeometry}"
+                            Stroke="{TemplateBinding Stroke}"
+                            StrokeThickness="{TemplateBinding StrokeThickness}" />
+
+                        <!-- 位号压在上方凹口：空档靠边最宽，贴顶放一行正好 -->
+                        <TextBlock
+                            x:Name="TagLabel"
+                            Text="{TemplateBinding Text}"
+                            Foreground="{TemplateBinding Foreground}"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            FontWeight="{TemplateBinding FontWeight}"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top"
+                            Margin="0,1,0,0" />
+
+                        <!-- 开度压在下方凹口，与位号同一个道理 -->
+                        <TextBlock
+                            x:Name="OpeningLabel"
+                            Text="{TemplateBinding OpeningText}"
+                            Foreground="{TemplateBinding Foreground}"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            FontWeight="{TemplateBinding FontWeight}"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Margin="0,0,0,1" />
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <DataTrigger
+                            Binding="{Binding ShowValue, RelativeSource={RelativeSource TemplatedParent}}"
+                            Value="False">
+                            <Setter TargetName="OpeningLabel" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

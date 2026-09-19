@@ -145,6 +145,12 @@ namespace VisionMaster
             set { SetProperty(ref field, value); }
         }
 
+        public bool IsScadaToolboxActive
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
         /// <summary>
         /// 已挂接 PropertyChanged 监听的面板（布局重载会生成新实例，需先解绑旧的）
         /// </summary>
@@ -180,7 +186,7 @@ namespace VisionMaster
                 panel.PropertyChanged -= handler;
             _dockWatchers.Clear();
 
-            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView" })
+            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView" })
             {
                 // LayoutContent 基类同时兼容停靠面板与文档选项卡（工具箱为文档类型）
                 if (LayoutHelper.FindPanel(contentId) is not LayoutContent panel) continue;
@@ -203,6 +209,7 @@ namespace VisionMaster
             IsFlowListActive = LayoutHelper.IsPanelActive("Panel_FlowListView");
             IsProcessActive = LayoutHelper.IsPanelActive("Panel_ProcessView");
             IsToolboxActive = LayoutHelper.IsPanelActive("Panel_ToolView");
+            IsScadaToolboxActive = LayoutHelper.IsPanelActive("Panel_ScadaToolboxView");
         }
         #endregion
         public ShellViewModel(
@@ -477,6 +484,13 @@ namespace VisionMaster
                     break;
                 case SystemAction.CommSettings:
                     ShowCommunicationSettings();
+                    break;
+                case SystemAction.RuntimeWindowSettings:
+                    // 软件级偏好（依附主窗口 / 独立窗口），存 AppConfig.json。
+                    // 弹窗自己负责读当前值、写盘，这里不传参数、也不看返回值——
+                    // 运行窗口的形态是宿主在 Start 时现读配置决定的（见 ScadaRuntimeHost），
+                    // 所以"改完生效"不需要在这里做任何同步动作。
+                    dialogService.ShowDialog("ScadaRunWindowSettingsView");
                     break;
             }
         }

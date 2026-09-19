@@ -55,7 +55,9 @@ namespace Core.Interfaces
         private T _typedValue;
 
         /// <summary>
-        /// 端口当前值（支持跨类型智能转换）
+        /// 端口当前值（弱类型，支持跨类型智能转换）。
+        /// 写入时类型不匹配自动转换（枚举字符串、Convert.ChangeType），转换失败抛 InvalidCastException。
+        /// ★ 输出端口与输入端口不同：这里读写的就是端口真实值，没有"手动值/链接值"两层。
         /// </summary>
         public object Value
         {
@@ -109,8 +111,10 @@ namespace Core.Interfaces
         }
 
         /// <summary>
-        /// 强类型的值属性
-        /// 直接设置强类型值，避免装箱拆箱
+        /// 强类型的值属性——输出端口写值的推荐入口（或免强转扩展 port.Set&lt;T&gt;(value)）。
+        /// ★ 与 InputPort.TypedValue 语义相反：输出端读写的直接就是真实值，没有"手动值"一层；
+        /// 输入端的 TypedValue 只是手动值，业务取值请用 ActualValue。
+        /// 直接设置强类型值，避免装箱拆箱；值变化时触发 ValueChanged 通知下游刷新缓存。
         /// </summary>
         public T TypedValue
         {

@@ -1,0 +1,79 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        数值域图元的外观：一个边框（Border）+ 一行两列（说明字 / 数值 + 单位）。
+
+        模板里没有任何"数值 → 字符串"的换算：右边那格绑的是只读依赖属性 ValueText，
+        换算在控件代码里（见 IOFieldElement.UpdateText）。与棒图绑 FillLength、
+        多态灯绑 LampBrush 是同一套路子——模板只负责摆放。
+
+        为什么用 Border 而不是 Rectangle：Border 的描边画在自己的布局框<b>内</b>
+        （Rectangle 的描边骑在边界线上，所以矩形图元得靠 ApplyStrokeInset 把半线宽转成内缩）。
+        用 Border 就不需要那层补偿，视觉外沿天然等于标注尺寸，一排框摆在一起不会错开。
+
+        说明字留空时整列塌掉（DataTrigger 收起那个 TextBlock）：列宽是 Auto，
+        收起后数值那一格自然从最左边起排，不必再为"有没有标签"分两种模板。
+        列间距放在说明字的 Margin 上而不是 Grid 的列宽上，收起时连间距一起消失。
+    -->
+    <Style TargetType="{x:Type local:IOFieldElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:IOFieldElement}">
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+
+                        <!-- 内衬留白：描边占了框沿，文字再贴上去就会压线 -->
+                        <Grid Margin="6,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock
+                                x:Name="LabelText"
+                                Grid.Column="0"
+                                Text="{TemplateBinding Text}"
+                                Foreground="{TemplateBinding Foreground}"
+                                FontFamily="{TemplateBinding FontFamily}"
+                                FontSize="{TemplateBinding FontSize}"
+                                FontWeight="{TemplateBinding FontWeight}"
+                                TextTrimming="CharacterEllipsis"
+                                Margin="0,0,6,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center" />
+
+                            <TextBlock
+                                x:Name="ValueText"
+                                Grid.Column="1"
+                                Text="{TemplateBinding ValueText}"
+                                Foreground="{TemplateBinding Foreground}"
+                                FontFamily="{TemplateBinding FontFamily}"
+                                FontSize="{TemplateBinding FontSize}"
+                                FontWeight="{TemplateBinding FontWeight}"
+                                TextAlignment="{TemplateBinding TextAlignment}"
+                                TextTrimming="CharacterEllipsis"
+                                VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <DataTrigger
+                            Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}"
+                            Value="">
+                            <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

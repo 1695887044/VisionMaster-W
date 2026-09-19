@@ -1,0 +1,43 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        椭圆图元的外观：与矩形同一套词汇，只是形状换成 Ellipse。
+        椭圆没有圆角可调，所以少一个 CornerRadius。
+
+        标签文字不做裁剪：椭圆内的可用宽度随高度变化，算"内接矩形"得不偿失，
+        长文字略显溢出由使用者控制标签长度即可（SCADA 图元标签本来就是短词）。
+    -->
+    <Style TargetType="{x:Type local:EllipseElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:EllipseElement}">
+                    <Grid>
+                        <Ellipse
+                            Margin="{TemplateBinding Padding}"
+                            Fill="{TemplateBinding Fill}"
+                            Stroke="{TemplateBinding Stroke}"
+                            StrokeThickness="{TemplateBinding StrokeThickness}" />
+
+                        <TextBlock
+                            Margin="{TemplateBinding Padding}"
+                            Text="{TemplateBinding Text}"
+                            Foreground="{TemplateBinding Foreground}"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            FontWeight="{TemplateBinding FontWeight}"
+                            TextAlignment="Center"
+                            TextWrapping="Wrap"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,36 @@
+﻿<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        图元控件基类的默认样式。
+
+        基类自己不带任何外观（它只负责"把模型翻译成画面"），模板里就放一个居中的
+        ContentPresenter：派生类要么在自己的模板里画形状（矩形/椭圆），要么把自己的
+        依赖属性接到这里来当内容（文本/按钮）。
+
+        派生类不必各自写静态构造去改 DefaultStyleKeyProperty——那个依赖属性的元数据
+        是可以继承的，所以派生类默认就落在这条样式上。只有外观完全不同、需要独立模板的
+        图元才在自己的静态构造里把 DefaultStyleKey 换成自己（S2-d 的图元就是这么做的）。
+    -->
+    <Style TargetType="{x:Type local:ScadaElementBase}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+
+        <!-- 基类默认不吃焦点：画面上几十上百个图元，Tab 键逐个穿过去对操作员毫无意义。
+             Hmi.Button 这类要键盘操作的图元在自己的样式里改回来。 -->
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:ScadaElementBase}">
+                    <Grid>
+                        <ContentPresenter
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

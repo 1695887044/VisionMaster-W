@@ -70,13 +70,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         protected virtual void RefreshTree()
         {
-            var expandedNames = _realTree.Where(n => n.IsExpanded).Select(n => n.Name).ToHashSet();
+            // 展开态按稳定身份（VariableId）记忆：按名字记的话，变量一改名新树里的节点
+            // 与旧键对不上，展开中的数组变量会莫名其妙自动折叠。
+            // 旧工程数据（Id 为空）退回按名记，行为与从前一致
+            var expandedIds = _realTree
+                .Where(n => n.IsExpanded && n.OriginalModel != null && n.OriginalModel.VariableId != Guid.Empty)
+                .Select(n => n.OriginalModel.VariableId)
+                .ToHashSet();
+            var expandedNames = _realTree
+                .Where(n => n.IsExpanded && (n.OriginalModel == null || n.OriginalModel.VariableId == Guid.Empty))
+                .Select(n => n.Name)
+                .ToHashSet();
+
             _realTree.Clear();
 
             foreach (var gv in _workspace.GlobalVariables)
             {
                 var rootNode = CreateRootNode(gv);
-                rootNode.IsExpanded = expandedNames.Contains(rootNode.Name);
+                rootNode.IsExpanded = gv.VariableId != Guid.Empty
+                    ? expandedIds.Contains(gv.VariableId)
+                    : expandedNames.Contains(rootNode.Name);
 
                 if (ShouldCreateChildNodes(gv))
                 {

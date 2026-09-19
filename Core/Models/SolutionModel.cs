@@ -121,5 +121,30 @@ namespace VisionMaster.Models
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<WatchItemModel> WatchItems { get; set; } = new();
+
+        private Scada.ScadaDocument scada = new();
+
+        /// <summary>
+        /// SCADA 组态文档（画面 / 图元 / 绑定），随 .vms 一起落盘。
+        ///
+        /// 只挂"根对象"而不是直接挂画面集合：报表、报警、权限、画面跳转这些
+        /// 组态内容将来都往 <see cref="Scada.ScadaDocument"/> 上加字段，
+        /// 不必回来改 <see cref="SolutionModel"/> 这个被全工程引用的类型。
+        ///
+        /// ObjectCreationHandling.Replace：反序列化时整体替换成文件里的实例，
+        /// 而不是往默认实例上"灌"（避免字段初始化器与文件内容叠加）。
+        /// 属性永不为 null——setter 兜底，因为 .vms 是可被人工编辑的文件，
+        /// 一句 "Scada": null 不该让整个方案打不开（后续 EnsureIdentity 会直接解引用）。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public Scada.ScadaDocument Scada
+        {
+            get { return scada; }
+            set
+            {
+                scada = value ?? new Scada.ScadaDocument();
+                RaisePropertyChanged();
+            }
+        }
     }
 }

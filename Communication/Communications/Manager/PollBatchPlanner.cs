@@ -339,6 +339,9 @@ namespace VisionMaster.Communications
                 catch (Exception ex)
                 {
                     failed++;
+                    // 段内所有变量降级 Uncertain：值保留旧值，UI 黄点提示"最近一次读取失败"
+                    foreach (var item in seg.Items)
+                        item.Variable.MarkUncertain();
                     LogThrottled($"seg:{seg.Address}", $"段读失败 {seg.Address}（{seg.SpanUnits} 单元）: {ex.Message}");
                 }
             }
@@ -354,6 +357,7 @@ namespace VisionMaster.Communications
                 catch (Exception ex)
                 {
                     failed++;
+                    single.Variable.MarkUncertain(); // 单读失败：保留旧值，降级 Uncertain
                     var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
                     LogThrottled($"var:{single.Variable.ConnectionName}.{single.Variable.VariableName}",
                         $"单读失败 {single.Variable.VariableName}（{single.Variable.Address}）: {inner.Message}");
@@ -379,6 +383,7 @@ namespace VisionMaster.Communications
 
                     if (byteOffset < 0 || byteOffset + byteLength > data.Length)
                     {
+                        item.Variable.MarkUncertain(); // 设备返回字节不足：解不出本变量的新值
                         LogThrottled($"short:{seg.Address}#{item.Variable.VariableName}",
                             $"段 {seg.Address} 实际返回 {data.Length} 字节，不足解码 {item.Variable.VariableName}（需 {byteOffset + byteLength} 字节）");
                         continue;
@@ -393,6 +398,7 @@ namespace VisionMaster.Communications
                 }
                 catch (Exception ex)
                 {
+                    item.Variable.MarkUncertain(); // 解码异常：本变量本轮没有可用新值
                     LogThrottled($"decode:{item.Variable.ConnectionName}.{item.Variable.VariableName}",
                         $"解码失败 {item.Variable.VariableName}（{item.Variable.Address}）: {ex.Message}");
                 }
@@ -410,6 +416,7 @@ namespace VisionMaster.Communications
                 {
                     if (item.UnitOffset < 0 || item.UnitOffset >= bits.Length)
                     {
+                        item.Variable.MarkUncertain(); // 设备返回点数不足：解不出本变量的新值
                         LogThrottled($"short:{seg.Address}#{item.Variable.VariableName}",
                             $"位区段 {seg.Address} 实际返回 {bits.Length} 点，不足解码 {item.Variable.VariableName}（需第 {item.UnitOffset + 1} 点）");
                         continue;
@@ -419,6 +426,7 @@ namespace VisionMaster.Communications
                 }
                 catch (Exception ex)
                 {
+                    item.Variable.MarkUncertain(); // 解码异常：本变量本轮没有可用新值
                     LogThrottled($"decode:{item.Variable.ConnectionName}.{item.Variable.VariableName}",
                         $"解码失败 {item.Variable.VariableName}（{item.Variable.Address}）: {ex.Message}");
                 }

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <!-- 断言工程只做逻辑校验与压力测试，不参与产品发布；Debug/Release 都可直接 dotnet run -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 引用主程序即可拿到 Core / Core.Interfaces / Communication 的全部 public 面 -->
+    <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
+    <!-- 图元控件库：S2 起断言描述符/注册表/属性字符串 ↔ 依赖属性的换算 -->
+    <ProjectReference Include="..\Scada.Controls\VM.Scada.Controls.csproj" />
+  </ItemGroup>
+
+</Project>

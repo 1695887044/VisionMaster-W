@@ -15,6 +15,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="HalconDotNet">
       <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
     </Reference>

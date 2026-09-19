@@ -305,12 +305,11 @@ namespace Plugin.CreateRoi
             var src = SrcImage.ActualValue;
             if (src == null || !src.IsInitialized())
             {
-                Success.Value = false;
-                ErrorMessage.Value = "输入图像为空或未初始化";
+                Fail("输入图像为空或未初始化");
                 return;
             }
             PreviewImage = src;
-            DisposeOldOutputs();
+            // 上一轮输出的 HImage 由基类轮首自动回收（AutoDisposeRoundOutputs），无需手写 Dispose
 
             RoiCount.Value = RoiList.Count;
 
@@ -327,7 +326,7 @@ namespace Plugin.CreateRoi
                     HOperatorSet.CropDomain(cropped, out HObject croppedImg);
                     cropped.Dispose();
                     var tempRoiImg = new HImage(croppedImg);
-                    ((OutputPort<HImage>)port).Value = tempRoiImg;
+                    port.Set(tempRoiImg); // 免强转写动态端口：命中 OutputPort<HImage> 走 TypedValue 强类型路径
                     this.PublishPreview(tempRoiImg, DisplayViewIndex + 1);
                     croppedImg.Dispose();
                 }
@@ -338,20 +337,10 @@ namespace Plugin.CreateRoi
                 }
             }
          
-            Success.Value = true;
+            // Success 基类已预置 true（默认成功、显式失败），无需再写
         }
 
-        private void DisposeOldOutputs()
-        {
-            // 动态端口的旧值（HImage）也清理
-            foreach (var name in _dynamicPortNames)
-            {
-                if (Outputs.TryGetValue(name, out var port) && port is OutputPort<HImage> imgPort)
-                    try { imgPort.TypedValue?.Dispose(); } catch { }
-            }
-        }
-
-        /// <summary>动态端口名缓存（DisposeOldOutputs 清理用）</summary>
+        /// <summary>动态端口名缓存（端口重建与填值查找用）</summary>
         private readonly List<string> _dynamicPortNames = new();
 
         /// <summary>

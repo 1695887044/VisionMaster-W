@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 
 namespace VisionMaster.Models
 {
-    public class NetworkVariableModel : BindableBase, IVariable, IVariableDisplaySource
+    public class NetworkVariableModel : BindableBase, IVariable, IVariableDisplaySource, IRenameableVariable, IWritableVariable
     {
         private string _dataTypeString;
         private Type _dataType;
@@ -33,11 +33,33 @@ namespace VisionMaster.Models
                 _valueChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        private VariableQuality _quality = VariableQuality.Bad;
+
+        /// <summary>
+        /// 质量戳镜像（仅供 UI 展示采集健康度，不参与业务逻辑）：
+        /// Good=最近读成功 / Uncertain=最近读失败（当前显示的是旧值）/ Bad=断线或从未读到。
+        /// 由通信层经 CommunicationVariable.QualityCallback 推送，仅在质量切换时触发（幂等）
+        /// </summary>
+        [JsonIgnore]
+        public VariableQuality Quality
+        {
+            get => _quality;
+            private set => SetProperty(ref _quality, value);
+        }
+
+        /// <summary>通信层质量推送入口（NetworkVariableBridge 接线）</summary>
+        public void UpdateQuality(VariableQuality quality) => Quality = quality;
+
         public string Name { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 变量稳定身份（GUID）：不随改名/换连接变化，供连线/监视项/SCADA 绑定寻址。
+        /// 默认为新 GUID；可写仅用于反序列化与旧方案迁移（历史数据无此字段时由持久化层补发）
+        /// </summary>
+        public Guid VariableId { get; set; } = Guid.NewGuid();
         public VariableType VariableType => VariableType.Communication;
         public string? ConnectionName { get; set; }
         public DeviceAddressBase? AddressConfig { get; set; }
-        public int PollIntervalMs { get; set; } = 500;
 
         public string DataTypeString
         {
@@ -168,6 +190,13 @@ namespace VisionMaster.Models
                 }
             }
         }
+
+        /// <summary>
+        /// <see cref="IWritableVariable"/> 认领：直接转发到 <see cref="TryWriteToValue"/>。
+        /// 不把 TryWriteToValue 直接提到接口上，是因为它是本模型的特有实现（要处理地址/连接/离线预检），
+        /// 而接口只承诺"能显式写并给出结果"这一件事，具体变量源（将来的 SCADA 外部标签）各写各的。
+        /// </summary>
+        public bool TryWrite(object? value, out string? error) => TryWriteToValue(value, out error);
 
         /// <summary>
         /// 恢复初始值 = 一次"把默认值写进设备"的命令：

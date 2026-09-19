@@ -45,6 +45,7 @@ namespace VisionMaster.Services
                         {
                             VarType = "Local",
                             Name = local.Name,
+                            VariableId = local.VariableId,
                             DataTypeString = local.DataTypeString,
                             Description = local.Description,
                             DefaultValue = local.DefaultValue,
@@ -70,6 +71,17 @@ namespace VisionMaster.Services
                 var defaultValue = VariableDto.JsonToValue(dto.DefaultValue, dataType);
                 var currentValue = VariableDto.JsonToValue(dto.Value, dataType);
 
+                // 身份还原（迁移）：老方案快照没有 Id 字段，反序列化后为 Guid.Empty。
+                // 此处补发一个新 Id —— 变量本身可用，但"老方案里按名寻址的历史引用"仍靠 Name 兜底
+                // （解析器在 S0-c 提供 Id→Name 双路查找）；补发的 Id 会在下次保存时回写方案。
+                var variableId = dto.VariableId;
+                if (variableId == Guid.Empty)
+                {
+                    variableId = Guid.NewGuid();
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[VariablePersistence] 旧方案变量 [{dto.Name}] 无稳定 Id，已补发 {variableId}（下次保存回写）");
+                }
+
                 if (dto.VarType == "Network")
                 {
                     var address = dto.BuildAddressConfig();
@@ -82,13 +94,13 @@ namespace VisionMaster.Services
                     workspace.GlobalVariables.Add(new NetworkVariableModel
                     {
                         Name = dto.Name,
+                        VariableId = variableId,
                         DataType = dataType,
                         Description = dto.Description,
                         DefaultValue = defaultValue,
                         Value = currentValue,
                         ConnectionName = dto.ConnectionName,
-                        AddressConfig = address,
-                        PollIntervalMs = dto.PollIntervalMs
+                        AddressConfig = address
                     });
                 }
                 else
@@ -96,6 +108,7 @@ namespace VisionMaster.Services
                     workspace.GlobalVariables.Add(new LocalVariableModel
                     {
                         Name = dto.Name,
+                        VariableId = variableId,
                         DataType = dataType,
                         Description = dto.Description,
                         DefaultValue = defaultValue,

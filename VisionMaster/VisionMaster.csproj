@@ -25,6 +25,9 @@
     <ProjectReference Include="..\Core\VM.Core.csproj" />
     <ProjectReference Include="..\DLL\HslCommunication\HslCommunication.csproj" />
     <ProjectReference Include="..\Engine\VM.FlowEngine.csproj" />
+    <ProjectReference Include="..\Scada\VM.Scada.csproj" />
+    <!-- 画布宿主（ScadaCanvas）与图元控件都在这一层，编辑器面板直接拿类型用，不再反射 -->
+    <ProjectReference Include="..\Scada.Controls\VM.Scada.Controls.csproj" />
     <ProjectReference Include="..\Services\Core.Halcon\Core.Halcon.csproj" />
     <ProjectReference Include="..\Shard\Core.Controls\Core.Controls.csproj" />
     <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />

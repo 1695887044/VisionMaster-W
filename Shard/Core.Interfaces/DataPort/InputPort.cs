@@ -71,7 +71,9 @@ namespace Core.Interfaces
         private T _manualValue;
 
         /// <summary>
-        /// 手动设置的值（弱类型访问）
+        /// 手动设置的值（弱类型访问）。
+        /// ★ 读写对象都是"手动值"，不代表实际生效值：端口链接上游后以 ActualValue 为准。
+        /// 写入支持跨类型智能转换（枚举字符串、Convert.ChangeType）。
         /// </summary>
         public object Value
         {
@@ -167,8 +169,8 @@ namespace Core.Interfaces
         }
 
         /// <summary>
-        /// 获取端口的实际有效值
-        /// 优先级：链接源值 > 手动设置值
+        /// 获取端口的实际有效值（弱类型）。
+        /// 取值优先级：链接源值 > 手动设置值。
         /// </summary>
         /// <returns>端口当前实际使用的值</returns>
         public object GetActualValue()
@@ -177,14 +179,16 @@ namespace Core.Interfaces
         }
 
         /// <summary>
-        /// 获取强类型的实际有效值
+        /// 获取强类型的实际有效值。
+        /// ★ 实际生效值入口，业务代码请优先用 ActualValue 属性。
         /// </summary>
         /// <returns>强类型的实际有效值</returns>
         public T GetTypedValue() => (T)GetActualValue();
 
         /// <summary>
-        /// 端口的实际有效值（强类型访问）
-        /// 推荐在业务代码中使用此属性获取值
+        /// 端口的实际有效值（强类型访问）。
+        /// ★ 业务代码取值一律用此属性（或免强转扩展 port.Get&lt;T&gt;()）。
+        /// 取值优先级：上游链接值 > 手动值——即使端口已链接上游，这里拿到的也永远是真实生效值。
         /// </summary>
         public T ActualValue
         {
@@ -195,8 +199,11 @@ namespace Core.Interfaces
         }
 
         /// <summary>
-        /// 强类型可读写入口（WPF 绑定用——端口即数据成员，界面直接绑端口）
-        /// 写入手动值；已链接上游时实际取值仍以上游为准
+        /// 强类型可读写入口（WPF 绑定用——端口即数据成员，界面直接绑端口）。
+        /// ★ 注意语义陷阱：此属性读写的只是"手动值"！
+        /// 端口已链接上游时，手动值不参与生效（实际值以 ActualValue 为准），
+        /// 读 TypedValue 拿到的可能是默认值而非上游数据——绑定界面专用，业务代码勿用。
+        /// 写入复用弱类型入口：类型转换 + Value/ActualValue 通知 + ValueChanged 事件。
         /// </summary>
         public T TypedValue
         {

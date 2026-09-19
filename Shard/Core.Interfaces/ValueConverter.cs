@@ -8,6 +8,8 @@ namespace Core.Interfaces
     /// 统一处理 JToken（Newtonsoft.Json 反序列化 object 的产物）、
     /// 枚举字符串/数字转换、系统类型转换和复杂类型（List/对象配置）反序列化
     /// InputPort 端口灌值与 [StepConfig] 配置属性灌值共用
+    /// ⚠ 本类的转换能力集合是编译期连线检查的口径来源：新增/移除转换规则时，
+    /// 必须同步 Engine/FlowCompiler.cs 的 IsLinkable，否则会误杀合法连线或漏解放行组合
     /// </summary>
     public static class ValueConverter
     {
