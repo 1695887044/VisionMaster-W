@@ -53,6 +53,83 @@ namespace VisionMaster.Scada.Controls
         /// <summary>选中手柄在设计坐标下的边长基准（实际值除以 Zoom，保证屏幕上恒为 7px）</summary>
         private const double ThumbDesignSize = 7;
 
+        /// <summary>
+        /// 单选包围盒的虚线（短划）与多选包围盒的点线。
+        ///
+        /// 为什么两种框要用不同线型：多选时包围盒只是"这一组的外框"，看不出组里到底有哪几个；
+        /// 线型一变，用户不用去数手柄就知道自己框中的是一个还是一群。
+        /// 两副线型都 Freeze：它们每帧都要赋给 <see cref="Shape.StrokeDashArray"/>，
+        /// 没冻结的 Freezable 每次赋值都要做一次变更通知与克隆判定。
+        /// </summary>
+        private static readonly DoubleCollection SingleDash = Dash(3, 2);
+
+        private static readonly DoubleCollection MultiDash = Dash(1, 2);
+
+        /// <summary>
+        /// 选中框/多选高亮的常态颜色（蓝）与"这个图元此刻拖不动"时的颜色（金）。
+        ///
+        /// 为什么锁定要整圈换色，而不是只在旁边点一个角标：锁定的直接表现就是"拖不动"，
+        /// 而"拖不动"本身是一次<b>没有反馈的失败</b>——按下去、动鼠标、画面纹丝不动，
+        /// 用户的第一反应是软件卡了，不是"这个图元被锁了"。换色是第一眼就能看见的，
+        /// 而且它天然回答了"为什么"：蓝 = 可编辑，金 = 受保护。
+        /// 角标（<see cref="LockGlyph"/>）只是把这个答案说出口。
+        ///
+        /// 为什么是金而不是灰：灰在深色底（默认页面底色 <c>#1E1E1E</c>）上太沉，一眼扫过去
+        /// 会先被当成"图元本身的一部分"。金与选中蓝在色轮上近乎互补，最不容易看混。
+        ///
+        /// 两副画刷都冻结：每帧都可能赋给 <see cref="Shape.Stroke"/>，没冻结的 Freezable
+        /// 每次赋值都要做一次变更通知与克隆判定（与上面两副线型同一个理由）。
+        /// </summary>
+        private static readonly Brush SelectionStroke = ScadaBrushes.Frozen(Color.FromRgb(0x00, 0x7A, 0xCC));
+
+        /// <summary>
+        /// 锁定的金色。
+        ///
+        /// 刻意<b>不</b>用诊断层的警示橙 <c>#E88B1A</c>：那个橙的意思是"这个图元没接上变量"，
+        /// 与"这个图元被保护了"是两回事。同色的话，同一幅画面上两个角标会互相冒充。
+        /// 这里往黄侧挪一档（色相 26° → 41°），并排看能分开。
+        /// </summary>
+        private static readonly Brush LockedStroke = ScadaBrushes.Frozen(Color.FromRgb(0xE3, 0xA5, 0x1B));
+
+        /// <summary>
+        /// 锁角标的底板：半透明深色圆角块。
+        ///
+        /// 为什么角标不是"一把裸的金色锁"：图元底色由用户配（浅色按钮、白底文本都常见），
+        /// 金锁压在浅底上会糊成一团。垫一层深色底板，角标在任意底色上的对比度都由自己保证，
+        /// 不依赖图元配了什么颜色。
+        /// </summary>
+        private static readonly Brush LockBadgePlate = ScadaBrushes.Frozen(Color.FromArgb(0xD8, 0x14, 0x14, 0x14));
+
+        /// <summary>
+        /// 锁定角标的形状（一把锁）。
+        ///
+        /// 为什么用矢量路径而不是图标字体：控件库不该赌某个字体装没装（断言宿主里连
+        /// <c>Application</c> 都没有，字体回落在那里是查不出来的）。几何路径到哪儿都长一样。
+        /// 取 Material 的 "lock" 24×24 轮廓：外轮廓是一条闭合路径，钥匙孔与锁梁下的空档是
+        /// 另外两条子路径——<c>PathGeometry</c> 的默认填充规则是 EvenOdd，正好把它们掏成洞。
+        /// </summary>
+        private static readonly Geometry LockGlyph = Geometry.Parse(
+            "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12"
+            + "c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"
+            + "m3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z");
+
+        /// <summary>
+        /// 锁定角标的边长（屏幕像素，实际值除以 Zoom，与手柄同一个口径）。
+        ///
+        /// 比手柄（7）大一档：手柄是"可以点"的操作目标，角标是"要一眼看见"的标记。
+        /// 14 里留 3 给底板的圆角与内边距，锁形实际约 8px——再小钥匙孔就糊没了，
+        /// 再大就会盖住图元本身的内容。
+        /// </summary>
+        private const double LockBadgeSize = 14;
+
+        private static DoubleCollection Dash(params double[] pattern)
+        {
+            var dash = new DoubleCollection(pattern);
+            dash.Freeze();
+
+            return dash;
+        }
+
         // ===== 模板部件（OnApplyTemplate 里取，取不到就是 null，全部使用点都判空） =====
 
         private Border? _surface;
@@ -74,8 +151,42 @@ namespace VisionMaster.Scada.Controls
         private Rectangle[]? _thumbs;
         private RotateTransform? _selectionRotation;
 
-        /// <summary>当前挂着变更订阅的选中图元（与 SelectedElement 的当前值可能不同，见 SyncSelectedSubscription）</summary>
-        private ScadaElement? _subscribedSelected;
+        /// <summary>
+        /// 锁定角标（一把金锁 + 深色底板），挂在 <see cref="_selectionBox"/> 里。
+        ///
+        /// 为什么挂在包围盒里而不是选中层上：挂选中层就得自己算"转了角度的包围盒的右上角在哪"，
+        /// 而包围盒本来就有 <see cref="_selectionRotation"/> 在干这件事，白算一遍还会算错。
+        ///
+        /// 代价是它会被包围盒一起转，锁会歪着挂（180° 时整个倒过来）。所以另配一副
+        /// <see cref="_lockCounterRotation"/> 反着转回来——位置跟着转、字形保持正立。
+        /// </summary>
+        private Border? _lockBadge;
+
+        private RotateTransform? _lockCounterRotation;
+
+        /// <summary>多选高亮层（选中层内的一层）：入选的每个图元各描一圈细实线</summary>
+        private Canvas? _multiHighlights;
+
+        /// <summary>
+        /// 多选高亮的描边矩形池。
+        ///
+        /// 为什么是池而不是"每次重建一批控件"：选中集合一变就要重画，而对齐/撤销会让它连着变；
+        /// 每次 <c>Children.Clear()</c> 再 <c>Add</c> 是拿"可视树反复重建"换几行代码，
+        /// 图元一多就能看见闪。池只在个数变化时增删控件，几何变化只改数值。
+        /// </summary>
+        private readonly List<Rectangle> _multiRects = new();
+
+        /// <summary>橡皮筋框选矩形（拖拽期间可见，松手/中断即收起）</summary>
+        private Rectangle? _rubberBand;
+
+        /// <summary>
+        /// 当前挂着变更订阅的选中图元（与 <see cref="SelectedElements"/> 的当前值可能不同，见 <see cref="SyncSelectedSubscription"/>）。
+        ///
+        /// 用 <see cref="HashSet{T}"/> 而不是列表：挂/摘都要判"在不在里面"，而这判据必须是<b>引用相等</b>——
+        /// <see cref="ScadaElement"/> 没有重写 <c>Equals</c>，默认比较器正好就是引用相等，与
+        /// <see cref="Contains"/>、<see cref="FindContainer"/> 的口径一致。
+        /// </summary>
+        private readonly HashSet<ScadaElement> _subscribedSelected = new();
 
         /// <summary>
         /// 当前挂着订阅的图层（来自 <see cref="Page"/> 的 Layers）。
@@ -164,6 +275,26 @@ namespace VisionMaster.Scada.Controls
             nameof(SelectedElement), typeof(ScadaElement), typeof(ScadaCanvas),
             new FrameworkPropertyMetadata(null,
                 FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedElementChanged));
+
+        /// <summary>
+        /// 当前选中的<b>全部</b>图元（默认双向：画布用框选/Ctrl 点选改它，宿主的视图模型用它驱动批量操作）。
+        ///
+        /// 与 <see cref="SelectedElement"/> 的关系：这一条是"全集"，那一条是"主选中"（= 集合首项）。
+        /// 两条并存而不是把旧的换掉，是因为主选中是单选时代的唯一入口，宿主一大票命令（删除、方向键微调）
+        /// 都靠它判可用性；留着它，那些命令一行都不用改。
+        ///
+        /// 不变式（"主选中 == 集合首项"）由<b>写入方</b>各自维持：画布走 <see cref="SetSelection"/>，
+        /// 视图模型走它自己的 <c>ApplySelection</c>，两边都是"先写集合、再写主选中"。
+        /// 于是任何一侧发起的改动经绑定流到另一侧时，落到那边就已经是自洽的，不需要互相回写。
+        ///
+        /// 类型取 <see cref="IReadOnlyList{T}"/> 而不是可变集合：画布只读它、只整个换掉它，
+        /// 绝不在原地增删。这样"谁改了选中"永远是一次赋值，没有"集合被两边同时改"的中间态。
+        /// 默认值给空数组而不是 null，省掉消费侧每一处的判空。
+        /// </summary>
+        public static readonly DependencyProperty SelectedElementsProperty = DependencyProperty.Register(
+            nameof(SelectedElements), typeof(IReadOnlyList<ScadaElement>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(Array.Empty<ScadaElement>(),
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedElementsChanged));
 
         /// <summary>只读态（运行预览）：不吃选中、不能拖动改尺寸，图元自己的交互照常工作</summary>
         public static readonly DependencyProperty IsReadOnlyProperty = DependencyProperty.Register(
@@ -254,6 +385,13 @@ namespace VisionMaster.Scada.Controls
             set => SetValue(SelectedElementProperty, value);
         }
 
+        /// <summary>当前选中的全部图元（只读集合；换选中就是换一个列表，绝不原地增删）</summary>
+        public IReadOnlyList<ScadaElement> SelectedElements
+        {
+            get => (IReadOnlyList<ScadaElement>?)GetValue(SelectedElementsProperty) ?? Array.Empty<ScadaElement>();
+            set => SetValue(SelectedElementsProperty, value ?? Array.Empty<ScadaElement>());
+        }
+
         public bool IsReadOnly
         {
             get => (bool)GetValue(IsReadOnlyProperty);
@@ -290,11 +428,49 @@ namespace VisionMaster.Scada.Controls
         private static void OnOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ScadaCanvas)d).ApplyTransform();
 
+        /// <summary>
+        /// 主选中变了。
+        ///
+        /// 这里做一件"归一"的事：<b>主选中必须落在选中集合里</b>。宿主只写这一条（单选时代的入口）
+        /// 时把它补进集合，渲染与订阅从此只认集合一个来源，不必各自兼容两套。
+        ///
+        /// 已经在集合里就一个字节都不动——多选状态下右键点组内某一个走的就是这条路径，
+        /// 不能把整批选中打散成单个。补集合那一笔自己的回调会把订阅与重绘做完，这里直接返回。
+        ///
+        /// 补进集合的不是"这一个"而是<b>它所在的一整组</b>（见 <see cref="ExpandPointSelection"/>）：
+        /// 宿主程序化地写主选中（含右键对齐那一笔，它也只写这条）与用户点一下，语义应当是同一种
+        /// "指向了某个图元"，点中的是组员就该整组一起选上。展开只在这条"换掉整份选中"的分支上做，
+        /// 上面那个"已在集合里"的分支刻意不展开——那会从"整批保持原样"变成"再撑一次"。
+        /// </summary>
         private static void OnSelectedElementChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var canvas = (ScadaCanvas)d;
-            canvas.SyncSelectedSubscription();
-            canvas.UpdateSelectionVisual();
+
+            if (e.NewValue is ScadaElement element)
+            {
+                if (canvas.IsSelected(element))
+                    canvas.RefreshSelection();
+                else
+                    canvas.SetCurrentValue(SelectedElementsProperty, canvas.ExpandPointSelection(element));
+            }
+            else if (canvas.SelectedElements.Count > 0)
+            {
+                canvas.SetCurrentValue(SelectedElementsProperty, Array.Empty<ScadaElement>());
+            }
+            else
+            {
+                canvas.RefreshSelection();
+            }
+        }
+
+        private static void OnSelectedElementsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((ScadaCanvas)d).RefreshSelection();
+
+        /// <summary>选中变了以后要跟着动的两件事：订阅面（哪些图元要盯着）与视觉面（框画在哪）</summary>
+        private void RefreshSelection()
+        {
+            SyncSelectedSubscription();
+            UpdateSelectionVisual();
         }
 
         private static void OnIsReadOnlyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -454,6 +630,36 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>诊断角标层部件（<see cref="ScadaDiagnosticOverlay"/> 内部用；自定义模板缺此部件时为 null）</summary>
         internal Canvas? DiagnosticLayer => _diagnosticLayer;
+
+        private ScadaRuntimeContext? _runtimeContext;
+
+        /// <summary>
+        /// 运行态上下文：宿主装一次，本画布负责把它转发到每一个图元控件上。
+        ///
+        /// 为什么由画布转发、而不是让图元自己去哪儿取：图元基类连"画面"这个概念都不认识
+        /// （见 <see cref="ScadaElementBase.LayerVisibilityResolver"/> 的注释），更不该知道
+        /// "运行窗口在哪、引擎归谁养"。转发是画布本来就有的职责——它就是那个把模型变成
+        /// 控件的角色，造控件时顺手把运行态交给它，是同一件事的另一半。
+        ///
+        /// 赋值时会<b>重刷已造好的容器</b>：正常路径上宿主在 <c>Show()</c> 之前就装好了
+        /// （那时一个容器都还没造，全靠 <see cref="CreateContainer"/> 逐个带出去），
+        /// 但收场是反过来的——窗口关掉时容器还在，不清就是"上一轮的引擎攥着这一轮要销毁的控件"。
+        /// 一个赋值同时把两条路走通，比在宿主里再写一遍遍历可靠。
+        /// </summary>
+        public ScadaRuntimeContext? RuntimeContext
+        {
+            get => _runtimeContext;
+            set
+            {
+                if (ReferenceEquals(_runtimeContext, value))
+                    return;
+
+                _runtimeContext = value;
+
+                foreach (var control in EnumerateControls())
+                    control.RuntimeContext = value;
+            }
+        }
 
         /// <summary>
         /// 枚举当前已渲染的图元控件。
@@ -641,8 +847,7 @@ namespace VisionMaster.Scada.Controls
             }
 
             // 选中项可能随 Remove 一起没了：这里收口，避免选中框钉在一个已删除的图元上
-            if (SelectedElement != null && !Contains(SelectedElement))
-                SetCurrentValue(SelectedElementProperty, null);
+            PruneSelection(Contains);
 
             UpdateSelectionVisual();
         }
@@ -750,7 +955,13 @@ namespace VisionMaster.Scada.Controls
                 : CreateUnknownPlaceholder(element);
 
             if (container is ScadaElementBase control)
+            {
                 control.LayerVisibilityResolver = IsElementShown;
+
+                // 运行态一起带出去：宿主是在 Show() 之前装配的，那时容器一个都还没造，
+                // 全靠这里逐个补发；造完才装配（收场换人）那条路由 RuntimeContext 的 setter 兜。
+                control.RuntimeContext = _runtimeContext;
+            }
 
             // 新建/复用的容器必须当场定一次可见性：它可能落在一个正被隐藏的图层上
             container.Visibility = IsElementShown(element) ? Visibility.Visible : Visibility.Collapsed;
@@ -906,10 +1117,19 @@ namespace VisionMaster.Scada.Controls
         private void OnLayerPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is nameof(ScadaLayer.IsVisible) or null)
-                ApplyLayerVisibility();
+            {
+                ApplyLayerVisibility(); // 它末尾会重画一次选中视觉，这里不必再来一次
+                return;
+            }
 
-            // IsLocked / Name 不进这里：锁定判定是在鼠标事件发生时现算的（CanEditElement），
-            // 改名不影响渲染。没什么要预备的，就不挂没什么要重算的订阅——少一条通路少一处漏。
+            // 图层锁定从 s10c 起有可见后果了（选中框与角标转金），必须跟着重画。
+            // 这里原先写的是"锁定判定是鼠标事件发生时现算的，没什么要重算的"——
+            // 那个前提被 s10c-4 推翻了：现在"现算"的结论会落成一个颜色，就得有人去重算。
+            //
+            // 不能借 ApplyLayerVisibility 顺路：它开头就 PruneSelection 把选中清掉，
+            // 而"锁一个图层"不该顺手取消用户当前的选中。
+            if (e.PropertyName is nameof(ScadaLayer.IsLocked))
+                UpdateSelectionVisual();
         }
 
         /// <summary>图元此刻该不该显示（没有画面上下文就一律显示）</summary>
@@ -939,9 +1159,8 @@ namespace VisionMaster.Scada.Controls
         {
             // 选中项正好在"刚被隐藏"的图层上 → 顺手取消选中。
             // 宁可让用户回到画布上重新点一下，也不能留一个"看不见、却随时会被 Delete 掉"的选中项：
-            // 编辑器现在没有撤销，误删一个隐形图元是找不回来的。
-            if (SelectedElement is { } selected && !IsElementShown(selected))
-                SetCurrentValue(SelectedElementProperty, null);
+            // 看不见的图元没有视觉反馈，误删了要等撤销才知道删错了。
+            PruneSelection(IsElementShown);
 
             if (_elementLayer == null)
                 return;
@@ -1041,8 +1260,8 @@ namespace VisionMaster.Scada.Controls
 
             _selectionRect = new Rectangle
             {
-                Stroke = ScadaBrushes.Frozen(Color.FromRgb(0x00, 0x7A, 0xCC)),
-                StrokeDashArray = new DoubleCollection { 3, 2 },
+                Stroke = SelectionStroke,
+                StrokeDashArray = SingleDash, // 线型是"单选/多选"的第一眼区别，见 UpdateSelectionVisual
                 Fill = null,
                 IsHitTestVisible = false, // 点框内空白要穿透到图元（选中框自己不吃点击）
             };
@@ -1069,57 +1288,300 @@ namespace VisionMaster.Scada.Controls
             foreach (var thumb in _thumbs)
                 _selectionBox.Children.Add(thumb);
 
+            // 锁定角标：加在手柄之后，压在最上层。
+            // （其实不会跟手柄抢位置——角标只在"拖不动"时出现，而那时 showThumbs 必为 false，
+            //   两者是同一个判据的两面。放最上层只是免得日后判据一变就冒出一个被压掉一角的角标。）
+            // 显不显示由 UpdateSelectionVisual 每次现算，这里只负责造出来挂上。
+            _lockCounterRotation = new RotateTransform();
+
+            _lockBadge = new Border
+            {
+                Background = LockBadgePlate,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                RenderTransform = _lockCounterRotation,
+                IsHitTestVisible = false, // 纯标记：压在图上，但不能吃掉"点中这个图元"的那一次点击
+                Visibility = Visibility.Collapsed,
+                Child = new Path
+                {
+                    Data = LockGlyph,
+                    Fill = LockedStroke,
+                    Stretch = Stretch.Uniform,
+                },
+            };
+
+            _selectionBox.Children.Add(_lockBadge);
+
+            // 次序就是层序：多选高亮垫在最下（被组框压着才不乱），组框居中，橡皮筋压在最上
+            // （拖拽期间它必须始终看得见，不能被任何东西盖住）。
+            _multiHighlights = new Canvas { IsHitTestVisible = false };
+            _selectionLayer.Children.Add(_multiHighlights);
+
             _selectionLayer.Children.Add(_selectionBox);
+
+            _rubberBand = new Rectangle
+            {
+                Stroke = SelectionStroke,
+                StrokeDashArray = MultiDash,
+                Fill = ScadaBrushes.Frozen(Color.FromArgb(0x22, 0x00, 0x7A, 0xCC)),
+                IsHitTestVisible = false, // 纯提示，不能挡住它自己正框着的那些图元
+                Visibility = Visibility.Collapsed,
+            };
+            _selectionLayer.Children.Add(_rubberBand);
         }
 
         private static Rectangle CreateThumb(Vector sign, Cursor cursor)
             => new()
             {
                 Fill = ScadaBrushes.Frozen(Color.FromRgb(0xFF, 0xFF, 0xFF)),
-                Stroke = ScadaBrushes.Frozen(Color.FromRgb(0x00, 0x7A, 0xCC)),
+                Stroke = SelectionStroke,
                 StrokeThickness = 1,
                 Cursor = cursor,
                 Tag = sign, // 手柄标识装在 Tag 里：省一个枚举，且命中测试天然带回来
             };
 
-        private void SyncSelectedSubscription()
-        {
-            var target = IsLoaded ? SelectedElement : null;
+        // ===== 选中集合的读写（画布侧的唯一入口，不变式见 SelectedElements 的注释） =====
 
-            if (ReferenceEquals(_subscribedSelected, target))
+        /// <summary>
+        /// 换一份选中（画布侧唯一写入口）。
+        ///
+        /// 两行必须成对、且集合在前：依赖属性一改就同步通知绑定源，顺序反了会出现一瞬间
+        /// "集合还是旧的、主选中已经是新的"，宿主正好在这个瞬间读就会拿到一个自相矛盾的状态。
+        /// </summary>
+        private void SetSelection(IReadOnlyList<ScadaElement>? items)
+        {
+            var next = items ?? Array.Empty<ScadaElement>();
+
+            SetCurrentValue(SelectedElementsProperty, next);
+            SetCurrentValue(SelectedElementProperty, next.Count > 0 ? next[0] : null);
+        }
+
+        /// <summary>
+        /// 把"点中了某一个图元"展开成"真正该选上的那一批"——它在一组里就是整组，否则就是它自己。
+        ///
+        /// <b>为什么展开只发生在"点选"这一条路上，不写进 <see cref="SetSelection"/> 内部</b>：
+        /// 框选也走 <see cref="SetSelection"/>，而框选的语义是"框住谁就是谁"——
+        /// 框住一个组员却把整组拉进来，用户就再也没法用框选只挑出组里的一个。
+        /// 同理 <see cref="PruneSelection"/> 收缩出来的结果也不该被重新撑开。
+        ///
+        /// <b>被点中的那个排首位</b>：<see cref="SetSelection"/> 拿首项当主选中，
+        /// 属性面板、尺寸手柄、以单目标为准的命令全跟着主选中走。把它排到组内其他成员后面，
+        /// 就会变成"我点的是 B，属性面板显示的是 A"。
+        ///
+        /// 图层隐藏的成员<b>不并进来</b>：与 <see cref="ApplyLayerVisibility"/> 收缩选中用的是同一判据
+        /// （<see cref="IsElementShown"/>）。否则点一下就会把一批看不见的图元顶成选中态，
+        /// 紧接着 Delete 与方向键作用在它们身上，而屏幕上找不到任何线索解释"我这一下动了什么"。
+        /// 锁住的成员<b>照并</b>：单击本来就选得中锁住的图元（只是拖不动），
+        /// 这里若把它们剔掉，同一个组在不同时候会选中不同的人（组里混锁时尤其明显）。
+        /// </summary>
+        private IReadOnlyList<ScadaElement> ExpandPointSelection(ScadaElement element)
+        {
+            if (Page is not { } page)
+                return new[] { element };
+
+            var members = page.GetGroupMembers(element);
+
+            if (members.Count <= 1)
+                return new[] { element }; // 未分组，或组里只剩它自己（单成员组与未分组行为等价）
+
+            var expanded = new List<ScadaElement>(members.Count) { element };
+
+            foreach (var member in members)
+            {
+                if (ReferenceEquals(member, element) || !IsElementShown(member))
+                    continue;
+
+                expanded.Add(member);
+            }
+
+            return expanded;
+        }
+
+        /// <summary>该图元此刻在不在选中集合里</summary>
+        private bool IsSelected(ScadaElement element) => ContainsRef(SelectedElements, element);
+
+        /// <summary>
+        /// 取一份当前选中的快照。框选要在它之上做并集，而并集的输入不能是"正在被替换的那个列表"本身
+        /// ——<see cref="SetSelection"/> 换的是引用，不是内容，抓着旧引用做增量会算出上一次的结果。
+        /// </summary>
+        private IReadOnlyList<ScadaElement> SnapshotSelection()
+        {
+            var current = SelectedElements;
+
+            if (current.Count == 0)
+                return Array.Empty<ScadaElement>();
+
+            var copy = new ScadaElement[current.Count];
+
+            for (int i = 0; i < copy.Length; i++)
+                copy[i] = current[i];
+
+            return copy;
+        }
+
+        /// <summary>
+        /// 把选中集合里"已经不成立"的成员剔掉（图元被删了 / 它所在的图层被隐藏了）。
+        ///
+        /// 一个都不能留：看不见的图元顶着选中态，Delete 与方向键会继续作用在它身上，
+        /// 而用户在屏幕上找不到任何线索来解释"我这一下删掉了什么"。
+        ///
+        /// 全员幸存时一个列表都不分配（这是常态路径：删一个图元不该让整批选中重新落一次）。
+        /// </summary>
+        private void PruneSelection(Func<ScadaElement, bool> keep)
+        {
+            var current = SelectedElements;
+
+            if (current.Count == 0)
                 return;
 
-            if (_subscribedSelected != null)
-                _subscribedSelected.PropertyChanged -= OnSelectedElementPropertyChanged;
+            List<ScadaElement>? survivors = null;
 
-            _subscribedSelected = target;
+            for (int i = 0; i < current.Count; i++)
+            {
+                bool keepThis = keep(current[i]);
 
-            if (target != null)
-                target.PropertyChanged += OnSelectedElementPropertyChanged;
+                if (survivors == null)
+                {
+                    if (keepThis)
+                        continue; // 还没遇到要被剔掉的，先不建表
+
+                    survivors = new List<ScadaElement>(current.Count);
+
+                    for (int j = 0; j < i; j++)
+                        survivors.Add(current[j]); // 回头补上前面那些已确认幸存的
+
+                    continue;
+                }
+
+                if (keepThis)
+                    survivors.Add(current[i]);
+            }
+
+            if (survivors != null)
+                SetSelection(survivors);
+        }
+
+        /// <summary>两份选中是不是同一批（引用相等，且顺序一致）</summary>
+        private static bool SameSelection(IReadOnlyList<ScadaElement> a, IReadOnlyList<ScadaElement> b)
+        {
+            if (ReferenceEquals(a, b))
+                return true;
+
+            if (a.Count != b.Count)
+                return false;
+
+            for (int i = 0; i < a.Count; i++)
+            {
+                if (!ReferenceEquals(a[i], b[i]))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 列表里有没有这个图元。
+        ///
+        /// 一律引用相等：<see cref="ScadaElement"/> 刻意没有重写 <c>Equals</c>，默认比较器恰好就是引用相等，
+        /// 与 <see cref="Contains"/>、<see cref="FindContainer"/> 完全同口径。这里只是写直白，不改判据。
+        /// </summary>
+        private static bool ContainsRef(IReadOnlyList<ScadaElement> list, ScadaElement element)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (ReferenceEquals(list[i], element))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 让"挂着的变更订阅"与当前选中集合对齐。
+        ///
+        /// 为什么用登记表（<see cref="_subscribedSelected"/>）做差集，而不是记住"上一次选中的是谁"：
+        /// 多选之后集合会以任意方式变（框选一路扩大、Ctrl 点掉中间一个、对齐后整批换掉），
+        /// 逐项比快照的代码量与出错面都比"登记表现在挂着谁、目标里该有谁"大一截。差集是幂等的。
+        ///
+        /// 生命周期口径：只有挂载期才订阅（离树时全部摘掉）。订阅钉在图元对象上，
+        /// 而图元是画面的长期住户——不按挂载期收口，画布会被它选中过的每一个图元钉住不放。
+        /// </summary>
+        private void SyncSelectedSubscription()
+        {
+            if (!IsLoaded)
+            {
+                UnsubscribeSelected();
+                return;
+            }
+
+            var current = SelectedElements;
+
+            List<ScadaElement>? stale = null;
+
+            foreach (var element in _subscribedSelected)
+            {
+                if (ContainsRef(current, element))
+                    continue;
+
+                stale ??= new List<ScadaElement>();
+                stale.Add(element);
+            }
+
+            if (stale != null)
+            {
+                foreach (var element in stale)
+                {
+                    element.PropertyChanged -= OnSelectedElementPropertyChanged;
+                    _subscribedSelected.Remove(element);
+                }
+            }
+
+            for (int i = 0; i < current.Count; i++)
+            {
+                var element = current[i];
+
+                if (_subscribedSelected.Add(element))
+                    element.PropertyChanged += OnSelectedElementPropertyChanged;
+            }
+        }
+
+        private void UnsubscribeSelected()
+        {
+            foreach (var element in _subscribedSelected)
+                element.PropertyChanged -= OnSelectedElementPropertyChanged;
+
+            _subscribedSelected.Clear();
         }
 
         private void OnSelectedElementPropertyChanged(object? sender, PropertyChangedEventArgs e)
             => UpdateSelectionVisual();
 
         /// <summary>
-        /// 按当前选中图元与缩放重画选中框。
+        /// 按当前选中集合与缩放重画选中视觉。
         ///
-        /// 手柄尺寸/线宽都除以 Zoom：选中框画在画面坐标系里（这样平移缩放时天然跟着走），
+        /// 手柄尺寸/线宽都除以 Zoom：选中视觉画在画面坐标系里（这样平移缩放时天然跟着走），
         /// 但操作手柄必须在屏幕上保持可点大小，所以这两者要反向补偿。
+        ///
+        /// 单选与多选共用这一条通路，只在四处分叉：包围盒怎么算、线型用哪副、给不给手柄、
+        /// 框画成蓝色还是金色（后者只在单选且拖不动时成立，见 <see cref="UpdateLockBadge"/>）。
+        /// 分成两个方法会立刻长出第二份"缩放补偿 + 手柄摆位"的复制品，而它们才是这段的主体。
         /// </summary>
         private void UpdateSelectionVisual()
         {
             if (_selectionBox == null || _elementLayer == null)
                 return;
 
-            var element = SelectedElement;
-
-            if (element == null || !IsLoaded || !IsRendered(element) || !IsElementShown(element))
+            if (!IsLoaded)
             {
-                // 没有选中、选中的图元当前没被渲染（切画面途中）、或它所在的图层被隐藏 → 收起
-                if (_selectionBox.Visibility != Visibility.Collapsed)
-                    _selectionBox.Visibility = Visibility.Collapsed;
+                // 没挂载就没有可视树可言（模板还没套上、或刚离树）——收起，别留着上一次的框
+                HideSelectionVisual();
+                return;
+            }
 
+            var shown = CollectShownSelection();
+
+            if (shown.Count == 0)
+            {
+                HideSelectionVisual();
                 return;
             }
 
@@ -1128,28 +1590,53 @@ namespace VisionMaster.Scada.Controls
             double thumb = ThumbDesignSize / zoom;
             double half = thumb / 2;
 
-            double boxWidth = Math.Max(1, element.Width) + gap * 2;
-            double boxHeight = Math.Max(1, element.Height) + gap * 2;
+            bool single = shown.Count == 1;
+
+            // "这个图元此刻拖不动"：图层锁或图元锁，判定整个交给 CanEditElement（或关系只有一份口径）。
+            //
+            // 三条限制，缺一条都会出怪现象：
+            // ① 只对单选成立——多选没有"这一个"可言，组里哪个锁了由 UpdateMultiHighlights 逐个说明；
+            // ② IsReadOnly 时整块画布本来就不可编辑，再标"锁"没有信息量，只会让运行态一片金；
+            // ③ 手柄已经由 showThumbs 单独判过（下面），这里管的是"框"和"角标"。
+            bool locked = single && !IsReadOnly && !CanEditElement(shown[0]);
+
+            // 单选：包围盒就是图元自己那个矩形（旋转交给整框的 RotateTransform，见下）。
+            // 多选：一组图元没有共同角度，只能取各自"转正后"包围盒的并集，外框恒为轴对齐。
+            Rect bounds = single
+                ? new Rect(shown[0].X, shown[0].Y, Math.Max(1, shown[0].Width), Math.Max(1, shown[0].Height))
+                : UnionBounds(shown);
+
+            double boxWidth = bounds.Width + gap * 2;
+            double boxHeight = bounds.Height + gap * 2;
 
             _selectionBox.Visibility = Visibility.Visible;
             _selectionBox.Width = boxWidth;
             _selectionBox.Height = boxHeight;
-            Canvas.SetLeft(_selectionBox, element.X - gap);
-            Canvas.SetTop(_selectionBox, element.Y - gap);
+            Canvas.SetLeft(_selectionBox, bounds.X - gap);
+            Canvas.SetTop(_selectionBox, bounds.Y - gap);
 
             if (_selectionRotation != null)
-                _selectionRotation.Angle = element.Rotation;
+                _selectionRotation.Angle = single ? shown[0].Rotation : 0;
 
             if (_selectionRect != null)
             {
                 _selectionRect.Width = boxWidth;
                 _selectionRect.Height = boxHeight;
                 _selectionRect.StrokeThickness = 1 / zoom;
+                _selectionRect.StrokeDashArray = single ? SingleDash : MultiDash;
+                _selectionRect.Stroke = locked ? LockedStroke : SelectionStroke;
             }
+
+            UpdateLockBadge(locked, boxWidth, boxHeight, zoom);
+
+            UpdateMultiHighlights(shown, single, zoom);
 
             if (_thumbs != null)
             {
-                bool showThumbs = !IsReadOnly && CanEditElement(element);
+                // 多选不给手柄：四个角手柄的含义是"拖它改这一个图元的尺寸"，
+                // 而一组图元的整体缩放要按比例改每一个的 X/Y/宽/高，是另一件事（改的是整批数据）。
+                // 没做之前宁可不给，也不能给一个只会改坏组里某一个的假手柄。
+                bool showThumbs = single && !IsReadOnly && CanEditElement(shown[0]);
 
                 for (int i = 0; i < _thumbs.Length; i++)
                 {
@@ -1165,6 +1652,229 @@ namespace VisionMaster.Scada.Controls
                     Canvas.SetTop(thumbRect, sign.Y > 0 ? boxHeight - half : -half);
                 }
             }
+        }
+
+        /// <summary>
+        /// 摆锁定角标：贴在包围盒的右上角，<b>整个压在框内</b>。
+        ///
+        /// 为什么不像常见的"角标探出边框一半"：包围盒会跟着图元旋转，而页面左上角的图元
+        /// 其包围盒就在画面原点附近——探出去的那一半正好落在视口外，被外层 Border 的
+        /// ClipToBounds 裁掉，变成"有的图元有锁、有的只剩半把"。压在里面，任何位置都完整。
+        ///
+        /// 位置与尺寸都除以 Zoom：角标画在画面坐标系里（天然跟着平移缩放走），
+        /// 但必须在屏幕上恒为 <see cref="LockBadgeSize"/> px，所以要反向补偿（与手柄同一个口径）。
+        /// </summary>
+        private void UpdateLockBadge(bool locked, double boxWidth, double boxHeight, double zoom)
+        {
+            if (_lockBadge == null)
+                return;
+
+            if (!locked)
+            {
+                _lockBadge.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            // 小图元上不能按屏幕尺寸硬塞：8×8 的指示灯配 14px 角标会把图元整个盖住，
+            // 看上去就是"一把锁在飘"。夹到包围盒短边的六成——角标再小也还认得出是个标记，
+            // 何况"锁住了"这件事本身还有金色外框在说。
+            double badge = Math.Min(LockBadgeSize / zoom, Math.Min(boxWidth, boxHeight) * 0.6);
+
+            _lockBadge.Visibility = Visibility.Visible;
+            _lockBadge.Width = badge;
+            _lockBadge.Height = badge;
+
+            // 圆角与内边距都按比例给：写死 2px/3px 的话，缩到 6px 的角标会被内边距挤成 0，
+            // 锁形直接消失，只剩一块金色方块。
+            _lockBadge.CornerRadius = new CornerRadius(badge * 0.15);
+            _lockBadge.Padding = new Thickness(badge * 0.2);
+
+            Canvas.SetLeft(_lockBadge, boxWidth - badge);
+            Canvas.SetTop(_lockBadge, 0);
+
+            // 反着转回包围盒的角度：位置跟着转（贴在转过去之后的那个右上角），字形保持正立。
+            // 少了这一句，转 180° 的图元会挂出一把倒着的锁。
+            if (_lockCounterRotation != null)
+                _lockCounterRotation.Angle = _selectionRotation?.Angle ?? 0;
+        }
+
+        /// <summary>整块收起选中视觉（没选中 / 一个都画不出来时）</summary>
+        private void HideSelectionVisual()
+        {
+            if (_selectionBox != null && _selectionBox.Visibility != Visibility.Collapsed)
+                _selectionBox.Visibility = Visibility.Collapsed;
+
+            if (_multiHighlights != null && _multiHighlights.Visibility != Visibility.Collapsed)
+                _multiHighlights.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// 挑出"此刻真的画在画面上的"选中项（顺序照原样保留，主选中仍是首项）。
+        ///
+        /// 为什么还要筛一遍：选中集合的清理（图元被删、图层被隐藏）走的是各个变更点，
+        /// 那是"事后收口"；这里是"画之前最后一道"。两道都在，是为了让这条渲染通路
+        /// 无论被谁在什么时机调起，都不会画出一个指向空气的框。
+        ///
+        /// 全员合格时（常态）一个列表都不分配，直接返回原集合。
+        /// </summary>
+        private IReadOnlyList<ScadaElement> CollectShownSelection()
+        {
+            var current = SelectedElements;
+
+            if (current.Count == 0)
+                return Array.Empty<ScadaElement>();
+
+            List<ScadaElement>? shown = null;
+
+            for (int i = 0; i < current.Count; i++)
+            {
+                bool ok = IsRendered(current[i]) && IsElementShown(current[i]);
+
+                if (shown == null)
+                {
+                    if (ok)
+                        continue;
+
+                    shown = new List<ScadaElement>(current.Count);
+
+                    for (int j = 0; j < i; j++)
+                        shown.Add(current[j]); // 回头补上前面那些已确认合格的
+
+                    continue;
+                }
+
+                if (ok)
+                    shown.Add(current[i]);
+            }
+
+            return shown ?? current;
+        }
+
+        /// <summary>
+        /// 画多选高亮：入选的每个图元各描一圈细实线。
+        ///
+        /// 为什么除了组外框还要逐个描：组外框只说明"这一片里有一组东西"，
+        /// 组里到底有哪几个、边界在哪，得靠每一条细线才看得出来（尤其是并集外框里还夹着没选中的图元时）。
+        /// 单选不画——外框已经贴在它身上，再描一圈纯属重影。
+        ///
+        /// 线色逐个判：组里混着"锁了的"和"没锁的"是常态（框选/全选不挑锁），
+        /// 全描成蓝色的话，用户拖不动的那几个在视觉上与能拖的一模一样，
+        /// 只能靠一个个试出来。金色那几个就是"拖这组时它们不会动"的提前说明。
+        /// </summary>
+        private void UpdateMultiHighlights(IReadOnlyList<ScadaElement> shown, bool single, double zoom)
+        {
+            if (_multiHighlights == null)
+                return;
+
+            int wanted = single ? 0 : shown.Count;
+
+            if (wanted == 0)
+            {
+                _multiHighlights.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            // 池只补不删：少下来的先藏起来留着下次用，避免选中集合每变一次就重建一批控件（会闪）
+            while (_multiRects.Count < wanted)
+            {
+                var rect = new Rectangle
+                {
+                    Stroke = SelectionStroke,
+                    Fill = null,
+                    IsHitTestVisible = false,
+                    RenderTransformOrigin = new Point(0.5, 0.5), // 绕自己中心转，才能跟图元的旋转对齐
+                    RenderTransform = new RotateTransform(),
+                };
+
+                _multiRects.Add(rect);
+                _multiHighlights.Children.Add(rect);
+            }
+
+            _multiHighlights.Visibility = Visibility.Visible;
+
+            double thickness = 1 / zoom;
+
+            for (int i = 0; i < _multiRects.Count; i++)
+            {
+                var rect = _multiRects[i];
+
+                if (i >= wanted)
+                {
+                    rect.Visibility = Visibility.Collapsed;
+                    continue;
+                }
+
+                var element = shown[i];
+
+                rect.Visibility = Visibility.Visible;
+                rect.Width = Math.Max(1, element.Width);
+                rect.Height = Math.Max(1, element.Height);
+                rect.StrokeThickness = thickness;
+                rect.Stroke = !IsReadOnly && !CanEditElement(element) ? LockedStroke : SelectionStroke;
+                ((RotateTransform)rect.RenderTransform).Angle = element.Rotation;
+
+                Canvas.SetLeft(rect, element.X);
+                Canvas.SetTop(rect, element.Y);
+            }
+        }
+
+        /// <summary>
+        /// 一组图元在画面坐标系里的轴对齐外接矩形（把各自的旋转算进去）。
+        ///
+        /// 为什么旋转要算：图元绕中心转 30° 之后，<c>X/Y/Width/Height</c> 描述的仍是"没转之前那个矩形"，
+        /// 直接拿它做并集会得到一个明显偏小的外框，把转了的那几个露在外面。
+        ///
+        /// 怎么算：矩形绕中心转 θ 后，其轴对齐外接矩形的宽高 = |w·cosθ| + |h·sinθ| 与 |w·sinθ| + |h·cosθ|，
+        /// 中心不动——不必真去转四个角再取极值。
+        /// </summary>
+        private static Rect UnionBounds(IReadOnlyList<ScadaElement> elements)
+        {
+            var first = BoundsOf(elements[0]);
+            double left = first.Left;
+            double top = first.Top;
+            double right = first.Right;
+            double bottom = first.Bottom;
+
+            for (int i = 1; i < elements.Count; i++)
+            {
+                var bounds = BoundsOf(elements[i]);
+
+                if (bounds.Left < left)
+                    left = bounds.Left;
+
+                if (bounds.Top < top)
+                    top = bounds.Top;
+
+                if (bounds.Right > right)
+                    right = bounds.Right;
+
+                if (bounds.Bottom > bottom)
+                    bottom = bounds.Bottom;
+            }
+
+            return new Rect(left, top, right - left, bottom - top);
+        }
+
+        /// <summary>单个图元在画面坐标系里的轴对齐包围盒（旋转算在内，中心不动）</summary>
+        private static Rect BoundsOf(ScadaElement element)
+        {
+            double width = Math.Max(1, element.Width);
+            double height = Math.Max(1, element.Height);
+
+            if (element.Rotation == 0)
+                return new Rect(element.X, element.Y, width, height);
+
+            double radians = element.Rotation * Math.PI / 180;
+            double cos = Math.Abs(Math.Cos(radians));
+            double sin = Math.Abs(Math.Sin(radians));
+
+            double rotatedWidth = width * cos + height * sin;
+            double rotatedHeight = width * sin + height * cos;
+
+            double centerX = element.X + width / 2;
+            double centerY = element.Y + height / 2;
+
+            return new Rect(centerX - rotatedWidth / 2, centerY - rotatedHeight / 2, rotatedWidth, rotatedHeight);
         }
 
         #endregion

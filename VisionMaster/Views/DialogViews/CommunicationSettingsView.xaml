@@ -4,208 +4,25 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
     Width="1080"
     Height="620"
     prism:ViewModelLocator.AutoWireViewModel="True"
-    Background="#F7F9FC">
+    Background="{StaticResource DialogBackgroundBrush}">
 
-    <UserControl.Resources>
-        <!--  工具栏搜索框  -->
-        <Style x:Key="SearchBoxBorder" TargetType="Border">
-            <Setter Property="Background" Value="#F2F5FA" />
-            <Setter Property="BorderBrush" Value="#E2E8F2" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-        </Style>
+    <!--
+        ============================================================================
+        通讯设置（连接管理）
+        ============================================================================
 
-        <!--  添加设备按钮  -->
-        <Style x:Key="AddButton" TargetType="Button">
-            <Setter Property="Background" Value="#17A2F2" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border
-                            x:Name="Bg"
-                            Padding="20,0"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="8">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="0,0,8,0"
-                                    VerticalAlignment="Center"
-                                    FontFamily="{StaticResource Icon}"
-                                    FontSize="13"
-                                    Text="&#xf067;" />
-                                <ContentPresenter VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Opacity" Value="0.88" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        本视图不再自带任何颜色字面量与本地样式：皮肤全部来自
+        UI/Controls/Themes/DialogStyles.xaml（青蓝设计系统），
+        色值全部来自 Colors.xaml 的 Dialog* 令牌。
+        老版本这里硬编码了 26 处颜色（#17A2F2 / #8A94A6 / #E9EEF5 …），
+        其中 #17A2F2 与变量管理弹窗的 #0EA5E9 并不是同一个蓝 —— 同屏切换会明显"跳色"。
 
-        <!--  行内图标按钮  -->
-        <Style x:Key="RowIconButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Opacity" Value="0.65" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border
-                            Width="28"
-                            Height="28"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Opacity" Value="1" />
-                                <Setter Property="Background" Value="#F0F4FA" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!--  状态胶囊  -->
-        <DataTemplate x:Key="StatusPillTemplate">
-            <Border
-                Padding="10,3"
-                HorizontalAlignment="Left"
-                Background="#E8F5E9"
-                CornerRadius="10">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="#EDF1F7" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding State}" Value="Connected">
-                                <Setter Property="Background" Value="#E8F5E9" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding State}" Value="Error">
-                                <Setter Property="Background" Value="#FDECEC" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding State}" Value="Connecting">
-                                <Setter Property="Background" Value="#FFF4E5" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <StackPanel Orientation="Horizontal">
-                    <Ellipse Width="7" Height="7">
-                        <Ellipse.Style>
-                            <Style TargetType="Ellipse">
-                                <Setter Property="Fill" Value="#98A2B3" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding State}" Value="Connected">
-                                        <Setter Property="Fill" Value="#2FBF71" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding State}" Value="Error">
-                                        <Setter Property="Fill" Value="#E5484D" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding State}" Value="Connecting">
-                                        <Setter Property="Fill" Value="#F5A524" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Ellipse.Style>
-                    </Ellipse>
-                    <TextBlock
-                        Margin="6,0,0,0"
-                        VerticalAlignment="Center"
-                        FontSize="12">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Text" Value="离线" />
-                                <Setter Property="Foreground" Value="#667085" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding State}" Value="Connected">
-                                        <Setter Property="Text" Value="在线" />
-                                        <Setter Property="Foreground" Value="#2FBF71" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding State}" Value="Error">
-                                        <Setter Property="Text" Value="错误" />
-                                        <Setter Property="Foreground" Value="#E5484D" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding State}" Value="Connecting">
-                                        <Setter Property="Text" Value="连接中" />
-                                        <Setter Property="Foreground" Value="#F5A524" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </StackPanel>
-            </Border>
-        </DataTemplate>
-
-        <!--  DataGrid 系列  -->
-        <Style TargetType="DataGridCell">
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="DataGridCell">
-                        <Border
-                            Background="{TemplateBinding Background}"
-                            BorderThickness="0"
-                            SnapsToDevicePixels="True">
-                            <ContentPresenter VerticalAlignment="Center" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="DataGridRow">
-            <Setter Property="Background" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#F8FAFD" />
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#F0F6FF" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style TargetType="DataGrid">
-            <Setter Property="Background" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="RowHeight" Value="56" />
-            <Setter Property="HeadersVisibility" Value="Column" />
-            <Setter Property="GridLinesVisibility" Value="Horizontal" />
-            <Setter Property="HorizontalGridLinesBrush" Value="#F0F3F8" />
-            <Setter Property="AutoGenerateColumns" Value="False" />
-            <Setter Property="CanUserAddRows" Value="False" />
-            <Setter Property="SelectionMode" Value="Single" />
-        </Style>
-
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="White" />
-            <Setter Property="Foreground" Value="#8A94A6" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontSize" Value="12.5" />
-            <Setter Property="Padding" Value="14,0" />
-            <Setter Property="Height" Value="44" />
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="BorderBrush" Value="#EEF1F6" />
-        </Style>
-    </UserControl.Resources>
+        三段式布局：工具栏（搜索 / 状态筛选 / 添加）→ 设备表格 → 底栏（批量操作 + 确定）。
+    -->
 
     <Grid>
         <Grid.RowDefinitions>
@@ -214,307 +31,485 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  ============ 工具栏：搜索 + 状态筛选 + 添加  ============ -->
-        <Border
-            Grid.Row="0"
-            Margin="24,20,24,12"
-            Background="White"
-            BorderBrush="#E9EEF5"
-            BorderThickness="1"
-            CornerRadius="10">
-            <Border.Effect>
-                <DropShadowEffect
-                    BlurRadius="14"
-                    Direction="270"
-                    Opacity="0.05"
-                    ShadowDepth="2" />
-            </Border.Effect>
-            <Grid Margin="14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="170" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+        <!--  ============ 工具栏：搜索 + 状态筛选 + 添加设备  ============  -->
+        <Grid Grid.Row="0" Margin="24,20,24,14">
+            <!--  投影层与内容层分离：投影不挂在承载文字的 Border 上，否则文字会失去 ClearType 变糊  -->
+            <Border Style="{StaticResource DialogCardShadow}" />
+            <Border Style="{StaticResource DialogCardBorder}">
+                <Grid Margin="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="168" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <!--  搜索框  -->
-                <Border Grid.Column="0" Style="{StaticResource SearchBoxBorder}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock
-                            Margin="12,0,0,0"
-                            VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="#9AA5B5"
-                            Text="&#xf002;" />
-                        <TextBox
-                            Height="38"
-                            Padding="10,0"
-                            VerticalContentAlignment="Center"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            FontSize="13"
-                            Foreground="#303133"
-                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
-                            <TextBox.Style>
-                                <Style TargetType="TextBox">
-                                    <Setter Property="CaretBrush" Value="#17A2F2" />
-                                </Style>
-                            </TextBox.Style>
-                        </TextBox>
-                        <TextBlock
-                            Margin="4,0,12,0"
-                            VerticalAlignment="Center"
-                            FontSize="12.5"
-                            Foreground="#9AA5B5"
-                            Text="按设备名称 / IP / 通讯类型搜索" />
-                    </StackPanel>
-                </Border>
+                    <!--
+                        搜索框：外层 Border 画框 + 放大镜，内层 TextBox 完全透明撑满 * 列。
+                        占位提示靠 Tag 传进 TextBox 自己的模板里，输入后自动消失。
+                        老写法把提示做成"旁边一个常驻 TextBlock"，用户一输入就出现
+                        "提示和内容并排"的鬼影，而且 TextBox 塞在横向 StackPanel 里宽度不受控。
+                    -->
+                    <Border
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource DialogSearchChrome}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                Style="{StaticResource DialogSearchIcon}"
+                                Text="&#xf002;" />
+                            <TextBox
+                                Grid.Column="1"
+                                Style="{StaticResource DialogSearchInput}"
+                                Tag="按设备名称 / IP / 通讯类型搜索"
+                                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                    </Border>
 
-                <!--  状态筛选  -->
-                <ComboBox
-                    Grid.Column="2"
-                    Height="40"
-                    Padding="12,0"
-                    VerticalContentAlignment="Center"
-                    Background="#F2F5FA"
-                    BorderBrush="#E2E8F2"
-                    FontSize="13"
-                    Foreground="#303133"
-                    ItemsSource="{Binding StatusFilters}"
-                    SelectedItem="{Binding StatusFilter}" />
+                    <!--  状态筛选：DialogCombo 把整框做成热区，点框内任意位置都能展开  -->
+                    <ComboBox
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        ItemsSource="{Binding StatusFilters}"
+                        SelectedItem="{Binding StatusFilter}"
+                        Style="{StaticResource DialogCombo}" />
 
-                <!--  添加按钮  -->
-                <Button
-                    Grid.Column="3"
-                    MinWidth="130"
-                    Height="40"
-                    Command="{Binding AddCommand}"
-                    Content="添加设备"
-                    Style="{StaticResource AddButton}" />
-            </Grid>
-        </Border>
+                    <Button
+                        Grid.Column="4"
+                        Height="38"
+                        MinWidth="128"
+                        VerticalAlignment="Center"
+                        Command="{Binding AddCommand}"
+                        Style="{StaticResource DialogPrimaryButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="13"
+                                Text="&#xf067;" />
+                            <TextBlock VerticalAlignment="Center" Text="添加设备" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
 
-        <!--  ============ 设备表格  ============ -->
-        <Border
-            Grid.Row="1"
-            Margin="24,0,24,0"
-            Background="White"
-            BorderBrush="#E9EEF5"
-            BorderThickness="1"
-            CornerRadius="10">
-            <Border.Effect>
-                <DropShadowEffect
-                    BlurRadius="14"
-                    Direction="270"
-                    Opacity="0.05"
-                    ShadowDepth="2" />
-            </Border.Effect>
-            <DataGrid
-                Margin="1"
-                ItemsSource="{Binding Configs}"
-                SelectedItem="{Binding SelectedConfig}">
-                <DataGrid.Columns>
-                    <!--  设备名称  -->
-                    <DataGridTemplateColumn Width="1.2*" Header="设备名称">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock
-                                    Margin="14,0,0,0"
-                                    VerticalAlignment="Center"
-                                    FontSize="14"
-                                    FontWeight="SemiBold"
-                                    Foreground="#1D2939"
-                                    Text="{Binding ConnectionName}"
-                                    ToolTip="{Binding Description}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+        <!--  ============ 设备表格  ============  -->
+        <Grid Grid.Row="1" Margin="24,0,24,0">
+            <Border Style="{StaticResource DialogCardShadow}" />
+            <Border Style="{StaticResource DialogCardBorder}">
+                <Grid Margin="1">
+                    <DataGrid
+                        ItemsSource="{Binding Configs}"
+                        RowHeight="48"
+                        SelectedItem="{Binding SelectedConfig}"
+                        SelectionMode="Extended"
+                        Style="{StaticResource DialogDataGrid}"
+                        ui:DataGridSelectionBehavior.BindableSelectedItems="{Binding SelectedConfigs, Mode=OneWay}">
+                        <!--
+                            Mode=OneWay 是刻意写死的，不要删：
+                            SelectedConfigs 在 VM 里是只读属性（{ get; } = new()），
+                            该附加属性只把绑定当"入口"读一次，回写走的是集合自身的事件，
+                            写成双向会被 WPF 判为"对只读属性做 TwoWay 绑定"而抛 XamlParseException，
+                            导致整张弹窗解析失败打不开。
+                        -->
+                        <DataGrid.Columns>
+                            <!--  设备名称  -->
+                            <DataGridTemplateColumn Width="1.2*" Header="设备名称">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="13.5"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding ConnectionName}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding Description}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                    <!--  通讯类型  -->
-                    <DataGridTemplateColumn Width="110" Header="通讯类型">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="13"
-                                    Foreground="#475467"
-                                    Text="{Binding Protocol}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+                            <!--  通讯类型  -->
+                            <DataGridTemplateColumn Width="110" Header="通讯类型">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="12.5"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="{Binding Protocol}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                    <!--  IP : 端口（串口协议显示 COM 口）  -->
-                    <DataGridTemplateColumn Width="1.3*" Header="IP : 端口">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontFamily="Consolas"
-                                    FontSize="13"
-                                    Foreground="#475467"
-                                    Text="{Binding Config}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+                            <!--  IP : 端口（串口协议显示 COM 口）  -->
+                            <DataGridTemplateColumn Width="1.3*" Header="IP : 端口">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="Consolas"
+                                            FontSize="12.5"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="{Binding Config}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                    <!--  轮询周期  -->
-                    <DataGridTemplateColumn Width="90" Header="轮询">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontFamily="Consolas"
-                                    FontSize="12.5"
-                                    Foreground="#475467"
-                                    Text="{Binding ReadCycleMs, StringFormat={}{0} ms}" />
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
+                            <!--  轮询周期：默认组周期，有自定义扫描组时追加「+N 组」  -->
+                            <DataGridTemplateColumn Width="140" Header="轮询">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontFamily="Consolas"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="{Binding PollHint}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                    <!--  状态胶囊  -->
-                    <DataGridTemplateColumn
-                        Width="110"
-                        Header="状态"
-                        IsReadOnly="True"
-                        CellTemplate="{StaticResource StatusPillTemplate}" />
+                            <!--
+                                状态胶囊：模板在 DialogStyles.xaml。
+                                颜色对齐全项目语义色；最近一次错误不为空时胶囊右侧追加 ⚠ 并把
+                                错误详情挂在 ToolTip 上（状态列只有 110px，塞不下一整列错误详情）。
+                            -->
+                            <DataGridTemplateColumn
+                                Width="110"
+                                Header="状态"
+                                IsReadOnly="True"
+                                CellTemplate="{StaticResource DialogStatusPillTemplate}" />
 
-                    <!--  最后更新  -->
-                    <DataGridTemplateColumn Width="1.1*" Header="最后连接">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <TextBlock VerticalAlignment="Center" FontSize="12.5" Foreground="#8A94A6">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="{Binding LastConnectedTime, StringFormat='yyyy/M/d HH:mm:ss'}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding LastConnectedTime}" Value="{x:Static sys:DateTime.MinValue}">
-                                                    <Setter Property="Text" Value="—" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-
-                    <!--  操作：连接/断开 + 测试 + 删除（图标化）  -->
-                    <DataGridTemplateColumn Width="150" Header="操作">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <StackPanel
-                                    Margin="0,0,10,0"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center"
-                                    Orientation="Horizontal">
-                                    <!--  连接 / 断开  -->
-                                    <Button Command="{Binding DataContext.ToggleConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}">
-                                        <Button.Style>
-                                            <Style BasedOn="{StaticResource RowIconButton}" TargetType="Button">
-                                                <Setter Property="ToolTip" Value="连接" />
-                                                <Setter Property="Foreground" Value="#17A2F2" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding State}" Value="Connected">
-                                                        <Setter Property="ToolTip" Value="断开" />
-                                                        <Setter Property="Foreground" Value="#E5484D" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                        <TextBlock FontFamily="{StaticResource Icon}" FontSize="14">
+                            <!--  最后连接  -->
+                            <DataGridTemplateColumn Width="1.1*" Header="最后连接">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextMutedBrush}">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="&#xf0c1;" />
+                                                    <Setter Property="Text" Value="{Binding LastConnectedTime, StringFormat='yyyy/M/d HH:mm:ss'}" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding State}" Value="Connected">
-                                                            <Setter Property="Text" Value="&#xf127;" />
+                                                        <DataTrigger Binding="{Binding LastConnectedTime}" Value="{x:Static sys:DateTime.MinValue}">
+                                                            <Setter Property="Text" Value="—" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
-                                    </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
-                                    <!--  连通测试  -->
-                                    <Button
-                                        Command="{Binding DataContext.TestConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}"
-                                        Foreground="#12B76A"
-                                        Style="{StaticResource RowIconButton}"
-                                        ToolTip="连通测试">
-                                        <TextBlock
-                                            FontFamily="{StaticResource Icon}"
-                                            FontSize="14"
-                                            Text="&#xf012;" />
-                                    </Button>
+                            <!--  操作：连接/断开 + 测试 + 扫描组 + 编辑 + 删除（图标化）  -->
+                            <DataGridTemplateColumn Width="190" Header="操作">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel
+                                            Margin="0,0,12,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Orientation="Horizontal">
+                                            <!--  连接 / 断开  -->
+                                            <Button Command="{Binding DataContext.ToggleConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}">
+                                                <Button.Style>
+                                                    <Style BasedOn="{StaticResource DialogIconButton}" TargetType="Button">
+                                                        <Setter Property="ToolTip" Value="连接" />
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding State}" Value="Connected">
+                                                                <Setter Property="ToolTip" Value="断开" />
+                                                                <Setter Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <TextBlock FontFamily="{StaticResource Icon}" FontSize="14">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="&#xf0c1;" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding State}" Value="Connected">
+                                                                    <Setter Property="Text" Value="&#xf127;" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Button>
 
-                                    <!--  编辑参数  -->
-                                    <Button
-                                        Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}"
-                                        Foreground="#667085"
-                                        Style="{StaticResource RowIconButton}"
-                                        ToolTip="编辑参数">
-                                        <TextBlock
-                                            FontFamily="{StaticResource Icon}"
-                                            FontSize="14"
-                                            Text="&#xf044;" />
-                                    </Button>
+                                            <!--  连通测试  -->
+                                            <Button
+                                                Command="{Binding DataContext.TestConnectionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Foreground="{StaticResource DialogSuccessBrush}"
+                                                Style="{StaticResource DialogIconButton}"
+                                                ToolTip="连通测试">
+                                                <TextBlock
+                                                    FontFamily="{StaticResource Icon}"
+                                                    FontSize="14"
+                                                    Text="&#xf012;" />
+                                            </Button>
 
-                                    <!--  删除  -->
-                                    <Button
-                                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}"
-                                        Foreground="#E5484D"
-                                        Style="{StaticResource RowIconButton}"
-                                        ToolTip="删除">
-                                        <TextBlock
-                                            FontFamily="{StaticResource Icon}"
-                                            FontSize="14"
-                                            Text="&#xf1f8;" />
-                                    </Button>
-                                </StackPanel>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
-        </Border>
+                                            <!--  编辑参数  -->
+                                            <Button
+                                                Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Style="{StaticResource DialogIconButton}"
+                                                ToolTip="编辑参数">
+                                                <TextBlock
+                                                    FontFamily="{StaticResource Icon}"
+                                                    FontSize="14"
+                                                    Text="&#xf044;" />
+                                            </Button>
 
-        <!--  ============ 底部  ============ -->
+                                            <!--  扫描组：编辑这条连接的周期分组表  -->
+                                            <Button
+                                                Command="{Binding DataContext.EditScanGroupsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Foreground="{StaticResource DialogAccentBrush}"
+                                                Style="{StaticResource DialogIconButton}"
+                                                ToolTip="扫描组">
+                                                <TextBlock
+                                                    FontFamily="{StaticResource Icon}"
+                                                    FontSize="14"
+                                                    Text="&#xf5fd;" />
+                                            </Button>
+
+                                            <!--  删除  -->
+                                            <Button
+                                                Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Foreground="{StaticResource DialogDangerBrush}"
+                                                Style="{StaticResource DialogIconButton}"
+                                                ToolTip="删除">
+                                                <TextBlock
+                                                    FontFamily="{StaticResource Icon}"
+                                                    FontSize="14"
+                                                    Text="&#xf1f8;" />
+                                            </Button>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!--
+                        ============ 空状态 ============
+                        两种空状态必须分开，语义完全不同：
+                          IsEmpty         真的一条连接都没有 → 引导"添加设备"
+                          IsFilteredEmpty 有连接但被搜索/状态筛选挡光了 → 引导"换个条件"
+                        若混成一句"还没有添加设备"，明明有 20 条连接的用户会以为数据丢了，
+                        转头重新录一遍。
+                        遮罩从表头下方开始（Margin 0,42,0,0），保留列名可见 —— 用户能看出
+                        "表还在，只是这次没筛出东西"。
+                    -->
+                    <Border
+                        Margin="0,42,0,0"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        CornerRadius="0,0,11,11"
+                        Visibility="{Binding IsEmpty, Converter={ui:BooleanToVisibilityConverter}}">
+                        <StackPanel
+                            MaxWidth="420"
+                            VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf0c1;" />
+                            <TextBlock Style="{StaticResource DialogEmptyStateTitle}" Text="还没有添加任何设备" />
+                            <TextBlock Style="{StaticResource DialogEmptyStateHint}" Text="点击右上角「添加设备」建立第一条连接，之后就能往这条连接里添加要采集的变量了。" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Margin="0,42,0,0"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        CornerRadius="0,0,11,11"
+                        Visibility="{Binding IsFilteredEmpty, Converter={ui:BooleanToVisibilityConverter}}">
+                        <StackPanel
+                            MaxWidth="460"
+                            VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf002;" />
+                            <TextBlock Style="{StaticResource DialogEmptyStateTitle}" Text="没有符合条件的连接" />
+                            <TextBlock
+                                Style="{StaticResource DialogEmptyStateHint}"
+                                Text="{Binding Configs.Count, StringFormat='当前共有 {0} 条连接，只是被搜索或状态筛选挡住了。换个关键词，或把状态切回「全部状态」。'}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!--  ============ 底栏：批量操作 + 确定  ============  -->
         <Border
             Grid.Row="2"
-            Padding="24,14"
-            BorderBrush="#E9EEF5"
+            Margin="0,14,0,0"
+            Padding="24,12"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
             BorderThickness="0,1,0,0">
-            <Button
-                Width="96"
-                Height="36"
-                HorizontalAlignment="Right"
-                Background="#17A2F2"
-                BorderThickness="0"
-                Command="{Binding CloseCommand}"
-                Content="确 定"
-                Cursor="Hand"
-                FontWeight="SemiBold"
-                Foreground="White">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border
-                            x:Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="8">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.88" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
-            </Button>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <!--  选中态文案：有选中显示计数，没选中显示多选操作提示，两者互斥  -->
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogAccentTextBrush}"
+                        Text="{Binding SelectedCount, StringFormat='已选 {0} 项'}"
+                        Visibility="{Binding HasSelection, Converter={ui:BooleanToVisibilityConverter}}" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="按住 Ctrl / Shift 可多选，再批量操作"
+                        Visibility="{Binding HasSelection, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+
+                    <Border
+                        Width="1"
+                        Height="16"
+                        Margin="12,0"
+                        Background="{StaticResource DialogBorderBrush}" />
+
+                    <!--  选择类：全选 / 清空（作用于当前筛选结果）  -->
+                    <Button Command="{Binding SelectAllCommand}" Style="{StaticResource DialogGhostButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="&#xf14a;" />
+                            <TextBlock VerticalAlignment="Center" Text="全选" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        Command="{Binding ClearSelectionCommand}"
+                        IsEnabled="{Binding HasSelection}"
+                        Style="{StaticResource DialogGhostButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="&#xf00d;" />
+                            <TextBlock VerticalAlignment="Center" Text="清空" />
+                        </StackPanel>
+                    </Button>
+
+                    <Border
+                        Width="1"
+                        Height="16"
+                        Margin="12,0"
+                        Background="{StaticResource DialogBorderBrush}" />
+
+                    <!--  作用于"选中行"：没选就置灰，点不动  -->
+                    <Button
+                        Command="{Binding ConnectSelectedCommand}"
+                        IsEnabled="{Binding HasSelection}"
+                        Style="{StaticResource DialogGhostButton}"
+                        ToolTip="建立所选连接的常驻连接">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogAccentBrush}"
+                                Text="&#xf0c1;" />
+                            <TextBlock VerticalAlignment="Center" Text="连接选中" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        Command="{Binding DisconnectSelectedCommand}"
+                        IsEnabled="{Binding HasSelection}"
+                        Style="{StaticResource DialogGhostButton}"
+                        ToolTip="断开所选连接">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogDangerBrush}"
+                                Text="&#xf127;" />
+                            <TextBlock VerticalAlignment="Center" Text="断开选中" />
+                        </StackPanel>
+                    </Button>
+
+                    <Border
+                        Width="1"
+                        Height="16"
+                        Margin="12,0"
+                        Background="{StaticResource DialogBorderBrush}" />
+
+                    <!--
+                        作用于"当前筛选结果"（不是全部连接）：
+                        用户先筛出「离线」再点「全部连接」，意图就是"把这些都连上"；
+                        若作用于全部连接，会静默改动表格里根本没显示的连接。
+                    -->
+                    <Button
+                        Command="{Binding ConnectAllCommand}"
+                        Style="{StaticResource DialogGhostButton}"
+                        ToolTip="连接当前筛选结果里的全部连接">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogAccentBrush}"
+                                Text="&#xf0e7;" />
+                            <TextBlock VerticalAlignment="Center" Text="全部连接" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        Command="{Binding DisconnectAllCommand}"
+                        Style="{StaticResource DialogGhostButton}"
+                        ToolTip="断开当前筛选结果里的全部连接">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogDangerBrush}"
+                                Text="&#xf011;" />
+                            <TextBlock VerticalAlignment="Center" Text="全部断开" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <Button
+                    Grid.Column="1"
+                    Width="96"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    Content="确 定"
+                    Style="{StaticResource DialogPrimaryButton}" />
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

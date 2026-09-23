@@ -26,8 +26,4 @@
       <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
     </Reference>
   </ItemGroup>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy $(TargetPath) $(SolutionDir)\Modules\$(TargetFileName) /Y" />
-  </Target>
 </Project>

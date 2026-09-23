@@ -3,7 +3,7 @@
   "Version": 1.0,
   "SolutionFilePath": "E:\\VM\\VisionMaster-W-master\\解决方案\\解决方案-20260829224154.vms",
   "Config": {
-    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"25\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"25\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"70*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/18/2026 06:06:14\" />\r\n        <LayoutDocument Title=\"组态画面\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"09/18/2026 11:46:32\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane DockWidth=\"260\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"09/18/2026 11:48:20\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"300\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" />\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"09/18/2026 11:46:33\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"171.66666666666666\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/19/2026 09:10:48\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"266.3333333333333\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/19/2026 09:11:21\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"45.08203063276105*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/19/2026 09:14:59\" />\r\n        <LayoutDocument Title=\"组态画面\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"09/19/2026 09:21:06\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/19/2026 07:18:09\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"260\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"09/19/2026 09:21:07\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"300\" />\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/19/2026 09:20:10\" PreviousContainerId=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"09/19/2026 09:20:43\" PreviousContainerId=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
     "ImageViewMode": 5
   },
   "Flows": [
@@ -283,7 +283,7 @@
       "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "主相机的曝光时间 (ms)",
       "DefaultValue": 25.0,
-      "Value": 25.0,
+      "Value": 43.0,
       "Offset": "0",
       "BitOffset": -1,
       "DbNumber": 1
@@ -498,7 +498,22 @@
             "IsLocked": false,
             "Properties": {},
             "Bindings": [],
-            "EventHooks": []
+            "EventHooks": [
+              {
+                "Event": 2,
+                "Actions": [
+                  {
+                    "Type": 2,
+                    "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
+                    "VariableName": "Exposure_Time",
+                    "HasVariable": true,
+                    "Value": "43",
+                    "TargetPageId": "00000000-0000-0000-0000-000000000000",
+                    "Detail": "Exposure_Time := 43"
+                  }
+                ]
+              }
+            ]
           },
           {
             "ElementId": "e6104b63-cdab-4d14-a42a-2b13e897a396",
@@ -537,12 +552,61 @@
                   {
                     "Type": 1,
                     "VariableId": "00000000-0000-0000-0000-000000000000",
+                    "HasVariable": false,
                     "TargetPageId": "00000000-0000-0000-0000-000000000000",
                     "Detail": ""
                   }
                 ]
               }
             ]
+          },
+          {
+            "ElementId": "c06812e3-1b56-4b96-bbf7-0c689c77c220",
+            "Name": "数值域",
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "TypeKey": "Hmi.IOField",
+            "X": 160.0,
+            "Y": 430.0,
+            "Width": 140.0,
+            "Height": 28.0,
+            "Rotation": 0.0,
+            "ZIndex": 6,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [
+              {
+                "TargetProperty": "Value",
+                "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
+                "VariableName": "Exposure_Time",
+                "IsEnabled": true,
+                "IsLegacyByName": false
+              }
+            ],
+            "EventHooks": []
+          },
+          {
+            "ElementId": "fcad2ac2-e6df-45ae-a10c-ab403df85330",
+            "Name": "表盘",
+            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
+            "TypeKey": "Hmi.Gauge",
+            "X": 20.0,
+            "Y": 150.0,
+            "Width": 140.0,
+            "Height": 140.0,
+            "Rotation": 0.0,
+            "ZIndex": 7,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [
+              {
+                "TargetProperty": "Value",
+                "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
+                "VariableName": "Exposure_Time",
+                "IsEnabled": true,
+                "IsLegacyByName": false
+              }
+            ],
+            "EventHooks": []
           }
         ],
         "Layers": [
@@ -560,6 +624,7 @@
               {
                 "Type": 1,
                 "VariableId": "00000000-0000-0000-0000-000000000000",
+                "HasVariable": false,
                 "TargetPageId": "00000000-0000-0000-0000-000000000000",
                 "Detail": ""
               }

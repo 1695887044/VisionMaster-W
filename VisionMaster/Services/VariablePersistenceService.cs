@@ -100,7 +100,10 @@ namespace VisionMaster.Services
                         DefaultValue = defaultValue,
                         Value = currentValue,
                         ConnectionName = dto.ConnectionName,
-                        AddressConfig = address
+                        AddressConfig = address,
+                        // 扫描组随方案还原：漏它的后果是"挂好的快组在下次打开方案时静默退回默认组"，
+                        // 而桥接器 Register 时会把这里的值抄进 CommunicationVariable，故必须在接线之前填好
+                        ScanGroup = dto.ScanGroup ?? string.Empty
                     });
                 }
                 else

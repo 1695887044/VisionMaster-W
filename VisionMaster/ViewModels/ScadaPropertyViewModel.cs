@@ -37,6 +37,30 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
+    /// 一行的编辑区形态——面板据此决定给这一行套哪份模板。
+    ///
+    /// 为什么是枚举而不是原来那个 <c>IsCompositeEditor</c> 布尔：那种写法只够区分"普通行"与
+    /// "唯一一种复合行"。事件行之后动画行也成了复合编辑区，两者的内部结构却毫不相干
+    /// （动作表 vs 档位卡片），一个布尔说不出"该换哪一份模板"，于是 XAML 里只能靠
+    /// 叠 <c>DataTrigger</c> 的先后次序去抢——那是把"行的身份"编码进了触发器的书写顺序，
+    /// 加第三种就要靠"谁写在后面"来决定谁赢，读代码的人根本看不出规则。
+    ///
+    /// 取值一旦发布不许改数值，只许往后追加（与 <see cref="ScadaAnimationType"/> 同一纪律）：
+    /// 断言里钉的是名字，但改数值会让"旧断言 + 新代码"在别人机器上静默错位。
+    /// </summary>
+    public enum ScadaRowEditorKind
+    {
+        /// <summary>标签 + 一个编辑器（绝大多数属性行）</summary>
+        Inline = 0,
+
+        /// <summary>事件行：开关 + 内联动作表</summary>
+        Event = 1,
+
+        /// <summary>动画行：开关 + 驱动变量 + 档位表 / 参数区</summary>
+        Animation = 2,
+    }
+
+    /// <summary>
     /// 属性面板一行的公共部分：一个 <see cref="IPropertySpec"/> + 一个正在被编辑的值。
     ///
     /// 为什么要抽这一层：面板的编辑器模板（文本框 / 数值框 / 色块 / 复选框 / 下拉）
@@ -50,24 +74,85 @@ namespace VisionMaster.ViewModels
     /// </summary>
     public abstract class ScadaPropertyRowBase : BindableBase
     {
-        /// <summary>颜色解析不出来时的色块（灰）——比留白诚实：留白看着像"这就是当前颜色"</summary>
-        private static readonly Brush FallbackSwatch = Frozen(0xCC, 0xCC, 0xCC);
+        /// <summary>
+        /// 颜色解析不出来时的色块（灰）——比留白诚实：留白看着像"这就是当前颜色"。
+        /// <c>internal</c> 而不是 <c>private</c>：动画档位卡片那套取色器（<see cref="ScadaColorSlot"/>）
+        /// 与属性行的取色器对同一串坏值必须给出同一块灰，否则一张面板上两处颜色控件两种观感。
+        /// </summary>
+        internal static readonly Brush FallbackSwatch = Frozen(0xCC, 0xCC, 0xCC);
 
-        private static Brush Frozen(byte r, byte g, byte b)
+        /// <summary>
+        /// 取色板的预设色。<b>顺序即排版</b>（WrapPanel 每行 8 格），所以是一支排好序的数组，
+        /// 而不是集合初始化器里随手堆。
+        ///
+        /// 第二排开头四个就是 <c>Hmi.AlarmBanner</c> 的默认状态色：报警横幅上是什么绿，
+        /// 取色板里就该有那一格——否则"我想跟横幅配成一套"得去别处抄十六进制。
+        /// 第四、五排是成对的深/浅面板底色，第五排末尾两格是半透明黑（遮罩、投影填充）。
+        ///
+        /// 全部冻结：面板里几十行共用这一份，任何一格被改都会牵动所有取色板。
+        ///
+        /// <c>internal</c> 而不是 <c>private</c>：动画档位卡片的取色器（<see cref="ScadaColorSlot"/>）
+        /// 共用同一份色板——两套色板走偏，用户在"图元填充色"里挑得到的那一格，
+        /// 到了"档位背景色"里就找不到了。
+        /// </summary>
+        internal static readonly IReadOnlyList<SolidColorBrush> PaletteCells = new uint[]
         {
-            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            // 灰阶
+            0xFF000000u, 0xFF262626u, 0xFF404040u, 0xFF595959u,
+            0xFF8C8C8Cu, 0xFFBFBFBFu, 0xFFE0E0E0u, 0xFFFFFFFFu,
+            // 状态：正常 / 警告 / 严重 / 提示，后四格是配套的深色变体
+            0xFF34C759u, 0xFFFFB020u, 0xFFE03A2Bu, 0xFF3B82F6u,
+            0xFF2D7DD2u, 0xFF1F5C9Eu, 0xFF198754u, 0xFFD63384u,
+            // 工业：橙 / 黄 / 青 / 紫 / 蓝 / 灰蓝
+            0xFFFD7E14u, 0xFFFFC107u, 0xFF17A2B8u, 0xFF6610F2u,
+            0xFF0D6EFDu, 0xFF6C757Du, 0xFF495057u, 0xFF343A40u,
+            // 深色面板
+            0xFF1E1E1Eu, 0xFF202020u, 0xFF2B2B2Bu, 0xFF0F1115u,
+            0xFF11212Eu, 0xFF1B2A1Bu, 0xFF2E1B1Bu, 0xFF3C3C3Cu,
+            // 浅色面板 + 半透明黑（遮罩 / 投影）
+            0xFFF8F9FAu, 0xFFF1F3F5u, 0xFFE9ECEFu, 0xFFDEE2E6u,
+            0xFFCED4DAu, 0xFFADB5BDu, 0x80000000u, 0x40000000u,
+        }.Select(Swatch).ToArray();
+
+        /// <summary>按 0xAARRGGBB 造一格冻结色板（写成整数而不是"#AARRGGBB"再解析：省掉启动时的一轮解析）</summary>
+        private static SolidColorBrush Swatch(uint argb)
+        {
+            var brush = new SolidColorBrush(Color.FromArgb(
+                (byte)(argb >> 24),
+                (byte)(argb >> 16),
+                (byte)(argb >> 8),
+                (byte)argb));
+            brush.Freeze();
+            return brush;
+        }
+
+        private static Brush Frozen(byte r, byte g, byte b) => Frozen(Color.FromRgb(r, g, b));
+
+        /// <summary>造一支冻结画刷（<see cref="ScadaColorSlot"/> 也要用：草稿预览色块与它同一个口径）</summary>
+        internal static Brush Frozen(Color color)
+        {
+            var brush = new SolidColorBrush(color);
             brush.Freeze();
             return brush;
         }
 
         private string _value;
         private string? _error;
+        private bool _isColorPickerOpen;
+        private string _colorDraft = string.Empty;
 
         /// <param name="initialValue">当前值的文本形态，由派生类算好传入（见类注释的硬约束）</param>
         protected ScadaPropertyRowBase(IPropertySpec spec, string initialValue)
         {
             Spec = spec ?? throw new ArgumentNullException(nameof(spec));
             _value = initialValue ?? string.Empty;
+
+            // 取色器的三个命令。放在基类而不是颜色行里：EditColor 模板是图元行与画面行共用的一份，
+            // 命令挂在派生类上，画面行（如「画面背景色」）点开就是一块点不动的色板。
+            // 传方法组只是建委托，不构成"构造函数调用虚成员"，硬约束不破。
+            PickColorCommand = new DelegateCommand<object>(OnPickColor);
+            ApplyColorCommand = new DelegateCommand(OnApplyColor);
+            CancelColorCommand = new DelegateCommand(OnCancelColor);
         }
 
         /// <summary>本行的属性声明</summary>
@@ -87,8 +172,34 @@ namespace VisionMaster.ViewModels
         /// <summary>编辑器类型（面板据此挑模板）</summary>
         public ElementPropertyKind Kind => Spec.Kind;
 
-        /// <summary>Choice 型的下拉候选</summary>
-        public IReadOnlyList<string> Choices => Spec.Choices;
+        /// <summary>
+        /// Choice 型的候选<b>落盘值</b>（<c>"Circle"</c>、<c>"Output"</c> 这一层，进 .vms 的就是它们）。
+        /// 默认直接转手声明里的那一份（描述符声明的候选是静态的）。
+        ///
+        /// 下拉框绑的不是本属性而是 <see cref="ChoiceOptions"/>（那一份另配了中文名）——
+        /// 本属性留着是因为"这个属性能取哪些值"是模型侧的事实，与界面显示成什么语言无关。
+        ///
+        /// 声明为 <c>virtual</c> 只为一种行：候选<b>来自被编辑对象</b>而不是来自声明。
+        /// 「所属图层」就是这样——图层表挂在画面上，而声明是无状态的共享实例
+        /// （与 <see cref="GeometryProperties.Standard"/> 跨图元共享同一个道理），它给不出候选。
+        /// 覆写时记得在 <see cref="RefreshValue"/> 里补一次 <c>RaisePropertyChanged</c>，
+        /// 否则画面上图层增删后下拉框还是旧名单（通知的是 <see cref="ChoiceOptions"/>，见那条注释）。
+        /// </summary>
+        public virtual IReadOnlyList<string> Choices => Spec.Choices;
+
+        /// <summary>
+        /// 下拉框<b>实际绑定</b>的候选：<see cref="Choices"/> 里的落盘值各配一个中文显示名
+        /// （见 <see cref="ScadaChoiceNames"/>）。
+        ///
+        /// 为什么另立一个属性、而不是让模板直接绑 <see cref="Choices"/>：模板要的是"值 + 名字"两列，
+        /// 而 <c>Choices</c> 只有值——把一串落盘值交给模板，它就只能显示 <c>Circle</c>、<c>Output</c>。
+        /// 而 <see cref="Choices"/> 本身不动：它是描述符声明的落盘值，文件格式的口径不该被界面文案牵着走
+        /// （翻译只发生在显示层，写回的一律是 <see cref="ScadaChoiceOption.Value"/>）。
+        ///
+        /// 覆写者注意：模板绑的是本属性，所以候选集变了要通知的也是<b>本属性</b>；
+        /// 通知 <c>Choices</c> 没人听（见 <see cref="ScadaRolePropertyRow.RefreshValue"/>）。
+        /// </summary>
+        public virtual IReadOnlyList<ScadaChoiceOption> ChoiceOptions => ScadaChoiceNames.ToOptions(Choices);
 
         /// <summary>能否绑定变量（决定"ƒx"按钮显不显示）</summary>
         public bool IsBindable => Spec.IsBindable;
@@ -97,7 +208,7 @@ namespace VisionMaster.ViewModels
         /// 本行属性当前有没有绑工程变量。默认 <c>false</c>——画面属性（S3-e3）还没有绑定概念。
         ///
         /// 为什么放在基类：行模板是两种行共用的一份，模板里只该认"行"这个身份
-        /// （与编辑器按 <see cref="Kind"/> 分流、复合编辑区按 <see cref="IsCompositeEditor"/>
+        /// （与编辑器按 <see cref="Kind"/> 分流、复合编辑区按 <see cref="EditorKind"/>
         /// 分流是同一个手法）——否则 XAML 就得认识 <see cref="ScadaPropertyRow"/> 这个具体类型。
         /// </summary>
         public virtual bool HasBinding => false;
@@ -109,15 +220,15 @@ namespace VisionMaster.ViewModels
         public virtual string? BindingVariableName => null;
 
         /// <summary>
-        /// 本行的编辑区是不是"<b>复合编辑区</b>"——不止一个输入控件，因此要独占整行宽度、
-        /// 不排标签列。事件行（S5）是第一个：勾选框 + 一张动作表，塞进 82px 标签列旁边
+        /// 本行的编辑区形态（见 <see cref="ScadaRowEditorKind"/>）。事件行与动画行不止一个输入控件，
+        /// 因此要独占整行宽度、不排标签列——勾选框 + 一张动作表（或档位卡片）塞进 82px 标签列旁边
         /// 那条窄格里根本没法用。
         ///
-        /// 默认 <c>false</c>：绝大多数属性行就是"标签 + 一个编辑器"，不该为少数派付代价。
-        /// 面板据此在 <c>PropertyRow</c> 里整份换模板——判据是<b>行的自述</b>而不是行类型，
-        /// 与编辑器按 <see cref="Kind"/> 分流是同一个手法（那个文件刻意不认自定义类型）。
+        /// 默认 <see cref="ScadaRowEditorKind.Inline"/>：绝大多数属性行就是"标签 + 一个编辑器"，
+        /// 不该为少数派付代价。面板据此在 <c>PropertyRow</c> 里整份换模板——判据是<b>行的自述</b>
+        /// 而不是行类型，与编辑器按 <see cref="Kind"/> 分流是同一个手法（那个文件刻意不认自定义类型）。
         /// </summary>
-        public virtual bool IsCompositeEditor => false;
+        public virtual ScadaRowEditorKind EditorKind => ScadaRowEditorKind.Inline;
 
         /// <summary>悬停说明</summary>
         public string? Description => Spec.Description;
@@ -144,7 +255,13 @@ namespace VisionMaster.ViewModels
                     // 让他就地改完；把输入框抹回旧值等于当着他的面擦掉他打的东西。
                     _value = text;
                     RaisePropertyChanged(nameof(Value));
-                    SetError(Kind == ElementPropertyKind.Number ? "请输入数字（小数点用 . ，不用千分位）" : null);
+
+                    // 数字框的失败原因是能替用户说清的（打的是字母）；其它类型的失败原因
+                    // 只有行自己知道（图层名对不上、变量找不到…），Commit 已经写进 _error 了，
+                    // 这里不能再抹一次——抹成 null 就成了"标红了却说不清为什么"。
+                    if (Kind == ElementPropertyKind.Number)
+                        SetError("请输入数字（小数点用 . ，不用千分位）");
+
                     return;
                 }
 
@@ -181,6 +298,93 @@ namespace VisionMaster.ViewModels
                 ? brush
                 : FallbackSwatch;
 
+        // ---- 取色板（S10）----
+        // 只有 Kind == Color 的行会用到，但成员放在基类：EditColor 模板是图元行与画面行
+        // 共用的一份，写在派生类里就得写两遍（与 HasBinding 放在基类是同一个理由）。
+        // 面板里其余类型的行白白多挂三个命令对象，代价可以忽略。
+
+        /// <summary>
+        /// 取色板弹窗开着没有。色块（ToggleButton）与弹窗（Popup）绑的是同一个状态，
+        /// 一个状态两个视图——不必再来一个"打开取色板"的命令。
+        /// </summary>
+        public bool IsColorPickerOpen
+        {
+            get => _isColorPickerOpen;
+            set
+            {
+                if (_isColorPickerOpen == value) return;
+                _isColorPickerOpen = value;
+
+                // 每次打开都重新起草：面板是模型的一个视图，上一次关窗时留下的草稿
+                // 可能已经被 Ctrl+Z 撤掉、或被画布上的操作改过，留着它就是第二份状态。
+                if (value) ColorDraft = _value;
+
+                RaisePropertyChanged(nameof(IsColorPickerOpen));
+            }
+        }
+
+        /// <summary>取色板的预设色（冻结的，见 <see cref="PaletteCells"/>）</summary>
+        public IReadOnlyList<SolidColorBrush> ColorPalette => PaletteCells;
+
+        /// <summary>
+        /// 取色板里的<b>草稿</b>（#AARRGGBB）。为什么要有草稿：一次提交 = 一条撤销记录，
+        /// 而"拖一下透明度、连点几格看看"是取色时的常态，即时写回模型等于把撤销栈灌满、
+        /// 把 Ctrl+Z 废掉。所以弹窗里改的全是它，点「确定」才经 <see cref="Value"/>
+        /// 落到模型（那时才产生唯一的一条撤销记录）。
+        /// </summary>
+        public string ColorDraft
+        {
+            get => _colorDraft;
+            set
+            {
+                string text = value ?? string.Empty;
+                if (string.Equals(text, _colorDraft, StringComparison.Ordinal)) return;
+
+                _colorDraft = text;
+                RaisePropertyChanged(nameof(ColorDraft));
+                RaisePropertyChanged(nameof(ColorDraftBrush));
+                // 透明度滑块跟着十六进制框走：手打 "#80…" 时滑块也该跳到 128，
+                // 否则两个控件各说各话（草稿串是唯一真相，滑块只是它的一个视图）。
+                RaisePropertyChanged(nameof(ColorDraftAlpha));
+            }
+        }
+
+        /// <summary>
+        /// 草稿的透明度（0..255）。取值是把 <see cref="ColorDraft"/> 的 AA 段读出来，
+        /// 赋值是把它改写回同一个草稿串——<b>不另存一份 alpha 字段</b>，那才会真的劈叉。
+        /// </summary>
+        public double ColorDraftAlpha
+        {
+            get => TryColor(_colorDraft, out var color) ? color.A : 255d;
+            set
+            {
+                if (!TryColor(_colorDraft, out var color))
+                {
+                    // 草稿现在不是个颜色（用户正打到 "#3B8" 这种半截串）。这里绝不把文本抹成
+                    // 一个默认色——"把输入框抹回旧值等于当着他的面擦掉他打的东西"——只把滑块弹回去，
+                    // 如实告诉他"这串现在没有透明度可言"。
+                    RaisePropertyChanged(nameof(ColorDraftAlpha));
+                    return;
+                }
+
+                byte alpha = (byte)Math.Max(0d, Math.Min(255d, Math.Round(value)));
+                ColorDraft = Format(Color.FromArgb(alpha, color.R, color.G, color.B));
+            }
+        }
+
+        /// <summary>草稿的预览色块（解析不出来时同样用灰，与 <see cref="SwatchBrush"/> 一个口径）</summary>
+        public Brush ColorDraftBrush
+            => TryColor(_colorDraft, out var color) ? Frozen(color) : FallbackSwatch;
+
+        /// <summary>点预设色格：<c>CommandParameter</c> 是 <see cref="Color"/></summary>
+        public DelegateCommand<object> PickColorCommand { get; }
+
+        /// <summary>「确定」：把草稿写回模型</summary>
+        public DelegateCommand ApplyColorCommand { get; }
+
+        /// <summary>「取消」：丢掉草稿（草稿从没进过模型，所以没什么要还原的）</summary>
+        public DelegateCommand CancelColorCommand { get; }
+
         /// <summary>从模型读当前值（图元行走 <see cref="ElementValueAccess"/>，画面行走声明里的委托）</summary>
         protected abstract string Read();
 
@@ -193,8 +397,9 @@ namespace VisionMaster.ViewModels
         /// 外部写入（画布拖动改 X/Y、顶栏改网格、图层改名、S4 的绑定刷新）都汇到这一条路上来，
         /// 于是面板不会有"自己的第二份值"——它永远是模型的一个视图。
         ///
-        /// 声明为 <c>virtual</c> 只为一件事：复合编辑区（<see cref="IsCompositeEditor"/>）除了
-        /// 回读那一个值，还得把整块子结构的状态一起通知出去（事件行的动作表就是这么来的）。
+        /// 声明为 <c>virtual</c> 只为一件事：复合编辑区（<see cref="ScadaRowEditorKind.Event"/> /
+        /// <see cref="ScadaRowEditorKind.Animation"/>）除了回读那一个值，还得把整块子结构的状态
+        /// 一起通知出去（事件行的动作表、动画行的档位卡片就是这么来的）。
         /// 派生类覆写时<b>必须先调 <c>base</c></b>，否则连值都不回读了。
         /// </summary>
         public virtual void RefreshValue()
@@ -225,7 +430,12 @@ namespace VisionMaster.ViewModels
             return null;
         }
 
-        private void SetError(string? error)
+        /// <summary>
+        /// 记下/清掉本行的校验提示（<c>null</c> = 没问题）。
+        /// <c>protected</c> 是给派生类用的：失败的<b>原因</b>只有行自己说得清
+        /// （数字框打字母、图层名对不上…），基类替它写死一句只会说错话。
+        /// </summary>
+        protected void SetError(string? error)
         {
             if (string.Equals(_error, error, StringComparison.Ordinal)) return;
 
@@ -267,6 +477,69 @@ namespace VisionMaster.ViewModels
         /// </summary>
         protected static bool TryNumber(string text, out double value)
             => double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+
+        // ---- 取色板的私有部分 ----
+
+        private void OnPickColor(object parameter)
+        {
+            if (parameter is not Color color) return;
+
+            // 预设色都是不透明的，但保留用户已经调好的透明度：
+            // "先调到 50% 再挨个色看看效果"是取色时最常见的用法，每换一格就弹回不透明
+            // 等于每次都得重拖一遍滑块。
+            byte alpha = TryColor(_colorDraft, out var current) ? current.A : (byte)255;
+            ColorDraft = Format(Color.FromArgb(alpha, color.R, color.G, color.B));
+        }
+
+        private void OnApplyColor()
+        {
+            // 走 Value 而不是自己调 ElementValueAccess.Write：撤销作用域、失败标红、
+            // 回填模型规范值这三件事都在 Value 的 setter 里，绕过它就是各抄一遍。
+            // 顺带一条：草稿与当前值相同时 Value 会提前返回，不产生空的撤销记录。
+            Value = _colorDraft;
+            IsColorPickerOpen = false;
+        }
+
+        private void OnCancelColor() => IsColorPickerOpen = false;
+
+        /// <summary>
+        /// 把模型里的颜色串解成四个通道。
+        ///
+        /// 这里用 <see cref="ColorConverter"/> 而不是 <see cref="BrushConverter"/>：要的是通道值，
+        /// 拿一支画刷还得再判类型。<see cref="SwatchBrush"/> 那边坚持用 BrushConverter 是另一回事
+        /// ——它要的正是"画布上会填成什么样"的那支画刷。
+        ///
+        /// <c>internal static</c> 给 <see cref="ScadaColorSlot"/> 复用：解析规则只许有一份，
+        /// 否则"图元填充色"认得 <c>Red</c>、"档位背景色"不认得，同一串值两处两样。
+        /// </summary>
+        internal static bool TryColor(string? text, out Color color)
+        {
+            color = Colors.Transparent;
+            if (string.IsNullOrWhiteSpace(text)) return false;
+
+            try
+            {
+                if (ColorConverter.ConvertFromString(text.Trim()) is Color parsed)
+                {
+                    color = parsed;
+                    return true;
+                }
+            }
+            catch (NotSupportedException)
+            {
+                // 与 TryBrush 同口径：非法输入在属性面板里是常态而不是程序错误
+            }
+            catch (FormatException)
+            {
+                // "#GGG" 这种"看着像颜色、实际非法"的串会走到这里
+            }
+
+            return false;
+        }
+
+        /// <summary>把颜色写成模型认的文本形态（#AARRGGBB，即 <c>ElementPropertyKind.Color</c> 的约定）</summary>
+        internal static string Format(Color color)
+            => $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 
     /// <summary>
@@ -322,7 +595,14 @@ namespace VisionMaster.ViewModels
                 return false;
             }
 
-            ElementValueAccess.Write(Element, Key, text);
+            // 一次提交 = 一条撤销记录（S9-d）。作用域必须罩在 Write 外面：
+            // 几何键走的是 X/Y/Width/Height 的强类型 setter，属性袋键走 SetProperty(key, value)，
+            // 两条路都只在"有活动作用域"时才被记进撤销栈。
+            using (Element.BeginEdit($"修改 {Descriptor.DisplayName}"))
+            {
+                ElementValueAccess.Write(Element, Key, text);
+            }
+
             return true;
         }
 
@@ -389,28 +669,38 @@ namespace VisionMaster.ViewModels
                 return false;
             }
 
-            Spec.Write(Page, Document, text);
+            // 同图元行：作用域要罩住 Write。画面行里少数几项的真值在方案上（如「启动画面」写的是
+            // ScadaDocument.StartupPageId），所以作用域开在画面上——它是这两条路的共同祖先，
+            // 而 ScadaChangeScope 本来就是线程级的，开在谁身上不影响记录内容。
+            using (Page.BeginEdit($"修改 {Spec.DisplayName}"))
+            {
+                Spec.Write(Page, Document, text);
+            }
+
             return true;
         }
     }
 
     /// <summary>
     /// 事件行的声明（S5）：事件不是属性袋里的键、也不落盘成属性——它的真值就在
-    /// <see cref="ScadaElement.EventHooks"/> 里有没有对应的那条钩子。声明存在的唯一目的，
+    /// 宿主的 <see cref="IScadaEventHost.EventHooks"/> 里有没有对应的那条钩子。声明存在的唯一目的，
     /// 是让 <see cref="ScadaEventRow"/> 能顺着 <see cref="ScadaPropertyRowBase"/> 的既有通道
     /// （Kind/DisplayName/Description）进同一个面板模板，而不是为事件单开一套 UI。
     ///
-    /// 每种事件一份共享实例：声明本身无状态（读哪条钩子由行实例钉住），行对象才是一次
-    /// 选中一份。与 <see cref="GeometryProperties.Standard"/> 跨图元共享同一个道理。
+    /// <b>分组为什么是构造参数而不是写死的常量</b>：同一个事件类型在不同宿主上的归属不同——
+    /// 图元事件自成一「事件」组（图元面板的最后一组），画面事件落在「运行」组
+    /// （与「启动画面」同处：都是"这一页跑起来是什么样"）。分组不是事件自身的属性，
+    /// 而是"这类宿主的事件长在哪儿"的陈述，所以由调用方按自己那份清单给。
     /// </summary>
     internal sealed class ScadaEventSpec : IPropertySpec
     {
         /// <summary>本行对应的组态事件</summary>
         public ScadaEventType EventType { get; }
 
-        public ScadaEventSpec(ScadaEventType eventType)
+        public ScadaEventSpec(ScadaEventType eventType, string group)
         {
             EventType = eventType;
+            Group = group;
             Key = $"Event.{(int)eventType}";
             // 显示名与运行日志里的「· 按下」「· 加载完成」同一个出处：
             // 面板上勾的那一行和日志里出现的那一行必须对得上号，否则用户对不上"我配的"和"响的"
@@ -423,7 +713,7 @@ namespace VisionMaster.ViewModels
 
         public ElementPropertyKind Kind => ElementPropertyKind.Bool;
 
-        public string Group => "事件";
+        public string Group { get; }
 
         public string? Description =>
             "勾选后，运行态命中该事件时按顺序执行这个事件下面配置的动作（新建时自动带一条\"记录日志\"便于验证）。设计态点击不触发";
@@ -459,90 +749,640 @@ namespace VisionMaster.ViewModels
 
     /// <summary>
     /// 属性面板的一行<b>事件</b>（S5）：一个勾选框 = "这个事件有没有配钩子"，
-    /// 勾上之后在原地内联展开一张<b>动作表</b>（增 / 删 / 改类型 / 改日志文案 / 调顺序）。
+    /// 勾上之后在原地内联展开一张<b>动作表</b>。
     ///
-    /// 为什么不复用 <see cref="ScadaPropertyRow"/>：事件不走 <see cref="ElementValueAccess"/>
-    /// （属性袋/几何键那套分叉判断与事件无关，硬塞一个假键进去等于污染那条唯一通道）。
-    /// 与画面行的取舍一致——读写逻辑各自一小段，值语义/标红/回填全部继承基类。
+    /// <b>本行现在只是一层"适配器"</b>：真正的编辑逻辑（勾选语义、增删改序、选变量/选画面）
+    /// 全部住在 <see cref="ScadaEventEditorViewModel"/> 里，由公共控件
+    /// <c>Views.Controls.ScadaEventEditor</c> 呈现。本行保留同名同签名的转发成员，
+    /// 是因为它还背着 <see cref="ScadaPropertyRowBase"/> 的既有通道
+    /// （<see cref="ScadaRowEditorKind"/> / <c>Value</c> / <c>BoolValue</c>），
+    /// 面板模板与既有断言都还认这些名字。
     ///
-    /// 勾上 = 建钩子并自动补一条默认「记录日志」动作：空动作表在执行侧等同没配
-    /// （<see cref="ScadaRuntime.RaiseElementEvent"/> 的第三道闸门），
-    /// 不补的话用户勾完立刻去运行，看到的就是"点了没反应"，那比勾不上更伤信任。
-    /// 取消勾选 = 整条钩子（连同它下面的动作）一起摘掉，与画面级「加载事件」同一口径。
+    /// 为什么要抽出去：同一套编辑逻辑现在有两个消费者——属性面板的事件行（图元事件、画面事件）
+    /// 与独立的「变量事件」弹窗（变量级 5 类事件）。抽公共控件后两边共用一份，
+    /// 不再各写一遍"勾选建钩子""增删动作""调次序"。
     ///
-    /// 设计期只有数据进出，<b>绝不执行动作</b>：这里是改模型，动作执行是运行态会话的事
-    /// （第一道闸门 <c>IsRunning == false</c> 兜底，双保险）。
-    ///
-    /// <b>动作表为什么直接双向绑到模型对象</b>（而不是像别的行那样"读成文本、写回时解析"）：
-    /// 动作本来就是有变更通知的模型对象（<see cref="ScadaAction"/>），它没有"文本形态"这回事，
-    /// 也不存在"用户打的字模型接不接"的歧义——下拉框选中的是枚举、日志文案就是原样的字符串。
-    /// 中间再套一层行视图模型，只会多出一份要同步的影子状态。
-    ///
-    /// <b>顺序有语义</b>：执行侧按 <see cref="ScadaEventHook.Actions"/> 的集合顺序依次执行，
-    /// 所以"上移/下移"不是排版功能，是在改运行行为——第一版就把它做进来。
+    /// <b>图元与画面共用这一行</b>（S5 起图元、S3-e4 起画面）：宿主收成 <see cref="IScadaEventHost"/>，
+    /// 两者的差别只剩两处，且都不在这行里：① 事件清单从哪来（图元是 <see cref="ElementDescriptor.Events"/>、
+    /// 画面是 <see cref="ScadaPageEvents.All"/>）；② 落在哪一组（构造时给，见 <see cref="ElementGroup"/>）。
     /// </summary>
     public sealed class ScadaEventRow : ScadaPropertyRowBase
     {
-        /// <summary>每种事件一份声明（含将来 S6/S8 追加的事件，枚举扩展时自动带上）</summary>
-        private static readonly IReadOnlyDictionary<ScadaEventType, ScadaEventSpec> Specs
-            = Enum.GetValues<ScadaEventType>().ToDictionary(t => t, t => new ScadaEventSpec(t));
+        /// <summary>
+        /// 图元事件行的分组名。画面事件另有归属（<see cref="ScadaPageEvents.Group"/> =「运行」），
+        /// 所以分组是构造参数而不是常量——理由见 <see cref="ScadaEventSpec"/> 的类注释。
+        /// </summary>
+        public const string ElementGroup = "事件";
 
-        /// <summary>动作类型下拉的全部候选（枚举扩展时自动带上，与 <see cref="Specs"/> 同一手法）</summary>
-        private static readonly IReadOnlyList<ScadaActionTypeOption> TypeChoices
-            = Enum.GetValues<ScadaActionType>().Select(t => new ScadaActionTypeOption(t)).ToArray();
+        /// <param name="host">本行勾选的目标宿主：图元或画面，见 <see cref="IScadaEventHost"/></param>
+        /// <param name="group">本行落在哪一组（图元事件用 <see cref="ElementGroup"/>，画面事件用 <see cref="ScadaPageEvents.Group"/>）</param>
+        public ScadaEventRow(IScadaEventHost host, ScadaEventType eventType, string group, IScadaVariablePicker picker, IScadaPagePicker pagePicker)
+            : base(new ScadaEventSpec(eventType, group),
+                   (host ?? throw new ArgumentNullException(nameof(host))).FindEventHook(eventType) != null
+                       ? "True" : "False")
+        {
+            // 显示名与悬停说明沿用声明里的那一份：面板上勾的那一行和运行日志里出现的那一行
+            // 必须对得上号，否则用户对不上"我配的"和"响的"。
+            Editor = new ScadaEventEditorViewModel(host, eventType, DisplayName, Description, picker, pagePicker);
 
-        public ScadaEventRow(ScadaElement element, ScadaEventType eventType, IScadaVariablePicker picker)
-            : base(Specs[eventType],
-                   (element ?? throw new ArgumentNullException(nameof(element))).FindEventHook(eventType) != null
+            // 本行仍是"面板面向的那张脸"：编辑器对外状态（动作表整块、命令可用性）一变就转出去，
+            // 既有的绑定与断言（认 ScadaEventRow.Actions / HasActions）不必知道底下换了实现。
+            // 只转本行真有的名字——IsConfigured 是编辑器内部的勾选框真值，行上没有这一格。
+            Editor.PropertyChanged += OnEditorPropertyChanged;
+        }
+
+        private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ScadaEventEditorViewModel.Actions)
+                || e.PropertyName == nameof(ScadaEventEditorViewModel.HasActions))
+            {
+                // 两个名字与行上的同名属性逐字相同，所以直接转字符串即可。
+                RaisePropertyChanged(e.PropertyName);
+            }
+        }
+
+        /// <summary>真正的编辑逻辑（公共控件绑的就是它）</summary>
+        public ScadaEventEditorViewModel Editor { get; }
+
+        /// <summary>本行勾选的目标宿主（转手 <see cref="Editor"/>，保留是为了既有读法）</summary>
+        public IScadaEventHost Host => Editor.Host;
+
+        /// <summary>本行对应的组态事件</summary>
+        public ScadaEventType EventType => Editor.EventType;
+
+        /// <summary>复合编辑区（开关 + 动作表），面板据此整份换模板</summary>
+        public override ScadaRowEditorKind EditorKind => ScadaRowEditorKind.Event;
+
+        /// <summary>本事件已配的动作表；没配钩子时为 <c>null</c>（口径见 <see cref="ScadaEventEditorViewModel.Actions"/>）</summary>
+        public ObservableCollection<ScadaAction>? Actions => Editor.Actions;
+
+        /// <summary>有动作表可编辑（= 已勾上），驱动动作区的可见性</summary>
+        public bool HasActions => Editor.HasActions;
+
+        /// <summary>动作类型下拉的候选</summary>
+        public IReadOnlyList<ScadaActionTypeOption> ActionTypeChoices => Editor.ActionTypeChoices;
+
+        public DelegateCommand AddActionCommand => Editor.AddActionCommand;
+
+        public DelegateCommand<ScadaAction> RemoveActionCommand => Editor.RemoveActionCommand;
+
+        public DelegateCommand<ScadaAction> MoveActionUpCommand => Editor.MoveActionUpCommand;
+
+        public DelegateCommand<ScadaAction> MoveActionDownCommand => Editor.MoveActionDownCommand;
+
+        /// <summary>「选变量」：参数是那条写变量动作（弹窗确认后回填它的 Id 与名字）</summary>
+        public DelegateCommand<ScadaAction> PickVariableCommand => Editor.PickVariableCommand;
+
+        /// <summary>「选画面」：参数是那条切换画面动作（弹窗确认后回填它的 Id 与名字）</summary>
+        public DelegateCommand<ScadaAction> PickPageCommand => Editor.PickPageCommand;
+
+        protected override string Read() => Editor.ReadConfigured();
+
+        protected override bool Commit(string text) => Editor.CommitConfigured(text);
+
+        /// <summary>
+        /// 基类只回读"勾没勾上"这一个值；本行还要把动作表整块的对外状态一起通知出去
+        /// （动作集合与其中任意一条的属性变更，都会经钩子 → 宿主 → 面板汇到这条路上来）。
+        /// </summary>
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+            Editor.RefreshFromHost();
+        }
+    }
+
+    /// <summary>
+    /// 动画行的声明（r4）：动画和事件一样，不是属性袋里的键、也不落盘成属性——它的真值就在
+    /// <see cref="ScadaElement.Animations"/> 里有没有对应类型的那一条。声明存在的唯一目的，
+    /// 是让 <see cref="ScadaAnimationRow"/> 顺着 <see cref="ScadaPropertyRowBase"/> 的既有通道
+    /// （Kind/DisplayName/Description）进同一个面板模板，而不是为动画单开一套 UI。
+    ///
+    /// <see cref="Kind"/> 报 <see cref="ElementPropertyKind.Bool"/>：本行那个勾选框问的是
+    /// "这条动画配没配"（勾上 = <see cref="ScadaElement.GetOrAddAnimation"/>，取消 =
+    /// <see cref="ScadaElement.RemoveAnimation"/>），与事件行的"这个事件有没有配钩子"逐字同一语义。
+    /// "跑不跑"是另一件事，由展开区里那颗「启用」复选框绑 <see cref="ScadaAnimation.IsEnabled"/> 管。
+    ///
+    /// <see cref="Group"/> 是常量而不是构造参数（对比 <see cref="ScadaEventSpec"/>）：动画只长在图元上
+    /// ——画面自己没有"会动"这回事，动的是图元——所以这一组只可能出现在图元面板里。
+    /// </summary>
+    internal sealed class ScadaAnimationSpec : IPropertySpec
+    {
+        /// <summary>图元动画行的分组名（画面没有这一组，所以不必像事件那样由调用方给）</summary>
+        public const string GroupName = "动画";
+
+        public ScadaAnimationSpec(ScadaAnimationType animationType)
+        {
+            AnimationType = animationType;
+            // 前缀刻意与属性键、事件键都不同：Key 是诊断与断言里认行的凭据，
+            // 撞上 "Fill" 这类真属性键会让"我改的是哪一行"变得说不清。
+            Key = $"Animation.{(int)animationType}";
+            // 显示名与运行日志里的动画名同一个出处（ScadaAnimationTypeExtensions.DisplayName）
+            DisplayName = animationType.DisplayName();
+        }
+
+        /// <summary>本行对应的动画类型</summary>
+        public ScadaAnimationType AnimationType { get; }
+
+        public string Key { get; }
+
+        public string DisplayName { get; }
+
+        public ElementPropertyKind Kind => ElementPropertyKind.Bool;
+
+        public string Group => GroupName;
+
+        public string? Description => AnimationType switch
+        {
+            ScadaAnimationType.Appearance =>
+                "勾选后按「值 → 外观」的多档表改变图元的前景色/背景色/闪烁；自上而下先命中先用，一档都不命中则恢复设计外观",
+            ScadaAnimationType.HorizontalMove =>
+                "勾选后按驱动变量的值在范围内线性改变图元的 X；起始位置就是图元当前的 X，不可编辑",
+            ScadaAnimationType.VerticalMove =>
+                "勾选后按驱动变量的值在范围内线性改变图元的 Y；起始位置就是图元当前的 Y，不可编辑",
+            ScadaAnimationType.Visibility =>
+                "勾选后变量值命中范围时按「对象状态」显示或隐藏；不命中时不接管可见性，交回图层判定",
+            _ => "勾选后运行态按驱动变量的值改变图元的显示",
+        };
+
+        public bool IsBindable => false;
+
+        public double Min => double.NegativeInfinity;
+
+        public double Max => double.PositiveInfinity;
+
+        public IReadOnlyList<string> Choices => Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// 取色器的一格"槽"：把"一个颜色通道 + 它的弹窗状态"打包成一个可绑对象。
+    ///
+    /// 为什么要有它、而不是像属性行那样把取色状态摊在行上：动画档位卡片<b>一档就有两个颜色通道</b>
+    /// （前景、背景），一条动画上又有若干档——摊在行上就成了 2N 份成员，而 N 是用户随时会变的数。
+    /// 打包成一格之后，档位卡片只需两个属性（<see cref="ScadaAnimationStateViewModel.ForegroundSlot"/>
+    /// 与 <see cref="ScadaAnimationStateViewModel.FillSlot"/>），增删档位不再牵动任何成员声明。
+    ///
+    /// 对外成员名与 <see cref="ScadaPropertyRowBase"/> 的取色器<b>逐字相同</b>
+    /// （IsColorPickerOpen / ColorPalette / ColorDraft / ColorDraftAlpha / ColorDraftBrush /
+    /// PickColorCommand / ApplyColorCommand / CancelColorCommand）：XAML 里那份取色弹窗体
+    /// （<c>ColorPickerBody</c>）因此只有一份，属性行与档位卡片共用——同一块色板、同一套草稿语义、
+    /// 同一个"点确定才产生一条撤销记录"。
+    /// </summary>
+    public sealed class ScadaColorSlot : BindableBase
+    {
+        private readonly Func<string?> _read;
+        private readonly Action<string?> _write;
+        private bool _isOpen;
+        private string _draft = string.Empty;
+
+        /// <param name="label">本槽在卡片上怎么称呼自己（"前景"/"背景"）</param>
+        /// <param name="read">从模型读当前颜色串（<c>null</c>/空串 = 本档不改这个通道）</param>
+        /// <param name="write">把颜色串写回模型；<b>实现方负责开作用域</b>（见 <see cref="ScadaAnimationState.BeginEdit"/>）</param>
+        public ScadaColorSlot(string label, Func<string?> read, Action<string?> write)
+        {
+            Label = label ?? string.Empty;
+            _read = read ?? throw new ArgumentNullException(nameof(read));
+            _write = write ?? throw new ArgumentNullException(nameof(write));
+
+            PickColorCommand = new DelegateCommand<object>(OnPickColor);
+            ApplyColorCommand = new DelegateCommand(OnApplyColor);
+            CancelColorCommand = new DelegateCommand(OnCancelColor);
+            ClearCommand = new DelegateCommand(OnClear, () => HasColor);
+        }
+
+        /// <summary>本槽的名字（"前景"/"背景"），卡片上那行小字用它</summary>
+        public string Label { get; }
+
+        /// <summary>本槽配了颜色没有（没配时色块画成灰，并在悬停提示里说明）</summary>
+        public bool HasColor => !string.IsNullOrWhiteSpace(_read());
+
+        /// <summary>
+        /// 本槽当前颜色的色块。解析不出来（含"还没配"）时用 <see cref="ScadaPropertyRowBase.FallbackSwatch"/>，
+        /// 与属性行的色块同一个口径——同一张面板上两处颜色控件对同一串坏值必须给出同一种观感。
+        /// </summary>
+        public Brush SwatchBrush
+            => ScadaPropertyRowBase.TryColor(_read(), out var color)
+                ? ScadaPropertyRowBase.Frozen(color)
+                : ScadaPropertyRowBase.FallbackSwatch;
+
+        /// <summary>色块与弹窗绑的同一个状态（一个状态两个视图，不必再来一个"打开取色板"的命令）</summary>
+        public bool IsColorPickerOpen
+        {
+            get => _isOpen;
+            set
+            {
+                if (_isOpen == value) return;
+                _isOpen = value;
+
+                // 每次打开都重新起草：上一次关窗留下的草稿可能已被 Ctrl+Z 撤掉、或被画布改过，
+                // 留着它就是第二份状态（与属性行的取色器同一口径）。
+                if (value) ColorDraft = _read() ?? string.Empty;
+
+                RaisePropertyChanged(nameof(IsColorPickerOpen));
+            }
+        }
+
+        /// <summary>取色板的预设色（与属性行共用同一份冻结色板）</summary>
+        public IReadOnlyList<SolidColorBrush> ColorPalette => ScadaPropertyRowBase.PaletteCells;
+
+        /// <summary>
+        /// 取色板里的草稿（#AARRGGBB）。草稿<b>不进模型</b>：一次提交 = 一条撤销记录，
+        /// 而"拖一下透明度、连点几格看看"是取色时的常态，即时写回等于把 Ctrl+Z 废掉。
+        /// </summary>
+        public string ColorDraft
+        {
+            get => _draft;
+            set
+            {
+                string text = value ?? string.Empty;
+                if (string.Equals(text, _draft, StringComparison.Ordinal)) return;
+
+                _draft = text;
+                RaisePropertyChanged(nameof(ColorDraft));
+                RaisePropertyChanged(nameof(ColorDraftBrush));
+                // 透明度滑块跟着十六进制框走：手打 "#80…" 时滑块也该跳到 128，
+                // 否则两个控件各说各话（草稿串是唯一真相，滑块只是它的一个视图）。
+                RaisePropertyChanged(nameof(ColorDraftAlpha));
+            }
+        }
+
+        /// <summary>草稿的透明度（0..255）。取值读草稿串的 AA 段，赋值把它改写回同一个草稿串——不另存字段</summary>
+        public double ColorDraftAlpha
+        {
+            get => ScadaPropertyRowBase.TryColor(_draft, out var color) ? color.A : 255d;
+            set
+            {
+                if (!ScadaPropertyRowBase.TryColor(_draft, out var color))
+                {
+                    // 草稿现在不是个颜色（用户正打到 "#3B8" 这种半截串）。绝不把文本抹成默认色——
+                    // 那等于当着他的面擦掉他打的东西——只把滑块弹回去。
+                    RaisePropertyChanged(nameof(ColorDraftAlpha));
+                    return;
+                }
+
+                byte alpha = (byte)Math.Max(0d, Math.Min(255d, Math.Round(value)));
+                ColorDraft = ScadaPropertyRowBase.Format(Color.FromArgb(alpha, color.R, color.G, color.B));
+            }
+        }
+
+        /// <summary>草稿的预览色块（解析不出来时同样用灰）</summary>
+        public Brush ColorDraftBrush
+            => ScadaPropertyRowBase.TryColor(_draft, out var color)
+                ? ScadaPropertyRowBase.Frozen(color)
+                : ScadaPropertyRowBase.FallbackSwatch;
+
+        /// <summary>点预设色格：<c>CommandParameter</c> 是 <see cref="Color"/></summary>
+        public DelegateCommand<object> PickColorCommand { get; }
+
+        /// <summary>「确定」：把草稿写回模型（这一步才产生撤销记录）</summary>
+        public DelegateCommand ApplyColorCommand { get; }
+
+        /// <summary>「取消」：丢掉草稿（草稿从没进过模型，所以没什么要还原的）</summary>
+        public DelegateCommand CancelColorCommand { get; }
+
+        /// <summary>
+        /// 「清除」：把本槽的颜色从模型里抹掉。
+        ///
+        /// 为什么必须有它、而不是"把色块调成透明就行"：一档完全可以只配背景色不配前景色，
+        /// 而"没配"和"配成了全透明"在运行态是两回事（前者不动图元原来的前景色，后者把它涂成看不见）。
+        /// 属性行的颜色<b>不</b>给这个按钮（那些属性在描述符里有默认值，清空等于写个坏值进 .vms）。
+        /// </summary>
+        public DelegateCommand ClearCommand { get; }
+
+        /// <summary>模型那边这个通道变了（Ctrl+Z / 别处改）→ 重播色块与「清除」的可用性</summary>
+        public void Refresh()
+        {
+            RaisePropertyChanged(nameof(HasColor));
+            RaisePropertyChanged(nameof(SwatchBrush));
+            ClearCommand.RaiseCanExecuteChanged();
+        }
+
+        private void OnPickColor(object parameter)
+        {
+            if (parameter is not Color color) return;
+
+            // 预设色都是不透明的，但保留用户已经调好的透明度：
+            // "先调到 50% 再挨个色看看效果"是取色时最常见的用法，每换一格就弹回不透明
+            // 等于每次都得重拖一遍滑块。
+            byte alpha = ScadaPropertyRowBase.TryColor(_draft, out var current) ? current.A : (byte)255;
+            ColorDraft = ScadaPropertyRowBase.Format(Color.FromArgb(alpha, color.R, color.G, color.B));
+        }
+
+        private void OnApplyColor()
+        {
+            _write(_draft);
+            IsColorPickerOpen = false;
+        }
+
+        private void OnCancelColor() => IsColorPickerOpen = false;
+
+        private void OnClear()
+        {
+            _write(null);
+            IsColorPickerOpen = false;
+        }
+    }
+
+    /// <summary>
+    /// 动画档位卡片的一档：「值/值域 → 一套外观」。
+    ///
+    /// 为什么要有这层包装，而不像动作表那样直接双向绑到模型对象（<see cref="ScadaAction"/>）：
+    /// 一档上要挂<b>两个取色器的开合与草稿状态</b>，那是纯粹的界面状态，不该落进 .vms
+    /// （模型里只该有选好的颜色，不该有"弹窗开着没有"）。包装层同时钉住
+    /// "<b>按模型实例复用</b>"这条纪律（见 <see cref="ScadaAnimationRow.SyncStates"/>）：
+    /// 每次回填都新建包装对象的话，用户在"值下限"里按 Tab 提交会触发一次面板回填，
+    /// 输入框被重建、焦点丢掉——而 Tab 到下一格正是这里最常用的操作。
+    ///
+    /// <b>不订阅模型</b>：档位内容的每一次变更都会经 <see cref="ScadaAnimation.OnStatesChanged"/>
+    /// → <see cref="ScadaElement"/> 的 <c>Animations</c> 变更 → 面板 <c>RefreshValue</c> 汇过来，
+    /// 由 <see cref="Refresh"/> 统一重播。自己再挂一份订阅只会多一条要摘的链
+    /// （面板每次重建行都会换一批包装对象，摘漏一条就是一处泄漏）。
+    /// </summary>
+    public sealed class ScadaAnimationStateViewModel : BindableBase
+    {
+        public ScadaAnimationStateViewModel(ScadaAnimationState state)
+        {
+            State = state ?? throw new ArgumentNullException(nameof(state));
+
+            // 两个颜色通道各占一格。写回统一走 BeginEdit：拖滑块/点色格改的是草稿，
+            // 点「确定」那一下才写模型，于是"配一个颜色"永远只产生一条撤销记录。
+            ForegroundSlot = new ScadaColorSlot(
+                "前景",
+                () => State.Foreground,
+                text =>
+                {
+                    using (State.BeginEdit("档位前景色"))
+                        State.Foreground = text;
+                });
+
+            FillSlot = new ScadaColorSlot(
+                "背景",
+                () => State.Fill,
+                text =>
+                {
+                    using (State.BeginEdit("档位背景色"))
+                        State.Fill = text;
+                });
+        }
+
+        /// <summary>本卡片对应的模型档位</summary>
+        public ScadaAnimationState State { get; }
+
+        /// <summary>前景色那一格取色器</summary>
+        public ScadaColorSlot ForegroundSlot { get; }
+
+        /// <summary>背景色那一格取色器</summary>
+        public ScadaColorSlot FillSlot { get; }
+
+        /// <summary>
+        /// 值域下端点。两端存<b>字符串</b>（见 <see cref="ScadaAnimationState"/> 的类注释）：
+        /// 用户打到一半的 "1." 与空串都该原样留着，解析发生在求值那一刻。
+        /// 两端填一样 = 单点值，不一样 = 范围——没有"模式"字段要跟匹配逻辑对表。
+        /// </summary>
+        public string ValueLow
+        {
+            get => State.ValueLow;
+            set
+            {
+                using (State.BeginEdit("档位值域"))
+                    State.ValueLow = value;
+            }
+        }
+
+        /// <summary>值域上端点（闭区间；与下端点相同 = 单点值）</summary>
+        public string ValueHigh
+        {
+            get => State.ValueHigh;
+            set
+            {
+                using (State.BeginEdit("档位值域"))
+                    State.ValueHigh = value;
+            }
+        }
+
+        /// <summary>本档是否闪烁（运行态按统一节拍在"正常/变淡"之间切换）</summary>
+        public bool IsFlashing
+        {
+            get => State.IsFlashing;
+            set
+            {
+                if (State.IsFlashing == value) return;
+
+                using (State.BeginEdit("档位闪烁"))
+                    State.IsFlashing = value;
+            }
+        }
+
+        /// <summary>值域的展示文本（单点值显示成一个数，范围显示成 "低 ~ 高"）</summary>
+        public string RangeText => State.RangeText;
+
+        /// <summary>本档配了点什么的一句话摘要（卡片上不展开颜色弹窗也能看懂）</summary>
+        public string Detail => State.Detail;
+
+        /// <summary>模型变了就重播一遍——包括两个取色槽的色块</summary>
+        public void Refresh()
+        {
+            RaisePropertyChanged(nameof(ValueLow));
+            RaisePropertyChanged(nameof(ValueHigh));
+            RaisePropertyChanged(nameof(IsFlashing));
+            RaisePropertyChanged(nameof(RangeText));
+            RaisePropertyChanged(nameof(Detail));
+
+            ForegroundSlot.Refresh();
+            FillSlot.Refresh();
+        }
+    }
+
+    /// <summary>
+    /// 属性面板的一行<b>动画</b>（r4）：一个勾选框 = "这条动画配没配"，勾上之后在原地内联展开
+    /// 驱动变量选择 + 该类型自己的参数区（外观变化 = 档位卡片表；水平/垂直移动 = 范围 + 结束位置；
+    /// 可见性 = 范围 + 对象状态）。
+    ///
+    /// <b>两个勾各管一件事</b>：
+    /// <list type="bullet">
+    /// <item><b>外层</b>（本行的 <see cref="ScadaPropertyRowBase.BoolValue"/>）= 有没有配这条动画。
+    /// 勾上 = <see cref="ScadaElement.GetOrAddAnimation"/>，取消 = <see cref="ScadaElement.RemoveAnimation"/>
+    /// （连同配好的档位/范围一起丢）；</item>
+    /// <item><b>内层</b>（展开区里那颗「启用」）= 跑不跑，绑 <see cref="ScadaAnimation.IsEnabled"/>。
+    /// 停用只暂停运行、配置原样留着，与 <see cref="ScadaBinding.IsEnabled"/> 同一口径。</item>
+    /// </list>
+    /// 合成一个勾会逼用户二选一：要么"停不掉但配置留着"，要么"删了配置才能停"，两种都不对。
+    ///
+    /// 参数区直接双向绑模型对象（而不是"读成文本、写回时解析"）：与事件行的动作表同一个理由
+    /// ——<see cref="ScadaAnimation"/> 本身就是有变更通知的模型对象，范围/结束位置/可见状态
+    /// 都没有"文本形态"这回事。唯一例外是"值域"两端：模型上那两格刻意存字符串，所以卡片直接绑字符串。
+    /// </summary>
+    public sealed class ScadaAnimationRow : ScadaPropertyRowBase
+    {
+        /// <param name="element">本行配置动画的目标图元（动画只长在图元上，所以是具体类型而不是接口）</param>
+        /// <param name="type">本行对应的动画类型（一行一种，四种各一行）</param>
+        /// <param name="picker">「选变量」入口（弹窗怎么弹由这一层决定，见 <see cref="IScadaVariablePicker"/>）</param>
+        public ScadaAnimationRow(ScadaElement element, ScadaAnimationType type, IScadaVariablePicker picker)
+            : base(new ScadaAnimationSpec(type),
+                   (element ?? throw new ArgumentNullException(nameof(element))).FindAnimation(type) != null
                        ? "True" : "False")
         {
             Element = element;
-            EventType = eventType;
+            Type = type;
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
 
-            AddActionCommand = new DelegateCommand(OnAddAction);
-            RemoveActionCommand = new DelegateCommand<ScadaAction>(OnRemoveAction, a => IndexOf(a) >= 0);
-            MoveActionUpCommand = new DelegateCommand<ScadaAction>(a => OnMoveAction(a, -1), a => CanMove(a, -1));
-            MoveActionDownCommand = new DelegateCommand<ScadaAction>(a => OnMoveAction(a, +1), a => CanMove(a, +1));
-            PickVariableCommand = new DelegateCommand<ScadaAction>(OnPickVariable, a => a != null);
+            AddStateCommand = new DelegateCommand(OnAddState);
+            RemoveStateCommand = new DelegateCommand<ScadaAnimationStateViewModel>(OnRemoveState, v => v != null);
+            MoveStateUpCommand = new DelegateCommand<ScadaAnimationStateViewModel>(v => OnMoveState(v, -1), v => CanMove(v, -1));
+            MoveStateDownCommand = new DelegateCommand<ScadaAnimationStateViewModel>(v => OnMoveState(v, +1), v => CanMove(v, +1));
+            PickVariableCommand = new DelegateCommand(OnPickVariable, () => Animation != null);
+            ClearVariableCommand = new DelegateCommand(OnClearVariable, () => Animation is { HasVariable: true });
         }
 
-        /// <summary>「选变量」入口（弹窗怎么弹、弹哪个由这一层决定，见 IScadaVariablePicker）</summary>
+        /// <summary>「选变量」入口</summary>
         private readonly IScadaVariablePicker _picker;
 
-        /// <summary>本行勾选的目标图元</summary>
+        /// <summary>本行配置动画的目标图元</summary>
         public ScadaElement Element { get; }
 
-        /// <summary>本行对应的组态事件</summary>
-        public ScadaEventType EventType { get; }
+        /// <summary>本行对应的动画类型</summary>
+        public ScadaAnimationType Type { get; }
 
-        /// <summary>复合编辑区（开关 + 动作表），面板据此整份换模板</summary>
-        public override bool IsCompositeEditor => true;
+        /// <summary>复合编辑区（开关 + 参数区），面板据此整份换模板</summary>
+        public override ScadaRowEditorKind EditorKind => ScadaRowEditorKind.Animation;
 
         /// <summary>
-        /// 本事件已配的动作表；<b>没配钩子时为 <c>null</c></b>——"没有动作表"和"有一张空表"
-        /// 是两回事，前者是压根没配，后者是配了但把动作删光了。模板据此整块隐藏动作区。
+        /// 本行对应的那条动画；<b>没配时为 <c>null</c></b>——"没配这条动画"与"配了但把档位删光了"
+        /// 是两回事，模板据此整块收起参数区（与事件行的 <c>Actions</c> 同一手法）。
         /// </summary>
-        public ObservableCollection<ScadaAction>? Actions => Element.FindEventHook(EventType)?.Actions;
+        public ScadaAnimation? Animation => Element.FindAnimation(Type);
 
-        /// <summary>有动作表可编辑（= 已勾上），驱动动作区的可见性</summary>
-        public bool HasActions => Actions != null;
+        /// <summary>这条动画配了没有（外层复选框的当前态，也是参数区的可见性开关）</summary>
+        public bool HasAnimation => Animation != null;
 
-        /// <summary>动作类型下拉的候选（所有事件行共用同一份静态列表）</summary>
-        public IReadOnlyList<ScadaActionTypeOption> ActionTypeChoices => TypeChoices;
+        /// <summary>摘要（不展开也能看出这条动画在干什么）</summary>
+        public string Detail => Animation?.Detail ?? string.Empty;
 
-        public DelegateCommand AddActionCommand { get; }
+        /// <summary>本行显示哪一块参数区（类型是行的固有属性，不会变，所以不必通知）</summary>
+        public bool IsAppearance => Type == ScadaAnimationType.Appearance;
 
-        public DelegateCommand<ScadaAction> RemoveActionCommand { get; }
+        public bool IsHorizontalMove => Type == ScadaAnimationType.HorizontalMove;
 
-        public DelegateCommand<ScadaAction> MoveActionUpCommand { get; }
+        public bool IsVerticalMove => Type == ScadaAnimationType.VerticalMove;
 
-        public DelegateCommand<ScadaAction> MoveActionDownCommand { get; }
+        /// <summary>水平或垂直移动（两者的参数区形状相同，只差"结束位置"那个轴的标签）</summary>
+        public bool IsMove => IsHorizontalMove || IsVerticalMove;
 
-        /// <summary>「选变量」：参数是那条写变量动作（弹窗确认后回填它的 Id 与名字）</summary>
-        public DelegateCommand<ScadaAction> PickVariableCommand { get; }
+        public bool IsVisibility => Type == ScadaAnimationType.Visibility;
 
-        protected override string Read() => Element.FindEventHook(EventType) != null ? "True" : "False";
+        // ---- 外观变化：档位卡片表 ----
+
+        /// <summary>
+        /// 档位卡片表。<b>包装对象按模型实例复用</b>（见 <see cref="SyncStates"/>），
+        /// 所以回填不会把用户正在编辑的那一格重建掉。
+        /// </summary>
+        public ObservableCollection<ScadaAnimationStateViewModel> States { get; } = new();
+
+        public DelegateCommand AddStateCommand { get; }
+
+        public DelegateCommand<ScadaAnimationStateViewModel> RemoveStateCommand { get; }
+
+        public DelegateCommand<ScadaAnimationStateViewModel> MoveStateUpCommand { get; }
+
+        public DelegateCommand<ScadaAnimationStateViewModel> MoveStateDownCommand { get; }
+
+        // ---- 共用：驱动变量 + 启用 ----
+
+        /// <summary>「选变量」：把当前驱动变量交给选择器，选中后回填</summary>
+        public DelegateCommand PickVariableCommand { get; }
+
+        /// <summary>「清除」：断开驱动变量（动画本身与档位都留着）</summary>
+        public DelegateCommand ClearVariableCommand { get; }
+
+        /// <summary>驱动变量选没选（决定提示说"请先选变量"还是正常显示）</summary>
+        public bool HasVariable => Animation?.HasVariable ?? false;
+
+        /// <summary>驱动变量的展示名（没选时为 <c>null</c>）</summary>
+        public string? VariableDisplayName => Animation?.VariableDisplayName;
+
+        /// <summary>
+        /// 这条动画启不启用（展开区里那颗「启用」）。
+        /// 停用<b>不</b>动配置：不建表、不订阅、不刷值，与 <see cref="ScadaBinding.IsEnabled"/> 同一口径。
+        /// </summary>
+        public bool IsEnabled
+        {
+            get => Animation?.IsEnabled ?? false;
+            set
+            {
+                if (Animation is not { } animation || animation.IsEnabled == value) return;
+
+                using (animation.BeginEdit(value ? "启用动画" : "停用动画"))
+                    animation.IsEnabled = value;
+            }
+        }
+
+        // ---- 移动 / 可见性：范围与端点 ----
+
+        /// <summary>范围下端点（手册里的"范围值1"）：变量值 ≤ 它 → 停在起始位置 / 不命中</summary>
+        public string RangeLow
+        {
+            get => Animation?.RangeLow ?? string.Empty;
+            set
+            {
+                if (Animation is not { } animation) return;
+
+                using (animation.BeginEdit("动画范围下限"))
+                    animation.RangeLow = value;
+            }
+        }
+
+        /// <summary>范围上端点（手册里的"范围值2"）：变量值 ≥ 它 → 停在结束位置</summary>
+        public string RangeHigh
+        {
+            get => Animation?.RangeHigh ?? string.Empty;
+            set
+            {
+                if (Animation is not { } animation) return;
+
+                using (animation.BeginEdit("动画范围上限"))
+                    animation.RangeHigh = value;
+            }
+        }
+
+        /// <summary>水平移动的结束位置 X（绝对坐标）。文本形态便于"打到一半"，解析失败就退回模型里的值</summary>
+        public string EndXText
+        {
+            get => FormatPosition(Animation?.EndX);
+            set => CommitPosition(value, (animation, parsed) => animation.EndX = parsed, nameof(EndXText));
+        }
+
+        /// <summary>垂直移动的结束位置 Y（绝对坐标）</summary>
+        public string EndYText
+        {
+            get => FormatPosition(Animation?.EndY);
+            set => CommitPosition(value, (animation, parsed) => animation.EndY = parsed, nameof(EndYText));
+        }
+
+        /// <summary>
+        /// 移动动画的起始位置（<b>只读展示</b>）。手册 7.5.1.4 明写"起始位置不可编辑"——
+        /// 它就是图元当前的 X/Y。面板把它显示出来，是为了让"范围 → 起止位置"这条对应关系看得见；
+        /// 存一份可编辑的副本只会带来"用户挪了图元、动画还按老起点算"的劈叉。
+        /// </summary>
+        public string StartPositionText => Type switch
+        {
+            ScadaAnimationType.HorizontalMove => FormatPosition(Element.X),
+            ScadaAnimationType.VerticalMove => FormatPosition(Element.Y),
+            _ => string.Empty,
+        };
+
+        /// <summary>可见性动画里"值命中范围时"的对象状态：<c>true</c> = 显示，<c>false</c> = 隐藏</summary>
+        public bool VisibleInRange
+        {
+            get => Animation?.VisibleInRange ?? true;
+            set
+            {
+                if (Animation is not { } animation || animation.VisibleInRange == value) return;
+
+                using (animation.BeginEdit("动画对象状态"))
+                    animation.VisibleInRange = value;
+            }
+        }
+
+        protected override string Read() => Element.FindAnimation(Type) != null ? "True" : "False";
 
         protected override bool Commit(string text)
         {
@@ -551,100 +1391,400 @@ namespace VisionMaster.ViewModels
 
             if (flag)
             {
-                // 只有"没钩子"这一种情况动手：已配过的钩子（含用户删光了动作的）原样保留——
-                // 面板不该趁一次重复勾选悄悄往别人的动作表里塞东西。
-                if (Element.FindEventHook(EventType) == null)
-                {
-                    var hook = Element.AddEventHook(EventType);
-                    hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
-                }
+                // 只有"没这条动画"这一种情况动手：已配过的原样保留（含用户把档位删光的那条）——
+                // 与事件行同一口径，面板不该趁一次重复勾选悄悄重置别人的配置。
+                if (Element.FindAnimation(Type) == null)
+                    Element.GetOrAddAnimation(Type);
             }
             else
             {
                 // 返回值不用看：读出来是 false 才可能走到这（UI 勾选框语义），没得删也无妨
-                Element.RemoveEventHook(EventType);
+                Element.RemoveAnimation(Type);
             }
 
             return true;
         }
 
         /// <summary>
-        /// 基类只回读"勾没勾上"这一个值；本行还要把动作表整块的对外状态一起通知出去
-        /// （动作集合与其中任意一条的属性变更，都会经钩子 → 图元 → 面板汇到这条路上来）。
+        /// 基类只回读"配没配"这一个值；本行还要把整块参数区的对外状态一起通知出去
+        /// （档位表与其中任意一档的属性变更，都会经动画 → 图元 → 面板汇到这条路上来）。
         /// </summary>
         public override void RefreshValue()
         {
             base.RefreshValue();
 
-            RaisePropertyChanged(nameof(Actions));
-            RaisePropertyChanged(nameof(HasActions));
+            SyncStates();
 
-            // 上/下/删的可用性取决于"这条动作在表里的位置"，位置一变就得重算——
-            // 否则第一条动作的"↑"按钮还亮着，点下去没反应。
-            RemoveActionCommand.RaiseCanExecuteChanged();
-            MoveActionUpCommand.RaiseCanExecuteChanged();
-            MoveActionDownCommand.RaiseCanExecuteChanged();
-        }
+            RaisePropertyChanged(nameof(Animation));
+            RaisePropertyChanged(nameof(HasAnimation));
+            RaisePropertyChanged(nameof(Detail));
+            RaisePropertyChanged(nameof(IsEnabled));
+            RaisePropertyChanged(nameof(HasVariable));
+            RaisePropertyChanged(nameof(VariableDisplayName));
+            RaisePropertyChanged(nameof(RangeLow));
+            RaisePropertyChanged(nameof(RangeHigh));
+            RaisePropertyChanged(nameof(EndXText));
+            RaisePropertyChanged(nameof(EndYText));
+            RaisePropertyChanged(nameof(StartPositionText));
+            RaisePropertyChanged(nameof(VisibleInRange));
 
-        private void OnAddAction()
-        {
-            // GetOrAdd 而不是 Find：能点到这个按钮说明勾选框是勾上的，钩子必然已在；
-            // 真遇到"表被别处摘了"的竞态，这里补一条空钩子也比抛异常强。
-            Element.GetOrAddEventHook(EventType).Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
-        }
-
-        private void OnRemoveAction(ScadaAction? action)
-        {
-            if (action == null) return;
-
-            // 删掉最后一条动作<b>不</b>顺手摘钩子：那是"配置"与"行为"两件事，
-            // 用户可能只是先把旧动作清掉、紧接着要加新的。空动作表在执行侧本来就等同没配，
-            // 面板上用一行提示把这件事说明白，比替他做决定更诚实。
-            Actions?.Remove(action);
+            // 上/下/删的可用性取决于"这一档在表里的位置"，位置一变就得重算——
+            // 否则第一档的"↑"按钮还亮着，点下去没反应。
+            AddStateCommand.RaiseCanExecuteChanged();
+            RemoveStateCommand.RaiseCanExecuteChanged();
+            MoveStateUpCommand.RaiseCanExecuteChanged();
+            MoveStateDownCommand.RaiseCanExecuteChanged();
+            PickVariableCommand.RaiseCanExecuteChanged();
+            ClearVariableCommand.RaiseCanExecuteChanged();
         }
 
         /// <summary>
-        /// 「选变量」：把这条写变量动作当前的目标交给选择器，选中后回填。
+        /// 把 <see cref="States"/> 与模型里的档位表对齐，<b>按模型实例复用包装对象</b>。
         ///
-        /// 回填走 <see cref="ScadaAction.BindVariable"/>（先 Id 再名字）：Id 是权威身份，
-        /// 名字只作显示与"找不到 Id 时的兜底寻址"。取消时回调<b>一次都不触发</b>——
-        /// 弹窗的取消不该被翻译成"清空原绑定"这种破坏性动作。
+        /// 为什么不能整体重建：面板每次回填（<see cref="RefreshValue"/>）都跑这一趟，
+        /// 而回填的触发源包括"用户刚在某个输入框里按 Tab 提交"——整体重建会让输入框连同焦点一起消失，
+        /// 于是 Tab 到下一格变成"敲了字、Tab、字还在、光标没了"。
+        ///
+        /// 对齐分三步，次序不能换：先删模型里已经没有的（从后往前，避免下标漂移），
+        /// 再按模型次序把留下的挪到位（<c>Move</c> 只发一次 CollectionChanged，容器不重建），
+        /// 最后补上新增的（插在当前下标处，插完即成序）。
         /// </summary>
-        private void OnPickVariable(ScadaAction? action)
+        private void SyncStates()
         {
-            if (action == null) return;
+            var models = Animation?.States;
 
-            _picker.Pick(action.VariableId, action.VariableName, (id, name) => action.BindVariable(id, name));
+            if (models == null)
+            {
+                if (States.Count > 0) States.Clear();
+                return;
+            }
+
+            for (int i = States.Count - 1; i >= 0; i--)
+            {
+                if (!models.Contains(States[i].State))
+                    States.RemoveAt(i);
+            }
+
+            for (int i = 0; i < models.Count; i++)
+            {
+                var model = models[i];
+                var existing = FindView(model);
+
+                if (existing == null)
+                {
+                    // 走到这里 States.Count 必然 ≥ i（前 i 个位置已被模型的前 i 档占住），
+                    // 所以 Insert(i, …) 不会越界。
+                    States.Insert(i, new ScadaAnimationStateViewModel(model));
+                    continue;
+                }
+
+                int current = States.IndexOf(existing);
+                if (current != i)
+                    States.Move(current, i);
+
+                existing.Refresh();
+            }
         }
 
-        private void OnMoveAction(ScadaAction? action, int offset)
+        private ScadaAnimationStateViewModel? FindView(ScadaAnimationState model)
         {
-            var list = Actions;
-            int index = IndexOf(action);
+            foreach (var view in States)
+            {
+                if (ReferenceEquals(view.State, model))
+                    return view;
+            }
 
-            if (list == null || index < 0) return;
+            return null;
+        }
 
+        private void OnAddState()
+        {
+            if (Animation is not { } animation) return;
+
+            using (animation.BeginEdit("新增动画档位"))
+            {
+                // Detached：新档位在加入集合之前不该被记进撤销栈——记录它等于
+                // "撤销一次先删掉一个还没进过画面的对象"，凭空多一步。
+                animation.States.Add(ScadaChangeScope.Detached(() => new ScadaAnimationState()));
+            }
+        }
+
+        private void OnRemoveState(ScadaAnimationStateViewModel? view)
+        {
+            if (Animation is not { } animation || view == null) return;
+
+            // 删掉最后一档<b>不</b>顺手取消勾选：那是"配置"与"行为"两件事，
+            // 用户可能只是先把旧档位清掉、紧接着要加新的。空档位表在运行态本来就等同没配，
+            // 面板上用一行提示把这件事说明白，比替他做决定更诚实（与事件行删光动作同一口径）。
+            using (animation.BeginEdit("删除动画档位"))
+                animation.States.Remove(view.State);
+        }
+
+        private void OnMoveState(ScadaAnimationStateViewModel? view, int offset)
+        {
+            if (Animation is not { } animation || view == null) return;
+
+            int index = animation.States.IndexOf(view.State);
             int target = index + offset;
-            if (target < 0 || target >= list.Count) return;
+
+            if (index < 0 || target < 0 || target >= animation.States.Count) return;
 
             // Move 而不是"删了再插"：Move 只发一次 CollectionChanged，订阅链上少一轮摘挂，
-            // 也不会让被移的那条动作在中间态里短暂地"不存在"。
-            list.Move(index, target);
+            // 也不会让被移的那一档在中间态里短暂地"不存在"。
+            using (animation.BeginEdit("调整动画档位次序"))
+                animation.States.Move(index, target);
         }
 
-        private bool CanMove(ScadaAction? action, int offset)
+        private bool CanMove(ScadaAnimationStateViewModel? view, int offset)
         {
-            var list = Actions;
-            int index = IndexOf(action);
+            if (Animation is not { } animation || view == null) return false;
 
-            if (list == null || index < 0) return false;
-
+            int index = animation.States.IndexOf(view.State);
             int target = index + offset;
-            return target >= 0 && target < list.Count;
+
+            return index >= 0 && target >= 0 && target < animation.States.Count;
         }
 
-        private int IndexOf(ScadaAction? action)
-            => action == null || Actions is not { } list ? -1 : list.IndexOf(action);
+        /// <summary>
+        /// 「选变量」：把这条动画当前的驱动变量交给选择器，选中后回填。
+        ///
+        /// 回填走 <see cref="ScadaAnimation.BindVariable"/>（先 Id 再名字，自带作用域）：
+        /// Id 是权威身份，名字只作显示与"找不到 Id 时的兜底寻址"。取消时回调<b>一次都不触发</b>——
+        /// 弹窗的取消不该被翻译成"清空原绑定"这种破坏性动作。
+        /// </summary>
+        private void OnPickVariable()
+        {
+            if (Animation is not { } animation) return;
+
+            _picker.Pick(animation.VariableId, animation.VariableName, (id, name) => animation.BindVariable(id, name));
+        }
+
+        private void OnClearVariable()
+        {
+            if (Animation is not { } animation) return;
+
+            using (animation.BeginEdit("清除动画驱动变量"))
+            {
+                animation.VariableId = Guid.Empty;
+                animation.VariableName = null;
+            }
+        }
+
+        private static string FormatPosition(double? value)
+            => value.HasValue ? value.Value.ToString("0.###", CultureInfo.InvariantCulture) : string.Empty;
+
+        /// <summary>
+        /// 写回一个坐标。打不出来的串（"12a"、空）原样退回模型里的值：本行是复合编辑区，
+        /// 没有属性行那套"标红 + 悬停说明"的通道，退回比默默吃掉诚实——
+        /// 用户会看到数字弹回去，知道这次没生效。
+        /// </summary>
+        private void CommitPosition(string? text, Action<ScadaAnimation, double> write, string propertyName)
+        {
+            if (Animation is not { } animation) return;
+
+            if (!TryNumber(text ?? string.Empty, out var parsed))
+            {
+                RaisePropertyChanged(propertyName);
+                return;
+            }
+
+            using (animation.BeginEdit("动画结束位置"))
+                write(animation, parsed);
+        }
+    }
+
+    /// <summary>
+    /// 权限行的声明（S12）：<see cref="ScadaElement.RequiredRole"/> <b>不是</b>属性袋里的键，
+    /// 描述符也声明不了它（那是强类型字段，理由见该属性的注释），所以它像事件行一样自带一份声明，
+    /// 存在的唯一目的是顺着 <see cref="ScadaPropertyRowBase"/> 的既有通道
+    /// （Kind/DisplayName/Description）进同一个面板模板，而不是为权限单开一套 UI。
+    ///
+    /// <see cref="Choices"/> 给空：候选<b>来自被编辑对象</b>（当前值可能是文件里的坏值），
+    /// 由 <see cref="ScadaRolePropertyRow"/> 自己算——与基类 <c>Choices</c> 注释里
+    /// 「所属图层」那条同源。声明是无状态的共享实例（与 <see cref="GeometryProperties.Standard"/> 同一手法）。
+    /// </summary>
+    internal sealed class ScadaRoleSpec : IPropertySpec
+    {
+        /// <summary>每种角色一份共享实例（本类无状态，读哪个图元由行实例钉住）</summary>
+        public static readonly ScadaRoleSpec Instance = new ScadaRoleSpec();
+
+        private ScadaRoleSpec() { }
+
+        /// <summary>不落属性袋，只是一个标识（与事件行的 <c>Event.N</c> 同源）</summary>
+        public string Key => "RequiredRole";
+
+        public string DisplayName => "操作权限";
+
+        public ElementPropertyKind Kind => ElementPropertyKind.Choice;
+
+        public string Group => "权限";
+
+        public string? Description =>
+            "运行态操作这个图元所需的最低角色。选「不限制」= 谁都能操作；高角色自动包含低角色（管理员可以按工程师的按钮）。未登录时按「操作员」计";
+
+        /// <summary>权限是"谁能操作"，不该被变量驱动——绑一个变量进来等于把权限交给运行数据</summary>
+        public bool IsBindable => false;
+
+        public double Min => double.NegativeInfinity;
+
+        public double Max => double.PositiveInfinity;
+
+        public IReadOnlyList<string> Choices => Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// 属性面板的一行<b>操作权限</b>（S12）：一个下拉框 = "运行态操作这个图元所需的最低角色"。
+    ///
+    /// 为什么不复用 <see cref="ScadaPropertyRow"/>：权限既不是几何键、也不在属性袋里，
+    /// 走 <see cref="ElementValueAccess"/> 得先塞一个假键进去——那等于污染那条唯一通道。
+    /// 与事件行、画面行同一取舍：读写逻辑各自一小段，值语义/标红/回填全部继承基类。
+    ///
+    /// 写回一律走 <see cref="ScadaPage.TrySetRequiredRole"/>（D3），本行自己不碰
+    /// <see cref="ScadaElement.RequiredRole"/>：裸写虽然也会落一条记录，但那条记录没有操作名
+    /// （撤销按钮上只显示"编辑"），而且 <c>ScadaWriteGuard.Strict</c> 下会被当场拒掉。
+    ///
+    /// 候选第一项是"不限制"（对应模型里的 <c>null</c>）。文件里若存着不认识的数值
+    /// （高版本存、低版本读），那一项会被临时补进候选——否则 ComboBox 匹配不上任何一项、
+    /// 显示成空白，用户看到的是"这一行莫名其妙是空的"，而不是"这里有个坏值"。
+    /// </summary>
+    public sealed class ScadaRolePropertyRow : ScadaPropertyRowBase
+    {
+        /// <summary>"不限制"在下拉里的文案（= 模型里的 <c>null</c>）</summary>
+        public const string NotLimitedText = "不限制";
+
+        /// <summary>
+        /// 标准候选：不限制 + 三个已定义角色。
+        /// 按枚举算而不是手抄三个字符串：枚举扩展时自动带上，且显示名与状态栏、审计文件同一个出处
+        /// （<see cref="ScadaRoleExtensions.DisplayName"/>），三处不会各叫各的。
+        /// </summary>
+        private static readonly IReadOnlyList<string> StandardChoices =
+            new[] { NotLimitedText }
+                .Concat(Enum.GetValues<ScadaRole>().Where(r => r.IsDefined()).Select(r => r.DisplayName()))
+                .ToArray();
+
+        private readonly ScadaPage _page;
+        private IReadOnlyList<string> _choices;
+
+        /// <summary>上次算候选集时用的"当前值文案"（判断候选集要不要重算的唯一依据）</summary>
+        private string _described;
+
+        public ScadaRolePropertyRow(ScadaPage page, ScadaElement element)
+            : base(ScadaRoleSpec.Instance,
+                   Describe((element ?? throw new ArgumentNullException(nameof(element))).RequiredRole))
+        {
+            _page = page ?? throw new ArgumentNullException(nameof(page));
+            Element = element;
+
+            _described = Describe(element.RequiredRole);
+            _choices = BuildChoices(_described);
+        }
+
+        /// <summary>本行写入的目标图元</summary>
+        public ScadaElement Element { get; }
+
+        /// <summary>
+        /// 候选文案（不限制 + 三档角色，坏值临时补在末尾）。
+        ///
+        /// <b>本行不必覆写 <see cref="ScadaPropertyRowBase.ChoiceOptions"/></b>：这些候选本身就是中文文案，
+        /// 而 <see cref="ScadaChoiceNames.DisplayName"/> 认不出的值原样返回——"不限制"、"管理员"、
+        /// 坏值"未知角色(9)"过一遍词汇表出来还是它们自己。翻译只对描述符里那些英文落盘值有意义。
+        /// </summary>
+        public override IReadOnlyList<string> Choices => _choices;
+
+        protected override string Read() => Describe(Element.RequiredRole);
+
+        /// <summary>
+        /// 回读时连候选集一起对一遍：坏值进出名单会让候选多一项/少一项，
+        /// 而基类只通知 <c>Value</c>，不通知候选——不补这一手，
+        /// 撤销掉一个坏值之后下拉框里那条"未知角色(N)"会一直挂着。
+        ///
+        /// 通知的是 <see cref="ScadaPropertyRowBase.ChoiceOptions"/> 而不是本类的 <see cref="Choices"/>：
+        /// 模板绑的是前者（下拉要"值 + 名字"两列），通知后者等于对着空气喊话。
+        /// 后者没有缓存，每次读都从 <c>_choices</c> 现算，所以这一次通知之后下拉拿到的一定是新名单。
+        ///
+        /// 只在"当前值文案变了"时才重算并通知：本方法在图元属性变更时被逐行调用
+        /// （见 <c>OnElementPropertyChanged</c>），拖动图元期间会连着响很多次，
+        /// 无条件通知等于让下拉框在拖动过程中反复重建列表。权限跟几何无关，
+        /// 拖一百次也不会变，这里必须能一眼判定"没事发生"。
+        /// </summary>
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+
+            string current = Describe(Element.RequiredRole);
+            if (string.Equals(current, _described, StringComparison.Ordinal)) return;
+
+            _described = current;
+            _choices = BuildChoices(current);
+            RaisePropertyChanged(nameof(ChoiceOptions));
+        }
+
+        /// <summary>候选集 = 标准四项，当前值认不出来时把那一项临时补在末尾</summary>
+        private static IReadOnlyList<string> BuildChoices(string current)
+            => StandardChoices.Contains(current)
+                ? StandardChoices
+                : StandardChoices.Concat(new[] { current }).ToArray();
+
+        protected override bool Commit(string text)
+        {
+            if (!TryParseRole(text, out var role))
+            {
+                // 空文案单独措辞：下拉被清空（当前值不在候选里时 WPF 会这么做）不是"用户选了不限制"，
+                // 而是"这一行现在对不上任何一个选项"，得让人看见并就地重选。
+                SetError(string.IsNullOrWhiteSpace(text)
+                    ? "请从下拉里选一个角色（清空不等于「不限制」）"
+                    : $"不认识的角色「{text}」");
+                return false;
+            }
+
+            // D3：写模型只走画面上的统一入口（它内部罩 BeginEdit，撤销栈里是一条"设置操作权限"）
+            if (!_page.TrySetRequiredRole(Element, role, out var error))
+            {
+                SetError(error);
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 模型值 → 下拉文案。<c>null</c> = 不限制；坏值回落成"未知角色(N)"，
+        /// 与属性面板、日志里看到的是同一个词（见 <see cref="ScadaRoleExtensions.DisplayName"/>）。
+        /// </summary>
+        private static string Describe(ScadaRole? role)
+            => role is { } value ? value.DisplayName() : NotLimitedText;
+
+        /// <summary>
+        /// 下拉文案 → 模型值。
+        /// 只有<b>认得的文案</b>才落得下：<c>"不限制"</c> → <c>null</c>，三个角色名 → 对应枚举。
+        ///
+        /// 空文案<b>不算</b>「不限制」，这一点是刻意的。下拉不是可编辑控件，用户打不出空值；
+        /// 它变空只有一种来路——当前值不在候选列表里，WPF 就把 SelectedItem 置成 null 并回写。
+        /// 那时若把空当成"取消限制"，一次候选失配就会<b>静默把权限放大成谁都能操作</b>，
+        /// 而现场只会看到"这台机器本来要工程师才能开，怎么操作员也能开了"。
+        /// 所以认不出来一律返回 <c>false</c>，由 <see cref="Commit"/> 标红让人重选——
+        /// 宁可他看见一条红提示，也不能替他做一次放权。
+        /// </summary>
+        private static bool TryParseRole(string? text, out ScadaRole? role)
+        {
+            role = null;
+
+            if (string.Equals(text, NotLimitedText, StringComparison.Ordinal))
+                return true;
+
+            foreach (var candidate in Enum.GetValues<ScadaRole>())
+            {
+                if (!candidate.IsDefined()) continue;
+
+                if (string.Equals(candidate.DisplayName(), text, StringComparison.Ordinal))
+                {
+                    role = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     /// <summary>
@@ -678,6 +1818,7 @@ namespace VisionMaster.ViewModels
         private readonly ScadaEditorViewModel _editor;
         private readonly IUserNotifier _notifier;
         private readonly IScadaVariablePicker _picker;
+        private readonly IScadaPagePicker _pagePicker;
 
         /// <summary>摊平的行（模型有外部写入时逐行回读；分组视图从它派生）</summary>
         private readonly List<ScadaPropertyRowBase> _rows = new();
@@ -686,11 +1827,12 @@ namespace VisionMaster.ViewModels
         private ScadaElement? _element;
         private ScadaPage? _page;
 
-        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker)
+        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
+            _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
 
             // 参数化的 CanExecute 而不是 IsEnabled：行对象换了，可用性就得重算，
             // 挂在参数上比挂在面板状态上准（也便于断言里直接调 CanExecute）。
@@ -730,6 +1872,34 @@ namespace VisionMaster.ViewModels
                     return "当前画面没有可编辑的属性。";
 
                 return "打开方案后，这里会显示画面自己的属性；在画布上点选一个图元，则切换到该图元的属性。";
+            }
+        }
+
+        /// <summary>
+        /// 顶栏那个「锁定」复选框（作用于当前编辑的那一个图元）。
+        ///
+        /// 为什么不照原样直绑 <c>Element.IsLocked</c>：那是一条绕开
+        /// <see cref="ScadaPage.TrySetElementLocked"/> 的裸 setter 写路径。S9 之后编辑器路径
+        /// 一律要罩在 <c>BeginEdit</c> 里，裸写虽然也会落一条记录，但那条记录<b>没有操作名</b>，
+        /// 撤销按钮上只会显示"编辑"；更要紧的是 <c>ScadaWriteGuard.Strict</c> 下它会被当场拒掉——
+        /// 面板其余每一行（属性袋、事件、动作、绑定）都规规矩矩走 Try 家族，只有这一处漏着。
+        ///
+        /// 写入口借编辑器的 <see cref="ScadaEditorViewModel.SetSelectedLocked"/>，而不是
+        /// 自己拼一个 <c>new[] { _element }</c>：面板编辑的图元恒等于编辑器的主选中
+        /// （<see cref="Rebuild"/> 就是从 <c>SelectedElement</c> 读来的），
+        /// 借它走一遍等于复用同一条已被断言钉住的路径，也省掉面板自己找"这个图元属于哪张画面"。
+        /// </summary>
+        public bool IsElementLocked
+        {
+            get => _element?.IsLocked == true;
+            set
+            {
+                _editor.SetSelectedLocked(value);
+
+                // 写失败时（图元已经不在画面上）模型值没变、也不会有模型通知，
+                // 而绑定是 TwoWay 的——不在这里回抛一次，复选框就会停在用户刚点出来的那个假状态上。
+                // 写成功时这条与 OnElementPropertyChanged 那条会重一次，重一次是无害的（值没变）。
+                RaisePropertyChanged(nameof(IsElementLocked));
             }
         }
 
@@ -817,6 +1987,11 @@ namespace VisionMaster.ViewModels
             // 行刷新与命令刷新必须成对出现，口径才不会分叉。
             ClearBindingCommand.RaiseCanExecuteChanged();
 
+            // 锁定不进属性行（它不是描述符声明的属性，而是图元的编辑保护位），
+            // 所以刷新它的通知要单独补一条：撤销/重做把 IsLocked 改回来时，
+            // 顶栏那个复选框得跟着动，否则面板显示的状态与画布上"拖得动/拖不动"会对不上。
+            RaisePropertyChanged(nameof(IsElementLocked));
+
             if (e.PropertyName is null || e.PropertyName == nameof(ScadaElement.Name))
                 RaisePropertyChanged(nameof(HeaderText));
         }
@@ -870,7 +2045,24 @@ namespace VisionMaster.ViewModels
                 // 不是面板漏列；反过来，面板绝不自行罗列全部事件，那会把
                 // "勾上了却永远不响的钩子"（Unloaded/ValueChanged 还没接触发源）漏给用户。
                 foreach (var eventType in descriptor.Events)
-                    _rows.Add(new ScadaEventRow(element, eventType, _picker));
+                    _rows.Add(new ScadaEventRow(element, eventType, ScadaEventRow.ElementGroup, _picker, _pagePicker));
+
+                // r4 动画行：四种动画各一行，与描述符无关——"图元会不会动"不是类型的表态，
+                // 而是这一台设备上这个图元要不要跟变量联动，任何图元都可能需要。
+                // 所以这里用 Enum.GetValues 而不是描述符清单：动画类型是领域层闭集（见 ScadaAnimationType），
+                // 加一种动画 = 在枚举尾部追加一项，面板这一行不用改。
+                foreach (var animationType in Enum.GetValues<ScadaAnimationType>())
+                    _rows.Add(new ScadaAnimationRow(element, animationType, _picker));
+
+                // S12 权限行：与事件行平行，但语义独立——事件是"我能干什么"，
+                // 权限是"谁能操作我"，所以单起一段而不是塞进上面那个循环。
+                //
+                // 用 _editor.SelectedPage 而不是本方法开头的局部 page：图元模式下那个 page 恒为 null
+                // （两种模式互斥，见上面的三元表达式），口径与 OnBindVariable 逐字一致。
+                // 万一 SelectedPage 与 SelectedElement 不同源（理论上不会），
+                // TrySetRequiredRole 会以"图元不属于本画面"拒掉并标红，不会写错画面。
+                if (_editor.SelectedPage is { } owner)
+                    _rows.Add(new ScadaRolePropertyRow(owner, element));
             }
             else if (page != null)
             {
@@ -881,6 +2073,13 @@ namespace VisionMaster.ViewModels
 
                 foreach (var spec in ScadaPageProperties.All)
                     _rows.Add(new ScadaPagePropertyRow(page, document, spec));
+
+                // 画面级事件行：与图元侧同一份实现（宿主收成 IScadaEventHost），差别只有清单来源与分组。
+                // 只列 ScadaPageEvents 声明的那两条——清单里没有的事件不出行，因为"配了却永远不响"
+                // 比"面板上没这个选项"糟得多。落在「运行」组，紧接「启动画面」之后：
+                // 组的首现次序决定显示次序，而这一组的第一行是上面那条 StartupPage。
+                foreach (var eventType in ScadaPageEvents.All)
+                    _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker));
             }
 
             RaisePropertyChanged(nameof(Element));

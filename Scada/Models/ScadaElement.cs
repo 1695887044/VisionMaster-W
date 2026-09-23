@@ -27,10 +27,11 @@ namespace VisionMaster.Scada
     /// FlowModel 的教训摆在那里——把运行期/编辑器态混进模型，就必须维护一份"这些属性变更不算变更"的
     /// 反射排除名单，名单一旦漏项，每次鼠标划过都会把版本号刷爆。
     /// </summary>
-    public class ScadaElement : BindableBase
+    public class ScadaElement : ScadaModelBase, IScadaEventHost
     {
         private Guid _elementId = Guid.NewGuid();
         private Guid _layerId;
+        private Guid _groupId;
         private string _name = string.Empty;
         private string _typeKey = string.Empty;
         private double _x;
@@ -40,9 +41,11 @@ namespace VisionMaster.Scada
         private double _rotation;
         private int _zIndex;
         private bool _isLocked;
+        private ScadaRole? _requiredRole;
         private Dictionary<string, string> _properties = NewPropertyBag();
         private ObservableCollection<ScadaBinding> _bindings = new();
         private ObservableCollection<ScadaEventHook> _eventHooks = new();
+        private ObservableCollection<ScadaAnimation> _animations = new();
 
         /// <summary>
         /// 已挂上属性变更订阅的绑定。
@@ -59,6 +62,12 @@ namespace VisionMaster.Scada
         /// （<c>EventHooks.Clear()</c> 走 Reset 分支拿不到被移除的是谁，照参数摘必漏）。
         /// </summary>
         private readonly HashSet<ScadaEventHook> _subscribedHooks = new();
+
+        /// <summary>
+        /// 已挂上属性变更订阅的动画。与 <see cref="_subscribedBindings"/> 同一个理由
+        /// （<c>Animations.Clear()</c> 走 Reset 分支拿不到被移除的是谁，照参数摘必漏）。
+        /// </summary>
+        private readonly HashSet<ScadaAnimation> _subscribedAnimations = new();
 
         /// <summary>图元稳定身份（画面内部按它寻址，复制图元时重新生成）</summary>
         public Guid ElementId
@@ -95,6 +104,39 @@ namespace VisionMaster.Scada
         {
             get => _layerId;
             set => SetProperty(ref _layerId, value);
+        }
+
+        /// <summary>
+        /// 所属<b>组</b>的稳定身份（同组图元在编辑器里被当成一个整体选中与搬动）。
+        ///
+        /// 与 <see cref="LayerId"/> 同构：只存一个 Guid 引用，不在别处再挂一份成员集合
+        /// （存两处必然出现"成员表里有它、GroupId 却指向别的组"的双主状态）。
+        /// <c>Guid.Empty</c> = <b>未分组</b>，是默认值也是唯一的"没有组"表达。
+        ///
+        /// <b>与 <see cref="LayerId"/> 是两把完全独立的关系，别混</b>：
+        /// <c>LayerId</c> 管<b>渲染</b>（画在哪一层、跟着图层一起隐藏/锁定），
+        /// <c>GroupId</c> 管<b>编辑</b>（点一下选中谁、拖一下搬走谁）。
+        /// 同组图元可以分散在不同图层上，那正是组存在的意义之一——把"跨层的这几件东西"
+        /// 临时捆成一个可整体操作的单元，而不必为了搬动它们去改渲染归属。
+        ///
+        /// <b>只有一层，不支持嵌套</b>：组就是"一批图元共用同一个 Guid"，
+        /// 组里再放组需要一张组表 + 树的遍历，而当前没有任何需求要它
+        /// （真需要时用户会把组当成一个大对象整体摆好再取消组合）。
+        /// 因此"把两个组再组合"的结果是<b>合并成一个新组</b>，而不是套一层。
+        ///
+        /// 这是<b>要落盘</b>的文档状态（与一次性的操作不同）：分组是用户对画面的安排，
+        /// 存盘再打开必须还在。旧 .vms 文件里没有这个字段，反序列化后自然取 <c>Guid.Empty</c>
+        /// （未分组），与 S1 时代的画面兼容，不需要迁移代码。
+        ///
+        /// 成员被删到只剩一个、或指向一个已经不存在的组，都<b>不做清理</b>：
+        /// 单成员组的行为与未分组完全一样（选中它只选中它自己），
+        /// 而清掉那个 Guid 会让"撤销删除"再也回不到原来的组——脏数据不该被悄悄改写。
+        /// 真要收拾它，右键菜单的"取消组合"就是现成的入口。
+        /// </summary>
+        public Guid GroupId
+        {
+            get => _groupId;
+            set => SetProperty(ref _groupId, value);
         }
 
         /// <summary>
@@ -163,10 +205,49 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// <b>操作本图元所需的最低角色</b>（S12）。<c>null</c> = <b>不限制</b>，谁都能操作——
+        /// 这是默认值，也是绝大多数图元的实际取值。
+        ///
+        /// 为什么做成强类型字段、而不是塞进 <see cref="Properties"/> 属性袋
+        /// ---------
+        /// 与 <see cref="IsLocked"/> / <see cref="LayerId"/> / <see cref="GroupId"/> 同一条判断：
+        /// 属性袋装的是<b>"某类图元特有的外观数据"</b>（文字、量程、刻度数），
+        /// 而"谁能操作它"是<b>每个图元都可能有的通用关系</b>，且属性袋的值一律是字符串。
+        /// 权限判定在运行态的<b>热路径</b>上（每次按下都要问一次），把它变成"读字符串再 parse"
+        /// 既慢又丢类型安全；更糟的是——属性袋里的键要靠描述符声明，
+        /// 哪个描述符漏声明，那个图元的权限配置就<b>静默失效</b>，而这类静默失败正是
+        /// <c>ElementDescriptor.NonBindableGroups</c> 注释里批评过的东西。
+        ///
+        /// 为什么 <c>null</c> 而不是 <see cref="ScadaRole.Operator"/> 表达"不限制"
+        /// ---------
+        /// 两者语义不同：<c>Operator</c> 是"需要有人在场（未登录也算操作员）"，
+        /// <c>null</c> 是"这条规则压根不存在"。旧 .vms 文件里没有这个字段，
+        /// 反序列化后自然取 <c>null</c>（不限制），与 S11 及以前的画面完全兼容，
+        /// 不需要任何迁移代码。
+        ///
+        /// 声明成非法数值（高版本存下的、本版本不认识的数字）时<b>一律拒绝</b>，
+        /// 口径与理由见 <see cref="IScadaAccessPolicy.CanOperate"/>。
+        ///
+        /// 这是<b>要落盘</b>的文档状态：权限是用户对画面的安排，存盘再打开必须还在。
+        /// 判定发生在 <see cref="ScadaRuntime.RaiseElementEvent"/> 这一个出口上——
+        /// 界面隐藏按钮挡不住直接调接口。
+        /// </summary>
+        public ScadaRole? RequiredRole
+        {
+            get => _requiredRole;
+            set => SetProperty(ref _requiredRole, value);
+        }
+
+        /// <summary>
         /// 图元特有属性的键值袋（键名由 S2 描述符声明，值一律以字符串承载）。
         ///
         /// setter 挡 null 让消费方可以无脑索引而不必判空；<c>ObjectCreationHandling.Replace</c>
         /// 保证反序列化时整体替换而不是往默认实例里叠加（与 SolutionModel.Flows 同一处理）。
+        ///
+        /// <b>这是唯一整体替换属性袋的通道，专供反序列化</b>——编辑器改单个键走
+        /// <see cref="SetProperty(string, string?)"/>（它才有守卫与撤销记账）。
+        /// 也正因为它是 JSON 通道，这里<b>不</b>挂 <c>ScadaWriteGuard</c>：
+        /// 严格模式下反序列化必然要写，挂了只会让"严格模式"这个断言工具没法用来读盘。
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public Dictionary<string, string> Properties
@@ -246,13 +327,67 @@ namespace VisionMaster.Scada
             }
         }
 
+        /// <summary>
+        /// 动画集合（工程变量 → 图元外观的映射，见 <see cref="ScadaAnimation"/>）。
+        ///
+        /// 与 <see cref="Bindings"/> / <see cref="EventHooks"/> 并列为"图元上挂的可扩展列表"第三位，
+        /// 三者分工见 <see cref="ScadaAnimation"/> 的类注释。订阅保活三件套照抄同一范式
+        /// （<c>ObjectCreationHandling.Replace</c> + 带 setter 的摘/挂 + <see cref="ScadaElement"/> 的
+        /// <c>[JsonConstructor]</c>），不再重复论证。
+        ///
+        /// <b>一个图元上每种动画至多一条</b>（口径见 <see cref="GetOrAddAnimation"/>）：
+        /// 同一类型的动画都以同一个视觉结果为目标（外观变化都改前景/背景色、水平移动都改 X……），
+        /// 两条同时生效只有"后到者赢"一个结果，而用户在界面上完全看不出这件事——
+        /// 与"一个属性至多一条绑定""一个事件至多一个钩子"是同一个理由。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<ScadaAnimation> Animations
+        {
+            get => _animations;
+            set
+            {
+                var old = _animations;
+                if (old != null)
+                {
+                    old.CollectionChanged -= OnAnimationsChanged;
+
+                    foreach (var animation in _subscribedAnimations)
+                        animation.PropertyChanged -= OnAnimationPropertyChanged;
+
+                    _subscribedAnimations.Clear();
+                }
+
+                _animations = value ?? new ObservableCollection<ScadaAnimation>();
+
+                _animations.CollectionChanged += OnAnimationsChanged;
+
+                foreach (var animation in _animations)
+                    SubscribeAnimation(animation);
+            }
+        }
+
         /// <summary>初始化图元（为初始空集合挂上订阅）</summary>
         [JsonConstructor]
         public ScadaElement()
         {
             _bindings.CollectionChanged += OnBindingsChanged;
             _eventHooks.CollectionChanged += OnEventHooksChanged;
+            _animations.CollectionChanged += OnAnimationsChanged;
         }
+
+        /// <summary>
+        /// 打开一次可撤销的编辑（D3 统一写入口），用法与 <see cref="ScadaPage.BeginEdit"/> 一致：
+        /// <code>
+        /// using (element.BeginEdit("改外观"))
+        /// {
+        ///     element.SetProperty("FillColor", "#FFFF0000");
+        ///     element.SetProperty("StrokeThickness", "3");
+        /// }
+        /// </code>
+        /// 图元级操作（加/删绑定、加/删事件钩子、改属性袋）都自带作用域，
+        /// 调用方只有在要把多件事合并成一次撤销时才需要再包一层。
+        /// </summary>
+        public IScadaChangeScope BeginEdit(string label) => ScadaChangeScope.Begin(label);
 
         /// <summary>
         /// 读取属性袋里的一个值；不存在时返回 <paramref name="fallback"/>。
@@ -267,6 +402,10 @@ namespace VisionMaster.Scada
         /// 写属性袋。传 null/空串即<b>删除该键</b>而不是存一个空串——
         /// 让"没配过的属性"与"显式配成空"在文件里长得一样，避免 .vms 里堆一批
         /// 与描述符默认值重复的空条目（改默认值时旧文件不会被这些垃圾条目钉住）。
+        ///
+        /// 本方法是编辑器改属性袋的<b>唯一入口</b>（<c>Properties</c> setter 只服务反序列化），
+        /// 所以守卫与撤销记账都挂在这里。两条"零改动"路径直接提前返回、不通知也不记账：
+        /// 键名为空、以及删除一个本来就不存在的键——它们跟"同值写"是一回事。
         /// </summary>
         public void SetProperty(string key, string? value)
         {
@@ -274,29 +413,48 @@ namespace VisionMaster.Scada
                 return;
 
             if (string.IsNullOrEmpty(value))
+            {
+                if (!_properties.TryGetValue(key, out var removed))
+                    return; // 删一个本来就没有的键：不算改动
+
+                ScadaWriteGuard.OnWrite(this, nameof(Properties));
                 _properties.Remove(key);
+                ScadaChangeScope.Current?.Record(new PropertyBagChange(this, key, removed, null));
+            }
             else
             {
                 if (_properties.TryGetValue(key, out var old) && string.Equals(old, value, StringComparison.Ordinal))
                     return; // 同值不通知：避免把 Version 刷高、把 S3 的缓存白失效一次
 
+                ScadaWriteGuard.OnWrite(this, nameof(Properties));
                 _properties[key] = value!;
+                ScadaChangeScope.Current?.Record(new PropertyBagChange(this, key, old, value));
             }
 
             RaisePropertyChanged(nameof(Properties));
         }
 
         /// <summary>
-        /// 变量改名后的引用刷新：命中的绑定/动作换上最新名字，并按需回填稳定身份。
+        /// 变量改名后的引用刷新：命中的绑定/事件钩子/动画换上最新名字，并按需回填稳定身份。
         ///
         /// 返回被改动的条数（0 表示本图元与这个变量无关）。返回值存在的意义是让
         /// 断言与日志能回答"这次改名到底动了哪里"——改名级联最怕的就是静默。
-        /// 绑定与动作合并计数：调用方（注册表的改名级联）只关心"有没有漏"，不关心漏在哪一类。
+        /// 绑定、动作与动画合并计数：调用方（注册表的改名级联）只关心"有没有漏"，不关心漏在哪一类。
         /// </summary>
         /// <param name="variableId">改名变量的稳定身份</param>
         /// <param name="oldName">改名前的旧名（旧数据按名命中用）</param>
         /// <param name="newName">改名后的新名</param>
         public int RefreshVariableReferences(Guid variableId, string? oldName, string newName)
+        {
+            // 改名级联不是用户在画面上做的编辑：它是变量面板触发的数据自愈（旧绑定补 Id + 刷展示名），
+            // 撤销该由变量注册表那一侧负责。所以这里既不进撤销栈，也不该被写守卫拦。
+            using (ScadaWriteGuard.Suspend())
+            {
+                return RefreshVariableReferencesCore(variableId, oldName, newName);
+            }
+        }
+
+        private int RefreshVariableReferencesCore(Guid variableId, string? oldName, string newName)
         {
             int changed = 0;
 
@@ -316,6 +474,15 @@ namespace VisionMaster.Scada
             {
                 if (hook != null)
                     changed += hook.RefreshVariableReferences(variableId, oldName, newName);
+            }
+
+            foreach (var animation in _animations)
+            {
+                if (animation == null || !animation.Matches(variableId, oldName))
+                    continue;
+
+                animation.BindVariable(variableId, newName);
+                changed++;
             }
 
             return changed;
@@ -352,13 +519,23 @@ namespace VisionMaster.Scada
         /// 换变量就是改这一条（<see cref="ScadaBinding.Bind"/>），已配的停用/格式串一并保住。
         /// </summary>
         public ScadaBinding GetOrAddBinding(string targetProperty)
-            => FindBinding(targetProperty) ?? AddBinding(targetProperty);
+        {
+            using (BeginEdit($"绑定 {targetProperty}"))
+            {
+                return FindBinding(targetProperty) ?? AddBinding(targetProperty);
+            }
+        }
 
         /// <summary>新建一条绑定并加入集合（要"复用已有的那条"请先用 <see cref="GetOrAddBinding"/>）</summary>
         public ScadaBinding AddBinding(string targetProperty)
         {
-            var binding = new ScadaBinding { TargetProperty = targetProperty };
-            _bindings.Add(binding);
+            var binding = ScadaChangeScope.Detached(() => new ScadaBinding { TargetProperty = targetProperty });
+
+            using (BeginEdit($"新增绑定 {targetProperty}"))
+            {
+                _bindings.Add(binding);
+            }
+
             return binding;
         }
 
@@ -378,7 +555,11 @@ namespace VisionMaster.Scada
                 if (!string.Equals(_bindings[i].TargetProperty, targetProperty, StringComparison.Ordinal))
                     continue;
 
-                _bindings.RemoveAt(i);
+                using (BeginEdit($"清除绑定 {targetProperty}"))
+                {
+                    _bindings.RemoveAt(i);
+                }
+
                 return true;
             }
 
@@ -407,13 +588,23 @@ namespace VisionMaster.Scada
         /// 返回的实例始终在集合里，调用方可以直接往 <see cref="ScadaEventHook.Actions"/> 里加动作。
         /// </summary>
         public ScadaEventHook GetOrAddEventHook(ScadaEventType eventType)
-            => FindEventHook(eventType) ?? AddEventHook(eventType);
+        {
+            using (BeginEdit($"配置事件 [{eventType}]"))
+            {
+                return FindEventHook(eventType) ?? AddEventHook(eventType);
+            }
+        }
 
         /// <summary>新建一条空动作钩子并加入集合（要"复用已有的那条"请先用 <see cref="GetOrAddEventHook"/>）</summary>
         public ScadaEventHook AddEventHook(ScadaEventType eventType)
         {
-            var hook = new ScadaEventHook { Event = eventType };
-            _eventHooks.Add(hook);
+            var hook = ScadaChangeScope.Detached(() => new ScadaEventHook { Event = eventType });
+
+            using (BeginEdit($"新增事件钩子 [{eventType}]"))
+            {
+                _eventHooks.Add(hook);
+            }
+
             return hook;
         }
 
@@ -430,12 +621,88 @@ namespace VisionMaster.Scada
                 if (_eventHooks[i].Event != eventType)
                     continue;
 
-                _eventHooks.RemoveAt(i);
+                using (BeginEdit($"删除事件钩子 [{eventType}]"))
+                {
+                    _eventHooks.RemoveAt(i);
+                }
+
                 return true;
             }
 
             return false;
         }
+
+        #region 动画：查询与管理
+
+        /// <summary>
+        /// 找某个类型的动画；没配过返回 null。同类型有多条（只可能来自手工改坏的 .vms）时返回
+        /// <b>靠前者</b>，与 <see cref="FindBinding"/> / <see cref="FindEventHook"/> 同一口径。
+        /// </summary>
+        public ScadaAnimation? FindAnimation(ScadaAnimationType type)
+        {
+            foreach (var animation in _animations)
+            {
+                if (animation != null && animation.Type == type)
+                    return animation;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 找某个类型的动画，没有就地建一条（属性面板上"添加动画"选完类型就调这个）。
+        ///
+        /// 为什么是"复用"而不是"再添一条"：见 <see cref="Animations"/> 的注释——
+        /// 同类型的两条动画只有"后到者赢"，用户看不出这件事，所以口径定成
+        /// <b>一个图元上每种动画至多一条</b>。换类型就是改这一条的 <see cref="ScadaAnimation.Type"/>，
+        /// 已配好的范围/档位一并保住（与绑定换变量同一思路）。
+        /// </summary>
+        public ScadaAnimation GetOrAddAnimation(ScadaAnimationType type)
+        {
+            using (BeginEdit($"配置动画 [{type.DisplayName()}]"))
+            {
+                return FindAnimation(type) ?? AddAnimation(type);
+            }
+        }
+
+        /// <summary>新建一条动画并加入集合（要"复用已有的那条"请先用 <see cref="GetOrAddAnimation"/>）</summary>
+        public ScadaAnimation AddAnimation(ScadaAnimationType type)
+        {
+            var animation = ScadaChangeScope.Detached(() => new ScadaAnimation { Type = type });
+
+            using (BeginEdit($"新增动画 [{type.DisplayName()}]"))
+            {
+                _animations.Add(animation);
+            }
+
+            return animation;
+        }
+
+        /// <summary>
+        /// 摘掉某个类型的动画（连同它的档位表），返回是否真删掉了东西。
+        ///
+        /// 返回 bool 的理由与 <see cref="RemoveEventHook"/> 相同：属性面板上"删除动画"在
+        /// 本来就没配的时候不该把画面版本号刷高（不然点一下空按钮就提示未保存）。
+        /// </summary>
+        public bool RemoveAnimation(ScadaAnimationType type)
+        {
+            for (int i = 0; i < _animations.Count; i++)
+            {
+                if (_animations[i].Type != type)
+                    continue;
+
+                using (BeginEdit($"删除动画 [{type.DisplayName()}]"))
+                {
+                    _animations.RemoveAt(i);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        #endregion
 
         private static Dictionary<string, string> NewPropertyBag() => new();
 
@@ -449,6 +716,8 @@ namespace VisionMaster.Scada
         /// </summary>
         private void OnBindingsChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            ScadaCollectionRecorder.Record(_bindings, e);
+
             // Reset（Clear() / 整体替换）拿不到"被移除的是谁"，只能靠登记表全量补摘。
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
@@ -509,6 +778,8 @@ namespace VisionMaster.Scada
         /// </summary>
         private void OnEventHooksChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            ScadaCollectionRecorder.Record(_eventHooks, e);
+
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 foreach (var hook in _subscribedHooks)
@@ -556,6 +827,63 @@ namespace VisionMaster.Scada
         {
             if (_subscribedHooks.Remove(hook))
                 hook.PropertyChanged -= OnHookPropertyChanged;
+        }
+
+        /// <summary>
+        /// 动画集合变化 → 转译成 <see cref="Animations"/> 的属性变更（同 <see cref="OnBindingsChanged"/>，
+        /// 不再重复论证"为什么不走 CollectionChanged"）。
+        /// </summary>
+        private void OnAnimationsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            ScadaCollectionRecorder.Record(_animations, e);
+
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                foreach (var animation in _subscribedAnimations)
+                    animation.PropertyChanged -= OnAnimationPropertyChanged;
+
+                _subscribedAnimations.Clear();
+
+                foreach (var animation in _animations)
+                    SubscribeAnimation(animation);
+            }
+            else
+            {
+                if (e.NewItems != null)
+                {
+                    foreach (ScadaAnimation animation in e.NewItems)
+                        SubscribeAnimation(animation);
+                }
+
+                if (e.OldItems != null)
+                {
+                    foreach (ScadaAnimation animation in e.OldItems)
+                        UnsubscribeAnimation(animation);
+                }
+            }
+
+            RaisePropertyChanged(nameof(Animations));
+        }
+
+        /// <summary>
+        /// 单条动画的变更（换类型、启停用、换驱动变量、改范围/结束位置，以及档位表里加删改一档——
+        /// 动画已把档位的变更汇总成它自己 <c>States</c> 的一次属性变更）继续往上冒，最终落到画面版本号。
+        /// </summary>
+        private void OnAnimationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+            => RaisePropertyChanged(nameof(Animations));
+
+        /// <summary>挂动画属性变更订阅（幂等：登记表已存在则不重复挂）</summary>
+        private void SubscribeAnimation(ScadaAnimation animation)
+        {
+            if (_subscribedAnimations.Add(animation))
+                animation.PropertyChanged += OnAnimationPropertyChanged;
+        }
+
+        /// <summary>摘动画属性变更订阅（幂等：登记表没有则不动手）</summary>
+        private void UnsubscribeAnimation(ScadaAnimation animation)
+        {
+            if (_subscribedAnimations.Remove(animation))
+                animation.PropertyChanged -= OnAnimationPropertyChanged;
         }
     }
 }

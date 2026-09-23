@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -212,6 +213,59 @@ namespace Plugin.ResultUpload
             set => SetProperty(ref _successKeyword, value ?? "");
         }
 
+        private string _signSecret = "";
+        /// <summary>钉钉加签密钥（机器人安全设置选"加签"时的 SEC 开头密钥；非空时自动给 URL 拼 timestamp+sign。MES/其他类型留空）。</summary>
+        [StepConfig]
+        public string SignSecret
+        {
+            get => _signSecret;
+            set => SetProperty(ref _signSecret, value?.Trim() ?? "");
+        }
+
+        private bool _skipCertValidation = false;
+        /// <summary>跳过 HTTPS 证书校验（自签证书内网调试用；有中间人风险，非必要不开）。</summary>
+        [StepConfig]
+        public bool SkipCertValidation
+        {
+            get => _skipCertValidation;
+            set => SetProperty(ref _skipCertValidation, value);
+        }
+
+        private bool _spoolEnabled = true;
+        /// <summary>断网续传：重试穷尽仍失败的件落盘，网络恢复后自动补传（幂等 ID 防 MES 记重）。</summary>
+        [StepConfig]
+        public bool SpoolEnabled
+        {
+            get => _spoolEnabled;
+            set => SetProperty(ref _spoolEnabled, value);
+        }
+
+        private string _timestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
+        /// <summary>时间戳格式（内置"时间戳"字段与 {时间}/{时间戳} 占位符的输出格式；留空用默认）。</summary>
+        [StepConfig]
+        public string TimestampFormat
+        {
+            get => _timestampFormat;
+            set
+            {
+                if (SetProperty(ref _timestampFormat, value ?? ""))
+                    OnPropertyChanged(nameof(PayloadPreview));
+            }
+        }
+
+        private bool _timestampUtc = false;
+        /// <summary>时间戳用 UTC（对接跨时区 MES 时勾选；默认本机时间）。</summary>
+        [StepConfig]
+        public bool TimestampUtc
+        {
+            get => _timestampUtc;
+            set
+            {
+                if (SetProperty(ref _timestampUtc, value))
+                    OnPropertyChanged(nameof(PayloadPreview));
+            }
+        }
+
         #endregion
 
         #region 配置生命周期 / 视图
@@ -273,7 +327,8 @@ namespace Plugin.ResultUpload
             {
                 var payload = HttpPayloadBuilder.Build(
                     PayloadKind, Fields?.ToList(), CollectValues(null, DateTime.Now, useTestPlaceholder: true),
-                    MessageTemplate, RawJsonTemplate, DateTime.Now, EffectiveStepName);
+                    MessageTemplate, RawJsonTemplate, DateTime.Now, EffectiveStepName,
+                    TimestampFormat, TimestampUtc);
                 return payload.Error != null ? "（无法预览：" + payload.Error + "）" : payload.Json;
             }
         }
@@ -382,6 +437,9 @@ namespace Plugin.ResultUpload
         /// <summary>新增一个请求头（供视图"添加请求头"按钮）。</summary>
         public void AddHeader() => Headers.Add(new HttpHeaderDef { Key = "", Value = "" });
 
+        /// <summary>最近上报日志（最多 50 条，新的在后）：配置面板"日志回看"的数据源。后台线程持续产生，视图按需拉快照。internal：UploadLogItem 是程序集内部类型。</summary>
+        internal List<UploadLogItem> RecentLogs => UploadQueue.SnapshotRecentLogs();
+
         private bool _isTesting;
         /// <summary>是否正在测试发送（置灰按钮）。</summary>
         public bool IsTesting
@@ -419,13 +477,15 @@ namespace Plugin.ResultUpload
                     var now = DateTime.Now;
                     var payload = HttpPayloadBuilder.Build(
                         PayloadKind, Fields?.ToList(), CollectValues(null, now, useTestPlaceholder: true),
-                        MessageTemplate, RawJsonTemplate, now, EffectiveStepName);
+                        MessageTemplate, RawJsonTemplate, now, EffectiveStepName,
+                        TimestampFormat, TimestampUtc);
                     if (payload.Error != null)
                     {
                         LastResult = "✘ " + payload.Error;
                         return;
                     }
-                    var job = BuildJob(payload.Json);
+                    // 测试件不落 spool：测试失败不该污染真实断网账本
+                    var job = BuildJob(payload.Json, allowSpool: false);
                     var (ok, code, resp) = UploadQueue.SendNow(job);
                     bool bizOk = ok && KeywordHit(resp);
                     string summary = bizOk
@@ -499,7 +559,8 @@ namespace Plugin.ResultUpload
 
             // —— 组报文（纯内存；失败按契约处置）——
             var payload = HttpPayloadBuilder.Build(
-                PayloadKind, Fields?.ToList(), values, MessageTemplate, RawJsonTemplate, now, EffectiveStepName);
+                PayloadKind, Fields?.ToList(), values, MessageTemplate, RawJsonTemplate, now, EffectiveStepName,
+                TimestampFormat, TimestampUtc);
             if (payload.Error != null)
             {
                 if (BlockOnFailure)
@@ -593,19 +654,58 @@ namespace Plugin.ResultUpload
             return dict;
         }
 
-        /// <summary>本件是否 NG：判定字段的值（字符串化后）等于 NG 判定值（不区分大小写）。</summary>
+        /// <summary>
+        /// 本件是否 NG：判定字段的值与 NG 判定值智能比对——
+        /// 两边都能解析成数值按数值比（12.0 能对上 "12"），都能解析成布尔按布尔比（True 能对上 true），
+        /// 都不行才退回字符串比（不区分大小写，与旧版口径一致）。
+        /// </summary>
         private bool IsNg(Dictionary<string, object> values)
         {
             if (string.IsNullOrWhiteSpace(JudgeFieldName) || values == null) return false;
             if (!values.TryGetValue(JudgeFieldName.Trim(), out var v) || v == null) return false;
-            return string.Equals(ToPlainString(v), NgValue?.Trim(), StringComparison.OrdinalIgnoreCase);
+            string cfg = NgValue?.Trim() ?? "";
+            if (cfg.Length == 0) return false;
+
+            if (TryAsDouble(v, out double a) && double.TryParse(cfg, NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
+                return a.Equals(b);
+            if (TryAsBool(v, out bool ba) && bool.TryParse(cfg, out bool bb))
+                return ba == bb;
+            return string.Equals(ToPlainString(v), cfg, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>值可否按数值比（布尔不算数值；字符串尝试 InvariantCulture 解析）。</summary>
+        private static bool TryAsDouble(object v, out double d)
+        {
+            switch (v)
+            {
+                case double x: d = x; return true;
+                case float x: d = x; return true;
+                case decimal x: d = (double)x; return true;
+                case int x: d = x; return true;
+                case long x: d = x; return true;
+                case short x: d = x; return true;
+                case byte x: d = x; return true;
+                case bool: d = 0; return false;
+                default: return double.TryParse(ToPlainString(v), NumberStyles.Any, CultureInfo.InvariantCulture, out d);
+            }
+        }
+
+        /// <summary>值可否按布尔比（"True"/"true" 字符串也算）。</summary>
+        private static bool TryAsBool(object v, out bool b)
+        {
+            if (v is bool x) { b = x; return true; }
+            return bool.TryParse(ToPlainString(v), out b);
         }
 
         /// <summary>任意值字符串化（与 HttpPayloadBuilder 的 ToText 同口径：数值文本就是 ToString，比较宽松够用）。</summary>
         private static string ToPlainString(object v) => v is string s ? s : (v?.ToString() ?? "");
 
-        /// <summary>组上报任务（URL/超时/请求头/重试已在配置里）。</summary>
-        private UploadJob BuildJob(string json)
+        /// <summary>
+        /// 组上报任务（URL/超时/请求头/重试已在配置里）：
+        /// 每条一个 GUID 幂等 ID——首发、重试、断网补传共用，MES 端据此去重；
+        /// allowSpool=false 用于测试发送（失败不落断网账本）。
+        /// </summary>
+        private UploadJob BuildJob(string json, bool allowSpool = true)
         {
             return new UploadJob
             {
@@ -614,7 +714,11 @@ namespace Plugin.ResultUpload
                 TimeoutMs = TimeoutMs,
                 Headers = BuildHeaders(),
                 Json = json,
-                RetryCount = RetryCount
+                RetryCount = RetryCount,
+                UploadId = Guid.NewGuid().ToString("N"),
+                SignSecret = SignSecret ?? "",
+                SkipCertValidation = SkipCertValidation,
+                AllowSpool = allowSpool && SpoolEnabled
             };
         }
 

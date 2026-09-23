@@ -73,6 +73,54 @@ namespace Plugin.ResultUpload
             => throw new NotSupportedException();
     }
 
+    /// <summary>日志级别着色：ERROR 红 / WARN 橙 / 其余灰。</summary>
+    public class LogLevelColorConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            switch (value as string)
+            {
+                case "ERROR": return new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));
+                case "WARN": return new SolidColorBrush(Color.FromRgb(0xE6, 0x7E, 0x22));
+                default: return new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+            }
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// PasswordBox 的双向绑定桥：PasswordBox 出于安全设计不暴露 Password 依赖属性（XAML 直接 Binding 会被拒），
+    /// 用附加属性中转。对应"只打码不加密"的拍板——持久化仍是明文，只是界面上打码显示。
+    /// </summary>
+    public static class PasswordBoxHelper
+    {
+        public static readonly DependencyProperty BoundPasswordProperty =
+            DependencyProperty.RegisterAttached("BoundPassword", typeof(string), typeof(PasswordBoxHelper),
+                new PropertyMetadata("", OnBoundPasswordChanged));
+
+        public static string GetBoundPassword(DependencyObject obj) => (string)obj.GetValue(BoundPasswordProperty);
+        public static void SetBoundPassword(DependencyObject obj, string value) => obj.SetValue(BoundPasswordProperty, value);
+
+        private static void OnBoundPasswordChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is PasswordBox box)
+            {
+                box.PasswordChanged -= Box_PasswordChanged;
+                if (!string.Equals(box.Password, (string)e.NewValue))
+                    box.Password = (string)e.NewValue ?? "";
+                box.PasswordChanged += Box_PasswordChanged;
+            }
+        }
+
+        private static void Box_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            if (sender is PasswordBox box)
+                SetBoundPassword(box, box.Password);
+        }
+    }
+
     /// <summary>
     /// 结果上报配置视图：报文预设 / 上传内容 / 发送策略 / 测试发送。
     /// 预览与字段联动的刷新由插件自身发 PropertyChanged，这里只管行增删、订阅与结果着色。
@@ -96,6 +144,7 @@ namespace Plugin.ResultUpload
             plugin.RefreshPreview();
             plugin.PropertyChanged += OnPluginPropertyChanged;
             RefreshResultColor();
+            RefreshRecentLogs();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -107,7 +156,15 @@ namespace Plugin.ResultUpload
         private void OnPluginPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(ResultUploadPlugin.LastResult))
-                RefreshResultColor();
+            {
+                // 异步模式：LastResult 在队列线程被赋值，本事件处理器跟着跑在后台线程——
+                // 摸 UI（Foreground / ItemsSource）必须封送回 UI 线程，否则跨线程异常
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    RefreshResultColor();
+                    RefreshRecentLogs();
+                }));
+            }
         }
 
         /// <summary>按 "✔" 前缀给结果文本着色：成功绿、失败红，一眼分清。</summary>
@@ -119,6 +176,19 @@ namespace Plugin.ResultUpload
                 ? new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32))
                 : new SolidColorBrush(Color.FromRgb(0xC6, 0x28, 0x28));
         }
+
+        /// <summary>拉一次最近日志快照（最多 50 条）填进回看列表。</summary>
+        private void RefreshRecentLogs()
+        {
+            if (RecentLogsList == null) return;
+            var logs = Plugin?.RecentLogs;
+            if (logs == null) return;
+            RecentLogsList.ItemsSource = logs;
+            if (RecentLogsList.Items.Count > 0)
+                RecentLogsList.ScrollIntoView(RecentLogsList.Items[RecentLogsList.Items.Count - 1]);
+        }
+
+        private void RefreshLogs_Click(object sender, RoutedEventArgs e) => RefreshRecentLogs();
 
         // 行内按钮的 DataContext 就是行对象（UploadFieldDef / HttpHeaderDef），直接从集合移除
 

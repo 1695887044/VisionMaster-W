@@ -8,7 +8,7 @@ using System.Text;
 namespace VisionMaster.Communications
 {
     /// <summary>
-    /// <para>批量轮询规划器：把"变量清单"编译成"段读 + 兜底单读"的轮询委托，供 <see cref="ConnectionWorker.PollAction"/> 使用。</para>
+    /// <para>批量轮询规划器：把"变量清单"编译成"段读 + 兜底单读"的轮询委托，供 <see cref="PollScheduler"/> 按扫描组各持一份使用。</para>
     /// <para>为什么需要它：旧实现每个变量发一条读命令（N 个变量 = N 次往返），在 20~50ms 周期下既打满网络又拖长扫描时间。
     /// 批量化思路：同协议、同存储区、地址相近的变量合并成一次块读，一次读回一整片区域，再在内存里切片解码。</para>
     /// <para>编译期做三件事：</para>
@@ -113,7 +113,7 @@ namespace VisionMaster.Communications
         /// <summary>兜底单读数量</summary>
         public int FallbackCount => _fallbacks.Count;
 
-        /// <summary>参与轮询的读写项总数；为 0 表示没有可轮询变量（上层应把 PollAction 置空，避免空转）</summary>
+        /// <summary>参与轮询的读写项总数；为 0 表示没有可轮询变量（上层应把调度器置空，避免空转）</summary>
         public int PollItemCount => _segments.Count + _fallbacks.Count;
 
         #endregion

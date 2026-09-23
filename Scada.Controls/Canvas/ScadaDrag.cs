@@ -20,6 +20,17 @@ namespace VisionMaster.Scada.Controls
         /// <summary>拖放负载的格式名（值是图元的 TypeKey）</summary>
         public const string ElementTypeKeyFormat = "VisionMaster.Scada.ElementTypeKey";
 
+        /// <summary>
+        /// 拖放负载的格式名（值是模板的 TemplateId）。
+        ///
+        /// 与类型键<b>分成两种格式</b>而不是"一种格式 + 一个区分字段"：
+        /// 两者的语义根本不同——类型键说的是"放下要造哪一类图元"（造一个空壳），
+        /// 模板 Id 说的是"放下要把库里的哪一份内容搬出来"（带属性、绑定、事件的一整块）。
+        /// 混在一种格式里，画布就得先解包再分派；分成两种，画布各自 <c>GetDataPresent</c>
+        /// 一问就知道该走哪条路，也顺带把"外部拖进来一个同名字符串"的误判挡在门外。
+        /// </summary>
+        public const string TemplateIdFormat = "VisionMaster.Scada.TemplateId";
+
         /// <summary>装一个类型键进拖放负载</summary>
         public static DataObject CreatePayload(string typeKey)
         {
@@ -30,6 +41,34 @@ namespace VisionMaster.Scada.Controls
             data.SetData(ElementTypeKeyFormat, typeKey);
 
             return data;
+        }
+
+        /// <summary>装一个模板 Id 进拖放负载</summary>
+        public static DataObject CreateTemplatePayload(Guid templateId)
+        {
+            if (templateId == Guid.Empty)
+                throw new ArgumentException("拖放必须带上模板 Id", nameof(templateId));
+
+            var data = new DataObject();
+
+            // 存字符串而不是 Guid：拖放数据在同一个桌面会话里跨进程可见，
+            // 字符串是两边都认得、也看得懂的形态（调试时把负载打印出来就能直接读）。
+            data.SetData(TemplateIdFormat, templateId.ToString("D"));
+
+            return data;
+        }
+
+        /// <summary>从拖放负载里取模板 Id；不是模板负载则返回 false</summary>
+        public static bool TryGetTemplateId(IDataObject? data, out Guid templateId)
+        {
+            templateId = Guid.Empty;
+
+            if (data is null || !data.GetDataPresent(TemplateIdFormat))
+                return false;
+
+            return data.GetData(TemplateIdFormat) is string text
+                   && Guid.TryParse(text, out templateId)
+                   && templateId != Guid.Empty;
         }
 
         /// <summary>

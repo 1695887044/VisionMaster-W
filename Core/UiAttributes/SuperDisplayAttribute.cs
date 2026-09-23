@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text.RegularExpressions;
 
 namespace UI.Attributes
@@ -14,6 +14,16 @@ namespace UI.Attributes
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public int ColSpan { get; set; } = 12;
+
+        /// <summary>
+        /// <para>该字段是否在属性面板中显示，默认 true（不写就等于显示，老字段行为不变）。</para>
+        /// <para>用途：子类隐藏"继承来但对自己无意义"的字段。做法是子类用 <c>override</c> 重贴
+        /// <c>[SuperDisplay(Visible = false)]</c>。</para>
+        /// <para>⚠️ 必须用 <c>override</c> 而不是 <c>new</c>：<c>GetProperties()</c> 会把基类与子类
+        /// 两个同名属性都反射出来（基类那份仍带 <see cref="SuperDisplayAttribute"/>），
+        /// 结果是同一字段被渲染两行。</para>
+        /// </summary>
+        public bool Visible { get; set; } = true;
 
         /// <summary>
         /// 当该属性的值发生变化时，是否强制重新生成整个表单（多态切换核心）

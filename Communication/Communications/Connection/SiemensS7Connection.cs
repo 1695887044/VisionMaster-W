@@ -37,6 +37,12 @@ namespace VisionMaster.Communications
             _device.Port = config.Port;
             _device.Rack = config.Rack;
             _device.Slot = config.Slot;
+            // 与 ModbusTcpConnection 同理：把配置的"连接超时"下发到 HSL 的 TCP 建连超时，
+            // 否则界面上的 TimeoutMs 对 HSL 无效（默认 10000ms 才是实际生效值）。
+            // 注：S7 建连 = TCP 建连（受 TimeoutMs 约束）+ COTP 握手读取（受下面的 ReadTimeoutMs 约束），
+            // 所以真实建连上限 ≈ 两者之和，两个值都要下发才封得住。
+            _device.ConnectTimeOut = config.TimeoutMs;
+            _device.ReceiveTimeOut = config.ReadTimeoutMs;
         }
 
         /// <inheritdoc />

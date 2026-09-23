@@ -49,6 +49,18 @@ namespace VisionMaster.Scada.Controls
         public IReadOnlyList<ElementPropertyDescriptor> Properties { get; init; } = GeometryProperties.Standard;
 
         /// <summary>
+        /// <b>不允许绑变量的属性组</b>（产品口径，逐条理由见 <see cref="GeometryProperties"/> 的类注释）。
+        ///
+        /// 为什么用"组名清单 + 注册期校验"，而不是只在每条属性上写 <c>IsBindable = false</c>：
+        /// 这两组都是<b>设计期语言</b>——「位置与尺寸」是版面，「外观」是皮肤，都该由组态时一次定好，
+        /// 不该被运行数据驱动。但新增一类图元时，顺手把"填充色"写成 <c>IsBindable = true</c>
+        /// 是极容易犯的错，而它<b>不报任何错</b>：只是属性面板上多出一个不该有的 ƒx，
+        /// 要等有人真拿它绑了变量、画面开始自己变色，才会被发现。
+        /// 于是把口径固化成一条注册期校验——写错就注册失败，图元直接进不了工具箱。
+        /// </summary>
+        public static IReadOnlyList<string> NonBindableGroups { get; } = new[] { "位置与尺寸", "外观" };
+
+        /// <summary>
         /// 本类图元支持的<b>事件钩子</b>清单（"这个图元能配哪些事件"的唯一出处）。
         ///
         /// 为什么必须声明在描述符上，而不是界面里写死"按钮有点击、矩形没有"：这条知识属于图元类型，
@@ -75,7 +87,7 @@ namespace VisionMaster.Scada.Controls
         /// 因为"唯一名"是编辑器的语义，模型层不强制（强制了会让复制/粘贴多一层失败路径）。
         /// </summary>
         public ScadaElement CreateElement(double x = 0, double y = 0)
-            => new()
+            => ScadaChangeScope.Detached(() => new ScadaElement
             {
                 TypeKey = TypeKey,
                 Name = DisplayName,
@@ -83,7 +95,7 @@ namespace VisionMaster.Scada.Controls
                 Y = y,
                 Width = DefaultWidth,
                 Height = DefaultHeight,
-            };
+            });
 
         /// <summary>造一个承载本图元的控件实例（尚未绑定模型，调用方负责赋 <c>Element</c>）</summary>
         public ScadaElementBase CreateControl()
@@ -147,6 +159,10 @@ namespace VisionMaster.Scada.Controls
 
                 if (property.IsGeometry && property.TargetProperty != null)
                     return $"{TypeKey}.{property.Key} 是几何键，由基类统一落到 FrameworkElement，不应声明 TargetProperty";
+
+                if (property.IsBindable && IsInNonBindableGroup(property.Group))
+                    return $"{TypeKey}.{property.Key} 位于「{property.Group}」组，该组属性一律不可绑变量" +
+                           $"（见 {nameof(NonBindableGroups)}）";
 
                 if (property.TargetProperty is { } dp)
                 {
@@ -226,6 +242,17 @@ namespace VisionMaster.Scada.Controls
             {
                 return false;
             }
+        }
+
+        private static bool IsInNonBindableGroup(string group)
+        {
+            for (int i = 0; i < NonBindableGroups.Count; i++)
+            {
+                if (string.Equals(NonBindableGroups[i], group, StringComparison.Ordinal))
+                    return true;
+            }
+
+            return false;
         }
 
         private static bool Contains(IReadOnlyList<string> choices, string value)

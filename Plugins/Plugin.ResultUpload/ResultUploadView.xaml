@@ -19,6 +19,8 @@
             <local:EnumLabelConverter x:Key="EnumLabel" />
             <local:EnumInToVisibilityConverter x:Key="EnumInVis" />
             <local:InverseBoolConverter x:Key="NotBool" />
+            <local:LogLevelColorConverter x:Key="LevelColor" />
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
             <Style x:Key="CardBorder" TargetType="Border">
                 <Setter Property="Background" Value="#FFFFFF" />
@@ -294,12 +296,15 @@
                                         Style="{StaticResource RowBox}"
                                         Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}"
                                         ToolTip="请求头名，如 Authorization" />
-                                    <TextBox
+                                    <PasswordBox
                                         Grid.Column="1"
                                         Margin="4,0,0,0"
-                                        Style="{StaticResource RowBox}"
-                                        Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                                        ToolTip="请求头值，如 Bearer xxxx" />
+                                        Height="22"
+                                        VerticalContentAlignment="Center"
+                                        FontSize="11"
+                                        Padding="2,0"
+                                        local:PasswordBoxHelper.BoundPassword="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="请求头值（打码显示，如 Bearer xxxx；持久化仍是明文随方案保存）" />
                                     <Button
                                         Grid.Column="2"
                                         Margin="4,0,0,0"
@@ -450,6 +455,28 @@
                             ToolTip="例：&#x7B;&quot;sn&quot;:&quot;&#x7B;sn&#x7D;&quot;,&quot;value&quot;:&#x7B;#value1&#x7D;&#x7D;" />
                     </Grid>
 
+                    <!--  时间戳格式 + UTC（影响内置"时间戳"字段与 {时间}/{时间戳} 占位符，改完预览即时见效）  -->
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="时间格式" />
+                        <TextBox
+                            Grid.Column="1"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding TimestampFormat, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="内置「时间戳」字段和 {时间} 占位符的输出格式（.NET 格式串，留空用 yyyy-MM-dd HH:mm:ss.fff）；例 yyyy/MM/dd HH:mm 或 yyyy-MM-ddTHH:mm:ss.fff" />
+                        <CheckBox
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Content="UTC"
+                            IsChecked="{Binding TimestampUtc}"
+                            ToolTip="勾选=时间戳输出 UTC 时间（对接跨时区 MES 用）；默认本机时间" />
+                    </Grid>
+
                     <!--  报文预览  -->
                     <Border
                         Margin="0,6,0,0"
@@ -571,6 +598,43 @@
                             Text="{Binding SuccessKeyword, UpdateSourceTrigger=PropertyChanged}"
                             ToolTip="非空时：HTTP 2xx 且响应体包含它才算业务成功（如钉钉响应里的 errcode）。留空=2xx 即成功" />
                     </Grid>
+
+                    <!--  断网续传（默认开：spool 落盘 + 空闲补传 + 幂等 ID）  -->
+                    <CheckBox
+                        Margin="0,6,0,0"
+                        Content="断网续传（重试穷尽落盘，网络恢复后自动补传）"
+                        IsChecked="{Binding SpoolEnabled}"
+                        ToolTip="断网期间失败的件存到 exe目录\ResultUploadSpool\spool.jsonl（上限 10 万行，满了丢最老）；后台空闲时自动补传且实时件优先；每条自动带 X-Upload-Id 幂等头，MES 端按 ID 去重不会记重" />
+
+                    <!--  钉钉加签密钥（可选）  -->
+                    <Grid Margin="0,4,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="加签密钥" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource FieldBox}"
+                            Text="{Binding SignSecret, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="钉钉机器人安全设置选「加签」时的 SEC 开头密钥；非空时每次发送自动拼 timestamp+sign（重试会重签防过期）。MES/企微/其他留空" />
+                    </Grid>
+
+                    <!--  跳过证书校验（默认关 + 红字警告仅勾选时出现）  -->
+                    <StackPanel Margin="0,2,0,0" Orientation="Horizontal">
+                        <CheckBox
+                            Foreground="#C62828"
+                            Content="跳过 HTTPS 证书校验"
+                            IsChecked="{Binding SkipCertValidation}"
+                            ToolTip="自签证书内网调试用；开启后不校验服务器证书，非必要不开" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="#C62828"
+                            Text="⚠ 有中间人风险，仅自签证书调试用"
+                            Visibility="{Binding SkipCertValidation, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -601,6 +665,60 @@
                         FontSize="12"
                         Text="{Binding LastResult}"
                         TextWrapping="Wrap" />
+
+                    <!--  最近日志回看（后台线程持续产生；打开面板/有新结果时自动刷新，也可手动点）  -->
+                    <Grid Margin="0,10,0,0">
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource CardTitle}" Text="最近上报日志" />
+                            <TextBlock
+                                Margin="8,0,0,0"
+                                Style="{StaticResource HintText}"
+                                Text="最近 50 条（含断网续传动态；测试发送也留痕）" />
+                        </StackPanel>
+                        <Button
+                            HorizontalAlignment="Right"
+                            Click="RefreshLogs_Click"
+                            Content="刷新"
+                            Style="{StaticResource MiniButton}" />
+                    </Grid>
+                    <Border
+                        Margin="0,4,0,0"
+                        Padding="4"
+                        Background="#FAFAFA"
+                        BorderBrush="#E5E5E5"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                        <ListBox
+                            x:Name="RecentLogsList"
+                            Height="110"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            FontFamily="Consolas, Microsoft YaHei"
+                            FontSize="11"
+                            ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="122" />
+                                            <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Foreground="#888888" Text="{Binding Time, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            Foreground="{Binding Level, Converter={StaticResource LevelColor}}"
+                                            Text="{Binding Level}" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            Text="{Binding Message}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding Message}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
                 </StackPanel>
             </Border>
         </StackPanel>

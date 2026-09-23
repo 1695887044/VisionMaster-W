@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
+    xmlns:controls="clr-namespace:VisionMaster.Views.Controls"
     d:DesignHeight="600"
     d:DesignWidth="260"
     prism:ViewModelLocator.AutoWireViewModel="True"
@@ -19,10 +20,22 @@
     <!--  画面走声明里的读写委托）。所以加一类图元 / 加一条画面属性，这个文件一行都不用改。  -->
     <!--  ==========================================  -->
 
+    <!--  颜色令牌：面板里每一处颜色都从这本字典取（值集中在 UI/Controls/Themes/Colors.xaml，  -->
+    <!--  换肤只改那一处，面板一行不动）。真 App 里它由 App.xaml 合并进来，这里再合并一次是让  -->
+    <!--  面板"自带口粮"：脱离 App 单独量（断言宿主、设计器）也照样渲染，  -->
+    <!--  而不是抛 XamlParseException 说找不到 ScadaPanelBackgroundBrush。  -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <!--  本面板在右侧，分隔线画在左边（工具箱在左侧，画的是右边框，同一个道理）  -->
     <Border
-        Background="#FFF7F8FA"
-        BorderBrush="#FFDCE0E6"
+        Background="{StaticResource ScadaPanelBackgroundBrush}"
+        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
         BorderThickness="1,0,0,0">
         <Grid>
             <Grid.Resources>
@@ -35,13 +48,13 @@
 
                 <!--  所有文本类编辑器共用：值非法（数字框打了字母、越界）时标红，原因挂悬停  -->
                 <Style x:Key="ValueBox" TargetType="TextBox">
-                    <Setter Property="BorderBrush" Value="#FFDCE0E6" />
+                    <Setter Property="BorderBrush" Value="{StaticResource ScadaPanelBorderBrush}" />
                     <Setter Property="VerticalContentAlignment" Value="Center" />
                     <Setter Property="FontSize" Value="12" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsValid}" Value="False">
-                            <Setter Property="BorderBrush" Value="#FFE05B5B" />
-                            <Setter Property="Background" Value="#FFFDF0F0" />
+                            <Setter Property="BorderBrush" Value="{StaticResource ScadaDangerBrush}" />
+                            <Setter Property="Background" Value="{StaticResource ScadaInvalidBackgroundBrush}" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -78,42 +91,280 @@
                         ToolTip="{Binding ErrorText}" />
                 </DataTemplate>
 
-                <!--  颜色：文本框 + 色块。仓库里没有可用的取色器控件（第三方树里的都不在引用范围内），  -->
-                <!--  而 #AARRGGBB 本来就是可手输的文本，色块只负责"这串字符到底长什么样"  -->
+                <!--  色板上的一个小格子：去掉按钮的三态外观，只留一块颜色 + 悬停描边  -->
+                <Style x:Key="PaletteCell" TargetType="Button">
+                    <Setter Property="Width" Value="24" />
+                    <Setter Property="Height" Value="20" />
+                    <Setter Property="Margin" Value="0,0,2,2" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border
+                                    x:Name="Cell"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="2" />
+                                <ControlTemplate.Triggers>
+                                    <!--  只换描边不换粗细：改 BorderThickness 会让格子里的颜色
+                                          在悬停时抖一下（描边向内吃掉 1px），一排格子扫过去像在呼吸  -->
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Cell" Property="BorderBrush" Value="{StaticResource ScadaAccentBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!--  色块本身是个 ToggleButton：点开取色板，再点一下收起。
+                      模板压成"只有内容"，因为真正的视觉是里面那块 Border（颜色由行给）。  -->
+                <Style x:Key="SwatchToggle" TargetType="ToggleButton">
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border
+                                    x:Name="Chrome"
+                                    Padding="1"
+                                    Background="Transparent"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="1"
+                                    CornerRadius="3">
+                                    <ContentPresenter />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ScadaAccentBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Chrome" Property="Background" Value="{StaticResource ScadaAccentSoftBrush}" />
+                                        <Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ScadaAccentBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!--  ====================  取色板卡片（属性行与动画档位共用）  ====================  -->
+
+                <!--  这张卡片有两个宿主：属性行里那块色块（EditColor），以及动画档位卡片里的
+                      「前景 / 背景」两个小色块。抽成一份而不是抄两份——两处弹出来的必须是同一张卡片，
+                      否则改一处配色，另一处就悄悄长歪了。
+                      本模板不认识任何具体类型：它的 DataContext 只要具备取色成员即可，
+                      而 ScadaColorSlot 与属性行的那些成员是逐字同名的（这是刻意的）。
+                      命令取的是"最近的 ItemsControl"的 DataContext，那个 ItemsControl 就是色板本身、
+                      它的 DataContext 由宿主继承下来，所以槽与行两种宿主都能解析到自己的命令。  -->
+                <DataTemplate x:Key="ColorPickerBody">
+                    <Border
+                        Width="228"
+                        Padding="8"
+                        Background="{StaticResource ScadaSurfaceBrush}"
+                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                        <Border.Effect>
+                            <DropShadowEffect
+                                BlurRadius="10"
+                                Opacity="0.18"
+                                ShadowDepth="2" />
+                        </Border.Effect>
+
+                        <StackPanel>
+                            <TextBlock
+                                Margin="0,0,0,4"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="色板" />
+
+                            <ItemsControl ItemsSource="{Binding ColorPalette}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <!--  参数传 Color 而不是整支画刷：命令侧只关心三个通道，
+                                              拿到 Brush 还得再判类型，多一道没用的分支  -->
+                                        <Button
+                                            Background="{Binding}"
+                                            Command="{Binding DataContext.PickColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding Color}"
+                                            Style="{StaticResource PaletteCell}"
+                                            ToolTip="{Binding Color}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock
+                                Margin="0,8,0,2"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="透明度" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    IsSnapToTickEnabled="True"
+                                    Maximum="255"
+                                    Minimum="0"
+                                    TickFrequency="1"
+                                    Value="{Binding ColorDraftAlpha, Mode=TwoWay}" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Width="28"
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaLabelTextBrush}"
+                                    Text="{Binding ColorDraftAlpha, StringFormat={}{0:0}}"
+                                    TextAlignment="Right" />
+                            </Grid>
+
+                            <TextBlock
+                                Margin="0,8,0,2"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="颜色（#AARRGGBB）" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!--  即时提交：草稿不进模型，每敲一个字符重算一次预览没有副作用，
+                                      反而能让人"边打边看见"自己打的是什么颜色  -->
+                                <TextBox
+                                    Grid.Column="0"
+                                    FontSize="11"
+                                    Style="{StaticResource ValueBox}"
+                                    Text="{Binding ColorDraft, UpdateSourceTrigger=PropertyChanged}" />
+                                <Border
+                                    Grid.Column="1"
+                                    Width="24"
+                                    Height="20"
+                                    Margin="6,0,0,0"
+                                    Background="{Binding ColorDraftBrush}"
+                                    BorderBrush="{StaticResource ScadaSwatchBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="2" />
+                            </Grid>
+
+                            <StackPanel
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                                <!--  两个按钮照抄对话框的老规矩（白底描边 = 取消，蓝底白字 = 确定），
+                                      面板里弹出来的小窗和对话框不该长成两家人。只是把内边距收窄，
+                                      228 宽的弹窗塞不下对话框那对 28,8 的胖按钮  -->
+                                <Button
+                                    Padding="16,4"
+                                    Background="{StaticResource ScadaSurfaceBrush}"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    Command="{Binding CancelColorCommand}"
+                                    Content="取消"
+                                    Cursor="Hand"
+                                    FontSize="12">
+                                    <Button.Resources>
+                                        <Style TargetType="Border">
+                                            <Setter Property="CornerRadius" Value="4" />
+                                        </Style>
+                                    </Button.Resources>
+                                </Button>
+                                <Button
+                                    Margin="8,0,0,0"
+                                    Padding="16,4"
+                                    Background="{StaticResource ScadaPrimaryButtonBrush}"
+                                    BorderThickness="0"
+                                    Command="{Binding ApplyColorCommand}"
+                                    Content="确定"
+                                    Cursor="Hand"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource ScadaOnAccentTextBrush}">
+                                    <Button.Resources>
+                                        <Style TargetType="Border">
+                                            <Setter Property="CornerRadius" Value="4" />
+                                        </Style>
+                                    </Button.Resources>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+
+                <!--  颜色：行里只有一块可点的色块，点开是取色板（预设色 + 透明度 + 十六进制）。  -->
+                <!--  为什么行里不再摆十六进制文本框：那是"让人手抄一串 #AARRGGBB"的设计，  -->
+                <!--  与取色板是两套并存的入口——想点色板的人不会去背十六进制，会背的人又嫌色板碍事。  -->
+                <!--  色块成为唯一入口后，精确值挂在它的悬停提示上；真要手打，弹窗里那个框还在。  -->
+                <!--  弹窗里改的是"草稿"，点「确定」才写回模型——一次提交 = 一条撤销记录，  -->
+                <!--  拖一次透明度滑块就灌满撤销栈的编辑器，等于把 Ctrl+Z 废掉  -->
+                <!--  （草稿机制见 ScadaPropertyRowBase 的取色器注释）。  -->
                 <DataTemplate x:Key="EditColor">
+                    <!--  外层 Grid 只为容纳那个 Popup（Popup 不占布局，但它得有个爹）。  -->
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox
-                            Style="{StaticResource ValueBox}"
-                            ToolTip="{Binding ErrorText}"
-                            Text="{Binding Value, UpdateSourceTrigger=LostFocus}" />
-                        <!--  色块必须显式落在第 1 列：漏写 Grid.Column 会和文本框挤进同一格，
-                            又因为设了固定 Width 而在该格内居中，直接压在十六进制文本上。
-                            HorizontalAlignment=Left 让它紧贴文本框，VerticalAlignment=Center 保证和文本上下对齐。 -->
-                        <Border
-                            Grid.Column="1"
-                            Width="18"
-                            Height="18"
-                            Margin="4,0,0,0"
+                        <!--  色块左对齐、紧贴标签：与 Bool 行的复选框同一个左缘，  -->
+                        <!--  几行颜色看下来是一条竖线，而不是"标签之后空一段、方块浮在右边"。  -->
+                        <ToggleButton
+                            x:Name="ColorSwatch"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
-                            Background="{Binding SwatchBrush}"
-                            BorderBrush="#FFC0C4CC"
-                            BorderThickness="1"
-                            CornerRadius="2"
-                            ToolTip="{Binding Value}" />
+                            IsChecked="{Binding IsColorPickerOpen, Mode=TwoWay}"
+                            Style="{StaticResource SwatchToggle}"
+                            ToolTip="{Binding Value}">
+                            <Border
+                                Width="44"
+                                Height="20"
+                                Background="{Binding SwatchBrush}"
+                                BorderBrush="{StaticResource ScadaSwatchBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="2" />
+                        </ToggleButton>
+
+                        <!--  取色板弹窗。StaysOpen=False：点面板别处就收起，不必先找"取消"。
+                              HorizontalOffset 是把弹窗拽回面板里的那一段：
+                              弹窗宽 228，面板只有 260，色块左缘在面板内约 101px 处，
+                              默认的"左边缘对齐色块"会让弹窗右边探出面板 60 多像素
+                              （属性面板贴着窗口右沿，探出去的部分直接被窗口裁掉）。
+                              偏移 -82 之后弹窗落在面板内 19~247，左右各留十几像素的边，
+                              看着像从色块下面抽出来的一张卡片，而不是贴着窗口边。  -->
+                        <Popup
+                            AllowsTransparency="True"
+                            HorizontalOffset="-82"
+                            IsOpen="{Binding IsColorPickerOpen, Mode=TwoWay}"
+                            Placement="Bottom"
+                            PlacementTarget="{Binding ElementName=ColorSwatch}"
+                            PopupAnimation="Fade"
+                            StaysOpen="False">
+                            <!--  卡片正文与动画档位卡片里那两格小色块共用一份（见 ColorPickerBody）：
+                                  两处弹出来的必须是同一张卡，否则改一处配色，另一处就悄悄长歪了。  -->
+                            <ContentControl ContentTemplate="{StaticResource ColorPickerBody}" />
+                        </Popup>
                     </Grid>
                 </DataTemplate>
 
                 <DataTemplate x:Key="EditChoice">
+                    <!--  下拉绑的是"值 + 中文名"两列（ChoiceOptions），不是描述符里那串落盘值：
+                          DisplayMemberPath 决定看到什么（圆形），SelectedValuePath 决定写回什么（Circle）。
+                          选中项按 Value 匹配，所以中文显示名不参与写回，落进 .vms 的永远是英文原值。
+                          与动作类型那个下拉同一个手法（见 ScadaActionTypeOption 的注释）。  -->
                     <ComboBox
                         VerticalContentAlignment="Center"
                         FontSize="12"
-                        ItemsSource="{Binding Choices}"
-                        SelectedItem="{Binding Value, Mode=TwoWay}"
+                        DisplayMemberPath="DisplayName"
+                        ItemsSource="{Binding ChoiceOptions}"
+                        SelectedValue="{Binding Value, Mode=TwoWay}"
+                        SelectedValuePath="Value"
                         ToolTip="{Binding ErrorText}" />
                 </DataTemplate>
 
@@ -149,92 +400,324 @@
                     <Setter Property="Margin" Value="2,0,0,0" />
                     <Setter Property="Padding" Value="0" />
                     <Setter Property="FontSize" Value="11" />
-                    <Setter Property="Foreground" Value="#FF606266" />
+                    <Setter Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
+                    <Style.Triggers>
+                        <!--  到了端点（已经在最上面 / 最下面）按钮会变灰。
+                              必须显式写这一条：显式 Style 会整个盖掉主题里的禁用态触发器，
+                              而上面那句 Foreground 又压过了主题的灰字，不补就等于
+                              "点不动的按钮和能点的长得一模一样"——最伤信任的一种界面。  -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource ScadaDisabledTextBrush}" />
+                        </Trigger>
+                    </Style.Triggers>
                 </Style>
 
-                <!--  一条动作：第一行选"干什么"和调顺序，第二行填这条动作的参数。
-                    两行而不是挤一行：面板统共 260px 宽，一行里塞下"下拉框 + 参数 + 三个按钮"
-                    之后留给日志文案的宽度不够写一句人话。  -->
-                <DataTemplate x:Key="ActionItem">
+                <!--  事件行本体：勾选框 + （勾上才出现的）动作表。
+                    这份内容已抽成公共控件 ScadaEventEditor（属性面板与变量事件弹窗共用一份），
+                    所以这里只剩一行挂载——DataContext 换成行内嵌的编辑视图模型。
+                    控件自带主题字典与动作卡片模板，面板这一层不再需要它们。
+                    仍独占整行宽度、不排标签列：82px 的标签列留给动作表就只剩一条缝了。  -->
+                <DataTemplate x:Key="EventRowBody">
+                    <controls:ScadaEventEditor DataContext="{Binding Editor}" />
+                </DataTemplate>
+
+                <!--  ====================  动画行（r4）：开关 + 驱动变量 + 参数区  ====================  -->
+
+                <!--  变量带里那颗"✕"：无边框，只在悬停时泛一点红——它是删除语义，
+                    平时不该有存在感，否则整条变量带会看着像一张按钮表。
+                    定义在动画行这一节的最前面（而不是留在下面属性行那一节）：StaticResource 在
+                    同一份字典里只认"已经读到的"资源，档位卡片里的清除按钮要先用到它，写在使用点之后
+                    就是一次解析期找不到。  -->
+                <Style x:Key="ChipIconButton" TargetType="Button">
+                    <Setter Property="Width" Value="16" />
+                    <Setter Property="Height" Value="16" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="FontSize" Value="10" />
+                    <Setter Property="Foreground" Value="{StaticResource ScadaChipCloseBrush}" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource ScadaDangerBrush}" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+
+                <!--  档位卡片里的一格颜色（DataContext = ScadaColorSlot）。
+                    标签 + 色块 + 清除 + 取色弹窗，与属性行那块色块同一套手势：
+                    点色块开弹窗、点「确定」才写回模型。弹窗正文仍是共用那份 ColorPickerBody。  -->
+                <DataTemplate x:Key="ColorSlotEditor">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Margin="0,0,3,0"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{Binding Label}" />
+
+                        <ToggleButton
+                            x:Name="SlotSwatch"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            IsChecked="{Binding IsColorPickerOpen, Mode=TwoWay}"
+                            Style="{StaticResource SwatchToggle}"
+                            ToolTip="点开取色板；不配这个通道 = 这一档不改它（保持设计外观）">
+                            <Border
+                                Width="26"
+                                Height="18"
+                                Background="{Binding SwatchBrush}"
+                                BorderBrush="{StaticResource ScadaSwatchBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="2" />
+                        </ToggleButton>
+
+                        <!--  没配色时把清除按钮收掉：一个"点了什么也不会发生"的按钮最伤信任  -->
+                        <Button
+                            Grid.Column="2"
+                            Margin="1,0,0,0"
+                            VerticalAlignment="Center"
+                            Command="{Binding ClearCommand}"
+                            Content="✕"
+                            Style="{StaticResource ChipIconButton}"
+                            ToolTip="清除这个颜色（这一档不再改这个通道）"
+                            Visibility="{Binding HasColor, Converter={StaticResource BoolVis}}" />
+
+                        <!--  卡片正文与属性行那块色块共用一份（见 ColorPickerBody）。
+                              偏移比属性行小一些：这一格本来就靠左，再拽 -82 会探到面板外面去。  -->
+                        <Popup
+                            AllowsTransparency="True"
+                            HorizontalOffset="-70"
+                            IsOpen="{Binding IsColorPickerOpen, Mode=TwoWay}"
+                            Placement="Bottom"
+                            PlacementTarget="{Binding ElementName=SlotSwatch}"
+                            PopupAnimation="Fade"
+                            StaysOpen="False">
+                            <ContentControl ContentTemplate="{StaticResource ColorPickerBody}" />
+                        </Popup>
+                    </Grid>
+                </DataTemplate>
+
+                <!--  一个档位 = 一张卡片两行（用户拍板）：
+                    第一行「值 [低] ~ [高]」+ 上移/下移/删除；第二行「前景[色块] 背景[色块] ☑闪烁」。
+                    与事件行的动作卡同一个视觉语言——面板里所有"可增删的一行配置"都长这样，
+                    用户学会一处就够用。  -->
+                <DataTemplate x:Key="AnimationStateItem">
                     <Border
                         Margin="0,2,0,0"
                         Padding="4,3"
-                        Background="#FFFFFFFF"
-                        BorderBrush="#FFE4E7ED"
+                        Background="{StaticResource ScadaSurfaceBrush}"
+                        BorderBrush="{StaticResource ScadaActionCardBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="2">
                         <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <!--  下拉的候选与命令都挂在事件行上（本模板的 DataContext 是单条动作），
-                                     AncestorType=ItemsControl 取到的正是动作表那个 ItemsControl，
-                                     它的 DataContext 就是事件行。  -->
-                                <ComboBox
+                                <TextBlock
                                     Grid.Column="0"
+                                    Margin="0,0,3,0"
+                                    VerticalAlignment="Center"
                                     FontSize="11"
-                                    DisplayMemberPath="DisplayName"
-                                    ItemsSource="{Binding DataContext.ActionTypeChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    SelectedValue="{Binding Type, Mode=TwoWay}"
-                                    SelectedValuePath="Type"
-                                    ToolTip="这条动作要干什么" />
-                                <Button
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="值" />
+
+                                <!--  两端填一样 = 单点值，不一样 = 范围。刻意不摆"模式"下拉：
+                                      多一个下拉就多一处要和匹配逻辑对表的状态。  -->
+                                <TextBox
                                     Grid.Column="1"
-                                    Command="{Binding DataContext.MoveActionUpCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    Padding="3,1"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    FontSize="11"
+                                    Text="{Binding ValueLow, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="下端点：变量值 ≤ 它算命中这一档" />
+
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Margin="3,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="~" />
+
+                                <TextBox
+                                    Grid.Column="3"
+                                    Padding="3,1"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    FontSize="11"
+                                    Text="{Binding ValueHigh, UpdateSourceTrigger=LostFocus}"
+                                    ToolTip="上端点：与下端点填一样 = 只匹配这一个值" />
+
+                                <!--  命令与参数都挂在档位表那个 ItemsControl 的 DataContext（动画行）上，
+                                      与动作卡的 ↑/↓/✕ 同一个手法。  -->
+                                <Button
+                                    Grid.Column="4"
+                                    Command="{Binding DataContext.MoveStateUpCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}"
                                     Content="↑"
                                     Style="{StaticResource ActionIconButton}"
-                                    ToolTip="上移（越靠上越先执行）" />
+                                    ToolTip="上移（越靠上越先匹配）" />
                                 <Button
-                                    Grid.Column="2"
-                                    Command="{Binding DataContext.MoveActionDownCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    Grid.Column="5"
+                                    Command="{Binding DataContext.MoveStateDownCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}"
                                     Content="↓"
                                     Style="{StaticResource ActionIconButton}"
                                     ToolTip="下移" />
                                 <Button
-                                    Grid.Column="3"
-                                    Command="{Binding DataContext.RemoveActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    Grid.Column="6"
+                                    Command="{Binding DataContext.RemoveStateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     CommandParameter="{Binding}"
                                     Content="✕"
                                     Style="{StaticResource ActionIconButton}"
-                                    ToolTip="删除这条动作" />
+                                    ToolTip="删除这一档" />
                             </Grid>
 
-                            <!--  日志文案：只有"记录日志"需要填（留空则由执行侧回落成"图元名 + 事件名"）  -->
-                            <TextBox
+                            <Grid Margin="0,3,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <ContentControl
+                                    Grid.Column="0"
+                                    Content="{Binding ForegroundSlot}"
+                                    ContentTemplate="{StaticResource ColorSlotEditor}" />
+
+                                <ContentControl
+                                    Grid.Column="1"
+                                    Margin="10,0,0,0"
+                                    Content="{Binding FillSlot}"
+                                    ContentTemplate="{StaticResource ColorSlotEditor}" />
+
+                                <CheckBox
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Content="闪烁"
+                                    FontSize="11"
+                                    IsChecked="{Binding IsFlashing, Mode=TwoWay}"
+                                    ToolTip="命中这一档时按统一节拍在正常 / 变淡之间切换" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+
+                <!--  动画行本体：外层勾选框（= 这条动画配没配）+ 勾上才展开的配置区。
+                    与事件行一样<b>独占整行宽度</b>，不排标签列——82px 的标签列留给档位卡片就只剩一条缝。  -->
+                <DataTemplate x:Key="AnimationRowBody">
+                    <StackPanel Margin="0,2,0,2" ToolTip="{Binding Description}">
+                        <CheckBox
+                            Content="{Binding DisplayName}"
+                            FontSize="12"
+                            IsChecked="{Binding BoolValue, Mode=TwoWay}" />
+
+                        <!--  没配这条动画时 HasAnimation=false，整块收掉（与事件行的 HasActions 同一手法）  -->
+                        <StackPanel
+                            Margin="16,3,0,0"
+                            Visibility="{Binding HasAnimation, Converter={StaticResource BoolVis}}">
+
+                            <!--  启用 = 跑不跑；与上面那个勾（有没有）是两件事：停用留着配置，删除才丢配置  -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <CheckBox
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Content="启用"
+                                    FontSize="11"
+                                    IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                    ToolTip="取消勾选 = 暂停这条动画（档位与范围原样留着），不是删除" />
+
+                                <!--  名字为空（=还没选）时由 TargetNullValue 顶上一句占位文案  -->
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding VariableDisplayName, TargetNullValue=（还没选变量）}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding VariableDisplayName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasVariable}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Button
+                                    Grid.Column="2"
+                                    Padding="6,1"
+                                    Command="{Binding PickVariableCommand}"
+                                    Content="选变量"
+                                    FontSize="11"
+                                    ToolTip="这条动画由这个变量的值驱动" />
+
+                                <Button
+                                    Grid.Column="3"
+                                    Margin="3,0,0,0"
+                                    Padding="4,1"
+                                    Command="{Binding ClearVariableCommand}"
+                                    Content="✕"
+                                    FontSize="11"
+                                    ToolTip="断开驱动变量（动画本身与档位都留着）"
+                                    Visibility="{Binding HasVariable, Converter={StaticResource BoolVis}}" />
+                            </Grid>
+
+                            <!--  没选变量：运行态会照实跳过，先把这件事说在面板上  -->
+                            <TextBlock
                                 Margin="0,3,0,0"
-                                Padding="3,2"
-                                BorderBrush="#FFDCE0E6"
                                 FontSize="11"
-                                Text="{Binding Text, UpdateSourceTrigger=LostFocus}"
-                                ToolTip="留空则记录「图元名 + 事件名」">
-                                <TextBox.Style>
-                                    <Style TargetType="TextBox">
+                                Foreground="{StaticResource ScadaWarningBrush}"
+                                Text="还没选驱动变量，这条动画运行时会跳过。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Type}" Value="Log">
+                                            <DataTrigger Binding="{Binding HasVariable}" Value="False">
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </TextBox.Style>
-                            </TextBox>
+                                </TextBlock.Style>
+                            </TextBlock>
 
-                            <!--  写变量（S6-6）：先选目标变量，再填要写进去的值。
-                                目标变量存"身份 + 名字"两份，Id 优先、名字只用于显示与兜底寻址，
-                                回填与寻址的口径在 ScadaAction.BindVariable 一处，这里只管展示。  -->
-                            <StackPanel Margin="0,3,0,0">
+                            <!--  范围值：移动（值 → 位置）与可见性（值 → 显隐）都要它，外观变化不要。
+                                  所以它既不归"移动"也不归"可见性"，单独按"这两者之一"显示。  -->
+                            <StackPanel Margin="0,4,0,0">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Type}" Value="WriteVariable">
+                                            <DataTrigger Binding="{Binding IsMove}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsVisibility}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -243,141 +726,178 @@
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!--  名字为空（=还没选）时由 TargetNullValue 顶上一句占位文案，
-                                        省掉一个"空/非空"双控件互斥的触发器  -->
                                     <TextBlock
                                         Grid.Column="0"
+                                        Margin="0,0,3,0"
                                         VerticalAlignment="Center"
                                         FontSize="11"
-                                        Text="{Binding VariableName, TargetNullValue=（还没选变量）}"
-                                        TextTrimming="CharacterEllipsis"
-                                        ToolTip="{Binding VariableName}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#FF303133" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasVariable}" Value="False">
-                                                        <Setter Property="Foreground" Value="#FFE6A23C" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="范围" />
 
-                                    <Button
+                                    <TextBox
                                         Grid.Column="1"
-                                        Padding="6,1"
+                                        Padding="3,1"
+                                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                                         FontSize="11"
-                                        Command="{Binding DataContext.PickVariableCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                        CommandParameter="{Binding}"
-                                        Content="选择变量"
-                                        ToolTip="从当前方案的变量清单里挑一个" />
+                                        Text="{Binding RangeLow, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="范围值1：变量值 ≤ 它 → 停在起始位置 / 不命中" />
+
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Margin="3,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="~" />
+
+                                    <TextBox
+                                        Grid.Column="3"
+                                        Padding="3,1"
+                                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                        FontSize="11"
+                                        Text="{Binding RangeHigh, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="范围值2：变量值 ≥ 它 → 停在结束位置 / 命中" />
                                 </Grid>
+                            </StackPanel>
 
-                                <TextBox
-                                    Margin="0,3,0,0"
-                                    Padding="3,2"
-                                    BorderBrush="#FFDCE0E6"
-                                    FontSize="11"
-                                    Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
-                                    ToolTip="要写进变量的值（按变量类型转换，转不过去执行时会记一条错误）" />
-
-                                <!--  没选变量：执行侧会照实警告并跳过，先把这件事说在面板上  -->
+                            <!--  外观变化：多档「值 → 外观」表  -->
+                            <StackPanel Visibility="{Binding IsAppearance, Converter={StaticResource BoolVis}}">
                                 <TextBlock
-                                    Margin="0,3,0,0"
+                                    Margin="0,4,0,0"
                                     FontSize="11"
-                                    Foreground="#FFE6A23C"
-                                    Text="还没选变量，这条动作运行时会跳过。"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="档位（自上而下依次匹配，第一个命中的生效）：" />
+
+                                <ItemsControl ItemTemplate="{StaticResource AnimationStateItem}" ItemsSource="{Binding States}" />
+
+                                <!--  勾了动画却一档都没配：运行态等于没配，必须说出来，
+                                      否则用户会以为"我明明勾上了"（与事件行删光动作同一口径）  -->
+                                <TextBlock
+                                    Margin="0,2,0,0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaWarningBrush}"
+                                    Text="还没有档位，运行态命中时不会改变外观。"
                                     TextWrapping="Wrap">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasVariable}" Value="False">
+                                                <DataTrigger Binding="{Binding States.Count}" Value="0">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+
+                                <Button
+                                    Margin="0,4,0,0"
+                                    Padding="6,2"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding AddStateCommand}"
+                                    Content="+ 添加档位"
+                                    FontSize="11"
+                                    ToolTip="新档位默认是 0 ~ 0 且不改外观，填上值域再配色" />
                             </StackPanel>
 
-                            <!--  还没接通的动作：说明"为什么现在配了也不会响"。
-                                文案来自领域层（ScadaAction.PendingReason），与运行日志里那句逐字相同，
-                                用户才能把"我配的这条"和"日志里那条"对上号。  -->
-                            <TextBlock
-                                Margin="0,3,0,0"
-                                FontSize="11"
-                                Foreground="#FFE6A23C"
-                                Text="{Binding PendingReason}"
-                                TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding PendingReason}" Value="{x:Null}">
+                            <!--  水平 / 垂直移动：起始位置（只读）+ 结束位置  -->
+                            <StackPanel Visibility="{Binding IsMove, Converter={StaticResource BoolVis}}">
+                                <Grid Margin="0,3,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="起始位置" />
+                                    <!--  只读：起始位置就是图元当前的 X / Y（手册 7.5.1.4 明写不可编辑）。
+                                          存一份可编辑的副本只会带来"挪了图元、动画还按老起点算"的劈叉。  -->
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaLabelTextBrush}"
+                                        Text="{Binding StartPositionText}"
+                                        ToolTip="起始位置不可编辑：它就是图元当前的 X / Y" />
+                                </Grid>
+
+                                <Grid Margin="0,3,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="结束位置" />
+
+                                    <!--  水平移动改 X、垂直移动改 Y：两个轴共用这一块参数区，
+                                          所以摆两个文本框按类型互斥显示，而不是让行去暴露一个"当前轴"的枚举。  -->
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Margin="6,0,0,0"
+                                        Padding="3,1"
+                                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                        FontSize="11"
+                                        Text="{Binding EndXText, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="变量值 ≥ 范围值2 时停在的 X 坐标">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsVerticalMove}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Margin="6,0,0,0"
+                                        Padding="3,1"
+                                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                        FontSize="11"
+                                        Text="{Binding EndYText, UpdateSourceTrigger=LostFocus}"
+                                        ToolTip="变量值 ≥ 范围值2 时停在的 Y 坐标">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox">
                                                 <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsVerticalMove}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+                                </Grid>
+                            </StackPanel>
 
-                <!--  事件行本体：勾选框 + （勾上才出现的）动作表。
-                    这份模板<b>独占整行宽度</b>、不排标签列——82px 的标签列留给动作表就只剩一条缝了。  -->
-                <DataTemplate x:Key="EventRowBody">
-                    <StackPanel Margin="0,2,0,2" ToolTip="{Binding Description}">
-                        <CheckBox
-                            Content="{Binding DisplayName}"
-                            FontSize="12"
-                            IsChecked="{Binding BoolValue, Mode=TwoWay}" />
-
-                        <!--  没配钩子时 HasActions=false，整块收掉；配了才展开  -->
-                        <StackPanel
-                            Margin="16,3,0,0"
-                            Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}">
-                            <TextBlock
-                                FontSize="11"
-                                Foreground="#FF909399"
-                                Text="动作（自上而下依次执行）：" />
-
-                            <ItemsControl ItemTemplate="{StaticResource ActionItem}" ItemsSource="{Binding Actions}" />
-
-                            <!--  配了钩子却把动作删光了：执行侧当"没配"处理，必须说出来，
-                                否则用户会以为"我明明勾上了"  -->
-                            <TextBlock
-                                Margin="0,2,0,0"
-                                FontSize="11"
-                                Foreground="#FFE6A23C"
-                                Text="还没有动作，运行态命中该事件时不会有任何反应。"
-                                TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Actions.Count}" Value="0">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-
-                            <Button
-                                Margin="0,4,0,0"
-                                Padding="6,2"
-                                HorizontalAlignment="Left"
-                                Command="{Binding AddActionCommand}"
-                                Content="+ 添加动作"
-                                FontSize="11"
-                                ToolTip="新动作默认是「记录日志」，改文案即可用" />
+                            <!--  可见性：命中范围时显示还是隐藏。
+                                  用一颗勾选框而不是"显示/隐藏"两个单选：后者要一个取反转换器，
+                                  而"勾上 = 命中时显示"本身就是最好懂的措辞。  -->
+                            <StackPanel Visibility="{Binding IsVisibility, Converter={StaticResource BoolVis}}">
+                                <CheckBox
+                                    Margin="0,4,0,0"
+                                    Content="命中范围时显示对象（不勾 = 隐藏）"
+                                    FontSize="11"
+                                    IsChecked="{Binding VisibleInRange, Mode=TwoWay}"
+                                    ToolTip="不命中范围时不接管可见性，交回图层判定（该显示还是显示）" />
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </DataTemplate>
@@ -392,7 +912,7 @@
                     <Setter Property="Margin" Value="4,0,0,0" />
                     <Setter Property="Padding" Value="0" />
                     <Setter Property="FontSize" Value="11" />
-                    <Setter Property="Foreground" Value="#FF909399" />
+                    <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
                 </Style>
 
                 <!--  ƒx：没绑是灰色的"去绑定"，绑上了转成蓝色"已绑定"。
@@ -403,27 +923,10 @@
                     <Setter Property="ToolTip" Value="绑定工程变量" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding HasBinding}" Value="True">
-                            <Setter Property="Foreground" Value="#FF2A6BB5" />
+                            <Setter Property="Foreground" Value="{StaticResource ScadaBoundBrush}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                             <Setter Property="ToolTip" Value="已绑定变量，点击可换绑" />
                         </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-
-                <!--  变量带里那颗"✕"：无边框，只在悬停时泛一点红——它是删除语义，
-                    平时不该有存在感，否则整条变量带会看着像一张按钮表。  -->
-                <Style x:Key="ChipIconButton" TargetType="Button">
-                    <Setter Property="Width" Value="16" />
-                    <Setter Property="Height" Value="16" />
-                    <Setter Property="Padding" Value="0" />
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Setter Property="FontSize" Value="10" />
-                    <Setter Property="Foreground" Value="#FF6B8FB5" />
-                    <Style.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="#FFE05B5B" />
-                        </Trigger>
                     </Style.Triggers>
                 </Style>
 
@@ -446,7 +949,7 @@
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center"
                                 FontSize="12"
-                                Foreground="#FF606266"
+                                Foreground="{StaticResource ScadaLabelTextBrush}"
                                 Text="{Binding DisplayName}"
                                 TextTrimming="CharacterEllipsis" />
 
@@ -456,9 +959,12 @@
                                 Style="{StaticResource RowEditorHost}" />
 
                             <!--  ƒx 只对描述符声明了 IsBindable 的行出现。
-                                  不可绑的是"设计期版面语言"（名称、X、Y）与事件行；
-                                  可绑的是"运行期动画语言"（尺寸 / 角度 / 颜色 / 文字 / 状态 / 数据）——
-                                  SCADA 里"液位随变量变化"就是绑 Height。  -->
+                                  不可绑的是"设计期版面语言"：位置与尺寸、外观两组
+                                  （X/Y/宽/高/旋转、填充色/边框色/边框粗细/圆角），外加名称、
+                                  字号、字重与事件行——它们决定的是"版面长什么样"，
+                                  改它属于重新设计，而不是运行期被变量驱动。
+                                  可绑的是"运行期语言"：文字 / 文字颜色 / 状态 / 数据等——
+                                  SCADA 里"液位越限就变红"就是绑颜色。  -->
                             <Button
                                 Grid.Column="2"
                                 Command="{Binding DataContext.BindVariableCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -482,8 +988,8 @@
                             <Border
                                 Grid.Column="1"
                                 Padding="5,1,3,1"
-                                Background="#FFEAF3FF"
-                                BorderBrush="#FFC6DDF5"
+                                Background="{StaticResource ScadaBoundChipBrush}"
+                                BorderBrush="{StaticResource ScadaBoundChipBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="3"
                                 ToolTip="运行态由这个变量驱动本属性；此处只是显示，寻址用的是变量 Id">
@@ -499,14 +1005,14 @@
                                         Margin="0,0,3,0"
                                         VerticalAlignment="Center"
                                         FontSize="11"
-                                        Foreground="#FF7FA8D4"
+                                        Foreground="{StaticResource ScadaBoundGlyphBrush}"
                                         Text="ƒ" />
 
                                     <TextBlock
                                         Grid.Column="1"
                                         VerticalAlignment="Center"
                                         FontSize="11"
-                                        Foreground="#FF2A6BB5"
+                                        Foreground="{StaticResource ScadaBoundBrush}"
                                         Text="{Binding BindingVariableName}"
                                         TextTrimming="CharacterEllipsis"
                                         ToolTip="{Binding BindingVariableName}" />
@@ -525,17 +1031,22 @@
                     </StackPanel>
                 </DataTemplate>
 
-                <!--  行级分流：复合编辑区（事件行）整份换模板，普通行走上面那份。
-                    判据是行自己的 IsCompositeEditor，<b>不认具体类型</b>——与编辑器按 Kind 分流
-                    同一个手法，也就不必让 XAML 认得 ScadaEventRow 这个自定义类型。  -->
+                <!--  行级分流：复合编辑区（事件行 / 动画行）整份换模板，普通行走上面那份。
+                    判据是行自己的 EditorKind 枚举，<b>不认具体类型</b>——
+                    与编辑器按 Kind 分流同一个手法，也就不必让 XAML 认得自定义行类型。
+                    用枚举而不是"是不是复合编辑区"的布尔：事件行与动画行的内部结构完全不同，
+                    布尔只能回答"要不要换"，回答不了"换成哪一份"。  -->
                 <DataTemplate x:Key="PropertyRow">
                     <ContentControl Content="{Binding}">
                         <ContentControl.Style>
                             <Style TargetType="ContentControl">
                                 <Setter Property="ContentTemplate" Value="{StaticResource PropertyRowBody}" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCompositeEditor}" Value="True">
+                                    <DataTrigger Binding="{Binding EditorKind}" Value="Event">
                                         <Setter Property="ContentTemplate" Value="{StaticResource EventRowBody}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding EditorKind}" Value="Animation">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource AnimationRowBody}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -552,26 +1063,27 @@
             <!--  ====================  标题：编辑的是谁 + 锁定  ====================  -->
             <Border
                 Grid.Row="0"
-                Background="#FFF5F7FA"
-                BorderBrush="#FFDCE0E6"
+                Background="{StaticResource ScadaTitleBarBrush}"
+                BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                 BorderThickness="0,0,0,1">
                 <Grid Margin="10,7">
                     <TextBlock
                         VerticalAlignment="Center"
                         FontSize="12.5"
                         FontWeight="SemiBold"
-                        Foreground="#FF303133"
+                        Foreground="{StaticResource ScadaTextBrush}"
                         Text="{Binding HeaderText}"
                         TextTrimming="CharacterEllipsis" />
-                    <!--  锁定是模型字段（要落盘），画布的拖动/改尺寸都认它，  -->
-                    <!--  所以这里直绑 Element.IsLocked，双向写回，不经视图模型转发  -->
+                    <!--  锁定是模型字段（要落盘），画布的拖动/改尺寸都认它。  -->
+                    <!--  写回经视图模型转一道（IsElementLocked → SetSelectedLocked → TrySetElementLocked），  -->
+                    <!--  而不是直绑 Element.IsLocked：裸 setter 绕开了 BeginEdit，撤销按钮上只会显示"编辑"。  -->
                     <CheckBox
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Content="锁定"
                         FontSize="12"
-                        IsChecked="{Binding Element.IsLocked, Mode=TwoWay}"
-                        ToolTip="锁定后在画布上不能拖动、不能改尺寸（防误挪已摆好的底图）"
+                        IsChecked="{Binding IsElementLocked, Mode=TwoWay}"
+                        ToolTip="锁定后在画布上不能拖动、不能改尺寸（防误挪已摆好的底图）；选中多个图元时可从右键菜单整批锁定"
                         Visibility="{Binding HasElement, Converter={StaticResource BoolVis}}" />
                 </Grid>
             </Border>
@@ -593,11 +1105,11 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock
                                             FontWeight="SemiBold"
-                                            Foreground="#FF606266"
+                                            Foreground="{StaticResource ScadaLabelTextBrush}"
                                             Text="{Binding Name}" />
                                         <TextBlock
                                             Margin="6,0,0,0"
-                                            Foreground="#FF909399"
+                                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
                                             Text="{Binding Rows.Count, StringFormat=({0})}" />
                                     </StackPanel>
                                 </Expander.Header>
@@ -619,7 +1131,7 @@
                 Grid.Row="1"
                 Margin="16,24,16,0"
                 FontSize="12"
-                Foreground="#FF909399"
+                Foreground="{StaticResource ScadaSecondaryTextBrush}"
                 IsHitTestVisible="False"
                 Text="{Binding EmptyHint}"
                 TextWrapping="Wrap">

@@ -58,6 +58,15 @@ namespace VisionMaster.Models
         public int DbNumber { get; set; } = 1;
 
         /// <summary>
+        /// 所属扫描组名（仅网络变量使用；空 = 默认组，周期取连接配置的 ReadCycleMs）。
+        /// <para>为什么必须随方案落盘：组名是"这个点由哪个节拍采集"的唯一依据，而组表本身存在
+        /// 连接配置（communications.json）里、不随方案走。丢这个字段的后果是——用户在变量管理里
+        /// 挂好的快组，下次打开方案时**静默退回默认组**：联锁点从 100ms 变成 1s，界面上一点异常都看不出。</para>
+        /// <para>旧方案文件无此字段 → 反序列化为空串 → 正好等于"默认组"，与改造前行为一致（零回归）。</para>
+        /// </summary>
+        public string ScanGroup { get; set; } = string.Empty;
+
+        /// <summary>
         /// 从 JSON 令牌/装箱值按目标类型还原值。
         /// Newtonsoft 反序列化 object 属性的产物是 JValue/JArray（JToken 树），需转回 CLR 值；
         /// 内存内传递场景（已是 CLR 对象）原样返回。
@@ -151,7 +160,9 @@ namespace VisionMaster.Models
                 Protocol = protocol.ToString(),
                 Offset = addr?.Offset ?? "0",
                 BitOffset = addr?.BitOffset ?? -1,
-                DataValueType = addr?.DataType.ToString()
+                DataValueType = addr?.DataType.ToString(),
+                // 扫描组随变量落盘（漏拷 = 挂好的快组在下次打开方案时静默退回默认组）
+                ScanGroup = nv.ScanGroup ?? string.Empty
             };
 
             // Area/DbNumber 在泛型派生类上（ModbusAddress/S7Address），Core 无法直接转型，反射读取

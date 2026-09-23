@@ -1,7 +1,133 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--  ====================  通用令牌  ====================  -->
     <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="ExpanderHeaderBrush" Color="#F7FAFC" />
     <SolidColorBrush x:Key="ToolBorderBrush" Color="#E2E8F0" />
     <SolidColorBrush x:Key="PrimaryTextBrush" Color="#2D3748" />
     <SolidColorBrush x:Key="AccentBlueBrush" Color="#3182CE" />
+
+    <!--  ====================  SCADA 组态视图令牌  ====================  -->
+
+    <!--
+        为什么要有这一节：SCADA 那几个面板（工具箱 / 属性面板 / 图层 / 报警历史…）
+        原先各自把十六进制写死在 XAML 里，同一个灰在三个文件里抄了三遍，
+        想统一调一次色得先把全仓搜一遍、还得自己判断哪些"看着像其实不是同一个"。
+
+        这里的键一律带 Scada 前缀，不是画蛇添足：上面那支 PrimaryTextBrush
+        已经被 ToolView.xaml 与 GlobalVariableView.xaml 各自重定义成本地色（#0369A1）
+        作局部覆盖，撞名的后果是"改令牌改不动那一处"。带前缀就不必再逐个核对谁覆盖了谁。
+
+        命名按"用在哪"而不是"是什么颜色"：LabelTextBrush 是"标签文字"，
+        不是"某个灰"。将来要换肤（深色主题）时，改的是这里的值，
+        而不是去每个面板里判断哪个 #FF606266 该跟着变。
+
+        本节的值全部照抄改造前的原值，唯一一处合并：#DCDFE6（弹窗里取消按钮的描边）
+        与 #FFDCE0E6（其余所有浅边框）本就是同一个语义、只差 G 通道 1/255，
+        统一到 ScadaPanelBorderBrush——肉眼不可辨，但从此只有一份。
+    -->
+
+    <!--  容器：面板底 / 标题栏底 / 白底表面（弹窗、卡片、按钮）  -->
+    <SolidColorBrush x:Key="ScadaPanelBackgroundBrush" Color="#F7F8FA" />
+    <SolidColorBrush x:Key="ScadaTitleBarBrush" Color="#F5F7FA" />
+    <SolidColorBrush x:Key="ScadaSurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ScadaPanelBorderBrush" Color="#DCE0E6" />
+    <SolidColorBrush x:Key="ScadaActionCardBorderBrush" Color="#E4E7ED" />
+
+    <!--  文字：正文 / 标签 / 次要说明 / 占位与禁用  -->
+    <SolidColorBrush x:Key="ScadaTextBrush" Color="#303133" />
+    <SolidColorBrush x:Key="ScadaLabelTextBrush" Color="#606266" />
+    <SolidColorBrush x:Key="ScadaSecondaryTextBrush" Color="#909399" />
+    <SolidColorBrush x:Key="ScadaFaintTextBrush" Color="#A8ABB2" />
+    <SolidColorBrush x:Key="ScadaDisabledTextBrush" Color="#C0C4CC" />
+
+    <!--  交互：悬停底 / 选中蓝 / 选中底 / 主按钮底 / 主按钮上的字  -->
+    <SolidColorBrush x:Key="ScadaHoverBrush" Color="#E3EEF9" />
+    <SolidColorBrush x:Key="ScadaAccentBrush" Color="#3B82F6" />
+    <SolidColorBrush x:Key="ScadaAccentSoftBrush" Color="#1A3B82F6" />
+    <SolidColorBrush x:Key="ScadaPrimaryButtonBrush" Color="#409EFF" />
+    <SolidColorBrush x:Key="ScadaOnAccentTextBrush" Color="#FFFFFF" />
+
+    <!--  语义色：非法（红）/ 警示（橙）/ 色块描边  -->
+    <SolidColorBrush x:Key="ScadaDangerBrush" Color="#E05B5B" />
+    <SolidColorBrush x:Key="ScadaInvalidBackgroundBrush" Color="#FDF0F0" />
+    <SolidColorBrush x:Key="ScadaWarningBrush" Color="#E6A23C" />
+    <SolidColorBrush x:Key="ScadaSwatchBorderBrush" Color="#C0C4CC" />
+
+    <!--  已绑变量：ƒx 按钮 / 变量带底与描边 / ƒ 记号 / 变量带上的 ✕  -->
+    <SolidColorBrush x:Key="ScadaBoundBrush" Color="#2A6BB5" />
+    <SolidColorBrush x:Key="ScadaBoundChipBrush" Color="#EAF3FF" />
+    <SolidColorBrush x:Key="ScadaBoundChipBorderBrush" Color="#C6DDF5" />
+    <SolidColorBrush x:Key="ScadaBoundGlyphBrush" Color="#7FA8D4" />
+    <SolidColorBrush x:Key="ScadaChipCloseBrush" Color="#6B8FB5" />
+
+    <!--  ====================  Dialog 弹窗族令牌（青蓝设计系统）  ====================  -->
+
+    <!--
+        为什么要有这一节：连接管理 / 变量管理 / 扫描组编辑 这几张弹窗
+        原先各自把十六进制写死在 XAML 里，出现了三套并存的蓝：
+        连接管理用 #17A2F2、变量管理用 #0EA5E9、SCADA 弹窗用 #409EFF。
+        更麻烦的是"扫描组编辑"是从"连接管理"里点进去的，两套蓝会直接照面。
+
+        本节确立单一基准：以变量管理那套 #0EA5E9 青蓝体系为准，
+        其余画面统一迁过来（详见 DialogStyles.xaml）。
+
+        键一律带 Dialog 前缀，理由与上面 Scada 那节完全相同：
+        本节沿用 Scada 那节的约定——"命名按用在哪，而不是是什么颜色"。
+        将来换肤（深色主题）改的是这里的值，不必再去每张画面里判断
+        哪个 #0F172A 该跟着变。
+
+        注意：短名 PrimaryTextBrush 已被 ToolView.xaml 与 GlobalVariableView.xaml
+        本地重定义作局部覆盖，BorderBrush 又是 WPF 系统键名，
+        所以这里一律不用短名，避免"改令牌改不动那一处"。
+    -->
+
+    <!--  主色三阶：基准 / 加深（悬停按下）/ 提亮（浅底、选中行）  -->
+    <SolidColorBrush x:Key="DialogAccentBrush" Color="#0EA5E9" />
+    <SolidColorBrush x:Key="DialogAccentDarkBrush" Color="#0284C7" />
+    <SolidColorBrush x:Key="DialogAccentLightBrush" Color="#E0F2FE" />
+
+    <!--
+        主色浅底再淡一阶 + 同族浅描边：专给"蓝底分组"容器用
+        （变量管理里的"网络参数"分组：底色比分组内的白色控件深一点、
+        比选中行浅一点，三层才拉得开；描边跟着分组底色走同一族）。
+    -->
+    <SolidColorBrush x:Key="DialogAccentSoftBrush" Color="#F0F9FF" />
+    <SolidColorBrush x:Key="DialogAccentBorderBrush" Color="#BAE6FD" />
+
+    <!--  主色文字：深底上的强调文字（如卡片标题图标、链接式按钮）  -->
+    <SolidColorBrush x:Key="DialogAccentTextBrush" Color="#0369A1" />
+
+    <!--  容器：窗口底 / 卡片与输入框白底 / 卡片描边 / 输入框浅底  -->
+    <SolidColorBrush x:Key="DialogBackgroundBrush" Color="#EEF2F7" />
+    <SolidColorBrush x:Key="DialogSurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DialogCardBorderBrush" Color="#E3E9F2" />
+    <SolidColorBrush x:Key="DialogInputBackgroundBrush" Color="#F8FAFC" />
+
+    <!--  描边：常规控件描边 / 更浅的分隔线  -->
+    <SolidColorBrush x:Key="DialogBorderBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="DialogBorderLightBrush" Color="#EEF2F7" />
+
+    <!--  文字：正文 / 次要 / 占位与禁用  -->
+    <SolidColorBrush x:Key="DialogTextPrimaryBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="DialogTextSecondaryBrush" Color="#475569" />
+    <SolidColorBrush x:Key="DialogTextMutedBrush" Color="#94A3B8" />
+
+    <!--  语义色：成功（在线）/ 危险（错误、离线）/ 警示（重连中）  -->
+    <SolidColorBrush x:Key="DialogSuccessBrush" Color="#22C55E" />
+    <SolidColorBrush x:Key="DialogDangerBrush" Color="#EF4444" />
+    <SolidColorBrush x:Key="DialogWarningBrush" Color="#F59E0B" />
+
+    <!--
+        警示文字：与 DialogWarningBrush 同族但压深一档。
+        DialogWarningBrush 是给"色块/圆点"用的亮琥珀，直接拿来写字在白底上对比度不够，
+        所以"地址列、恢复初始值图标、线圈注意事项"这类浅底上的琥珀文字单独走这支。
+    -->
+    <SolidColorBrush x:Key="DialogWarningTextBrush" Color="#B45309" />
+
+    <!--  交互底：行悬停 / 行选中（与 DialogAccentLightBrush 同族但更淡）  -->
+    <SolidColorBrush x:Key="DialogRowHoverBrush" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="DialogRowAlternateBrush" Color="#F8FAFC" />
+
+    <!--  投影：卡片投影色（配合 DropShadowEffect 使用，仅取色不带透明度）  -->
+    <Color x:Key="DialogShadowColor">#0F172A</Color>
 </ResourceDictionary>

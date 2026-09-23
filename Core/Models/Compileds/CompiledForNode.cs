@@ -34,11 +34,38 @@ namespace VisionMaster.Models
         /// <summary>
         /// 执行 For 循环
         /// 根据指定次数执行循环体，支持 Break/Continue/Return 控制流
+        ///
+        /// A2：容器节点也要上报运行状态，否则画布上循环永不高亮、永无耗时，
+        /// 现场排查时看不出"循环进没进、跑了几圈、卡在哪一圈"
         /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
             context.CurrentNodeId = Id;
 
+            UpdateStepRuntimeState(context, StepRuntimeState.Running);
+            try
+            {
+                RunLoop(context);
+                UpdateStepRuntimeState(
+                    context,
+                    context.CancellationToken.IsCancellationRequested
+                        ? StepRuntimeState.Skipped
+                        : StepRuntimeState.Success);
+            }
+            catch
+            {
+                UpdateStepRuntimeState(context, StepRuntimeState.Failed);
+                throw;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 循环主体：正常跑完次数、或遇到 Break/Return/取消时提前结束
+        /// </summary>
+        private void RunLoop(IExecutionContext context)
+        {
             // 断桥修复：允许 LoopCount 端口绑定运行时变量（如"检测数量"由上游算子定义），
             // 代理端口先注入 context，下面读 LoopCountLink.Value 即为最新变量值
             BindContextAwarePorts(context);
@@ -65,27 +92,29 @@ namespace VisionMaster.Models
 
                 IndexPort.Value = i;
 
-                foreach (var step in LoopBody)
+                // A1：循环体交给全引擎统一的序列执行器。
+                // 旧实现是 foreach 挨个 step.RunAndGetNext(context) 并丢弃返回值，
+                // 而 CompiledIfNode 靠返回值交出选中分支 —— 于是循环体里的 If 一步都不执行（静默失效）。
+                // 循环体用 yieldToControlFlow: true，Break/Continue 会被立刻交回来由本循环裁决。
+                CompiledNode.RunSequence(LoopBody, context, yieldToControlFlow: true);
+
+                if (context.CancellationToken.IsCancellationRequested) return;
+
+                if (context.CurrentFlowState == FlowControlState.Continue)
                 {
-                    if (context.CancellationToken.IsCancellationRequested) return null;
-                    step.RunAndGetNext(context);
-                    if (context.CurrentFlowState == FlowControlState.Continue)
-                    {
-                        context.CurrentFlowState = FlowControlState.Normal;
-                        break;
-                    }
-                    if (context.CurrentFlowState == FlowControlState.Break)
-                    {
-                        context.CurrentFlowState = FlowControlState.Normal;
-                        return null;
-                    }
-                    if (context.CurrentFlowState == FlowControlState.Return)
-                    {
-                        return null;
-                    }
+                    context.CurrentFlowState = FlowControlState.Normal;
+                    continue; // 进入下一圈
+                }
+                if (context.CurrentFlowState == FlowControlState.Break)
+                {
+                    context.CurrentFlowState = FlowControlState.Normal;
+                    return; // 跳出整个循环
+                }
+                if (context.CurrentFlowState == FlowControlState.Return)
+                {
+                    return; // 终止流程，状态保留给上层执行器识别
                 }
             }
-            return null;
         }
     }
 }

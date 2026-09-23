@@ -316,6 +316,15 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{commands:ShowPanelCommand}"
+                                CommandParameter="Panel_ScadaLayerView"
+                                Header="图层"
+                                  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf5fd;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{commands:ShowPanelCommand}"
                                 CommandParameter="Panel_DeviceStateView"
                                 Header="设备状态"
                                  >
@@ -503,6 +512,24 @@
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf2d0;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.SystemParameters}"
+                                Header="系统参数设置"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf1de;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.VariableEvents}"
+                                Header="变量事件"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0f3;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                             <MenuItem
@@ -700,6 +727,14 @@
                             IsChecked="{Binding IsScadaToolboxActive, Mode=OneWay}"
                             Style="{StaticResource ActivityToggle}"
                             ToolTip="图元工具箱" />
+                        <!--  f5fd = layer-group，与画布右键菜单「图层」子菜单同一码位、同字体  -->
+                        <ToggleButton
+                            Command="{Binding TogglePanelCommand}"
+                            CommandParameter="Panel_ScadaLayerView"
+                            Content="&#xf5fd;"
+                            IsChecked="{Binding IsScadaLayerActive, Mode=OneWay}"
+                            Style="{StaticResource ActivityToggle}"
+                            ToolTip="图层" />
                     </StackPanel>
                     <StackPanel DockPanel.Dock="Bottom">
                         <Button
@@ -818,7 +853,23 @@
                             </avalonDock:LayoutAnchorable>
                         </avalonDock:LayoutAnchorablePane>
 
-                        <!--  5. 右侧工具箱停靠栏：插件工具箱 + 图元工具箱（互斥标签页共享一列宽度）  -->
+                        <!--  5. 图层面板：独占一列而不是跟属性/工具箱挤标签页  -->
+                        <!--  为什么给它一整列：图层是"画布上现在有什么"的总览，用户是"看一眼 → 点一下眼睛 → 继续调画面"  -->
+                        <!--  的高频轻操作；挤成标签页就得来回切换，看一眼的代价变成两次点击，正好把便捷性做没了。  -->
+                        <!--  为什么排在属性栏右侧：改完图元属性，视线右移一格就是它的可见性/锁定，编辑动作连成一条线；  -->
+                        <!--  工具箱留在最右缘不动（它是低频拖拽源，且不该被新增面板挤走老用户的肌肉记忆）。  -->
+                        <!--  240 是行内最挤的那个数：眼睛+锁+名称+数量+上/下移+删除，再窄名称就只剩两三个字了。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="240">
+                            <avalonDock:LayoutAnchorable
+                                Title="图层"
+                                CanClose="False"
+                                CanHide="True"
+                                ContentId="Panel_ScadaLayerView">
+                                <views:ScadaLayerView />
+                            </avalonDock:LayoutAnchorable>
+                        </avalonDock:LayoutAnchorablePane>
+
+                        <!--  6. 右侧工具箱停靠栏：插件工具箱 + 图元工具箱（互斥标签页共享一列宽度）  -->
                         <!--  为什么不再用 LayoutRoot.RightSide 自动隐藏滑出区：那种面板一失去鼠标焦点就收回，  -->
                         <!--  从图元工具箱往画布拖图元拖到一半会被收走；常驻停靠栏全程可见，拖动链路不被打断。  -->
                         <!--  为什么图元工具箱从左侧"程序"pane 挪过来：图元调色板和插件工具箱是同一类  -->
@@ -884,11 +935,34 @@
                         Foreground="#C9CEDB"
                         Text="|" />
                     <TextBlock FontSize="12" Text="当前用户：" />
+                    <!--  当前登录者 + 角色。读的是全局唯一的 ScadaAccessPolicy（App 里注册的单例），  -->
+                    <!--  权限判定用的也是这一份，所以"状态栏写的"和"实际生效的"不可能不一致。  -->
+                    <!--  未登录显示"未登录（操作员）"而不是空白：让人一眼明白不是软件坏了，是权限就这么多。  -->
+                    <!--  灰色=未登录 / 蓝色=有人登录着；点一下直接开登录弹窗（比走"系统 → 用户登录"少两步）。  -->
                     <TextBlock
                         x:Name="CurrentUserText"
+                        Cursor="Hand"
                         FontSize="12"
                         FontWeight="Bold"
-                        Text="开发者" />
+                        Text="{Binding AccessPolicy.LoginStateText}"
+                        ToolTip="点击切换用户（也可走 系统 → 用户登录）">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#606266" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AccessPolicy.IsLoggedIn}" Value="True">
+                                        <Setter Property="Foreground" Value="#409EFF" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                        <TextBlock.InputBindings>
+                            <MouseBinding
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.UserLogin}"
+                                MouseAction="LeftClick" />
+                        </TextBlock.InputBindings>
+                    </TextBlock>
                     <TextBlock
                         Margin="8,0"
                         FontSize="12"

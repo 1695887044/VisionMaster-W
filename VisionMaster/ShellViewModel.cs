@@ -36,6 +36,14 @@ namespace VisionMaster
         private readonly IExecutionContext executionContext;
         private readonly IDialogService dialogService;
         private readonly IFlowEngine flowService;
+        /// <summary>
+        /// 运行态权限会话（S12）。注入的是<b>具体类型</b>而不是 <c>IScadaAccessPolicy</c>：
+        /// 状态栏要读 <see cref="ScadaAccessPolicy.LoginStateText"/>、超时要订阅
+        /// <see cref="ScadaAccessPolicy.AutoLoggedOut"/>，这两个都不在接口上
+        /// （接口只回答"够不够格"，见 IScadaAccessPolicy 的契约③）。
+        /// 两者在 App 里注册的是<b>同一个单例</b>，所以这里读到的一定是权限判定用的那一份。
+        /// </summary>
+        private readonly ScadaAccessPolicy _accessPolicy;
         private readonly IRuntimeManager _runtimeManager;
         private CancellationTokenSource _cts;
         private Task _monitorTask;
@@ -71,6 +79,19 @@ namespace VisionMaster
             get { return field; }
             set { SetProperty(ref field, value); }
         }
+        #endregion
+        #region 登录会话（状态栏显示）
+        /// <summary>
+        /// 状态栏要显示的那份会话。<b>直接把它暴露出去，而不是在这里抄一份 <c>LoginStateText</c></b>：
+        /// 抄一份就要再写一遍"会话变了 → 通知我这一份也跟着变"的转发代码，
+        /// 而转发一旦漏掉某个属性，现场表现是"登录成功了状态栏还写着未登录"——很难往"少写了一行通知"上想。
+        /// 这里让 WPF 顺着 <c>AccessPolicy.LoginStateText</c> 这条路径直接绑到单例上，
+        /// 单例自己是 <c>BindableBase</c>，变更通知天然到位。
+        ///
+        /// 与状态栏里"当前方案"绑 <c>Workspace.CurrentSolution</c> 是同一个手法。
+        /// 视图拿到的是一份可写引用，但状态栏只读它——权限的写入口（登录/登出）刻意留在弹窗里。
+        /// </summary>
+        public ScadaAccessPolicy AccessPolicy => _accessPolicy;
         #endregion
         #region 运行状态（按钮互锁 + 状态栏显示的唯一事实来源）
         /// <summary>
@@ -151,6 +172,12 @@ namespace VisionMaster
             set { SetProperty(ref field, value); }
         }
 
+        public bool IsScadaLayerActive
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
         /// <summary>
         /// 已挂接 PropertyChanged 监听的面板（布局重载会生成新实例，需先解绑旧的）
         /// </summary>
@@ -186,7 +213,7 @@ namespace VisionMaster
                 panel.PropertyChanged -= handler;
             _dockWatchers.Clear();
 
-            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView" })
+            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView" })
             {
                 // LayoutContent 基类同时兼容停靠面板与文档选项卡（工具箱为文档类型）
                 if (LayoutHelper.FindPanel(contentId) is not LayoutContent panel) continue;
@@ -210,6 +237,7 @@ namespace VisionMaster
             IsProcessActive = LayoutHelper.IsPanelActive("Panel_ProcessView");
             IsToolboxActive = LayoutHelper.IsPanelActive("Panel_ToolView");
             IsScadaToolboxActive = LayoutHelper.IsPanelActive("Panel_ScadaToolboxView");
+            IsScadaLayerActive = LayoutHelper.IsPanelActive("Panel_ScadaLayerView");
         }
         #endregion
         public ShellViewModel(
@@ -222,7 +250,8 @@ namespace VisionMaster
             IRuntimeManager _runtimeManager,
             FlowCompiler _flowCompiler,
             AdvancedCommunicationManager communicationManager,
-            NetworkVariableBridge variableBridge
+            NetworkVariableBridge variableBridge,
+            ScadaAccessPolicy accessPolicy
         )
         {
             StartBackgroundMonitoring();
@@ -242,6 +271,12 @@ namespace VisionMaster
             this._flowCompiler = _flowCompiler;
             this._communicationManager = communicationManager;
             this._variableBridge = variableBridge;
+
+            // 空闲超时登出要"说一声"。挂在这里（而不是弹窗里）是因为主窗口是唯一
+            // 从头到尾开着的那一个——超时那一刻弹窗多半关着（见 ScadaLoginViewModel 注释①）。
+            // Shell 是应用级单例，订阅一次即终身有效，无需解订阅。
+            this._accessPolicy = accessPolicy;
+            _accessPolicy.AutoLoggedOut += OnAutoLoggedOut;
 
             // Core 层持久化服务的通信管理器引用（保存/加载方案时需要按协议重建地址）
             Services.ServiceLocator.CommunicationManager = communicationManager;
@@ -479,6 +514,11 @@ namespace VisionMaster
                 case SystemAction.GlobalVariables:
                     dialogService.ShowDialog("GlobalVariable");
                     break;
+                case SystemAction.UserLogin:
+                    // 登录、登出、改密、用户管理四个入口都收在这一个弹窗里：
+                    // 它们共用同一份会话状态，拆成四个菜单项只会让"我现在是谁"这件事更难看明白。
+                    dialogService.ShowDialog("ScadaLoginView");
+                    break;
                 case SystemAction.CameraSettings:
                     // TODO: 弹出相机配置 Dialog
                     break;
@@ -492,7 +532,41 @@ namespace VisionMaster
                     // 所以"改完生效"不需要在这里做任何同步动作。
                     dialogService.ShowDialog("ScadaRunWindowSettingsView");
                     break;
+                case SystemAction.SystemParameters:
+                    // 空闲自动登出时长、审计 / 报警历史保留天数（软件级，存 AppConfig.json）。
+                    // 同运行窗口设置：弹窗自己读当前值、自己写盘，这里不传参数也不看返回值——
+                    // 这三项的使用方都是"每次现读配置"，所以"改完生效"不需要在这里同步任何东西。
+                    dialogService.ShowDialog("ScadaSystemParametersView");
+                    break;
+                case SystemAction.VariableEvents:
+                    // 按变量配置值驱动的规则（更改数值 / 值为真 / 值为假 / 上限 / 下限）。
+                    // 与上面两个不同，它改的是方案内容（落 .vms、进撤销栈），所以：
+                    // ① 弹窗自己从当前方案里取"变量事件表"，这里不传参数（传了反而要在这里判方案有没有打开）；
+                    // ② 它需要"有打开的方案"才有内容——没有方案时弹窗内是空清单并给出提示，
+                    //    而不是在这里拦一道"请先打开方案"（拦一道的结果是菜单点下去毫无反应）。
+                    dialogService.ShowDialog("ScadaVariableEventDialogView");
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 空闲超时被自动登出 → 提示一句。
+        ///
+        /// <b>不吭声地退出登录</b>在现场会被理解成"软件坏了"：操作员回来点按钮，
+        /// 发现没反应（权限已经掉回操作员），反复重登、反复被踢，最后报故障。
+        /// 说清"是因为多久没操作"，他才知道是设计如此、动一下鼠标就没事。
+        ///
+        /// 时序：本方法由 <c>ScadaAccessPolicy</c> 在 <b>已登出之后</b> 调用
+        /// （先 Logout 再抛事件，见 OnIdleTick），所以此刻读到的用户名是"未登录"，
+        /// 被踢的那位只能从参数里拿——这也正是这个事件带参数的原因。
+        ///
+        /// 线程：来自 UI 线程的 DispatcherTimer，直接弹提示安全。
+        /// </summary>
+        private void OnAutoLoggedOut(string userName)
+        {
+            var minutes = _accessPolicy.IdleTimeout.TotalMinutes;
+            Notifier.ShowWarning(
+                $"账号「{userName}」已因 {minutes:0.#} 分钟无操作自动退出登录，权限回到「操作员」。如需继续，请重新登录。");
         }
 
         private void ShowCommunicationSettings()
@@ -588,8 +662,8 @@ namespace VisionMaster
 
         /// <summary>
         /// 递归收集步骤（含 If/For 等容器内的嵌套子步骤）
-        /// 引擎按 StepID 在 Blueprints 中查找步骤回写运行状态，
-        /// 只填顶层会导致嵌套步骤永不显示运行状态
+        /// 这份扁平清单供调度层统一复位运行状态；
+        /// 只填顶层会导致嵌套步骤永不复位，界面上停在上一轮的"成功/失败"颜色里
         /// </summary>
         private static void CollectStepsDeep(IEnumerable<StepModel> steps, ICollection<StepModel> into)
         {

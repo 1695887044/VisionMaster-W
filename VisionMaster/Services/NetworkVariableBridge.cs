@@ -55,6 +55,19 @@ namespace VisionMaster.Services
                 Register(gv);
         }
 
+        /// <summary>
+        /// 单点重注册：变量自身的轮询相关配置变了（当前只有扫描组），需要让轮询侧看到新值。
+        /// <para>为什么直接重注册而不是"先注销再注册"：<see cref="AdvancedCommunicationManager.RegisterVariable"/>
+        /// 本身就是覆盖注册（同键会先退订旧的值转发再挂新 handler），先注销反而会留出"已注销、未注册"的空窗。
+        /// 变量归哪个组是注册那一刻抄进 <see cref="CommunicationVariable"/> 的快照，
+        /// 光改 <c>NetworkVariableModel.ScanGroup</c> 不会让轮询换节拍。</para>
+        /// </summary>
+        public void ReRegister(NetworkVariableModel nv)
+        {
+            if (nv == null) return;
+            Register(nv);
+        }
+
         private void OnGlobalVariablesChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (e.Action == NotifyCollectionChangedAction.Reset)
@@ -96,6 +109,8 @@ namespace VisionMaster.Services
                 AddressConfig = nv.AddressConfig,
                 ValueType = (Nullable.GetUnderlyingType(nv.DataType) ?? nv.DataType).AssemblyQualifiedName,
                 AccessMode = VariableAccessMode.ReadWrite,
+                // 扫描组：决定该变量由哪个扫描周期驱动（空 = 默认组，周期取连接 ReadCycleMs）
+                ScanGroup = nv.ScanGroup,
                 // 轮询新值 → 推回网络变量镜像（UI 订阅 ValueChanged 自动刷新）
                 MirrorCallback = v => nv.UpdateMirrorValue(v),
                 // 质量变化 → 推回网络变量（UI 色点显示采集健康度）

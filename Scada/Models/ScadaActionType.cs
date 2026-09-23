@@ -20,7 +20,7 @@ namespace VisionMaster.Scada
         /// <summary>往一个工程变量写值（S6 已接通：经 IScadaValueSource 解析后走 IWritableVariable.TryWrite）</summary>
         WriteVariable = 2,
 
-        /// <summary>切换到另一张画面（执行要等 S8 画面导航）</summary>
+        /// <summary>切换到另一张画面（S8 已接通：经 IScadaNavigator 找画面，Id 优先、名字兜底）</summary>
         Navigate = 3,
     }
 
@@ -51,16 +51,19 @@ namespace VisionMaster.Scada
         /// 运行日志里写着另一句话，用户就没法把"我配的那条"和"日志里那条"对上号，
         /// 排查方向直接跑偏。这与 <see cref="DisplayName"/> 只写一份是同一个理由。
         ///
-        /// 哪一段补齐了就把对应的一项删掉，全接上了整个方法一起删。
+        /// 三个动作现在都已接通，所以只剩"本版本不认识"这一档。
+        /// 将来再加动作类型，没接通的就在这个 switch 里给它一句原因，接上了再删掉那一项。
         /// </summary>
         public static string? PendingReason(this ScadaActionType type) => type switch
         {
-            // 记录日志与写变量都已接通（写变量走 IScadaValueSource → IWritableVariable.TryWrite），
-            // 所以它们没有"还没接"这回事。写变量的失败（没选变量/找不到变量/转换不过/设备拒写）
-            // 属于"配错了"，不是"还没接"——那类原因由执行侧当场算出来，不在这里预先写死。
+            // 记录日志、写变量、切换画面三条都已接通：
+            // - 写变量走 IScadaValueSource → IWritableVariable.TryWrite，失败（没选变量/找不到变量/
+            //   转换不过/设备拒写）属于"配错了"，由执行侧当场算出来，不在这里预先写死。
+            // - 切换画面走 IScadaNavigator → ScadaRuntime.Navigate，目标页被删掉同样是"配错了"，
+            //   也由执行侧当场算出来。
             ScadaActionType.Log => null,
             ScadaActionType.WriteVariable => null,
-            ScadaActionType.Navigate => "切换画面要等画面导航（S8）接入",
+            ScadaActionType.Navigate => null,
             _ => "本版本不认识该动作",
         };
     }

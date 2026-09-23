@@ -246,11 +246,36 @@ namespace VisionMaster.Communications
                 : new List<CommunicationVariable>();
 
             RemoveConnection(config.ConnectionName);
-            bool ok = AddConnection(config);
-            if (!ok)
-                return false;
 
-            foreach (var variable in keepVariables)
+            bool added;
+            try
+            {
+                added = AddConnection(config);
+            }
+            catch
+            {
+                // M1：Add 抛异常（配置非法 / 工厂创建失败）——旧连接对象已随 Remove 销毁，
+                // 若不回填注册记录，这批变量会静默停止轮询且无任何提示（直到下次 RebindAll 才恢复）。
+                // 先回填再向上抛，让 UI 感知失败原因
+                RestoreVariables(config.ConnectionName, keepVariables);
+                throw;
+            }
+
+            // M1：成功也要回填（变量必须延续）；Add 返回 false 时同样保留登记——
+            // _registeredVariables 只是"该连接应轮询哪些变量"的登记表，与连接对象/工作线程解耦，
+            // 无连接时静默保留，待重新添加同名连接后即可继续参与轮询
+            RestoreVariables(config.ConnectionName, keepVariables);
+            return added;
+        }
+
+        /// <summary>
+        /// M1：把变量重新登记进注册表（幂等）。走 RegisterVariable 而非直接写字典——
+        /// 它会重建转发 handler 并标脏轮询计划，因此"RemoveConnection（H3 已退订）→ 重新登记"的往返
+        /// 不会残留失效订阅。单个变量失败不影响其余变量
+        /// </summary>
+        private void RestoreVariables(string connectionName, List<CommunicationVariable> variables)
+        {
+            foreach (var variable in variables)
             {
                 try
                 {
@@ -258,11 +283,9 @@ namespace VisionMaster.Communications
                 }
                 catch (Exception ex)
                 {
-                    LogError($"更新连接后恢复变量注册失败: {config.ConnectionName}.{variable.VariableName}", ex);
+                    LogError($"更新连接后恢复变量注册失败: {connectionName}.{variable.VariableName}", ex);
                 }
             }
-
-            return true;
         }
 
         public bool Connect(string connectionName)
@@ -419,13 +442,24 @@ namespace VisionMaster.Communications
             }
         }
 
+        /// <summary>
+        /// 测试连接（同步版）：仅供**非 UI 线程**调用（如 CommunicationCheck 在 Task.Run 内）。
+        /// 唯一实现在 <see cref="TestConnectionAsync"/>，这里只是硬等它的结果——
+        /// 在 UI 线程上调用会冻住界面一个 TimeoutMs（默认 3 秒），UI 一律走异步版。
+        /// </summary>
         public bool TestConnection(string connectionName)
+            => TestConnectionAsync(connectionName).GetAwaiter().GetResult();
+
+        /// <summary>
+        /// 测试连接（异步版，只探测、不改变连接状态）。
+        /// 已连上的连接直接判定成功：TestConnection 的实现是"连一次再关掉"，
+        /// 对活连接调用会把正在用的 socket 关掉（而 Worker 状态仍是 Connected），属于自毁行为。
+        /// </summary>
+        public async Task<bool> TestConnectionAsync(string connectionName)
         {
             if (!_workers.TryGetValue(connectionName, out var worker))
                 return false;
 
-            // 已连上的连接直接判定成功：TestConnection 的实现是"连一次再关掉"，
-            // 对活连接调用会把正在用的 socket 关掉（而 Worker 状态仍是 Connected），属于自毁行为
             if (worker.IsConnected)
             {
                 LogDebug($"连接已处于连接状态，跳过测试: {connectionName}");
@@ -435,8 +469,9 @@ namespace VisionMaster.Communications
             try
             {
                 LogInfo($"正在测试连接: {connectionName}");
-                // 走 Worker 线程执行，避免与状态机的建连动作并发操作同一个设备对象
-                bool result = worker.Invoke(c => c.TestConnection()).GetAwaiter().GetResult();
+                // 走 Worker 线程执行，避免与状态机的建连动作并发操作同一个设备对象。
+                // ConfigureAwait(false)：探测耗时全在 Worker 线程上，不应把 UI 线程拽回来等
+                bool result = await worker.Invoke(c => c.TestConnection()).ConfigureAwait(false);
                 LogInfo($"连接测试结果: {connectionName} = {(result ? "成功" : "失败")}");
                 return result;
             }
@@ -619,7 +654,7 @@ namespace VisionMaster.Communications
                 if (variables.IsEmpty)
                     _registeredVariables.TryRemove(connectionName, out _);
 
-                // H1：标脏即可——在线时 Worker 下一拍前重编译（变量清空时 PollAction 置空，轮询停止最多延后一个周期）
+                // H1：标脏即可——在线时 Worker 下一拍前重编译（变量清空时调度器置空，轮询停止最多延后一个周期）
                 RequestPollPlanRebuild(connectionName);
             }
         }
@@ -628,11 +663,11 @@ namespace VisionMaster.Communications
 
         #region 变量轮询（核心功能）
 
-        /// <summary>把连接配置里的运行参数灌进工作线程（轮询周期、重连节奏、是否保持自动重连）</summary>
+        /// <summary>把连接配置里的运行参数灌进工作线程（重连节奏、是否保持自动重连）</summary>
         private void ConfigureWorker(ConnectionWorker worker, CommunicationConfig config)
         {
-            worker.PollIntervalMs = config.ReadCycleMs > 0 ? config.ReadCycleMs : 1000;
-
+            // 注：轮询周期不再灌进 Worker——周期是"扫描组"的属性，由 RebuildPollPlan 编译成 PollScheduler 后整体挂上。
+            // 连接级 ReadCycleMs 的唯一去向是"默认组的周期"（见 PollScheduler/ScanGroupTable.Resolve）
             int baseInterval = config.Config?.RetryIntervalMs > 0
                 ? config.Config.RetryIntervalMs
                 : GlobalReconnectIntervalMs;
@@ -660,28 +695,123 @@ namespace VisionMaster.Communications
         }
 
         /// <summary>
-        /// <para>把"已注册变量清单"编译成批量轮询计划并挂到工作线程的 <see cref="ConnectionWorker.PollAction"/>。</para>
+        /// <para>把"已注册变量清单 + 连接扫描组表"编译成多周期调度器并整体挂到工作线程的 <see cref="ConnectionWorker.PollScheduler"/>。</para>
         /// <para>编译在注册/连接时发生，轮询热路径上只有"段读 + 内存切片解码"，没有字符串解析也没有反射。</para>
+        /// <para>组表来自 <see cref="_configCache"/> 里的活配置对象（改配置即改活对象），故"编辑扫描组"只需标脏重编译。</para>
         /// </summary>
         private void RebuildPollPlan(string connectionName)
         {
             if (!_workers.TryGetValue(connectionName, out var worker))
                 return;
 
+            _configCache.TryGetValue(connectionName, out var config); // 取不到则全部走默认组（安全兜底）
+
             if (!_registeredVariables.TryGetValue(connectionName, out var variables) || variables.IsEmpty)
             {
-                worker.PollAction = null; // 无变量 → 不空转（连接活性改由读写命令刷新）
+                worker.PollScheduler = null; // 无变量 → 不空转（连接活性改由读写命令刷新）
                 worker.ClearPollPlanDirty();
                 LogDebug($"连接 {connectionName} 无已注册变量，已停止轮询");
                 return;
             }
 
-            var planner = PollBatchPlanner.Build(variables.Values, LogWarning);
-            worker.PollAction = planner.PollItemCount > 0 ? planner.Poll : null;
+            var scheduler = PollScheduler.Create(variables.Values, config, LogWarning);
+            worker.PollScheduler = scheduler; // 引用赋值原子：Worker 下一拍自然用新调度器
             worker.ClearPollPlanDirty(); // 重建完成 → 计划已反映最新注册表；放这里保证任何重建落点之后无残留脏标记
 
-            LogInfo($"轮询计划已更新: {connectionName} 变量 {variables.Count} 个 → 每轮 {planner.SegmentCount} 次段读 + " +
-                    $"{planner.FallbackCount} 次单读，周期 {worker.PollIntervalMs}ms");
+            LogInfo(scheduler == null
+                ? $"轮询计划已更新: {connectionName} 变量 {variables.Count} 个，但无可轮询项，已停止轮询"
+                : $"轮询计划已更新: {connectionName} 变量 {variables.Count} 个 → {scheduler.GroupCount} 个扫描组（{scheduler.Describe()}）");
+        }
+
+        /// <summary>
+        /// 取某连接各扫描组的运行诊断快照（目标周期 / 实测周期 / 达成率 / 段数）。
+        /// <para>只读快照，可由 UI 线程定时调用；连接不存在或无调度器时返回空表。</para>
+        /// </summary>
+        public IReadOnlyList<ScanGroupStats> GetScanGroupStats(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName)
+                || !_workers.TryGetValue(connectionName, out var worker)
+                || worker.PollScheduler is not { } scheduler)
+            {
+                return Array.Empty<ScanGroupStats>();
+            }
+            return scheduler.GetStats();
+        }
+
+        /// <summary>取某连接可用的扫描组名（含默认组，恒在首位），供变量编辑器的"扫描组"下拉框使用</summary>
+        public IReadOnlyList<string> GetScanGroupNames(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                return new[] { PollScheduler.DefaultGroupName };
+
+            _configCache.TryGetValue(connectionName, out var config);
+            return PollScheduler.ResolveGroupNames(config);
+        }
+
+        /// <summary>
+        /// 取某连接各扫描组的"静态画像"（变量数 / 段数 / 单读数），**不依赖连接是否在线**。
+        /// <para>做法：用组表 + 已注册变量临时编译一次调度器，取它的快照（实测周期恒为 0 = 还没测到）。
+        /// 复用 <see cref="PollScheduler.Create"/> 而非另写一份统计，保证"编辑器里看到的段数"与"真正轮询时的段数"是同一个口径。</para>
+        /// <para>代价：O(N) 编译（几万点约几十毫秒）。调用点限于"打开扫描组编辑器"与"编辑器里改动组表结构"，
+        /// 不进轮询热路径。</para>
+        /// </summary>
+        /// <param name="configOverride">
+        /// 传入则用它当组表，而不是连接当前活配置。
+        /// 扫描组编辑器编辑的是**副本**（取消不能弄脏活对象），所以它必须能把副本传进来预览，
+        /// 否则"刚加了一个组"在预览里永远看不见，直到点确定。
+        /// </param>
+        public IReadOnlyList<ScanGroupStats> GetScanGroupPreview(
+            string connectionName,
+            CommunicationConfig? configOverride = null)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                return Array.Empty<ScanGroupStats>();
+
+            if (configOverride == null)
+                _configCache.TryGetValue(connectionName, out configOverride);
+
+            _registeredVariables.TryGetValue(connectionName, out var variables);
+
+            return PollScheduler.Create(variables?.Values, configOverride, null)?.GetStats()
+                   ?? Array.Empty<ScanGroupStats>();
+        }
+
+        /// <summary>
+        /// 扫描组改名级联 / 删组回落：把某连接下 <see cref="CommunicationVariable.ScanGroup"/> 指向
+        /// <paramref name="oldName"/> 的**已注册变量**改指到 <paramref name="newName"/>（传 null/空 = 回落默认组），
+        /// 并标脏轮询计划。
+        /// <para>为什么必须由 Manager 提供：已注册变量表是 Manager 私有状态，且它是"变量归哪个组"在轮询侧的唯一依据。</para>
+        /// <para>为什么必须在 <see cref="UpdateConnection"/> <b>之前</b>调用：UpdateConnection 走
+        /// Remove → Add → <see cref="RestoreVariables"/>，而 RestoreVariables 复用的正是<b>同一批对象</b>
+        /// （<c>keepVariables</c> 是引用拷贝）。先改这里，改的就是"重建后真正参与轮询的那一份"。</para>
+        /// <para>注意：调用方还需同步改工作区里的变量模型（<c>NetworkVariableModel.ScanGroup</c>），
+        /// 否则下次 RebindAll 会把旧组名又灌回来。两处都改才算完整级联。</para>
+        /// </summary>
+        /// <returns>受影响的已注册变量数</returns>
+        public int ReassignScanGroup(string connectionName, string oldName, string? newName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName) || string.IsNullOrWhiteSpace(oldName))
+                return 0;
+
+            if (!_registeredVariables.TryGetValue(connectionName, out var variables))
+                return 0;
+
+            string target = string.IsNullOrWhiteSpace(newName) ? string.Empty : newName.Trim();
+            int affected = 0;
+
+            foreach (var variable in variables.Values)
+            {
+                if (!string.Equals(variable.ScanGroup?.Trim(), oldName, StringComparison.Ordinal))
+                    continue;
+
+                variable.ScanGroup = target;
+                affected++;
+            }
+
+            if (affected > 0)
+                RequestPollPlanRebuild(connectionName); // 在线时 Worker 下一拍前重编译；离线时等 Connect 统一编译
+
+            return affected;
         }
 
         #endregion
@@ -865,7 +995,12 @@ namespace VisionMaster.Communications
                 VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
                 {
                     if (newState == ConnectionState.Connected)
+                    {
                         config.UpdateLastConnectedTime();
+                        // 连上即故障已过去：清掉最后错误，状态胶囊上的 ⚠ 随之消失。
+                        // 不清的后果是"曾经出过错"永久留在界面上，用户无从判断当前是否正常
+                        config.ClearLastError();
+                    }
 
                     config.State = newState;
                 });
@@ -896,7 +1031,17 @@ namespace VisionMaster.Communications
             if (IsThrottled($"commerr:{connectionName}"))
                 return;
 
-            LogWarning($"通信故障: {connectionName} — {ex?.Message ?? "未知错误"}");
+            string message = ex?.Message ?? "未知错误";
+
+            // 把"最后错误"落到配置对象上，供连接管理的状态胶囊展示（ToolTip + ⚠）。
+            // 与 OnWorkerStateChanged 里改 State 同样的理由：本方法跑在连接专属线程，
+            // 而 config 是直接绑定界面的模型，赋值会发 PropertyChanged，
+            // 后台线程发通知会让直接订阅 PropertyChanged 的控件读到自己的 DependencyProperty 而崩。
+            // 放在节流之后：退避重连期间每 5 秒才写一次，不会造成通知风暴。
+            if (_configCache.TryGetValue(connectionName, out var cfg))
+                VisionMaster.Helpers.SafeDispatch.BeginInvoke(() => cfg.LastError = message);
+
+            LogWarning($"通信故障: {connectionName} — {message}");
             OnConnectionError(connectionName, ex ?? new InvalidOperationException("未知通信故障"));
         }
 

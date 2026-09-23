@@ -1,4 +1,4 @@
-﻿namespace VisionMaster.Communications
+namespace VisionMaster.Communications
 {
     /// <summary>
     /// <para>Modbus TCP 协议配置类。</para>
@@ -20,6 +20,7 @@
             TimeoutMs = TimeoutMs, 
             RetryCount = RetryCount, 
             RetryIntervalMs = RetryIntervalMs,
+            ReadTimeoutMs = ReadTimeoutMs,
             IpAddress = IpAddress, 
             Port = Port, 
             EnableKeepAlive = EnableKeepAlive, 

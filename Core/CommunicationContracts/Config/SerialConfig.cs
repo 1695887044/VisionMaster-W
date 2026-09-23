@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using UI.Attributes;
 
 namespace VisionMaster.Communications
@@ -50,6 +50,17 @@ namespace VisionMaster.Communications
         public StopBitsMode StopBits { get; set; } = StopBitsMode.One;
 
         /// <summary>
+        /// <para><b>串口不使用"连接超时"</b>——HSL 的 <c>ModbusRtu.Open()</c> 只是打开本地串口句柄，
+        /// 不存在网络建连等待，所以基类的 <see cref="ConnectionConfigBase.TimeoutMs"/> 在串口上无处消费。</para>
+        /// <para>串口真正生效的超时是「读超时(ms)」（<see cref="ConnectionConfigBase.ReadTimeoutMs"/>）。</para>
+        /// <para>这里用 <c>override</c> 把它从属性面板隐藏（<c>Visible = false</c>），
+        /// 避免界面上出现一个"改了没有任何反应"的输入框。字段本身仍保留在模型中（默认 3000），
+        /// 以保证与老方案的序列化兼容。</para>
+        /// </summary>
+        [SuperDisplay(Visible = false)]
+        public override int TimeoutMs { get; set; } = 3000;
+
+        /// <summary>
         /// <para>创建串口连接对象。</para>
         /// </summary>
         /// <returns>串口连接实例</returns>
@@ -63,6 +74,7 @@ namespace VisionMaster.Communications
             TimeoutMs = TimeoutMs, 
             RetryCount = RetryCount, 
             RetryIntervalMs = RetryIntervalMs,
+            ReadTimeoutMs = ReadTimeoutMs,
             PortName = PortName, 
             BaudRate = BaudRate, 
             DataBits = DataBits, 

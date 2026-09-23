@@ -7,14 +7,6 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Plugin.PreProcessing</RootNamespace>
     <AssemblyName>Plugin.PreProcessing</AssemblyName>
-    <!--
-      产物投递目录：
-      - 从解决方案编译：$(SolutionDir) 有值 → 直接复制到 Modules\
-      - 单独 dotnet build 本工程：$(SolutionDir) 为空 → 回退到仓库根目录的 Modules\
-      这样插件不写进 .sln 也能被扫描装载（Engine.PluginService 只认 Modules\Plugin*.dll）
-    -->
-    <ModulesDir Condition="!Exists('$(SolutionDir)')">$(MSBuildThisFileDirectory)..\..\Modules\</ModulesDir>
-    <ModulesDir Condition="'$(ModulesDir)' == ''">$(SolutionDir)Modules\</ModulesDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,9 +21,5 @@
       <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
     </Reference>
   </ItemGroup>
-
-  <Target Name="CopyPluginToModules" AfterTargets="Build">
-    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModulesDir)" SkipUnchangedFiles="true" />
-  </Target>
 
 </Project>

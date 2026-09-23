@@ -38,6 +38,9 @@ namespace VisionMaster.Communications
                 config.DataBits, 
                 GetStopBits(config.StopBits), 
                 GetParity(config.Parity));
+            // 串口没有"TCP 建连超时"这个量（Open 是本地动作），故 TimeoutMs 在串口上不消费；
+            // 真正需要的是"等对端回帧"的读超时，HSL 默认 5000ms，这里按配置下发。
+            _device.ReceiveTimeOut = config.ReadTimeoutMs;
         }
 
         private static System.IO.Ports.StopBits GetStopBits(StopBitsMode mode) => mode switch

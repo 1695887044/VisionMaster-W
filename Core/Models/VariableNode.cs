@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -57,6 +57,38 @@ namespace VisionMaster.Models
             get => _isConnected;
             set => SetProperty(ref _isConnected, value);
         }
+
+        private string _scanGroupText = string.Empty;
+        /// <summary>
+        /// 扫描组显示文案（仅网络变量根节点用）：
+        /// 模型里空组名表示"默认组"，界面上要显示成"默认组"而不是空白，故由 VM 抄写时归一化。
+        /// </summary>
+        public string ScanGroupText
+        {
+            get => _scanGroupText;
+            set
+            {
+                if (SetProperty(ref _scanGroupText, value))
+                    ScanGroupChanged?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// 该变量所属连接的可选扫描组名（含"默认组"，恒在首位）。
+        /// 本地变量为空集合 → 列上不渲染下拉框。
+        /// </summary>
+        public ObservableCollection<string> ScanGroupOptions { get; } = new();
+
+        /// <summary>
+        /// 扫描组变更回调：由 VM 注入。
+        /// 节点在 Core 工程、不认识通信管理器，"回写模型 + 重注册轮询"只能由上层做。
+        /// </summary>
+        public Action<VariableNode>? ScanGroupChanged { get; set; }
+
+        /// <summary>
+        /// 是否显示「扫描组」列内容（仅网络变量的根节点；数组子节点不显示）
+        /// </summary>
+        public bool ShowScanGroup => IsRootNode && IsNetwork;
 
         /// <summary>
         /// 变量名称

@@ -49,48 +49,12 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 执行流程
-        /// 使用栈式遍历实现深度优先执行
+        /// 顶层序列直接复用 CompiledNode.RunSequence（全引擎唯一的序列执行器），
+        /// 这样"顶层怎么跑"与"循环体/分支怎么跑"是同一套语义，If 换层级不再有行为差异（A1）
         /// </summary>
         public void Run(IExecutionContext context)
         {
-            if (RootNodes == null || RootNodes.Count == 0) return;
-
-            var stack = new Stack<IEnumerator<CompiledNode>>();
-            stack.Push(RootNodes.GetEnumerator());
-
-            while (stack.Count > 0)
-            {
-                if (context.CancellationToken.IsCancellationRequested)
-                    return;
-
-                var currentEnumerator = stack.Peek();
-
-                if (currentEnumerator.MoveNext())
-                {
-                    var currentNode = currentEnumerator.Current;
-
-                    context.CurrentNodeId = currentNode.Id;
-
-                    if (context.CancellationToken.IsCancellationRequested)
-                        return;
-
-                    var nextBranchToRun = currentNode.RunAndGetNext(context);
-
-                    if (nextBranchToRun != null && nextBranchToRun.Count > 0)
-                    {
-                        stack.Push(nextBranchToRun.GetEnumerator());
-                    }
-
-                    if (context.CurrentFlowState == FlowControlState.Return)
-                    {
-                        return;
-                    }
-                }
-                else
-                {
-                    stack.Pop();
-                }
-            }
+            CompiledNode.RunSequence(RootNodes, context, yieldToControlFlow: false);
         }
     }
 }

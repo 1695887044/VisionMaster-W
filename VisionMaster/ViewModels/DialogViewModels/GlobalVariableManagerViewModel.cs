@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Media;
 using Prism.Commands;
+using Prism.Dialogs;
 using UI.CustomControl;
 using UI.Helper;
 using VisionMaster.Communications;
@@ -57,6 +58,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
     {
         private readonly AdvancedCommunicationManager _communicationManager;
         private readonly NetworkVariableBridge _bridge;
+
+        /// <summary>弹窗服务：用于打开扫描组编辑器（与「通讯设置 → 操作列 → 扫描组」是同一个弹窗）</summary>
+        private readonly IDialogService _dialogs;
 
         public string Title => "变量管理";
 
@@ -242,9 +246,92 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 if (SetProperty(ref _selectedConnection, value))
                 {
                     RefreshAreaOptions();
+                    RefreshNewScanGroupOptions();
                     NewBitOffset = 0; // S7 布尔必须带位偏移（M0.0），默认位 0
+
+                    // 「管理扫描组」的作用对象就是这个连接，命令可用性必须跟着换
+                    ManageScanGroupsCommand.RaiseCanExecuteChanged();
                 }
             }
+        }
+
+        /// <summary>新建面板「扫描组」下拉的选项：当前连接的组表（默认组恒在首位）</summary>
+        public ObservableCollection<string> NewScanGroupOptions { get; } = new();
+
+        /// <summary>
+        /// 新建变量时选定的扫描组（显示值，"默认组"= 空串落库）。
+        /// <para>建完**不清空**：连续录同一节拍的点位时不用每次重选。组名是连接级资源，
+        /// 换连接后若旧组名不存在，<see cref="RefreshNewScanGroupOptions"/> 会回落默认组。</para>
+        /// </summary>
+        public string SelectedNewScanGroup
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = PollScheduler.DefaultGroupName;
+
+        /// <summary>
+        /// 刷新「扫描组」下拉，并尽量保住用户上次选的那个组：
+        /// 新连接的组表里还有同名组就继续选中，没有就回落默认组（不留失效值）。
+        /// </summary>
+        private void RefreshNewScanGroupOptions()
+        {
+            NewScanGroupOptions.Clear();
+
+            if (SelectedConnection == null)
+            {
+                SelectedNewScanGroup = PollScheduler.DefaultGroupName;
+                return;
+            }
+
+            foreach (var groupName in _communicationManager.GetScanGroupNames(SelectedConnection.ConnectionName))
+                NewScanGroupOptions.Add(groupName);
+
+            string remembered = SelectedNewScanGroup;
+            SelectedNewScanGroup = !string.IsNullOrWhiteSpace(remembered) && NewScanGroupOptions.Contains(remembered)
+                ? remembered
+                : PollScheduler.DefaultGroupName;
+        }
+
+        /// <summary>显示值 → 落库值："默认组"是虚拟组，模型里以空串表示（PollScheduler 约定：空名 → 默认组）</summary>
+        private static string ToStoredScanGroup(string? displayName) =>
+            string.IsNullOrWhiteSpace(displayName)
+            || string.Equals(displayName, PollScheduler.DefaultGroupName, StringComparison.Ordinal)
+                ? string.Empty
+                : displayName;
+
+        /// <summary>
+        /// 打开扫描组编辑器。只传连接名，活对象由编辑器自己按名字去 Manager 里取
+        /// （传引用反而危险：编辑期间这条连接可能已被删除，编辑器会拿着一个"已不在册"的对象改）。
+        /// <para>为什么变量管理也要有这个入口：这里才是"录点位"的地方，用户是在「扫描组」下拉里
+        /// 发现只有默认组、才想起要建组的——入口就放在下拉旁边，不必退出去开通讯设置。</para>
+        /// </summary>
+        private void ExecuteManageScanGroups()
+        {
+            var connection = SelectedConnection;
+            if (connection == null) return;
+
+            var parameters = new DialogParameters
+            {
+                { ScanGroupEditorViewModel.ConnectionNameKey, connection.ConnectionName },
+            };
+
+            _dialogs.ShowDialog(ScanGroupEditorViewModel.DialogName, parameters, OnScanGroupsClosed);
+        }
+
+        /// <summary>
+        /// 扫描组编辑器关闭后重算两处「扫描组」下拉。
+        /// <para>① 新建表单的下拉：新加的组要能立刻选到（<see cref="RefreshNewScanGroupOptions"/>）；</para>
+        /// <para>② 右栏变量列表的下拉：组被改名/删除后，已有变量的可选项要跟上。变量模型里的组名
+        /// 已由编辑器级联改好（<c>CascadeRename</c>），这里只负责让界面重新读一遍——
+        /// 所以走 <see cref="RefreshTree"/> 重建节点（它按 VariableId 保留展开态），而不是自己造一套局部刷新。</para>
+        /// <para>取消时活对象从未被改动，无需任何刷新。</para>
+        /// </summary>
+        private void OnScanGroupsClosed(IDialogResult result)
+        {
+            if (result.Result != ButtonResult.OK) return;
+
+            RefreshNewScanGroupOptions();
+            RefreshTree();
         }
 
         public ObservableCollection<AreaOption> AreaOptions { get; } = new();
@@ -390,14 +477,22 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public DelegateCommand<VariableSourceNode> SelectSourceCommand { get; }
 
+        /// <summary>
+        /// 管理扫描组：打开连接级组表编辑器（新增/改名/删组/周期/预设）。
+        /// <para>作用对象是新建面板里当前选中的「所属连接」，故未选连接时置灰。</para>
+        /// </summary>
+        public DelegateCommand ManageScanGroupsCommand { get; }
+
         public GlobalVariableManagerViewModel(
             IWorkspaceManager workspace,
             AdvancedCommunicationManager communicationManager,
-            NetworkVariableBridge bridge)
+            NetworkVariableBridge bridge,
+            IDialogService dialogs)
             : base(workspace)
         {
             _communicationManager = communicationManager;
             _bridge = bridge;
+            _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
 
             SelectedType = AvailableTypes.First();
 
@@ -414,6 +509,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 n => n != null && n.IsRootNode && n.OriginalModel != null);
 
             SelectSourceCommand = new DelegateCommand<VariableSourceNode>(node => SelectedSource = node);
+
+            ManageScanGroupsCommand = new DelegateCommand(ExecuteManageScanGroups, () => SelectedConnection != null);
 
             foreach (var conn in _communicationManager.GetAllConnections())
                 Connections.Add(conn);
@@ -467,12 +564,52 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 var conn = _communicationManager.GetConnection(gv.ConnectionName);
                 node.IsConnected = conn?.IsConnected ?? false;
+
+                // 「扫描组」列：可选组名来自该变量的连接（默认组恒在首位）
+                foreach (var groupName in _communicationManager.GetScanGroupNames(gv.ConnectionName))
+                    node.ScanGroupOptions.Add(groupName);
+
+                // 模型里空组名 = 默认组（PollScheduler 约定），界面上要显示成"默认组"而不是空白
+                node.ScanGroupText = gv is NetworkVariableModel netVar
+                                     && !string.IsNullOrWhiteSpace(netVar.ScanGroup)
+                    ? netVar.ScanGroup
+                    : PollScheduler.DefaultGroupName;
+
+                // 回调必须在赋完初值后再挂，否则构造节点时就会触发一次"变更"
+                node.ScanGroupChanged = OnScanGroupChanged;
             }
             else
             {
                 node.IsConnected = true;
             }
             return node;
+        }
+
+        /// <summary>
+        /// 扫描组下拉变更：回写变量模型 + 让轮询侧按新组重排。
+        /// <para>为什么必须重注册：变量归哪个组是注册那一刻抄进 <c>CommunicationVariable</c> 的快照，
+        /// 光改 <c>NetworkVariableModel.ScanGroup</c> 不会换节拍——桥接器只在增删/改名时才重注册。</para>
+        /// </summary>
+        private void OnScanGroupChanged(VariableNode node)
+        {
+            if (node?.OriginalModel is not NetworkVariableModel nv) return;
+
+            string selected = node.ScanGroupText;
+            if (string.IsNullOrWhiteSpace(selected))
+            {
+                // 组名失效（组被删、或变量换了连接）时 ComboBox 会把 SelectedItem 写成 null：
+                // 此时只把文案复位成默认组，绝不能用 null 覆盖模型
+                node.ScanGroupText = PollScheduler.DefaultGroupName;
+                return;
+            }
+
+            // "默认组"是虚拟组，模型里以空串表示（PollScheduler：空名 → 默认组，周期取连接 ReadCycleMs）
+            string stored = ToStoredScanGroup(selected);
+
+            if (string.Equals(nv.ScanGroup ?? string.Empty, stored, StringComparison.Ordinal)) return;
+
+            nv.ScanGroup = stored;
+            _bridge.ReRegister(nv);
         }
 
         protected override void CreateChildNodes(IVariable gv, VariableNode parentNode)
@@ -648,6 +785,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 var netVar = (NetworkVariableModel)VariableFactory.CreateNetwork(
                     NewVarName, targetType, SelectedConnection.ConnectionName,
                     address, NewVarDescription);
+
+                // 建的时候就定好节拍：桥接器注册时会把 ScanGroup 抄进 CommunicationVariable，
+                // 事后再改要走 ReRegister，这里一次到位
+                netVar.ScanGroup = ToStoredScanGroup(SelectedNewScanGroup);
 
                 _workspace.GlobalVariables.Add(netVar); // 桥接器监听集合 → 自动 Bind + RegisterVariable + 镜像接线
 

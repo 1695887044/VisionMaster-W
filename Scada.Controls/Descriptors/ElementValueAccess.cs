@@ -146,17 +146,24 @@ namespace VisionMaster.Scada.Controls
     /// 抽出来是为了让描述符只写"自己特有的属性"：<c>Properties = GeometryProperties.With(…)</c>。
     /// 若哪天要给所有图元统一加一条（比如"可见性"），改这里一处即可。
     ///
-    /// <b>哪几条可绑变量，是一条产品口径，不是随手填的默认值</b>
+    /// <b>「位置与尺寸」整组都不绑变量，是一条产品口径，不是随手填的默认值</b>
     /// ---------
-    /// · <c>X</c> / <c>Y</c> —— <b>不可绑</b>。位置是<b>版面语言</b>：它决定"这个图元画在画面哪儿"，
-    ///   是设计期一次定好的事实。把它交给变量驱动，等于让画面每次刷新都自己搬家，
-    ///   操作员会以为界面出故障了；商业组态里也没有人拿位置做动画。
-    ///   把 ƒx 从这里收掉，属性面板"位置与尺寸"组就只剩尺寸与角度还亮着，噪声立刻少一半。
-    /// · <c>宽</c> / <c>高</c> —— 可绑。尺寸是<b>运行语言</b>：液位随变量涨落、进度条随产量伸缩，
-    ///   都是"绑住一个长度"就能表达的量，这是组态里最常见的动画之一。
-    /// · <c>旋转</c> —— 可绑。角度同理（指针 / 阀门开度盘），且它已带 -360~360 的合法区间。
+    /// 位置（X / Y）、尺寸（宽 / 高）、角度（旋转）同属<b>设计期版面语言</b>：
+    /// 它们回答"这个图元画在画面哪儿、多大、什么角度"，是组态时一次定好的事实，
+    /// 不是运行期随时间涨落的量。
     ///
-    /// 判据一句话：<b>设计期版面语言不可绑，运行期动画语言可绑。</b>
+    /// 把它交给变量驱动，等于让画面每次刷新都自己搬家——操作员会以为界面出故障了；
+    /// 而且排版意图被运行数据覆盖之后，现场没人还能预测这一页长什么样。
+    /// 商业组态软件里也没有人拿位置做动画。
+    ///
+    /// 那"液位随变量涨落"怎么表达？由<b>图元自身</b>承担，不靠撑大外框：
+    /// 棒图（<c>Hmi.ProgressBar</c>）、表盘（<c>Hmi.Gauge</c>）、阀门（<c>Hmi.Valve</c>）
+    /// 都是"固定外框 + 一个数值属性"——把数值绑上变量，长度 / 角度在图元内部变化，
+    /// 版面一动不动。这才是可预测、可维护的做法。
+    ///
+    /// 口径只写在这一处，注册期由 <see cref="ElementDescriptor.Validate"/> 兜底：
+    /// 凡 <c>Group</c> 属于 <see cref="ElementDescriptor.NonBindableGroups"/> 的属性
+    /// 声明了 <c>IsBindable = true</c>，注册直接失败。
     /// </summary>
     public static class GeometryProperties
     {
@@ -184,20 +191,20 @@ namespace VisionMaster.Scada.Controls
             new()
             {
                 Key = ElementValueAccess.WidthKey, DisplayName = "宽",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = 1, IsBindable = true,
-                Description = "宽度（像素）；可绑变量，做液位 / 进度这类长度随值变化的动画",
+                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = 1,
+                Description = "宽度（像素）；版面尺寸，不参与变量绑定。要长度随值涨落请用棒图 / 表盘 / 阀门",
             },
             new()
             {
                 Key = ElementValueAccess.HeightKey, DisplayName = "高",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = 1, IsBindable = true,
-                Description = "高度（像素）；可绑变量，做液位 / 柱状这类高度随值变化的动画",
+                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = 1,
+                Description = "高度（像素）；版面尺寸，不参与变量绑定。要长度随值涨落请用棒图 / 表盘 / 阀门",
             },
             new()
             {
                 Key = ElementValueAccess.RotationKey, DisplayName = "旋转",
-                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = -360, Max = 360, IsBindable = true,
-                Description = "顺时针角度，绕图元中心；0 表示不旋转",
+                Kind = ElementPropertyKind.Number, Group = "位置与尺寸", Min = -360, Max = 360,
+                Description = "顺时针角度，绕图元中心；0 表示不旋转。版面角度，不参与变量绑定",
             },
         };
 

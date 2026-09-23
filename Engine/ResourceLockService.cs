@@ -30,26 +30,32 @@ namespace VisionMaster.Services
             /// <summary>
             /// 拥有锁的会话ID
             /// </summary>
-            public string OwnerSessionId { get; set; }
+            public string OwnerSessionId;
 
             /// <summary>
-            /// 锁计数（支持重入）
+            /// 持有标记：0=未持有，1=已持有。
+            ///
+            /// 注意它不是属性而是普通字段，因为读写一律走 Interlocked ——
+            /// 应急路径（ReleaseAllLocks）会从并不持有该锁的线程上并发进来。
+            ///
+            /// 原注释写"锁计数（支持重入）"是不成立的：信号量最大计数为 1，
+            /// 同一资源第二次 Acquire 只会永久挂住，永远轮不到计数加到 2。
             /// </summary>
-            public int LockCount { get; set; }
+            public int LockCount;
         }
 
         /// <summary>
         /// 异步获取资源锁（无限等待）
         /// </summary>
-        public async Task<IDisposable> AcquireLockAsync(string resourceName, CancellationToken cancellationToken = default)
+        public async Task<IDisposable> AcquireLockAsync(string resourceName, string ownerSessionId = null, CancellationToken cancellationToken = default)
         {
-            return await AcquireLockAsync(resourceName, Timeout.Infinite, cancellationToken);
+            return await AcquireLockAsync(resourceName, Timeout.Infinite, ownerSessionId, cancellationToken);
         }
 
         /// <summary>
         /// 异步获取资源锁（带超时）
         /// </summary>
-        public async Task<IDisposable> AcquireLockAsync(string resourceName, int timeoutMs, CancellationToken cancellationToken = default)
+        public async Task<IDisposable> AcquireLockAsync(string resourceName, int timeoutMs, string ownerSessionId = null, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(resourceName))
                 throw new ArgumentNullException(nameof(resourceName));
@@ -61,7 +67,8 @@ namespace VisionMaster.Services
             if (!acquired)
                 throw new TimeoutException($"获取资源锁 '{resourceName}' 超时");
 
-            resourceLock.LockCount++;
+            resourceLock.OwnerSessionId = ownerSessionId;
+            Interlocked.Exchange(ref resourceLock.LockCount, 1);
 
             return new LockReleaseHandle(this, resourceName);
         }
@@ -69,7 +76,7 @@ namespace VisionMaster.Services
         /// <summary>
         /// 尝试获取资源锁（非阻塞）
         /// </summary>
-        public bool TryAcquireLock(string resourceName, out IDisposable releaseHandle)
+        public bool TryAcquireLock(string resourceName, out IDisposable releaseHandle, string ownerSessionId = null)
         {
             releaseHandle = null;
 
@@ -80,7 +87,8 @@ namespace VisionMaster.Services
 
             if (resourceLock.Semaphore.Wait(0))
             {
-                resourceLock.LockCount++;
+                resourceLock.OwnerSessionId = ownerSessionId;
+                Interlocked.Exchange(ref resourceLock.LockCount, 1);
                 releaseHandle = new LockReleaseHandle(this, resourceName);
                 return true;
             }
@@ -95,7 +103,7 @@ namespace VisionMaster.Services
         {
             if (_locks.TryGetValue(resourceName, out var resourceLock))
             {
-                return resourceLock.LockCount > 0;
+                return Volatile.Read(ref resourceLock.LockCount) > 0;
             }
             return false;
         }
@@ -117,17 +125,18 @@ namespace VisionMaster.Services
         /// </summary>
         public void ReleaseLock(string resourceName)
         {
-            if (_locks.TryGetValue(resourceName, out var resourceLock))
-            {
-                resourceLock.LockCount--;
-                resourceLock.Semaphore.Release();
+            if (!_locks.TryGetValue(resourceName, out var resourceLock))
+                return;
 
-                if (resourceLock.LockCount <= 0)
-                {
-                    resourceLock.OwnerSessionId = null;
-                    resourceLock.LockCount = 0;
-                }
-            }
+            // 用 Exchange 的返回值当闸门：只有真正持有过的那一次才会拿到 1，
+            // 之后一律返回 0 直接退出。少了这道闸门，句柄被 Dispose 两次
+            // （或手工 Release 与 using 自动释放撞车）就会在最大计数为 1 的
+            // 信号量上第二次 Release —— 抛 SemaphoreFullException。
+            if (Interlocked.Exchange(ref resourceLock.LockCount, 0) == 0)
+                return;
+
+            resourceLock.OwnerSessionId = null;
+            resourceLock.Semaphore.Release();
         }
 
         /// <summary>
@@ -137,8 +146,14 @@ namespace VisionMaster.Services
         {
             foreach (var kvp in _locks)
             {
-                kvp.Value.Semaphore.Release(kvp.Value.LockCount);
-                kvp.Value.LockCount = 0;
+                // 原来这里直接 Semaphore.Release(LockCount)，有两颗雷：
+                //   LockCount == 0 → Release(0) 抛 ArgumentOutOfRangeException
+                //                  （条目是 TryAcquireLock 抢失败时 GetOrAdd 顺手建的，本来就没持有）
+                //   LockCount >  1 → 超过信号量最大计数 1，抛 SemaphoreFullException
+                // 所以先取值再决定是否释放，且永远只释放一份。
+                if (Interlocked.Exchange(ref kvp.Value.LockCount, 0) > 0)
+                    kvp.Value.Semaphore.Release();
+
                 kvp.Value.OwnerSessionId = null;
             }
         }

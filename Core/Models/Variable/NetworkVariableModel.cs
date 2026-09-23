@@ -61,6 +61,13 @@ namespace VisionMaster.Models
         public string? ConnectionName { get; set; }
         public DeviceAddressBase? AddressConfig { get; set; }
 
+        /// <summary>
+        /// 所属扫描组名（对标 KEPServerEX 的 Scan Class）。空 = 默认组，周期取连接的 ReadCycleMs。
+        /// 组表定义在连接配置（CommunicationConfig.ScanGroups）上，此处只存组名引用——
+        /// 改周期只需改一处（组表），不必逐变量改。
+        /// </summary>
+        public string ScanGroup { get; set; } = string.Empty;
+
         public string DataTypeString
         {
             get => _dataTypeString ?? TypeCache.GetTypeKey(DataType);

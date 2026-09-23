@@ -10,7 +10,7 @@ namespace VisionMaster.Scada.Controls
     /// 为什么用委托而不是反射（"按属性名取 <see cref="ScadaPage"/> 的 CLR 属性"）：
     /// 反射看着省几行，代价是笔误到运行时才炸、而且每次刷新属性面板都要过一遍
     /// <c>PropertyInfo.GetValue</c>。这里每个属性一行 lambda，编译器直接校验名字和类型，
-    /// 读一次就是一个字段访问。画面属性统共八条，省下来的那点字面量不值这个风险。
+    /// 读一次就是一个字段访问。画面属性统共七条，省下来的那点字面量不值这个风险。
     /// </summary>
     public sealed class ScadaPagePropertySpec : IPropertySpec
     {
@@ -61,9 +61,10 @@ namespace VisionMaster.Scada.Controls
     ///
     /// <c>Zoom</c> / <c>Offset</c> 更是压根不在列：那是"这台机器这一次的视角"，不是画面内容。
     ///
-    /// 「运行」那一组是<b>画面级事件与运行行为</b>的入口。以后加一个画面事件（卸载、周期刷新…）
-    /// 就是「模型加一个落盘字段 + 这里加一条声明」两步，面板、模板、分组渲染一行都不动；
-    /// 图元侧的事件清单另有其人（<see cref="ElementDescriptor.Events"/>），两边在 S5 汇到同一套动作上。
+    /// <b>这里没有画面事件</b>：事件不是属性（一行"读一个值"与一块"挂一串动作"的表，
+    /// 面板渲染方式都不同），画面事件住在 <see cref="ScadaPageEvents"/>，
+    /// 与图元事件住在 <see cref="ElementDescriptor.Events"/> 是同一个安排。
+    /// 两边的事件行汇到同一份实现上（宿主抽象见 <c>IScadaEventHost</c>）。
     /// </summary>
     public static class ScadaPageProperties
     {
@@ -120,13 +121,6 @@ namespace VisionMaster.Scada.Controls
                     if (flag) d.SetStartupPage(p);
                     else d.ClearStartupPage(p);
                 },
-            },
-            new ScadaPagePropertySpec
-            {
-                Key = "Loaded", DisplayName = "加载事件", Kind = ElementPropertyKind.Bool, Group = "运行",
-                Description = "运行态显示完这一页时触发一次 Loaded（当前动作：往运行日志记一行）。设计态切页不触发",
-                Read = (p, _) => p.EnableLoadedEvent.ToString(),
-                Write = (p, _, v) => { if (bool.TryParse(v, out var flag)) p.EnableLoadedEvent = flag; },
             },
         };
 

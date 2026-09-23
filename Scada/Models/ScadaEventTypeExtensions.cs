@@ -18,7 +18,12 @@ namespace VisionMaster.Scada
             ScadaEventType.Unloaded => "卸载",
             ScadaEventType.Pressed => "按下",
             ScadaEventType.Released => "释放",
-            ScadaEventType.ValueChanged => "值改变",
+            ScadaEventType.ValueChanged => "更改数值",
+            ScadaEventType.ValueBecameTrue => "值为真",
+            ScadaEventType.ValueBecameFalse => "值为假",
+            ScadaEventType.ValueOverUpperLimit => "上限",
+            ScadaEventType.ValueUnderLowerLimit => "下限",
+            ScadaEventType.InputCompleted => "输入完成时",
             _ => $"未知事件({(int)type})",
         };
     }

@@ -37,6 +37,14 @@ namespace VisionMaster.Communications
         public string ValueType { get; set; } = typeof(object).AssemblyQualifiedName;
 
         /// <summary>
+        /// <para>所属扫描组名（对标 KEPServerEX 的 Scan Class）。周期挂在组上而不是变量上——
+        /// 变量级周期会按周期切碎地址段，与批量轮询规划器天然互斥（历史已删除该字段）。</para>
+        /// <para>空字符串 / 指向不存在的组 / 保留名"默认组" → 一律回落到默认组，
+        /// 保证变量**绝不因为组配置问题而丢失轮询**（安全侧设计）。</para>
+        /// </summary>
+        public string ScanGroup { get; set; } = string.Empty;
+
+        /// <summary>
         /// 访问权限模式
         /// </summary>
         public VariableAccessMode AccessMode { get; set; } = VariableAccessMode.ReadOnly;

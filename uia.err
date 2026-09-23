@@ -1,0 +1,42 @@
+﻿powershell : Cannot convert value "∞" to type "System.Int32". Error: "Value was either too large or too small for an In
+t32."
+At line:15 char:4046
++ ... pgrep\bin'; powershell -NoProfile -File tools\vm-uia.ps1 -Action list ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Cannot convert ... for an Int32.":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+At E:\VM\VisionMaster-W-master\tools\vm-uia.ps1:55 char:13
++             "{0}{1} | '{2}' | {3} | {4},{5} {6}x{7}" -f ("  " * $n.Le ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [], RuntimeException
+    + FullyQualifiedErrorId : InvalidCastIConvertible
+ 
+Cannot convert value "∞" to type "System.Int32". Error: "Value was either too large or too small for an Int32."
+At E:\VM\VisionMaster-W-master\tools\vm-uia.ps1:55 char:13
++             "{0}{1} | '{2}' | {3} | {4},{5} {6}x{7}" -f ("  " * $n.Le ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [], RuntimeException
+    + FullyQualifiedErrorId : InvalidCastIConvertible
+ 
+Cannot convert value "∞" to type "System.Int32". Error: "Value was either too large or too small for an Int32."
+At E:\VM\VisionMaster-W-master\tools\vm-uia.ps1:55 char:13
++             "{0}{1} | '{2}' | {3} | {4},{5} {6}x{7}" -f ("  " * $n.Le ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [], RuntimeException
+    + FullyQualifiedErrorId : InvalidCastIConvertible
+ 
+Cannot convert value "∞" to type "System.Int32". Error: "Value was either too large or too small for an Int32."
+At E:\VM\VisionMaster-W-master\tools\vm-uia.ps1:55 char:13
++             "{0}{1} | '{2}' | {3} | {4},{5} {6}x{7}" -f ("  " * $n.Le ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [], RuntimeException
+    + FullyQualifiedErrorId : InvalidCastIConvertible
+ 
+Cannot convert value "∞" to type "System.Int32". Error: "Value was either too large or too small for an Int32."
+At E:\VM\VisionMaster-W-master\tools\vm-uia.ps1:55 char:13
++             "{0}{1} | '{2}' | {3} | {4},{5} {6}x{7}" -f ("  " * $n.Le ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [], RuntimeException
+    + FullyQualifiedErrorId : InvalidCastIConvertible
+ 

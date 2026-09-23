@@ -16,7 +16,7 @@ namespace VisionMaster.Scada
     /// 本类刻意不存"显示地址串"（流程连线里的 DisplayAddress）：画面绑定只有一个数据源，
     /// 显示出来就是变量名本身，多一个字段就多一处改名后忘记同步的地方。
     /// </summary>
-    public class ScadaBinding : BindableBase
+    public class ScadaBinding : ScadaModelBase
     {
         private string _targetProperty = string.Empty;
         private Guid _variableId;

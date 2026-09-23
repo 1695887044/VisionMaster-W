@@ -12,7 +12,7 @@ namespace VisionMaster.Communications
     /// <para>2) C1——旧心跳只看 IsConnected 属性（半开连接永远"正常"），现在以"真实读写成功时刻"为生命依据；</para>
     /// <para>3) C5——旧重连固定间隔且多个 Timer 可叠加发起，现在单一状态机 + 指数退避，重连节奏可收敛。</para>
     /// <para>用法：Manager 为每个连接持有一个 Worker；读写通过 <see cref="Invoke"/> / <see cref="InvokeAsync"/> 投递命令并等待结果；</para>
-    /// <para>轮询逻辑经 <see cref="PollAction"/> 注入，由 Worker 线程按 <see cref="PollIntervalMs"/> 周期驱动。</para>
+    /// <para>轮询逻辑经 <see cref="PollScheduler"/> 注入，由 Worker 线程按各扫描组各自的目标周期驱动（组间周期升序 = 优先级）。</para>
     /// </summary>
     public sealed class ConnectionWorker : IDisposable
     {
@@ -37,13 +37,15 @@ namespace VisionMaster.Communications
         private int _state = (int)ConnectionState.Disconnected;
         private volatile bool _autoConnect;          // 是否维持"应保持连接"意图（Connect 置 true，Disconnect/达到重连上限置 false）
         private volatile bool _autoReconnect = true; // 外部策略：断裂/建连失败后是否允许退避重连（Manager 按配置注入）
-        private volatile int _pollIntervalMs = 500;  // 轮询周期（也是循环节奏）
         private long _nextConnectTick;               // 下次允许发起连接的时刻（TickCount64，Volatile 访问）
 
         private int _reconnectAttempt;
-        private long _lastPollSuccessTicks;          // 仅 Worker 线程访问
         private long _lastSuccessTicks;              // 最近一次真实通信成功的 DateTime.Ticks（Interlocked 访问）
         private bool _disposed;
+
+        // M3：主线程 Dispose 等待线程退出超时后置位——改由 Worker 线程在退出前自行释放连接对象，
+        // 避免"后台线程仍在使用连接对象时主线程抢先 Dispose"（socket 层竞态 / 诡异报错）
+        private volatile bool _disposeConnectionOnExit;
 
         #region 公共配置与事件
 
@@ -75,22 +77,31 @@ namespace VisionMaster.Communications
         /// <summary>最大重连次数，0 = 无限</summary>
         public int MaxReconnectAttempts { get; set; } = 0;
 
-        /// <summary>允许外部调整轮询周期（连接后按配置的 ReadCycleMs 设定）</summary>
-        public int PollIntervalMs
-        {
-            get => _pollIntervalMs;
-            set { if (value > 0) _pollIntervalMs = value; }
-        }
+        /// <summary>Connect 默认等待时长（ms）：未显式指定时不再无限等待（M2）</summary>
+        public const int DefaultConnectTimeoutMs = 30000;
+
+        /// <summary>
+        /// 连接等待上限（ms）。即便调用方传 -1（旧语义"无限等待"）也封顶 5 分钟：
+        /// Worker 在后台仍按退避持续重连，等待超时只影响本次调用结果，不改变重连意图（M2）
+        /// </summary>
+        private const int MaxConnectWaitMs = 300_000;
 
         /// <summary>最近一次真实通信成功时刻（轮询/读写任一成功都会刷新——"真心跳"依据）</summary>
         public DateTime LastCommunicationSuccessTime => new DateTime(Interlocked.Read(ref _lastSuccessTicks));
 
+        // 调度器由 Manager 在重编译轮询计划时整体替换（引用赋值原子），Worker 线程每拍读取
+        private volatile PollScheduler? _scheduler;
+
         /// <summary>
-        /// <para>轮询回调：由 Worker 线程按周期执行（t5 批量规划器挂这里）。</para>
-        /// <para>契约：返回 true = 本轮通信成功；返回 false 或抛异常 = 通信级故障，Worker 判连接死亡并调度重连。
-        /// 变量级错误（个别地址读失败）必须由回调内部消化，不得返回 false。</para>
+        /// <para>扫描组调度器（t5 批量规划器 + 多周期调度挂这里）。为 null 或 <see cref="PollScheduler.HasWork"/> 为 false 时不轮询。</para>
+        /// <para>契约：<see cref="PollScheduler.Run"/> 返回 false = 通信级故障，Worker 判连接死亡并调度重连；
+        /// 变量级错误（个别地址读失败）由调度器内部消化，不会返回 false。</para>
         /// </summary>
-        public Func<ICommunicationConnection, bool>? PollAction { get; set; }
+        public PollScheduler? PollScheduler
+        {
+            get => _scheduler;
+            set => _scheduler = value;
+        }
 
         // H1：轮询计划脏标记——Manager 增删变量时只置位（O(1)），
         // Worker 在下一轮轮询拍前触发重编译（O(N) 编译每批注册只做一次，替代旧的"每次注册全量重建"）
@@ -104,7 +115,7 @@ namespace VisionMaster.Communications
 
         /// <summary>
         /// 拍前重编译回调（Manager 在 ConfigureWorker 时挂接）：Worker 在轮询拍前发现脏标记时调用，
-        /// 回调内部重编译并重挂 <see cref="PollAction"/>；回调抛异常时脏标记未清，下一拍自动重试
+        /// 回调内部重编译并重挂 <see cref="PollScheduler"/>；回调抛异常时脏标记未清，下一拍自动重试
         /// </summary>
         public Action? PollPlanDirtyHandler { get; set; }
 
@@ -139,7 +150,7 @@ namespace VisionMaster.Communications
         /// 请求建立连接并进入自动重连维持模式（幂等）。
         /// 等待语义：true = 已达成 Connected；false = 超时或 Worker 终止（后台状态机仍会继续重试重连）。
         /// </summary>
-        public Task<bool> Connect(int timeoutMs = -1)
+        public Task<bool> Connect(int timeoutMs = DefaultConnectTimeoutMs)
         {
             ThrowIfDisposed();
             _reconnectAttempt = 0;  // 外部重新发起 = 重试预算重置（否则 Error 终态后再 Connect 会立刻再次放弃）
@@ -245,12 +256,12 @@ namespace VisionMaster.Communications
                     }
 
                     // 3) 拍前消费"轮询计划脏"标记（H1）：必须独立于轮询分支——
-                    //    "在线且从零注册第一个变量"时 PollAction 为 null，进不了下面的轮询分支，脏标记会被饿死
+                    //    "在线且从零注册第一个变量"时调度器为 null/无工作，进不了下面的轮询分支，脏标记会被饿死
                     if (State == ConnectionState.Connected && _pollPlanDirty)
                         PollPlanDirtyHandler?.Invoke();
 
-                    // 4) 已连接 → 按节拍驱动一轮轮询
-                    if (State == ConnectionState.Connected && PollAction != null && ShouldPollNow())
+                    // 4) 已连接 → 按各组到期情况驱动一拍轮询（调度器内部按周期升序跑完所有到期组）
+                    if (State == ConnectionState.Connected && _scheduler?.ShouldRun() == true)
                     {
                         RunPollCycle();
                     }
@@ -268,32 +279,33 @@ namespace VisionMaster.Communications
 
             // 退出前清空剩余命令，避免调用方 Task 永远悬挂
             ReleasePendingItems();
+
+            // M3：主线程 Dispose 未能在超时内等到本线程退出 → 由本线程退出前释放连接对象
+            // （"谁使用谁释放"：此刻本线程已不再触碰连接对象，释放是安全的；主线程那边不会重复释放）
+            if (_disposeConnectionOnExit)
+            {
+                try { _connection.Disconnect(); } catch { /* 释放路径不抛 */ }
+                try { _connection.Dispose(); } catch { /* 释放路径不抛 */ }
+            }
         }
 
         private int ComputeWaitMs()
         {
-            if (State == ConnectionState.Connected && PollAction != null)
-                return 10; // 轮询节拍由 ShouldPollNow 控制，等待只用于快速响应命令
+            if (State == ConnectionState.Connected && _scheduler?.HasWork == true)
+                return 10; // 轮询节拍由各组的到期判定控制，等待只用于快速响应命令
             if (_autoConnect && State != ConnectionState.Connected)
                 return 100; // 重连中：小步快跑检查退避时刻
             return 200;
-        }
-
-        private bool ShouldPollNow()
-        {
-            long due = Volatile.Read(ref _lastPollSuccessTicks) + PollIntervalMs;
-            return Now() >= due;
         }
 
         private void RunPollCycle()
         {
             try
             {
-                bool ok = PollAction!(_connection);
+                bool ok = _scheduler!.Run(_connection);
                 if (ok)
                 {
                     TouchCommunicationSuccess();
-                    Volatile.Write(ref _lastPollSuccessTicks, Now());
                     if (_reconnectAttempt > 0) _reconnectAttempt = 0;
                     return;
                 }
@@ -314,7 +326,7 @@ namespace VisionMaster.Communications
                 {
                     _reconnectAttempt = 0;
                     TouchCommunicationSuccess();
-                    Volatile.Write(ref _lastPollSuccessTicks, Now() - PollIntervalMs); // 立即允许首轮轮询
+                    _scheduler?.ResetAllDue(); // 立即允许首轮轮询
                     SetState(ConnectionState.Connected);
                     return;
                 }
@@ -402,7 +414,11 @@ namespace VisionMaster.Communications
 
         private async Task<bool> WaitStateAsync(ConnectionState target, int millisecondsTimeout)
         {
-            long deadline = millisecondsTimeout < 0 ? long.MaxValue : Environment.TickCount64 + millisecondsTimeout;
+            // M2：负数（含 -1"无限等待"）一律按上限封顶——旧实现 deadline=long.MaxValue 时，
+            // 设备永久离线 + 无限重连会让 Task 永不完成，同步 .GetAwaiter().GetResult() 的线程永久挂起。
+            // 封顶只影响"本次调用能否拿到成功结果"，不影响后台重连意图（超时返回 false，重连照常继续）
+            long wait = millisecondsTimeout < 0 ? MaxConnectWaitMs : millisecondsTimeout;
+            long deadline = Environment.TickCount64 + wait;
             while (true)
             {
                 if (State == target) return true;
@@ -439,14 +455,29 @@ namespace VisionMaster.Communications
             _autoConnect = false;
             _cts.Cancel();
             _queue.CompleteAdding();
+
+            bool threadExited = true;
             try
             {
                 if (!_thread.Join(3000))
+                {
+                    threadExited = false;
                     System.Diagnostics.Debug.WriteLine($"ConnectionWorker[{ConnectionName}] 线程未在 3s 内退出");
+                }
             }
             catch (InvalidOperationException)
             {
                 // 线程尚未 Start
+            }
+
+            if (!threadExited)
+            {
+                // M3：线程仍活着（多因卡在建连超时等长 IO）。此刻释放 _connection/_queue/_cts 会让
+                // 后台线程操作已释放对象（socket 层竞态、TryTake 抛 ObjectDisposedException）。
+                // 处理：置标志，由线程退出前自行释放连接对象；队列/CTS 不释放（无句柄泄漏——
+                // _queue 已 CompleteAdding 且 _disposed 已置位，Invoke 侧不会再投递新命令，线程读空即退出）
+                _disposeConnectionOnExit = true;
+                return;
             }
 
             try { _connection.Disconnect(); } catch { }

@@ -58,6 +58,16 @@ namespace VisionMaster.ViewModels
             set => field = string.IsNullOrWhiteSpace(value) ? PortName : value;
         }
 
+        /// <summary>
+        /// 本端口是否为「运行时变量值」脚 —— 只有变量定义节点动态增列的那个输出口为 true。
+        ///
+        /// 为什么需要一个显式标记而不是"从 Owner.Model 反查"：建线时要立刻决定写哪种 LinkKind，
+        /// 反查等于把识别规则再实现一遍（且要处理同名变量），而端口自己最清楚自己是哪一类。
+        /// 约定：为 true 时 PortName 就是变量名，连线落盘为
+        /// LinkReference(RuntimeVariable, RuntimeVariableMarkerGuid, PortName, "Runtime.{PortName}")。
+        /// </summary>
+        public bool IsRuntimeVariablePort { get; set; }
+
         /// <summary>Nodify NodeInput/NodeOutput 的 Header</summary>
         public string Header => DisplayLabel;
 

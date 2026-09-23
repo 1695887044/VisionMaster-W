@@ -14,27 +14,30 @@ namespace VisionMaster.Services
         /// 异步获取资源锁（无限等待）
         /// </summary>
         /// <param name="resourceName">资源名称</param>
+        /// <param name="ownerSessionId">持锁者标识，用于事后排查"谁占着这台设备"</param>
         /// <param name="cancellationToken">取消令牌</param>
         /// <returns>锁释放句柄，使用 using 语句自动释放</returns>
-        Task<IDisposable> AcquireLockAsync(string resourceName, CancellationToken cancellationToken = default);
+        Task<IDisposable> AcquireLockAsync(string resourceName, string ownerSessionId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// 异步获取资源锁（带超时）
         /// </summary>
         /// <param name="resourceName">资源名称</param>
         /// <param name="timeoutMs">超时时间（毫秒）</param>
+        /// <param name="ownerSessionId">持锁者标识，用于事后排查"谁占着这台设备"</param>
         /// <param name="cancellationToken">取消令牌</param>
         /// <returns>锁释放句柄，使用 using 语句自动释放</returns>
         /// <exception cref="TimeoutException">获取锁超时时抛出</exception>
-        Task<IDisposable> AcquireLockAsync(string resourceName, int timeoutMs, CancellationToken cancellationToken = default);
+        Task<IDisposable> AcquireLockAsync(string resourceName, int timeoutMs, string ownerSessionId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// 尝试获取资源锁（非阻塞）
         /// </summary>
         /// <param name="resourceName">资源名称</param>
         /// <param name="releaseHandle">锁释放句柄（成功时返回）</param>
+        /// <param name="ownerSessionId">持锁者标识，用于事后排查"谁占着这台设备"</param>
         /// <returns>是否成功获取锁</returns>
-        bool TryAcquireLock(string resourceName, out IDisposable releaseHandle);
+        bool TryAcquireLock(string resourceName, out IDisposable releaseHandle, string ownerSessionId = null);
 
         /// <summary>
         /// 检查资源是否被锁定

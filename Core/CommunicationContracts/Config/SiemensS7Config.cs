@@ -43,6 +43,7 @@ namespace VisionMaster.Communications
             TimeoutMs = TimeoutMs,
             RetryCount = RetryCount,
             RetryIntervalMs = RetryIntervalMs,
+            ReadTimeoutMs = ReadTimeoutMs,
             IpAddress = IpAddress,
             Port = Port,
             EnableKeepAlive = EnableKeepAlive,

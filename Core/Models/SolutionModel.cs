@@ -55,7 +55,15 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 方案文件完整路径（打开/保存成功后记录，供状态栏与标题展示）
+        ///
+        /// <b>不落盘</b>（S13-f）：它是运行期 UI 提示，不是方案内容。
+        /// ① 打开与保存的路径都由宿主显式赋值（ShellViewModel / SolutionListViewModel），
+        ///    从来没有"从文件里读回来"这条需求；
+        /// ② 它必须在落盘<b>之后</b>才能知道（保存成功才有路径），若参与序列化，
+        ///    磁盘上那份永远比内存里少一个字段——退出时的"内存 vs 磁盘逐字比较"
+        ///    会把一次没改过的方案判成"有未保存改动"而多存一份草稿。
         /// </summary>
+        [JsonIgnore]
         public string SolutionFilePath
         {
             get { return solutionFilePath; }

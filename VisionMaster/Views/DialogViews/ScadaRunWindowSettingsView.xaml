@@ -12,8 +12,8 @@
 
     <!--  ==========================================  -->
     <!--  组态「运行窗口设置」弹窗  -->
-    <!--  只做一件事：选运行窗口是"依附主窗口"还是"独立窗口"。  -->
-    <!--  两个选项各自对应一个真实场景（现场跑生产 / 开发调试），  -->
+    <!--  两件事：① 运行窗口是"依附主窗口"还是"独立窗口"；② 它落在哪块显示器上。  -->
+    <!--  形态的两个选项各自对应一个真实场景（现场跑生产 / 开发调试），  -->
     <!--  所以卡片上写的是"什么时候用它"，不是"它长什么样"。  -->
     <!--  ==========================================  -->
 
@@ -120,13 +120,69 @@
                         </StackPanel>
                     </RadioButton>
 
+                    <!--  落屏：这条横线把"形态"与"落在哪块屏"分成两件事来问，
+                          免得看成"选了独立窗口才能选屏"这样的从属关系（其实是各自独立的）  -->
+                    <Border
+                        Margin="0,16,0,0"
+                        Padding="0,14,0,0"
+                        BorderBrush="#EBEEF5"
+                        BorderThickness="0,1,0,0">
+                        <StackPanel>
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="#303133"
+                                Text="运行窗口落在哪块屏" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="#909399"
+                                Text="多显示器现场可把运行画面单独放到操作员正对的那块屏；单屏机器保持「跟随主屏」即可。"
+                                TextWrapping="Wrap" />
+
+                            <!--  绑的是设备名（SelectedValue + SelectedValuePath），不是选项对象：
+                                  配置存什么、这里绑什么、确定时写什么，始终是同一个字符串  -->
+                            <ComboBox
+                                Margin="0,8,0,0"
+                                ItemsSource="{Binding Monitors}"
+                                SelectedValue="{Binding SelectedMonitorDeviceName, Mode=TwoWay}"
+                                SelectedValuePath="DeviceName">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <!--  鼠标停上去显示设备名（\\.\DISPLAY2 这种），
+                                              方便与 Windows「显示设置」里那台对上号  -->
+                                        <TextBlock Text="{Binding Label}" ToolTip="{Binding Detail}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+
                     <!--  口径说明  -->
                     <TextBlock
-                        Margin="0,18,0,0"
+                        Margin="0,14,0,0"
                         FontSize="11"
                         Foreground="#C0C4CC"
-                        Text="* 这是软件级设置（存 AppConfig.json，与方案文件无关），下次点「运行」即生效，无需重启。"
+                        Text="* 这是软件级设置（存 AppConfig.json，与方案文件无关），下次点「运行」即生效，无需重启。指定的显示器不在线时会自动回落主屏。"
                         TextWrapping="Wrap" />
+
+                    <!--  写盘失败的红字条：与「系统参数设置」同一套样式（淡红底 + 红字），
+                          没出错时整条不占位。写不成盘（配置在程序目录，装在 Program Files 下就会）时
+                          留在这里，让用户看着它决定重试还是先不管——飘一下就走的通知做不到这件事。  -->
+                    <Border
+                        Margin="0,12,0,0"
+                        Padding="10,8"
+                        Background="#FEF0F0"
+                        BorderBrush="#FDE2E2"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Visibility="{Binding HasError, Converter={ui:BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="#F56C6C"
+                            Text="{Binding ErrorMessage}"
+                            TextWrapping="Wrap" />
+                    </Border>
                 </StackPanel>
 
                 <!--  底部按钮  -->

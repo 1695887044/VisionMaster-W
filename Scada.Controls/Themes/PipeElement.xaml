@@ -1,0 +1,60 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        管道图元的外观：管身（圆角矩形）+ 沿管腔排开的一组流向箭头。
+
+        模板里<b>一个算术都没有</b>：
+          · 管身 Data 绑只读几何 TubeGeometry，底色绑 TrackColor，轮廓绑 Stroke / StrokeThickness；
+          · 箭头 Data 绑只读几何 ArrowGeometry，颜色绑只读的 StateBrush，粗细绑只读的 ArrowThickness。
+        所有"管身圆角多大、内缩多少、箭头排几个、每个摆在哪、笔画多粗"的换算都在控件代码里
+        （见 PipeElement.UpdatePipe / BuildArrows）——与泵绑 BodyGeometry、电机绑 BodyGeometry、
+        阀门绑 ValveGeometry 是同一条纪律：外观由输入推导，推导只写一遍，模板只负责摆放。
+
+        图层次序（同一个 Grid 里从下往上）：管身 → 箭头。
+        箭头必须压在管身之上，否则会被管身的填充盖掉——这正是阀门当初踩过的坑
+        （填充按矩形裁会吃掉半个线宽），这里靠"先画管身后画箭头"天然避开。
+
+        为什么箭头线接取圆角（StrokeLineJoin="Round"）：
+        人字的转折角很尖，斜接（Miter）会把尖角甩出去好几个像素，细笔画时像戳出一根刺。
+        圆角接不改变笔画粗细，只把尖角抹圆，小尺寸下最干净。
+        两端的线帽也取圆角，让箭头的两条斜边收得干净，不会甩出一小截方头。
+
+        为什么箭头用 Path 描边而不是填充几何：
+        人字是一条折线、没有面积，只能描边；描边的粗细正好是可以独立推导的一项
+        （ArrowThickness），与管身轮廓粗细（StrokeThickness）互不干扰——
+        用户想单独把箭头调粗调细时，不必连管身轮廓一起动。
+    -->
+    <Style TargetType="{x:Type local:PipeElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:PipeElement}">
+                    <Grid>
+                        <!-- 管身：Fill 是管腔底色，Stroke 是管壁轮廓。几何量已按半线宽内缩，外沿落在标注尺寸上 -->
+                        <Path
+                            x:Name="Tube"
+                            Data="{TemplateBinding TubeGeometry}"
+                            Fill="{TemplateBinding TrackColor}"
+                            Stroke="{TemplateBinding Stroke}"
+                            StrokeThickness="{TemplateBinding StrokeThickness}" />
+
+                        <!-- 流向箭头：折线只描边；颜色随状态、粗细随尺寸，都由代码算好 -->
+                        <Path
+                            x:Name="Arrows"
+                            Data="{TemplateBinding ArrowGeometry}"
+                            Stroke="{TemplateBinding StateBrush}"
+                            StrokeThickness="{TemplateBinding ArrowThickness}"
+                            StrokeLineJoin="Round"
+                            StrokeStartLineCap="Round"
+                            StrokeEndLineCap="Round" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

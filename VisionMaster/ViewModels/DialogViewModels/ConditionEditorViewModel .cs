@@ -48,6 +48,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public string LoopCountText { get => field; set => SetProperty(ref field, value); } = "10";
 
+        /// <summary>
+        /// 循环次数连线草稿（与 LoopCountText 同属"草稿→校验→写回"事务，取消即丢弃）。
+        /// 键固定 "LoopCount"：画布输入脚、编译期挂接、FlowQueryHelper 候选都用这一个名字。
+        /// </summary>
+        private LinkReference _loopCountLinkDraft;
+
+        /// <summary>已连线的显示串（如 "Runtime.loopN"、"计数.Result"），仅用于展示</summary>
+        public string LoopCountSourceText { get => field; set => SetProperty(ref field, value); }
+
+        /// <summary>是否已给 LoopCount 连线（驱动"已连线/未连线"两种提示与解除按钮显隐）</summary>
+        public bool HasLoopCountLink => _loopCountLinkDraft != null;
+
         public ObservableCollection<VariableItem> Variables { get; } = new ObservableCollection<VariableItem>();
 
         public DelegateCommand AddVariableCommand { get; }
@@ -55,6 +67,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public DelegateCommand SaveCommand { get; }
         public DelegateCommand CancelCommand { get; }
         public DelegateCommand<VariableItem> BindVariableCommand { get; }
+
+        /// <summary>For 模式：给循环次数挂一个数据源（走 DataBindView 单绑通道）</summary>
+        public DelegateCommand LinkLoopCountCommand { get; }
+
+        /// <summary>For 模式：解除循环次数连线（只清草稿，保存时才动活模型）</summary>
+        public DelegateCommand UnlinkLoopCountCommand { get; }
 
         public string Title => IsForMode ? "For 循环配置" : "条件逻辑配置中心";
         public DialogCloseListener RequestClose { get; set; }
@@ -74,7 +92,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _targetForNode = forStep;
                 IsForMode = true;
                 LoopCountText = forStep.DefaultLoopCount.ToString();
+                // 连线草稿从活模型"借"一份引用：弹窗期间换线/解除只动草稿，取消即丢弃
+                forStep.LinkedSources.TryGetValue("LoopCount", out _loopCountLinkDraft);
+                LoopCountSourceText = _loopCountLinkDraft?.DisplayAddress;
                 RaisePropertyChanged(nameof(Title));
+                RaisePropertyChanged(nameof(HasLoopCountLink));
                 return;
             }
 
@@ -132,6 +154,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             SaveCommand = new DelegateCommand(OnSave);
             CancelCommand = new DelegateCommand(() => RequestClose.Invoke(new DialogResult(ButtonResult.Cancel)));
             BindVariableCommand = new DelegateCommand<VariableItem>(OnBindVariable);
+            LinkLoopCountCommand = new DelegateCommand(OnLinkLoopCount);
+            UnlinkLoopCountCommand = new DelegateCommand(OnUnlinkLoopCount);
         }
 
         private void OnBindVariable(VariableItem item)
@@ -156,6 +180,49 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     item.DataTypeName = typeName;
                 }
             });
+        }
+
+        /// <summary>
+        /// For 模式：给 LoopCount 挂数据源。
+        /// 复用单绑通道（弹窗只回传 LinkReference，不写模型），写回留到 SaveForLoop，
+        /// 这样"取消"能干净地丢弃连线，与 LoopCountText 处在同一个事务里。
+        /// </summary>
+        private void OnLinkLoopCount()
+        {
+            if (_targetForNode == null) return;
+
+            var p = new DialogParameters
+            {
+                { "IsSingleBindMode", true },
+                // 弹窗左侧的"目标端口"只是展示用的 mock 节点，键名必须与画布输入脚、
+                // 编译期挂接（FlowCompiler 公共赋值段）用的是同一个 "LoopCount"
+                { "TargetPortName", "LoopCount" },
+                { "TargetTypeName", "System.Int32" },
+                // 候选树锚定到"被双击的这个 For 步骤"：下钻进容器时 Workspace.CurrentStep 指向的是
+                // 外层容器而不是本步骤，拿到的上游集合就是错的（循环体外定义的变量会选不到）。
+                { "TargetStep", _targetForNode },
+            };
+
+            dialogService.ShowDialog("DataBindView", p, (s) =>
+            {
+                if (s.Result != ButtonResult.OK) return;
+                if (
+                    !s.Parameters.TryGetValue<LinkReference>("BoundLink", out var link)
+                    || link == null
+                )
+                    return;
+
+                _loopCountLinkDraft = link;
+                LoopCountSourceText = link.DisplayAddress;
+                RaisePropertyChanged(nameof(HasLoopCountLink));
+            });
+        }
+
+        private void OnUnlinkLoopCount()
+        {
+            _loopCountLinkDraft = null;
+            LoopCountSourceText = null;
+            RaisePropertyChanged(nameof(HasLoopCountLink));
         }
 
         private void OnAddVariable()
@@ -326,13 +393,36 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (_targetForNode == null) return;
 
-            if (!int.TryParse((LoopCountText ?? "").Trim(), out int count) || count < 1 || count > 99999)
+            string text = (LoopCountText ?? "").Trim();
+
+            // 已连线时，文本框里的数字退化成"连线取不到值时的回落次数"，
+            // 留空就表示"沿用模型上原有的默认值"，不该因此卡住保存。
+            if (!(_loopCountLinkDraft != null && text.Length == 0))
             {
-                EasyDialog.ShowSync("校验未通过", "循环次数必须是 1 ~ 99999 之间的整数！\n（引擎对 For 无迭代上限保护，防止手滑天文数字拖死流程）");
-                return;
+                if (
+                    !int.TryParse(text, out int count)
+                    || count < 1
+                    || count > 99999
+                )
+                {
+                    EasyDialog.ShowSync(
+                        "校验未通过",
+                        "循环次数必须是 1 ~ 99999 之间的整数！\n（引擎对 For 无迭代上限保护，防止手滑天文数字拖死流程）"
+                    );
+                    return;
+                }
+                _targetForNode.DefaultLoopCount = count;
             }
 
-            _targetForNode.DefaultLoopCount = count;
+            // 连线写回：草稿与活模型不是同一份才动手，避免打开又直接保存也刷一遍版本号
+            var liveLink = _targetForNode.GetLink("LoopCount");
+            if (!ReferenceEquals(liveLink, _loopCountLinkDraft))
+            {
+                if (_loopCountLinkDraft != null)
+                    _targetForNode.SetLink("LoopCount", _loopCountLinkDraft);
+                else
+                    _targetForNode.RemoveLink("LoopCount");
+            }
 
             if (_workspace?.CurrentFlow != null)
                 _workspace.CurrentFlow.Version++;

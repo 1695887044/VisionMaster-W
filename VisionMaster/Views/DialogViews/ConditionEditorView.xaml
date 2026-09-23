@@ -652,6 +652,51 @@
                             Style="{StaticResource ModernTextBox}"
                             Text="{Binding LoopCountText, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
+
+                    <!--  LoopCount 连线入口：与画布拖线写同一条 LinkedSources["LoopCount"]，
+                          这里读/写的都是弹窗草稿，点"保存并应用"才落到活模型（取消即丢弃）  -->
+                    <StackPanel
+                        Margin="0,16,0,0"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            Margin="0,0,12,0"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Foreground="#606266"
+                            Text="数据源" />
+                        <Border
+                            Width="260"
+                            Padding="10,6"
+                            Background="White"
+                            BorderBrush="#DCDFE6"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="#303133"
+                                Text="{Binding LoopCountSourceText, TargetNullValue='未连线（用左侧默认次数）'}"
+                                TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <Button
+                            Margin="12,0,0,0"
+                            Padding="10,4"
+                            VerticalAlignment="Center"
+                            Command="{Binding LinkLoopCountCommand}"
+                            Content="🔗 选择数据源"
+                            Style="{StaticResource TagButton}" />
+                        <Button
+                            Margin="8,0,0,0"
+                            Padding="10,4"
+                            VerticalAlignment="Center"
+                            Background="#FEF0F0"
+                            Command="{Binding UnlinkLoopCountCommand}"
+                            Content="✖ 解除"
+                            Foreground="#F56C6C"
+                            Style="{StaticResource TagButton}"
+                            Visibility="{Binding HasLoopCountLink, Converter={ui:BooleanToVisibilityConverter}}" />
+                    </StackPanel>
                     <TextBlock
                         MaxWidth="460"
                         Margin="0,18,0,0"

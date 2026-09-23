@@ -1,0 +1,355 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.ScadaPagePickerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="760"
+    Height="520"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    mc:Ignorable="d">
+
+    <!--  ==========================================  -->
+    <!--  组态「选择画面」弹窗  -->
+    <!--  由属性面板的「切换画面」动作打开，回传 (画面 Id, 画面名)。  -->
+    <!--  清单口径：只列当前方案里的画面（IWorkspaceManager.CurrentSolution.Scada.Pages）——  -->
+    <!--  这正是运行态会话能切过去的那一份，选得到就一定切得到。  -->
+    <!--  ==========================================  -->
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="NoResize" />
+            <Setter Property="SizeToContent" Value="WidthAndHeight" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <UserControl.Resources>
+        <!--  行容器：整行可点，选中态与变量选择弹窗同一套配色（#ECF5FF + #409EFF）  -->
+        <Style x:Key="PageRowStyle" TargetType="ListViewItem">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border
+                            x:Name="RowBorder"
+                            Padding="4,6"
+                            Background="Transparent"
+                            BorderBrush="#F2F3F5"
+                            BorderThickness="0,0,0,1">
+                            <!--  ★ 这一行必须是 GridViewRowPresenter，不能用 ContentPresenter ★
+                                  四列（画面名/尺寸/图元数/说明）的摆位全靠它按 Columns 排。
+                                  换成裸 ContentPresenter 后列布局整体丢失，ListView 会退化成
+                                  把数据对象丢给 ToString() 渲染 —— 屏幕上就是一行行的类型全名。  -->
+                            <!--  ★ 左右内边距是 4 而不是 8：实测 GridViewRowPresenter 会给每个单元格容器
+                                  再内置 6px 水平外边距，而列头那边没有这一层。行这侧取 4 之后，
+                                  行文字左缘 = 行容器 4 + 单元格内置 6，正好和列头的 8px 内边距落在同一条竖线上。  -->
+                            <GridViewRowPresenter
+                                Columns="{TemplateBinding GridView.ColumnCollection}"
+                                Content="{TemplateBinding Content}"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                SnapsToDevicePixels="True"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#F5F7FA" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#ECF5FF" />
+                                <Setter TargetName="RowBorder" Property="BorderBrush" Value="#409EFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  单元格正文：统一"放不下就省略号 + 悬停看全值"。
+              WPF 里 DisplayMemberBinding 生成的是裸 TextBlock（没有 TextTrimming），
+              内容超出列宽只会被硬裁。列宽是死的、画面名和说明是活的，所以这一层必须由模板兜住。  -->
+        <Style x:Key="PageCellTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#606266" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!--  「起点」徽标：标出方案启动时默认打开的那一页，空串（非起点）时整块收起。
+              收起用 DataTrigger 判空串，不引外部转换器——少一处注册依赖，弹窗自洽。  -->
+        <Style x:Key="StartupBadgeStyle" TargetType="Border">
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="#ECF5FF" />
+            <Setter Property="BorderBrush" Value="#B3D8FF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StartupBadge}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  列头：浅灰底、深灰字，与列表同宽  -->
+        <Style x:Key="PageHeaderStyle" TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="#F5F7FA" />
+            <Setter Property="Foreground" Value="#606266" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderBrush" Value="#EBEEF5" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="15">
+        <Border Background="White" CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="15"
+                    Direction="270"
+                    Opacity="0.15"
+                    ShadowDepth="3"
+                    Color="Black" />
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="45" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="50" />
+                </Grid.RowDefinitions>
+
+                <!--  标题栏（无系统边框的弹窗靠它拖动）  -->
+                <Border
+                    Grid.Row="0"
+                    ui:WindowDragBehavior.IsWindowDraggable="True"
+                    Background="#F8F9FA"
+                    BorderBrush="#EBEEF5"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0">
+                    <TextBlock
+                        Margin="20,0"
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="#303133"
+                        Text="选择画面" />
+                </Border>
+
+                <!--  内容区：搜索 + 清单  -->
+                <Grid Grid.Row="1" Margin="20,16,20,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!--  搜索框：画面多起来以后，翻页找不如打字找  -->
+                    <Border
+                        Grid.Row="0"
+                        Height="32"
+                        Background="#FFFFFF"
+                        BorderBrush="#DCDFE6"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                        <Grid>
+                            <TextBox
+                                Padding="8,0"
+                                VerticalContentAlignment="Center"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                FontSize="13"
+                                Foreground="#303133"
+                                Text="{Binding Keyword, UpdateSourceTrigger=PropertyChanged}" />
+                            <!--  占位提示：只在没输入时显示（WPF 原生 TextBox 无 Placeholder）  -->
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="#C0C4CC"
+                                IsHitTestVisible="False"
+                                Text="按画面名 / 尺寸筛选">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Keyword}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+
+                    <!--  画面清单  -->
+                    <Border
+                        Grid.Row="1"
+                        Margin="0,10,0,0"
+                        Background="#FFFFFF"
+                        BorderBrush="#E4E7ED"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <Grid>
+                            <ListView
+                                BorderThickness="0"
+                                ItemContainerStyle="{StaticResource PageRowStyle}"
+                                ItemsSource="{Binding Pages}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                SelectedItem="{Binding SelectedPage}"
+                                SelectionMode="Single">
+                                <ListView.View>
+                                    <!--  列宽预算（弹窗总宽 760）：
+                                            760 − 30（Grid 外距 15×2）− 40（内容区内距 20×2）
+                                                − 2（清单外框）− 17（竖滚动条）= 671 的行内容区；
+                                            行两侧还要各让出 10px（行容器 4 + 单元格内置 6），
+                                            真正能摆列的只剩 651。四列之和取 645，留 6px 余量。
+                                            超宽的后果不是"多出横向滚动条"（已关），
+                                            而是最后一列被硬裁——屏幕上比滚动条更难察觉。  -->
+                                    <GridView ColumnHeaderContainerStyle="{StaticResource PageHeaderStyle}">
+                                        <GridViewColumn Header="画面名" Width="220">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Grid Background="Transparent">
+                                                        <!--  双击即确认：商业软件的清单都是这个手感  -->
+                                                        <Grid.InputBindings>
+                                                            <MouseBinding
+                                                                Command="{Binding DataContext.ConfirmCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                                MouseAction="LeftDoubleClick" />
+                                                        </Grid.InputBindings>
+                                                        <!--  用 Grid 而不是 StackPanel：横向 StackPanel 会给子元素
+                                                              无限宽度，TextTrimming 就失效（长画面名会顶进"尺寸"列）。
+                                                              Grid 的 * / Auto 两列让画面名拿到受限宽度，省略号才生效。  -->
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock
+                                                                Grid.Column="0"
+                                                                VerticalAlignment="Center"
+                                                                FontWeight="SemiBold"
+                                                                Foreground="#303133"
+                                                                Text="{Binding Name}"
+                                                                TextTrimming="CharacterEllipsis"
+                                                                ToolTip="{Binding Description}" />
+                                                            <!--  「起点」徽标：只在启动画面那一行出现  -->
+                                                            <Border Grid.Column="1" Style="{StaticResource StartupBadgeStyle}">
+                                                                <TextBlock
+                                                                    FontSize="11"
+                                                                    Foreground="#409EFF"
+                                                                    Text="{Binding StartupBadge}" />
+                                                            </Border>
+                                                        </Grid>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+
+                                        <GridViewColumn Header="尺寸" Width="110">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding SizeText}"
+                                                        ToolTip="{Binding SizeText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+
+                                        <GridViewColumn Header="图元数" Width="90">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding ElementCountText}"
+                                                        ToolTip="{Binding ElementCountText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+
+                                        <GridViewColumn Header="说明" Width="225">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding Description}"
+                                                        ToolTip="{Binding Description}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+
+                            <!--  空态提示：没有画面 / 没匹配到，都靠这一句说清楚  -->
+                            <TextBlock
+                                Margin="24"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="#909399"
+                                Text="{Binding EmptyHint}"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding HasPages, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+                        </Grid>
+                    </Border>
+
+                    <!--  口径说明：让操作员明白"这里选的就是运行时切过去的那一页"  -->
+                    <TextBlock
+                        Grid.Row="2"
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="#C0C4CC"
+                        Text="* 确认后按画面身份（Id）记录，之后改名不会让这条动作断链。" />
+                </Grid>
+
+                <!--  底部按钮  -->
+                <StackPanel
+                    Grid.Row="2"
+                    Margin="20,10"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,12,0"
+                        Padding="28,8"
+                        Background="#FFFFFF"
+                        BorderBrush="#DCDFE6"
+                        Command="{Binding CancelCommand}"
+                        Content="取消"
+                        Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                    <Button
+                        Padding="28,8"
+                        Background="#409EFF"
+                        BorderThickness="0"
+                        Command="{Binding ConfirmCommand}"
+                        Content="确定"
+                        Cursor="Hand"
+                        FontWeight="SemiBold"
+                        Foreground="White">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

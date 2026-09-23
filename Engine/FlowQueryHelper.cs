@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -139,20 +139,7 @@ namespace VisionMaster.Helpers
 
             foreach (var step in upstreamSteps)
             {
-                if (step?.PluginTypeName == null)
-                    continue;
-
-                // 通过类型名识别变量定义插件，避免反射依赖外部插件 DLL
-                if (!step.PluginTypeName.Contains("VariableDefinitionPlugin"))
-                    continue;
-
-                if (step.InputValues == null)
-                    continue;
-
-                // 取变量名
-                if (!step.InputValues.TryGetValue("Name", out var nameObj))
-                    continue;
-                if (nameObj is not string varName || string.IsNullOrWhiteSpace(varName))
+                if (!TryGetDefinedVariable(step, out var varName, out var dataType))
                     continue;
 
                 // 同名变量以最后一次定义为准（运行期也是覆盖语义）
@@ -164,13 +151,6 @@ namespace VisionMaster.Helpers
                         result.Remove(existing);
                 }
 
-                // 取声明的类型
-                Type dataType = typeof(object);
-                if (step.InputValues.TryGetValue("Type", out var typeObj) && typeObj is string typeStr)
-                {
-                    dataType = ParseVariableType(typeStr);
-                }
-
                 result.Add(new PortDefinition
                 {
                     Name = varName,
@@ -180,6 +160,47 @@ namespace VisionMaster.Helpers
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// 判断一个步骤是否为「变量定义」插件节点，并取回它声明的变量名与类型。
+        ///
+        /// 为什么公开：绑定弹窗的候选树与画布的值输出脚必须认同一批节点、用同一套取名取类型规则，
+        /// 两处各写一遍迟早漂移（漂移的表现是"画布能连、弹窗选不到"或反过来）。
+        /// </summary>
+        /// <remarks>
+        /// VariableDefinitionPlugin 的 Name 端口值（变量名）和 Type 端口值（类型字符串）
+        /// 在设计期由用户填写并持久化到 StepModel.InputValues，
+        /// 据此可以在不执行流程的情况下推断出"将被创建"的运行时变量。
+        /// 变量名未填时返回 false —— 名字是这条线的寻址键，空名连上了也取不到值。
+        /// </remarks>
+        public static bool TryGetDefinedVariable(
+            StepModel step,
+            out string variableName,
+            out Type variableType
+        )
+        {
+            variableName = null;
+            variableType = typeof(object);
+
+            if (step?.PluginTypeName == null || step.InputValues == null)
+                return false;
+
+            // 通过类型名识别变量定义插件，避免反射依赖外部插件 DLL
+            if (!step.PluginTypeName.Contains("VariableDefinitionPlugin"))
+                return false;
+
+            if (!step.InputValues.TryGetValue("Name", out var nameObj))
+                return false;
+            if (nameObj is not string name || string.IsNullOrWhiteSpace(name))
+                return false;
+
+            variableName = name;
+
+            if (step.InputValues.TryGetValue("Type", out var typeObj) && typeObj is string typeStr)
+                variableType = ParseVariableType(typeStr);
+
+            return true;
         }
 
         /// <summary>
@@ -217,10 +238,17 @@ namespace VisionMaster.Helpers
                     return result;
                 result.Add(step);
 
-                if (step is ConditionStep branchStep)
+                // 递归所有容器（If / While / For），而不是只认 ConditionStep。
+                // 旧实现只判 ConditionStep：While 靠继承侥幸覆盖，For 的子层整个漏掉，
+                // 表现是"循环体里定义的变量在下游绑定弹窗里选不到"，而运行期 LocalVariables 明明有值。
+                // 判接口不判具体类型，以后新增容器步骤不必再来这里补一刀。
+                if (step is IContainerStep container && container.Children != null)
                 {
-                    foreach (var childCollection in branchStep.Children)
+                    foreach (var childCollection in container.Children)
                     {
+                        if (childCollection?.Steps == null)
+                            continue;
+
                         var innerResult = GetUpstreamNodes(childCollection.Steps, targetStep);
                         result.AddRange(innerResult);
 

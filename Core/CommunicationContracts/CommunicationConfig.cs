@@ -56,8 +56,24 @@ namespace VisionMaster.Communications
             set { SetProperty(ref field, value); }
         } = new ModbusTcpConfig();
 
-        [SuperDisplay(Name = "读取周期(ms)", GroupPath = "3. 运行调度", Order = 1, ColSpan = 6)]
+        /// <summary>
+        /// <para>默认扫描组的周期（ms）——也是改造前的"连接级轮询周期"。</para>
+        /// <para>默认组永远存在、不可删除改名；未指定扫描组（或指向已删除的组）的变量一律进默认组。
+        /// 故本字段是"默认组周期"的唯一真相源，组表里不重复存一份（见 <see cref="ScanGroups"/>）。</para>
+        /// </summary>
+        [SuperDisplay(Name = "默认组周期(ms)", GroupPath = "3. 运行调度", Order = 1, ColSpan = 6)]
         public int ReadCycleMs { get; set; } = 1000;
+
+        /// <summary>
+        /// <para>自定义扫描组表（**不含默认组**，见 <see cref="ScanGroupConfig"/>）。</para>
+        /// <para>为什么默认组不落盘：① 老 JSON 反序列化后本表为空 → 全部变量走默认组 → 行为与改造前一致，零回归；
+        /// ② 周期只有一份真相源（<see cref="ReadCycleMs"/>），不会出现"属性面板改了周期、组表没跟着改"的双写不一致。</para>
+        /// <para>不加 [SuperDisplay]：属性网格只渲染带该特性的成员，组表改由专用编辑器（连接设置 → 操作列"扫描组"）管理。</para>
+        /// </summary>
+        public List<ScanGroupConfig> ScanGroups { get; set; } = new();
+
+        /// <summary>自定义扫描组数量上限（不含默认组）。每多一组，组内变量变稀疏、段合并率略降，8 组是经验平衡点</summary>
+        public const int MaxScanGroups = 8;
 
         [SuperDisplay(Name = "开机自启", GroupPath = "3. 运行调度", Order = 2, ColSpan = 6)]
         public bool AutoStart { get; set; } = true;
@@ -88,6 +104,55 @@ namespace VisionMaster.Communications
         {
             get => _state;
             set => SetProperty(ref _state, value);
+        }
+
+        /// <summary>
+        /// 「轮询」列的展示文案：默认组周期，有自定义组时追加「+N 组」，
+        /// 让用户在连接列表上就能看出"这条连接不止一个节拍"。
+        /// <para>为什么做成模型上的只读属性，而不是 XAML 里的 Converter：文案要同时看
+        /// <see cref="ReadCycleMs"/> 和 <see cref="ScanGroups"/> 两个字段，而组表是整体替换的
+        /// <see cref="List{T}"/>（不逐项通知），只能在"组表被换掉"的地方集中通知一次——
+        /// 见 <see cref="NotifyScanGroupsChanged"/>。做成 Converter 就得用 MultiBinding，反而更绕。</para>
+        /// </summary>
+        [JsonIgnore]
+        public string PollHint => ScanGroups is { Count: > 0 }
+            ? $"默认 {ReadCycleMs} ms  +{ScanGroups.Count} 组"
+            : $"默认 {ReadCycleMs} ms";
+
+        /// <summary>组表或默认组周期被整体替换后，通知 UI 重算 <see cref="PollHint"/></summary>
+        public void NotifyScanGroupsChanged() => RaisePropertyChanged(nameof(PollHint));
+
+        private string? _lastError;
+
+        /// <summary>
+        /// 该连接最后一次通信故障的文案（连接管理「状态」列的胶囊 ToolTip 显示它）。
+        /// <para>为什么不落盘：这是"此刻的事实"而不是配置——重启后进程内没有任何连接，
+        /// 把上次运行残留的报错恢复出来只会误导用户去查一个已经不存在的问题。故与
+        /// <see cref="State"/> 同属运行时态，标 <see cref="JsonIgnoreAttribute"/>，
+        /// 也不参与 <see cref="Clone"/>/<see cref="CopyFrom"/>（编辑弹窗不该把实时故障清掉或带过来）。</para>
+        /// <para>为什么必须发通知：胶囊上的 ⚠ 图标与 ToolTip 都绑在它身上，且它是"状态之外的第二条信息"
+        /// （连接可能已经离线但还没报过错），不发通知就永远停在初始值。</para>
+        /// </summary>
+        [JsonIgnore]
+        public string? LastError
+        {
+            get => _lastError;
+            set
+            {
+                if (SetProperty(ref _lastError, value))
+                    RaisePropertyChanged(nameof(HasError));
+            }
+        }
+
+        /// <summary>是否有未清除的通信故障（XAML 里给 ⚠ 图标和 ToolTip 做显隐判断）</summary>
+        [JsonIgnore]
+        public bool HasError => !string.IsNullOrEmpty(_lastError);
+
+        /// <summary>连上即视为故障已过去：清掉最后错误，让 ⚠ 消失</summary>
+        public void ClearLastError()
+        {
+            if (_lastError != null)
+                LastError = null;
         }
 
         public CommunicationConfig() { }
@@ -150,6 +215,7 @@ namespace VisionMaster.Communications
                 Protocol = Protocol,
                 Config = Config?.Clone(),
                 ReadCycleMs = ReadCycleMs,
+                ScanGroups = ScanGroups?.Select(g => g.Clone()).ToList() ?? new(),
                 IsEnabled = IsEnabled,
                 AutoReconnect = AutoReconnect,
                 AutoStart = AutoStart,
@@ -172,11 +238,17 @@ namespace VisionMaster.Communications
             Config = other.Config?.Clone(); // 再深拷一份：避免活对象与副本共享同一条链路配置子对象
             ConnectionName = other.ConnectionName;
             ReadCycleMs = other.ReadCycleMs;
+            // 组表必须跟着一起拷：漏拷的后果是"在扫描组编辑器里改完点确定，活对象组表还是旧的"（改了不生效）
+            ScanGroups = other.ScanGroups?.Select(g => g.Clone()).ToList() ?? new();
             IsEnabled = other.IsEnabled;
             AutoReconnect = other.AutoReconnect;
             AutoStart = other.AutoStart;
             Description = other.Description;
             UpdateModifiedTime();
+
+            // ReadCycleMs 是普通自动属性、ScanGroups 是整体替换的 List，两者都不发通知；
+            // 上面刚把它们都换掉了，这里补一次通知，否则连接列表的「轮询」列还显示旧文案
+            NotifyScanGroupsChanged();
         }
 
         public void UpdateLastConnectedTime() => LastConnectedTime = DateTime.Now;

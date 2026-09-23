@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Core.Interfaces;
 
 namespace VisionMaster.Lifetime
@@ -41,13 +42,13 @@ namespace VisionMaster.Lifetime
             switch (severity)
             {
                 case ExceptionSeverity.Notice:
-                    _log.Warn(prefix + ex.Message);
+                    _log.Warn(prefix + Describe(ex));
                     if (!IsThrottled(prefix + ex.Message))
                         ShowNotice(prefix + ex.Message);
                     break;
 
                 case ExceptionSeverity.Warning:
-                    _log.Warn(prefix + ex.Message);
+                    _log.Warn(prefix + Describe(ex));
                     if (!IsThrottled(prefix + ex.Message))
                         WarningRaised?.Invoke(prefix + ex.Message);
                     break;
@@ -57,6 +58,22 @@ namespace VisionMaster.Lifetime
                     CriticalOccurred?.Invoke(ex);
                     break;
             }
+        }
+
+        /// <summary>
+        /// 展开异常链：容器解析 / XAML 解析抛出的都是包装异常，真正的原因藏在
+        /// <see cref="Exception.InnerException"/> 里，只记 <see cref="Exception.Message"/>
+        /// 会让现场日志失去定位能力。无内部异常时输出与 <c>ex.Message</c> 逐字一致，
+        /// 不改变既有日志形态。
+        /// </summary>
+        private static string Describe(Exception ex)
+        {
+            if (ex.InnerException == null) return ex.Message;
+
+            var sb = new StringBuilder(ex.Message);
+            for (var inner = ex.InnerException; inner != null; inner = inner.InnerException)
+                sb.Append(" ← ").Append(inner.GetType().Name).Append(": ").Append(inner.Message);
+            return sb.ToString();
         }
 
         /// <summary>

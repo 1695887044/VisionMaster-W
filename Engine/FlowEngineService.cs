@@ -35,6 +35,11 @@ namespace VisionMaster.Services
         private readonly IPerformanceMonitor _performanceMonitor;
 
         /// <summary>
+        /// 资源锁服务：会话启动靠它做原子互斥（A3）
+        /// </summary>
+        private readonly IResourceLockService _resourceLocks;
+
+        /// <summary>
         /// 会话状态变更事件
         /// 当会话状态发生变化时触发
         /// </summary>
@@ -47,16 +52,60 @@ namespace VisionMaster.Services
         /// <param name="logService">日志服务</param>
         /// <param name="workspaceManager">工作空间管理器</param>
         /// <param name="performanceMonitor">性能监控服务</param>
+        /// <param name="resourceLocks">资源锁服务</param>
         public FlowEngineService(
             IRuntimeManager runtimeManager, 
             ILogService logService, 
             IWorkspaceManager workspaceManager, 
-            IPerformanceMonitor performanceMonitor)
+            IPerformanceMonitor performanceMonitor,
+            IResourceLockService resourceLocks)
         {
             _runtimeManager = runtimeManager ?? throw new ArgumentNullException(nameof(runtimeManager));
             _logService = logService ?? throw new ArgumentNullException(nameof(logService));
             _workspaceManager = workspaceManager ?? throw new ArgumentNullException(nameof(workspaceManager));
             _performanceMonitor = performanceMonitor;
+            _resourceLocks = resourceLocks ?? throw new ArgumentNullException(nameof(resourceLocks));
+        }
+
+        /// <summary>
+        /// 会话启动锁的资源名
+        /// 以会话为粒度互斥；将来若图纸上能声明"本流程占用某台相机/某组轴"，
+        /// 就在同一个服务上按设备名再叠一层锁，这里保持不变。
+        /// </summary>
+        private static string StartLockKey(FlowSession session) => $"FlowSession:{session.SessionID}";
+
+        /// <summary>
+        /// 原子地占用会话的执行权
+        ///
+        /// 为什么不能沿用 if (session.IsRunning) return; 紧接 session.IsRunning = true;：
+        /// IsRunning 的 getter 和 setter 各自单独 lock，"读—判—写"不是一步，
+        /// 连点两次启动按钮时两个线程能双双穿过判断。后果不是简单的跑两遍——
+        /// 第二次 new CancellationTokenSource() 会把第一次的覆盖掉，
+        /// 那个循环线程的令牌从此没人拿得到，变成点"停止"也停不掉的僵尸循环；
+        /// 同一批插件实例（Halcon 句柄、相机连接）还会被两个线程同时驱动。
+        /// 信号量的 Wait(0) 由系统保证原子，抢不到就是抢不到，缝没有了。
+        /// </summary>
+        /// <returns>抢到则返回释放句柄，抢不到返回 null（调用方直接放弃启动）</returns>
+        private IDisposable TryOccupySession(FlowSession session)
+        {
+            if (_resourceLocks.TryAcquireLock(StartLockKey(session), out var handle, session.SessionID))
+            {
+                session.LockedResources.Add(StartLockKey(session));
+                return handle;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 归还会话执行权（句柄可能为 null：从未抢到的那条早退路径）
+        /// </summary>
+        private void ReleaseSession(FlowSession session, IDisposable handle)
+        {
+            if (handle == null) return;
+
+            handle.Dispose();
+            session.LockedResources.Remove(StartLockKey(session));
         }
 
         /// <summary>
@@ -87,25 +136,33 @@ namespace VisionMaster.Services
             if (session == null || session.ExecutionEngine == null)
                 throw new ArgumentException("Session 或底层执行引擎不能为空，请先编译！");
 
-            if (session.IsRunning) return;
-
-            session.IsRunning = true;
-            session.State = SessionState.Running;
-            session.PauseLock.Set();
-            session.CancellationTokenSource = new CancellationTokenSource();
-            var token = session.CancellationTokenSource.Token;
-
-            // 复位所有步序状态
-            foreach (var step in session.Blueprints)
+            // A3：抢锁即"检查+置位"，抢到才继续；抢不到说明这个会话已经在跑
+            var sessionLock = TryOccupySession(session);
+            if (sessionLock == null)
             {
-                step.ResetState();
+                _logService.Warn($"流程 {session.FlowName} 已在运行中，忽略重复的启动请求");
+                return;
             }
 
-            NotifyStateChanged(session, SessionState.Running);
-            _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
-
+            // 从抢到锁的那一刻起，后面所有语句都必须在 try 内：
+            // 中途抛异常若落不到 finally，这把锁就永久泄漏，该会话除了重启再也启不来
             try
             {
+                session.IsRunning = true;
+                session.State = SessionState.Running;
+                session.PauseLock.Set();
+                session.CancellationTokenSource = new CancellationTokenSource();
+                var token = session.CancellationTokenSource.Token;
+
+                // 复位所有步序状态
+                foreach (var step in session.Blueprints)
+                {
+                    step.ResetState();
+                }
+
+                NotifyStateChanged(session, SessionState.Running);
+                _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
+
                 await Task.Run(() =>
                 {
                     while (!token.IsCancellationRequested)
@@ -123,7 +180,8 @@ namespace VisionMaster.Services
                         var context = new ExecutionContext(_logService, session, _workspaceManager, token);
                         session.ExecutionEngine.Run(context);
 
-                        Thread.Sleep(10);
+                        // 用令牌等待替代 Thread.Sleep：空闲节流 10ms，但停止请求会立即唤醒退出
+                        token.WaitHandle.WaitOne(10);
                     }
                 }, token);
             }
@@ -158,6 +216,9 @@ namespace VisionMaster.Services
                 session.PauseLock.Set();
                 session.CancellationTokenSource?.Dispose();
                 session.CancellationTokenSource = null;
+
+                // 最后一步才放锁：IsRunning 已置 false，后来者抢到锁时不会看见半死的旧会话
+                ReleaseSession(session, sessionLock);
             }
         }
 
@@ -168,28 +229,43 @@ namespace VisionMaster.Services
         /// <returns>异步任务</returns>
         public async Task RunSessionOnceAsync(FlowSession session)
         {
-            if (session == null || session.ExecutionEngine == null || session.IsRunning) return;
+            if (session == null || session.ExecutionEngine == null) return;
 
-            session.IsRunning = true;
-            session.State = SessionState.Running;
-
-            // 复位所有步序状态
-            foreach (var step in session.Blueprints)
+            // A3：抢到锁才继续，抢不到说明这个会话已经在跑
+            var sessionLock = TryOccupySession(session);
+            if (sessionLock == null)
             {
-                step.ResetState();
+                _logService.Warn($"流程 {session.FlowName} 已在运行中，忽略重复的单次执行请求");
+                return;
             }
-
-            NotifyStateChanged(session, SessionState.Running);
-            _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
 
             try
             {
+                session.IsRunning = true;
+                session.State = SessionState.Running;
+
+                // 单次执行同样需要取消令牌：否则 StopSession 因 CTS 为 null 而无法停止
+                session.CancellationTokenSource = new CancellationTokenSource();
+                var token = session.CancellationTokenSource.Token;
+
+                // 复位所有步序状态
+                foreach (var step in session.Blueprints)
+                {
+                    step.ResetState();
+                }
+
+                NotifyStateChanged(session, SessionState.Running);
+                _performanceMonitor?.RecordSessionStart(session.SessionID, session.FlowName);
+
                 await Task.Run(() =>
                 {
-                    var context = new ExecutionContext(_logService, session, _workspaceManager, 
-                        session.CancellationTokenSource?.Token ?? CancellationToken.None);
+                    var context = new ExecutionContext(_logService, session, _workspaceManager, token);
                     session.ExecutionEngine.Run(context);
-                });
+                }, token);
+            }
+            catch (OperationCanceledException)
+            {
+                // 用户主动停止，正常路径
             }
             catch (Exception ex)
             {
@@ -213,6 +289,12 @@ namespace VisionMaster.Services
                     session.State = SessionState.Stopped;
                     NotifyStateChanged(session, SessionState.Stopped);
                 }
+
+                session.CancellationTokenSource?.Dispose();
+                session.CancellationTokenSource = null;
+
+                // 与连续执行同理：锁留到最后一步归还
+                ReleaseSession(session, sessionLock);
             }
         }
 

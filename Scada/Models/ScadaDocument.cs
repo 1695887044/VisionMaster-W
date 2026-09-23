@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
 using Newtonsoft.Json;
 
@@ -20,7 +21,7 @@ namespace VisionMaster.Scada
     /// <c>CollectionChanged</c> 表达。根对象再汇总一遍等于把两层订阅又抄一次，
     /// 而复制出来的订阅逻辑一旦漏摘就是内存泄漏。
     /// </summary>
-    public class ScadaDocument : BindableBase
+    public class ScadaDocument : ScadaModelBase
     {
         /// <summary>当前代码写出的结构版本号（读旧文件时用它判断要不要迁移）</summary>
         /// <remarks>
@@ -35,6 +36,8 @@ namespace VisionMaster.Scada
         private int _schemaVersion = CurrentSchemaVersion;
         private Guid _startupPageId;
         private ObservableCollection<ScadaPage> _pages = new();
+        private ObservableCollection<ScadaAlarmDefinition> _alarms = new();
+        private ObservableCollection<ScadaVariableEvent> _variableEvents = new();
 
         /// <summary>
         /// 结构版本号（落盘）。加载到小于 <see cref="CurrentSchemaVersion"/> 的文件时，
@@ -49,15 +52,110 @@ namespace VisionMaster.Scada
         /// <summary>
         /// 画面集合（落盘）。
         /// <c>ObjectCreationHandling.Replace</c>：反序列化时整体替换而不是往默认实例里追加。
-        /// 本集合<b>不需要</b>订阅保活三件套——没有谁订阅画面的变更（画面自身的变更由
-        /// <see cref="ScadaPage.Version"/> 表达），所以这里只做 null 兜底，不加子项订阅。
+        /// 本集合<b>不需要</b>子项订阅保活——没有谁订阅画面的变更（画面自身的变更由
+        /// <see cref="ScadaPage.Version"/> 表达）。
+        /// 但需要给集合自身挂一层 <c>CollectionChanged</c>：删画面是编辑器里最"贵"的一次操作，
+        /// 它必须能撤销（见 <see cref="OnPagesChanged"/>）。
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<ScadaPage> Pages
         {
             get => _pages;
-            set => _pages = value ?? new ObservableCollection<ScadaPage>();
+            set
+            {
+                var old = _pages;
+                if (old != null)
+                    old.CollectionChanged -= OnPagesChanged;
+
+                _pages = value ?? new ObservableCollection<ScadaPage>();
+                _pages.CollectionChanged += OnPagesChanged;
+            }
         }
+
+        /// <summary>初始化文档（为初始集合挂上变更订阅，理由见 <see cref="Pages"/> 与 <see cref="Alarms"/>）</summary>
+        [JsonConstructor]
+        public ScadaDocument()
+        {
+            _pages.CollectionChanged += OnPagesChanged;
+            _alarms.CollectionChanged += OnAlarmsChanged;
+            _variableEvents.CollectionChanged += OnVariableEventsChanged;
+        }
+
+        /// <summary>
+        /// 画面增删/排序 → 记一条变更（进撤销栈的原料）。
+        /// 不挂子项订阅：画面自己的变更由 <see cref="ScadaPage.Version"/> 表达，根对象再抄一层
+        /// 等于把订阅逻辑复制一遍（见类注释）。
+        /// </summary>
+        private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => ScadaCollectionRecorder.Record(_pages, e);
+
+        /// <summary>
+        /// 报警定义集合（落盘）。
+        ///
+        /// 与 <see cref="Pages"/> 同一套范式：<c>ObjectCreationHandling.Replace</c>（反序列化整体替换）
+        /// + setter 摘旧挂新 + <see cref="OnAlarmsChanged"/> 记变更进撤销栈。
+        ///
+        /// 报警定义<b>不</b>需要逐项订阅保活：它是纯配置，没有"值"可等，
+        /// 谁想知道它变了就自己订阅它（<see cref="ScadaAlarmEngine"/> 就是这么做的——
+        /// 它订阅集合与逐条定义，运行中改阈值能自动重挂）。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<ScadaAlarmDefinition> Alarms
+        {
+            get => _alarms;
+            set
+            {
+                var old = _alarms;
+                if (old != null)
+                    old.CollectionChanged -= OnAlarmsChanged;
+
+                _alarms = value ?? new ObservableCollection<ScadaAlarmDefinition>();
+                _alarms.CollectionChanged += OnAlarmsChanged;
+            }
+        }
+
+        /// <summary>报警增删 → 记一条变更。删报警同样要能撤销，理由与删画面相同</summary>
+        private void OnAlarmsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => ScadaCollectionRecorder.Record(_alarms, e);
+
+        /// <summary>
+        /// 变量事件表（落盘）："哪个变量、满足什么条件、就干哪些事"。
+        ///
+        /// 与 <see cref="Alarms"/> 同一套范式（<c>ObjectCreationHandling.Replace</c> + setter 摘旧挂新
+        /// + <see cref="OnVariableEventsChanged"/> 记变更），也同样<b>不</b>需要逐项订阅保活：
+        /// 它是纯配置，没有"值"可等，运行态的变量事件引擎自己订阅集合与逐条记录
+        /// （照 <see cref="ScadaAlarmEngine"/> 对 <see cref="Alarms"/> 的做法）。
+        ///
+        /// 为什么另起一张表而不并进 <see cref="Alarms"/>：报警是"要人确认的异常"，
+        /// 有严重度、确认状态、历史记录；变量事件是"值一变就干点事"的通用钩子，
+        /// 绝大多数条根本不进报警条。两者只在"由值驱动"这一点上重合，
+        /// 合并之后报警面板得先滤掉九成的非报警项，权限与历史也跟着混在一起。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<ScadaVariableEvent> VariableEvents
+        {
+            get => _variableEvents;
+            set
+            {
+                var old = _variableEvents;
+                if (old != null)
+                    old.CollectionChanged -= OnVariableEventsChanged;
+
+                _variableEvents = value ?? new ObservableCollection<ScadaVariableEvent>();
+                _variableEvents.CollectionChanged += OnVariableEventsChanged;
+            }
+        }
+
+        /// <summary>变量事件增删 → 记一条变更（理由与删报警相同：删配置也要能撤销）</summary>
+        private void OnVariableEventsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => ScadaCollectionRecorder.Record(_variableEvents, e);
+
+        /// <summary>
+        /// 打开一次可撤销的编辑（D3 统一写入口），用法与 <see cref="ScadaPage.BeginEdit"/> 一致。
+        /// 画面级操作（新建/删除/改名/排序/设启动画面）都自带作用域，调用方不需要再包一层——
+        /// 除非要把几件事合并成一次撤销。
+        /// </summary>
+        public IScadaChangeScope BeginEdit(string label) => ScadaChangeScope.Begin(label);
 
         /// <summary>
         /// 启动画面的稳定身份（落盘）。<see cref="Guid.Empty"/> 表示"没指定"，运行态回落到
@@ -87,7 +185,16 @@ namespace VisionMaster.Scada
         /// 为"取消"造一条失败路径只会让用户在勾选框上收到一个莫名其妙的弹窗。
         /// </summary>
         public void SetStartupPage(ScadaPage? page)
-            => StartupPageId = page != null && _pages.Contains(page) ? page.PageId : Guid.Empty;
+        {
+            var target = page != null && _pages.Contains(page) ? page.PageId : Guid.Empty;
+            if (target == _startupPageId)
+                return; // 幂等：勾了同一页不该刷脏，也不该占一次撤销位
+
+            using (BeginEdit(target == Guid.Empty ? "取消启动画面" : $"设启动画面 [{page!.Name}]"))
+            {
+                StartupPageId = target;
+            }
+        }
 
         /// <summary>
         /// 取消某个画面的启动指定，<b>且仅当它确实是当前启动画面</b>。
@@ -100,7 +207,12 @@ namespace VisionMaster.Scada
         public void ClearStartupPage(ScadaPage? page)
         {
             if (page != null && _startupPageId == page.PageId)
-                StartupPageId = Guid.Empty;
+            {
+                using (BeginEdit($"取消启动画面 [{page.Name}]"))
+                {
+                    StartupPageId = Guid.Empty;
+                }
+            }
         }
 
         /// <summary>
@@ -137,11 +249,15 @@ namespace VisionMaster.Scada
         public ScadaPage AddPage(string? name = null)
         {
             var page = new ScadaPage();
+            var pageName = string.IsNullOrWhiteSpace(name) ? NextPageName() : name!.Trim();
 
-            page.Name = string.IsNullOrWhiteSpace(name) ? NextPageName() : name!.Trim();
-            page.AddLayer(); // 先建好图层再进集合：让订阅者看到的画面永远是"完整"的
+            using (BeginEdit($"新建画面 [{pageName}]"))
+            {
+                page.Name = pageName;
+                page.AddLayer(); // 先建好图层再进集合：让订阅者看到的画面永远是"完整"的
+                _pages.Add(page);
+            }
 
-            _pages.Add(page);
             return page;
         }
 
@@ -152,8 +268,9 @@ namespace VisionMaster.Scada
         ///
         /// 这里与 <see cref="ScadaPage.TryRemoveLayer"/> 的口径刻意不同：删图层时用户只想丢掉
         /// 一个分组开关，图元被他当作资产留着，所以模型必须拒绝；删画面则意味着"这一整屏我都不要了"，
-        /// 拒绝非空画面等于功能不可用。因此这里只守住最后一条底线，界面侧务必弹确认框
-        /// （工程上没有撤销，误删就是真丢了）。
+        /// 拒绝非空画面等于功能不可用。因此这里只守住最后一条底线。
+        /// S9 起删画面<b>可撤销</b>（走 <see cref="BeginEdit"/>），界面侧的确认框仍建议保留——
+        /// 撤销是补救，不是让人放心乱删的理由。
         /// </summary>
         public bool TryRemovePage(ScadaPage? page, out string error)
         {
@@ -171,13 +288,16 @@ namespace VisionMaster.Scada
                 return false;
             }
 
-            _pages.Remove(page);
+            using (BeginEdit($"删除画面 [{page.Name}]"))
+            {
+                _pages.Remove(page);
 
-            // 删掉的正是启动画面时顺手清空指定：留着那个 Id 是个指向不存在画面的幽灵引用，
-            // 虽然 ResolveStartupPage 的回落能兜住显示，但属性面板上会一排全不勾、
-            // 而用户并不知道"其实是因为启动画面被删了"。清空之后行为一样（都回落第一页），
-            // 差别只在于配置状态是诚实的。
-            ClearStartupPage(page);
+                // 删掉的正是启动画面时顺手清空指定：留着那个 Id 是个指向不存在画面的幽灵引用，
+                // 虽然 ResolveStartupPage 的回落能兜住显示，但属性面板上会一排全不勾、
+                // 而用户并不知道"其实是因为启动画面被删了"。清空之后行为一样（都回落第一页），
+                // 差别只在于配置状态是诚实的。
+                ClearStartupPage(page);
+            }
 
             return true;
         }
@@ -215,7 +335,11 @@ namespace VisionMaster.Scada
                 return false;
             }
 
-            page.Name = target;
+            using (BeginEdit($"画面改名 [{target}]"))
+            {
+                page.Name = target;
+            }
+
             return true;
         }
 
@@ -244,18 +368,212 @@ namespace VisionMaster.Scada
             if (from == targetIndex)
                 return true; // 原地放置是空操作
 
-            _pages.Move(from, targetIndex);
+            using (BeginEdit($"画面排序 [{page.Name}]"))
+            {
+                _pages.Move(from, targetIndex);
+            }
+
             return true;
         }
 
         #endregion
 
+        #region 报警管理（新建 / 删除 / 重命名 / 查找）
+
         /// <summary>
-        /// 变量改名后的引用刷新：递归到所有画面的所有绑定。返回被改动的绑定条数。
+        /// 新建一条报警定义并加入集合（名字留空则按"报警_N"自动命名，N 取当前未被占用的最小序号）。
+        ///
+        /// 默认严重度只在<b>这里</b>给一次（<see cref="ScadaAlarmDefinition.Kind"/> 的 setter 刻意不联动）：
+        /// 用户后面把"高高限"改成"高限"时，他特意调过的严重度不该被静默推翻；
+        /// 而新建时给一个跟种类相称的初值，能省掉九成的第一次编辑。
+        /// </summary>
+        /// <param name="name">报警名；留空自动命名</param>
+        /// <param name="kind">条件种类；决定默认严重度</param>
+        public ScadaAlarmDefinition AddAlarm(string? name = null, ScadaAlarmKind kind = ScadaAlarmKind.High)
+        {
+            var alarm = new ScadaAlarmDefinition();
+            var alarmName = string.IsNullOrWhiteSpace(name) ? NextAlarmName() : name!.Trim();
+
+            using (BeginEdit($"新建报警 [{alarmName}]"))
+            {
+                alarm.Name = alarmName;
+                alarm.Kind = kind;
+                alarm.Severity = kind.DefaultSeverity();
+                _alarms.Add(alarm);
+            }
+
+            return alarm;
+        }
+
+        /// <summary>
+        /// 删除报警定义。<b>允许删到一条不剩</b>——与 <see cref="TryRemovePage"/> 的
+        /// "至少留一个画面"刻意不同：画面是运行态的载体，一页都没有就没东西可显示；
+        /// 报警是附加的监视项，"这个方案不需要报警"是完全正常的组态结果，
+        /// 拒绝删最后一条等于逼用户留一条永远关掉的垃圾配置。
+        /// </summary>
+        public bool TryRemoveAlarm(ScadaAlarmDefinition? alarm, out string error)
+        {
+            error = string.Empty;
+
+            if (alarm == null || !_alarms.Contains(alarm))
+            {
+                error = "报警不存在，无法删除";
+                return false;
+            }
+
+            using (BeginEdit($"删除报警 [{alarm.Name}]"))
+            {
+                _alarms.Remove(alarm);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 报警改名（方案内不许重名）。校验口径与 <see cref="TryRenamePage"/> 逐条同构：
+        /// 空名拒、与原值等值幂等放行（不刷任何变更）、查重用 <c>OrdinalIgnoreCase</c>、失败原因中文带回。
+        ///
+        /// 为什么报警也要唯一名：报警列表、历史面板、CSV 导出、报警条上显示的都是这个名字，
+        /// 重名会让"到底是哪台设备报的"在事后查询时无法分辨——而事后查询正是报警系统的核心用途。
+        /// </summary>
+        public bool TryRenameAlarm(ScadaAlarmDefinition? alarm, string? newName, out string error)
+        {
+            error = string.Empty;
+
+            if (alarm == null || !_alarms.Contains(alarm))
+            {
+                error = "报警不存在，无法改名";
+                return false;
+            }
+
+            var target = (newName ?? string.Empty).Trim();
+            if (target.Length == 0)
+            {
+                error = "报警名不能为空";
+                return false;
+            }
+
+            if (string.Equals(alarm.Name, target, StringComparison.Ordinal))
+                return true; // 幂等：连值都没变，不该算一次变更
+
+            if (_alarms.Any(a => !ReferenceEquals(a, alarm)
+                                 && string.Equals(a.Name, target, StringComparison.OrdinalIgnoreCase)))
+            {
+                error = $"已存在同名报警 [{target}]，请更换名称";
+                return false;
+            }
+
+            using (BeginEdit($"报警改名 [{target}]"))
+            {
+                alarm.Name = target;
+            }
+
+            return true;
+        }
+
+        /// <summary>按稳定身份找报警定义（找不到返回 null）</summary>
+        public ScadaAlarmDefinition? FindAlarm(Guid alarmId)
+            => alarmId == Guid.Empty ? null : _alarms.FirstOrDefault(a => a.AlarmId == alarmId);
+
+        /// <summary>按名找报警定义（大小写不敏感；仅用于兼容旧数据与用户手输，优先用 <see cref="FindAlarm"/>）</summary>
+        public ScadaAlarmDefinition? FindAlarmByName(string? name)
+            => string.IsNullOrWhiteSpace(name)
+                ? null
+                : _alarms.FirstOrDefault(a => string.Equals(a.Name, name!.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>取当前未被占用的最小"报警_N"</summary>
+        private string NextAlarmName()
+        {
+            var used = new HashSet<string>(_alarms.Select(a => a.Name), StringComparer.OrdinalIgnoreCase);
+
+            int index = 1;
+            while (used.Contains($"报警_{index}"))
+                index++;
+
+            return $"报警_{index}";
+        }
+
+        #endregion
+
+        #region 变量事件管理（新建 / 删除 / 查找）
+
+        /// <summary>
+        /// 取某个变量的变量事件记录，没有就地建一条（变量事件弹窗"选中一个变量"就调这个）。
+        ///
+        /// 为什么是"取或建"而不是"每次都新建"：本表的形状是<b>一个变量一条记录</b>
+        /// （见 <see cref="ScadaVariableEvent"/> 的类注释），同一个变量被选中两次必须落到同一条上，
+        /// 否则改名级联与运行态订阅会各自持有一份"半条配置"。
+        ///
+        /// 按 Id 优先、名字兜底（与 <see cref="ScadaVariableEvent.Matches"/> 同一口径）：
+        /// 旧数据没有 Id，只能按名认领；认领到就复用，不会为同一个变量造出第二条。
+        /// </summary>
+        /// <param name="variableId">变量稳定身份（<see cref="Guid.Empty"/> = 旧数据，只能按名找）</param>
+        /// <param name="variableName">变量名（展示串 + 旧数据兜底键）</param>
+        public ScadaVariableEvent GetOrAddVariableEvent(Guid variableId, string? variableName)
+        {
+            var existing = FindVariableEvent(variableId) ?? FindVariableEventByName(variableName);
+            if (existing != null)
+                return existing;
+
+            var record = new ScadaVariableEvent();
+
+            using (BeginEdit($"新建变量事件 [{variableName}]"))
+            {
+                record.Bind(variableId, variableName);
+                _variableEvents.Add(record);
+            }
+
+            return record;
+        }
+
+        /// <summary>
+        /// 删除一条变量事件记录（连同它下面所有钩子）。<b>允许删到一条不剩</b>，
+        /// 理由与 <see cref="TryRemoveAlarm"/> 相同：变量事件是附加的监视项，
+        /// "这个方案不需要任何值驱动动作"是完全正常的组态结果。
+        /// </summary>
+        public bool TryRemoveVariableEvent(ScadaVariableEvent? record, out string error)
+        {
+            error = string.Empty;
+
+            if (record == null || !_variableEvents.Contains(record))
+            {
+                error = "变量事件不存在，无法删除";
+                return false;
+            }
+
+            using (BeginEdit($"删除变量事件 [{record.VariableName}]"))
+            {
+                _variableEvents.Remove(record);
+            }
+
+            return true;
+        }
+
+        /// <summary>按变量稳定身份找变量事件记录（找不到返回 null）</summary>
+        public ScadaVariableEvent? FindVariableEvent(Guid variableId)
+            => variableId == Guid.Empty
+                ? null
+                : _variableEvents.FirstOrDefault(v => v.VariableId == variableId);
+
+        /// <summary>按变量名找变量事件记录（大小写不敏感；仅用于兼容旧数据，优先用 <see cref="FindVariableEvent"/>）</summary>
+        public ScadaVariableEvent? FindVariableEventByName(string? name)
+            => string.IsNullOrWhiteSpace(name)
+                ? null
+                : _variableEvents.FirstOrDefault(v => string.Equals(v.VariableName, name!.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        #endregion
+
+        /// <summary>
+        /// 变量改名后的引用刷新：递归到所有画面的所有绑定，并修到报警定义上。返回被改动的引用条数。
         ///
         /// 这是改名级联在画面侧的入口（与 <c>IReadOnlyWorkspaceContext.OnVariableRenamed</c>
         /// 里刷新流程连线、监视项并列）。按 Id 寻址的绑定只刷新展示名，
         /// 旧数据（没有 Id）在按名命中时顺带把 Id 补回来。
+        ///
+        /// 报警<b>必须</b>一起修：报警条上写着"变量名"是给现场看的，
+        /// 漏修之后报警会指着旧名字，而旧名字已经不存在了——
+        /// 运行态解析不到变量就静默跳过（见 <see cref="ScadaAlarmEngine"/>），
+        /// 结果就是一条无声失效的报警。无声失效的报警比没有报警更危险。
         /// </summary>
         /// <param name="variableId">改名变量的稳定身份</param>
         /// <param name="oldName">改名前的旧名</param>
@@ -267,13 +585,47 @@ namespace VisionMaster.Scada
             foreach (var page in _pages)
                 changed += page.RefreshVariableReferences(variableId, oldName, newName);
 
+            // 报警这一支路与图元支路同一口径（见 ScadaElement.RefreshVariableReferences）：
+            // 改名级联是变量面板触发的数据自愈，不是用户在画面上做的编辑——撤销由变量注册表
+            // 那一侧的作用域负责，这里不该被写守卫拦。漏掉这一层时，Strict 模式下改名会直接抛，
+            // 而同一批里画面上的绑定却已经改成功了：一半改一半没改，最难查的那种半成品状态。
+            using (ScadaWriteGuard.Suspend())
+            {
+                foreach (var alarm in _alarms)
+                {
+                    if (!alarm.Matches(variableId, oldName))
+                        continue;
+
+                    alarm.Bind(variableId, newName);
+                    changed++;
+                }
+
+                // 变量事件表同批修：它的钩子里同样可以引用别的变量
+                //（"这个变量一变就把那个变量置 1"），漏修就是又一条无声失效的动作。
+                foreach (var record in _variableEvents)
+                {
+                    if (record == null)
+                        continue;
+
+                    if (record.Matches(variableId, oldName))
+                    {
+                        record.Bind(variableId, newName);
+                        changed++;
+                    }
+
+                    changed += record.RefreshVariableReferences(variableId, oldName, newName);
+                }
+            }
+
             return changed;
         }
 
         /// <summary>
-        /// 补发缺失的稳定身份（画面/图层/图元及其归属，旧数据迁移）。返回补发的处数。
+        /// 补发缺失的稳定身份（画面/图层/图元及其归属/报警，旧数据迁移）。返回补发的处数。
         /// 加载流程在读文件后调用一次即可（见 SolutionService 的加载链路）。
         /// 图元归属的补齐规则见 <see cref="ScadaPage.EnsureIdentity"/>。
+        /// 报警只补 <see cref="ScadaAlarmDefinition.AlarmId"/>，不补 <c>VariableId</c>——
+        /// 后者的 <c>Guid.Empty</c> 是有含义的（"只能按名字找"），靠加载期按名解析成功后自愈。
         /// </summary>
         public int EnsureIdentity()
         {
@@ -281,6 +633,21 @@ namespace VisionMaster.Scada
 
             foreach (var page in _pages)
                 repaired += page.EnsureIdentity();
+
+            // 迁移不是用户编辑：补齐旧数据的 Id 不该进撤销栈、也不该被写守卫拦
+            // （理由与 ScadaPage.EnsureIdentity 完全相同）。
+            using (ScadaWriteGuard.Suspend())
+            using (ScadaChangeScope.SuspendRecording())
+            {
+                foreach (var alarm in _alarms)
+                {
+                    if (alarm.AlarmId != Guid.Empty)
+                        continue;
+
+                    alarm.AlarmId = Guid.NewGuid();
+                    repaired++;
+                }
+            }
 
             return repaired;
         }

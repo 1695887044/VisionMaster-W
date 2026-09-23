@@ -1,0 +1,293 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.ScadaSystemParametersView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="580"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    mc:Ignorable="d">
+
+    <!--  ==========================================  -->
+    <!--  组态「系统参数设置」弹窗  -->
+    <!--  只做一件事：把原先写死在代码里的三个数字交给现场——  -->
+    <!--  空闲自动登出时长、操作审计保留天数、报警历史保留天数。  -->
+    <!--  三个都在 AppConfig.json 里，改完立即生效（用它的地方每次现读配置）。  -->
+    <!--  ==========================================  -->
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="NoResize" />
+            <Setter Property="SizeToContent" Value="WidthAndHeight" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <!--  回车 = 确定、Esc = 取消：设置页的标准键位。
+          挂在整窗上，输入框里的回车会冒泡到这里，不必给每个框各挂一遍。
+          主键盘回车与小键盘回车是两个不同的 Key，两个都要写（对照 ScadaLoginView）。  -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Return" Command="{Binding ConfirmCommand}" />
+        <KeyBinding Key="Enter" Command="{Binding ConfirmCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+    </UserControl.InputBindings>
+
+    <UserControl.Resources>
+        <!--  字段名：与登录 / 用户管理弹窗同一套字号与灰度  -->
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#303133" />
+        </Style>
+
+        <!--  数值输入框：右对齐。数字右对齐才看得出位数，左对齐时"90"和"9O"长得一样。  -->
+        <Style x:Key="NumberBoxStyle" TargetType="TextBox">
+            <Setter Property="Width" Value="88" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <!--  单位：贴着输入框右侧，让"88 天"读起来是一个整体  -->
+        <Style x:Key="UnitStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#909399" />
+        </Style>
+
+        <!--  字段说明：说清"填 0 会怎样"，比只说"单位是分钟"有用  -->
+        <Style x:Key="FieldHintStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,5,0,0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#909399" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!--  参数分组卡片：浅底细边，与白底弹窗拉开一层，但不抢眼  -->
+        <Style x:Key="GroupCardStyle" TargetType="Border">
+            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="Background" Value="#FAFBFC" />
+            <Setter Property="BorderBrush" Value="#EBEEF5" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="15">
+        <Border Background="White" CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="15"
+                    Direction="270"
+                    Opacity="0.15"
+                    ShadowDepth="3"
+                    Color="Black" />
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="45" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="56" />
+                </Grid.RowDefinitions>
+
+                <!--  标题栏（无系统边框的弹窗靠它拖动）  -->
+                <Border
+                    Grid.Row="0"
+                    ui:WindowDragBehavior.IsWindowDraggable="True"
+                    Background="#F8F9FA"
+                    BorderBrush="#EBEEF5"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="8,8,0,0">
+                    <TextBlock
+                        Margin="20,0"
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="#303133"
+                        Text="{Binding Title}" />
+                </Border>
+
+                <!--  内容区  -->
+                <StackPanel Grid.Row="1" Margin="20,14,20,0">
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#909399"
+                        Text="这几项是软件级参数（存程序目录 AppConfig.json，与方案文件无关）。点「确定」立即生效，不必重启软件。"
+                        TextWrapping="Wrap" />
+
+                    <!--  分组一：安全与会话  -->
+                    <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                        <Border
+                            Width="3"
+                            Height="13"
+                            VerticalAlignment="Center"
+                            Background="#409EFF"
+                            CornerRadius="2" />
+                        <TextBlock
+                            Margin="7,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="#303133"
+                            Text="安全与会话" />
+                    </StackPanel>
+
+                    <Border Style="{StaticResource GroupCardStyle}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Style="{StaticResource FieldLabelStyle}"
+                                    Text="空闲自动登出" />
+                                <TextBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource NumberBoxStyle}"
+                                    Text="{Binding IdleTimeoutText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Style="{StaticResource UnitStyle}"
+                                    Text="分钟" />
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldHintStyle}">
+                                <Run Text="多久没人操作就自动退出登录，权限回到「操作员」。填" /><Run FontWeight="SemiBold" Text=" 0 " /><Run Text="= 不自动登出（无人值守的机台用；默认 10 分钟）。" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  分组二：历史留档  -->
+                    <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                        <Border
+                            Width="3"
+                            Height="13"
+                            VerticalAlignment="Center"
+                            Background="#409EFF"
+                            CornerRadius="2" />
+                        <TextBlock
+                            Margin="7,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="#303133"
+                            Text="历史留档" />
+                    </StackPanel>
+
+                    <Border Style="{StaticResource GroupCardStyle}">
+                        <StackPanel>
+                            <!--  操作审计  -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Style="{StaticResource FieldLabelStyle}"
+                                    Text="操作审计保留" />
+                                <TextBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource NumberBoxStyle}"
+                                    Text="{Binding AuditRetentionText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Style="{StaticResource UnitStyle}"
+                                    Text="天" />
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldHintStyle}">
+                                <Run Text="程序目录 Audit 下的操作凭证流水，超过保留期的在下次写入时自动删除。填" /><Run FontWeight="SemiBold" Text=" 0 " /><Run Text="= 永不清理（默认 90 天）。" />
+                            </TextBlock>
+
+                            <Separator Margin="0,12,0,2" Background="#EBEEF5" />
+
+                            <!--  报警历史  -->
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Style="{StaticResource FieldLabelStyle}"
+                                    Text="报警历史保留" />
+                                <TextBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource NumberBoxStyle}"
+                                    Text="{Binding AlarmRetentionText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Style="{StaticResource UnitStyle}"
+                                    Text="天" />
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldHintStyle}">
+                                <Run Text="程序目录 Alarms 下的报警流水（含面板导出的快照），超过保留期的在下次写入时自动删除。填" /><Run FontWeight="SemiBold" Text=" 0 " /><Run Text="= 永不清理（默认 365 天）。" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  校验 / 写盘失败：红底红字，说清是哪个字段、当前填的是什么  -->
+                    <Border
+                        Margin="0,14,0,0"
+                        Padding="10,8"
+                        Background="#FEF0F0"
+                        BorderBrush="#FDE2E2"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Visibility="{Binding HasError, Converter={ui:BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="#F56C6C"
+                            Text="{Binding ErrorMessage}"
+                            TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+
+                <!--  底部按钮  -->
+                <StackPanel
+                    Grid.Row="2"
+                    Margin="20,10"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,12,0"
+                        Padding="28,8"
+                        Background="#FFFFFF"
+                        BorderBrush="#DCDFE6"
+                        Command="{Binding CancelCommand}"
+                        Content="取消"
+                        Cursor="Hand">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                    <Button
+                        Padding="28,8"
+                        Background="#409EFF"
+                        BorderThickness="0"
+                        Command="{Binding ConfirmCommand}"
+                        Content="确定"
+                        Cursor="Hand"
+                        FontWeight="SemiBold"
+                        Foreground="White">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4" />
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

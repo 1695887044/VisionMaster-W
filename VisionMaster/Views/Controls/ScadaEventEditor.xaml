@@ -1,0 +1,352 @@
+<UserControl
+    x:Class="VisionMaster.Views.Controls.ScadaEventEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="120"
+    d:DesignWidth="260"
+    mc:Ignorable="d">
+
+    <!--  ==========================================  -->
+    <!--  「事件 + 动作表」编辑器（公共控件）  -->
+    <!--  DataContext = ScadaEventEditorViewModel（由使用方给）。  -->
+    <!--  两个消费者：① 属性面板的事件行（图元事件 / 画面事件）；  -->
+    <!--  ② 独立的「变量事件」弹窗（变量级 5 类事件）。  -->
+    <!--  编辑逻辑全在 ViewModel 里，本文件只负责摆控件——  -->
+    <!--  所以加一种宿主 / 加一类动作，这里一行都不用改。  -->
+    <!--  ==========================================  -->
+
+    <!--  颜色令牌：与属性面板同一本字典（值集中在 UI/Controls/Themes/Colors.xaml）。  -->
+    <!--  这里再合并一次是让控件"自带口粮"：脱离 App / 面板单独量也照样渲染，  -->
+    <!--  而不是抛 XamlParseException 说找不到 ScadaActionCardBorderBrush。  -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolVis" />
+
+            <!--  动作行里那三个小按钮共用：正方形、无边框感，密集排布不抢视线  -->
+            <Style x:Key="ActionIconButton" TargetType="Button">
+                <Setter Property="Width" Value="20" />
+                <Setter Property="Height" Value="20" />
+                <Setter Property="Margin" Value="2,0,0,0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
+                <Style.Triggers>
+                    <!--  到了端点（已经在最上面 / 最下面）按钮会变灰。
+                          必须显式写这一条：显式 Style 会整个盖掉主题里的禁用态触发器，
+                          而上面那句 Foreground 又压过了主题的灰字，不补就等于
+                          "点不动的按钮和能点的长得一模一样"——最伤信任的一种界面。  -->
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Foreground" Value="{StaticResource ScadaDisabledTextBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  一条动作：第一行选"干什么"和调顺序，第二行填这条动作的参数。
+                  两行而不是挤一行：面板统共 260px 宽，一行里塞下"下拉框 + 参数 + 三个按钮"
+                  之后留给日志文案的宽度不够写一句人话。  -->
+            <DataTemplate x:Key="ActionItem">
+                <Border
+                    Margin="0,2,0,0"
+                    Padding="4,3"
+                    Background="{StaticResource ScadaSurfaceBrush}"
+                    BorderBrush="{StaticResource ScadaActionCardBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="2">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  下拉的候选与命令都挂在编辑器视图模型上（本模板的 DataContext 是单条动作），
+                                  AncestorType=ItemsControl 取到的正是动作表那个 ItemsControl，
+                                  它的 DataContext 就是 ScadaEventEditorViewModel。  -->
+                            <ComboBox
+                                Grid.Column="0"
+                                FontSize="11"
+                                DisplayMemberPath="DisplayName"
+                                ItemsSource="{Binding DataContext.ActionTypeChoices, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                SelectedValue="{Binding Type, Mode=TwoWay}"
+                                SelectedValuePath="Type"
+                                ToolTip="这条动作要干什么" />
+                            <Button
+                                Grid.Column="1"
+                                Command="{Binding DataContext.MoveActionUpCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}"
+                                Content="↑"
+                                Style="{StaticResource ActionIconButton}"
+                                ToolTip="上移（越靠上越先执行）" />
+                            <Button
+                                Grid.Column="2"
+                                Command="{Binding DataContext.MoveActionDownCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}"
+                                Content="↓"
+                                Style="{StaticResource ActionIconButton}"
+                                ToolTip="下移" />
+                            <Button
+                                Grid.Column="3"
+                                Command="{Binding DataContext.RemoveActionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}"
+                                Content="✕"
+                                Style="{StaticResource ActionIconButton}"
+                                ToolTip="删除这条动作" />
+                        </Grid>
+
+                        <!--  日志文案：只有"记录日志"需要填（留空则由执行侧回落成"图元名 + 事件名"）  -->
+                        <TextBox
+                            Margin="0,3,0,0"
+                            Padding="3,2"
+                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                            FontSize="11"
+                            Text="{Binding Text, UpdateSourceTrigger=LostFocus}"
+                            ToolTip="留空则记录「图元名 + 事件名」">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="Log">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+
+                        <!--  写变量：先选目标变量，再填要写进去的值。
+                              目标变量存"身份 + 名字"两份，Id 优先、名字只用于显示与兜底寻址，
+                              回填与寻址的口径在 ScadaAction.BindVariable 一处，这里只管展示。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="WriteVariable">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--  名字为空（=还没选）时由 TargetNullValue 顶上一句占位文案，
+                                      省掉一个"空/非空"双控件互斥的触发器  -->
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding VariableName, TargetNullValue=（还没选变量）}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding VariableName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasVariable}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Button
+                                    Grid.Column="1"
+                                    Padding="6,1"
+                                    FontSize="11"
+                                    Command="{Binding DataContext.PickVariableCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="选择变量"
+                                    ToolTip="从当前方案的变量清单里挑一个" />
+                            </Grid>
+
+                            <TextBox
+                                Margin="0,3,0,0"
+                                Padding="3,2"
+                                BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                FontSize="11"
+                                Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                                ToolTip="要写进变量的值（按变量类型转换，转不过去执行时会记一条错误）" />
+
+                            <!--  没选变量：执行侧会照实警告并跳过，先把这件事说在界面上  -->
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaWarningBrush}"
+                                Text="还没选变量，这条动作运行时会跳过。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasVariable}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!--  切换画面：只需选一个目标画面。
+                              目标画面存"身份 + 名字"两份，Id 优先、名字只用于显示与兜底寻址，
+                              回填与寻址的口径在 ScadaAction.BindPage 一处，这里只管展示。
+                              与"写变量"不同，这条动作没有"值"要填，所以只有一个选画面的入口。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="Navigate">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--  名字为空（=还没选）时由 TargetNullValue 顶上一句占位文案，
+                                      省掉一个"空/非空"双控件互斥的触发器  -->
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding TargetPageName, TargetNullValue=（还没选画面）}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding TargetPageName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasTargetPage}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Button
+                                    Grid.Column="1"
+                                    Padding="6,1"
+                                    FontSize="11"
+                                    Command="{Binding DataContext.PickPageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="选择画面"
+                                    ToolTip="从当前方案的画面清单里挑一个" />
+                            </Grid>
+
+                            <!--  没选画面：执行侧会照实警告并跳过，先把这件事说在界面上  -->
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaWarningBrush}"
+                                Text="还没选画面，这条动作运行时会跳过。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasTargetPage}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!--  还没接通的动作：说明"为什么现在配了也不会响"。
+                              文案来自领域层（ScadaAction.PendingReason），与运行日志里那句逐字相同，
+                              用户才能把"我配的这条"和"日志里那条"对上号。  -->
+                        <TextBlock
+                            Margin="0,3,0,0"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaWarningBrush}"
+                            Text="{Binding PendingReason}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PendingReason}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--  事件本体：勾选框 + （勾上才出现的）动作表。
+          这份内容独占整行宽度、不排标签列——82px 的标签列留给动作表就只剩一条缝了。  -->
+    <StackPanel Margin="0,2,0,2" ToolTip="{Binding Description}">
+        <CheckBox
+            Content="{Binding DisplayName}"
+            FontSize="12"
+            IsChecked="{Binding IsConfigured, Mode=TwoWay}" />
+
+        <!--  没配钩子时 HasActions=false，整块收掉；配了才展开  -->
+        <StackPanel
+            Margin="16,3,0,0"
+            Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}">
+            <TextBlock
+                FontSize="11"
+                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                Text="动作（自上而下依次执行）：" />
+
+            <ItemsControl ItemTemplate="{StaticResource ActionItem}" ItemsSource="{Binding Actions}" />
+
+            <!--  配了钩子却把动作删光了：执行侧当"没配"处理，必须说出来，
+                  否则用户会以为"我明明勾上了"  -->
+            <TextBlock
+                Margin="0,2,0,0"
+                FontSize="11"
+                Foreground="{StaticResource ScadaWarningBrush}"
+                Text="还没有动作，运行态命中该事件时不会有任何反应。"
+                TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Actions.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Button
+                Margin="0,4,0,0"
+                Padding="6,2"
+                HorizontalAlignment="Left"
+                Command="{Binding AddActionCommand}"
+                Content="+ 添加动作"
+                FontSize="11"
+                ToolTip="新动作默认是「记录日志」，改文案即可用" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

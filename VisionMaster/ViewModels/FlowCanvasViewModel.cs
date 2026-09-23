@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Windows;
 using Core.Interfaces;
+using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
@@ -872,8 +873,11 @@ namespace VisionMaster.ViewModels
                 }
             }
 
-            foreach (var (name, type) in GetOutputPorts(model))
-                node.Outputs.Add(new CanvasConnectorViewModel(node, name, type, isInput: false));
+            foreach (var (name, type, isVariablePort) in GetOutputPorts(model))
+                node.Outputs.Add(new CanvasConnectorViewModel(node, name, type, isInput: false)
+                {
+                    IsRuntimeVariablePort = isVariablePort,
+                });
         }
 
         /// <summary>
@@ -955,7 +959,8 @@ namespace VisionMaster.ViewModels
 
         /// <summary>
         /// 把本层步骤 LinkedSources 里能落地的连线画成实线，结构非法的画成灰虚线并计数。
-        /// 非 StepPort（全局变量/运行时变量/常量）、上游不在本层、端口已失效的计入 DeferredLinkCount。
+        /// 可还原的两类：StepPort（上游在本层）与 RuntimeVariable（变量定义节点在本层，按变量名回找）；
+        /// 全局变量/常量、上游在本层之外（更深的子层、祖先层、已删除）、端口已失效的计入 DeferredLinkCount。
         /// </summary>
         private void BuildConnections(FlowModel flow)
         {
@@ -972,6 +977,15 @@ namespace VisionMaster.ViewModels
 
             Connections.Clear();
 
+            // 变量名 → 本层的值输出脚。运行时变量线的连线里不存定义步骤 Id（只有变量名），
+            // 所以还原时只能按名回找；同名变量按本层枚举顺序"后者覆盖前者"，
+            // 与 FlowQueryHelper 的"以最后一次定义为准"同一口径（运行期也是覆盖语义）。
+            var variableProducers = new Dictionary<string, CanvasConnectorViewModel>(StringComparer.Ordinal);
+            foreach (var producerNode in _visibleSteps)
+                foreach (var port in producerNode.Outputs)
+                    if (port.IsRuntimeVariablePort)
+                        variableProducers[port.PortName] = port;
+
             foreach (var consumer in _visibleSteps)
             {
                 var model = consumer.Model;
@@ -983,22 +997,38 @@ namespace VisionMaster.ViewModels
                     if (link == null) continue;
 
                     var kind = link.NormalizeKind();
-                    if (kind != LinkKind.StepPort)
+                    if (kind != LinkKind.StepPort && kind != LinkKind.RuntimeVariable)
                     {
                         DeferredLinkCount++;
                         continue;
                     }
 
-                    if (!_nodeMap.TryGetValue(link.TargetStepId, out var producer))
+                    CanvasConnectorViewModel output;
+
+                    if (kind == LinkKind.StepPort)
                     {
                         // 上游不在本层：藏在更深的子层里（本层不展开），或上游步骤已被删除
                         // （后者会在编译期报"致命断连"）
-                        DeferredLinkCount++;
-                        continue;
+                        if (!_nodeMap.TryGetValue(link.TargetStepId, out var producer))
+                        {
+                            DeferredLinkCount++;
+                            continue;
+                        }
+
+                        output = producer.Outputs.FirstOrDefault(o => o.PortName == link.TargetPortName);
+                    }
+                    else
+                    {
+                        // 定义在本层 → 画实线；定义在别的层或变量名已失效 → 降级到弹窗里看
+                        if (string.IsNullOrEmpty(link.TargetPortName)
+                            || !variableProducers.TryGetValue(link.TargetPortName, out output))
+                        {
+                            DeferredLinkCount++;
+                            continue;
+                        }
                     }
 
                     var input = consumer.Inputs.FirstOrDefault(i => i.PortName == kvp.Key);
-                    var output = producer.Outputs.FirstOrDefault(o => o.PortName == link.TargetPortName);
 
                     if (input == null || output == null)
                     {
@@ -1007,7 +1037,7 @@ namespace VisionMaster.ViewModels
                         continue;
                     }
 
-                    var legality = _topology.Classify(producer.StepId, consumer.StepId);
+                    var legality = _topology.Classify(output.Owner.StepId, consumer.StepId);
                     var illegal = legality is LinkLegality.SameListReversed
                         or LinkLegality.CrossBranch
                         or LinkLegality.ProducerAfterEnclosingContainer;
@@ -1066,12 +1096,14 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 输出端口 = 插件静态定义 + 图纸里的动态端口快照（IDynamicOutputProvider 重建后回写的部分）。
+        /// 输出端口 = 插件静态定义 + 图纸里的动态端口快照（IDynamicOutputProvider 重建后回写的部分）
+        /// + 变量定义节点的「值输出脚」。
         /// 与 FlowQueryHelper 给绑定弹窗构造候选树的口径保持一致，避免"画布能连但绑定弹窗选不到"。
+        /// 第三项标记该脚是否为运行时变量值脚（建线时要据此写 LinkKind.RuntimeVariable）。
         /// </summary>
-        private IEnumerable<(string Name, Type Type)> GetOutputPorts(StepModel model)
+        private IEnumerable<(string Name, Type Type, bool IsVariablePort)> GetOutputPorts(StepModel model)
         {
-            var result = new List<(string, Type)>();
+            var result = new List<(string, Type, bool)>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
 
             if (_pluginProvider?.ModulePlugins != null
@@ -1082,7 +1114,7 @@ namespace VisionMaster.ViewModels
                 foreach (var port in definition.OutputDefinitions)
                 {
                     if (string.IsNullOrEmpty(port?.Name) || !seen.Add(port.Name)) continue;
-                    result.Add((port.Name, ResolveType(port.DataTypeName)));
+                    result.Add((port.Name, ResolveType(port.DataTypeName), false));
                 }
             }
 
@@ -1090,12 +1122,19 @@ namespace VisionMaster.ViewModels
             {
                 if (dynamicPort == null || string.IsNullOrEmpty(dynamicPort.Name)) continue;
                 if (!seen.Add(dynamicPort.Name)) continue;
-                result.Add((dynamicPort.Name, ResolveType(dynamicPort.DataTypeName)));
+                result.Add((dynamicPort.Name, ResolveType(dynamicPort.DataTypeName), false));
             }
 
             // For 节点额外暴露一个编译期注入的隐藏输出：循环索引 Index（CompiledForNode.IndexPort）
             if (model is ForStep)
-                result.Add(("Index", typeof(int)));
+                result.Add(("Index", typeof(int), false));
+
+            // 变量定义节点动态长出一个「值输出脚」：端口名 = 变量名。
+            // 插件本身只有 Name/Type/InitialValue/Overwrite 四个输入和 Success/ErrorMessage 两个输出，
+            // 变量值是运行期写进 context.LocalVariables 的，画布上想表达「取这个变量」就只能靠这一根动态脚。
+            // 识别口径复用 FlowQueryHelper（与绑定弹窗同一份），变量名与插件输出口同名时以输出口为准（不重复长脚）。
+            if (FlowQueryHelper.TryGetDefinedVariable(model, out var varName, out var varType) && seen.Add(varName))
+                result.Add((varName, varType, true));
 
             return result;
         }
@@ -1242,11 +1281,21 @@ namespace VisionMaster.ViewModels
             if (input.Owner.Model!.LinkedSources.TryGetValue(input.PortName, out var existing) && existing != null)
                 oldLink = existing;
 
-            var newLink = new LinkReference(
-                LinkKind.StepPort,
-                output.Owner.StepId,
-                output.PortName,
-                $"{output.Owner.Header}.{output.PortName}");
+            // 源是「值输出脚」→ 这是一条运行时变量引用线，与绑定弹窗写出的完全同构：
+            // TargetStepId 用协议 marker（不存定义步骤的 Id），寻址键只有变量名。
+            // 为什么不存定义步骤 Id：变量的身份是名字（运行期按名从 LocalVariables 取），
+            // 存了 Id 反而多一套"定义步骤被删/改名"的失效判定，而编译器本来就不看它。
+            var newLink = output.IsRuntimeVariablePort
+                ? new LinkReference(
+                    LinkKind.RuntimeVariable,
+                    LinkProtocol.RuntimeVariableMarkerGuid,
+                    output.PortName,
+                    $"Runtime.{output.PortName}")
+                : new LinkReference(
+                    LinkKind.StepPort,
+                    output.Owner.StepId,
+                    output.PortName,
+                    $"{output.Owner.Header}.{output.PortName}");
             input.Owner.Model!.SetLink(input.PortName, newLink);
 
             input.IsConnected = true;

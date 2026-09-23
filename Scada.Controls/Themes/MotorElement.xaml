@@ -1,0 +1,80 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        电机图元的外观：机身（内接圆）+ 接线盒（顶上的小方块）+ 机身里的 M + 底下一行位号。
+
+        模板里<b>一个算术都没有</b>：
+          · 机身 Data 绑只读几何 BodyGeometry；
+          · 接线盒 Data 绑只读几何 BoxGeometry；
+          · M Data 绑只读几何 LetterGeometry，粗细绑只读的 LetterThickness，颜色绑只读的 StateBrush；
+          · 位号绑基类的 Text。
+        所有"圆心、半径、方块尺寸、笔画粗细、内缩量"的换算都在控件代码里（见 MotorElement.UpdateMotor）——
+        与泵绑 BodyGeometry、阀门绑 ValveGeometry、表盘绑 NeedleGeometry 是同一条纪律：
+        外观由输入推导，推导只写一遍，模板只负责摆放。
+
+        为什么 M 是一段折线几何而不是一个 TextBlock：
+        在模板里放字就要算"字号多大配得上机身、字摆哪才算居中"，两件都随尺寸变；
+        代码算位置、模板猜字号，同一个换算拆成两半必然对不齐。画成几何就只有一份坐标账。
+
+        图层次序（同一个 Grid 里从下往上）：机身 → 接线盒 → M → 位号。
+        接线盒压在机身之上：它下沿是<b>故意探进机身</b>一截的（见 MotorElement.BuildBox），
+        靠后画把那段圆弧盖住，看上去才是"装"在机身上而不是悬在旁边。
+        M 再压在接线盒之上无所谓——两者根本不相交，这里只是照"先大后小"的习惯排。
+
+        为什么 M 的线接取圆角（StrokeLineJoin="Round"）：
+        M 顶上的转角很尖（竖笔画与斜笔画夹角约 35°），斜接（Miter）会把尖角甩出去好几个像素，
+        细笔画时看着像戳出一根刺。圆角接不改变笔画粗细，只把尖角抹圆，小尺寸下最干净。
+    -->
+    <Style TargetType="{x:Type local:MotorElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:MotorElement}">
+                    <Grid>
+                        <!-- 机身：Fill 是机身底色，Stroke 是机身轮廓。几何量已按半线宽内缩，外沿落在标注尺寸上 -->
+                        <Path
+                            x:Name="Body"
+                            Data="{TemplateBinding BodyGeometry}"
+                            Fill="{TemplateBinding TrackColor}"
+                            Stroke="{TemplateBinding Stroke}"
+                            StrokeThickness="{TemplateBinding StrokeThickness}" />
+
+                        <!-- 接线盒：与机身同底色，下沿盖住机身顶上那段圆弧 -->
+                        <Path
+                            x:Name="Box"
+                            Data="{TemplateBinding BoxGeometry}"
+                            Fill="{TemplateBinding TrackColor}"
+                            Stroke="{TemplateBinding Stroke}"
+                            StrokeThickness="{TemplateBinding StrokeThickness}" />
+
+                        <!-- M：折线没有面积，只描边；粗细由代码按机身半径算好（LetterThickness） -->
+                        <Path
+                            x:Name="Letter"
+                            Data="{TemplateBinding LetterGeometry}"
+                            Stroke="{TemplateBinding StateBrush}"
+                            StrokeThickness="{TemplateBinding LetterThickness}"
+                            StrokeLineJoin="Round" />
+
+                        <!-- 位号：贴在预留的底边上，与机身不重叠 -->
+                        <TextBlock
+                            x:Name="TagLabel"
+                            Text="{TemplateBinding Text}"
+                            Foreground="{TemplateBinding Foreground}"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            FontWeight="{TemplateBinding FontWeight}"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

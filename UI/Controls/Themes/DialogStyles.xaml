@@ -1,0 +1,1048 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        ============================================================================
+        Dialog 弹窗族共享样式（青蓝设计系统）
+        ============================================================================
+
+        这一份是"连接管理 / 变量管理 / 扫描组编辑"三张弹窗的公共皮肤，
+        色彩全部取自 Colors.xaml 的 Dialog* 令牌，这里不再出现任何十六进制色值。
+
+        为什么键名一律带 Dialog 前缀：
+        1) 令牌层（Colors.xaml）已说明，短名会和 ToolView / GlobalVariableView 的
+           本地覆盖撞名，撞名的后果是"改令牌改不动那一处"。
+        2) 样式层更危险：Plugin.CreateRoi、Plugin.ExcelExport 等 8 个插件视图
+           各自在本地定义了 CardBorder / CardTitle / PrimaryButton。
+           本地定义会盖住全局同名键 —— 也就是说，这里若叫 CardBorder，
+           插件那边看起来"没受影响"，实际是本地覆盖在替我们兜底；
+           一旦哪个插件哪天删掉本地定义，外观就会静默跟着这里变。
+           带前缀 = 各管各的，互不牵连。
+
+        为什么 DataGrid 那几支必须带键名（不能像原来那样写成隐式样式）：
+        GlobalVariableView 原来把 DataGridCell / DataGridRow / DataGrid /
+        DataGridColumnHeader 写成不带 x:Key 的隐式样式，放在自己的
+        UserControl.Resources 里 —— 隐式样式的作用域只在那一张视图内，是安全的。
+        但本文件是全局合并字典，同样的隐式样式一旦放进来，就会盖掉
+        DefaultStyle.xaml 里那支全局 DataGrid 皮肤，波及全应用每一个 DataGrid
+        （ConditionEditorView、ScanGroupEditorView 都没有自己的本地覆盖，
+        会静默换脸）。所以这里一律带键名，由各视图通过
+        Style / CellStyle / RowStyle / ColumnHeaderStyle 显式引用。
+
+        为什么本文件要自己 merge 一遍 Colors.xaml（App 链上明明已经有一份）：
+        因为 {StaticResource} 在不同落脚点走的是三套解析作用域 ——
+          · 写在 Setter.Value 上（普通样式，如 DialogCardBorder）：WPF 存成延迟引用，
+            在"套用到元素那一刻"用元素的作用域链解析（元素 → 父级 → App 资源）。
+            所以这一类即便本文件当时看不见 Colors.xaml 也能取到值；查不到时
+            是"静默跳过"，不抛异常（探针实测：App 级没有 Icon 时 FontFamily
+            静默退回 'Microsoft YaHei UI'）。
+          · 写在 Freezable（如 DropShadowEffect）内部：Freezable 在"加载本字典"时
+            就被构造并立即赋值，走的是"声明它的那个字典"的作用域，即本文件自己。
+            本文件是独立字典、与 Colors.xaml 在 Generic.xaml 里只是兄弟关系，
+            兄弟不可见，于是运行期抛 XamlParseException：无法找到名为
+            DialogShadowColor 的资源。这就是"只有 Freezable 那一处会炸、
+            普通 Setter 那一堆不炸"的原因。
+          · 写在模板（DataTemplate / ControlTemplate）内容里：模板内容延迟到
+            ApplyTemplate 才加载，此时 {StaticResource} 用的是"声明模板的那个字典"
+            的作用域（本文件 + 它的 MergedDictionaries），同样看不到 App.xaml 的
+            inline 资源 —— 但它和 Setter 不同，查不到会直接抛异常。实机报错
+            "无法找到名为 Icon 的资源"就出在 DialogSourceNodeTemplate 上。
+        结论：样式字典应当声明自己的依赖（令牌 / 字体），而不是指望合并它的
+        父字典或 App 的 inline 资源转交。代价是 Colors.xaml 被加载两份
+        （一份挂 App 链、一份挂本文件下），令牌值相同、无运行期改写，
+        视觉零差异，内存开销可忽略。
+    -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <!--  源码串必须与 Generic.xaml 里的写法逐字一致，避免被当成两个不同 URI 反复加载  -->
+        <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        本文件自己的图标字体令牌。
+        不要写 {StaticResource Icon}：Icon 只定义在 App.xaml 的 inline 资源里，
+        而本文件是"独立字典 + 含模板"。模板（DataTemplate/ControlTemplate）在
+        ApplyTemplate 时才加载内容，其 {StaticResource} 走的是"声明模板的那个字典"
+        的作用域，查不到 App 的 inline 资源就抛 XamlParseException：
+        "无法找到名为 Icon 的资源"（实机复现于 DialogSourceNodeTemplate）。
+        这里写真 pack 绝对串，与 App.xaml / IconDictionary.xaml 的 FA.Solid 同源同串，
+        自包含、不依赖合并链 —— 与 ScadaLayerView.xaml 的既有做法一致。
+    -->
+    <FontFamily x:Key="DialogIconFont">pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid</FontFamily>
+
+    <!--  ====================  卡片容器  ====================  -->
+
+    <Style x:Key="DialogCardBorder" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogCardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+    </Style>
+
+    <!--
+        卡片投影层：单独用一个空 Border 承载 DropShadowEffect。
+        不要直接给 DialogCardBorder 加 Effect —— Effect 会把整棵子树渲染到离屏表面，
+        导致卡片内所有文字失去 ClearType（变糊）。投影层与内容层分离即可两全。
+    -->
+    <Style x:Key="DialogCardShadow" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect
+                    BlurRadius="18"
+                    Direction="270"
+                    Opacity="0.10"
+                    ShadowDepth="3"
+                    Color="{StaticResource DialogShadowColor}" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  卡片标题栏：统一 52 高 + 底部细分割线，三栏并排时基线才对得齐  -->
+    <Style x:Key="DialogCardHeader" TargetType="Border">
+        <Setter Property="Height" Value="52" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
+    <Style x:Key="DialogCardTitle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="DialogCardTitleIcon" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+    </Style>
+
+    <!--  ====================  表单标签  ====================  -->
+
+    <Style x:Key="DialogFormLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <!--  ====================  输入框  ====================  -->
+
+    <!--
+        占位提示写在 TextBox 自己的模板里，靠 Tag 传文案。
+        为什么不用"旁边放一个 TextBlock"的老写法：那样提示永远是可见的，
+        用户一输入就出现"提示和内容并排"的鬼影；而且外层 StackPanel 里
+        TextBox 宽度不受控，框再宽也只有一小段能输入。
+        模板内实现后：提示随 Text 自动显隐，TextBox 本身铺满可用宽度。
+        注意 TextBox.Text 的默认值是 String.Empty（不是 null），
+        所以 Trigger 用 Value="" 在初始状态下也能正确命中。
+    -->
+    <Style x:Key="DialogInput" TargetType="TextBox">
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource DialogInputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource DialogAccentBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border
+                        x:Name="border"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8"
+                        SnapsToDevicePixels="True">
+                        <Grid>
+                            <ScrollViewer
+                                x:Name="PART_ContentHost"
+                                Focusable="False"
+                                HorizontalScrollBarVisibility="Hidden"
+                                VerticalScrollBarVisibility="Hidden" />
+                            <TextBlock
+                                x:Name="Placeholder"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                IsHitTestVisible="False"
+                                Text="{TemplateBinding Tag}"
+                                Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                            <Setter TargetName="border" Property="BorderThickness" Value="1.5" />
+                        </Trigger>
+                        <Trigger Property="IsReadOnly" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  分组内的输入框：白底 + 淡蓝描边，与蓝色分组底色拉开层级  -->
+    <Style
+        x:Key="DialogInputInGroup"
+        BasedOn="{StaticResource DialogInput}"
+        TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+    </Style>
+
+    <!--
+        搜索框：外层一支 Border 画框 + 放大镜图标，内层 TextBox 完全透明。
+        这样"图标 / 输入区 / 占位提示"三段是一体的，而 TextBox 宽度由 Grid 的 * 列
+        决定 —— 老写法把 TextBox 塞在横向 StackPanel 里，宽度不受控，
+        框铺满一整行却只有左边一小段能输入。
+        聚焦高亮画在外层 Border 上（IsKeyboardFocusWithin），
+        因为内层 TextBox 已经 BorderThickness=0，它自己的聚焦描边看不见。
+    -->
+    <Style x:Key="DialogSearchChrome" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogInputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="DialogSearchIcon" TargetType="TextBlock">
+        <Setter Property="Margin" Value="12,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+    </Style>
+
+    <Style
+        x:Key="DialogSearchInput"
+        BasedOn="{StaticResource DialogInput}"
+        TargetType="TextBox">
+        <Setter Property="Padding" Value="8,0,10,0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <!--  ====================  下拉框  ====================  -->
+
+    <!--  下拉列表项（圆角 hover / 选中高亮）  -->
+    <Style x:Key="DialogComboItem" TargetType="ComboBoxItem">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border
+                        x:Name="Bg"
+                        Margin="4,1"
+                        Padding="10,7"
+                        Background="Transparent"
+                        CornerRadius="6">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        下拉选项模板：必须用显式 ItemTemplate，不能用 DisplayMemberPath。
+        原因：自定义模板的选中框靠 SelectionBoxItemTemplate 渲染，
+        而 DisplayMemberPath 生成的"别名模板"不会同步给它，选中框会退化成 ToString()。
+    -->
+    <DataTemplate x:Key="DialogDisplayNameTemplate">
+        <TextBlock
+            VerticalAlignment="Center"
+            Text="{Binding DisplayName}"
+            TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="DialogConnectionOptionTemplate">
+        <StackPanel Orientation="Horizontal">
+            <TextBlock
+                VerticalAlignment="Center"
+                Text="{Binding ConnectionName}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                Margin="8,0,0,0"
+                VerticalAlignment="Center"
+                FontSize="11"
+                Foreground="{StaticResource DialogTextMutedBrush}"
+                Text="{Binding Protocol}" />
+        </StackPanel>
+    </DataTemplate>
+
+    <!--
+        下拉框：整框热区与外观合二为一。
+        边框 / 底纹 / 箭头全部画在 ToggleButton 自己的模板里，ToggleButton 铺满整框
+        ⇒ 点框内任意位置都能展开（解决"只有箭头那一点点能点"）。
+        选中项用 ContentPresenter + SelectionBoxItemTemplate 叠在上层，
+        但 IsHitTestVisible=False，不吃命中。
+    -->
+    <Style x:Key="DialogCombo" TargetType="ComboBox">
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="12,0,34,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource DialogInputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource DialogComboItem}" />
+        <Setter Property="MaxDropDownHeight" Value="300" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton
+                            x:Name="Chrome"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            ClickMode="Press"
+                            Cursor="Hand"
+                            Focusable="False"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border
+                                        x:Name="Bd"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="8"
+                                        SnapsToDevicePixels="True">
+                                        <Path
+                                            x:Name="Arrow"
+                                            Width="10"
+                                            Height="6"
+                                            Margin="0,0,12,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Data="M0,0 L5,5 L10,0"
+                                            Stroke="{StaticResource DialogTextMutedBrush}"
+                                            StrokeThickness="1.5" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="#CBD5E1" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                                            <Setter TargetName="Arrow" Property="Stroke" Value="{StaticResource DialogAccentBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Content="{TemplateBinding SelectionBoxItem}"
+                            ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                            ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                            IsHitTestVisible="False" />
+
+                        <Popup
+                            AllowsTransparency="True"
+                            Focusable="False"
+                            IsOpen="{TemplateBinding IsDropDownOpen}"
+                            Placement="Bottom"
+                            PopupAnimation="Fade">
+                            <Border
+                                MinWidth="{Binding ActualWidth, ElementName=Chrome}"
+                                Margin="0,4,0,10"
+                                Background="{StaticResource DialogSurfaceBrush}"
+                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <Border.Effect>
+                                    <DropShadowEffect
+                                        BlurRadius="14"
+                                        Opacity="0.16"
+                                        ShadowDepth="2"
+                                        Color="{StaticResource DialogShadowColor}" />
+                                </Border.Effect>
+                                <ScrollViewer>
+                                    <StackPanel Margin="0,4" IsItemsHost="True" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  分组内的下拉框：白底 + 淡蓝描边  -->
+    <Style
+        x:Key="DialogComboInGroup"
+        BasedOn="{StaticResource DialogCombo}"
+        TargetType="ComboBox">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+    </Style>
+
+    <!--  ====================  分段控件（胶囊切换）  ====================  -->
+
+    <!--  分段控件的容器：浅底 + 圆角，让里面的胶囊看起来"嵌在槽里"  -->
+    <Style x:Key="DialogSegmentHost" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="3" />
+    </Style>
+
+    <Style x:Key="DialogSegmentRadio" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="#6B7280" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border
+                        x:Name="Bg"
+                        Background="Transparent"
+                        CornerRadius="8">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogAccentBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ====================  按钮  ====================  -->
+
+    <!--  主操作按钮（青蓝渐变 + 悬停/按下/禁用反馈）  -->
+    <Style x:Key="DialogPrimaryButton" TargetType="Button">
+        <Setter Property="Height" Value="44" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="10">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0" Color="#38BDF8" />
+                                <GradientStop Offset="1" Color="#0EA5E9" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.92" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.82" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  次级按钮（描边式）：与主按钮成对出现时用，如「取消 / 确定」  -->
+    <Style x:Key="DialogSecondaryButton" TargetType="Button">
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bg"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="10">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  轻量按钮（无边框，图标+文字）：批量操作、清除筛选这类次要动作用它  -->
+    <Style x:Key="DialogGhostButton" TargetType="Button">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bg"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="8">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.6" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  行内图标按钮（表格操作列，hover 圆角底色）  -->
+    <Style x:Key="DialogIconButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Opacity" Value="0.78" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bg"
+                        Width="27"
+                        Height="27"
+                        Background="Transparent"
+                        CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                            <Setter Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ====================  状态指示  ====================  -->
+
+    <!--  在线状态圆点（8×8）  -->
+    <Style x:Key="DialogStatusDot" TargetType="Ellipse">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        状态胶囊（连接管理表格用）。
+        颜色对齐全项目语义色（成功 #22C55E / 危险 #EF4444 / 警示 #F59E0B），
+        不再自造一套 #2FBF71/#E5484D/#F5A524 —— 同一个"错误红"深浅不一最难忍。
+
+        五种状态各有自己的名字与配色：
+          Disconnected 离线 灰 / Connecting 连接中 橙 / Connected 在线 绿
+          Reconnecting 重连中 橙（退避等待，还没判死刑）
+          Error        错误   红（终态：关了自动重连或超了重连上限）
+        最后错误（LastError）不为空时，胶囊右侧追加 ⚠ 并把错误挂在 ToolTip 上 ——
+        状态列只有 110px，加不下一整列"错误详情"，寄生在胶囊上是唯一不挤爆布局的落点。
+    -->
+    <DataTemplate x:Key="DialogStatusPillTemplate">
+        <Border
+            x:Name="Pill"
+            Padding="9,3"
+            HorizontalAlignment="Left"
+            Background="{StaticResource DialogRowHoverBrush}"
+            CornerRadius="11"
+            ToolTipService.ShowDuration="30000">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="ToolTip" Value="{x:Null}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding State}" Value="Connected">
+                            <Setter Property="Background" Value="#E8F5E9" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="Error">
+                            <Setter Property="Background" Value="#FDECEC" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="Connecting">
+                            <Setter Property="Background" Value="#FFF4E5" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="Reconnecting">
+                            <Setter Property="Background" Value="#FFF4E5" />
+                        </DataTrigger>
+                        <!--  只有真的有错误文案才挂 ToolTip，否则空字符串会弹出一个空框  -->
+                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                            <Setter Property="ToolTip" Value="{Binding LastError}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="7" Height="7" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="#98A2B3" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="Connected">
+                                    <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Error">
+                                    <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Connecting">
+                                    <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Reconnecting">
+                                    <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock
+                    Margin="6,0,0,0"
+                    VerticalAlignment="Center"
+                    FontSize="12">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="离线" />
+                            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="Connected">
+                                    <Setter Property="Text" Value="在线" />
+                                    <Setter Property="Foreground" Value="#15803D" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Error">
+                                    <Setter Property="Text" Value="错误" />
+                                    <Setter Property="Foreground" Value="#B91C1C" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Connecting">
+                                    <Setter Property="Text" Value="连接中" />
+                                    <Setter Property="Foreground" Value="#B45309" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="Reconnecting">
+                                    <Setter Property="Text" Value="重连中" />
+                                    <Setter Property="Foreground" Value="#B45309" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <!--  有错误时追加 ⚠：一眼能看出"这条不只是离线，是出过错"  -->
+                <TextBlock
+                    Margin="5,0,0,0"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource DialogIconFont}"
+                    FontSize="11"
+                    Foreground="{StaticResource DialogDangerBrush}"
+                    Text="&#xf071;">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+
+    <!--  ====================  空状态  ====================  -->
+
+    <!--  空状态大图标：淡灰、居中，只做视觉锚点  -->
+    <Style x:Key="DialogEmptyStateIcon" TargetType="TextBlock">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+        <Setter Property="FontSize" Value="40" />
+        <Setter Property="Foreground" Value="#CBD5E1" />
+    </Style>
+
+    <Style x:Key="DialogEmptyStateTitle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,14,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="DialogEmptyStateHint" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,6,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+        <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+
+    <!--  ====================  DataGrid 系列  ====================  -->
+
+    <Style x:Key="DialogDataGridCell" TargetType="DataGridCell">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <!--
+            左边距统一交给单元格（而不是让每个 CellTemplate 自己写 Margin）：
+            表头 Padding 是 12，单元格 Padding 也是 12，两行的文字基线才落在同一竖线上。
+            老写法只有"设备名称"那列写了 Margin=14，其余列贴左 0 ⇒ 表头与内容错开一格。
+        -->
+        <Setter Property="Padding" Value="12,0,0,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderThickness="0"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            VerticalAlignment="Center"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        无左边距单元格：给"内容自带内边距"的列用（扫描组编辑器里的组名 / 周期列，
+        单元格内容是一支内联输入框）。
+        DialogDataGridCell 的 Padding=12 是给纯文本列用的（让文字基线落在表头那根 12px 竖线上）；
+        但内联输入框自己还有 1px 描边 + 11px 内边距，两层叠加会把文字推到 24px，比表头缩进一格。
+        所以这类列改用本样式把外层内边距清零，缩进交给输入框自己撑满。
+    -->
+    <Style
+        x:Key="DialogDataGridCellFlush"
+        BasedOn="{StaticResource DialogDataGridCell}"
+        TargetType="DataGridCell">
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style x:Key="DialogDataGridRow" TargetType="DataGridRow">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Margin" Value="0,1" />
+        <Style.Triggers>
+            <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  表头必须先于 DialogDataGrid 定义：StaticResource 不允许前向引用  -->
+    <Style x:Key="DialogDataGridColumnHeader" TargetType="DataGridColumnHeader">
+        <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Height" Value="42" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+    </Style>
+
+    <Style x:Key="DialogDataGrid" TargetType="DataGrid">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="RowHeight" Value="46" />
+        <Setter Property="HeadersVisibility" Value="Column" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="AutoGenerateColumns" Value="False" />
+        <Setter Property="CanUserAddRows" Value="False" />
+        <!--
+            CanUserDeleteRows 默认是 true：选中一行按 Delete 会直接从数据源里删掉那一行，
+            而且不弹确认框。连接管理 / 变量管理 / 扫描组三张表都不该有这种"误按即丢配置"的入口，
+            所以统一在皮肤层关掉，删除一律走各表自己的「删除」按钮（那里有确认框）。
+        -->
+        <Setter Property="CanUserDeleteRows" Value="False" />
+        <Setter Property="CanUserResizeRows" Value="False" />
+        <Setter Property="SelectionMode" Value="Single" />
+        <Setter Property="SelectionUnit" Value="FullRow" />
+        <Setter Property="RowDetailsVisibilityMode" Value="Collapsed" />
+        <Setter Property="AlternationCount" Value="2" />
+        <Setter Property="CellStyle" Value="{StaticResource DialogDataGridCell}" />
+        <Setter Property="RowStyle" Value="{StaticResource DialogDataGridRow}" />
+        <Setter Property="ColumnHeaderStyle" Value="{StaticResource DialogDataGridColumnHeader}" />
+    </Style>
+
+    <!--  ====================  表格内联编辑  ====================  -->
+
+    <!--
+        表格内联输入框：平时看不出是输入框（透明无边框），鼠标划过浮出描边、聚焦转主色描边。
+        这样"这一格能不能改"靠划过一次就自明，不必额外加一列说明。
+        ★ Padding 与 BorderThickness 在所有状态下恒定：一旦 hover 时才加边框，
+          文字会左右跳 1px，整表看起来在抖。
+        ★ 只读态（默认组的组名）的触发器放在最后：它优先级最高，把上面的 hover / 聚焦描边全盖掉，
+          于是"划过也不出边框"本身成了"这格不可改"的视觉信号。
+        ★ Padding 用 11 而不是 8：配合 DialogDataGridCellFlush（外层内边距 0），
+          文字落在 1px 描边 + 11px 内边距 = 12px 处，正好压在表头那根 12px 竖线上。
+    -->
+    <Style x:Key="DialogGridInput" TargetType="TextBox">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="11,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource DialogAccentBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border
+                        x:Name="border"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="6"
+                        SnapsToDevicePixels="True">
+                        <ScrollViewer
+                            x:Name="PART_ContentHost"
+                            Focusable="False"
+                            HorizontalScrollBarVisibility="Hidden"
+                            VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource DialogInputBackgroundBrush}" />
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsReadOnly" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="Transparent" />
+                            <Setter TargetName="border" Property="Background" Value="Transparent" />
+                            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  表格只读数字列（变量数 / 段数 / 目标周期 / 实测周期）：右对齐，数值才好纵向比大小  -->
+    <Style x:Key="DialogGridNumber" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    </Style>
+
+    <!--  ====================  来源树节点  ====================  -->
+
+    <!--  选中左侧色条 + 浅蓝底 + 计数徽标  -->
+    <DataTemplate x:Key="DialogSourceNodeTemplate">
+        <Border
+            x:Name="NodeBorder"
+            Height="38"
+            Margin="6,2"
+            Padding="10,0"
+            Background="Transparent"
+            CornerRadius="8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border
+                    x:Name="Indicator"
+                    Width="3"
+                    Margin="-10,6,8,6"
+                    Background="{StaticResource DialogAccentBrush}"
+                    CornerRadius="2"
+                    Visibility="Collapsed" />
+
+                <TextBlock
+                    Grid.Column="0"
+                    Width="16"
+                    Margin="0,0,8,0"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource DialogIconFont}"
+                    FontSize="13"
+                    Text="{Binding Icon}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsNetwork}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontSize="13"
+                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                    Text="{Binding DisplayName}"
+                    TextTrimming="CharacterEllipsis" />
+
+                <!--  在线圆点（仅网络来源）  -->
+                <Ellipse
+                    Grid.Column="2"
+                    Width="7"
+                    Height="7"
+                    Margin="0,0,8,0"
+                    VerticalAlignment="Center"
+                    Fill="{StaticResource DialogSuccessBrush}">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsNetwork}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsOnline}" Value="False">
+                                    <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+
+                <Border
+                    x:Name="CountBadge"
+                    Grid.Column="3"
+                    MinWidth="20"
+                    Padding="6,2"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource DialogRowHoverBrush}"
+                    CornerRadius="10">
+                    <TextBlock
+                        x:Name="CountText"
+                        HorizontalAlignment="Center"
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="{Binding Count}" />
+                </Border>
+            </Grid>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                <Setter TargetName="NodeBorder" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                <Setter TargetName="CountBadge" Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter TargetName="CountText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+            </DataTrigger>
+            <Trigger SourceName="NodeBorder" Property="IsMouseOver" Value="True">
+                <Setter TargetName="NodeBorder" Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            </Trigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+</ResourceDictionary>

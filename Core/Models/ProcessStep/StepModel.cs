@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -63,7 +64,7 @@ namespace VisionMaster.Models
         public StepState State
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set => SetRuntimeState(ref field, value);
         }
 
         /// <summary>
@@ -74,7 +75,7 @@ namespace VisionMaster.Models
         public bool IsRunningFocus
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set => SetRuntimeState(ref field, value);
         }
 
         /// <summary>
@@ -86,7 +87,7 @@ namespace VisionMaster.Models
         public long? LastRunStartTimestamp
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set => SetRuntimeState(ref field, value);
         }
 
         /// <summary>
@@ -100,7 +101,7 @@ namespace VisionMaster.Models
         public double LastRunTimeMs
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set => SetRuntimeState(ref field, value);
         }
 
         /// <summary>
@@ -112,14 +113,100 @@ namespace VisionMaster.Models
         public double CurrentRunTimeMs
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set => SetRuntimeState(ref field, value);
+        }
+
+        /// <summary>
+        /// 批量作用域的嵌套深度。大于 0 期间，运行状态属性只改值、不发 PropertyChanged，
+        /// 变更的属性名先记在 _pendingRuntimeNotify 账上，最外层作用域结束时统一补发。
+        /// </summary>
+        private int _runtimeNotifyDepth;
+
+        /// <summary>批量作用域内被改过的属性名（去重），供作用域结束时按名字补发通知</summary>
+        private List<string> _pendingRuntimeNotify;
+
+        /// <summary>
+        /// 运行状态属性的统一写入口：值真变了才发通知；批量模式下只记名字不发。
+        ///
+        /// 为什么不直接用 SetProperty（B2）：一个步骤跑一轮要动 4~6 个运行状态属性
+        /// （置 Running、开始计时、结束计时、置 Success），每个都发一条 PropertyChanged；
+        /// 而这些通知来自引擎线程，WPF 得逐条编组回 UI 线程才能刷新绑定。
+        /// 100 步的流程按 10ms 一拍循环，就是每秒上万次跨线程通知 ——
+        /// UI 什么算法都没看，光处理通知就排满了队，表现为画布发木、高亮滞后。
+        /// 加上判等闸门后，"没变的属性"一条通知也不发（例如反复复位一个本来就 Idle 的步骤）。
+        /// </summary>
+        private void SetRuntimeState<T>(ref T storage, T value, [CallerMemberName] string propertyName = null)
+        {
+            if (EqualityComparer<T>.Default.Equals(storage, value)) return;
+
+            storage = value;
+
+            if (_runtimeNotifyDepth == 0)
+            {
+                RaisePropertyChanged(propertyName);
+                return;
+            }
+
+            // 批量模式：记名待发。同一属性在一个作用域内被写两次只记一次，
+            // 于是"改四次 → 发四条"能压成"发一条"，UI 只刷一遍。
+            var pending = _pendingRuntimeNotify;
+            if (propertyName != null && pending != null && !pending.Contains(propertyName))
+                pending.Add(propertyName);
+        }
+
+        /// <summary>
+        /// 开一段"批量改运行状态"的作用域：作用域内的赋值憋着不发，
+        /// Dispose 时把真正变过的属性名逐条补发。
+        ///
+        /// 【为什么不能图省事用 RaisePropertyChanged("") 一把全刷】
+        /// 空串在 WPF 里确实是"本对象所有属性都可能变了"的标准约定，UI 侧没问题；
+        /// 问题是 FlowModel 也订阅了步骤的 PropertyChanged，它靠**属性名**去查
+        /// [RuntimeState] 名单，名字在名单里才不递增 Version。
+        /// 空串显然不在名单里 → 被判定成语义变更 → Version++ →
+        /// 每轮运行前都被迫全量重编译，正是这套排除名单当初要修掉的坑。
+        /// 所以补发必须用真实属性名，宁可多发几条也不能丢掉名字。
+        /// </summary>
+        private IDisposable BatchRuntimeNotify()
+        {
+            if (_runtimeNotifyDepth++ == 0)
+                _pendingRuntimeNotify = new List<string>();
+
+            return new RuntimeNotifyScope(this);
+        }
+
+        private sealed class RuntimeNotifyScope : IDisposable
+        {
+            private StepModel _owner;
+
+            public RuntimeNotifyScope(StepModel owner) => _owner = owner;
+
+            public void Dispose()
+            {
+                var owner = _owner;
+                if (owner == null) return;
+                _owner = null;
+
+                // 还有外层作用域没结束，名字留在账上，等最外层统一发
+                if (--owner._runtimeNotifyDepth > 0) return;
+
+                var pending = owner._pendingRuntimeNotify;
+                owner._pendingRuntimeNotify = null;
+                if (pending == null) return;
+
+                for (int i = 0; i < pending.Count; i++)
+                    owner.RaisePropertyChanged(pending[i]);
+            }
         }
 
         /// <summary>开始计时：记录 Stopwatch 起始读数并清零实时耗时</summary>
         public void BeginTiming()
         {
-            LastRunStartTimestamp = Stopwatch.GetTimestamp();
-            CurrentRunTimeMs = 0;
+            // 必须写成 using(...)：光秃秃的 using Xxx() 会被编译器当成 using 别名声明
+            using (BatchRuntimeNotify())
+            {
+                LastRunStartTimestamp = Stopwatch.GetTimestamp();
+                CurrentRunTimeMs = 0;
+            }
         }
 
         /// <summary>
@@ -131,8 +218,13 @@ namespace VisionMaster.Models
                 return 0;
 
             double elapsedMs = Stopwatch.GetElapsedTime(LastRunStartTimestamp.Value).TotalMilliseconds;
-            LastRunTimeMs = elapsedMs;
-            CurrentRunTimeMs = elapsedMs;
+
+            using (BatchRuntimeNotify())
+            {
+                LastRunTimeMs = elapsedMs;
+                CurrentRunTimeMs = elapsedMs;
+            }
+
             return elapsedMs;
         }
 
@@ -230,10 +322,22 @@ namespace VisionMaster.Models
         /// </summary>
         public void ResetState()
         {
-            State = StepState.Idle;
-            IsRunningFocus = false;
-            CurrentRunTimeMs = 0;
-            LastRunStartTimestamp = null;
+            // 先自检：本来就已经干净就直接返回。
+            // 调度层每轮都会对全部步骤调一次 ResetState，而稳态下大量步骤本来就停在 Idle，
+            // 少了这道闸门，"复位"就是在给没变的东西反复发通知。
+            if (State == StepState.Idle
+                && !IsRunningFocus
+                && CurrentRunTimeMs == 0
+                && LastRunStartTimestamp == null)
+                return;
+
+            using (BatchRuntimeNotify())
+            {
+                State = StepState.Idle;
+                IsRunningFocus = false;
+                CurrentRunTimeMs = 0;
+                LastRunStartTimestamp = null;
+            }
         }
 
     }

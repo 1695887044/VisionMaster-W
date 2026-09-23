@@ -30,13 +30,13 @@
     </Reference>
   </ItemGroup>
 
+  <!-- 插件私有依赖与运行期资源投递（插件自身 DLL 的投递已由 Plugins\Directory.Build.targets 统一处理） -->
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy $(TargetPath) $(SolutionDir)\Modules\$(TargetFileName) /Y" />
     <!-- 仅部署插件专属依赖 hdevenginedotnet（主程序目录无此件）；halcondotnet 由主程序目录提供，勿拷入 Modules 以免类型标识冲突 -->
-    <Exec Command="copy $(TargetDir)hdevenginedotnet.dll $(SolutionDir)\Modules\hdevenginedotnet.dll /Y" />
+    <Exec Command="copy $(TargetDir)hdevenginedotnet.dll $(ModulesDir)hdevenginedotnet.dll /Y" />
     <!-- 示例代码资源（Halcon 官方例程图片+OCR模型+自定义过程）→ 宿主运行目录，供"插入示例代码"直接引用 -->
-    <!-- 目标必须是 $(ConfigurationName) 而非写死 Debug：images 尚有 HALCON 自带资源目录兜底，
+    <!-- 目标必须是 $(Configuration) 而非写死 Debug：images 尚有 HALCON 自带资源目录兜底，
          而 procedures\publish_preview.hdvp 没有兜底——漏拷会表现为"unresolved procedure call"，极难定位 -->
-    <Exec Command="xcopy &quot;$(ProjectDir)ScriptAssets&quot; &quot;$(SolutionDir)VisionMaster\bin\$(ConfigurationName)\net9.0-windows\ScriptAssets\&quot; /E /I /Y /Q" />
+    <Exec Command="xcopy &quot;$(ProjectDir)ScriptAssets&quot; &quot;$(HostBinDir)ScriptAssets\&quot; /E /I /Y /Q" />
   </Target>
 </Project>

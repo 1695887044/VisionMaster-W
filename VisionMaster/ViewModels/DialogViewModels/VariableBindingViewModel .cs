@@ -21,6 +21,17 @@ namespace VisionMaster.ViewModels
         public string Title => "变量绑定";
         public IWorkspaceManager Workspace { get; init; }
 
+        /// <summary>
+        /// 本次绑定的目标步骤 —— 候选树的"我在给谁连线"锚点，也是回写 LinkedSources 的对象。
+        ///
+        /// 取值优先级：弹窗参数 TargetStep 显式传入 > Workspace.CurrentStep。
+        /// 为什么不能只靠 CurrentStep：下钻进容器语义下它指向的是外层容器而不是被双击的步骤
+        /// （画布上双击 For 里的节点，CurrentStep 仍是那个 For），
+        /// 只认它就永远算不出"For/While 子层里某步骤"的上游候选。
+        /// 老调用方不传 TargetStep 时行为与原来完全一致。
+        /// </summary>
+        private StepModel _targetStep;
+
         public ObservableCollection<InputPortUIModel> DisplayDataPort { get; } = new();
         public ObservableCollection<ToolItemModel> TreeNodes { get; } = new();
 
@@ -49,7 +60,7 @@ namespace VisionMaster.ViewModels
             {
                 if (port == null || _isSingleBindMode)
                     return;
-                Workspace.CurrentStep.LinkedSources.Remove(port.Definition.Name);
+                _targetStep?.LinkedSources.Remove(port.Definition.Name);
                 port.LinkedAddress = null;
             });
 
@@ -236,12 +247,12 @@ namespace VisionMaster.ViewModels
             };
 
             // P0-③：单绑模式下弹窗只负责"把用户选的变量还给出题人"（经 BoundLink 回传），
-            // 绝不能直写 Workspace.CurrentStep.LinkedSources——此时 CurrentStep 可能是条件节点，
+            // 绝不能直写目标步骤的 LinkedSources——此时目标可能是条件节点，
             // bindKey 会落到中文描述上（如"当前准备绑定的变量"），在活模型里留下垃圾键
-            if (!_isSingleBindMode)
+            if (!_isSingleBindMode && _targetStep != null)
             {
                 string bindKey;
-                if (Workspace.CurrentStep is ConditionStep)
+                if (_targetStep is ConditionStep)
                 {
                     bindKey = SelectedInputPort.Definition.Description;
                 }
@@ -250,7 +261,7 @@ namespace VisionMaster.ViewModels
                     bindKey = SelectedInputPort.Definition.Name;
                 }
 
-                Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;
+                _targetStep.LinkedSources[bindKey] = linkRef;
             }
             SelectedInputPort.LinkedAddress = displayName;
 
@@ -266,8 +277,8 @@ namespace VisionMaster.ViewModels
                 string displayName = $"{LinkProtocol.ConstantDisplayPrefix}{ConstantValue}";
                 var linkRef = new LinkReference(LinkKind.Constant, Guid.Empty, ConstantValue, displayName);
                 // P0-③：同 DoFinalBind，单绑模式下常量也只回传、不写活模型
-                if (!_isSingleBindMode)
-                    Workspace.CurrentStep.LinkedSources[bindKey] = linkRef;
+                if (!_isSingleBindMode && _targetStep != null)
+                    _targetStep.LinkedSources[bindKey] = linkRef;
                 SelectedInputPort.LinkedAddress = displayName;
                 _lastBoundLink = linkRef;
                 _lastBoundPort = new PortDefinition
@@ -292,7 +303,7 @@ namespace VisionMaster.ViewModels
 
         public void BuildTree(IDialogParameters parameters = null)
         {
-            if (DisplayDataPort == null || TreeNodes == null || Workspace?.CurrentStep == null)
+            if (DisplayDataPort == null || TreeNodes == null || _targetStep == null)
                 return;
 
             DisplayDataPort.Clear();
@@ -302,7 +313,7 @@ namespace VisionMaster.ViewModels
             {
                 if (
                     pluginProvider.ModulePlugins.TryGetValue(
-                        Workspace.CurrentStep.PluginTypeName,
+                        _targetStep.PluginTypeName,
                         out var pluginInfo
                     )
                 )
@@ -311,7 +322,7 @@ namespace VisionMaster.ViewModels
                     {
                         foreach (var schema in pluginInfo.InputDefinitions)
                         {
-                            Workspace.CurrentStep.LinkedSources.TryGetValue(
+                            _targetStep.LinkedSources.TryGetValue(
                                 schema.Name,
                                 out var existingLink
                             );
@@ -363,7 +374,7 @@ namespace VisionMaster.ViewModels
             var availableVars = FlowQueryHelper.GetAvailableVariablesTree(
                 Workspace.GlobalVariables,
                 Workspace.CurrentFlow.Steps,
-                Workspace.CurrentStep
+                _targetStep
             );
             foreach (var item in availableVars)
             {
@@ -378,6 +389,16 @@ namespace VisionMaster.ViewModels
         public void OnDialogOpened(IDialogParameters parameters)
         {
             _isSingleBindMode = parameters.GetValue<bool>("IsSingleBindMode");
+
+            // 目标步骤：外部显式传入优先（For/条件弹窗的下钻场景），否则退回 Workspace.CurrentStep。
+            // 单靠 CurrentStep 会在"下钻进容器"时指错人：它指向的是容器本身，不是被双击的那个步骤。
+            _targetStep =
+                parameters != null
+                && parameters.TryGetValue<StepModel>("TargetStep", out var explicitTarget)
+                && explicitTarget != null
+                    ? explicitTarget
+                    : Workspace?.CurrentStep;
+
             BuildTree(parameters);
         }
 

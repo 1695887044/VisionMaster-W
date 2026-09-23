@@ -133,7 +133,20 @@ namespace VisionMaster
         /// 刻意加在末尾而不是插在中间——枚举的整数值可能已经落进过 Layout.xml / 旧配置文件，
         /// 中间插一个会把后面所有成员的值整体挪一位，读回来就是另一个动作了。
         /// </summary>
-        RuntimeWindowSettings
+        RuntimeWindowSettings,
+        /// <summary>
+        /// 系统参数设置：空闲自动登出时长、审计 / 报警历史的保留天数。
+        /// 与 <see cref="RuntimeWindowSettings"/> 同口径（软件级配置，存 AppConfig.json），
+        /// 同样加在末尾——理由见上一条注释。
+        /// </summary>
+        SystemParameters,
+        /// <summary>
+        /// 变量事件：按变量集中配置值驱动的规则（更改数值 / 值为真 / 值为假 / 上限 / 下限）。
+        /// 与上面两个不同，它改的是<b>方案内容</b>（落 .vms、进撤销栈），而不是软件级偏好；
+        /// 之所以也走「系统」菜单，是因为它没有"当前选中的图元"这个落脚点——
+        /// 可组态对象直接是变量，属性面板描述不了它。同样加在末尾（理由见 RuntimeWindowSettings）。
+        /// </summary>
+        VariableEvents
     }
 
     /// <summary>

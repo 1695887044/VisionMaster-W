@@ -7,18 +7,6 @@ using Prism.Mvvm;
 namespace VisionMaster.Models
 {
     /// <summary>
-    /// 流程执行优先级枚举
-    /// 用于多流程并发执行时的调度优先级控制
-    /// </summary>
-    public enum FlowPriority
-    {
-        Low = 0,
-        Normal = 1,
-        High = 2,
-        Critical = 3
-    }
-
-    /// <summary>
     /// 流程会话类
     /// 代表一个流程实例的运行时状态，支持线程安全的状态管理
     /// 会话是编译实例的属主：Dispose 负责释放编译引擎创建的全部插件实例
@@ -122,11 +110,6 @@ namespace VisionMaster.Models
                 }
             }
         }
-
-        /// <summary>
-        /// 流程执行优先级
-        /// </summary>
-        public FlowPriority Priority { get; set; } = FlowPriority.Normal;
 
         /// <summary>
         /// 当前会话锁定的资源集合

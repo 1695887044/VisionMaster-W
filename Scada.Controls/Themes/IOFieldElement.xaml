@@ -7,8 +7,12 @@
         数值域图元的外观：一个边框（Border）+ 一行两列（说明字 / 数值 + 单位）。
 
         模板里没有任何"数值 → 字符串"的换算：右边那格绑的是只读依赖属性 ValueText，
-        换算在控件代码里（见 IOFieldElement.UpdateText）。与棒图绑 FillLength、
+        换算在控件代码里（见 IOFieldElement.UpdateDisplay）。与棒图绑 FillLength、
         多态灯绑 LampBrush 是同一套路子——模板只负责摆放。
+
+        颜色同理：边框色绑只读 DisplayStroke、数值字色绑只读 DisplayBrush，而不是直接绑
+        Stroke / Foreground。"超上限描红、低于下限描橙、提交失败描错"这三种换色都在控件里算完，
+        模板里一条 Trigger 都不用写；断言也能直接读这两个属性，不必去数像素。
 
         为什么用 Border 而不是 Rectangle：Border 的描边画在自己的布局框<b>内</b>
         （Rectangle 的描边骑在边界线上，所以矩形图元得靠 ApplyStrokeInset 把半线宽转成内缩）。
@@ -17,6 +21,21 @@
         说明字留空时整列塌掉（DataTrigger 收起那个 TextBlock）：列宽是 Auto，
         收起后数值那一格自然从最左边起排，不必再为"有没有标签"分两种模板。
         列间距放在说明字的 Margin 上而不是 Grid 的列宽上，收起时连间距一起消失。
+
+        ==== 就地编辑（S9）：右列是两块叠着的元素 ====
+
+        显示用的 TextBlock（ValueDisplay）与编辑用的 TextBox（PART_Editor）叠在同一格里，
+        由 IsEditing 决定谁露面。为什么不干脆"把 TextBlock 换成 TextBox"：
+        换元素要动可视树，而模板一旦重建，名字域、焦点、绑定全要重来一遍；
+        叠着只是两个 Visibility 翻转，编辑态与显示态共用同一套字体、对齐、内衬，字号对不上的问题不存在。
+
+        TextBox 那层淡蓝底（#332196F3，半透明）是唯一的"正在编辑"提示：
+        故意不拿边框去换色，因为提交失败时边框必须是红的（DisplayStroke 已经占了这个位置），
+        两种状态抢同一个属性，谁赢都说不清。淡蓝叠在底色上，深浅主题都不刺眼。
+
+        样式上的 Focusable=False 不影响输入：它管的是"这个容器自己能不能被 Tab 到"，
+        子元素 TextBox 照样能被键盘聚焦（和 Border/Grid 里放 TextBox 是一回事）。
+        反过来保留它还有好处——鼠标点在框上时焦点不会被容器截走，正好落进 PART_Editor。
     -->
     <Style TargetType="{x:Type local:IOFieldElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -27,9 +46,10 @@
                 <ControlTemplate TargetType="{x:Type local:IOFieldElement}">
                     <Border
                         Background="{TemplateBinding Fill}"
-                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderBrush="{TemplateBinding DisplayStroke}"
                         BorderThickness="{TemplateBinding StrokeThickness}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        ToolTip="{TemplateBinding EditError}">
 
                         <!-- 内衬留白：描边占了框沿，文字再贴上去就会压线 -->
                         <Grid Margin="6,2">
@@ -52,16 +72,38 @@
                                 VerticalAlignment="Center" />
 
                             <TextBlock
-                                x:Name="ValueText"
+                                x:Name="ValueDisplay"
                                 Grid.Column="1"
                                 Text="{TemplateBinding ValueText}"
-                                Foreground="{TemplateBinding Foreground}"
+                                Foreground="{TemplateBinding DisplayBrush}"
                                 FontFamily="{TemplateBinding FontFamily}"
                                 FontSize="{TemplateBinding FontSize}"
                                 FontWeight="{TemplateBinding FontWeight}"
                                 TextAlignment="{TemplateBinding TextAlignment}"
                                 TextTrimming="CharacterEllipsis"
                                 VerticalAlignment="Center" />
+
+                            <!--
+                                编辑框的字体/对齐必须与上面的 TextBlock 逐项对齐，否则一进编辑态字会跳一下。
+                                VerticalAlignment=Stretch 让那层淡蓝铺满整格高度；VerticalContentAlignment=Center
+                                把文字按行高居中，跟 TextBlock 的 VerticalAlignment=Center 视觉上对齐。
+                            -->
+                            <TextBox
+                                x:Name="PART_Editor"
+                                Grid.Column="1"
+                                Text="{Binding EditText, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                Foreground="{TemplateBinding Foreground}"
+                                CaretBrush="{TemplateBinding Foreground}"
+                                Background="#332196F3"
+                                BorderThickness="0"
+                                Padding="0"
+                                FontFamily="{TemplateBinding FontFamily}"
+                                FontSize="{TemplateBinding FontSize}"
+                                FontWeight="{TemplateBinding FontWeight}"
+                                TextAlignment="{TemplateBinding TextAlignment}"
+                                VerticalContentAlignment="Center"
+                                VerticalAlignment="Stretch"
+                                Visibility="Collapsed" />
                         </Grid>
                     </Border>
 
@@ -71,9 +113,23 @@
                             Value="">
                             <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed" />
                         </DataTrigger>
+
+                        <DataTrigger
+                            Binding="{Binding IsEditing, RelativeSource={RelativeSource TemplatedParent}}"
+                            Value="True">
+                            <Setter TargetName="ValueDisplay" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="PART_Editor" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+
+        <Style.Triggers>
+            <!-- 能改的时候把指针换成文本光标：运行态没有任何边框提示，就靠这一个指针说"这儿能敲" -->
+            <DataTrigger Binding="{Binding IsEditable, RelativeSource={RelativeSource Self}}" Value="True">
+                <Setter Property="Cursor" Value="IBeam" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

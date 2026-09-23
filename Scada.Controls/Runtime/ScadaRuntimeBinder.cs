@@ -8,7 +8,7 @@ using VisionMaster.Scada;
 namespace VisionMaster.Scada.Controls
 {
     /// <summary>
-    /// 运行态数据泵：把「工程变量的值变化」变成「图元属性的变化」。
+    /// 运行态数据泵：把「工程变量的值变化」变成「图元属性 / 图元动画的变化」。
     ///
     /// 它在整条运行态链路上的位置
     /// ---------
@@ -16,12 +16,13 @@ namespace VisionMaster.Scada.Controls
     ///   变量（后台轮询线程改值）
     ///        │  ValueChanged（可能在任意线程）
     ///        ▼
-    ///   脏值暂存表（键 = 目标：控件 + 属性）      ← 只记"该写什么"，不碰控件
+    ///   脏值暂存表（键 = 目标：控件 + 属性 / 控件 + 动画）      ← 只记"该写什么"，不碰控件
     ///        │  首次脏值把「排一次帧」的标志立起来（同一帧只排一次）
     ///        ▼
     ///   Dispatcher.BeginInvoke（切回 UI 线程，一次刷完）
     ///        ▼
-    ///   ScadaElementBase.TryApplyRuntimeValue  →  控件依赖属性（不碰模型）
+    ///   ScadaElementBase.TryApplyRuntimeValue    →  控件依赖属性（不碰模型）
+    ///   ScadaElementBase.TryApplyAnimationValue  →  位置 / 前景 / 底色 / 透明度（不碰模型）
     ///        │  失败
     ///        ▼
     ///   ScadaDiagnosticOverlay 角标 + 日志回调
@@ -34,6 +35,8 @@ namespace VisionMaster.Scada.Controls
     ///    20ms 周期里一个变量变十次，界面只重绘一次；十个变量同帧变，也只排一次 Dispatcher。
     /// ③ <b>按变量订阅一次 + 反向分发</b>：表结构是「变量 → 一批目标」，
     ///    同一个变量被十个图元绑着也只挂一个 handler、只解析一次。
+    ///    <b>动画并入本类而不是另起一个 Binder</b>，为的就是这一条：动画与绑定看的常常是同一个变量，
+    ///    分开建表就会变成同一个变量挂两个 handler、同一帧排两次 Dispatcher。
     /// ④ <b>失败可见</b>：变量没解析到 → 橙角标；值转换失败 → 红角标；两者都写日志。
     ///
     /// 为什么不做历史值/趋势：那是另一条数据通路（要落库、要降采样），
@@ -87,17 +90,17 @@ namespace VisionMaster.Scada.Controls
         /// <summary>是否已建表（重复 Start 是空操作，重复 Stop 也是）</summary>
         public bool IsRunning => _running;
 
-        /// <summary>已建表并成功解析的绑定条数（自检用）</summary>
+        /// <summary>已建表并成功解析的绑定 / 动画条数（自检用）</summary>
         public int BoundCount { get; private set; }
 
-        /// <summary>未能建表的绑定条数：变量没解析到、属性键不认识（自检用）</summary>
+        /// <summary>未能建表的绑定 / 动画条数：变量没解析到、属性键不认识（自检用）</summary>
         public int MissCount { get; private set; }
 
         /// <summary>当前挂着的变量订阅数（一个变量一份；自检"摘表无残留"靠它）</summary>
         public int SubscriptionCount => _subscriptions.Count;
 
         /// <summary>
-        /// 建表：扫一遍当前已渲染的图元控件与它们的绑定，解析变量、挂订阅、先刷一遍当前值。
+        /// 建表：扫一遍当前已渲染的图元控件、它们的绑定与动画，解析变量、挂订阅、先刷一遍当前值。
         ///
         /// <b>必须在首帧渲染之后调用</b>——控件是在布局阶段才被造出来的
         /// （<c>OnApplyTemplate → RebuildElements</c>），会话 <c>Start()</c> 那一刻画布还是空的。
@@ -105,6 +108,7 @@ namespace VisionMaster.Scada.Controls
         ///
         /// 为什么建完表要立刻刷一遍：操作员打开画面就该看到此刻的真实状态，
         /// 而不是等下一次变量变化——一个不常动的开关可能几分钟都不变一次。
+        /// 这条对动画同样成立：位置/外观/可见性也必须一开画面就对，不能等第一次跳变。
         /// </summary>
         public void Start()
         {
@@ -120,6 +124,10 @@ namespace VisionMaster.Scada.Controls
 
                 foreach (var binding in element.Bindings)
                     BuildBinding(control, element, binding);
+
+                // 动画另开一段遍历：它与绑定共用订阅表与脏值表，但落点是另一条控件通道。
+                foreach (var animation in element.Animations)
+                    BuildAnimation(control, element, animation);
             }
 
             // 建表期收集的脏值在这里统一落一次（走同一条合并路径，不另开一条刷值代码）
@@ -218,6 +226,50 @@ namespace VisionMaster.Scada.Controls
         }
 
         /// <summary>
+        /// 给一条动画建表：解析它的变量、共享订阅、把「控件 + 动画」记成刷值目标。
+        ///
+        /// 与 <see cref="BuildBinding"/> 是同一套骨架，差别只有两处：
+        /// ① 没有"属性键查表"这一步——动画的类型本身就是它的落点，不需要再去属性表里找一个键；
+        /// ② 目标里装的是动画而不是属性描述符（见 <see cref="Target"/>）。
+        ///
+        /// 停用的动画（<see cref="ScadaAnimation.IsEnabled"/> 为假）不建表，与停用的绑定同一口径：
+        /// 既不订阅也不打点，"临时关掉一条动画看现象"要的就是干净。
+        /// </summary>
+        private void BuildAnimation(ScadaElementBase control, ScadaElement element, ScadaAnimation animation)
+        {
+            if (animation is null || !animation.IsEnabled)
+                return;
+
+            if (!animation.HasVariable)
+                return; // 还没选变量，不算错
+
+            if (!_valueSource.TryResolve(animation.VariableId, animation.VariableName, out var handle) || handle is null)
+            {
+                MissCount++;
+                Report(control, animation, ScadaDiagnosticLevel.Warning,
+                    $"画面「{_page.Name}」图元「{element.Name}」：动画「{animation.Type.DisplayName()}」的变量「{Describe(animation)}」没有找到，这条动画不会生效");
+                return;
+            }
+
+            var subscription = GetOrAddSubscription(handle);
+
+            var target = new Target
+            {
+                Control = control,
+                Animation = animation,
+                VariableName = handle.Name,
+            };
+
+            subscription.Targets.Add(target);
+
+            // 与绑定同一条理由：建表即刷当前值，否则"画面一打开就摆对位置"要等第一次跳变
+            lock (_gate)
+                _dirty[target] = handle.Value;
+
+            BoundCount++;
+        }
+
+        /// <summary>
         /// 取这个变量已有的订阅，没有就挂一个。
         /// 这是"按变量订阅一次"的落点：同一个变量被十个图元绑着，这里也只进一次 add。
         /// </summary>
@@ -247,6 +299,9 @@ namespace VisionMaster.Scada.Controls
 
         private static string Describe(ScadaBinding binding)
             => string.IsNullOrWhiteSpace(binding.VariableName) ? "(未指定)" : binding.VariableName!;
+
+        private static string Describe(ScadaAnimation animation)
+            => string.IsNullOrWhiteSpace(animation.VariableName) ? "(未指定)" : animation.VariableName!;
 
         #endregion
 
@@ -305,16 +360,52 @@ namespace VisionMaster.Scada.Controls
                 Apply(pair.Key, pair.Value);
         }
 
+        /// <summary>
+        /// 把一个目标的最新值落下去。绑定与动画在这里分流，各走各的控件通道
+        /// （<see cref="ScadaElementBase.TryApplyRuntimeValue"/> / <see cref="ScadaElementBase.TryApplyAnimationValue"/>），
+        /// 但"失败 → 角标 + 日志"这套收尾是共用的。
+        /// </summary>
         private void Apply(Target target, object? value)
         {
-            if (target.Control.TryApplyRuntimeValue(target.Property, value, target.Format, out var error))
+            // 分流判据就是"装了哪个"：建表时二选一装，两条都空是建表期的 bug。
+            // 这里静默跳过而不抛——刷帧跑在 Dispatcher 回调里，抛出去就是整个界面崩。
+            if (target.Property is { } property)
+            {
+                ApplyBinding(target, property, value);
+                return;
+            }
+
+            if (target.Animation is { } animation)
+                ApplyAnimation(target, animation, value);
+        }
+
+        private void ApplyBinding(Target target, ElementPropertyDescriptor property, object? value)
+        {
+            if (target.Control.TryApplyRuntimeValue(property, value, target.Format, out var error))
             {
                 Clear(target.Control, target); // 原来是坏值、现在转得动了，角标要撤掉
                 return;
             }
 
             Report(target.Control, target, ScadaDiagnosticLevel.Error,
-                $"画面「{_page.Name}」图元「{target.Control.Element?.Name}」的属性「{target.Property.DisplayName}」：变量「{target.VariableName}」{error}");
+                $"画面「{_page.Name}」图元「{target.Control.Element?.Name}」的属性「{property.DisplayName}」：变量「{target.VariableName}」{error}");
+        }
+
+        /// <summary>
+        /// 动画的落点。<b>注意这里没有"格式"这一项</b>：格式是"值 → 文本"的转换，
+        /// 而四种动画全是"值 → 位置/颜色/可见性"的换算，换算规则长在动画自己身上
+        /// （见 <see cref="ScadaAnimation"/> 的三个 TryEvaluate*）。
+        /// </summary>
+        private void ApplyAnimation(Target target, ScadaAnimation animation, object? value)
+        {
+            if (target.Control.TryApplyAnimationValue(animation, value, out var error))
+            {
+                Clear(target.Control, target);
+                return;
+            }
+
+            Report(target.Control, target, ScadaDiagnosticLevel.Error,
+                $"画面「{_page.Name}」图元「{target.Control.Element?.Name}」的动画「{animation.Type.DisplayName()}」：变量「{target.VariableName}」{error}");
         }
 
         #endregion
@@ -391,12 +482,27 @@ namespace VisionMaster.Scada.Controls
             public List<Target> Targets { get; } = new();
         }
 
-        /// <summary>一个刷值目标：写到哪个控件的哪条属性、用什么格式</summary>
+        /// <summary>
+        /// 一个刷值目标：写到哪个控件的哪里。
+        ///
+        /// 同一个类装两种目标（绑定 / 动画），靠 <see cref="Property"/> 与 <see cref="Animation"/>
+        /// 谁是 null 来分流——这不是为了省一个类，而是因为 <see cref="_dirty"/> 是
+        /// 「目标 → 待写值」的表，两种目标必须能同表共存，才能共用一次刷帧。
+        /// 分成两个类、两张表，就退回到"同一帧排两次 Dispatcher"了。
+        ///
+        /// 引用相等即目标相等（<see cref="ScadaModelBase"/> 没覆写 Equals/GetHashCode，
+        /// 而这里的 Property 描述符与 Animation 都是画面里唯一的那个实例），
+        /// 所以默认的引用比较正好是我们要的语义。
+        /// </summary>
         private sealed class Target
         {
             public ScadaElementBase Control { get; init; } = null!;
 
-            public ElementPropertyDescriptor Property { get; init; } = null!;
+            /// <summary>绑定目标：写哪条属性。<b>动画目标为 null</b></summary>
+            public ElementPropertyDescriptor? Property { get; init; }
+
+            /// <summary>动画目标：跑哪条动画。<b>绑定目标为 null</b></summary>
+            public ScadaAnimation? Animation { get; init; }
 
             public string? Format { get; init; }
 

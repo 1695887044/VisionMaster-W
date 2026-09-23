@@ -18,7 +18,7 @@ namespace VisionMaster.Scada
     /// 变量寻址口径与 <see cref="ScadaBinding"/> 完全一致：<b>Id 优先、名字兜底</b>，
     /// 所以 <see cref="Matches"/> 可以照搬，变量改名级联也能用同一套遍历。
     /// </summary>
-    public class ScadaAction : BindableBase
+    public class ScadaAction : ScadaModelBase
     {
         private ScadaActionType _type = ScadaActionType.Log;
         private string? _text;
@@ -104,7 +104,11 @@ namespace VisionMaster.Scada
         public Guid TargetPageId
         {
             get => _targetPageId;
-            set => SetProperty(ref _targetPageId, value);
+            set
+            {
+                if (SetProperty(ref _targetPageId, value))
+                    RaisePropertyChanged(nameof(HasTargetPage));
+            }
         }
 
         /// <summary>目标画面名（展示串 + 旧数据兜底键）</summary>
@@ -114,9 +118,19 @@ namespace VisionMaster.Scada
             set
             {
                 if (SetProperty(ref _targetPageName, value))
+                {
                     RaisePropertyChanged(nameof(Detail));
+                    RaisePropertyChanged(nameof(HasTargetPage));
+                }
             }
         }
+
+        /// <summary>
+        /// 是否已经选好目标画面（Id 或名字任一非空即算）。与 <see cref="HasVariable"/> 同一口径、
+        /// 同一用途：给属性面板一个布尔位去切"未选择"提示与占位文案，
+        /// 判定口径与执行侧 <c>ExecuteNavigate</c> 的第一步逐字一致（那里判的也是这两个字段）。
+        /// </summary>
+        public bool HasTargetPage => _targetPageId != Guid.Empty || !string.IsNullOrWhiteSpace(_targetPageName);
 
         /// <summary>
         /// 本动作的关键参数（属性面板上"这一行右边要显示的短文本"）。

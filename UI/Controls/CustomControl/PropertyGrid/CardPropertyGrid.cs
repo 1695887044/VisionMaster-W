@@ -160,9 +160,10 @@ namespace UI.CustomControl
 
             tabControl.Items.Clear();
 
+            // Visible 默认 true，老字段行为不变；子类可用 override 重贴 [SuperDisplay(Visible = false)] 摘掉某个字段
             var properties = BindingObject.GetType()
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => Attribute.IsDefined(p, typeof(SuperDisplayAttribute)))
+                .Where(p => p.GetCustomAttribute<SuperDisplayAttribute>()?.Visible == true)
                 .ToList();
 
             if (!properties.Any()) return;

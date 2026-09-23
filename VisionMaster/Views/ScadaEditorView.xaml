@@ -19,6 +19,34 @@
     <!--  画面属性也一律直绑 SelectedPage.*，中转一次就要多订阅一次、多一处漏摘。  -->
     <!--  ==========================================  -->
 
+    <!--  Ctrl+Z / Ctrl+Y 挂在这一层：只要焦点还在编辑器里（画布、画面下拉）就生效。  -->
+    <!--  刻意不挂到窗口级：属性面板里还有一堆文本框，窗口级热键会把它们的文本撤销抢走。  -->
+    <!--  InputBindings 不在可视树上，但 WPF 会给它一个继承上下文，所以这里的 Binding 能取到 DataContext。  -->
+    <UserControl.InputBindings>
+        <KeyBinding
+            Key="Z"
+            Command="{Binding UndoCommand}"
+            Modifiers="Ctrl" />
+        <KeyBinding
+            Key="Y"
+            Command="{Binding RedoCommand}"
+            Modifiers="Ctrl" />
+        <!--  复制 / 粘贴 / 再制也挂这一层：它们读的是"选中集合"、写的是当前画面，  -->
+        <!--  是编辑器级语义，和 Delete / 方向键那种"画布级"（挂在 ScadaCanvas 上）不同域。  -->
+        <KeyBinding
+            Key="C"
+            Command="{Binding CopyCommand}"
+            Modifiers="Ctrl" />
+        <KeyBinding
+            Key="V"
+            Command="{Binding PasteCommand}"
+            Modifiers="Ctrl" />
+        <KeyBinding
+            Key="D"
+            Command="{Binding DuplicateCommand}"
+            Modifiers="Ctrl" />
+    </UserControl.InputBindings>
+
     <Grid Background="#FFF7F8FA">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -68,6 +96,49 @@
                         Command="{Binding RemovePageCommand}"
                         Content="删除"
                         ToolTip="删除当前画面" />
+
+                    <!--  撤销/重做与"画面"并排而不是挤进取景组：它覆盖的不只是画布上的改动，
+                          还包括新建/删除画面、改图元属性——是"文档级"的操作，不是取景工具。
+                          图标走 App.xaml 的图标字体（Font Awesome 6 Pro Solid 的旋转箭头），
+                          文字单独一个 TextBlock：图标字体里没有中文字形，混在一个 TextBlock 里会掉字。  -->
+                    <Rectangle
+                        Width="1"
+                        Height="16"
+                        Margin="12,0"
+                        Fill="#FFDCE0E6" />
+                    <Button
+                        Padding="8,2"
+                        Command="{Binding UndoCommand}"
+                        ToolTip="{Binding UndoLabel}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Text="&#xF0E2;" />
+                            <TextBlock
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="撤销" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        Margin="4,0,0,0"
+                        Padding="8,2"
+                        Command="{Binding RedoCommand}"
+                        ToolTip="{Binding RedoLabel}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Text="&#xF01E;" />
+                            <TextBlock
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="重做" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!--  右侧：设计辅助与取景  -->
@@ -151,6 +222,7 @@
             x:Name="Canvas"
             Grid.Row="1"
             AllowDrop="True"
+            ContextMenuOpening="OnCanvasContextMenuOpening"
             DragOver="OnCanvasDragOver"
             Drop="OnCanvasDrop"
             GridSize="{Binding SelectedPage.GridSize}"
@@ -160,7 +232,41 @@
             PageHeight="{Binding SelectedPage.Height}"
             PageWidth="{Binding SelectedPage.Width}"
             SelectedElement="{Binding SelectedElement, Mode=TwoWay}"
+            SelectedElements="{Binding SelectedElements, Mode=TwoWay}"
             ShowGrid="{Binding SelectedPage.ShowGrid}"
-            SnapToGrid="{Binding SelectedPage.SnapToGrid}" />
+            SnapToGrid="{Binding SelectedPage.SnapToGrid}">
+
+            <!--  Delete / 方向键挂在画布上：画布在鼠标按下时抢焦点（见 ScadaCanvas.OnPreviewMouseLeftButtonDown），  -->
+            <!--  所以"焦点在画面下拉里按方向键"仍然是在切画面，不会被微调抢走——这条只有挂在画布上才成立。  -->
+            <!--  CanExecute 为假时 WPF 不消费按键，事件照常往下走，不会把别的控件的方向键吞掉。  -->
+            <controls:ScadaCanvas.InputBindings>
+                <KeyBinding Command="{Binding RemoveElementCommand}" Key="Delete" />
+                <KeyBinding
+                    Command="{Binding NudgeCommand}"
+                    CommandParameter="Left"
+                    Key="Left" />
+                <KeyBinding
+                    Command="{Binding NudgeCommand}"
+                    CommandParameter="Right"
+                    Key="Right" />
+                <KeyBinding
+                    Command="{Binding NudgeCommand}"
+                    CommandParameter="Up"
+                    Key="Up" />
+                <KeyBinding
+                    Command="{Binding NudgeCommand}"
+                    CommandParameter="Down"
+                    Key="Down" />
+            </controls:ScadaCanvas.InputBindings>
+
+            <!--  图元右键菜单：图层归属 + 叠放次序 + 对齐与分布。  -->
+            <!--  这里只放一个空壳，菜单项每次弹出时由代码后台按当前选中图元现装（见 OnCanvasContextMenuOpening）——  -->
+            <!--  图层候选、勾选态、端点判灰都随用户操作在变，预先建好就得逐个订阅刷新，而"弹出即重建"天然不会过期。  -->
+            <!--  FontFamily 用 App.xaml 里的图标字体：菜单项的文字是 Font Awesome 码点，  -->
+            <!--  字形从 ContextMenu 往下继承到各 MenuItem（与 FlowListView 的右键菜单同一套写法）。  -->
+            <controls:ScadaCanvas.ContextMenu>
+                <ContextMenu FontFamily="{StaticResource Icon}" />
+            </controls:ScadaCanvas.ContextMenu>
+        </controls:ScadaCanvas>
     </Grid>
 </UserControl>

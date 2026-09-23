@@ -8,6 +8,7 @@
     d:DesignHeight="600"
     d:DesignWidth="220"
     prism:ViewModelLocator.AutoWireViewModel="True"
+    DataContextChanged="OnViewDataContextChanged"
     PreviewMouseMove="OnPreviewMouseMove"
     mc:Ignorable="d">
 
@@ -18,10 +19,22 @@
     <!--  那是画布那边的事（见 ScadaEditorView 的 Drop）。两边靠 ScadaDrag 这一个协议串起来。  -->
     <!--  ==========================================  -->
 
+    <!--  颜色令牌：工具箱里每一处颜色都从这本字典取（值集中在 UI/Controls/Themes/Colors.xaml，  -->
+    <!--  换肤只改那一处）。真 App 里它由 App.xaml 合并进来，这里再合并一次是让工具箱  -->
+    <!--  "自带口粮"：脱离 App 单独量（断言宿主、设计器）也照样渲染，  -->
+    <!--  而不是抛 XamlParseException 说找不到 ScadaPanelBackgroundBrush。  -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <!-- Border 只负责画右侧 1px 分隔线：Grid 没有 BorderBrush 属性（MC3072），边框必须挂在 Border 上 -->
     <Border
-        Background="#FFF7F8FA"
-        BorderBrush="#FFDCE0E6"
+        Background="{StaticResource ScadaPanelBackgroundBrush}"
+        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
         BorderThickness="0,0,1,0">
         <Grid>
         <Grid.Resources>
@@ -40,7 +53,7 @@
                         <Style TargetType="Border">
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#FFE3EEF9" />
+                                    <Setter Property="Background" Value="{StaticResource ScadaHoverBrush}" />
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
@@ -49,7 +62,7 @@
                         <TextBlock
                             VerticalAlignment="Center"
                             FontSize="12.5"
-                            Foreground="#FF303133"
+                            Foreground="{StaticResource ScadaTextBrush}"
                             Text="{Binding DisplayName}" />
                         <!--  类型键是调试时要看的东西（画布上出了个不认识的框，第一个问题就是"它到底注册的谁"），  -->
                         <!--  所以摆出来，但压成次要色，不跟名字抢视线  -->
@@ -57,10 +70,76 @@
                             Margin="6,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="11"
-                            Foreground="#FFA8ABB2"
+                            Foreground="{StaticResource ScadaFaintTextBrush}"
                             Text="{Binding TypeKey}"
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>
+                </Border>
+            </DataTemplate>
+
+            <!--  模板行：与图元条目同一套观感（同高、同悬停色、同手型），
+                  差别只在拖出去的东西——图元拖的是"造一个空壳"的类型键，模板拖的是"搬一整块内容"的模板 Id。  -->
+            <!--  右键菜单放重命名 / 删除：模板库是工具箱自己的知识，画布那边的编辑器视图模型不必认识它。  -->
+            <DataTemplate x:Key="TemplateItemTemplate">
+                <Border
+                    Height="28"
+                    Margin="0,1"
+                    Padding="8,0"
+                    Background="Transparent"
+                    CornerRadius="3"
+                    Cursor="Hand"
+                    PreviewMouseLeftButtonDown="OnTemplatePreviewMouseLeftButtonDown"
+                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    ToolTip="{Binding ItemCount, StringFormat='包含 {0} 个图元。拖到画面即可放入；右键可重命名 / 删除'}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource ScadaHoverBrush}" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+
+                    <!--  ContextMenu 挂在独立 Popup 里、不在可视树上，拿不到行的 DataContext，
+                          所以必须显式接两样东西：DataContext 接 PlacementTarget（= 这个 Border，装着模板），
+                          Tag 接 PlacementTarget.Tag（= 工具箱视图模型，装着命令）。
+                          少了这一步，菜单能弹出来但点了没反应（ScanGroupEditorView 里同一坑的注释）。  -->
+                    <Border.ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" Tag="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                            <MenuItem
+                                Command="{Binding Tag.RenameTemplateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                CommandParameter="{Binding}"
+                                Header="重命名…" />
+                            <MenuItem
+                                Command="{Binding Tag.DeleteTemplateCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                CommandParameter="{Binding}"
+                                Header="删除" />
+                        </ContextMenu>
+                    </Border.ContextMenu>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontSize="12.5"
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding Name}"
+                            TextTrimming="CharacterEllipsis" />
+                        <!--  图元数：模板是一整块内容，光看名字分不出"阀门"和"阀门+指示灯"，
+                              摆出来才知道这份模板里到底有几个东西  -->
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaFaintTextBrush}"
+                            Text="{Binding ItemCount, StringFormat={}{0} 项}" />
+                    </Grid>
                 </Border>
             </DataTemplate>
         </Grid.Resources>
@@ -77,13 +156,13 @@
                 VerticalAlignment="Center"
                 FontSize="13"
                 FontWeight="SemiBold"
-                Foreground="#FF303133"
+                Foreground="{StaticResource ScadaTextBrush}"
                 Text="图元工具箱" />
             <TextBlock
                 HorizontalAlignment="Right"
                 VerticalAlignment="Center"
                 FontSize="11"
-                Foreground="#FF909399"
+                Foreground="{StaticResource ScadaSecondaryTextBrush}"
                 Text="{Binding TotalCount, StringFormat='共 {0} 种'}" />
         </Grid>
 
@@ -96,16 +175,17 @@
                 Padding="6,4"
                 VerticalContentAlignment="Center"
                 FontSize="12"
-                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}" />
+                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                ToolTip="图元按名称 / 类型键 / 分类 / 说明匹配；模板按名称匹配" />
             <!--  占位提示：WPF 的 TextBox 没有原生水印，就盖一个 TextBlock 上去，有字就藏。  -->
             <!--  IsHitTestVisible=False 是必须的，不然这层会把点击吃掉，搜索框永远聚不了焦。  -->
             <TextBlock
                 Margin="7,0,0,0"
                 VerticalAlignment="Center"
                 FontSize="12"
-                Foreground="#FFC0C4CC"
+                Foreground="{StaticResource ScadaDisabledTextBrush}"
                 IsHitTestVisible="False"
-                Text="搜索图元（名称 / 类型键 / 分类）">
+                Text="搜索图元 / 模板">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -119,40 +199,88 @@
             </TextBlock>
         </Grid>
 
-        <!--  ====================  分组列表  ====================  -->
+        <!--  ====================  我的模板 + 图元分组  ====================  -->
         <ScrollViewer
             Grid.Row="2"
             Margin="6,0,6,8"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Groups}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Expander
-                            Margin="0,2"
-                            FontSize="12"
-                            IsExpanded="True">
-                            <Expander.Header>
-                                <!--  分类名 + 数量：一眼能看出这组有没有被搜索词过滤掉  -->
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock
-                                        FontWeight="SemiBold"
-                                        Foreground="#FF606266"
-                                        Text="{Binding Name}" />
-                                    <TextBlock
-                                        Margin="6,0,0,0"
-                                        Foreground="#FF909399"
-                                        Text="{Binding Items.Count, StringFormat=({0})}" />
-                                </StackPanel>
-                            </Expander.Header>
-                            <ItemsControl
-                                Margin="14,2,0,2"
-                                ItemTemplate="{StaticResource ItemTemplate}"
-                                ItemsSource="{Binding Items}" />
-                        </Expander>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <StackPanel>
+                <!--  ====================  我的模板  ====================  -->
+                <!--  整块（含底下那条分隔线）随 HasTemplates 显隐：一份模板都没有时这里一个字都不占，
+                      工具箱保持"只有图元库"的原样；存下第一份模板，它才出现在最上面。
+                      搜索词一个模板都没命中时同样收起来（与图元分组同一口径：空组不占位）。
+                      摆最上面是因为它比图元库用得勤——常用的东西不该压在长列表底下等滚动。  -->
+                <StackPanel>
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasTemplates}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <Expander
+                        Margin="0,2"
+                        FontSize="12"
+                        IsExpanded="True">
+                        <Expander.Header>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource ScadaLabelTextBrush}"
+                                    Text="我的模板" />
+                                <TextBlock
+                                    Margin="6,0,0,0"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="{Binding TemplateCount, StringFormat=({0})}" />
+                            </StackPanel>
+                        </Expander.Header>
+                        <ItemsControl
+                            Margin="14,2,0,2"
+                            ItemTemplate="{StaticResource TemplateItemTemplate}"
+                            ItemsSource="{Binding Templates}" />
+                    </Expander>
+
+                    <!--  分隔线：把"自己攒的"和"注册表里带的"分开，扫一眼就知道上半截是私有的  -->
+                    <Border
+                        Height="1"
+                        Margin="0,4,0,2"
+                        Background="{StaticResource ScadaActionCardBorderBrush}" />
+                </StackPanel>
+
+                <ItemsControl ItemsSource="{Binding Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Expander
+                                Margin="0,2"
+                                FontSize="12"
+                                IsExpanded="True">
+                                <Expander.Header>
+                                    <!--  分类名 + 数量：一眼能看出这组有没有被搜索词过滤掉  -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource ScadaLabelTextBrush}"
+                                            Text="{Binding Name}" />
+                                        <TextBlock
+                                            Margin="6,0,0,0"
+                                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                            Text="{Binding Items.Count, StringFormat=({0})}" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <ItemsControl
+                                    Margin="14,2,0,2"
+                                    ItemTemplate="{StaticResource ItemTemplate}"
+                                    ItemsSource="{Binding Items}" />
+                            </Expander>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
         </ScrollViewer>
         </Grid>
     </Border>

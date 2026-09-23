@@ -36,6 +36,12 @@ namespace VisionMaster.Lifetime
         /// <summary>警告级异常抬升（主界面状态栏可订阅做非阻断提示）</summary>
         public event Action<string>? WarningRaised;
 
+        /// <summary>
+        /// 崩溃现场摘要提供者（由宿主设置：当前方案名/路径等；返回 null 或抛异常都不影响留档）。
+        /// 宿主是唯一知道"此刻在编辑什么"的人，故用委托注入，本模块不认识方案模型。
+        /// </summary>
+        public Func<string?>? CrashSceneProvider { get; set; }
+
         public AppLifetimeService(ILogService log)
         {
             _log = log;
@@ -142,6 +148,11 @@ namespace VisionMaster.Lifetime
         /// <summary>严重级异常处置：安全停机 → 有序退出（任意线程触发，自动回 UI 线程）</summary>
         private void OnCriticalAsync(Exception ex)
         {
+            // 留档必须发生在"回 UI 线程"之前、且不依赖日志服务：此刻日志线程可能已经死了，
+            // 而 UI 线程可能正是出事的那条（BeginInvoke 未必还能跑）。
+            // 这一步是同步文件写、自带超短路径与吞异常，是整个崩溃链上最可靠的一环。
+            CrashReportWriter.Write(ex, "严重异常", SafeScene());
+
             var dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null) return;
             dispatcher.BeginInvoke(async () =>
@@ -156,6 +167,13 @@ namespace VisionMaster.Lifetime
                     Environment.Exit(1); // 严重异常下不依赖优雅 Shutdown
                 }
             });
+        }
+
+        /// <summary>取现场摘要：提供者未设置或本身出错都不能影响留档</summary>
+        private string? SafeScene()
+        {
+            try { return CrashSceneProvider?.Invoke(); }
+            catch (Exception e) { return $"(现场摘要获取失败：{e.Message})"; }
         }
 
         /// <summary>

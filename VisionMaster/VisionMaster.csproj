@@ -48,4 +48,11 @@
     </Page>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 离屏断言（ScadaChecks）要复用视图里那份「菜单描述 → MenuItem」的翻译。
+         在断言里照抄一份等于验的是照抄的那份，真视图里这份漏抄了字段照样漏，
+         所以开放 internal 而不是把翻译提成公开 API（视图不该有对外契约）。 -->
+    <InternalsVisibleTo Include="ScadaChecks" />
+  </ItemGroup>
+
 </Project>

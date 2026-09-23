@@ -29,12 +29,18 @@ namespace VisionMaster.Scada
     ///    InTouch / VisionMaster 一类商业组态软件的 Layer 同样是"分组开关"而非"深度容器"。
     ///    真要做按层分深度，正确落点是渲染侧一次性算复合键（层序 × 层内序），而不是往模型里塞偏移。
     /// </summary>
-    public class ScadaLayer : BindableBase
+    public class ScadaLayer : ScadaModelBase
     {
         private Guid _layerId = Guid.NewGuid();
         private string _name = "图层";
         private bool _isVisible = true;
         private bool _isLocked;
+
+        /// <summary>
+        /// 打开一次可撤销的编辑（D3 统一写入口），用法与 <see cref="ScadaPage.BeginEdit"/> 一致。
+        /// 图层列表上"眼睛/锁"两个开关走这个作用域，这样一次点按就是一次撤销位。
+        /// </summary>
+        public IScadaChangeScope BeginEdit(string label) => ScadaChangeScope.Begin(label);
 
         /// <summary>图层稳定身份（图元按它归属；不吃改名影响）</summary>
         public Guid LayerId

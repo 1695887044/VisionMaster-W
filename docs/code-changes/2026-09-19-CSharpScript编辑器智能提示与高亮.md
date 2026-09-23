@@ -82,3 +82,159 @@ dotnet build Plugins/Plugin.CSharpScript/Plugin.CSharpScript.csproj -p:SolutionD
 4. **悬浮提示自建**：AvalonEdit 6.3 移除了 ToolTipManager，采用 400ms DispatcherTimer + `ToolTip(StaysOpen=true)` 手动管理；鼠标快速划过时不弹出。
 5. **错误行标红为静态快照**：仅在校验按钮触发时刷新，编辑对应行不会即时清除红底（下次校验覆盖）。
 6. **变量高亮同步时机**：变量增删/改名经 `RefreshLists()` 生效；直接在属性面板外改动变量名（如方案加载）依赖 View 重建时的 `OnLoaded` 初始化。
+
+## 五、后续修复（同日）：xshd 加载抛 HighlightingDefinitionInvalidException
+
+### 现象
+打开 C# 脚本编辑器即崩（`CSharpScriptView.OnLoaded` → `CSharpHighlighting.EnsureRegistered` 第 103 行）：
+
+```
+HighlightingDefinitionInvalidException: Error at position (line 1, column 621):
+The element 'Span' has invalid child element 'Rule'. List of possible elements expected: 'Begin, End, RuleSet'.
+```
+
+### 根因（两处，均为 xshd 语法错误）
+
+1. **`Span` 下不能直接放 `Rule`**。AvalonEdit 的 `ModeV2.xsd`（第 82-96 行）规定 `Span` 的子元素序列只能是 `Begin` → `End` → `RuleSet`（各 0~1 次）；`Rule` / `Keywords` / `Import` 只能出现在 `RuleSet` 下（第 128-139 行）。原写法把转义规则 `<Rule>\\.</Rule>` 直接塞进 `<Span>`，被 XSD 校验拒绝。
+2. **块注释 `end="*/"` 是非法正则**。`*` 作量词却前面没有可限定的内容，AvalonEdit 编译正则时抛 `Invalid pattern '*/' at offset 1. Quantifier '*' following nothing.`。必须写成 `/\*` 与 `\*/`。
+
+两处都是**只在运行时加载才暴露**的错误，编译期（dotnet build 0 错误 0 警告）毫无提示。
+
+### 修法（对齐 AvalonEdit 内置 `CSharp-Mode.xshd` 的既有写法）
+
+| 位置 | 修改前 | 修改后 |
+|------|--------|--------|
+| 普通字符串转义 | `<Span begin="&quot;" end="&quot;"><Rule>\\.</Rule></Span>` | `<Span …><RuleSet><Span color="String" begin="\\" end="." /></RuleSet></Span>` |
+| 逐字字符串 `""` | `<Span begin="@&quot;" …><Rule>&quot;&quot;</Rule></Span>` | `<Span …><RuleSet><Span color="String" begin="&quot;&quot;" end="" /></RuleSet></Span>` |
+| 字符转义 | 同普通字符串 | 同普通字符串 |
+| 块注释 | `begin="/*" end="*/"` | `begin="/\*" end="\*/"` |
+
+- 转义序列改用**嵌套 Span**（而非 `Rule`）：用子 Span 吃掉 `\"`，使外层 `end` 不提前触发——这是 AvalonEdit 内置 C# 定义的原始做法，`<Span begin="\\" end="."/>`。
+- 逐字字符串的 `""` 用 `begin="&quot;&quot;" end=""`（end 为空正则 = 匹配后立即结束），同样照搬内置写法。
+
+### 验证方式（本轮新增，值得保留）
+
+这类错误静态审阅极易漏（第一版正是漏了），故搭了一次性校验工程**真实调用** `HighlightingLoader.Load`：
+
+1. 反射调用 `CSharpHighlighting.BuildXshd`（覆盖"无接口变量 / 带接口变量"两条分支）拿到真实 xshd 文本；
+2. 走与生产代码完全一致的 `HighlightingLoader.Load(reader, HighlightingManager.Instance)`；
+3. 校验工程放在系统临时目录、用 `AssemblyResolve` 指向插件 bin 解析依赖，**不污染仓库**，用完即删。
+
+结果：
+
+```
+[no-vars]   PASS  name=CSharpScript  rules=7  spans=5
+[with-vars] PASS  name=CSharpScript  rules=8  spans=5
+        span color=String  begin="  end=($|") inner(span=1,rule=0)
+        span color=String  begin=@" end="       inner(span=1,rule=0)
+        span color=String  begin='  end=($|') inner(span=1,rule=0)
+        span color=Comment begin=// end=$      inner(span=0,rule=0)
+        span color=Comment begin=/\* end=\*/   inner(span=0,rule=0)
+ALL PASS
+```
+
+两条分支均通过，5 个 Span 全部解析成功，块注释 `/\*` … `\*/` 正确。
+
+### 教训
+
+- xshd 是"运行时才校验"的领域语言，改完**必须真实加载一次**，不能只靠肉眼对照 XML。
+- 对照 AvalonEdit 自带 `Highlighting/Resources/*.xshd` 是最省事的正确性来源；本轮两处修法均直接取自内置 `CSharp-Mode.xshd`。
+- `Shard/Core.Controls` 上收的 `ScriptEditorBehavior` 等其它组件不涉及 xshd，本次异常与它们无关。
+
+## 六、后续修复（同日）：脚本编辑器"只有行号、内容空白、无法编辑"
+
+### 现象
+上一节修完 xshd 加载异常后，编辑器可打开，但正文区**只显示行号 1、内容空白、无法输入**。打开后应用日志被同一条告警刷屏：
+
+```
+2026-09-19 22:07:30.895 [WARN] [UI] A highlighting rule matched 0 characters, which would cause an endless loop.
+Change the highlighting definition so that the rule matches at least one character.
+Regex: (?m)^[ \t]*#[ \t]*[^\n]*
+```
+
+单次运行累计 **9414 条**（约占全日志 65%）；`[ERROR]|Exception|未处理|Unhandled` 零命中——异常被宿主 UI 兜底捕获成 WARN。
+
+### 根因：xshd 的 `<Rule>文本</Rule>` 写法会被强制附加 `IgnorePatternWhitespace`
+
+`CSharpHighlighting.cs` 第 154 行的预处理指令规则用"元素文本"写法：
+
+```csharp
+sb.Append("<Rule color=\"Preprocessor\">(?m)^[ \\t]*#[ \\t]*[^\\n]*</Rule>");
+```
+
+AvalonEdit 对这种写法会**强制**加 x 模式（`V2Loader.ParseRule`）：
+
+```csharp
+if (reader.NodeType == XmlNodeType.Text) {
+    rule.Regex = reader.ReadContentAsString();
+    rule.RegexType = XshdRegexType.IgnorePatternWhitespace;   // ← 元凶
+}
+```
+
+x 模式下 `#` 起"行注释直到行尾"，于是 `#[ \t]*[^\n]*` 整段被当注释丢掉，规则退化为 `(?m)^[ \t]*` —— **每行行首都能零长度匹配**。`DocumentHighlighter` 随即抛异常：
+
+```csharp
+if (firstMatch.Length == 0) {
+    throw new InvalidOperationException(
+        "A highlighting rule matched 0 characters, which would cause an endless loop.\n" +
+        "Change the highlighting definition so that the rule matches at least one character.\n" +
+        "Regex: " + rules[ruleIndex].Regex);
+}
+```
+
+正文绘制每次渲染都在此处中断，而行号由独立 Visual 绘制故仍可见；每次键入又触发重渲染再抛异常 → 表现为"空白 + 无法编辑"。
+
+> 注：x 模式是上游有意设计，用于支持在规则文本里写 `#` 注释（内置 `CSharp-Mode.xshd` 就有 `[\d\w_]+  # an identifier`）。副作用是**字面量 `#` 必须转义为 `\#`**——上游自己的预处理 Span 正是 `<Begin>\#</Begin>`。
+
+### 修法（一处）
+
+`Plugins/Plugin.CSharpScript/CSharpHighlighting.cs` 第 154 行，`#` → `\#`：
+
+```csharp
+sb.Append("<Rule color=\"Preprocessor\">(?m)^[ \\t]*\\#[ \\t]*[^\\n]*</Rule>");
+```
+
+### 未改动项（经核对确认安全）
+- 第 141 行逐字字符串转义 Span `<Span begin="&quot;&quot;" end="" />`：`end=""` 与 AvalonEdit 内置 `CSharp-Mode.xshd` 写法完全一致；该 Span 的 `RuleSet` 为空，入栈后其 end 立即零长度命中并出栈，此时回退校验用的是父级缓存匹配数组（索引不同）故不触发零长度守卫。**保持原样**。
+- 第 157/158 行数字规则不含 `#`，`\b` 为转义序列不受 x 模式影响，安全。
+- `HalconHighlighting.cs` 第 101 行的 `(?m)^[ \t]*\*[^\\n]*` 已转义 `\*`、无 `#`，即使在 x 模式下也至少匹配 1 个字符，安全。
+
+### 验证结果
+
+1. **正则层**（PowerShell 实测 `IgnorePatternWhitespace` 下）：
+
+   ```
+   pattern=(?m)^[ \t]*#[ \t]*[^\n]*   emptyMatch=True  len=0
+   pattern=(?m)^[ \t]*\#[ \t]*[^\n]*  emptyMatch=False len=0
+   ```
+
+2. **真实加载 + 真实渲染**（临时校验工程，系统临时目录，用完即删）：反射调用 `BuildXshd` 取真实 xshd → `HighlightingLoader.Load` → 构造 `DocumentHighlighter` 逐行 `HighlightLine`（与 TextEditor 生产路径一致）：
+
+   ```
+   [no-vars]   LOAD OK  name=CSharpScript  xshdLen=4048
+   [no-vars]     zero-length rules: none
+   [no-vars]     DocumentHighlighter: OK (no throw)  PreprocessorColored=True
+   [with-vars] LOAD OK  name=CSharpScript  xshdLen=4133
+   [with-vars]   zero-length rules: none
+   [with-vars]   DocumentHighlighter: OK (no throw)  PreprocessorColored=True
+
+   === 反向自检：把 \# 还原成旧写法 # ，应当复现零长度匹配 ===
+   [buggy]      zero-length rules: 1
+           root regex=(?m)^[ \t]*#[ \t]*[^\n]*  probe="" idx=0
+   [buggy]   已复现缺陷（校验有效）
+   ALL PASS
+   ```
+
+   反向自检复现出的正则与 `idx=0` 与生产日志逐字一致，证明校验有效、修复到位，且预处理指令着色仍生效（`PreprocessorColored=True`）。
+
+3. **编译**：`dotnet build VisionMaster.sln -c Debug` → **0 个错误**；`Modules\Plugin.CSharpScript.dll` 已由 PostBuild 刷新（79360 字节）。
+
+### 教训
+- 日志排查**必须忽略大小写**：`matched 0 characters` 是 `[WARN]` 级、无堆栈，首轮用大小写敏感模式搜索 `Exception` 直接漏掉了 9414 条关键证据。
+- xshd 的坑不止"语法非法"（会抛 `HighlightingDefinitionInvalidException`），还有"语法合法但语义退化"（零长度匹配，运行时才炸且只报 WARN）。**验证必须跑真实 `DocumentHighlighter`，只 Load 是不够的**——上一节的校验工程只做了 `HighlightingLoader.Load`，所以漏过了这一层。
+- 新增校验务必配**反向对照**（故意还原旧写法看能否复现），否则 `ALL PASS` 可能是空转。
+
+### 已知边界
+- `CSharpHighlighting._defWithVars` / `_varsKey` 为静态缓存，多编辑器实例共享；当前按变量集合键控，变量不变则复用同一 definition 对象（definition 本身只读，无并发写风险）。
+- `CSharpIntelliSense` 的静态 `_current` / `_hoverTip` / `_paramTip` / `_hoverTimer` 属跨实例共享状态，多脚本编辑器同时打开时理论上存在串扰，本轮未处理。
+- `ScriptEditorBehavior` / `CSharpIntelliSense` 通过 `Loaded +=` 挂接且未解绑，视图重挂父元素会重复 `Attach` 全套处理器与右键菜单，属独立隐患，本轮未处理。

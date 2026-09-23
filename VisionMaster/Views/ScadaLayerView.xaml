@@ -1,0 +1,374 @@
+<UserControl
+    x:Class="VisionMaster.Views.ScadaLayerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    d:DesignHeight="600"
+    d:DesignWidth="240"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    DataContextChanged="OnViewDataContextChanged"
+    mc:Ignorable="d">
+
+    <!--  ==========================================  -->
+    <!--  图层面板（S10-a）  -->
+    <!--  管的是"图层自己"：列表 + 显隐 + 锁定 + 上移/下移 + 新建/重命名/删除。  -->
+    <!--  "图元归到哪一层"不在这里——那是画布右键菜单那一栏（ScadaEditorViewModel 的图层子菜单），  -->
+    <!--  两处分工刻意不重叠：右键回答"选中的东西在哪一层"，本面板回答"一共有哪几层、各自开没开"。  -->
+    <!--  行内容全部来自 ScadaLayerItem 快照，本文件不自己算任何东西（几个图元、能不能删都由 VM 给）。  -->
+    <!--  ==========================================  -->
+
+    <!--  本面板在右侧，分隔线画在左边（与 ScadaPropertyView 同一手法）  -->
+    <Border
+        Background="#FFF7F8FA"
+        BorderBrush="#FFDCE0E6"
+        BorderThickness="1,0,0,0">
+        <Grid>
+            <Grid.Resources>
+                <BooleanToVisibilityConverter x:Key="BoolVis" />
+
+                <!--  图标字体：刻意写 pack 绝对串而不是 {StaticResource Icon}。  -->
+                <!--  App.xaml 里那份要靠 Application 资源查找，ScadaChecks 的离屏断言宿主没有 Application，  -->
+                <!--  取不到就静默回落 Arial（图标变豆腐块），本面板的证据图就是这么被坑过一次。  -->
+                <FontFamily x:Key="IconFont">pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid</FontFamily>
+
+                <!--  行内小图标按钮：常态灰、悬停只换底不换字色。  -->
+                <!--  "只换底"是刻意的——字色被状态占用（隐藏=更灰、锁定=琥珀），  -->
+                <!--  悬停再去抢它就会把"这层是关着的"这条信息盖掉。  -->
+                <Style x:Key="RowIconButton" TargetType="Button">
+                    <Setter Property="Width" Value="20" />
+                    <Setter Property="Height" Value="20" />
+                    <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+                    <Setter Property="FontSize" Value="11" />
+                    <Setter Property="Foreground" Value="#FF909399" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="Transparent" CornerRadius="3">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#FFD6E4F5" />
+                                    </Trigger>
+                                    <!--  不可用（端点层的上/下移、非空层的删除）必须一眼看出来，  -->
+                                    <!--  否则用户点了没反应会当成卡死  -->
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter TargetName="Bd" Property="Background" Value="Transparent" />
+                                        <Setter Property="Foreground" Value="#FFC8CBD0" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!--  上/下移、删除这类"次要动作"再收小一号，把宽度让给图层名  -->
+                <Style
+                    x:Key="RowMiniButton"
+                    BasedOn="{StaticResource RowIconButton}"
+                    TargetType="Button">
+                    <Setter Property="Width" Value="18" />
+                    <Setter Property="Height" Value="18" />
+                    <Setter Property="FontSize" Value="10" />
+                </Style>
+
+                <!--  眼睛：可见=睁眼（常态灰），隐藏=斜杠眼（更灰）——"这层是关着的"要能从颜色上先读出来  -->
+                <Style
+                    x:Key="EyeButton"
+                    BasedOn="{StaticResource RowIconButton}"
+                    TargetType="Button">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                            <Setter Property="Foreground" Value="#FFB0B4BA" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+
+                <!--  锁：锁定时用琥珀色点出来。锁定 = 本层图元在画布上不可选不可拖，  -->
+                <!--  是个"明明看得见却点不动"的状态，不显式标色最容易被当成故障  -->
+                <Style
+                    x:Key="LockButton"
+                    BasedOn="{StaticResource RowIconButton}"
+                    TargetType="Button">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                            <Setter Property="Foreground" Value="#FFE6A23C" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+
+                <!--  底部主按钮：新建图层（对齐 Photoshop 图层面板底栏的"新建"位置）  -->
+                <Style x:Key="FooterButton" TargetType="Button">
+                    <Setter Property="Height" Value="26" />
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="Foreground" Value="#FF303133" />
+                    <Setter Property="Cursor" Value="Hand" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border
+                                    x:Name="Bd"
+                                    Background="#FFFFFFFF"
+                                    BorderBrush="#FFDCE0E6"
+                                    BorderThickness="1"
+                                    CornerRadius="3">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#FFE3EEF9" />
+                                        <Setter TargetName="Bd" Property="BorderBrush" Value="#FFB9D5F0" />
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Foreground" Value="#FFB0B4BA" />
+                                        <Setter TargetName="Bd" Property="Background" Value="#FFF2F3F5" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!--  ====================  一行图层  ====================  -->
+                <!--  行高 26：与工具箱条目（28）几乎同高，两个面板并排看时不打架；  -->
+                <!--  再矮就会让 20×20 的图标按钮互相挤压，误点率上升。  -->
+                <DataTemplate x:Key="LayerRowTemplate">
+                    <Border
+                        Height="26"
+                        Margin="0,1"
+                        Padding="4,0"
+                        CornerRadius="3"
+                        ToolTip="{Binding Name}">
+                        <Border.Style>
+                            <!--  底色只在 Style 里给：写在元素上（本地值）会压过 Style 触发器，  -->
+                            <!--  悬停高亮就永远不生效——工具箱那份就踩过这个坑  -->
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#FFE9EFF7" />
+                                    </Trigger>
+                                    <!--  当前选中图元所在层：换方案、改归属时用户最想知道"我在哪一层"  -->
+                                    <DataTrigger Binding="{Binding ContainsSelection}" Value="True">
+                                        <Setter Property="Background" Value="#FFD8E8FA" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  显隐：一次点按 = 一条撤销位（VM 里包了一层 BeginEdit）  -->
+                            <Button
+                                Grid.Column="0"
+                                Command="{Binding DataContext.ToggleVisibleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}"
+                                Content="{Binding VisibilityIcon}"
+                                Style="{StaticResource EyeButton}"
+                                ToolTip="{Binding VisibilityTip}" />
+
+                            <!--  锁定：锁定后本层图元在画布上不可选、不可拖  -->
+                            <Button
+                                Grid.Column="1"
+                                Command="{Binding DataContext.ToggleLockCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}"
+                                Content="{Binding LockIcon}"
+                                Style="{StaticResource LockButton}"
+                                ToolTip="{Binding LockTip}" />
+
+                            <!--  图层名：双击改名（Photoshop 范式，比多摆一个笔形按钮省一格宽度）。  -->
+                            <!--  用 InputBindings 而不是事件处理器：整条改名链（弹框 → TryRenameLayer → 中文报错）  -->
+                            <!--  已经在 VM 里，视图只做"把双击翻成命令"，不该再长代码。  -->
+                            <TextBlock
+                                Grid.Column="2"
+                                Margin="6,0,2,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Text="{Binding Name}"
+                                TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#FF303133" />
+                                        <Style.Triggers>
+                                            <!--  隐藏层的名字一起变灰：一行里"图标 + 文字"同时变暗才读得出"这层关着"  -->
+                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                <Setter Property="Foreground" Value="#FFA8ABB2" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                                <TextBlock.InputBindings>
+                                    <MouseBinding
+                                        Command="{Binding DataContext.RenameLayerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"
+                                        MouseAction="LeftDoubleClick" />
+                                </TextBlock.InputBindings>
+                            </TextBlock>
+
+                            <!--  层内图元数：0 个显示"空"，因为"空层"正是删除按钮可用的唯一前提  -->
+                            <TextBlock
+                                Grid.Column="3"
+                                Margin="4,0,2,0"
+                                VerticalAlignment="Center"
+                                FontSize="10.5"
+                                Foreground="#FF909399"
+                                Text="{Binding ElementCountText}"
+                                ToolTip="该图层包含的图元数量" />
+
+                            <Button
+                                Grid.Column="4"
+                                Command="{Binding DataContext.MoveLayerUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}"
+                                Content="&#xf062;"
+                                IsEnabled="{Binding CanMoveUp}"
+                                Style="{StaticResource RowMiniButton}"
+                                ToolTip="上移一层（只改列表次序）" />
+
+                            <Button
+                                Grid.Column="5"
+                                Command="{Binding DataContext.MoveLayerDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}"
+                                Content="&#xf063;"
+                                IsEnabled="{Binding CanMoveDown}"
+                                Style="{StaticResource RowMiniButton}"
+                                ToolTip="下移一层（只改列表次序）" />
+
+                            <!--  删除：只有空层才可用（判据只有 ScadaPage.CanRemoveLayer 一份），  -->
+                            <!--  所以"灰着的垃圾桶"本身就是在告诉用户"先把这层的图元挪走或删掉"  -->
+                            <Button
+                                Grid.Column="6"
+                                Margin="2,0,0,0"
+                                Command="{Binding DataContext.RemoveLayerCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}"
+                                Content="&#xf2ed;"
+                                IsEnabled="{Binding CanRemove}"
+                                Style="{StaticResource RowMiniButton}"
+                                ToolTip="删除图层（仅空层可删，可用 Ctrl+Z 撤销）" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </Grid.Resources>
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!--  ====================  标题  ====================  -->
+            <Grid Grid.Row="0" Margin="10,10,10,6">
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Foreground="#FF303133"
+                    Text="{Binding HeaderText}"
+                    TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding HeaderText}" />
+                <TextBlock
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    FontSize="11"
+                    Foreground="#FF909399"
+                    Text="{Binding LayerCountText}" />
+            </Grid>
+
+            <!--  ====================  未分层提醒  ====================  -->
+            <!--  图元的 LayerId 指向已删图层时也会落到这里（ResolveLayer 返回 null），  -->
+            <!--  这类图元在画布上照常显示、照常能编辑，只是不属于任何一层——不说一声会显得面板"漏了东西"  -->
+            <Border
+                Grid.Row="1"
+                Margin="10,0,10,6"
+                Padding="6,3"
+                Background="#FFFFF7E6"
+                BorderBrush="#FFF5D9A0"
+                BorderThickness="1"
+                CornerRadius="3"
+                Visibility="{Binding HasUnassigned, Converter={StaticResource BoolVis}}">
+                <TextBlock
+                    FontSize="11"
+                    Foreground="#FFB88230"
+                    Text="{Binding UnassignedHint}"
+                    TextWrapping="Wrap" />
+            </Border>
+
+            <!--  ====================  图层列表  ====================  -->
+            <Grid Grid.Row="2">
+                <ScrollViewer
+                    Margin="6,0,6,4"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemTemplate="{StaticResource LayerRowTemplate}" ItemsSource="{Binding Items}" />
+                </ScrollViewer>
+
+                <!--  空态：没画面 / 画面还没有图层，两种说法不同（文案由 VM 给）  -->
+                <TextBlock
+                    Margin="18,0"
+                    VerticalAlignment="Center"
+                    FontSize="11.5"
+                    Foreground="#FFA8ABB2"
+                    IsHitTestVisible="False"
+                    Text="{Binding EmptyHint}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Items.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <!--  ====================  次序说明  ====================  -->
+            <!--  这句是"防误判"而不是装饰：图层次序不参与叠放计算（见 ScadaLayer 类头第 ③ 条），  -->
+            <!--  谁盖住谁只由 ScadaElement.ZIndex 决定。不写出来的话，用户点几次上移发现  -->
+            <!--  画面前后关系没变，会判定成"这个按钮坏了"——解释成本最低、收益最高的一句文案。  -->
+            <TextBlock
+                Grid.Row="3"
+                Margin="10,0,10,6"
+                VerticalAlignment="Center"
+                FontSize="10.5"
+                Foreground="#FFA8ABB2"
+                Text="图层顺序不改变图元叠放"
+                TextTrimming="CharacterEllipsis"
+                ToolTip="{Binding OrderHintDetail}" />
+
+            <!--  ====================  新建图层  ====================  -->
+            <Button
+                Grid.Row="4"
+                Margin="10,0,10,10"
+                Command="{Binding AddLayerCommand}"
+                Style="{StaticResource FooterButton}"
+                ToolTip="新建一个图层（名字自动取「图层_N」，双击行内名称可改）">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource IconFont}"
+                        FontSize="10"
+                        Text="&#xf067;" />
+                    <TextBlock VerticalAlignment="Center" Text="新建图层" />
+                </StackPanel>
+            </Button>
+        </Grid>
+    </Border>
+</UserControl>

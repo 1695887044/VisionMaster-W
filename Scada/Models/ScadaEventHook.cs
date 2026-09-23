@@ -23,7 +23,7 @@ namespace VisionMaster.Scada
     /// 属性面板走 <see cref="ScadaElement.GetOrAddEventHook"/>，一个事件只会长出一行，
     /// 所以正常操作路径下不会出现重复行。
     /// </summary>
-    public class ScadaEventHook : BindableBase
+    public class ScadaEventHook : ScadaModelBase
     {
         private ScadaEventType _event;
         private ObservableCollection<ScadaAction> _actions = new();
@@ -35,6 +35,12 @@ namespace VisionMaster.Scada
         /// 旧动作仍被本钩子钉住（泄漏），且改旧动作还会把画面版本号刷高（脏标记失真）。
         /// </summary>
         private readonly HashSet<ScadaAction> _subscribedActions = new();
+
+        /// <summary>
+        /// 打开一次可撤销的编辑（D3 统一写入口），用法与 <see cref="ScadaPage.BeginEdit"/> 一致。
+        /// 属性面板上"加一条动作/删一条动作/改动作内容"都走这个作用域。
+        /// </summary>
+        public IScadaChangeScope BeginEdit(string label) => ScadaChangeScope.Begin(label);
 
         /// <summary>本钩子对应的事件（取值必须是图元描述符里声明过的那个事件）</summary>
         public ScadaEventType Event
@@ -112,6 +118,8 @@ namespace VisionMaster.Scada
         /// </summary>
         private void OnActionsChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
+            ScadaCollectionRecorder.Record(_actions, e);
+
             if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 foreach (var action in _subscribedActions)

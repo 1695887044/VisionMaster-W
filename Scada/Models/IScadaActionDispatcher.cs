@@ -10,13 +10,15 @@ namespace VisionMaster.Scada
     /// 接口定在下面这一层，运行态会话（<see cref="ScadaRuntime"/>）才不必引用 WPF 就能把话递出去，
     /// 而 <c>ScadaChecks</c> 这类无界面检查也能塞一个假实现进来，钉住"配了几条、按什么顺序被调用"。
     ///
-    /// 为什么只认"钩子 + 事发对象名"，不认鼠标事件、不认控件
+    /// 为什么只认"钩子 + 事发对象名 + 操作者名"，不认鼠标事件、不认控件
     /// ---------
     /// 分发器的职责边界就是<b>动作清单</b>：一条钩子已经带着"发生了什么事件"（<see cref="ScadaEventHook.Event"/>）
-    /// 和"要干哪几件事"（<see cref="ScadaEventHook.Actions"/>），而日志回落文案需要知道"是谁出的事"。
+    /// 和"要干哪几件事"（<see cref="ScadaEventHook.Actions"/>），而日志文案需要知道"是谁出的事"
+    /// 与"是谁在操作"（S12 的审计署名：谁在什么时候按了哪个按钮）。
     /// 除此之外的一律不传：传了 <see cref="ScadaElement"/> 就等于允许分发器去改模型（那是运行态的禁区），
-    /// 传了 <c>MouseButtonEventArgs</c> 就等于把这层和 WPF 焊死。"事发对象叫什么"用一个字符串带过来，
-    /// 图元出报图元名、画面出报画面名，同一个分发器两边都能用。
+    /// 传了 <c>MouseButtonEventArgs</c> 就等于把这层和 WPF 焊死。
+    /// "事发对象叫什么""操作者叫什么"各用一个字符串带过来，图元出报图元名、画面出报画面名，
+    /// 同一个分发器两边都能用。
     ///
     /// 实现方的两条契约（写在这里，因为调用方只有这一处依据）
     /// ---------
@@ -33,7 +35,14 @@ namespace VisionMaster.Scada
         /// 钩子为 null 或动作表为空时什么都不做——"没配动作"由空集合表达，不是错误。
         /// </summary>
         /// <param name="hook">命中的那条钩子（含事件与动作串）</param>
-        /// <param name="sourceName">出事的对象显示名（图元名或画面名），供日志回落文案使用</param>
-        void Dispatch(ScadaEventHook? hook, string? sourceName);
+        /// <param name="sourceName">出事的对象显示名（图元名或画面名），供日志文案使用</param>
+        /// <param name="operatorName">
+        /// 此刻的操作者显示名（S12 审计署名）。通常直接取
+        /// <see cref="IScadaAccessPolicy.CurrentUserName"/>——那个属性<b>承诺不为 null/空</b>
+        /// （未登录回落成"未登录"），所以生产路径上这一行永远有个名字。
+        /// 留成可选是为了让"不关心署名"的调用方（无界面的检查、将来的脚本宿主）
+        /// 不必凭空造一个名字出来；空值时按"未登录"落笔，不落一个空白署名。
+        /// </param>
+        void Dispatch(ScadaEventHook? hook, string? sourceName, string? operatorName = null);
     }
 }

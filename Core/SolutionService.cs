@@ -1,6 +1,7 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using Newtonsoft.Json;
 using VisionMaster.Models;
 
@@ -61,7 +62,18 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 保存方案到文件
+        /// 按落盘口径序列化方案（与 SaveAsync 写出的文本逐字一致）。
+        /// 用途：草稿转存需要"内存里的内容"与"磁盘上的内容"做逐字比较，
+        /// 只有两边走同一套设置（同一份 _jsonSettings）比较才有意义，故单独暴露出来。
+        /// </summary>
+        public static string Serialize(SolutionModel solution)
+        {
+            if (solution == null) throw new ArgumentNullException(nameof(solution));
+            return JsonConvert.SerializeObject(solution, _jsonSettings);
+        }
+
+        /// <summary>
+        /// 保存方案到文件（原子写：先写 .tmp 再替换，写到一半断电也不会把原方案毁掉）
         /// </summary>
         public async Task<Result<bool>> SaveAsync(SolutionModel targetSolution, string filePath)
         {
@@ -73,8 +85,24 @@ namespace VisionMaster.Services
                     Directory.CreateDirectory(directory);
                 }
 
-                var json = JsonConvert.SerializeObject(targetSolution, _jsonSettings);
-                await File.WriteAllTextAsync(filePath, json);
+                var json = Serialize(targetSolution);
+
+                // 原子写：临时文件与目标同目录（跨盘 File.Replace 会失败），
+                // 先落临时文件再整体替换；目标已存在走 Replace（保留旧文件到备份位可空），
+                // 不存在才 Move。失败时临时文件清掉，不给用户留垃圾。
+                var tmp = filePath + ".tmp";
+                try
+                {
+                    await File.WriteAllTextAsync(tmp, json, new UTF8Encoding(false));
+                    if (File.Exists(filePath)) File.Replace(tmp, filePath, null);
+                    else File.Move(tmp, filePath);
+                }
+                catch
+                {
+                    try { if (File.Exists(tmp)) File.Delete(tmp); } catch { /* 清理失败不影响主流程 */ }
+                    throw;
+                }
+
                 return Result<bool>.Ok(true);
             }
             catch (Exception ex)

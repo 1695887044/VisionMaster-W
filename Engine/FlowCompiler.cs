@@ -201,7 +201,7 @@ namespace VisionMaster.Services
                 // ==========================================
                 if (model is WhileStep whileModel)
                     {
-                        var whileNode = new CompiledWhileNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
+                        var whileNode = new CompiledWhileNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, Blueprint = model };
                         nodeLookup.Add(model.StepID, whileNode);
 
                     // 1. 编译局部变量（While / If 共用逻辑，提取至 CompileLocalVarParams）
@@ -271,7 +271,7 @@ namespace VisionMaster.Services
                 // ==========================================
                 else if (model is ConditionStep conditionModel)
                 {
-                    var ifNode = new CompiledIfNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
+                    var ifNode = new CompiledIfNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, Blueprint = model };
                     nodeLookup.Add(model.StepID, ifNode);
 
                     // 编译局部变量（While / If 共用逻辑，提取至 CompileLocalVarParams）
@@ -353,7 +353,7 @@ namespace VisionMaster.Services
                 // ==========================================
                 else if (model is ForStep forModel)
                 {
-                    var forNode = new CompiledForNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
+                    var forNode = new CompiledForNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, Blueprint = model };
                     forNode.DefaultLoopCount = forModel.DefaultLoopCount;
                     nodeLookup.Add(model.StepID, forNode);
 
@@ -373,19 +373,19 @@ namespace VisionMaster.Services
                 }
                 else if (model.PluginTypeName == "BuiltIn_Break")
                 {
-                    var breakNode = new CompiledBreakNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
+                    var breakNode = new CompiledBreakNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, Blueprint = model };
                     nodeLookup.Add(model.StepID, breakNode);
                     compiledNodes.Add(breakNode);
                 }
                 else if (model.PluginTypeName == "BuiltIn_Continue")
                 {
-                    var continueNode = new CompiledContinueNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
+                    var continueNode = new CompiledContinueNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, Blueprint = model };
                     nodeLookup.Add(model.StepID, continueNode);
                     compiledNodes.Add(continueNode);
                 }
                 else if (model.PluginTypeName == "BuiltIn_Return")
                 {
-                    var returnNode = new CompiledReturnNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName };
+                    var returnNode = new CompiledReturnNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, Blueprint = model };
                     nodeLookup.Add(model.StepID, returnNode);
                     compiledNodes.Add(returnNode);
                 }
@@ -453,7 +453,7 @@ namespace VisionMaster.Services
                         }
                     }
 
-                    var pluginNode = new CompiledPluginNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, ExternalPlugin = plugin };
+                    var pluginNode = new CompiledPluginNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, ExternalPlugin = plugin, Blueprint = model };
                     nodeLookup.Add(model.StepID, pluginNode);
                     compiledNodes.Add(pluginNode);
                 }

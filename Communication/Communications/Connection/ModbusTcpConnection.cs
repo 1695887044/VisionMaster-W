@@ -34,6 +34,14 @@ namespace VisionMaster.Communications
             _device = new ModbusTcpNet();
             _device.IpAddress = config.IpAddress;
             _device.Port = config.Port;
+            // 把配置的"连接超时"真正下发到设备：HSL 的 ConnectTimeOut 默认是 10000ms，
+            // 与界面上的 TimeoutMs（默认 3000ms）是两套数。不下发的话会出现两种错位：
+            // ① 用户把超时调大（如慢速 VPN 想等 20 秒）→ socket 仍 10 秒就放弃；
+            // ② 用户把超时调小（如想 500ms 快速失败）→ 上层 500ms 就报失败，但建连线程还占着 10 秒。
+            _device.ConnectTimeOut = config.TimeoutMs;
+            // 读超时是另一回事：它约束"每次读写帧等对端回包"的时长（HSL 默认 5000ms）。
+            // 与连接超时分开配置，才能既让慢链路建连有耐心、又让掉线设备快速暴露故障。
+            _device.ReceiveTimeOut = config.ReadTimeoutMs;
         }
 
         /// <inheritdoc />

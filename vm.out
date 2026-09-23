@@ -1,0 +1,26 @@
+[00:14:13] [INFO] AdvancedCommunicationManager 初始化完成
+[00:14:13] [INFO] 正在加载配置: E:\VM\VisionMaster-W-master\VisionMaster\bin\Debug\net9.0-windows\communications.json
+[00:14:13] [INFO] 正在添加连接: Conn_014013 (ModbusTcp)
+[00:14:13] [INFO] 连接状态变化: Conn_014013 Disconnected -> Disconnected
+[00:14:13] [INFO] 连接添加成功: Conn_014013
+[00:14:13] [INFO] 配置加载完成: 共加载 1 个连接
+[00:14:13] [INFO] 正在启动所有连接...
+[00:14:13] [INFO] 1 条连接标记为自动启动，正在后台建立连接
+[00:14:13] [DEBUG] 连接 Conn_014013 无已注册变量，已停止轮询
+[00:14:13] [INFO] 连接状态变化: Conn_014013 Disconnected -> Connecting
+[00:14:15] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:14:15] [INFO] 连接状态变化: Conn_014013 Connecting -> Reconnecting
+[00:14:19] [INFO] 正在测试连接: Conn_014013
+[00:14:21] [INFO] 连接测试结果: Conn_014013 = 失败
+[00:14:23] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:14:29] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:14:40] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:14:58] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:15:30] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:16:02] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:16:34] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:17:06] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:17:38] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:18:10] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:18:42] [WARNING] 通信故障: Conn_014013 — 建立连接失败
+[00:19:14] [WARNING] 通信故障: Conn_014013 — 建立连接失败

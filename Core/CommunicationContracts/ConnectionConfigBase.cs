@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using UI.Attributes;
@@ -22,13 +22,14 @@ namespace VisionMaster.Communications
         public CommunicationType Type { get; set; }
 
         /// <summary>
-        /// <para>获取或设置连接超时时间（毫秒）。</para>
+        /// <para>获取或设置<b>连接超时</b>时间（毫秒）——只约束"建立连接"这一步。</para>
         /// <para>默认值：3000ms</para>
         /// <para>范围：100-60000ms</para>
+        /// <para>去向：TCP 连接下发到 HSL 的 ConnectTimeOut；同时被 Manager 当作等待首次建连的预算。</para>
         /// </summary>
         [SuperDisplay(Name = "超时时间(ms)", GroupPath = "高级参数", Order = 10, ColSpan = 4)]
         [RangeValidation(100, 60000, "超时必须在 100 - 60000 之间")]
-        public int TimeoutMs { get; set; } = 3000;
+        public virtual int TimeoutMs { get; set; } = 3000;
 
         /// <summary>
         /// <para>获取或设置重试次数。</para>
@@ -45,6 +46,16 @@ namespace VisionMaster.Communications
         /// </summary>
         [SuperDisplay(Name = "重试间隔(ms)", GroupPath = "高级参数", Order = 12, ColSpan = 4)]
         public int RetryIntervalMs { get; set; } = 1000;
+
+        /// <summary>
+        /// <para>获取或设置<b>读超时</b>时间（毫秒）——约束每一次读写帧的等待，与"连接超时"是两件事。</para>
+        /// <para>默认值：5000ms（与 HSL 自身的 ReceiveTimeOut 默认值一致，故不填也等于旧行为）</para>
+        /// <para>范围：100-60000ms</para>
+        /// <para>去向：统一下发到 HSL 的 ReceiveTimeOut（TCP / 串口共用同一入口）。</para>
+        /// </summary>
+        [SuperDisplay(Name = "读超时(ms)", GroupPath = "高级参数", Order = 13, ColSpan = 4)]
+        [RangeValidation(100, 60000, "读超时必须在 100 - 60000 之间")]
+        public int ReadTimeoutMs { get; set; } = 5000;
 
         /// <summary>
         /// <para>创建对应的通信连接对象。</para>
@@ -68,6 +79,7 @@ namespace VisionMaster.Communications
         {
             errorMessage = string.Empty;
             if (TimeoutMs <= 0) { errorMessage = "超时必须>0"; return false; }
+            if (ReadTimeoutMs <= 0) { errorMessage = "读超时必须>0"; return false; }
             if (RetryCount < 0) { errorMessage = "重试次数不能<0"; return false; }
             return true;
         }

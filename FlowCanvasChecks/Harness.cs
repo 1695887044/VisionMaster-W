@@ -144,6 +144,26 @@ namespace FlowCanvasChecks
 
         public ForStep For(string name) => new("\uE700", "桩For", StubPluginProvider.ForPlugin, name);
 
+        /// <summary>
+        /// 「变量定义」桩步骤：画布据此在节点上动态长出一根以变量名命名的值输出脚。
+        ///
+        /// 为什么用假类型名：本断言工程只引用了 VisionMaster.csproj，没有引用
+        /// Plugins\Plugin.Utility，拿不到真的 VariableDefinitionPlugin。而识别口径只有一条
+        /// <c>PluginTypeName.Contains("VariableDefinitionPlugin")</c>（收在 FlowQueryHelper.TryGetDefinedVariable
+        /// 里，画布与绑定弹窗共用），所以画布侧断言用假名足够，且顺带守住"两处口径不漂移"。
+        /// 需要真跑起来的执行层断言（ExecutionChecks）另用真类型桩 LoopVarPlugin。
+        /// </summary>
+        /// <param name="variableName">变量名（= 值脚的端口名与运行期寻址键）</param>
+        /// <param name="typeKeyword">类型关键字，按 VariableDefinitionPlugin 的口径写（int/double/string…）</param>
+        public ActionStep Variable(string variableName, string typeKeyword, string name)
+        {
+            var step = new ActionStep("\uE700", "变量定义", "VM.CanvasStub.VariableDefinitionPlugin", name);
+            // 刻意不走 WithInput：它写的是 0d，而 Name/Type 必须是字符串
+            step.SetInputValue("Name", variableName);
+            step.SetInputValue("Type", typeKeyword);
+            return step;
+        }
+
         /// <summary>往图纸主列追加一个步骤</summary>
         public T Add<T>(T step) where T : StepModel
         {

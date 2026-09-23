@@ -1,0 +1,34 @@
+﻿VisionMaster 交付目录说明
+生成时间：2026-09-21 04:03:15
+构建配置：Release
+
+零、怎么用
+  整个目录拷到现场机器上，双击 VisionMaster.exe 即可，不需要安装、不需要写注册表、
+  不需要装驱动。首次运行会在本目录自动生成 AppConfig.json 与 Logs\，属正常现象。
+
+一、升级怎么做
+  1) 先退出 VisionMaster；
+  2) 备份下面「二」里列出的用户数据（至少备份 *.vms 方案文件与 AppConfig.json）；
+  3) 用新版本目录里的文件覆盖旧目录的同名文件；
+  4) 不要删除下面「二」里的任何文件/目录。
+
+二、受保护用户数据（升级不得删除、不得覆盖）
+  AppConfig.json        软件级配置：空闲超时、审计/报警保留天数、运行窗口形态与落屏
+  *.vms                 方案文件（用户自选路径保存，通常在程序目录之外）
+  Layout.xml            界面布局
+  ScadaUsers.json       账号与角色
+  communications.json   通讯配置
+  Logs\                 运行日志（按天滚动，保留 30 天）
+  Audit\                操作审计（按天滚动，保留天数取 AppConfig.json）
+  Alarms\               报警历史（按天滚动，保留天数取 AppConfig.json）
+  Autosave\             未保存草稿；recovered\ 是"已提示过"的归档
+  crash_reports\        崩溃现场留档（保留最近 20 份）
+
+三、版本升级的兼容性承诺
+  新增配置项一律「默认值 = 历史行为」：老机器的 AppConfig.json 里没有新字段时，
+  读出来就是老版本的行为，不会因为升级而改变现场已经在跑的动作。
+
+四、出问题先看哪里
+  Logs\ 当天日期的 .log      启动自检、通讯、流程、审计的完整流水
+  crash_reports\*.txt        上一次严重异常退出的现场（时间/来源/当前方案/异常全文）
+  Autosave\recovered\*.vms   异常退出时未保存的方案内容，可直接用「打开方案」载入

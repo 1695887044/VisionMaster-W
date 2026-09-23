@@ -1,4 +1,4 @@
-﻿using UI.Attributes;
+using UI.Attributes;
 
 namespace VisionMaster.Communications
 {
@@ -66,6 +66,7 @@ namespace VisionMaster.Communications
             TimeoutMs = TimeoutMs,
             RetryCount = RetryCount,
             RetryIntervalMs = RetryIntervalMs,
+            ReadTimeoutMs = ReadTimeoutMs,
             IpAddress = IpAddress,
             Port = Port,
             EnableKeepAlive = EnableKeepAlive,

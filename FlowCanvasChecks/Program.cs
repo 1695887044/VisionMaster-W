@@ -2,7 +2,10 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Windows;
 using Core.Interfaces;
+using Newtonsoft.Json;
 using VisionMaster;
+using VisionMaster.Communications;
+using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
@@ -49,6 +52,16 @@ namespace FlowCanvasChecks
             CrossBranchMoveAndUndo();
             ConnectDisconnectUndoRedo();
             UndoStackBoundary();
+            RuntimeVariablePortAndLink();
+
+            // 执行层断言（流程引擎优化 A1/A2/A3/B1/B2/B3）
+            ExecutionChecks.IfInsideLoopExecutes();
+            ExecutionChecks.WhileLoopRunsAndExits();
+            ExecutionChecks.ContainerStatesReportedAndBlueprintLinked();
+            ExecutionChecks.DuplicateStartIsIgnored();
+            ExecutionChecks.RuntimeStateDoesNotInvalidateVersion();
+            ExecutionChecks.RegistryLockDoesNotBlockCollection();
+            ExecutionChecks.ForLoopCountReadsRuntimeVariable();
 
             Finish();
             return Environment.ExitCode;
@@ -1192,15 +1205,157 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  [R] 运行时变量值脚：变量定义节点长脚 → 拖线建 RuntimeVariable 线 → 存盘往返 / 降级
+        // ==================================================================
+
+        /// <summary>
+        /// 方案落盘用的反序列化设置：与 <c>SolutionService</c> 内部那份保持一致。
+        /// 产品里那份是私有字段，这里只能用同一个 public binder 复刻，否则往返断言测的不是同一条链路。
+        /// </summary>
+        private static readonly JsonSerializerSettings RoundTripSettings = new()
+        {
+            Formatting = Formatting.Indented,
+            NullValueHandling = NullValueHandling.Ignore,
+            TypeNameHandling = TypeNameHandling.Auto,
+            SerializationBinder = new ConnectionConfigSerializationBinder()
+        };
+
+        private static void RuntimeVariablePortAndLink()
+        {
+            Section("[R] 运行时变量值脚建线");
+
+            // ---- R1 值脚的存在性：只有变量定义节点长脚，端口名 = 变量名，类型来自 Type 参数 ----
+            var h = new Harness();
+            var def = h.Variable("loopN", "int", "定义loopN");
+            var forStep = h.For("循环");
+            h.Add(def);
+            h.Add(forStep);
+            var cv = h.Canvas;
+
+            var defNode = h.Node(def)!;
+            var valuePort = h.Out(defNode, "loopN");
+            Check("变量定义节点长出以变量名命名的值脚", valuePort != null,
+                $"Outputs=[{string.Join(",", defNode.Outputs.Select(o => o.PortName))}]");
+            Check("值脚带 RuntimeVariable 标记且类型取自 Type 参数（int）",
+                valuePort!.IsRuntimeVariablePort && valuePort.DataType == typeof(int),
+                $"flag={valuePort.IsRuntimeVariablePort} type={valuePort.DataType.Name}");
+            Check("变量定义节点自身输入口是 Name/Type（插件参数，不是变量）",
+                defNode.Inputs.Count == 2 && h.In(defNode, "Name") != null && h.In(defNode, "Type") != null,
+                $"Inputs=[{string.Join(",", defNode.Inputs.Select(i => i.PortName))}]");
+            Check("全画布只有这一个值脚（普通步骤不长脚）",
+                cv.Nodes.SelectMany(n => n.Outputs).Count(o => o.IsRuntimeVariablePort) == 1, "");
+
+            // ---- R2 拖线建 RuntimeVariable 线：三元组写回图纸 ----
+            var versionBefore = h.Flow.Version;
+            var loopCountIn = h.In(h.Node(forStep)!, "LoopCount");
+            Check("For 节点暴露 LoopCount 输入脚（类型 int）",
+                loopCountIn != null && loopCountIn.DataType == typeof(int),
+                loopCountIn == null ? "无 LoopCount 输入脚" : loopCountIn.DataType.Name);
+
+            cv.Connect(valuePort, loopCountIn);
+            var link = forStep.LinkedSources["LoopCount"];
+            Check("值脚可当连线源端且状态栏无拒绝",
+                cv.Connections.Count == 1 && cv.StatusHint == null && ReferenceEquals(cv.Connections[0].Output, valuePort),
+                $"count={cv.Connections.Count} hint='{cv.StatusHint}'");
+            Check("连线落成显式 Kind=RuntimeVariable",
+                link.Kind == LinkKind.RuntimeVariable && link.NormalizeKind() == LinkKind.RuntimeVariable, $"{link.Kind}");
+            Check("TargetStepId 是标记 Guid，不是定义步骤 Id",
+                link.TargetStepId == LinkProtocol.RuntimeVariableMarkerGuid && link.TargetStepId != def.StepID, "");
+            Check("TargetPortName=变量名 / DisplayAddress=Runtime.变量名",
+                link.TargetPortName == "loopN" && link.DisplayAddress == "Runtime.loopN", link.DisplayAddress);
+            Check("建线走统一写路径递增图纸版本", h.Flow.Version != versionBefore, $"{versionBefore} → {h.Flow.Version}");
+            Check("两端端口点亮",
+                valuePort.IsConnected && loopCountIn!.IsConnected, "");
+            Check("定义在本层 → 画实线，不降级不标红",
+                cv.DeferredLinkCount == 0 && cv.IllegalLinkCount == 0 && !cv.Connections[0].IsIllegal,
+                $"deferred={cv.DeferredLinkCount} illegal={cv.IllegalLinkCount}");
+
+            // ---- R3 撤销 / 重做 ----
+            cv.UndoCommand.Execute();
+            Check("撤销后图纸引用与画布连线一起消失",
+                !forStep.LinkedSources.ContainsKey("LoopCount") && cv.Connections.Count == 0,
+                $"count={cv.Connections.Count}");
+            cv.RedoCommand.Execute();
+            var redoLink = forStep.LinkedSources["LoopCount"];
+            Check("重做恢复三要素（Kind/变量名/标记 Guid）",
+                redoLink.Kind == LinkKind.RuntimeVariable
+                && redoLink.TargetPortName == "loopN"
+                && redoLink.TargetStepId == LinkProtocol.RuntimeVariableMarkerGuid, "");
+
+            // ---- R4 存盘往返：Kind 显式落盘，变量定义身份不丢 ----
+            var json = SolutionService.Serialize(h.Solution);
+            Check("落盘文本里 Kind 是数字 3（不再靠 DisplayAddress 猜）",
+                json.Contains("\"Kind\": 3") && json.Contains("\"Runtime.loopN\""), "");
+
+            var reloaded = JsonConvert.DeserializeObject<SolutionModel>(json, RoundTripSettings)!;
+            // SolutionModel 的字段初始化器预置了 GoHome / MainTask 两条流程，
+            // 反序列化走 ObjectCreationHandling.Replace 原样带回来 → 按名字取断言那条
+            var reloadedFlow = reloaded.Flows.Single(f => f.FlowName == "画布断言流程");
+            var for2 = reloadedFlow.Steps.OfType<ForStep>().Single();
+            var def2 = reloadedFlow.Steps.OfType<ActionStep>().Single();
+
+            Check("往返后连线身份不变",
+                for2.LinkedSources["LoopCount"].NormalizeKind() == LinkKind.RuntimeVariable
+                && for2.LinkedSources["LoopCount"].TargetPortName == "loopN", "");
+            Check("往返后变量定义步骤仍能长出值脚（Name/Type 存成裸字符串）",
+                FlowQueryHelper.TryGetDefinedVariable(def2, out var rn, out var rt)
+                && rn == "loopN" && rt == typeof(int), $"{rn}/{rt.Name}");
+
+            // ---- R5 异层/失效降级：定义节点没了就隐形，但绝不标红、绝不擅自删图纸引用 ----
+            h.Flow.Steps.Remove(def);
+            Check("定义节点被删 → 降级隐形（不画线、不标红、不告警）",
+                cv.DeferredLinkCount == 1 && cv.IllegalLinkCount == 0
+                && cv.Connections.Count == 0 && cv.WarningVisibility == Visibility.Collapsed,
+                $"deferred={cv.DeferredLinkCount} illegal={cv.IllegalLinkCount}");
+            Check("降级不动图纸（画布不替用户删线）", forStep.LinkedSources.ContainsKey("LoopCount"), "");
+
+            // ---- R6 值脚不限消费方：任意步骤输入口都能收，且全量重建后按变量名回找 ----
+            var hb = new Harness();
+            var var2 = hb.Variable("thresh", "double", "定义thresh");
+            var leaf = hb.Leaf("消费");
+            Harness.WithInput(leaf, "In");
+            hb.Add(var2);
+            hb.Add(leaf);
+            var cb = hb.Canvas;
+            cb.Connect(hb.Out(hb.Node(var2)!, "thresh"), hb.In(hb.Node(leaf)!, "In"));
+            Check("值脚同样能喂普通算子输入口",
+                leaf.LinkedSources["In"].Kind == LinkKind.RuntimeVariable
+                && leaf.LinkedSources["In"].TargetPortName == "thresh", "");
+
+            cb.Rebuild();
+            Check("全量重建后按变量名回找回实线（不依赖建线时的即时 Add）",
+                cb.Connections.Count == 1 && cb.DeferredLinkCount == 0 && !cb.Connections[0].IsIllegal,
+                $"count={cb.Connections.Count} deferred={cb.DeferredLinkCount}");
+
+            // ---- R7 地基回归：绑定弹窗候选树递归 For 子层 ----
+            var hc = new Harness();
+            var pre = hc.Leaf("前置");
+            var outer = hc.For("外层For");
+            var innerDef = hc.Variable("inLoop", "int", "循环内定义");
+            var innerConsumer = hc.Leaf("循环内消费");
+            Harness.WithInput(innerConsumer, "In");
+            hc.Add(pre);
+            hc.Add(outer);
+            outer.Children[0].Steps.Add(innerDef);
+            outer.Children[0].Steps.Add(innerConsumer);
+
+            var upstream = FlowQueryHelper.GetUpstreamNodes(hc.Flow.Steps, innerConsumer);
+            Check("候选树能递归进 For 子层拿到循环内定义的变量（旧实现只认 If）",
+                upstream.Contains(pre) && upstream.Contains(outer) && upstream.Contains(innerDef),
+                $"找到 {upstream.Count} 个：[{string.Join(",", upstream.Select(s => s.StepName))}]");
+        }
+
+        // ==================================================================
         //  断言骨架
         // ==================================================================
-        private static void Section(string title)
+        // 断言骨架对同程序的 ExecutionChecks（执行层断言）开放，共用一套计数与汇总口径
+        internal static void Section(string title)
         {
             Console.WriteLine();
             Console.WriteLine($"---- {title} ----");
         }
 
-        private static void Check(string name, bool ok, string detail)
+        internal static void Check(string name, bool ok, string detail)
         {
             _pass += ok ? 1 : 0;
             _fail += ok ? 0 : 1;
