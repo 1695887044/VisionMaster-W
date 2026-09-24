@@ -29,7 +29,9 @@
         于是图元不必为文字额外留高度，文字也不会盖住阀体本身。
 
         ShowValue=False 时收起开度那行（读数交给旁边的数值域），位号仍保留。
-        触发器用 Binding 而不是 TemplateBinding——TemplateBinding 不能出现在触发器的 Binding 位置。
+        显不显开度这个开关由控件代码翻（见 ValveElement.UpdateValve），模板里<b>既不写
+        Visibility 初值、也不写 ControlTemplate.Triggers</b>——本环境下模板触发器里的
+        DataTrigger 不触发（见 ScadaElementBase.SetPartVisible）。
     -->
     <Style TargetType="{x:Type local:ValveElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -94,14 +96,6 @@
                             VerticalAlignment="Bottom"
                             Margin="0,0,0,1" />
                     </Grid>
-
-                    <ControlTemplate.Triggers>
-                        <DataTrigger
-                            Binding="{Binding ShowValue, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="False">
-                            <Setter TargetName="OpeningLabel" Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

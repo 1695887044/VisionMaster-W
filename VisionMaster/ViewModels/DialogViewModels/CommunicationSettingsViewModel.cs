@@ -393,7 +393,20 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 Notifier.ShowInfo("创建新通信已取消");
                 return;
             }
-            _communicationManager.AddConnection(newConfig);
+            // B3：Manager 抛出来的异常（协议未实现 / 名称重复 / 参数非法）必须弹给人看。
+            // 旧实现是裸调——异常直接穿透命令执行栈，用户看到的只是"点了确定，界面毫无反应"，
+            // 连失败原因都拿不到；而它旁边就摆着一句 Notifier.ShowInfo("创建新通信已取消")，
+            // 更让人以为是自己点了取消。
+            // 失败时**不入列表、不选中**：否则会留下一条点不动、也删不掉的假条目。
+            try
+            {
+                _communicationManager.AddConnection(newConfig);
+            }
+            catch (Exception ex)
+            {
+                Notifier.ShowError($"创建连接失败：{ex.Message}");
+                return;
+            }
             Configs.Add(newConfig);
 
             // 选中新配置
@@ -475,7 +488,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             config.CopyFrom(copy);
-            _communicationManager.UpdateConnection(config); // 已连接时新参数在下次重连后生效
+            // B3：与 ExecuteAdd 同理，Manager 抛异常必须弹给人看，不能让它穿出去当"点了没反应"。
+            // 这里的失败后果比新增更重：UpdateConnection 内部是"先移除旧连接、再添加新连接"，
+            // 一旦抛出，管理器里**新旧都没有了**——必须明确告诉用户连接已不在，别让他以为参数还挂在线上
+            try
+            {
+                _communicationManager.UpdateConnection(config); // 已连接时新参数在下次重连后生效
+            }
+            catch (Exception ex)
+            {
+                Notifier.ShowError(
+                    $"保存连接 [{config.ConnectionName}] 失败：{ex.Message}\n" +
+                    "该连接已从通讯管理器移除，请修正参数后重新保存（会重新添加），或删除后重新创建。");
+                RefreshView();
+                return;
+            }
             RefreshView(); // 参与搜索的字段（IP/端口/协议）可能变了，刷新筛选结果
         }
 

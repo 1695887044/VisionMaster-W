@@ -80,12 +80,19 @@ namespace VisionMaster.Services
         /// <summary>行内时间戳格式（不含毫秒：报警查询到秒足够，毫秒只会让表格变宽）</summary>
         private const string TimeFormat = "yyyy-MM-dd HH:mm:ss";
 
-        /// <summary>CSV 表头。列序 = 现场看报警时的阅读顺序：先说是什么、再说多严重、最后是时间线</summary>
+        /// <summary>
+        /// CSV 表头。列序 = 现场看报警时的阅读顺序：先说是什么、再说多严重、最后是时间线。
+        ///
+        /// 组态补充信息（报警组 / 故障原因 / 解决措施 / 附加信息）一律<b>追加在末尾</b>：
+        /// 插在中间会把既有列的下标整体挪位，而现场已经有人按列号取数做报表了。
+        /// 追加在末尾，旧文件不重写、新文件多四列，Excel 按表头读两边都不受影响。
+        /// </summary>
         private static readonly string[] Header =
         {
             "激活时间", "报警名称", "报警文本", "严重度", "报警类型",
             "变量名", "条件描述", "触发值", "状态",
             "确认时间", "恢复时间", "清除时间", "持续时长",
+            "报警组", "故障原因", "解决措施", "附加信息",
         };
 
         /// <summary>CSV 里需要转义的字符（含分隔符、引号、换行）</summary>
@@ -414,6 +421,14 @@ namespace VisionMaster.Services
                 // 这个数字就永远冻在写入那一刻——过一天再翻这份历史，看到的是一句假话。
                 // 空着才是诚实的：没恢复 = 时长还没有答案。
                 record.RecoveredAtLocal == null ? string.Empty : Escape(record.DurationText),
+
+                // 组态补充信息（列序与 Header 末尾四列严格对齐）。
+                // 这些字段在报警激活时就从定义抄成了快照（见 ScadaAlarmRecord 的构造函数），
+                // 所以事后改了组态也不会让历史里旧记录的"怎么修"跟着变——那正是快照存在的理由。
+                Escape(record.AlarmGroup),
+                Escape(record.Cause),
+                Escape(record.Remedy),
+                Escape(record.ExtraInfo),
             };
 
             return string.Join(",", fields);

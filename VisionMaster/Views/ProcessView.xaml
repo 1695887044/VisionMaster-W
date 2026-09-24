@@ -539,13 +539,6 @@
                     Icon="code-branch"
                     Visibility="{Binding IsIfNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
 
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.AddCase}"
-                    Header="添加 Case 分支"
-                    Icon="code-branch"
-                    Visibility="{Binding IsSwitchNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
-
                 <Separator Visibility="{Binding IsIfNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
 
                 <MenuItem

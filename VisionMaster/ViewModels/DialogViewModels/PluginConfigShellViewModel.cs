@@ -3,6 +3,8 @@ using Prism.Commands;
 using Prism.Dialogs;
 using System;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -24,15 +26,22 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private IPluginConfigView _pluginView;
         private IVisionPlugin _plugin;
         private FlowSession _trialSession; // 试运行会话（含编译实例及输出数据），窗口关闭或下次试运行时释放
+        private CancellationTokenSource _execCts; // 当前试运行的取消源：点"取消"/关窗时 Cancel，叫停插件里的阻塞等待
+        private Task _execTask;                   // 当前试运行的后台任务：关窗时据此"等收尾"，避免释放掉它正在用的资源
+        private int _execRunId;                   // 试运行轮次号：丢弃上一轮迟到的回调，防止旧结果覆盖新一轮界面
+        private bool _closeAfterStop;             // 点过"取消"且当时正在执行：等后台收尾后再关窗
+        private bool _closed;                     // 窗口已关闭：迟到的回调只回收资源，不再碰界面
         private readonly IWorkspaceManager _workspace;
         private readonly ILogService _logger;
         private readonly FlowCompiler _flowCompiler;
+        private readonly HttpImageServer _httpServer;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer)
         {
             _workspace = workspace;
             _logger = logger;
             _flowCompiler = flowCompiler;
+            _httpServer = httpServer;
             ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(Cancel);
@@ -45,6 +54,28 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public bool CanCloseDialog() => true;
 
         public void OnDialogClosed()
+        {
+            // 窗口已关：后台回调若迟到，只回收本轮会话，不再刷界面
+            _closed = true;
+
+            // 1. 先取消：让仍在阻塞等待的试运行（如网络采集等图）立刻退出
+            _execCts?.Cancel();
+
+            // 2. 等收尾（上限 2 秒）：此刻绝不能提前释放会话/插件——后台线程还在用它们。
+            //    正常插件（如网络采集等图）收到令牌后毫秒级返回，2 秒只是兜底
+            var pending = _execTask;
+            if (pending != null && !pending.IsCompleted)
+                pending.Wait(TimeSpan.FromSeconds(2));
+
+            // 3. 已停下则就地释放；仍未停下（某插件不理会取消令牌）则把释放移交后台线程。
+            //    宁可有短暂的资源滞留，也不让窗口假死
+            if (pending == null || pending.IsCompleted)
+                DisposeResources();
+            else
+                pending.ContinueWith(_ => DisposeResources(), TaskScheduler.Default);
+        }
+
+        private void DisposeResources()
         {
             // 释放试运行会话：整套编译实例及其输出数据（HImage 等）随窗口关闭一起回收，
             // 兼顾"数据留存调试"与"非托管资源防泄漏"
@@ -67,6 +98,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _plugin = null;
                 _pluginView = null;
                 PluginViewContent = null;
+                _execCts?.Dispose();
+                _execCts = null;
             }
         }
 
@@ -94,10 +127,38 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 PluginDescription = _stepData.Description ?? string.Empty;
                 _pluginView?.Initialize(_stepData);
             }
+
+            // 把宿主运行环境透传给需要它的插件视图（如采集插件的"本地图片推送测试"要拼真实 URL / 令牌）
+            // 必须放在 Initialize 之后：插件 Initialize 可能写默认值，宿主透传的真实值应当最后落地
+            if (_pluginView is IPluginConfigContextProvider contextProvider)
+                contextProvider.SetConfigContext(BuildConfigContext());
+
             RaisePropertyChanged(nameof(PluginIcon));
             RaisePropertyChanged(nameof(PluginName));
             RaisePropertyChanged(nameof(PluginDescription));
             RaisePropertyChanged(nameof(PluginViewContent));
+        }
+
+        /// <summary>
+        /// 组装透传给插件视图的宿主上下文快照
+        /// 流程名取自当前工作区，HTTP 连接参数取自 HttpImageServer 的生效配置
+        /// </summary>
+        private PluginConfigContext BuildConfigContext()
+        {
+            var cfg = _httpServer?.EffectiveSettings ?? new HttpImageServerSettings();
+            var host = string.IsNullOrWhiteSpace(cfg.Host) ? HttpImageServerSettings.DefaultHost : cfg.Host;
+
+            return new PluginConfigContext
+            {
+                FlowName = _workspace?.CurrentFlow?.FlowName ?? string.Empty,
+                HttpEnabled = cfg.Enabled,
+                HttpListening = _httpServer?.IsListening ?? false,
+                // 监听端写 0.0.0.0 是"听所有网卡"，它不是可连接的目标地址 —— 本机测试要连回环地址
+                HttpHost = host is "0.0.0.0" or "[::]" or "::" ? "127.0.0.1" : host,
+                HttpPort = cfg.Port > 0 && cfg.Port <= 65535 ? cfg.Port : HttpImageServerSettings.DefaultPort,
+                HttpToken = cfg.Token ?? string.Empty,
+                RequestTimeoutMs = cfg.RequestTimeoutMs
+            };
         }
 
         #endregion
@@ -162,36 +223,102 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
             }
 
+            // 先把界面上未确认的修改同步进流程（触发版本号递增），保证"所见即所试"
+            _pluginView?.OnConfirm(_stepData);
+
+            // 释放上一次试运行的会话（旧数据随本次试运行被替换，防非托管资源堆积）
+            _trialSession?.Dispose();
+            _trialSession = null;
+
+            // 换发新令牌，并让上一轮（若有）作废
+            _execCts?.Cancel();
+            _execCts?.Dispose();
+            _execCts = new CancellationTokenSource();
+            var token = _execCts.Token;
+
+            var runId = ++_execRunId;
+            var plugin = _plugin;
+            var stepData = _stepData;
+
             IsExecuting = true;
+            ElapsedText = "耗时: 0 ms";
             StatusText = "状态: 执行中...";
 
-            try
+            // 试运行必须跑在后台线程：Prism 的 DelegateCommand 对同步委托是"就地执行"（即 UI 线程），
+            // 一旦插件内部阻塞等待（如网络采集等图），消息泵停转 → 连"取消"按钮都点不动。
+            // 试运行基建：上游链在编译实例上供数，目标插件在配置实例上执行（所见即所得，
+            // RunAlgorithm 赋值的属性/输出直接落在界面绑定的实例上），数据留存供调试查看
+            _execTask = Task.Run(() =>
             {
-                // 先把界面上未确认的修改同步进流程（触发版本号递增），保证"所见即所试"
-                _pluginView?.OnConfirm(_stepData);
+                PluginExecuteResult result = null;
+                FlowSession session = null;
+                Exception error = null;
 
-                // 释放上一次试运行的会话（旧数据随本次试运行被替换，防非托管资源堆积）
-                _trialSession?.Dispose();
-                _trialSession = null;
+                try
+                {
+                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session);
+                }
+                catch (Exception ex)
+                {
+                    error = ex;
+                }
 
-                // 试运行基建：上游链在编译实例上供数，目标插件在配置实例上执行（所见即所得，
-                // RunAlgorithm 赋值的属性/输出直接落在界面绑定的实例上），数据留存供调试查看
-                var result = PluginTestRunner.Run(_plugin, _stepData, _workspace, _logger, _flowCompiler, out _trialSession);
+                // "是否被取消"由发起方判定（令牌是自己 Cancel 的），不依赖插件的返回约定
+                var cancelled = token.IsCancellationRequested;
 
-                ElapsedText = $"耗时: {result.ElapsedMs} ms";
-                StatusText = result.Success
-                    ? $"状态: ✅ 成功 - {result.Message}"
-                    : $"状态: ❌ 失败 - {result.ErrorMessage}";
-            }
-            catch (Exception ex)
+                // InvokeAsync 是非阻塞投递：即使此刻 UI 线程正卡在关窗流程里等本任务收尾，也不会互相死等
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher == null)
+                {
+                    session?.Dispose();
+                    return;
+                }
+
+                dispatcher.InvokeAsync(() => CompleteExecute(runId, result, session, cancelled, error));
+            });
+        }
+
+        /// <summary>
+        /// 试运行收尾（UI 线程）：刷新状态栏、回收本轮会话，必要时补关窗口
+        /// </summary>
+        private void CompleteExecute(int runId, PluginExecuteResult result, FlowSession session, bool cancelled, Exception error)
+        {
+            // 窗口已关，或已开了新一轮：本次结果过期，只回收本轮会话，不碰界面
+            if (_closed || runId != _execRunId)
             {
-                ElapsedText = $"耗时: 0 ms";
-                StatusText = $"状态: ❌ 异常 - {ex.Message}";
+                session?.Dispose();
+                return;
             }
-            finally
+
+            _trialSession = session;
+            ElapsedText = $"耗时: {result?.ElapsedMs ?? 0} ms";
+
+            if (cancelled)
             {
-                IsExecuting = false;
+                // 用户主动停止（如网络采集正在等图）：本步确实没产出，但不是业务失败，
+                // 界面按"已取消"呈现，避免把主动停止误报成故障
+                var msg = result?.ErrorMessage;
+                StatusText = $"状态: ⏹ 已取消 - {(string.IsNullOrEmpty(msg) ? "已停止" : msg)}";
             }
+            else if (error != null)
+            {
+                StatusText = $"状态: ❌ 异常 - {error.Message}";
+            }
+            else if (result != null && result.Success)
+            {
+                StatusText = $"状态: ✅ 成功 - {result.Message}";
+            }
+            else
+            {
+                var msg = result?.ErrorMessage;
+                StatusText = $"状态: ❌ 失败 - {(string.IsNullOrEmpty(msg) ? "执行失败" : msg)}";
+            }
+
+            IsExecuting = false;
+
+            // 点过"取消"的：后台已收尾，现在才真正关窗
+            if (_closeAfterStop)
+                RequestClose.Invoke(ButtonResult.Cancel);
         }
 
         private void Confirm()
@@ -203,6 +330,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void Cancel()
         {
             _pluginView?.OnCancel();
+
+            // 有试运行在跑：先取消、等它收尾，收尾完成后由 CompleteExecute 关窗。
+            // 不能立刻关窗——关窗会释放掉后台线程正在使用的会话与插件实例
+            if (_execTask != null && !_execTask.IsCompleted)
+            {
+                _closeAfterStop = true;
+                StatusText = "状态: ⏹ 正在停止...";
+                _execCts?.Cancel();
+                return;
+            }
+
             RequestClose.Invoke(ButtonResult.Cancel);
         }
     }

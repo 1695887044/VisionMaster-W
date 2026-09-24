@@ -42,6 +42,10 @@ namespace VisionMaster.Scada
             Kind = definition.Kind;
             VariableName = definition.VariableName;
             ConditionText = definition.ConditionText;
+            AlarmGroup = definition.AlarmGroup;
+            Cause = definition.Cause;
+            Remedy = definition.Remedy;
+            ExtraInfo = definition.ExtraInfo;
             ActivatedAtUtc = activatedAtUtc;
             TriggerValue = triggerValue;
             _state = ScadaAlarmState.Active;
@@ -70,6 +74,18 @@ namespace VisionMaster.Scada
 
         /// <summary>条件的人话描述（配置快照，如 <c>"高限 &gt; 80"</c>）</summary>
         public string ConditionText { get; }
+
+        /// <summary>报警组（配置快照，如"一号线"）；没配为 null</summary>
+        public string? AlarmGroup { get; }
+
+        /// <summary>故障原因（配置快照，长文本）；没配为 null</summary>
+        public string? Cause { get; }
+
+        /// <summary>解决措施（配置快照，长文本）；没配为 null</summary>
+        public string? Remedy { get; }
+
+        /// <summary>附加信息（配置快照，长文本）；没配为 null</summary>
+        public string? ExtraInfo { get; }
 
         /// <summary>激活时刻（UTC）</summary>
         public DateTime ActivatedAtUtc { get; }
@@ -175,6 +191,33 @@ namespace VisionMaster.Scada
                 var value = $"触发值 {TriggerValue}";
 
                 return string.IsNullOrWhiteSpace(condition) ? value : $"{condition}｜{value}";
+            }
+        }
+
+        /// <summary>
+        /// 故障原因 / 解决措施 / 附加信息拼成的多行文本，供报警条与历史面板的悬停提示用。
+        /// 三段都没配时返回空串（调用方据此决定不显示提示）。
+        ///
+        /// 为什么拼在记录上而不是各面板各拼一次：理由与 <see cref="DetailText"/> 逐字相同——
+        /// "怎么修"这句话在报警条与历史里长得不一样，操作员就会以为说的是两件事。
+        /// </summary>
+        [JsonIgnore]
+        public string HelpText
+        {
+            get
+            {
+                var lines = new List<string>(3);
+
+                if (!string.IsNullOrWhiteSpace(Cause))
+                    lines.Add($"故障原因：{Cause!.Trim()}");
+
+                if (!string.IsNullOrWhiteSpace(Remedy))
+                    lines.Add($"解决措施：{Remedy!.Trim()}");
+
+                if (!string.IsNullOrWhiteSpace(ExtraInfo))
+                    lines.Add($"附加信息：{ExtraInfo!.Trim()}");
+
+                return string.Join(Environment.NewLine, lines);
             }
         }
     }

@@ -38,6 +38,10 @@ namespace VisionMaster.Scada.Controls
             Detail = record.DetailText;
             StateText = CompactStateText(record.State);
             IsAcknowledged = record.State == ScadaAlarmState.Acknowledged;
+
+            // 「怎么修」的多行文本（故障原因/解决措施/附加信息），三段都没配就是空串。
+            // 拼装口径统一在记录上（见 ScadaAlarmRecord.HelpText），本行只做搬运。
+            HelpText = record.HelpText;
         }
 
         /// <summary>来源记录（只读，模板用不到，留给交互与断言）</summary>
@@ -57,6 +61,12 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>条件与触发值的人话（如 <c>"高限 &gt; 80｜触发值 92.5"</c>）；都没有时为空串</summary>
         public string Detail { get; }
+
+        /// <summary>
+        /// 「怎么修」的多行文本（故障原因/解决措施/附加信息各一行）；三段都没配时为空串。
+        /// 空串时模板不该弹提示框——一个空白提示框比没有提示框更让人怀疑软件。
+        /// </summary>
+        public string HelpText { get; }
 
         /// <summary>态机状态的短写法（见 <see cref="CompactStateText"/>）</summary>
         public string StateText { get; }

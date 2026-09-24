@@ -320,7 +320,7 @@ namespace VisionMaster
             // 防御纵深：菜单/工具栏正常已被 CanExecute 置灰，这里兜住快捷键等旁路调用
             if (!CanExecuteSolution(action))
             {
-                Notifier.ShowWarning("流程运行中，禁止新建/打开/切换方案；如需切换请先点击“停止”");
+                Notifier.ShowWarning("流程运行中，禁止新建/打开/切换方案或修改报警配置；如需操作请先点击“停止”");
                 return;
             }
 
@@ -347,6 +347,11 @@ namespace VisionMaster
                     break;
                 case SolutionAction.BrowseList:
                     dialogService.ShowDialog("SolutionListView");
+                    break;
+                case SolutionAction.AlarmConfig:
+                    // 报警配置是方案级内容（跟着 .vms 走、进撤销栈），所以与新建/打开同级走这里的互锁：
+                    // 运行中改报警定义会让"正在判的那批条件"中途换一套，属于该被拦下的动作。
+                    dialogService.ShowDialog("ScadaAlarmConfigDialogView");
                     break;
             }
         }

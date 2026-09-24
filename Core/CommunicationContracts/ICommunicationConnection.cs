@@ -12,6 +12,13 @@ namespace VisionMaster.Communications
 
         bool IsConnected { get; }
 
+        /// <summary>
+        /// <para>本连接多寄存器数值（32/64 位）的线路字节序，供轮询批量规划器切片解码时对齐。</para>
+        /// <para>没有字序概念的协议（S7 等）恒为 <see cref="ByteOrderFormat.ABCD"/>。
+        /// 若这里与单点读的字序不一致，会出现"界面上读一次对、变量轮询却错"的诡异现象。</para>
+        /// </summary>
+        ByteOrderFormat ByteOrder { get; }
+
 
         bool Connect();
 

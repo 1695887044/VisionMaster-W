@@ -47,6 +47,74 @@ namespace VisionMaster.Models
     }
 
     /// <summary>
+    /// HTTP 收图服务的配置节（见 <see cref="AppConfigModel.HttpImageServer"/>）。
+    ///
+    /// 为什么单独成类而不是把几个字段平铺进 <see cref="AppConfigModel"/>
+    /// ---------
+    /// 这几个字段是"一整件事"——启用开关、监听地址、端口、令牌缺一不可，
+    /// 平铺进去后读配置的人（和写代码的人）会以为它们彼此独立。
+    /// 独立成节还有一个实际好处：将来"网络收图"之外的第二个 HTTP 入口（比如远程调试口）
+    /// 可以直接照抄一个节，不会与这几个字段在名字上打架。
+    /// </summary>
+    public class HttpImageServerSettings
+    {
+        /// <summary>默认监听端口。19000 段是"现场自留"的常见取值，避开 80/8080/5000 等易冲突端口</summary>
+        public const int DefaultPort = 19000;
+
+        /// <summary>默认令牌（占位值，见 <see cref="Token"/> 的说明）</summary>
+        public const string DefaultToken = "visionmaster";
+
+        /// <summary>默认监听地址：<c>0.0.0.0</c> = 所有网卡（现场相机/上位机从别的机器推图）</summary>
+        public const string DefaultHost = "0.0.0.0";
+
+        /// <summary>
+        /// 是否启用 HTTP 收图服务。默认<b>开启</b>——这是本功能的全部意义所在：
+        /// 关掉就没有任何入口，等于功能不存在。现场不需要时手动改 false（也省一个监听端口）。
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// 监听地址。<c>0.0.0.0</c> = 监听所有网卡；<c>127.0.0.1</c> = 只收本机（调试用，不暴露到局域网）。
+        /// 本机有双网卡时（视觉网 + 办公网）若只想让视觉网那侧能推图，填该网卡的实际 IP。
+        /// </summary>
+        public string Host { get; set; } = DefaultHost;
+
+        /// <summary>
+        /// 监听端口。改这个值时客户端（推图的相机/PLC/上位机）的 URL 也要跟着改，
+        /// 所以一旦现场联调通过就不要再动。
+        /// </summary>
+        public int Port { get; set; } = DefaultPort;
+
+        /// <summary>
+        /// 访问令牌（Bearer）。客户端必须在 <c>Authorization: Bearer {Token}</c> 头里带上它。
+        ///
+        /// 默认值是 <see cref="DefaultToken"/> 这个"明摆着的占位值"：它写在源码和文档里，
+        /// 谁都猜得到，<b>只用来防止误连（别的程序恰好往这个端口发东西），不是安全防线</b>。
+        /// 服务启动时若发现令牌仍是默认值，会在日志里记一条 Warn 提醒现场改掉——
+        /// 不做成"启动失败"：调试阶段本来就要先跑通再收紧，卡在启动上会让人先把整个功能关掉。
+        /// </summary>
+        public string Token { get; set; } = DefaultToken;
+
+        /// <summary>
+        /// 单次请求等待流程结束的超时（毫秒）。默认 30s。
+        ///
+        /// 收图后是"同步等流程跑完再回包"，所以这个值决定客户端最多等多久。
+        /// 太快（如 2s）会把正常的慢流程判成失败；太慢则客户端那边的超时先到、白等。
+        /// 一般取现场流程最长耗时的 2~3 倍。
+        /// </summary>
+        public int RequestTimeoutMs { get; set; } = 30000;
+
+        /// <summary>
+        /// 令牌是否仍是默认占位值（服务启动时据此决定要不要 Warn）。
+        /// 派生量，不进 JSON——写进去只会多一个可能与 <see cref="Token"/> 矛盾的真值。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsUsingDefaultToken =>
+            string.IsNullOrWhiteSpace(Token) ||
+            string.Equals(Token, DefaultToken, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 软件级配置（AppConfig.json）：方案清单 + 默认启动方案
     /// 注意：这是软件全局配置，不随任何解决方案持久化
     /// </summary>
@@ -153,5 +221,14 @@ namespace VisionMaster.Models
         public TimeSpan IdleTimeout => IdleTimeoutMinutes <= 0
             ? TimeSpan.Zero
             : TimeSpan.FromMinutes(IdleTimeoutMinutes);
+
+        /// <summary>
+        /// HTTP 收图服务配置（网络推送图像 → 跑流程 → 回包，见 <see cref="HttpImageServerSettings"/>）。
+        ///
+        /// <b>不能为 null</b>：这个属性在运行时会被直接点着用（<c>Current.HttpImageServer.Enabled</c>），
+        /// 而老版本的 AppConfig.json 里根本没有这个节——反序列化时 Newtonsoft 遇到缺失的引用类型
+        /// 不会自动 new，只会留 null。初始化器保证"文件里没有"与"文件里写了默认值"走同一条路。
+        /// </summary>
+        public HttpImageServerSettings HttpImageServer { get; set; } = new();
     }
 }

@@ -127,6 +127,9 @@ namespace VisionMaster
             // ===== 模块注册：通讯/引擎子系统自装配 =====
             _modules.Add(new CommunicationModule());
             _modules.Add(new FlowEngineModule());
+            // 收图服务放在最后：它初始化时要解析 IRuntimeManager / IFlowEngine / FlowCompiler，
+            // 这几个都由上面的引擎模块注册，顺序错了 Initialize 会解析不到
+            _modules.Add(new HttpImageServerModule());
             foreach (var module in _modules)
                 module.Register(containerRegistry);
 
@@ -265,6 +268,11 @@ namespace VisionMaster
             // 当前方案的 ScadaDocument.VariableEvents + 工程变量表（IWorkspaceManager.GlobalVariables），
             // 弹窗打开时现读——两次打开之间用户可能去变量管理里增删过变量，缓存下来就是幽灵条目。
             containerRegistry.RegisterDialog<ScadaVariableEventDialogView, ScadaVariableEventDialogViewModel>("ScadaVariableEventDialogView");
+            // 报警配置（方案级：一张平铺表，增删报警定义、就地改阈值 / 严重度 / 报警组）。
+            // 它同样改的是**方案内容**（落 .vms、进撤销栈），清单来自当前方案的
+            // ScadaDocument.Alarms，弹窗打开时现读；入口挂在「文件」菜单的 SolutionAction.AlarmConfig 上，
+            // 于是自动继承"运行中禁用"的互锁（见 ShellViewModel.CanExecuteSolution）。
+            containerRegistry.RegisterDialog<ScadaAlarmConfigDialogView, ScadaAlarmConfigDialogViewModel>("ScadaAlarmConfigDialogView");
             // ===== 配置类弹窗的审计注入（S13-f）=====
             // 下面三个弹窗的 VM 构造函数上都有一对**可选参数**（audit / actorProvider，默认 null）。
             // 交给容器去猜的结果与 ScadaUserStore / ScadaActionDispatcher 逐字相同：
@@ -299,6 +307,16 @@ namespace VisionMaster
                     Container.Resolve<IWorkspaceManager>(),
                     Container.Resolve<IScadaVariablePicker>(),
                     Container.Resolve<IScadaPagePicker>(),
+                    Container.Resolve<ScadaAuditWriter>(),
+                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
+            // 报警配置弹窗同一手法。它同样"每一次编辑都当场写回模型"，没有统一的提交点，
+            // 所以 audit / actorProvider 两个可选参数漏接的话，一条线索都不会留下。
+            // picker 也必须显式传：它是"为报警选监视变量"那个按钮用的，
+            // 交给容器去猜的结果是编译能过、运行起来点「选择变量」没反应。
+            Prism.Mvvm.ViewModelLocationProvider.Register<ScadaAlarmConfigDialogView>(() =>
+                new ScadaAlarmConfigDialogViewModel(
+                    Container.Resolve<IWorkspaceManager>(),
+                    Container.Resolve<IScadaVariablePicker>(),
                     Container.Resolve<ScadaAuditWriter>(),
                     () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
             // 权限体系的两个弹窗（S12）。注册名与调用点逐字一致：

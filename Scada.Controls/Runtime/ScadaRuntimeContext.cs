@@ -36,17 +36,31 @@ namespace VisionMaster.Scada.Controls
     /// 而"这次运行没人会改值"是完全正常的状态（纯监视画面、断言工程里手搭的画布）。
     /// 强行要求人人给一个，调用方就得为"我这次不写值"编一个空实现——那是把可选性藏起来，
     /// 而不是消灭它。所以这里明写"可为 null"，消费侧照 null 判断，语义摆在签名上。
+    ///
+    /// 为什么 <see cref="AccessPolicy"/> 参数可选、属性却永不为 null
+    /// ---------
+    /// 权限与写通道是两种可选性。写通道的"没有"是一种真实状态（本次运行就是不写值），
+    /// 消费侧必须能看见它；而权限的"没接线"不是一个状态——<b>"此刻是谁"这个问题永远有答案</b>，
+    /// 没接线时的答案就是"未登录（操作员）"（见 <see cref="IScadaAccessPolicy.CurrentRole"/>）。
+    /// 让消费侧去处理一个永远不存在的 null 分支，只会逼出"忘了判 null 就直接用"的隐患；
+    /// 所以这里兜底成 <see cref="DefaultScadaAccessPolicy.Instance"/>，把"没接线"折叠进语义里。
     /// </summary>
     public sealed class ScadaRuntimeContext
     {
         /// <param name="alarms">本轮的报警引擎</param>
         /// <param name="beat">本轮的全画面统一节拍源</param>
         /// <param name="writer">本轮的回写通道；纯监视画面可以不给（见类注释）</param>
-        public ScadaRuntimeContext(ScadaAlarmEngine alarms, ScadaBeatSource beat, IScadaValueWriter? writer = null)
+        /// <param name="accessPolicy">本轮的权限出口；不给则按"未登录（操作员）"算（见类注释）</param>
+        public ScadaRuntimeContext(
+            ScadaAlarmEngine alarms,
+            ScadaBeatSource beat,
+            IScadaValueWriter? writer = null,
+            IScadaAccessPolicy? accessPolicy = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
             Writer = writer;
+            AccessPolicy = accessPolicy ?? DefaultScadaAccessPolicy.Instance;
         }
 
         /// <summary>
@@ -76,5 +90,20 @@ namespace VisionMaster.Scada.Controls
         /// <c>RuntimeContext</c> 置空）之后，手里那个引用就该一起丢掉。
         /// </summary>
         public IScadaValueWriter? Writer { get; }
+
+        /// <summary>
+        /// 本轮的权限出口：图元在"改现场量"之前先问一句"此刻的角色够不够格"。
+        ///
+        /// 为什么图元要自己问，而不是等写通道拒绝
+        /// ---------
+        /// 写通道（<see cref="IScadaValueWriter"/>）只认"变量收不收下这个值"，它不认识角色；
+        /// 权限判定在领域层的会话出口上（<c>ScadaRuntime.RaiseElementEvent</c>），
+        /// 那里卡的是<b>事件钩子</b>，不是写入本身。所以"写前先查"这件事只能由发起写入的图元做：
+        /// 让操作员点一下就先知道"我没这个权限"，而不是敲完数、写完变量、才发现顺带的动作被拦了。
+        ///
+        /// <b>永不为 null</b>（见类注释）——没接线时是 <see cref="DefaultScadaAccessPolicy.Instance"/>，
+        /// 口径与 <c>ScadaRuntime</c> 完全一致：未登录 = 操作员，<c>RequiredRole</c> 为 null = 不限制。
+        /// </summary>
+        public IScadaAccessPolicy AccessPolicy { get; }
     }
 }

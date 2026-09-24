@@ -1,4 +1,5 @@
 using HslCommunication;
+using HslCommunication.Core;
 using HslCommunication.ModBus;
 using System;
 
@@ -11,6 +12,7 @@ namespace VisionMaster.Communications
     public class SerialConnection : ICommunicationConnection
     {
         private readonly ModbusRtu _device;
+        private readonly SerialConfig _config;
         private bool _isConnected;
 
         /// <inheritdoc />
@@ -26,8 +28,13 @@ namespace VisionMaster.Communications
         public bool IsConnected => _isConnected;
 
         /// <inheritdoc />
+        /// <remarks>字序跟随 <see cref="SerialConfig.ByteOrder"/>，与写链路下发的 <c>ByteTransform</c> 同源。</remarks>
+        public ByteOrderFormat ByteOrder => _config.ByteOrder;
+
+        /// <inheritdoc />
         public SerialConnection(SerialConfig config)
         {
+            _config = config;
             Config = config;
             ConnectionName = $"{config.PortName}@{config.BaudRate}";
             
@@ -38,6 +45,11 @@ namespace VisionMaster.Communications
                 config.DataBits, 
                 GetStopBits(config.StopBits), 
                 GetParity(config.Parity));
+            // 字序必须下发到设备的 ByteTransform：HSL 的 ModbusRtu 默认是 DataFormat.CDAB，
+            // 写链路（Write(addr,int/float/...) → ByteTransform.TransByte）与 HSL 强类型读都走它。
+            // 不下发就会出现"读侧跟随配置、写侧永远 CDAB"的读写不对称：
+            // 软件写 int 1221 再读回可能不是 1221（16 位因 CDAB 与 ABCD 退化等价而看不出来）。
+            _device.ByteTransform = new RegularByteTransform(HslHelper.ToDataFormat(config.ByteOrder));
             // 串口没有"TCP 建连超时"这个量（Open 是本地动作），故 TimeoutMs 在串口上不消费；
             // 真正需要的是"等对端回帧"的读超时，HSL 默认 5000ms，这里按配置下发。
             _device.ReceiveTimeOut = config.ReadTimeoutMs;
@@ -90,7 +102,7 @@ namespace VisionMaster.Communications
             // 高半部分永远丢失——与 ModbusTcp 共用寄存器粒度计算。
             var result = _device.Read(address, HslHelper.RegisterCount<T>());
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
-            return HslHelper.ConvertTo<T>(result.Content);
+            return HslHelper.ConvertTo<T>(result.Content, _config.ByteOrder);
         }
 
         /// <inheritdoc />

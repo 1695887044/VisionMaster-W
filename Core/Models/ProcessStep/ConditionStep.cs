@@ -1,15 +1,16 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace VisionMaster.Models
 {
     /// <summary>
     /// 条件步骤模型
-    /// 支持 If-Else 和 Switch 等分支结构
+    /// 支持 If-ElseIf-Else 分支结构
     /// </summary>
     public class ConditionStep : StepModel, IContainerStep
     {
@@ -26,10 +27,34 @@ namespace VisionMaster.Models
         /// </summary>
         public ObservableCollection<LocalVariableItem> RuntimeVariableRefs { get; set; } = new();
 
+        private ObservableCollection<StepCollection> _children = new();
+
         /// <summary>
         /// 子分支集合
+        ///
+        /// 【为什么必须"带 setter + ObjectCreationHandling.Replace"两件套齐备】
+        /// Newtonsoft 对"无 setter 的集合属性"只会 Populate —— 往构造函数预建的集合里 Add，
+        /// 并不整体替换；于是存盘往返后分支翻倍：If 的 [If, Else] 变成 [If, Else, If, Else]，
+        /// 且首个 If 分支的条件为空 → 图纸重新打开后直接编译不过。
+        /// 但只加 Replace 却不给 setter 同样不行：新建的集合无法赋回属性，文件里的分支会被整体丢弃
+        /// （实测 Count 正常却全是构造函数预建的默认值）。两件必须同时具备。
+        /// setter 兜 null 是因为 .vm 可被人工编辑，一句 "Children": null 不该让流程打不开。
         /// </summary>
-        public ObservableCollection<StepCollection> Children { get; } = new();
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<StepCollection> Children
+        {
+            get => _children;
+            set => _children = value ?? new ObservableCollection<StepCollection>();
+        }
+
+        /// <summary>
+        /// 是否为 If 型条件算子 —— 全链路唯一的识别口径。
+        /// 判据取算子类型名（PluginTypeName）而不是显示名（PluginName）：
+        /// 显示名是给用户看的、可能被本地化或改名，类型名才是算子身份。
+        /// 构造函数与 UI（右键菜单可见性）都读这里，避免"两处各写一份 Contains"的口径漂移。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsIfLike => PluginTypeName?.Contains("If") == true;
 
         /// <summary>
         /// 创建条件步骤
@@ -42,7 +67,7 @@ namespace VisionMaster.Models
         )
             : base(icon, pluginName, pluginTypeName, stepName)
         {
-            if (pluginTypeName.Contains("If"))
+            if (IsIfLike)
             {
                 // If 算子默认创建 If 和 Else 两个分支
                 Children.Add(
@@ -56,18 +81,6 @@ namespace VisionMaster.Models
 
                 Children.Add(
                     new StepCollection { BranchType = BranchType.Else, StepName = "Else" }
-                );
-            }
-            else if (pluginTypeName.Contains("Switch"))
-            {
-                // Switch 算子默认创建一个 Case 分支
-                Children.Add(
-                    new StepCollection
-                    {
-                        BranchType = BranchType.Case,
-                        StepName = "Case 1",
-                        Expression = "",
-                    }
                 );
             }
             else

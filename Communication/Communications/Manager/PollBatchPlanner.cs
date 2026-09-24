@@ -18,6 +18,9 @@ namespace VisionMaster.Communications
     /// <para>执行契约（与 <see cref="ConnectionWorker"/> 的约定）：返回 true = 本轮通信成功；返回 false = 通信级故障（触发断线重连）。
     /// 判定规则：只有"本轮所有读都失败"才判为通信级故障——只要有一次读成功就说明链路是活的，
     /// 个别段失败按变量级错误消化（限量日志），避免一个坏地址把好连接打进无限重连循环。</para>
+    /// <para>"个别段恒坏"不等于"没事"：另有一条<b>旁路健康通道</b>——每个段各自累计"连续失败轮数"，
+    /// 连续达 <see cref="FaultedSegmentThreshold"/> 轮即计为异常段（此刻发一条不节流告警），
+    /// 由 <see cref="GetHealthSnapshot"/> 上到诊断面板。它与上面的返回值判定<b>互不干扰</b>。</para>
     /// <para>线程约定：<see cref="Poll"/> 只由所属连接的 Worker 线程调用，故内部无锁。</para>
     /// </summary>
     public sealed class PollBatchPlanner
@@ -50,6 +53,15 @@ namespace VisionMaster.Communications
         {
             public PollProtocol Protocol;
             public string GroupKey = string.Empty;
+
+            /// <summary>
+            /// 本段所属连接名（编译期从段内首个变量取）。
+            /// <para>C5：限流日志表 <see cref="_logTicks"/> 是 <c>static</c>（跨连接共享），
+            /// 若 key 里不含连接名，两条连接读<b>同一个地址</b>时会共用同一个限流窗口——
+            /// 后一条的告警被前一条的 5 秒窗口吞掉，日志里永远看不到第二台设备出问题。</para>
+            /// </summary>
+            public string ConnectionName = string.Empty;
+
             public string SegmentPrefix = string.Empty;
             public int Start;
             public int EndUnit;
@@ -67,6 +79,16 @@ namespace VisionMaster.Communications
 
             /// <summary>段内每个单元占用的字节数（Modbus 寄存器区 1 单元 = 2 字节，其余 1:1）</summary>
             public int BytesPerUnit => Protocol == PollProtocol.Modbus && !IsBitArea ? 2 : 1;
+
+            /// <summary>
+            /// 本段"连续失败"的轮数（成功一轮即归零）。
+            /// 用途：把"某个地址恒坏"从"仅一条限流日志"提升为"诊断面板可见 + 跨阈值一次告警"。
+            /// 线程：仅 Worker 线程写，UI 线程会读（<see cref="GetHealthSnapshot"/>），故读写都走 <see cref="Volatile"/>。
+            /// </summary>
+            public int ConsecutiveFailures;
+
+            /// <summary>最近一次失败原因（成功时清空）；与 <see cref="ConsecutiveFailures"/> 一起构成坏段摘要</summary>
+            public string? LastError;
         }
 
         /// <summary>兜底单读项：仍走 <see cref="ICommunicationConnection.Read{T}"/> 反射调用</summary>
@@ -87,6 +109,13 @@ namespace VisionMaster.Communications
 
         /// <summary>同一 key 的失败日志最短间隔（毫秒），防轮询周期级刷屏</summary>
         private const long LogThrottleMs = 5000;
+
+        /// <summary>
+        /// 段"连续失败"多少轮才算<b>异常段</b>（诊断面板据此计数、并在此刻发一条不节流的告警）。
+        /// <para>取 3 而不是 1：单轮抖动（PLC 忙、瞬时丢包）不该报警；连续 3 轮都失败，
+        /// 才说明这个地址是真的读不到（配置错、越界、存储区不存在）。</para>
+        /// </summary>
+        public const int FaultedSegmentThreshold = 3;
 
         private static readonly ConcurrentDictionary<string, long> _logTicks = new();
 
@@ -115,6 +144,31 @@ namespace VisionMaster.Communications
 
         /// <summary>参与轮询的读写项总数；为 0 表示没有可轮询变量（上层应把调度器置空，避免空转）</summary>
         public int PollItemCount => _segments.Count + _fallbacks.Count;
+
+        /// <summary>
+        /// 段健康快照（供诊断面板读取）：异常段数 + 首个坏段摘要。
+        /// <para>为什么只报"首个"：面板只有一列，塞 N 条摘要读不了；先把最典型的那条摆出来，完整清单靠日志。
+        /// 异常段数用 <c>x/y</c> 形式显示（y 取 <see cref="SegmentCount"/>），能同时看出"坏了几个"和"一共几段"。</para>
+        /// <para>注意：这里**不参与** <see cref="Poll"/> 的返回值判定——链路活性只看"是否全失败"，
+        /// 坏段只走这条旁路通道，避免一个坏地址把好连接打进无限重连循环。</para>
+        /// <para>线程：段状态仅 Worker 线程写，本方法可由 UI 线程调用；读到的最多是"上一拍"的值，诊断够用。</para>
+        /// </summary>
+        public (int FaultedCount, string? FirstDetail) GetHealthSnapshot()
+        {
+            int faulted = 0;
+            string? first = null;
+
+            foreach (var seg in _segments)
+            {
+                int failures = Volatile.Read(ref seg.ConsecutiveFailures);
+                if (failures < FaultedSegmentThreshold) continue;
+
+                faulted++;
+                first ??= $"{seg.Address}（连续失败 {failures} 轮）：{seg.LastError}";
+            }
+
+            return (faulted, first);
+        }
 
         #endregion
 
@@ -219,7 +273,7 @@ namespace VisionMaster.Communications
             {
                 ReadSegment? current = null;
 
-                foreach (var (poll, _) in group.OrderBy(x => x.Address.Start).ThenBy(x => x.Address.EndUnit))
+                foreach (var (poll, variable) in group.OrderBy(x => x.Address.Start).ThenBy(x => x.Address.EndUnit))
                 {
                     if (current != null)
                     {
@@ -240,6 +294,7 @@ namespace VisionMaster.Communications
                         {
                             Protocol = poll.Protocol,
                             GroupKey = poll.GroupKey,
+                            ConnectionName = variable.ConnectionName, // C5：限流 key 需要它，编译期取一次
                             SegmentPrefix = poll.SegmentPrefix,
                             Start = poll.Start,
                             EndUnit = poll.EndUnit,
@@ -326,6 +381,9 @@ namespace VisionMaster.Communications
             int attempted = 0;
             int failed = 0;
 
+            // 字序取自连接本身（ModbusTcp 跟随配置，S7/串口恒 ABCD），保证与单点读同源
+            var byteOrder = connection.ByteOrder;
+
             foreach (var seg in _segments)
             {
                 attempted++;
@@ -334,7 +392,11 @@ namespace VisionMaster.Communications
                     if (seg.IsBitArea)
                         ApplyBits(seg, connection.ReadBits(seg.Address, (ushort)seg.SpanUnits));
                     else
-                        ApplyBytes(seg, connection.ReadBytes(seg.Address, (ushort)seg.SpanUnits));
+                        ApplyBytes(seg, connection.ReadBytes(seg.Address, (ushort)seg.SpanUnits), byteOrder);
+
+                    // 读成功即归零：地址修好后诊断面板的"异常段"自然消失，不需要人工复位
+                    Volatile.Write(ref seg.ConsecutiveFailures, 0);
+                    seg.LastError = null;
                 }
                 catch (Exception ex)
                 {
@@ -342,7 +404,18 @@ namespace VisionMaster.Communications
                     // 段内所有变量降级 Uncertain：值保留旧值，UI 黄点提示"最近一次读取失败"
                     foreach (var item in seg.Items)
                         item.Variable.MarkUncertain();
-                    LogThrottled($"seg:{seg.Address}", $"段读失败 {seg.Address}（{seg.SpanUnits} 单元）: {ex.Message}");
+
+                    int failures = Volatile.Read(ref seg.ConsecutiveFailures) + 1;
+                    Volatile.Write(ref seg.ConsecutiveFailures, failures);
+                    seg.LastError = ex.Message;
+
+                    // 跨阈值那一刻发一条"不节流"的告警：坏段从"看得见"升级为"被通知"。
+                    // 只在这一刻发（failures == 阈值），之后回落限流——否则恒坏段会每轮刷一条日志。
+                    if (failures == FaultedSegmentThreshold)
+                        _log?.Invoke($"[轮询] 段连续 {failures} 轮读失败，已计为异常段：{seg.Address}（{seg.SpanUnits} 单元）: {ex.Message}");
+
+                    // C5：key 必须带连接名——_logTicks 是 static 的，不含连接名时两条连接读同一地址会互相吞日志
+                    LogThrottled($"seg:{seg.ConnectionName}.{seg.Address}", $"段读失败 {seg.Address}（{seg.SpanUnits} 单元）: {ex.Message}");
                 }
             }
 
@@ -369,7 +442,7 @@ namespace VisionMaster.Communications
         }
 
         /// <summary>解码非位区段的字节流（S7 字节段 / Modbus 寄存器段）</summary>
-        private void ApplyBytes(ReadSegment seg, byte[] data)
+        private void ApplyBytes(ReadSegment seg, byte[] data, ByteOrderFormat order)
         {
             if (data == null) return;
             int bytesPerUnit = seg.BytesPerUnit;
@@ -384,14 +457,14 @@ namespace VisionMaster.Communications
                     if (byteOffset < 0 || byteOffset + byteLength > data.Length)
                     {
                         item.Variable.MarkUncertain(); // 设备返回字节不足：解不出本变量的新值
-                        LogThrottled($"short:{seg.Address}#{item.Variable.VariableName}",
+                        LogThrottled($"short:{item.Variable.ConnectionName}.{seg.Address}#{item.Variable.VariableName}",
                             $"段 {seg.Address} 实际返回 {data.Length} 字节，不足解码 {item.Variable.VariableName}（需 {byteOffset + byteLength} 字节）");
                         continue;
                     }
 
                     object? value = item.BitOffset >= 0
                         ? DecodeBit(data, byteOffset, item.BitOffset, item.ValueType)
-                        : DecodeValue(data, byteOffset, byteLength, item);
+                        : DecodeValue(data, byteOffset, byteLength, item, order);
 
                     if (value != null)
                         item.Variable.UpdateValue(value);
@@ -417,7 +490,7 @@ namespace VisionMaster.Communications
                     if (item.UnitOffset < 0 || item.UnitOffset >= bits.Length)
                     {
                         item.Variable.MarkUncertain(); // 设备返回点数不足：解不出本变量的新值
-                        LogThrottled($"short:{seg.Address}#{item.Variable.VariableName}",
+                        LogThrottled($"short:{item.Variable.ConnectionName}.{seg.Address}#{item.Variable.VariableName}",
                             $"位区段 {seg.Address} 实际返回 {bits.Length} 点，不足解码 {item.Variable.VariableName}（需第 {item.UnitOffset + 1} 点）");
                         continue;
                     }
@@ -433,15 +506,15 @@ namespace VisionMaster.Communications
             }
         }
 
-        /// <summary>按段内字节偏移切出值（数值走大端解码；string/byte[] 原样取用长度）</summary>
-        private static object? DecodeValue(byte[] data, int offset, int length, SegmentItem item)
+        /// <summary>按段内字节偏移切出值（数值按连接字序解码；string/byte[] 原样取用长度）</summary>
+        private static object? DecodeValue(byte[] data, int offset, int length, SegmentItem item, ByteOrderFormat order)
         {
             var raw = new byte[length];
             Array.Copy(data, offset, raw, 0, length);
 
             if (item.IsByteArray) return raw;
             if (item.IsString) return Encoding.ASCII.GetString(raw).TrimEnd('\0'); // 与写链路 ASCII 对称
-            return HslHelper.ConvertToByType(raw, item.ValueType);
+            return HslHelper.ConvertToByType(raw, item.ValueType, order);
         }
 
         /// <summary>S7 位访问：取指定字节的第 N 位</summary>

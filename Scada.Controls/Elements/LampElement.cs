@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace VisionMaster.Scada.Controls
 {
@@ -41,8 +42,16 @@ namespace VisionMaster.Scada.Controls
     ///
     /// 运行时的接法：把 <see cref="State"/> 绑到工程变量上（整数 0~3 或按枚举名），灯就跟着状态变。
     /// </summary>
+    [TemplatePart(Name = PartLampCircle, Type = typeof(Ellipse))]
+    [TemplatePart(Name = PartLampSquare, Type = typeof(Rectangle))]
     public class LampElement : ScadaElementBase
     {
+        /// <summary>模板部件名：圆形灯体</summary>
+        public const string PartLampCircle = "LampCircle";
+
+        /// <summary>模板部件名：方形灯体</summary>
+        public const string PartLampSquare = "LampSquare";
+
         // 默认色必须冻结：依赖属性默认值被所有实例共享，未冻结的 Freezable 被某实例改到会串到别的实例。
         private static readonly Brush DefaultOffColor = ScadaBrushes.Frozen("#FF3A3A3A");
         private static readonly Brush DefaultOnColor = ScadaBrushes.Frozen("#FF34C759");
@@ -83,7 +92,7 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty ShapeProperty = DependencyProperty.Register(
             nameof(Shape), typeof(IndicatorShape), typeof(LampElement),
             new FrameworkPropertyMetadata(
-                IndicatorShape.Circle, FrameworkPropertyMetadataOptions.AffectsRender));
+                IndicatorShape.Circle, FrameworkPropertyMetadataOptions.AffectsRender, OnShapeChanged));
 
         private static readonly DependencyPropertyKey LampBrushPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(LampBrush), typeof(Brush), typeof(LampElement),
@@ -146,8 +155,29 @@ namespace VisionMaster.Scada.Controls
 
         protected override void OnElementRefreshed() => ApplyStrokeInset(1);
 
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            UpdateShapeVisibility();
+        }
+
         private static void OnLampInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((LampElement)d).UpdateLampBrush();
+
+        private static void OnShapeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((LampElement)d).UpdateShapeVisibility();
+
+        /// <summary>
+        /// 圆/方两块灯体同一时刻只显示一块。形状是个纯模板层的选择，但本环境下
+        /// ControlTemplate.Triggers 里的 DataTrigger 不触发（见 ScadaElementBase.SetPartVisible），
+        /// 所以只能由代码翻显隐；模板里那两块也就不写 Visibility 初值。
+        /// </summary>
+        private void UpdateShapeVisibility()
+        {
+            var square = Shape == IndicatorShape.Square;
+            SetPartVisible(PartLampCircle, !square);
+            SetPartVisible(PartLampSquare, square);
+        }
 
         private void UpdateLampBrush()
             => SetValue(LampBrushPropertyKey, PickColor() ?? Brushes.Transparent);

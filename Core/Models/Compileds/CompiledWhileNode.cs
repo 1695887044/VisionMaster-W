@@ -23,9 +23,14 @@ namespace VisionMaster.Models
         public Dictionary<Guid, IOutputPort> UpstreamLinks { get; set; } = new();
 
         /// <summary>
+        /// 默认最大迭代次数（防止无限循环）
+        /// </summary>
+        private const int DefaultMaxIterations = 9999;
+
+        /// <summary>
         /// 最大迭代次数（防止无限循环）
         /// </summary>
-        public int MaxIterations { get; set; } = 9999;
+        public int MaxIterations { get; set; } = DefaultMaxIterations;
 
         /// <summary>
         /// 执行 While 循环
@@ -79,23 +84,20 @@ namespace VisionMaster.Models
                 if (context.CancellationToken.IsCancellationRequested) break;
 
                 // 局部变量：从 UpstreamLinks 取值
-                // P2-⑧：未绑定兜底与 CompiledIfNode 对齐——按声明类型给默认值，
-                // 原先一律注 0.0，string/bool 变量会在委托传参时抛转换异常还无人知晓
+                // P0-2/P0-3：取值一律经 CoerceConditionArg 按声明类型归一，无值走 DefaultForConditionArg。
+                // 与 CompiledIfNode 保持同一口径（详见基类两个助手的注释）：
+                // 编译期 IsLinkable 按 ValueConverter.Convert 放行"数值族互转"，
+                // 而 DynamicInvoke 不做收窄（double → int 抛 ArgumentException），
+                // 运行期不补这一步就会"编译通过、一跑就炸"。
                 for (int i = 0; i < LoopBranch.LocalVarIds.Count; i++)
                 {
                     Guid varId = LoopBranch.LocalVarIds[i];
                     Type expectedType = LoopBranch.VarTypes.ContainsKey(varId) ? LoopBranch.VarTypes[varId] : typeof(double);
 
                     if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
-                    {
-                        args[i] = sourcePort.Value;
-                    }
+                        args[i] = CoerceConditionArg(sourcePort.Value, expectedType);
                     else
-                    {
-                        if (expectedType == typeof(string)) args[i] = string.Empty;
-                        else if (expectedType == typeof(bool)) args[i] = false;
-                        else args[i] = 0.0;
-                    }
+                        args[i] = DefaultForConditionArg(expectedType);
                 }
 
                 // 运行时变量：从 context.LocalVariables 取值
@@ -105,20 +107,23 @@ namespace VisionMaster.Models
                     int argIndex = LoopBranch.LocalVarIds.Count + i;
                     Type expectedType = LoopBranch.RuntimeVarTypes.ContainsKey(varName) ? LoopBranch.RuntimeVarTypes[varName] : typeof(object);
 
-                    if (context.LocalVariables.TryGetValue(varName, out var v))
-                        args[argIndex] = v;
+                    if (context.LocalVariables.TryGetValue(varName, out var v) && v != null)
+                        args[argIndex] = CoerceConditionArg(v, expectedType);
                     else
-                        args[argIndex] = expectedType.IsValueType ? Activator.CreateInstance(expectedType) : null;
+                        args[argIndex] = DefaultForConditionArg(expectedType);
                 }
 
                 bool isTrue = false;
                 try { isTrue = (bool)LoopBranch.ConditionLambda.Invoke(args); }
                 catch (Exception ex)
                 {
-                    // P2-⑧：静默 break 是"隐形故障"——循环莫名提前结束却零日志，
-                    // 与 CompiledIfNode 对齐，条件求值异常必须留痕（保持 break 语义不变）
-                    context.Logger.Error($"While节点 '{Name}' 条件执行异常，循环提前终止: {ex.Message}");
-                    break;
+                    // P1-4：条件求值抛异常 = 循环该不该继续未知，静默 break 等于"悄悄少跑几圈"，
+                    // 步骤状态还是绿的，比停机报警危险得多（与 CompiledIfNode 的失败语义对齐）。
+                    // 这里保留 Error 日志以交代发生在哪一圈，随后上抛，由 RunAndGetNext 标 Failed。
+                    context.Logger.Error(
+                        $"While节点 '{Name}' 第 {iter + 1} 次迭代条件求值失败，已中断流程: {ex.Message}"
+                    );
+                    throw;
                 }
 
                 if (!isTrue) break;
@@ -149,10 +154,22 @@ namespace VisionMaster.Models
                 iter++;
             }
 
-            // P2-⑧：迭代上限触发说明大概率是死循环，强制退出可以保命，但必须吼一声，
-            // 否则现场排查时会误以为"循环正常跑完"
-            if (iter >= MaxIterations && !context.CancellationToken.IsCancellationRequested)
-                context.Logger.Warn($"While节点 '{Name}' 达到最大迭代次数 {MaxIterations}，已强制退出（疑似死循环，请检查循环条件与变量刷新）");
+            // P2-⑧（语义升级）：迭代上限被触发 = 循环没跑完就被强行掐断，结果不可信。
+            // 旧实现只 Warn 一声就把步骤标成 Success，现场会误以为"循环正常跑完"。
+            // 现在与 CompiledPluginNode 的失败语义对齐：程序级异常 → 标 Failed（由 RunAndGetNext 的 catch 落状态）+ 上抛中断流程。
+            // 这里能成立的前提：只有 while 的循环头守卫能带着 iter == MaxIterations 退出，
+            // 其余出口（条件为假 break / 取消 break / Continue / Break / Return）退出时 iter 必然 < MaxIterations。
+            // MaxIterations > 0 是为了排除"上限配成 0 圈"这种正常的不执行，别误报成死循环。
+            if (
+                iter >= MaxIterations
+                && MaxIterations > 0
+                && !context.CancellationToken.IsCancellationRequested
+            )
+            {
+                throw new InvalidOperationException(
+                    $"While节点 '{Name}' 达到最大迭代次数 {MaxIterations}，循环被强制中断（疑似死循环，请检查循环条件与变量刷新）"
+                );
+            }
         }
     }
 }

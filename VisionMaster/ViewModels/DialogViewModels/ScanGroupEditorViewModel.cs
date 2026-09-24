@@ -765,6 +765,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(StatusText));
             RaisePropertyChanged(nameof(StatusColor));
             RaisePropertyChanged(nameof(IsMeasured));
+            RaisePropertyChanged(nameof(FaultedText));
+            RaisePropertyChanged(nameof(FaultTooltip));
+            RaisePropertyChanged(nameof(HasFault));
+            RaisePropertyChanged(nameof(FaultColor));
         }
 
         public string GroupName => _stat.GroupName;
@@ -799,5 +803,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
             : _stat.AchieveRate >= 0.9 ? "#12B76A"
             : _stat.AchieveRate >= 0.7 ? "#F79009"
             : "#E5484D";
+
+        /// <summary>
+        /// 异常段数量，形如 <c>1/12</c>（分子 = 连续失败达阈值的段数，分母 = 本组总段数）；
+        /// 无异常段时显示"—"，避免一片 "0/12" 干扰阅读。
+        /// <para>为什么用 x/y 而不是只报一个数：只有分子看不出"坏了 1 个"是严重还是无关紧要——
+        /// 12 段坏 1 个只是局部，2 段坏 1 个就是半瘫。</para>
+        /// </summary>
+        public string FaultedText => HasFault ? $"{_stat.FaultedSegmentCount}/{_stat.SegmentCount}" : "—";
+
+        /// <summary>异常段摘要（地址 + 连续失败轮数 + 错误原因）；无异常段时为 null（ToolTip 绑 null 即不弹空框）</summary>
+        public string? FaultTooltip => _stat.FaultDetail;
+
+        public bool HasFault => _stat.HasFaultedSegment;
+
+        /// <summary>有异常段时用"未达标"红（与 StatusColor 的分档红同色），正常时用中性灰</summary>
+        public string FaultColor => HasFault ? "#E5484D" : "#909399";
     }
 }

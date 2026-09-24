@@ -427,6 +427,26 @@
                                 </DataGridTemplateColumn>
 
                                 <!--
+                                    异常段：分子 = 连续失败达阈值的段数，分母 = 本组总段数（"—" = 全部正常）。
+                                    它与"达成率"是两件事：达成率看周期快慢，异常段看"有没有地址读不到"。
+                                    坏段不会让连接断开（一个坏地址不该把整条连接打进无限重连），
+                                    所以必须在这里显式暴露，否则变量停在黄点却没人知道。
+                                    ToolTip 绑 null 时不弹框，故正常行不会冒出空提示。
+                                -->
+                                <DataGridTemplateColumn Width="100" Header="异常段">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
+                                                FontSize="12.5"
+                                                FontWeight="SemiBold"
+                                                Foreground="{Binding FaultColor}"
+                                                Text="{Binding FaultedText}"
+                                                ToolTip="{Binding FaultTooltip}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!--
                                     状态色由 VM 的 StatusColor 给出（未测 #909399 / ≥90% #12B76A /
                                     70~90% #F79009 / <70% #E5484D）。这是"分档阈值"语义，
                                     不是主题色，刻意不走 Dialog 令牌，换肤时不要动它。

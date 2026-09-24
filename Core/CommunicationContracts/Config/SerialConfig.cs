@@ -50,6 +50,16 @@ namespace VisionMaster.Communications
         public StopBitsMode StopBits { get; set; } = StopBitsMode.One;
 
         /// <summary>
+        /// <para>多寄存器数值（32/64 位）在线路上的字节排列顺序，读写两条链路共用同一字序。</para>
+        /// <para>ABCD = 大端标准（本类默认）；CDAB = 字序交换（多数国产 PLC/仪表默认）；另见 <see cref="ByteOrderFormat"/>。</para>
+        /// <para>⚠ 默认刻意取 ABCD（与 <see cref="ModbusTcpConfig"/> 的 CDAB 不同）：串口读侧的历史行为就是 ABCD，
+        /// 保持它可让软件内可见的读数零变化，只把写侧（HSL 的 ModbusRtu 默认 CDAB）拉齐到同一字序。
+        /// 16 位及以下 ABCD 与 CDAB 退化等价，故只有 32/64 位变量才受这个下拉影响。</para>
+        /// </summary>
+        [SuperDisplay(Name = "字节排序", GroupPath = "串口参数", Order = 6, ColSpan = 6)]
+        public ByteOrderFormat ByteOrder { get; set; } = ByteOrderFormat.ABCD;
+
+        /// <summary>
         /// <para><b>串口不使用"连接超时"</b>——HSL 的 <c>ModbusRtu.Open()</c> 只是打开本地串口句柄，
         /// 不存在网络建连等待，所以基类的 <see cref="ConnectionConfigBase.TimeoutMs"/> 在串口上无处消费。</para>
         /// <para>串口真正生效的超时是「读超时(ms)」（<see cref="ConnectionConfigBase.ReadTimeoutMs"/>）。</para>
@@ -59,11 +69,6 @@ namespace VisionMaster.Communications
         /// </summary>
         [SuperDisplay(Visible = false)]
         public override int TimeoutMs { get; set; } = 3000;
-
-        /// <summary>
-        /// <para>创建串口连接对象。</para>
-        /// </summary>
-        /// <returns>串口连接实例</returns>
 
         /// <summary>
         /// <para>克隆当前配置对象。</para>
@@ -79,7 +84,8 @@ namespace VisionMaster.Communications
             BaudRate = BaudRate, 
             DataBits = DataBits, 
             Parity = Parity, 
-            StopBits = StopBits
+            StopBits = StopBits,
+            ByteOrder = ByteOrder
         };
     }
 }

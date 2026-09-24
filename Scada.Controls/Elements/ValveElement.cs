@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace VisionMaster.Scada.Controls
@@ -63,8 +64,12 @@ namespace VisionMaster.Scada.Controls
     ///
     /// 运行时的接法：把 <see cref="Opening"/> 绑到工程变量上（0~100 的实数），阀就活了。
     /// </summary>
+    [TemplatePart(Name = PartOpeningLabel, Type = typeof(TextBlock))]
     public class ValveElement : ScadaElementBase
     {
+        /// <summary>模板部件名：压在下方凹口里的开度文字</summary>
+        public const string PartOpeningLabel = "OpeningLabel";
+
         // 默认色必须冻结：依赖属性默认值被所有实例共享，未冻结的 Freezable 被某实例改到会串到别的实例。
         private static readonly Brush DefaultTrackColor = ScadaBrushes.Frozen("#FF3A3A3A");
         private static readonly Brush DefaultThrottleColor = ScadaBrushes.Frozen("#FF2F80ED");
@@ -85,7 +90,8 @@ namespace VisionMaster.Scada.Controls
         /// <summary>是否显示开度</summary>
         public static readonly DependencyProperty ShowValueProperty = DependencyProperty.Register(
             nameof(ShowValue), typeof(bool), typeof(ValveElement),
-            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowValueChanged));
 
         #endregion
 
@@ -158,6 +164,14 @@ namespace VisionMaster.Scada.Controls
         // 收尾钩子：内缩量要扣掉半个线宽，而 StrokeThickness 是在 RefreshCore 里才落到控件上的，
         // 所以几何必须在所有输入落地之后重算一次（与棒图、表盘同一个理由）。
         protected override void OnElementRefreshed() => UpdateValve();
+
+        // 模板刚套上时补摆一次：ShowValue 若在套模板之前就落地，那次 SetPartVisible 是空操作
+        //（那时还取不到模板部件），这里必须再摆一次。
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            UpdateValve();
+        }
 
         /// <summary>开度（见 <see cref="OpeningProperty"/>）</summary>
         public double Opening
@@ -237,8 +251,16 @@ namespace VisionMaster.Scada.Controls
         private static void OnValveInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ValveElement)d).UpdateValve();
 
+        // 「显不显开度」是个纯模板层的开关，但本环境下 ControlTemplate.Triggers 里的 DataTrigger
+        // 不触发（见 ScadaElementBase.SetPartVisible），所以由代码翻，模板里也不写 Visibility 初值。
+        private static void OnShowValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((ValveElement)d).SetPartVisible(PartOpeningLabel, ((ValveElement)d).ShowValue);
+
         private void UpdateValve()
         {
+            // 开度文字的显隐与尺寸无关，先办掉——下面尺寸为 0 时会提前 return，别把它漏在外面。
+            SetPartVisible(PartOpeningLabel, ShowValue);
+
             // ---- 与尺寸无关的三项：先算，保证断言环境（不跑布局）里也是对的 ----
 
             SetValue(ValveBrushPropertyKey, PickBrush() ?? Brushes.Transparent);

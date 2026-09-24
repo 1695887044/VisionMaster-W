@@ -88,7 +88,13 @@ namespace VisionMaster
         Create,
         BrowseList,
         Open,
-        Save
+        Save,
+        /// <summary>
+        /// 报警配置：打开「报警定义」配置弹窗（方案级内容，落 .vms、进撤销栈）。
+        /// 刻意加在末尾而不是插在中间——枚举的整数值可能已经落进过 Layout.xml / 旧配置文件，
+        /// 中间插一个会把后面所有成员的值整体挪一位，读回来就是另一个动作了。
+        /// </summary>
+        AlarmConfig
     }
 
     /// <summary>
@@ -214,6 +220,11 @@ namespace VisionMaster
         Delete,
         AddElseIf,
         AddElse,
+
+        /// <summary>
+        /// 保留：Switch/Case 半成品已下线（无算子、无 UI 入口）。
+        /// 留着不删是为了不打乱既有枚举序号，避免波及可能已存盘的引用。
+        /// </summary>
         AddCase
     }
     // 2. Modbus 特有区域枚举

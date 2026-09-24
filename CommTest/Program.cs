@@ -281,9 +281,11 @@ namespace CommTest
         /// <summary>
         /// [H] 字节序纯单元断言（不依赖模拟器，验证转换层本身）。
         /// HslHelper 是 Communication 程序集的 internal 类，反射调用。
-        /// Modbus PDU 寄存器数据为大端：short 21 → 字节流必须是 [0x00,0x15]，
-        /// 大端字节流 [0x04,0xC5] → 必须解释为 1221（旧小端实现分别得 [0x15,0x00] / 50436——
-        /// 正是现场"写 21 设备显示 5376、设备写 1221 软件显示 50436"的暗号）
+        /// 命名含义：ABCD = 逻辑值字节 A(最高)~D(最低) 在【线路上】的排列顺序，
+        /// 故逻辑值 0x12345678 在四种字序下的线路字节依次是：
+        /// ABCD=[12,34,56,78]  BADC=[34,12,78,56]  CDAB=[56,78,12,34]  DCBA=[78,56,34,12]。
+        /// 16 位自动退化：ABCD≡CDAB、BADC≡DCBA（与 HSL ByteTransDataFormat2 的分支一致）。
+        /// 历史暗号：写 21 设备显示 5376、设备写 1221 软件显示 50436 = 小端误解大端。
         /// </summary>
         private static void RunEndianUnitChecks()
         {
@@ -295,29 +297,61 @@ namespace CommTest
                     ?? throw new Exception("找不到 HslHelper（改名了？）");
                 var getValueArray = helper.GetMethod("GetValueArray")!;
                 var convertTo = helper.GetMethod("ConvertTo")!;
+                var toDataFormat = helper.GetMethod("ToDataFormat")!;
 
+                // ---- 写侧编码（兜底路径 GetValueArray，恒定大端）----
                 var bytes21 = (byte[])getValueArray.Invoke(null, new object[] { (short)21 })!;
                 Check("short 21 → 大端字节流", bytes21.Length == 2 && bytes21[0] == 0x00 && bytes21[1] == 0x15,
-                    $"实际 [{string.Join(",", bytes21.Select(x => "0x" + x.ToString("X2")))}]");
-
-                var read1221 = convertTo.MakeGenericMethod(typeof(short))
-                    .Invoke(null, new object[] { new byte[] { 0x04, 0xC5 } });
-                Check("大端字节流 → short 1221", (short)read1221! == 1221, $"实际 {read1221}（50436=旧小端特征值）");
+                    $"实际 [{Hex(bytes21)}]");
 
                 var bytesI = (byte[])getValueArray.Invoke(null, new object[] { 1221 })!;
                 Check("int 1221 → 大端字节流(ABCD)", bytesI.Length == 4 && bytesI[0] == 0x00 && bytesI[1] == 0x00
                     && bytesI[2] == 0x04 && bytesI[3] == 0xC5,
-                    $"实际 [{string.Join(",", bytesI.Select(x => "0x" + x.ToString("X2")))}]");
+                    $"实际 [{Hex(bytesI)}]");
 
-                var readI = convertTo.MakeGenericMethod(typeof(int))
-                    .Invoke(null, new object[] { new byte[] { 0x00, 0x00, 0x04, 0xC5 } });
-                Check("大端字节流 → int 1221", (int)readI! == 1221, $"实际 {readI}");
+                // ---- 读侧解码：4 种字序 × 16/32/64 位（ABCD/CDAB 在 16 位退化等价）----
+                CheckOrder<short>("short", convertTo, ByteOrderFormat.ABCD, 0x1234, 0x12, 0x34);
+                CheckOrder<short>("short", convertTo, ByteOrderFormat.CDAB, 0x1234, 0x12, 0x34);
+                CheckOrder<short>("short", convertTo, ByteOrderFormat.BADC, 0x1234, 0x34, 0x12);
+                CheckOrder<short>("short", convertTo, ByteOrderFormat.DCBA, 0x1234, 0x34, 0x12);
+
+                CheckOrder<int>("int", convertTo, ByteOrderFormat.ABCD, 0x12345678, 0x12, 0x34, 0x56, 0x78);
+                CheckOrder<int>("int", convertTo, ByteOrderFormat.BADC, 0x12345678, 0x34, 0x12, 0x78, 0x56);
+                CheckOrder<int>("int", convertTo, ByteOrderFormat.CDAB, 0x12345678, 0x56, 0x78, 0x12, 0x34);
+                CheckOrder<int>("int", convertTo, ByteOrderFormat.DCBA, 0x12345678, 0x78, 0x56, 0x34, 0x12);
+
+                CheckOrder<long>("long", convertTo, ByteOrderFormat.ABCD, 0x1122334455667788L,
+                    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88);
+                CheckOrder<long>("long", convertTo, ByteOrderFormat.BADC, 0x1122334455667788L,
+                    0x22, 0x11, 0x44, 0x33, 0x66, 0x55, 0x88, 0x77);
+                CheckOrder<long>("long", convertTo, ByteOrderFormat.CDAB, 0x1122334455667788L,
+                    0x77, 0x88, 0x55, 0x66, 0x33, 0x44, 0x11, 0x22);
+                CheckOrder<long>("long", convertTo, ByteOrderFormat.DCBA, 0x1122334455667788L,
+                    0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11);
+
+                // ---- 契约字序 → HSL 字序：必须按【枚举名】映射（两套枚举序号不同，序号强转必错位）----
+                foreach (var order in new[]
+                         { ByteOrderFormat.ABCD, ByteOrderFormat.BADC, ByteOrderFormat.CDAB, ByteOrderFormat.DCBA })
+                {
+                    var mapped = toDataFormat.Invoke(null, new object[] { order })!.ToString();
+                    Check($"ToDataFormat({order}) → HSL {order}", mapped == order.ToString(), $"实际 {mapped}");
+                }
             }
             catch (Exception ex)
             {
                 Check("字节序纯单元断言", false, ex.Message);
             }
         }
+
+        /// <summary>按指定字序解码线路字节，断言等于期望逻辑值</summary>
+        private static void CheckOrder<T>(string typeName, System.Reflection.MethodInfo convertTo,
+            ByteOrderFormat order, T expected, params byte[] wire) where T : struct
+        {
+            var value = (T)convertTo.MakeGenericMethod(typeof(T)).Invoke(null, new object[] { wire, order })!;
+            Check($"{typeName} 线路[{Hex(wire)}] → {order} 解出 {expected}", value.Equals(expected), $"实际 {value}");
+        }
+
+        private static string Hex(byte[] bytes) => string.Join(",", bytes.Select(x => "0x" + x.ToString("X2")));
 
         private static void Check(string name, bool ok, string detail)
         {

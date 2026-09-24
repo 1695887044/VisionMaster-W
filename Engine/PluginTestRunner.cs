@@ -33,6 +33,9 @@ namespace VisionMaster.Services
         /// <param name="workspace">工作空间</param>
         /// <param name="logger">日志服务</param>
         /// <param name="compiler">流程编译器</param>
+        /// <param name="cancellationToken">取消令牌：由配置窗口提供，点"取消"或关窗时触发。
+        /// 透传给 ExecutionContext，让插件里"等待网络图像"这类阻塞能立刻退出——
+        /// 试运行跑在后台线程，令牌到位后即使插件永久等待也能被叫停</param>
         /// <param name="trialSession">输出的试运行会话（含上游链编译实例及输出数据，所有权归调用方）；
         /// 编译失败/步骤不存在时为 null，执行失败时仍有已执行部分的留存数据</param>
         /// <returns>执行结果</returns>
@@ -42,6 +45,7 @@ namespace VisionMaster.Services
             IWorkspaceManager workspace,
             ILogService logger,
             FlowCompiler compiler,
+            CancellationToken cancellationToken,
             out FlowSession trialSession)
         {
             var sw = Stopwatch.StartNew();
@@ -77,8 +81,9 @@ namespace VisionMaster.Services
 
             trialSession = session;
 
-            // 4. 正式执行上下文（与正式运行一致）
-            var context = new ExecutionContext(logger, session, workspace, CancellationToken.None);
+            // 4. 正式执行上下文（与正式运行一致）；取消令牌由调用方（配置窗口）提供，
+            //    而非写死 None——否则插件里等图这类阻塞将永远无法被叫停
+            var context = new ExecutionContext(logger, session, workspace, cancellationToken);
 
             try
             {

@@ -32,15 +32,19 @@ namespace VisionMaster.Scada.Controls
         private const double ZoomStep = 1.1;
 
         /// <summary>
-        /// "算拖动还是算点了一下"的门限（<b>屏幕</b>像素，判定时按缩放折算回设计坐标）。
+        /// "算点了一下"还是"算拖了一把"的门限（<b>屏幕</b>像素）。
         ///
-        /// 为什么需要它：框退化成一点时，若拿零宽高的矩形去做相交判定，"点落在图元包围盒里"
-        /// 也会算命中——而命中测试判的是像素。两者不等价的地方正好是最常见的那类图元：
-        /// 圆形、旋转过的图元、无填充的文字，它们的包围盒四角都是空的。
-        /// 于是"在圆形图元旁边的空白处点一下"会莫名其妙把它选上，而这正是用户用来取消选中的动作。
-        /// 与系统拖拽门限（<c>SystemParameters.MinimumHorizontalDragDistance</c> = 4）同量级即可。
+        /// 为什么需要它：手按在键上不可能绝对不动，按下到松开之间总会挪一两像素。
+        /// 没有门限的话，"点一下空白取消选中"每次都会走成"框选"，鼠标一抖就框出一片图元来，
+        /// 而点空白恰恰是用户最常用的取消选中动作。
+        ///
+        /// 为什么按<b>屏幕</b>像素而不是设计坐标：拖动是手感问题，与画布缩放无关。
+        /// 放大到 8 倍时若还按设计坐标的 4 像素判，屏幕上得挪 32 像素才起框，用户会觉得"拖了没反应"。
+        ///
+        /// 取值直接跟系统拖拽门限对齐（<c>SystemParameters.MinimumHorizontalDragDistance</c>，默认 4），
+        /// 于是画布上"点"与"拖"的分界和整个 Windows 一致，用户不必另学一套手感。
         /// </summary>
-        private const double BandSlopPixels = 3;
+        private static readonly double DragThresholdPixels = SystemParameters.MinimumHorizontalDragDistance;
 
         private enum DragMode
         {
@@ -58,12 +62,29 @@ namespace VisionMaster.Scada.Controls
 
             /// <summary>中键平移取景器</summary>
             Pan,
+
+            /// <summary>
+            /// 左键按在空白处、但还没挪够 <see cref="DragThresholdPixels"/>。
+            ///
+            /// 这一下究竟算"点了一下"（取消选中）还是"拖了一把"（框选），要等鼠标动或松手才知道，
+            /// 所以先挂起、两个结果都不做。新增值只能<b>追加在末尾</b>，不许插到 <see cref="RubberBand"/> 旁边。
+            /// </summary>
+            PendingBand,
         }
 
         private DragMode _dragMode;
         private ScadaElement? _dragElement;
         private Point _dragStartViewport;
+
+        /// <summary>
+        /// 按下位置换算成的<b>设计坐标</b>。三处拖动都用它：移动算位移、改尺寸算增量、框选当起点。
+        ///
+        /// 框选的起点必须是按下时就算好的设计坐标，而不是视口坐标：拖到一半滚轮缩放或中键平移时，
+        /// 框的起点是"画面上的某个位置"，理应钉在那个位置不动；若存视口坐标，缩放一下起点就漂到别处，
+        /// 框会跟鼠标脱节。
+        /// </summary>
         private Point _dragStartModel;
+
         private Rect _dragStartBounds;
         private double _dragStartRotation;
         private Vector _resizeSign;
@@ -80,9 +101,6 @@ namespace VisionMaster.Scada.Controls
         /// 顺序还天然与选中集合一致（调试时一眼能对上）。
         /// </summary>
         private (ScadaElement Element, double X, double Y)[]? _dragGroupStart;
-
-        /// <summary>框选起点（设计坐标；按下时就换算好，中途缩放/平移取景器也不会让框跑偏）</summary>
-        private Point _bandStartModel;
 
         /// <summary>
         /// 框选开始时那一批选中项的副本，用于"加选"时做并集。
@@ -191,18 +209,18 @@ namespace VisionMaster.Scada.Controls
                 return;
             }
 
-            // 空白处：起框选。
+            // 空白处：先挂起，等鼠标挪够门限再决定这一下是"点了一下"还是"拖了一把"。
+            //
+            // 不能按下就进框选态：手按在键上总会挪一两像素，那样"点空白取消选中"每次都会走成框选，
+            // 鼠标一抖就框出一片图元来。门限见 DragThresholdPixels。
             //
             // 选中集合放在编辑器层（画布只多一条只读的多选 DP 作为渲染输入），所以这里不碰领域层，
-            // 只记下起点与"这次是加选还是重选"，真正的命中计算留到松手时一次做完——
+            // 只记下"这次是加选还是重选"，真正的命中计算留到松手时一次做完——
             // 拖的过程中每动一像素就把全画面图元遍历一遍，图元一多就是白白烧 CPU。
-            //
-            // 顺带把老行为收进同一条路径：空白处点一下（没拖，框的宽高为 0）算出空集，
-            // 于是"点空白取消选中"与"重选"是同一段代码，不必再留一个分支。
             _bandAdditive = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0;
             _bandBaseSelection = _bandAdditive ? SnapshotSelection() : Array.Empty<ScadaElement>();
 
-            BeginDrag(DragMode.RubberBand, null, point);
+            BeginDrag(DragMode.PendingBand, null, point);
             e.Handled = true;
 
             if (!IsKeyboardFocused)
@@ -236,11 +254,13 @@ namespace VisionMaster.Scada.Controls
             base.OnMouseLeftButtonUp(e);
 
             // 框选的"落账"必须在 EndDrag 之前：EndDrag 会把拖动状态清空，
-            // 而落账要用到起点（_bandStartModel）与加选基线（_bandBaseSelection）。
+            // 而落账要用到起点（_dragStartModel）与加选基线（_bandBaseSelection）。
             if (_dragMode == DragMode.RubberBand)
                 CommitRubberBand(e.GetPosition(this));
+            else if (_dragMode == DragMode.PendingBand)
+                ApplyBandResult(null); // 挂起到松手都没挪够门限 ⇒ 就是"点了一下空白"：算出空集（取消选中）
 
-            if (_dragMode is DragMode.Move or DragMode.Resize or DragMode.RubberBand)
+            if (_dragMode is DragMode.Move or DragMode.Resize or DragMode.RubberBand or DragMode.PendingBand)
                 EndDrag();
         }
 
@@ -427,7 +447,33 @@ namespace VisionMaster.Scada.Controls
                 case DragMode.RubberBand:
                     UpdateRubberBand(point);
                     break;
+
+                case DragMode.PendingBand:
+                    // 挂起态：挪够门限才升级成真框选。没挪够就什么都不做——不画框、不换光标，
+                    // 因为这一下很可能只是"点了一下"，此刻冒出个十字准星加个虚框就是闪人眼睛。
+                    if (!HasExceededDragThreshold(point))
+                        break;
+
+                    _dragMode = DragMode.RubberBand;
+                    UpdateCursorState(); // 升级这一刻才换成十字准星
+                    UpdateRubberBand(point); // 顺带画一次：升级那一帧就把框显示出来，不必等下一个 Move
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 从按下点到现在，鼠标挪的幅度够不够算"拖了一把"（见 <see cref="DragThresholdPixels"/>）。
+        ///
+        /// 用<b>视口</b>坐标比而不是设计坐标：门限是屏幕像素，换算成设计坐标去比会随缩放变松紧。
+        /// 两个方向取"任一超限"而不是欧氏距离：拖动手感是"往哪个方向挪了都算动"，
+        /// 系统拖拽门限也是这个口径，保持一致。
+        /// </summary>
+        private bool HasExceededDragThreshold(Point viewportPoint)
+        {
+            double dx = Math.Abs(viewportPoint.X - _dragStartViewport.X);
+            double dy = Math.Abs(viewportPoint.Y - _dragStartViewport.Y);
+
+            return dx > DragThresholdPixels || dy > DragThresholdPixels;
         }
 
         /// <summary>
@@ -564,8 +610,8 @@ namespace VisionMaster.Scada.Controls
         /// <summary>
         /// 拖拽期间更新橡皮筋矩形。
         ///
-        /// 起点用的是按下时就换算好的<b>设计坐标</b>（<see cref="_bandStartModel"/>），不是视口坐标：
-        /// 拖到一半滚轮缩放或中键平移时，框的起点是"画面上的某个位置"，理应钉在那个位置不动；
+        /// 起点用的是按下时就换算好的<b>设计坐标</b>（<see cref="_dragStartModel"/>，与移动/改尺寸共用同一个起点），
+        /// 不是视口坐标：拖到一半滚轮缩放或中键平移时，框的起点是"画面上的某个位置"，理应钉在那个位置不动；
         /// 若存的是视口坐标，缩放一下起点就漂到别处，框会跟鼠标脱节。
         ///
         /// 宽高与线宽同样要除以 Zoom——矩形画在画面坐标系里，线宽不补偿的话放大后会变成一条粗边。
@@ -577,13 +623,13 @@ namespace VisionMaster.Scada.Controls
 
             var current = ToModelPoint(viewportPoint);
 
-            _rubberBand.Width = Math.Abs(current.X - _bandStartModel.X);
-            _rubberBand.Height = Math.Abs(current.Y - _bandStartModel.Y);
+            _rubberBand.Width = Math.Abs(current.X - _dragStartModel.X);
+            _rubberBand.Height = Math.Abs(current.Y - _dragStartModel.Y);
             _rubberBand.StrokeThickness = 1 / Math.Max(0.01, Zoom); // 屏幕上恒为 1 像素
             _rubberBand.Visibility = Visibility.Visible;
 
-            Canvas.SetLeft(_rubberBand, Math.Min(_bandStartModel.X, current.X));
-            Canvas.SetTop(_rubberBand, Math.Min(_bandStartModel.Y, current.Y));
+            Canvas.SetLeft(_rubberBand, Math.Min(_dragStartModel.X, current.X));
+            Canvas.SetTop(_rubberBand, Math.Min(_dragStartModel.Y, current.Y));
         }
 
         /// <summary>收起橡皮筋（松手、中断、鼠标被别处抢走时都要走到）</summary>
@@ -611,39 +657,41 @@ namespace VisionMaster.Scada.Controls
         {
             var current = ToModelPoint(viewportPoint);
 
-            double left = Math.Min(_bandStartModel.X, current.X);
-            double top = Math.Min(_bandStartModel.Y, current.Y);
-            double width = Math.Abs(current.X - _bandStartModel.X);
-            double height = Math.Abs(current.Y - _bandStartModel.Y);
+            double left = Math.Min(_dragStartModel.X, current.X);
+            double top = Math.Min(_dragStartModel.Y, current.Y);
+            double width = Math.Abs(current.X - _dragStartModel.X);
+            double height = Math.Abs(current.Y - _dragStartModel.Y);
 
             var band = new Rect(left, top, width, height);
 
-            // 框退化成一点（没拖，就是"点了一下空白"）→ 选出空集。
-            // 这条路径顺带把老行为收编了：取消选中与框选是同一段代码，不必再留一个分支。
-            // 门限见 BandSlopPixels 的注释（不设门限的话，"点在图元包围盒空角上"会误选中它）。
-            double slop = BandSlopPixels / Math.Max(0.01, Zoom);
-
-            bool degenerate = width < slop && height < slop;
-
             List<ScadaElement>? hits = null;
 
-            if (!degenerate)
+            foreach (var element in EnumerateItems())
             {
-                foreach (var element in EnumerateItems())
-                {
-                    // 看不见的不入选：它紧接着就会被 PruneSelection 剔掉，先选上等于白闪一下。
-                    // 锁住的<b>照选</b>——左键单击本来就选得中锁住的图元（只是拖不动），
-                    // 框选若把它们排除在外，同一批图元"点得中、框不中"会让人以为框选坏了。
-                    if (!IsElementShown(element))
-                        continue;
+                // 看不见的不入选：它紧接着就会被 PruneSelection 剔掉，先选上等于白闪一下。
+                // 锁住的<b>照选</b>——左键单击本来就选得中锁住的图元（只是拖不动），
+                // 框选若把它们排除在外，同一批图元"点得中、框不中"会让人以为框选坏了。
+                if (!IsElementShown(element))
+                    continue;
 
-                    if (!band.IntersectsWith(BoundsOf(element)))
-                        continue;
+                if (!band.IntersectsWith(BoundsOf(element)))
+                    continue;
 
-                    (hits ??= new List<ScadaElement>()).Add(element);
-                }
+                (hits ??= new List<ScadaElement>()).Add(element);
             }
 
+            ApplyBandResult(hits);
+        }
+
+        /// <summary>
+        /// 框选/点空白的共同收尾：把命中集按"重选还是加选"合并成新的选中集合。
+        ///
+        /// 抽出来是因为"拖出一片空白"与"点一下空白"只差命中集是不是空，
+        /// 合并规则与"结果没变就不写"的收尾一字不差，抄两份迟早会改漏一处。
+        /// </summary>
+        /// <param name="hits">框住的图元；null 表示什么都没框到（点了一下空白 ⇒ 取消选中）</param>
+        private void ApplyBandResult(List<ScadaElement>? hits)
+        {
             IReadOnlyList<ScadaElement> next;
 
             if (!_bandAdditive || _bandBaseSelection.Count == 0)
@@ -814,6 +862,8 @@ namespace VisionMaster.Scada.Controls
                 DragMode.Pan => Cursors.Hand,
                 DragMode.Move => Cursors.SizeAll,
                 DragMode.RubberBand => Cursors.Cross, // 十字准星：画框类操作的通用语言
+                // 挂起态刻意落在默认档：这一下很可能只是"点了一下"，先闪个十字准星会晃人眼睛。
+                // 真拖起来了，OnMouseMove 会升级成 RubberBand 并重新调这里换光标。
                 _ => Cursors.Arrow,
             };
         }

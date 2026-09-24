@@ -38,6 +38,13 @@ namespace VisionMaster.Services
         public FlowSession CurrentSession { get; init; }
 
         /// <summary>
+        /// 当前执行流程的名称（网络收图按流程名分槽取图用）。
+        /// 直接由会话派生：会话是"这次执行"的唯一身份来源，再单独存一份必然出现两者不一致。
+        /// 简化构造（容器注册的那份）没有会话，此处为 null，取图口会归入空串槽。
+        /// </summary>
+        public string CurrentFlowName => CurrentSession?.FlowName;
+
+        /// <summary>
         /// 工作空间管理器
         /// </summary>
         public IWorkspaceManager Workspace { get; init; }

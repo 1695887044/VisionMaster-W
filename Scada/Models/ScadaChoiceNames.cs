@@ -87,9 +87,8 @@ namespace VisionMaster.Scada
                 ["Vertical"] = "垂直",
 
                 // ---- IO 域：模式 ----
-                ["Output"] = "输出",
-                ["Input"] = "输入",
-                ["InputOutput"] = "输入输出",
+                ["Output"] = "只读",
+                ["InputOutput"] = "读写",
 
                 // ---- IO 域：格式类型 ----
                 ["Decimal"] = "十进制",
@@ -110,7 +109,16 @@ namespace VisionMaster.Scada
                 // ---- 管路流向 ----
                 ["LeftToRight"] = "从左到右",
                 ["RightToLeft"] = "从右到左",
-                ["None"] = "不显示",
+
+                // ---- 图像缩放方式（图像显示图元） ----
+                ["Fill"] = "拉伸填满",
+                ["Uniform"] = "保持比例",
+                ["UniformToFill"] = "保持比例填满",
+
+                // None 是上面「图像缩放方式」里的"不缩放"，也是「管路流向」里的"不画箭头"。
+                // 全局词汇表一个值只能有一个词（见类注释），所以取了个两边都读得通的「无」：
+                // 「流向 = 无」「缩放方式 = 无」，各自都成立。
+                ["None"] = "无",
             };
 
         /// <summary>

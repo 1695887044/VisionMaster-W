@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using VisionMaster.Scada;
@@ -50,10 +51,25 @@ namespace VisionMaster.Scada.Controls
     /// 显示 <see cref="EmptyText"/>（默认"系统正常"），正好是组态时想看到的预览。
     /// 编辑器里不运行、也没有引擎，这条分支是常态而不是异常。
     /// </summary>
+    [TemplatePart(Name = PartListScroll, Type = typeof(ScrollViewer))]
+    [TemplatePart(Name = PartEmptyHint, Type = typeof(TextBlock))]
+    [TemplatePart(Name = PartAccentBar, Type = typeof(Border))]
     public class AlarmBannerElement : ScadaElementBase
     {
         // 闪烁半周期用基类的 ScadaElementBase.BlinkHalfPeriodMilliseconds：
         // 报警条的闪烁与图元动画的闪烁必须是同一套节拍，值只能有一个来源。
+
+        /// <summary>模板部件名：报警行列表（一条报警都没有时收起）</summary>
+        public const string PartListScroll = "ListScroll";
+
+        /// <summary>模板部件名：空态提示（有报警时收起，与列表互斥）</summary>
+        public const string PartEmptyHint = "EmptyHint";
+
+        /// <summary>模板部件名：左侧严重度色条（闪烁就是改它的透明度）</summary>
+        public const string PartAccentBar = "AccentBar";
+
+        /// <summary>闪烁"暗"那一拍的色条透明度</summary>
+        private const double BlinkDimOpacity = 0.25;
 
         /// <summary>行数上限的钳制范围：0 行等于隐形、几百行等于没有上限，两者都不该被配出来</summary>
         private const int MinRows = 1;
@@ -136,8 +152,9 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>
         /// 闪烁的当前相位：该亮时为 true。不闪的时候恒为 true（色条常亮）。
-        /// 模板绑它去改色条的 Opacity——把相位做成一个属性、而不是在控件里直接改模板元素，
-        /// 是因为控件拿不到模板内部的元素（那正是"模板可以被替换"的代价）。
+        /// 控件拿不到模板内部的元素（那正是"模板可以被替换"的代价），所以相位做成属性；
+        /// 色条的透明度由 <see cref="UpdateBannerLayout"/> 读这个属性去改，
+        /// 而不是在模板触发器里绑它——本环境下 ControlTemplate.Triggers 里的 DataTrigger 不触发。
         /// </summary>
         public static readonly DependencyProperty BlinkOnProperty = BlinkOnPropertyKey.DependencyProperty;
 
@@ -219,6 +236,31 @@ namespace VisionMaster.Scada.Controls
 
         protected override void OnElementRefreshed() => ApplyStrokeInset(1);
 
+        // 模板刚套上时补摆一次：HasAlarms / IsFlashing / BlinkOn 若在套模板之前就落地，
+        // 那几次调用都是空操作（那时还取不到模板部件），这里必须再摆一次。
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            UpdateBannerLayout();
+        }
+
+        /// <summary>
+        /// 按当前状态摆好模板里三块互相顶替的东西：列表 / 空态提示 / 色条明暗。
+        ///
+        /// 本环境下 <c>ControlTemplate.Triggers</c> 里的 DataTrigger 一律不触发
+        /// （见 <see cref="ScadaElementBase.SetPartVisible"/>），所以这两件事只能由代码翻，
+        /// 模板里<b>既不写 Visibility 初值、也不写 ControlTemplate.Triggers</b>。
+        /// 模板尚未套上时是空操作，套上后由 <see cref="OnApplyTemplate"/> 补一次。
+        /// </summary>
+        private void UpdateBannerLayout()
+        {
+            SetPartVisible(PartListScroll, HasAlarms);
+            SetPartVisible(PartEmptyHint, !HasAlarms);
+
+            if (GetTemplateChild(PartAccentBar) is UIElement accent)
+                accent.Opacity = IsFlashing && !BlinkOn ? BlinkDimOpacity : 1d;
+        }
+
         /// <summary>
         /// 运行态上下文换人：退掉旧引擎与旧节拍的订阅、挂上新的，然后立刻整表重读一次。
         ///
@@ -298,6 +340,9 @@ namespace VisionMaster.Scada.Controls
                 _blinkOn = true;
                 SetValue(BlinkOnPropertyKey, true);
             }
+
+            // 行数、有无报警、是否该闪都可能刚变过，模板里那三块互相顶替的东西在这里一次摆平。
+            UpdateBannerLayout();
         }
 
         /// <summary>
@@ -346,6 +391,9 @@ namespace VisionMaster.Scada.Controls
             {
                 _blinkOn = on;
                 SetValue(BlinkOnPropertyKey, on);
+
+                // 相位一变，色条的明暗就得跟着走一趟。
+                UpdateBannerLayout();
             });
         }
 

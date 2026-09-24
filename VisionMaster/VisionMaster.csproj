@@ -42,6 +42,31 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- HTTP 收图服务端：Watson 7.2.0。7.x 已移除 http.sys 依赖，改由自己的 TcpListener 承载，
+         所以监听内网地址不需要注册 URLACL、不需要管理员权限。
+         （注意别选 6.x 的 WatsonWebserver 包，那个走 http.sys，等于绕回原点。）
+         本机 NuGet 还原被代理拦成 NU1301 502，故与本仓 DLL\Halcon 同范式落地离线 DLL + HintPath，
+         不碰全局 NuGet 源，换任何机器都能直接编译。 -->
+    <Reference Include="WatsonWebserver">
+      <HintPath>..\DLL\Watson\WatsonWebserver.dll</HintPath>
+    </Reference>
+    <!-- WatsonWebserver 在 net8.0 分支下的 4 个传递依赖（作者自产小库，依赖组为空、无更深依赖）。
+         纯 HintPath 引用不会自动带出传递依赖，必须显式声明，否则运行时装配解析会抛 FileNotFoundException。 -->
+    <Reference Include="IpMatcher">
+      <HintPath>..\DLL\Watson\IpMatcher.dll</HintPath>
+    </Reference>
+    <Reference Include="RegexMatcher">
+      <HintPath>..\DLL\Watson\RegexMatcher.dll</HintPath>
+    </Reference>
+    <Reference Include="Timestamps">
+      <HintPath>..\DLL\Watson\Timestamps.dll</HintPath>
+    </Reference>
+    <Reference Include="UrlMatcher">
+      <HintPath>..\DLL\Watson\UrlMatcher.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <Page Update="Shell.xaml">
       <Generator>MSBuild:Compile</Generator>
       <XamlRuntime>$(DefaultXamlRuntime)</XamlRuntime>

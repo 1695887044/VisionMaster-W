@@ -45,69 +45,79 @@ namespace VisionMaster.Models
                 return null;
             }
 
-            foreach (var branch in Branches)
+            for (int branchIndex = 0; branchIndex < Branches.Count; branchIndex++)
             {
+                var branch = Branches[branchIndex];
                 if (branch.ConditionLambda == null) continue;
 
-                // args 数组：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames）
-                int totalArgs = branch.LocalVarIds.Count + branch.RuntimeVarNames.Count;
-                var args = new object[totalArgs];
-
-                // 局部变量：从 UpstreamLinks 取值
-                for (int i = 0; i < branch.LocalVarIds.Count; i++)
-                {
-                    Guid varId = branch.LocalVarIds[i];
-                    Type expectedType = branch.VarTypes.ContainsKey(varId) ? branch.VarTypes[varId] : typeof(double);
-
-                    if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
-                    {
-                        args[i] = sourcePort.Value;
-                    }
-                    else
-                    {
-                        if (expectedType == typeof(string)) args[i] = string.Empty;
-                        else if (expectedType == typeof(bool)) args[i] = false;
-                        else args[i] = 0.0;
-                    }
-                }
-
-                // 运行时变量：从 context.LocalVariables 取值
-                for (int i = 0; i < branch.RuntimeVarNames.Count; i++)
-                {
-                    string varName = branch.RuntimeVarNames[i];
-                    int argIndex = branch.LocalVarIds.Count + i;
-                    Type expectedType = branch.RuntimeVarTypes.ContainsKey(varName) ? branch.RuntimeVarTypes[varName] : typeof(object);
-
-                    if (context.LocalVariables.TryGetValue(varName, out var v))
-                    {
-                        args[argIndex] = v;
-                    }
-                    else
-                    {
-                        // 变量未定义时返回类型默认值
-                        args[argIndex] = expectedType.IsValueType ? Activator.CreateInstance(expectedType) : null;
-                    }
-                }
-
+                bool isTrue;
                 try
                 {
-                    bool isTrue = (bool)branch.ConditionLambda.Invoke(args);
-                    if (isTrue)
-                    {
-                        // 本节点的活儿到"选出分支"为止，分支里各算子的状态由算子自己上报
-                        UpdateStepRuntimeState(context, StepRuntimeState.Success);
-                        return branch.ExecutionSteps;
-                    }
+                    isTrue = (bool)branch.ConditionLambda.Invoke(BuildBranchArgs(branch, context));
                 }
                 catch (Exception ex)
                 {
-                    context.Logger.Error($"分支执行异常: {ex.Message}");
+                    // P0-1：条件求值抛异常 = 判断结果未知，绝不能再往下试分支。
+                    // 旧实现只记一条日志就 continue，于是 Else 的 Parse("true") 恒真兜底命中 ——
+                    // 本该走 If 实际走了 Else，步骤状态还是绿的。对工业视觉而言，
+                    // "绿的但走了错分支"比"红的崩溃"危险得多：崩溃会停机报警，走错分支会一路放行不良品。
+                    // 口径与 CompiledPluginNode 的程序异常一致：标 Failed + 上抛，
+                    // 由 FlowEngineService 把会话置 Faulted 并上报（不静默、不继续）。
+                    UpdateStepRuntimeState(context, StepRuntimeState.Failed);
+                    context.Logger?.Error(
+                        $"If节点 '{Name}' 第 {branchIndex + 1} 个分支条件求值失败，已中断流程: {ex.Message}"
+                    );
+                    throw;
+                }
+
+                if (isTrue)
+                {
+                    // 本节点的活儿到"选出分支"为止，分支里各算子的状态由算子自己上报
+                    UpdateStepRuntimeState(context, StepRuntimeState.Success);
+                    return branch.ExecutionSteps;
                 }
             }
 
             // 一条分支都没命中（没有 Else 的 If）：判断本身是成功的，只是无事可做
             UpdateStepRuntimeState(context, StepRuntimeState.Success);
             return null;
+        }
+
+        /// <summary>
+        /// 构建本分支的条件实参：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames）。
+        /// 顺序必须与 FlowCompiler 生成 delegateParams 的顺序严格一致，否则参数会整体错位。
+        ///
+        /// 取值一律经 CoerceConditionArg 按声明类型归一（P0-2）：编译期 IsLinkable 按
+        /// ValueConverter.Convert 的口径放行"数值族互转"，运行期不补这一步就会
+        /// "编译通过、一跑就炸"（DynamicInvoke 不做 double→int 这类收窄）。
+        /// </summary>
+        private object[] BuildBranchArgs(CompiledBranch branch, IExecutionContext context)
+        {
+            var args = new object[branch.LocalVarIds.Count + branch.RuntimeVarNames.Count];
+
+            for (int i = 0; i < branch.LocalVarIds.Count; i++)
+            {
+                Guid varId = branch.LocalVarIds[i];
+                Type expectedType = branch.VarTypes.TryGetValue(varId, out var t) ? t : typeof(double);
+
+                if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
+                    args[i] = CoerceConditionArg(sourcePort.Value, expectedType);
+                else
+                    args[i] = DefaultForConditionArg(expectedType);
+            }
+
+            for (int i = 0; i < branch.RuntimeVarNames.Count; i++)
+            {
+                string varName = branch.RuntimeVarNames[i];
+                Type expectedType = branch.RuntimeVarTypes.TryGetValue(varName, out var t) ? t : typeof(object);
+
+                if (context.LocalVariables.TryGetValue(varName, out var v) && v != null)
+                    args[branch.LocalVarIds.Count + i] = CoerceConditionArg(v, expectedType);
+                else
+                    args[branch.LocalVarIds.Count + i] = DefaultForConditionArg(expectedType);
+            }
+
+            return args;
         }
     }
 }

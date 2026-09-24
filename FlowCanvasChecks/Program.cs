@@ -62,6 +62,10 @@ namespace FlowCanvasChecks
             ExecutionChecks.RuntimeStateDoesNotInvalidateVersion();
             ExecutionChecks.RegistryLockDoesNotBlockCollection();
             ExecutionChecks.ForLoopCountReadsRuntimeVariable();
+            ExecutionChecks.ConditionBranchFailureSemantics();
+
+            // HTTP 收图端到端冒烟（真起服务端 + 真发 HTTP 图片）
+            HttpImageSmoke.Run();
 
             Finish();
             return Environment.ExitCode;
@@ -1297,6 +1301,8 @@ namespace FlowCanvasChecks
             Check("往返后连线身份不变",
                 for2.LinkedSources["LoopCount"].NormalizeKind() == LinkKind.RuntimeVariable
                 && for2.LinkedSources["LoopCount"].TargetPortName == "loopN", "");
+            Check("往返后 For 的循环体分支不重复（应为 1）",
+                for2.Children.Count == 1, $"实际 {for2.Children.Count}");
             Check("往返后变量定义步骤仍能长出值脚（Name/Type 存成裸字符串）",
                 FlowQueryHelper.TryGetDefinedVariable(def2, out var rn, out var rt)
                 && rn == "loopN" && rt == typeof(int), $"{rn}/{rt.Name}");

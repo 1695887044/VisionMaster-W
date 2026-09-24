@@ -1,4 +1,6 @@
 using System;
+using HalconDotNet;
+using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Scada;
 
@@ -47,7 +49,22 @@ namespace VisionMaster.Binding
 
             public Type DataType => _variable.DataType;
 
-            public object? Value => _variable.Value;
+            /// <summary>
+            /// 取值出口，也是"Halcon 像素 → WPF 位图"唯一的转换落点。
+            ///
+            /// 图像变量（HImage）在这里就换成 <see cref="System.Windows.Media.ImageSource"/> 再往下走，
+            /// 好处有三：图元库不必认识 HalconDotNet（保持画面层的干净边界）；数据泵的脏值暂存表
+            /// 存的是已冻结的位图（可跨线程）；绑定到图元的换算链在
+            /// ScadaValueConverter 的"值已是目标类型则直通"那一档就结束了，零额外开销。
+            /// </summary>
+            public object? Value
+            {
+                get
+                {
+                    var value = _variable.Value;
+                    return value is HImage image ? HalconImageHelper.ToBitmapSource(image) : value;
+                }
+            }
 
             /// <summary>
             /// 事件用 add/remove 直接转发到底层变量：句柄不自己维护订阅表，

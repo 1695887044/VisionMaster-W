@@ -34,6 +34,7 @@
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/MotorElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/PipeElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AlarmBannerElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ImageViewElement.xaml" />
 
         <!-- 画布宿主不是图元，但它同样是"默认样式在本程序集"的自定义控件，缺这一行就是一块空白面板 -->
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaCanvas.xaml" />

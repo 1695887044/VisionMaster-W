@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using Core.Interfaces;
 using VisionMaster;
@@ -24,6 +25,17 @@ namespace FlowCanvasChecks
         {
             foreach (var s in steps) branch.Steps.Add(s);
         }
+
+        // ---- 对照探针：Newtonsoft 对"只读集合属性"的 ObjectCreationHandling 到底怎么处理 ----
+        // 已用于定位 ConditionStep/ForStep.Children 存盘翻倍的修法，结论固定如下，探针本身已撤除：
+        //   只读集合 + 无标注            → Populate 追加，分支翻倍
+        //   只读集合 + Replace           → 新集合无法赋回属性，文件数据被整体丢弃（更危险）
+        //   有 setter + Replace          → 整体替换且保留文件数据（正确）
+        // 因此 Children 必须是"带 setter + Replace"两件套；下面的往返断言负责钉住这个行为。
+        private static T RoundTrip<T>(T value) =>
+            Newtonsoft.Json.JsonConvert.DeserializeObject<T>(
+                Newtonsoft.Json.JsonConvert.SerializeObject(value)
+            )!;
 
         // ==================================================================
         //  [E1] A1：循环体内的 If 分支必须真的执行
@@ -391,6 +403,153 @@ namespace FlowCanvasChecks
                 Check("变量缺键 → 取到 int 默认值 0 → 跑 0 圈（现行为：不回落默认次数）",
                     CountingPlugin.Runs == 0, $"实际 {CountingPlugin.Runs}");
             }
+
+            LoopVarPlugin.Value = 3;
+        }
+
+        // ==================================================================
+        //  [E8] 条件分支的失败语义 / 类型归一 / 分支可达性
+        //
+        //  这一段守的是"编译期口径 = 运行期口径"这条线，以及"结果未知时绝不许蒙"这条纪律。
+        //  三组条件求值用例共用同一套图纸形状（[变量定义桩 → If]），只改变量声明类型与写入值，
+        //  每组都能给出新旧实现行为相反的证据，而不是"新代码也能过"的同义反复。
+        // ==================================================================
+        internal static void ConditionBranchFailureSemantics()
+        {
+            Section("[E8] 条件分支失败语义与类型归一");
+
+            // 图纸：[变量定义(写 loopN) → If(loopN 条件)，Else 分支里放计数桩]
+            // 计数桩刻意只放在 Else 里：跑起来就说明"条件没判成"或"判断被吞了"，正是要抓的病灶。
+            (StepModel[] Blueprints, ConditionStep If) BuildIf(string expression, bool withProducer)
+            {
+                var ifStep = new ConditionStep("I", "条件", "SomeIfOperator", "类型归一If");
+                ifStep.Children[0].Expression = expression;
+                // 声明成 int：DynamicExpresso 的形参类型就是 int，收窄转换会当场炸
+                ifStep.RuntimeVariableRefs.Add(
+                    new LocalVariableItem { Name = "loopN", DataTypeName = "System.Int32" });
+                Put(ifStep.Children[1], new ActionStep("A", "计数", TypeOf(new CountingPlugin()), "Else内计数"));
+
+                var producer = new ActionStep("V", "变量定义", TypeOf(new LoopVarPlugin()), "写入loopN");
+                return (withProducer
+                    ? new StepModel[] { producer, ifStep }
+                    : new StepModel[] { ifStep }, ifStep);
+            }
+
+            // ---- ① P0-1 反证：条件求值抛异常，必须停机，绝不能"试下一个分支" ----
+            // 变量声明 int、值被写成非数字字符串 → 归一失败。
+            // 旧实现：catch 只记一条日志就 continue → 轮到 Else 的恒真兜底 → Else 里的算子跑起来，步骤还标 Success。
+            CountingPlugin.Reset();
+            LoopVarPlugin.Value = "abc";
+            var (bpBad, ifBad) = BuildIf("loopN == 1", withProducer: true);
+            var runBad = ExecHarness.Prepare(bpBad);
+            Check("脏值图纸编译通过（类型校验不拦运行期脏数据）", runBad.Compiled, runBad.Errors);
+            if (!runBad.Compiled) { LoopVarPlugin.Value = 3; return; }
+
+            Exception boom = null;
+            try { runBad.Engine!.Run(runBad.NewContext(new StubLog())); }
+            catch (Exception ex) { boom = ex; }
+
+            Check("条件求值失败会抛穿流程（不再被吞掉）", boom != null,
+                boom == null ? "没抛：条件求值异常又被吃掉了" : boom.GetType().Name);
+            Check("If 节点落 Failed（不是悄悄走 Else 还标绿）", ifBad.State == StepState.Failed,
+                $"State={ifBad.State}");
+            Check("Else 分支一个算子都没跑（旧实现此处为 1，即走错分支）", CountingPlugin.Runs == 0,
+                $"实际 Runs={CountingPlugin.Runs}");
+
+            // ---- ② P0-2 正向钉住：变量声明 int、值是 double → 归一后照常命中 If ----
+            // 旧实现：Invoke([2.0]) 收窄炸 → 被吞 → 走 Else（Runs 记在 Else 上）。
+            CountingPlugin.Reset();
+            LoopVarPlugin.Value = 2.0;
+            var (bpWide, ifWide) = BuildIf("loopN == 2", withProducer: true);
+            var runWide = ExecHarness.Prepare(bpWide);
+            Check("double 值图纸编译通过", runWide.Compiled, runWide.Errors);
+            if (runWide.Compiled)
+            {
+                runWide.Engine!.Run(runWide.NewContext(new StubLog()));
+                Check("声明 int 收到 double 2.0 → 归一为 2，If 命中（Else 计数保持 0）",
+                    CountingPlugin.Runs == 0 && ifWide.State == StepState.Success,
+                    $"Runs={CountingPlugin.Runs} State={ifWide.State}");
+            }
+
+            // ---- ③ P0-3 钉住：变量没人写 → 兜底值必须是 int 的 0，不能是 double 的 0.0 ----
+            CountingPlugin.Reset();
+            var (bpEmpty, ifEmpty) = BuildIf("loopN == 0", withProducer: false);
+            var runEmpty = ExecHarness.Prepare(bpEmpty);
+            Check("无写入者的图纸编译通过", runEmpty.Compiled, runEmpty.Errors);
+            if (runEmpty.Compiled)
+            {
+                runEmpty.Engine!.Run(runEmpty.NewContext(new StubLog()));
+                Check("缺值兜底给 int 的 0（注 0.0 会因收窄炸掉）",
+                    CountingPlugin.Runs == 0 && ifEmpty.State == StepState.Success,
+                    $"Runs={CountingPlugin.Runs} State={ifEmpty.State}");
+            }
+
+            // ---- ④ While 撞迭代上限：标 Failed 并上抛，不许"少跑几圈还标绿" ----
+            CountingPlugin.Reset();
+            var whileStep = new WhileStep("W", "条件循环", "SomeWhileOperator", "死循环While");
+            whileStep.Children[0].Expression = "1 == 1"; // 恒真：只能靠上限掐断
+            Put(whileStep.Children[0], new ActionStep("A", "计数", TypeOf(new CountingPlugin()), "每圈计数"));
+
+            var runLoop = ExecHarness.Prepare(new StepModel[] { whileStep });
+            Check("恒真 While 图纸编译通过", runLoop.Compiled, runLoop.Errors);
+            if (runLoop.Compiled)
+            {
+                // 上限调小，避免真跑 9999 圈；引擎语义与上限大小无关
+                ((CompiledWhileNode)runLoop.Engine!.NodeLookup[whileStep.StepID]).MaxIterations = 5;
+
+                Exception loopBoom = null;
+                try { runLoop.Engine.Run(runLoop.NewContext(new StubLog())); }
+                catch (Exception ex) { loopBoom = ex; }
+
+                Check("撞上限会抛穿流程", loopBoom != null,
+                    loopBoom == null ? "没抛：循环被掐断却当成正常结束" : loopBoom.GetType().Name);
+                Check("While 节点落 Failed", whileStep.State == StepState.Failed, $"State={whileStep.State}");
+                Check("恰好跑满上限 5 圈（不多不少）", CountingPlugin.Runs == 5, $"实际 Runs={CountingPlugin.Runs}");
+            }
+
+            // ---- ⑤ Else 之后的分支不可达：编译期就得拦下来 ----
+            var unordered = new ConditionStep("I", "条件", "SomeIfOperator", "乱序If");
+            unordered.Children[0].Expression = "1 == 1";
+            // 构造时是 [If, Else]，追加 ElseIf 后成 [If, Else, ElseIf] —— Else 恒真，ElseIf 永远轮不到
+            unordered.Children.Add(
+                new StepCollection
+                {
+                    BranchType = BranchType.ElseIf,
+                    StepName = "ElseIf 分支",
+                    Expression = "1 == 1",
+                });
+
+            var runOrder = ExecHarness.Prepare(new StepModel[] { unordered });
+            Check("Else 之后的分支被判为不可达并阻断编译",
+                !runOrder.Compiled && runOrder.Errors.Contains("不可达"), runOrder.Errors);
+
+            // ---- ⑥ 识别口径只有一份：认算子类型名，不认可能被改的显示名 ----
+            var renamed = new ConditionStep("I", "条件判断", "BuiltIn_If", "改名If");
+            Check("ConditionStep.IsIfLike 认类型名而非显示名",
+                renamed.IsIfLike && renamed.Children.Count == 2
+                    && renamed.Children[1].BranchType == BranchType.Else,
+                $"IsIfLike={renamed.IsIfLike} Children={renamed.Children.Count}");
+            Check("非 If 型条件算子不会误判成 If",
+                !new ConditionStep("I", "条件", "BuiltIn_While", "非If").IsIfLike, "");
+
+            // ---- ⑦ 只读集合 Children 的存盘往返：必须"整体替换"，不能"追加" ----
+            // Newtonsoft 对无 setter 的集合属性默认走 ObjectCreationHandling.Auto（= Populate/Add），
+            // 而 ConditionStep/ForStep/WhileStep 的构造函数已预建分支；若被 Populate，反序列化会 Append 而非替换 → 分支翻倍。
+            // 项目里 SolutionModel/FlowModel 的同类集合都显式标了 Replace，这几个步骤模型却没标，故实测一次。
+            var ifProbe = new ConditionStep("I", "条件", "BuiltIn_If", "往返探针If");
+            ifProbe.Children[0].Expression = "1 == 1";
+            var ifBack = RoundTrip(ifProbe);
+            Check("If 图纸存盘往返后分支不重复且条件保留（应为 2 且含表达式）",
+                ifBack.Children.Count == 2 && ifBack.Children[0].Expression == "1 == 1",
+                $"实际 {ifBack.Children.Count}（{string.Join(",", ifBack.Children.Select(c => c.BranchType))}）Expr0='{ifBack.Children[0].Expression}'");
+
+            var forBack = RoundTrip(new ForStep("F", "For", "BuiltIn_For", "往返探针For"));
+            Check("For 图纸存盘往返后循环体不重复（应为 1）",
+                forBack.Children.Count == 1, $"实际 {forBack.Children.Count}");
+
+            var whileBack = RoundTrip(new WhileStep("W", "While", "BuiltIn_While", "往返探针While"));
+            Check("While 图纸存盘往返后循环体不重复（应为 1）",
+                whileBack.Children.Count == 1, $"实际 {whileBack.Children.Count}");
 
             LoopVarPlugin.Value = 3;
         }

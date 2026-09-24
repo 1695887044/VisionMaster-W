@@ -1,3 +1,7 @@
+using System.ComponentModel.DataAnnotations;
+using Newtonsoft.Json;
+using UI.Attributes;
+
 namespace VisionMaster.Communications
 {
     /// <summary>
@@ -7,9 +11,13 @@ namespace VisionMaster.Communications
     public class ModbusTcpConfig : EthernetConfigBase
     {
         /// <summary>
-        /// <para>创建 Modbus TCP 连接对象。</para>
+        /// <para>多寄存器数值（32/64 位）在线路上的字节排列顺序，读写两条链路共用同一字序。</para>
+        /// <para>ABCD = 大端标准；CDAB = 字序交换（多数国产 PLC/仪表默认）；另见 <see cref="ByteOrderFormat"/>。</para>
+        /// <para>⚠ 落盘键名刻意保留历史拼写 "ByteoRDER"：改名会让存量 communications.json / 方案文件里的字序丢失并回落默认值。</para>
         /// </summary>
-        /// <returns>Modbus TCP 连接实例</returns>
+        [SuperDisplay(Name = "字节排序", GroupPath = "网络参数", Order = 6, ColSpan = 8)]
+        [JsonProperty("ByteoRDER")]
+        public ByteOrderFormat ByteOrder { get; set; } = ByteOrderFormat.CDAB;
 
         /// <summary>
         /// <para>克隆当前配置对象。</para>
@@ -24,7 +32,8 @@ namespace VisionMaster.Communications
             IpAddress = IpAddress, 
             Port = Port, 
             EnableKeepAlive = EnableKeepAlive, 
-            KeepAliveIntervalMs = KeepAliveIntervalMs
+            KeepAliveIntervalMs = KeepAliveIntervalMs,
+            ByteOrder = ByteOrder
         };
     }
 }

@@ -74,6 +74,9 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private ScadaDocument? _historyDocument;
 
+        /// <summary>等间距动作的"相邻留多少像素"（见 <see cref="SpacingGap"/>）；一次操作的参数，不落盘</summary>
+        private double _spacingGap = 20;
+
         public ScadaEditorViewModel(IWorkspaceManager workspace, IScadaRuntimeHost runtime)
         {
             _workspace = workspace;
@@ -112,6 +115,27 @@ namespace VisionMaster.ViewModels
             // 存为模板要弹输入框问名字，但它仍然走命令：判灰条件（有没有选中）是视图模型的知识，
             // 摆在视图里就又出现第二份"谁能被复制"的判定——与上面那三条同一条理由。
             SaveTemplateCommand = new DelegateCommand(OnSaveTemplate, CanCopySelection);
+
+            // 格式工具栏（r5）。上面那一批命令的入口都只有"右键菜单 + 快捷键"，
+            // 而右键菜单里那些项是<b>每次弹出就地 new 一条命令</b>（所以它们的灰亮天然是最新的）；
+            // 工具栏上的按钮是长期挂在可视树上的，必须有自己的属性型命令，
+            // 并在选中变化时显式 RaiseCanExecuteChanged（见 RefreshSelectionCommands）。
+            //
+            // 动作与判据都直接转调既有方法（AlignSelected / CanAlignSelected 等），不另写一份：
+            // 工具栏与右键菜单的灰亮必须同源，各写一遍迟早出现"菜单能点、工具栏灰着"。
+            //
+            // 用参数型命令（DelegateCommand&lt;T&gt;）而不是每种动作一个属性：八个对齐各占一个属性，
+            // 就是把同一件事抄八遍，而工具栏那 8 个按钮本来就只差一个枚举值
+            //（参数由 XAML 的 CommandParameter 常量给，不会被外部构造，与 NudgeCommand 同一取舍）。
+            // 泛型参数一律用<b>可空枚举</b>（ScadaAlign? 而不是 ScadaAlign）：
+            // Prism 的 DelegateCommand&lt;T&gt; 要求 T 是引用类型或可空类型，裸枚举在构造时
+            // 会抛 InvalidCastException（"T ... is not an object nor Nullable"）。
+            // 可空之后 XAML 传进来的常量（值类型）装箱成可空没有问题，动作里再判 is { } 取值。
+            AlignCommand = new DelegateCommand<ScadaAlign?>(a => AlignSelected(a), a => CanAlignSelected(a));
+            MoveZCommand = new DelegateCommand<ScadaZMove?>(m => MoveSelectedZ(m), m => CanMoveSelectedZ(m));
+            MatchSizeCommand = new DelegateCommand<ScadaSizeMatch?>(m => MatchSelectedSize(m), m => CanMatchSelectedSize(m));
+            SpaceCommand = new DelegateCommand<ScadaSpacing?>(s => SpaceSelected(s), s => CanSpaceSelected(s));
+            SnapElementsToGridCommand = new DelegateCommand(() => SnapSelectedToGrid(), CanSnapSelectedToGrid);
 
             // 构造即视为已入树（AutoWireViewModel 通常晚于 Loaded 才装好 DataContext，
             // 那时视图的 Loaded 已经过去，故视图侧还要在 DataContextChanged 里补挂一次）
@@ -330,6 +354,14 @@ namespace VisionMaster.ViewModels
             CopyCommand.RaiseCanExecuteChanged();
             DuplicateCommand.RaiseCanExecuteChanged();
             SaveTemplateCommand.RaiseCanExecuteChanged();
+
+            // 格式工具栏（r5）五条。它们判的是"选中的图元够不够、能不能编辑"，
+            // 与上面那批同源——漏掉任何一条，工具栏上那个按钮的灰亮就会留在上一个选中上。
+            AlignCommand.RaiseCanExecuteChanged();
+            MoveZCommand.RaiseCanExecuteChanged();
+            MatchSizeCommand.RaiseCanExecuteChanged();
+            SpaceCommand.RaiseCanExecuteChanged();
+            SnapElementsToGridCommand.RaiseCanExecuteChanged();
         }
 
         /// <summary>这个图元在不在选中集合里（引用相等——图元没有重写 Equals，也不该重写）</summary>
@@ -436,6 +468,54 @@ namespace VisionMaster.ViewModels
         /// 等于把同一件事抄四遍，而这里的参数压根不会被外部构造（只由 XAML 常量给）。
         /// </summary>
         public DelegateCommand<string> NudgeCommand { get; }
+
+        /// <summary>
+        /// 格式工具栏的"对齐与分布"（参数是 <see cref="ScadaAlign"/> 的八个取值）。
+        /// 动作见 <see cref="AlignSelected"/>，判据见 <see cref="CanAlignSelected"/>——
+        /// 与右键菜单「对齐与分布」子菜单读的是同一对方法，两处灰亮同源。
+        /// </summary>
+        public DelegateCommand<ScadaAlign?> AlignCommand { get; }
+
+        /// <summary>
+        /// 格式工具栏的"叠放次序"（参数是 <see cref="ScadaZMove"/> 的四个取值）。
+        /// 动作见 <see cref="MoveSelectedZ"/>，判据见 <see cref="CanMoveSelectedZ"/>。
+        /// </summary>
+        public DelegateCommand<ScadaZMove?> MoveZCommand { get; }
+
+        /// <summary>
+        /// 格式工具栏的"等尺寸"（等宽 / 等高 / 等大小）。动作见 <see cref="MatchSelectedSize"/>，
+        /// 判据见 <see cref="CanMatchSelectedSize"/>。
+        /// </summary>
+        public DelegateCommand<ScadaSizeMatch?> MatchSizeCommand { get; }
+
+        /// <summary>
+        /// 格式工具栏的"等间距"（水平 / 垂直）。间距值取 <see cref="SpacingGap"/> 这个属性
+        /// 而不是命令参数：<c>DelegateCommand&lt;T&gt;</c> 只带得动一个参数，
+        /// 而"方向"和"间距"是两件事，硬塞进一个元组只会让 XAML 那边没法用 <c>x:Static</c> 传常量。
+        /// </summary>
+        public DelegateCommand<ScadaSpacing?> SpaceCommand { get; }
+
+        /// <summary>
+        /// 格式工具栏的"对齐网格"：把选中图元的左上角吸到网格点上。
+        /// 与"吸附"开关无关（那管的是拖动时吸不吸），它是一次显式命令。
+        /// </summary>
+        public DelegateCommand SnapElementsToGridCommand { get; }
+
+        /// <summary>
+        /// 等间距动作里"相邻图元之间留多少像素"（可正可负，0 = 边贴边）。
+        ///
+        /// 放在视图模型而不是 <see cref="ScadaPage"/> 上：它是一次操作的<b>参数</b>，
+        /// 不是一个画面状态——存进 .vms 只会让"上次在这儿填了几"变成跨机器复现的隐式配置。
+        /// 与 Zoom / Offset 同一条口径（取景与操作参数不落盘）。
+        ///
+        /// 默认给 20 而不是 0：0 的结果是图元紧贴，看起来像"没生效"；
+        /// 给一个肉眼可见的缝，"等间距"这件事才一眼看得出来。
+        /// </summary>
+        public double SpacingGap
+        {
+            get => _spacingGap;
+            set => SetProperty(ref _spacingGap, value);
+        }
 
         /// <summary>
         /// 撤销按钮的提示文案：直接写出"下一步会撤掉什么"。
@@ -1002,6 +1082,32 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private const string SaveTemplateIcon = "\uF02E";
 
+        /// <summary>
+        /// "等尺寸"分组图标（<c>expand</c>：四个方向的箭头往外撑）。
+        ///
+        /// 挑它的理由与 <see cref="AlignIcon"/> 一致：分组图标不能与某个子项同形，
+        /// 否则用户会以为"这一栏就是那个动作"。等宽用左右向箭头、等高用上下向箭头，
+        /// 分组图标就用"四个方向一起撑"——表达"尺寸被拉齐"，不指某一根轴。
+        /// </summary>
+        private const string SizeMatchIcon = "\uF065";
+
+        /// <summary>
+        /// "等间距"分组图标（<c>arrows-left-right</c>：左右两个箭头之间空着一段）。
+        ///
+        /// 两个子项分别是"竖排握线条"（F7A5，表达沿水平轴排开）与"横排握线条"
+        /// （F7A4，表达沿垂直轴排开），分组图标若取其中之一，另一项就显得像外人。
+        /// 左右箭头中间那段空隙正是"间距"这个概念的图形本身。
+        /// </summary>
+        private const string SpacingIcon = "\uF550";
+
+        /// <summary>
+        /// "对齐网格"（<c>border-all</c>：一整块被纵横线切开的方框，即网格本身）。
+        ///
+        /// 用网格的图形而不是某个箭头：这一项吸的是<b>绝对位置</b>，
+        /// 画成箭头会被读成"朝某个方向挪一下"，而它其实是"贴到最近的格点上"。
+        /// </summary>
+        private const string SnapToGridIcon = "\uF84C";
+
         /// <summary>叠放次序在菜单里的排列：从上到下就是"从最前到最底"，与用户的心智模型一致</summary>
         private static readonly ScadaZMove[] ZMoveOrder =
         {
@@ -1031,6 +1137,32 @@ namespace VisionMaster.ViewModels
             ScadaAlign.Bottom,
             ScadaAlign.DistributeHorizontal,
             ScadaAlign.DistributeVertical,
+        };
+
+        /// <summary>
+        /// 等尺寸在菜单/工具栏里的排列：等宽 → 等高 → 等大小。
+        ///
+        /// 顺序照"用户改尺寸的粒度"排：先单根轴（宽、高），再两根轴一起；
+        /// 把"等大小"放最后是因为它的结果最强（宽高都被改），摆中间容易误点。
+        /// 与 <see cref="AlignOrder"/> 一样是常量表而不是散在各处的 new DelegateCommand。
+        /// </summary>
+        private static readonly ScadaSizeMatch[] SizeMatchOrder =
+        {
+            ScadaSizeMatch.Width,
+            ScadaSizeMatch.Height,
+            ScadaSizeMatch.Both,
+        };
+
+        /// <summary>
+        /// 等间距在菜单/工具栏里的排列：水平 → 垂直。
+        ///
+        /// 与 <see cref="AlignOrder"/> 里"水平三兄弟在前、垂直三兄弟在后"同一口径，
+        /// 用户在这两个地方扫到的都是"先横后竖"。
+        /// </summary>
+        private static readonly ScadaSpacing[] SpacingOrder =
+        {
+            ScadaSpacing.Horizontal,
+            ScadaSpacing.Vertical,
         };
 
         /// <summary>
@@ -1096,6 +1228,32 @@ namespace VisionMaster.ViewModels
                     new DelegateCommand(() => AlignSelected(target), () => CanAlignSelected(target))));
             }
 
+            // 等尺寸（等宽 / 等高 / 等大小）：三个口径共用一条判灰规则（可编辑选中数够不够），
+            // 差异只在 ScadaSizeMatchExtensions.MinimumCount 那一个数字上——与对齐那一栏同一写法，
+            // 这里同样不写 switch，判据整个交给 CanMatchSelectedSize，与领域层前置校验同源。
+            var sizes = new List<ScadaMenuItem>();
+            foreach (var sizeMatch in SizeMatchOrder)
+            {
+                var target = sizeMatch;
+                sizes.Add(ScadaMenuItem.Action(
+                    target.DisplayName(),
+                    IconOf(target),
+                    new DelegateCommand(() => MatchSelectedSize(target), () => CanMatchSelectedSize(target))));
+            }
+
+            // 等间距（水平 / 垂直）：与"对齐与分布"里的分布互为反面——
+            // 分布是"两端钉住、间距算出来"，这里是"第一个钉住、间距由工具栏那个数值框给定"。
+            // 正因为是两件事，才各占一栏而不是折进"对齐与分布"。
+            var spacings = new List<ScadaMenuItem>();
+            foreach (var spacing in SpacingOrder)
+            {
+                var target = spacing;
+                spacings.Add(ScadaMenuItem.Action(
+                    target.DisplayName(),
+                    IconOf(target),
+                    new DelegateCommand(() => SpaceSelected(target), () => CanSpaceSelected(target))));
+            }
+
             // 位次写在分组标题里：属性面板撤掉"叠放次序"行之后，这里是用户唯一能读到
             // "我在第几层"的地方（数越小越靠后，与 TryMoveElementZ 的编号口径一致）。
             bool locked = IsMainSelectionLocked;
@@ -1106,6 +1264,14 @@ namespace VisionMaster.ViewModels
                 ScadaMenuItem.Submenu("图层", LayerIcon, layers),
                 ScadaMenuItem.Submenu($"叠放次序（{ReadPosition(page, element)}）", ZOrderIcon, moves),
                 ScadaMenuItem.Submenu("对齐与分布", AlignIcon, aligns),
+                ScadaMenuItem.Submenu("等尺寸", SizeMatchIcon, sizes),
+                ScadaMenuItem.Submenu("等间距", SpacingIcon, spacings),
+
+                // 对齐网格单独一项、不折进"等间距"：它改的是位置（吸到最近的格点），
+                // 与等间距"按给定间距重排"是两件事——并进去用户会以为它也要读那个间距值。
+                // 它复用工具栏那条属性型命令（没有参数，不需要闭包），
+                // 与下面"复制/粘贴"复用 CopyCommand/PasteCommand 同一写法。
+                ScadaMenuItem.Action("对齐网格", SnapToGridIcon, SnapElementsToGridCommand),
 
                 // 剪贴板三件（复制 / 粘贴 / 再制）紧挨着摆、不折进子菜单：它们是用得最勤的一组，
                 // 折一层就多一次移动和一次判断。三项判灰各自跟着自己的命令走——
@@ -1280,10 +1446,11 @@ namespace VisionMaster.ViewModels
             => IsMainSelectionGrouped ? CanUngroupSelected() : CanGroupSelected();
 
         /// <summary>把选中图元按 <paramref name="move"/> 挪一次叠放次序（同样只走模型写入口）</summary>
-        public bool MoveSelectedZ(ScadaZMove move)
-            => _selectedPage is { } page
+        public bool MoveSelectedZ(ScadaZMove? move)
+            => move is { } value
+               && _selectedPage is { } page
                && _selectedElement is { } element
-               && page.TryMoveElementZ(element, move, out _);
+               && page.TryMoveElementZ(element, value, out _);
 
         /// <summary>
         /// 把选中的<b>整组</b>图元按 <paramref name="align"/> 摆整齐。
@@ -1297,9 +1464,10 @@ namespace VisionMaster.ViewModels
         /// 领域层内部本来就要按"属于本画面 / 未锁定"再筛一遍，这里先筛一次是白算；
         /// 更要紧的是<b>包围盒必须由同一批图元算出来</b>，两边各筛一遍迟早筛出两个集合。
         /// </summary>
-        public bool AlignSelected(ScadaAlign align)
-            => _selectedPage is { } page
-               && page.TryAlignElements(_selectedElements, align, out _);
+        public bool AlignSelected(ScadaAlign? align)
+            => align is { } value
+               && _selectedPage is { } page
+               && page.TryAlignElements(_selectedElements, value, out _);
 
         /// <summary>
         /// 这一项排列动作现在能不能点：可编辑的选中图元数够不够
@@ -1308,9 +1476,80 @@ namespace VisionMaster.ViewModels
         /// 数的是<b>可编辑</b>的而不是"选中的"：多选里混进一个锁住的底图时，
         /// 真正会动的只有其余几个，拿选中总数判就会出现"菜单亮着、点了只挪了一半"。
         /// </summary>
-        public bool CanAlignSelected(ScadaAlign align)
+        public bool CanAlignSelected(ScadaAlign? align)
+            => align is { } value
+               && _selectedPage is { } page
+               && CollectEditable(page).Count >= value.MinimumCount();
+
+        /// <summary>
+        /// 把选中的整批图元统一成同一个尺寸（等宽 / 等高 / 等大小）。
+        ///
+        /// 写入口只有 <see cref="ScadaPage.TryMatchElementSize"/> 一条，理由与
+        /// <see cref="AlignSelected"/> 逐字相同：基准怎么取、锁定怎么处理、一条撤销记录怎么罩，
+        /// 全在领域层那一处；视图模型自己再算一遍"最大宽是多少"，
+        /// 就会出现"画布上看着一样大、撤销一下又不一样"这类算式劈叉。
+        ///
+        /// 传 <c>_selectedElements</c> 而不是 <see cref="CollectEditable"/> 的结果，同样与对齐同源：
+        /// 领域层内部本来就要再筛一遍，更要紧的是<b>基准必须由同一批图元算出来</b>。
+        /// </summary>
+        public bool MatchSelectedSize(ScadaSizeMatch? match)
+            => match is { } value
+               && _selectedPage is { } page
+               && page.TryMatchElementSize(_selectedElements, value, out _);
+
+        /// <summary>
+        /// 把选中的整批图元按"相邻留 <see cref="SpacingGap"/> 像素"重排。
+        ///
+        /// 写入口只有 <see cref="ScadaPage.TrySpaceElements"/> 一条：锚点取谁、
+        /// 按哪根轴排序、间距怎么累加全在领域层那一处——与 <see cref="AlignSelected"/> 同一条理由。
+        /// </summary>
+        public bool SpaceSelected(ScadaSpacing? spacing)
+            => spacing is { } value
+               && _selectedPage is { } page
+               && page.TrySpaceElements(_selectedElements, value, SpacingGap, out _);
+
+        /// <summary>
+        /// 把选中图元的左上角吸到网格点上。
+        ///
+        /// 写入口只有 <see cref="ScadaPage.TrySnapElementsToGrid"/> 一条：吸附的算式
+        /// （吸"绝对位置"而不是"相对位移"）与画布拖动、工具箱落点共用同一份口径，
+        /// 这里再写一遍 <c>Math.Round</c> 就会多出第三份"吸到哪儿"的答案。
+        /// </summary>
+        public bool SnapSelectedToGrid()
             => _selectedPage is { } page
-               && CollectEditable(page).Count >= align.MinimumCount();
+               && page.TrySnapElementsToGrid(_selectedElements, out _);
+
+        /// <summary>
+        /// "等尺寸"现在能不能点：可编辑的选中图元数够不够
+        /// （下界取自 <see cref="ScadaSizeMatchExtensions.MinimumCount"/>，与领域层前置校验同源）。
+        ///
+        /// 数的是<b>可编辑</b>的而不是"选中的"，理由与 <see cref="CanAlignSelected"/> 逐字相同：
+        /// 混进一个锁住的底图时，真正会变的只有其余几个。
+        /// 三种口径的下界一样，所以参数不参与计算——它只是 <c>DelegateCommand&lt;T&gt;</c> 要求的签名。
+        /// </summary>
+        public bool CanMatchSelectedSize(ScadaSizeMatch? match)
+            => _selectedPage is { } page
+               && CollectEditable(page).Count >= ScadaSizeMatchExtensions.MinimumCount;
+
+        /// <summary>
+        /// "等间距"现在能不能点：可编辑的选中图元数够不够
+        /// （下界取自 <see cref="ScadaSpacingExtensions.MinimumCount"/>，与领域层前置校验同源）。
+        /// 两个方向的下界一样，理由同上。
+        /// </summary>
+        public bool CanSpaceSelected(ScadaSpacing? spacing)
+            => _selectedPage is { } page
+               && CollectEditable(page).Count >= ScadaSpacingExtensions.MinimumCount;
+
+        /// <summary>
+        /// "对齐网格"现在能不能点：得有可编辑的选中图元。
+        ///
+        /// 刻意<b>不</b>在这里判"网格间距是否小于 1"：那一条只在脏数据下才成立
+        /// （属性面板给的 Min 是 1），多判一次等于给一条走不到的分支写代码——
+        /// 真正的门槛在领域层 <see cref="ScadaPage.TrySnapElementsToGrid"/> 里。
+        /// </summary>
+        public bool CanSnapSelectedToGrid()
+            => _selectedPage is { } page
+               && CollectEditable(page).Count > 0;
 
         /// <summary>
         /// 删除这一项能不能点：得有"能编辑的"选中图元（口径与 <see cref="RemoveSelectedElement"/> 同源）。
@@ -1323,11 +1562,12 @@ namespace VisionMaster.ViewModels
                && CollectEditable(page).Count > 0;
 
         /// <summary>这个方向还有没有意义：已在最上就没有"上移一层"，已在最下就没有"下移一层"</summary>
-        public bool CanMoveSelectedZ(ScadaZMove move)
-            => _selectedPage is { } page
+        public bool CanMoveSelectedZ(ScadaZMove? move)
+            => move is { } value
+               && _selectedPage is { } page
                && _selectedElement is { } element
                && IndexInZOrder(page, element) is { } index
-               && (move is ScadaZMove.ToFront or ScadaZMove.Forward
+               && (value is ScadaZMove.ToFront or ScadaZMove.Forward
                        ? index < page.Elements.Count - 1
                        : index > 0);
 
@@ -1396,6 +1636,40 @@ namespace VisionMaster.ViewModels
             ScadaAlign.DistributeHorizontal => "\uF337",
             ScadaAlign.DistributeVertical => "\uF338",
             _ => AlignIcon,
+        };
+
+        /// <summary>
+        /// 三个等尺寸口径各配一个图标（Font Awesome 6 Pro Solid）。
+        ///
+        /// 选型口径与对齐那一栏同源：三兄弟必须是同一套画法，用户才认得出它们是一组。
+        /// 等宽用"左右箭头指到两条竖线"（arrows-left-right-to-line，E4BA）——
+        /// 那两条竖线就是"宽"的两条边；等高用同一套画法转 90°（arrows-up-down，F07D）；
+        /// 等大小用"对角箭头往外撑"（up-right-and-down-left-from-center，F424），
+        /// 表达两根轴一起变，与分组图标 F065 同族但不重形。
+        ///
+        /// 三个码点同样落在 <c>ScadaChecks</c> 那条逐字符 <c>CharacterToGlyphMap.ContainsKey</c>
+        /// 的断言里，改动这里必须同时过那条断言（字形缺一个就是空心方框，深色菜单上极难发现）。
+        /// </summary>
+        private static string IconOf(ScadaSizeMatch match) => match switch
+        {
+            ScadaSizeMatch.Width => "\uE4BA",
+            ScadaSizeMatch.Height => "\uF07D",
+            ScadaSizeMatch.Both => "\uF424",
+            _ => SizeMatchIcon,
+        };
+
+        /// <summary>
+        /// 两个等间距方向各配一个图标（Font Awesome 6 Pro Solid）。
+        ///
+        /// 水平等间距沿 X 轴排开，用"竖排的握线条"（grip-lines-vertical，F7A5）——
+        /// 竖线并排正是"沿水平方向被隔开"的样子；垂直等间距用同一套画法转 90°
+        /// （grip-lines，F7A4）。两个码点同样在那条字体断言里。
+        /// </summary>
+        private static string IconOf(ScadaSpacing spacing) => spacing switch
+        {
+            ScadaSpacing.Horizontal => "\uF7A5",
+            ScadaSpacing.Vertical => "\uF7A4",
+            _ => SpacingIcon,
         };
 
         #endregion

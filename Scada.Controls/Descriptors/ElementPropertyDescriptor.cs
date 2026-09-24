@@ -32,6 +32,18 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>枚举下拉（取值必须是 <see cref="Choices"/> 里的一项）</summary>
         Choice,
+
+        /// <summary>
+        /// 图像（值为 <see cref="System.Windows.Media.ImageSource"/>）。
+        ///
+        /// 这类属性的值<b>没法手打</b>——位图不是一段文本，所以属性面板给的是一条只读的绑定行：
+        /// 未绑变量时提示"去右侧点 ƒx 选一个图像变量"，绑上后显示变量名。
+        /// 它出现在这里而不是复用 Text，是因为面板必须知道"这一行不该长输入框"，
+        /// 否则操作员会对着一个永远输不对的文本框发愣。
+        ///
+        /// 数值追加在末尾：枚举值一旦发布就不许改，只许往后加（.vms 里存的是数值）。
+        /// </summary>
+        Image,
     }
 
     /// <summary>

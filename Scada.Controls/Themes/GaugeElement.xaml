@@ -21,6 +21,8 @@
         指针压在刻度上，读数是"针尖指到哪一格"，针被刻度盖住就看不出来了。
 
         ShowValue=False 时收起数值那行：默认 True，因为一个没有读数的表盘在工业现场几乎没用。
+        这个开关由控件代码翻（见 GaugeElement.UpdateDial），不写模板触发器——本环境下
+        ControlTemplate.Triggers 里的 DataTrigger 不触发，写了也是死代码。
     -->
     <Style TargetType="{x:Type local:GaugeElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -74,15 +76,6 @@
                             VerticalAlignment="Bottom"
                             Margin="0,0,0,4" />
                     </Grid>
-
-                    <ControlTemplate.Triggers>
-                        <!-- 用 Binding 而不是 TemplateBinding——TemplateBinding 不能出现在触发器的 Binding 位置 -->
-                        <DataTrigger
-                            Binding="{Binding ShowValue, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="False">
-                            <Setter TargetName="ValueLabel" Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

@@ -21,11 +21,8 @@ namespace VisionMaster.ViewModels
     public class ProcessViewModel : BindableBase, IDropTarget
     {
         private readonly IDialogService dialogService;
-        public bool IsIfNodeSelected =>
-            SelectStep is ConditionStep step && step.PluginName.Contains("If");
-
-        public bool IsSwitchNodeSelected =>
-            SelectStep is ConditionStep step && step.PluginName.Contains("Switch");
+        // 判据统一收在 ConditionStep.IsIfLike，避免这里再写一份 Contains 造成口径漂移
+        public bool IsIfNodeSelected => SelectStep is ConditionStep step && step.IsIfLike;
         public IWorkspaceManager Workspace { get; init; }
 
         /// <summary>
@@ -48,7 +45,6 @@ namespace VisionMaster.ViewModels
                 SetProperty(ref field, value);
                 CurrentSelectedStepModel = value as StepModel;
                 RaisePropertyChanged(nameof(IsIfNodeSelected));
-                RaisePropertyChanged(nameof(IsSwitchNodeSelected));
 
                 // 反向推送来的值本来就是 Workspace 自己发出来的，再 SwitchStep 一次纯属回环
                 if (!_syncingFromWorkspace)
@@ -375,23 +371,6 @@ namespace VisionMaster.ViewModels
                             {
                                 BranchType = BranchType.Else,
                                 StepName = "Else 分支",
-                            }
-                        );
-                    }
-                    break;
-                }
-                case ModuleCommandAction.AddCase:
-                {
-                    if (SelectStep is ConditionStep switchNode)
-                    {
-                        int caseCount = switchNode.Children.Count(c =>
-                            c.BranchType == BranchType.Case
-                        );
-                        switchNode.Children.Add(
-                            new StepCollection
-                            {
-                                BranchType = BranchType.Case,
-                                StepName = $"Case {caseCount + 1}",
                             }
                         );
                     }

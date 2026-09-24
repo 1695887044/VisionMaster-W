@@ -34,6 +34,10 @@ namespace VisionMaster.Scada
         private double _staleSeconds = DefaultStaleSeconds;
         private bool _isEnabled = true;
         private string? _message;
+        private string? _alarmGroup;
+        private string? _cause;
+        private string? _remedy;
+        private string? _extraInfo;
 
         /// <summary>通信断线判定的默认超时（秒）。现场常见的轮询周期是 100ms~1s，10 秒足够宽松</summary>
         public const double DefaultStaleSeconds = 10;
@@ -142,6 +146,47 @@ namespace VisionMaster.Scada
         {
             get => _message;
             set => SetProperty(ref _message, value);
+        }
+
+        /// <summary>
+        /// 报警组（自由文本，如"一号线"/"冷却水"）。用于把几百条报警按设备或工艺段归类，
+        /// 让操作员在报警列表与历史查询里能只看自己负责的那一组。
+        ///
+        /// 为什么是自由文本而不是枚举：组名随现场工艺划分走，各厂各线都不一样，
+        /// 枚举一发布就不能改（见 <see cref="ScadaAlarmKind"/> 的数值稳定性约定），
+        /// 用户想加一个组就得改代码发版本。配置界面提供"历史值下拉"兼顾录入效率与自由度。
+        /// </summary>
+        public string? AlarmGroup
+        {
+            get => _alarmGroup;
+            set => SetProperty(ref _alarmGroup, value);
+        }
+
+        /// <summary>
+        /// 故障原因（长文本）。写"为什么会出现这条报警"，如"冷却水泵停转或阀门被误关"。
+        ///
+        /// 为什么与 <see cref="Remedy"/> 分开两个字段而不是合成一句"处理说明"：
+        /// 现场查故障时是两条不同的动作路径——先照着原因去核实，再照着措施去处理。
+        /// 合成一段话，操作员就得自己从里面挑哪句是"查什么"、哪句是"做什么"。
+        /// </summary>
+        public string? Cause
+        {
+            get => _cause;
+            set => SetProperty(ref _cause, value);
+        }
+
+        /// <summary>解决措施（长文本）。写"该怎么做"，如"检查水泵电源与接触器，确认后复位热继电器"</summary>
+        public string? Remedy
+        {
+            get => _remedy;
+            set => SetProperty(ref _remedy, value);
+        }
+
+        /// <summary>附加信息（长文本）。留给无法归入原因或措施的补充，如"停机后需重新标定"</summary>
+        public string? ExtraInfo
+        {
+            get => _extraInfo;
+            set => SetProperty(ref _extraInfo, value);
         }
 
         /// <summary>是否是"只能按名字找"的旧数据报警（只有这种才需要改名级联修名字）</summary>

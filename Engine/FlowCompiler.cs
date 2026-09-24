@@ -77,13 +77,17 @@ namespace VisionMaster.Services
                 Type varType = typeof(double);
                 try
                 {
-                    varType = Type.GetType(runtimeVar.DataTypeName) ?? typeof(double);
-                    if (TypeCache.TryGetValue(runtimeVar.DataTypeName, out var type))
-                        varType = type;
-                    else
+                    // 空类型名沿用历史兜底（按 double），保证存量图纸行为不变
+                    if (!string.IsNullOrWhiteSpace(runtimeVar.DataTypeName))
                     {
-                        varType = TypeHelper.GetActualTypeFromLink(runtimeVar.DataTypeName);
-                        TypeCache[runtimeVar.DataTypeName] = varType;
+                        varType = Type.GetType(runtimeVar.DataTypeName) ?? typeof(double);
+                        if (TypeCache.TryGetValue(runtimeVar.DataTypeName, out var type))
+                            varType = type;
+                        else
+                        {
+                            varType = TypeHelper.GetActualTypeFromLink(runtimeVar.DataTypeName);
+                            TypeCache[runtimeVar.DataTypeName] = varType;
+                        }
                     }
 
                     if (!TypeHelper.IsSafeExpressionType(varType))
@@ -92,7 +96,16 @@ namespace VisionMaster.Services
                         continue;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 类型解析失败却继续按 double 建 Parameter，等于把"未知类型"伪装成 double：
+                    // 运行期取值就会按 double 归一，与图纸声明的类型不符（P0-2 同类隐患）。
+                    // 与紧邻的 [安全拦截] 一样按硬错误处理：报错并跳过该变量，不生成参数。
+                    errors.Add(
+                        Err(owner, $"[类型错误] 运行时变量 '{runtimeVar.Name}' 数据类型 '{runtimeVar.DataTypeName}' 解析失败: {ex.Message}")
+                    );
+                    continue;
+                }
 
                 delegateParams.Add(new Parameter(runtimeVar.Name, varType));
                 names.Add(runtimeVar.Name);
@@ -118,15 +131,19 @@ namespace VisionMaster.Services
                 Type varType = typeof(double);
                 try
                 {
-                    varType = Type.GetType(localVar.DataTypeName) ?? typeof(double);
-                    if (TypeCache.TryGetValue(localVar.DataTypeName, out var type))
+                    // 空类型名沿用历史兜底（按 double），保证存量图纸行为不变
+                    if (!string.IsNullOrWhiteSpace(localVar.DataTypeName))
                     {
-                        varType = type;
-                    }
-                    else
-                    {
-                        varType = TypeHelper.GetActualTypeFromLink(localVar.DataTypeName);
-                        TypeCache[localVar.DataTypeName] = varType;
+                        varType = Type.GetType(localVar.DataTypeName) ?? typeof(double);
+                        if (TypeCache.TryGetValue(localVar.DataTypeName, out var type))
+                        {
+                            varType = type;
+                        }
+                        else
+                        {
+                            varType = TypeHelper.GetActualTypeFromLink(localVar.DataTypeName);
+                            TypeCache[localVar.DataTypeName] = varType;
+                        }
                     }
 
                     if (!TypeHelper.IsSafeExpressionType(varType))
@@ -135,7 +152,14 @@ namespace VisionMaster.Services
                         continue;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // 同 CompileRuntimeVarRefs：解析失败不能悄悄退化成 double，否则运行期归一类型与声明不符
+                    errors.Add(
+                        Err(owner, $"[类型错误] 变量 '{localVar.Name}' 数据类型 '{localVar.DataTypeName}' 解析失败: {ex.Message}")
+                    );
+                    continue;
+                }
 
                 delegateParams.Add(new Parameter(localVar.Name, varType));
                 compiledVarTypes[localVar.Id] = varType;
@@ -283,6 +307,8 @@ namespace VisionMaster.Services
                         model, conditionModel.RuntimeVariableRefs, delegateParams, errors);
 
                     // 编译分支
+                    // 顺序校验（P1-3）：Else/Default 的条件被编译成恒真，其后任何分支都不可能被命中
+                    bool elseSeen = false;
                     foreach (var childCollection in conditionModel.Children)
                     {
                         var childNodes = CompileSteps(
@@ -294,10 +320,11 @@ namespace VisionMaster.Services
                         );
                         Lambda compiledCondition = null;
 
-                        if (
+                        bool isElseLike =
                             childCollection.BranchType == BranchType.Else
-                            || childCollection.BranchType == BranchType.Default
-                        )
+                            || childCollection.BranchType == BranchType.Default;
+
+                        if (isElseLike)
                         {
                             try
                             {
@@ -307,30 +334,48 @@ namespace VisionMaster.Services
                                     delegateParams.ToArray()
                                 );
                             }
-                            catch { }
-                        }
-                        else if (string.IsNullOrWhiteSpace(childCollection.Expression))
-                        {
-                            // 措辞纠偏：errors.Add 会阻断编译（Success=Errors.Count==0），这是硬错误不是警告
-                            errors.Add(
-                                Err(model, $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' 表达式为空。")
-                            );
+                            catch (Exception ex)
+                            {
+                                // 恒真表达式都编译不过，说明参数表本身有问题；
+                                // 旧实现吞掉异常 → compiledCondition 为 null → 该分支永不执行且编译期零提示
+                                errors.Add(
+                                    Err(model, $"[语法错误] 节点 '{model.StepName}' 的兜底分支 '{childCollection.StepName}' 条件编译失败: {ex.Message}")
+                                );
+                            }
+                            elseSeen = true;
                         }
                         else
                         {
-                            try
-                            {
-                                compiledCondition = CreateInterpreter().Parse(
-                                    childCollection.Expression,
-                                    typeof(bool),
-                                    delegateParams.ToArray()
-                                );
-                            }
-                            catch (Exception ex)
+                            if (elseSeen)
                             {
                                 errors.Add(
-                                    Err(model, $"[语法错误] 节点 '{model.StepName}' 编译失败: {ex.Message}")
+                                    Err(model, $"[编译错误] 节点 '{model.StepName}' 的分支 '{childCollection.StepName}' 位于 Else/Default 之后，永远不会被执行（不可达分支），请调整分支顺序。")
                                 );
+                            }
+
+                            if (string.IsNullOrWhiteSpace(childCollection.Expression))
+                            {
+                                // 措辞纠偏：errors.Add 会阻断编译（Success=Errors.Count==0），这是硬错误不是警告
+                                errors.Add(
+                                    Err(model, $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' 表达式为空。")
+                                );
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    compiledCondition = CreateInterpreter().Parse(
+                                        childCollection.Expression,
+                                        typeof(bool),
+                                        delegateParams.ToArray()
+                                    );
+                                }
+                                catch (Exception ex)
+                                {
+                                    errors.Add(
+                                        Err(model, $"[语法错误] 节点 '{model.StepName}' 编译失败: {ex.Message}")
+                                    );
+                                }
                             }
                         }
 

@@ -347,8 +347,11 @@
                             PopupAnimation="Fade"
                             StaysOpen="False">
                             <!--  卡片正文与动画档位卡片里那两格小色块共用一份（见 ColorPickerBody）：
-                                  两处弹出来的必须是同一张卡，否则改一处配色，另一处就悄悄长歪了。  -->
-                            <ContentControl ContentTemplate="{StaticResource ColorPickerBody}" />
+                                  两处弹出来的必须是同一张卡，否则改一处配色，另一处就悄悄长歪了。
+                                  Content="{Binding}" 不能省：ContentControl 只给 ContentTemplate 时，
+                                  它模板里的 ContentPresenter 拿不到数据源，模板子树整棵 DataContext 会是 null，
+                                  于是色板、读数、预览块全部静默失效（字面量照常显示，所以很难看出来）。  -->
+                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ColorPickerBody}" />
                         </Popup>
                     </Grid>
                 </DataTemplate>
@@ -366,6 +369,30 @@
                         SelectedValue="{Binding Value, Mode=TwoWay}"
                         SelectedValuePath="Value"
                         ToolTip="{Binding ErrorText}" />
+                </DataTemplate>
+
+                <!--  图像：位图没法手打，所以这一行不给输入框，只给一句状态说明 + 右侧的绑定按钮。
+                      两种文案由 HasBinding 翻：没绑时告诉操作员去哪儿绑，绑了就说图由变量提供
+                      （变量名在下方那条"已绑变量"带上，不在这里重复）。  -->
+                <DataTemplate x:Key="EditImage">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding ErrorText}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="未绑定（点右侧 ƒx 选图像变量）" />
+                                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasBinding}" Value="True">
+                                        <Setter Property="Text" Value="由变量提供" />
+                                        <Setter Property="Foreground" Value="{StaticResource ScadaBoundBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </DataTemplate>
 
                 <Style x:Key="RowEditorHost" TargetType="ContentControl">
@@ -387,6 +414,9 @@
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Kind}" Value="Choice">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditChoice}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="Image">
+                            <Setter Property="ContentTemplate" Value="{StaticResource EditImage}" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -489,7 +519,8 @@
                             Visibility="{Binding HasColor, Converter={StaticResource BoolVis}}" />
 
                         <!--  卡片正文与属性行那块色块共用一份（见 ColorPickerBody）。
-                              偏移比属性行小一些：这一格本来就靠左，再拽 -82 会探到面板外面去。  -->
+                              偏移比属性行小一些：这一格本来就靠左，再拽 -82 会探到面板外面去。
+                              Content="{Binding}" 与属性行那处同理，同样不能省。  -->
                         <Popup
                             AllowsTransparency="True"
                             HorizontalOffset="-70"
@@ -498,7 +529,7 @@
                             PlacementTarget="{Binding ElementName=SlotSwatch}"
                             PopupAnimation="Fade"
                             StaysOpen="False">
-                            <ContentControl ContentTemplate="{StaticResource ColorPickerBody}" />
+                            <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ColorPickerBody}" />
                         </Popup>
                     </Grid>
                 </DataTemplate>
@@ -963,8 +994,10 @@
                                   （X/Y/宽/高/旋转、填充色/边框色/边框粗细/圆角），外加名称、
                                   字号、字重与事件行——它们决定的是"版面长什么样"，
                                   改它属于重新设计，而不是运行期被变量驱动。
-                                  可绑的是"运行期语言"：文字 / 文字颜色 / 状态 / 数据等——
-                                  SCADA 里"液位越限就变红"就是绑颜色。  -->
+                                  可绑的是"运行期语言"：状态 / 数据等——SCADA 里"液位越限就变红"
+                                  就是绑颜色，所以指示灯与设备的"状态"、数值域的"数值"都给了 ƒx。
+                                  「文本」的内容与文字颜色刻意<b>不给</b>：它是静态标签，
+                                  绑上去只是把一段静态字换成另一段静态字；要显示会变的数就用「数值域」。  -->
                             <Button
                                 Grid.Column="2"
                                 Command="{Binding DataContext.BindVariableCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"

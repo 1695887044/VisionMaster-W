@@ -6,11 +6,29 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
-    Width="1240"
-    Height="700"
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="{StaticResource DialogBackgroundBrush}"
     mc:Ignorable="d">
+
+    <!--
+        窗口尺寸挂在 Window 上，不写在 UserControl 根节点上。
+        UserControl 的 HorizontalAlignment 默认是 Stretch（撑满父容器），
+        但一旦显式写了 Width，Stretch 就退化成"居中"——窗口一拉大/最大化，
+        三栏内容就整体居中、四周一圈留白，而且永远不跟着窗口变宽。
+        搬到 Window 后 UserControl 自然撑满，最右一栏（* 列）吸收全部多余宽度；
+        左栏（来源列表 216）与中栏（表单 296）保持固定像素，是主从布局的标准做法。
+        刻意不用 SizeToContent：它会让窗口随内容自己改大小，且手动放大后内容不重排。
+    -->
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <Setter Property="SizeToContent" Value="Manual" />
+            <Setter Property="Width" Value="1240" />
+            <Setter Property="Height" Value="700" />
+            <Setter Property="MinWidth" Value="1120" />
+            <Setter Property="MinHeight" Value="580" />
+        </Style>
+    </prism:Dialog.WindowStyle>
 
     <!--
         ============================================================================
@@ -60,6 +78,12 @@
                         ItemContainerStyle 用一个空 ContentPresenter 把 ListBoxItem 的
                         默认外观（选中蓝底、焦点框）整个剥掉 —— 选中态由节点模板自己画
                         （左侧色条 + 浅蓝底），否则会出现"系统蓝 + 设计蓝"两层底色。
+
+                        HorizontalContentAlignment 必须显式写 Stretch：
+                        它的默认值是 Left，配合下面那个裸 ContentPresenter，
+                        节点模板的根 Border 只会按"内容宽度"排版，Grid 里的 * 列
+                        随之塌缩成 0 —— 右侧计数徽标就紧贴在文字后面，而不是
+                        右对齐到行尾；同时浅蓝高亮底也不会铺满整行。
                     -->
                     <ListBox
                         Grid.Row="1"
@@ -72,6 +96,7 @@
                         SelectedItem="{Binding SelectedSource}">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">

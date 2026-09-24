@@ -1078,6 +1078,37 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 把调用方递进来的一批图元收敛成"确实属于本画面、可编辑、且去重"的一张表（顺序照传入顺序）。
+        ///
+        /// 与 <see cref="FilterPresent"/> 的分工：那个只剔"外来户 / 重复项"，留给"锁定图元也要一起动"
+        /// 的动作（组合、锁定自身）；排列类动作（对齐、等尺寸、等间距、对齐网格）都要把锁定的剔掉
+        /// ——锁定图元动不了，也不该当基准，拿它当基准的结果是"其余都挪了、就它没动"，看着像操作失败。
+        ///
+        /// 四个排列动作共用这一份过滤，是为了让"属于本画面 / 可编辑 / 去重"这三条只有一份实现：
+        /// 各写一遍的下场是"对齐会跳过锁定项、等尺寸却把它一起改了"这类劈叉。
+        /// </summary>
+        private List<ScadaElement> FilterEditable(IReadOnlyList<ScadaElement> elements)
+        {
+            var editable = new List<ScadaElement>(elements.Count);
+
+            foreach (var element in elements)
+            {
+                if (element == null || FindElement(element.ElementId) == null)
+                    continue;
+
+                if (!IsElementEditable(element))
+                    continue;
+
+                if (editable.Contains(element))
+                    continue;
+
+                editable.Add(element);
+            }
+
+            return editable;
+        }
+
+        /// <summary>
         /// 把一组图元按 <paramref name="align"/> 摆整齐（六种对齐 + 两种分布）。
         ///
         /// 为什么整段摆在画面这一层，而不是让编辑器视图模型自己算完再写 X/Y：
@@ -1113,19 +1144,7 @@ namespace VisionMaster.Scada
             // 过滤三件事：不属于本画面的（外来对象）、锁定的（动不了也不该当基准）、重复项。
             // 不在这里判 IsElementVisible：隐藏层上的图元根本选不中（画布在图层隐藏时就清掉了选中），
             // 多判一次等于给一条永远不会走到的分支写代码。
-            var targets = new List<ScadaElement>(elements.Count);
-
-            foreach (var element in elements)
-            {
-                if (element == null || FindElement(element.ElementId) == null)
-                    continue;
-
-                if (!IsElementEditable(element))
-                    continue;
-
-                if (!targets.Contains(element))
-                    targets.Add(element);
-            }
+            var targets = FilterEditable(elements);
 
             if (targets.Count < minimum)
             {
@@ -1242,6 +1261,221 @@ namespace VisionMaster.Scada
                     cursor += element.Height + gap;
                 }
             }
+        }
+
+        /// <summary>
+        /// 把一组图元的宽/高统一成同一个尺寸（等宽、等高、等大小三种口径）。
+        ///
+        /// 基准<b>以最大者为基准</b>（用户已拍板）：等尺寸只放大不缩小，缩小的那一路
+        /// 会把图元内部的文字/图标裁掉，是肉眼不可逆的破坏；放大则只是留白变多。
+        /// 等大小按两根轴各自取最大，使结果恒等于"先等宽再等高"——
+        /// 若改成"取面积最大那个图元的宽高"，同一批图元点一个按钮和点两个按钮会得到两张不同的画面。
+        ///
+        /// 缩放锚点是<b>左上角</b>：只改 <see cref="ScadaElement.Width"/> / <see cref="ScadaElement.Height"/>，
+        /// <see cref="ScadaElement.X"/> / <see cref="ScadaElement.Y"/> 全程不动。
+        /// 这与拖动、对齐只改位置不改尺寸的分工一致，也让"等尺寸不会把整组挪走"成为可预期的行为。
+        ///
+        /// 数量不足（&lt; 2）或可编辑图元不足时返回 <c>false</c> 且不产记录。
+        /// </summary>
+        /// <param name="elements">参与等尺寸的图元（可以含重复项与不属于本画面的项，内部会过滤）</param>
+        /// <param name="match">等尺寸口径</param>
+        /// <param name="error">失败原因（直接可展示给用户的中文文案）</param>
+        public bool TryMatchElementSize(IReadOnlyList<ScadaElement>? elements, ScadaSizeMatch match, out string error)
+        {
+            error = string.Empty;
+
+            int minimum = ScadaSizeMatchExtensions.MinimumCount;
+
+            if (elements == null || elements.Count < minimum)
+            {
+                error = $"「{match.DisplayName()}」至少要选中 {minimum} 个图元";
+                return false;
+            }
+
+            var targets = FilterEditable(elements);
+
+            if (targets.Count < minimum)
+            {
+                error = $"可等尺寸的图元不足 {minimum} 个（锁定的图元不参与）";
+                return false;
+            }
+
+            // 基准先算出来：三种口径共用同一份"最大宽 / 最大高"，各算各的迟早出现
+            // "等宽和等大小对不上同一个宽度"。
+            double maxWidth = double.MinValue;
+            double maxHeight = double.MinValue;
+
+            foreach (var element in targets)
+            {
+                maxWidth = Math.Max(maxWidth, element.Width);
+                maxHeight = Math.Max(maxHeight, element.Height);
+            }
+
+            // 一次等尺寸 = 一条撤销记录（理由同 TryAlignElements：批量改 10 个不该要按 10 次 Ctrl+Z）。
+            using (BeginEdit($"等尺寸 [{targets.Count} 个图元]：{match.DisplayName()}"))
+            {
+                switch (match)
+                {
+                    case ScadaSizeMatch.Width:
+                        foreach (var element in targets)
+                            element.Width = maxWidth;
+                        break;
+
+                    case ScadaSizeMatch.Height:
+                        foreach (var element in targets)
+                            element.Height = maxHeight;
+                        break;
+
+                    case ScadaSizeMatch.Both:
+                        foreach (var element in targets)
+                        {
+                            element.Width = maxWidth;
+                            element.Height = maxHeight;
+                        }
+                        break;
+
+                    // 不认识的取值按空操作处理（与 TryAlignElements 对未知方向的取舍一致）。
+                    default:
+                        break;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 把一组图元按"相邻图元之间留 <paramref name="gap"/> 像素"重排（水平 / 垂直两个方向）。
+        ///
+        /// 与 <see cref="TryAlignElements"/> 里的分布<b>互为反面</b>：
+        /// 分布是"两端钉住、间距算出来"；这里是"一头钉住、间距由用户给定"，总长由
+        /// Σ边长 + (n-1) × gap 算出来。正因为两端不可能同时不动，才必须挑一头钉住
+        /// ——<b>钉第一个</b>（用户已拍板）：按轴排序后位置最靠前的那个不动，其余依次往后排。
+        ///
+        /// 数量下界比分布低一级：分布要三个（首尾当固定端、只剩中间项可动），等间距两个就够。
+        /// 数量不足（&lt; 2）或可编辑图元不足时返回 <c>false</c> 且不产记录。
+        /// </summary>
+        /// <param name="elements">参与等间距的图元（可以含重复项与不属于本画面的项，内部会过滤）</param>
+        /// <param name="spacing">等间距方向</param>
+        /// <param name="gap">相邻图元之间的空隙（画面像素，允许 0 与负数）</param>
+        /// <param name="error">失败原因（直接可展示给用户的中文文案）</param>
+        public bool TrySpaceElements(IReadOnlyList<ScadaElement>? elements, ScadaSpacing spacing, double gap, out string error)
+        {
+            error = string.Empty;
+
+            int minimum = ScadaSpacingExtensions.MinimumCount;
+
+            if (elements == null || elements.Count < minimum)
+            {
+                error = $"「{spacing.DisplayName()}」至少要选中 {minimum} 个图元";
+                return false;
+            }
+
+            var targets = FilterEditable(elements);
+
+            if (targets.Count < minimum)
+            {
+                error = $"可等间距的图元不足 {minimum} 个（锁定的图元不参与）";
+                return false;
+            }
+
+            bool horizontal = spacing == ScadaSpacing.Horizontal;
+
+            // 稳定排序：位置相同的图元保持选中次序，不会每次点一下都换个排法。
+            // 必须按同一根轴排序——水平按 X 排、垂直按 Y 排，拿错轴会把顺序搅乱（同 Distribute）。
+            var ordered = targets
+                .OrderBy(e => horizontal ? e.X : e.Y)
+                .ToList();
+
+            using (BeginEdit($"等间距 [{targets.Count} 个图元]：{spacing.DisplayName()}"))
+            {
+                Space(ordered, horizontal, gap);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 等间距重排：<b>第一个不动</b>，从它开始按"相邻图元之间留 <paramref name="gap"/> 像素"往后排。
+        ///
+        /// 与 <see cref="Distribute"/> 正好互为反面：那边是"两端钉住、间距算出来"，
+        /// 这里是"一头钉住、间距由用户给定"。
+        /// gap 允许 0 与负数：图元本身重叠时"排匀"的结果就是均匀地重叠，与分布同一取舍。
+        /// </summary>
+        /// <param name="ordered">已按目标轴排好序的图元（调用方负责排序）</param>
+        /// <param name="horizontal">true 沿 X 轴排、false 沿 Y 轴排</param>
+        /// <param name="gap">相邻图元之间的空隙</param>
+        private static void Space(List<ScadaElement> ordered, bool horizontal, double gap)
+        {
+            double cursor = horizontal ? ordered[0].X : ordered[0].Y;
+
+            foreach (var element in ordered)
+            {
+                if (horizontal)
+                {
+                    element.X = cursor;
+                    cursor += element.Width + gap;
+                }
+                else
+                {
+                    element.Y = cursor;
+                    cursor += element.Height + gap;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 把一组图元的<b>左上角</b>吸到网格点上。
+        ///
+        /// 吸附口径与画布拖动 / 工具箱落点<b>逐字同源</b>（<c>ScadaCanvas.ApplyMove</c> /
+        /// <c>ScadaCanvas.ToDropOrigin</c>）：吸"绝对位置"而不是"相对位移"，落点必定压在整张网格上。
+        /// 按位移吸附会让每个图元各自偏移半格，一屏设备永远对不齐。
+        ///
+        /// <b>刻意不看 <see cref="SnapToGrid"/></b>（用户已拍板）：那个开关管的是"拖动时是否吸附"，
+        /// 而"对齐网格"是一次显式命令——用户按下它就是明确要求吸一次，与拖动开关无关。
+        ///
+        /// 但<b>网格步长的门槛必须同源</b>：画布那边 <c>GridSize</c> 小于 1（或 NaN）视为"没有可用的网格"、
+        /// 吸附自己失效。这里若不复用同一条门槛，就会出现"画布上拖不动、按钮却把图元吸到 0.3 像素格点上"。
+        ///
+        /// 数量不足（空表）或可编辑图元不足时返回 <c>false</c> 且不产记录。
+        /// </summary>
+        /// <param name="elements">参与吸附的图元（可以含重复项与不属于本画面的项，内部会过滤）</param>
+        /// <param name="error">失败原因（直接可展示给用户的中文文案）</param>
+        public bool TrySnapElementsToGrid(IReadOnlyList<ScadaElement>? elements, out string error)
+        {
+            error = string.Empty;
+
+            if (elements == null || elements.Count == 0)
+            {
+                error = "「对齐网格」至少要选中 1 个图元";
+                return false;
+            }
+
+            // 与 ScadaCanvas.GridStep 同一条门槛：小于 1 或 NaN = 没有可用的网格。
+            double step = GridSize;
+            if (double.IsNaN(step) || step < 1)
+            {
+                error = "当前网格间距小于 1，没有可用的网格";
+                return false;
+            }
+
+            var targets = FilterEditable(elements);
+
+            if (targets.Count == 0)
+            {
+                error = "没有可对齐的图元（锁定的图元不参与）";
+                return false;
+            }
+
+            using (BeginEdit($"对齐网格 [{targets.Count} 个图元]"))
+            {
+                foreach (var element in targets)
+                {
+                    element.X = Math.Round(element.X / step) * step;
+                    element.Y = Math.Round(element.Y / step) * step;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>

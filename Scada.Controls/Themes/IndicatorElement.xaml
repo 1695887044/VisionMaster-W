@@ -8,7 +8,9 @@
 
         灯色绑的是只读的 LampBrush（= IsOn ? OnColor : OffColor），
         所以模板里完全不关心"点没点亮"这件事——切换逻辑在控件代码里，模板只管画。
-        换形状才用 DataTrigger：它改的是"哪个形状可见"，属于纯模板层的选择。
+        换形状同理：圆/方两块灯体叠在同一格，由控件代码按 Shape 翻显隐
+        （见 IndicatorElement.UpdateShapeVisibility）。不写成模板里的 DataTrigger——
+        本环境下 ControlTemplate.Triggers 里的 DataTrigger 不触发，写了也是死代码。
 
         灯的描边框用基类的 Stroke/StrokeThickness：给灯加一圈暗边框，
         深色画面上的绿灯边缘才不会糊成一片。
@@ -33,10 +35,9 @@
                                 Stroke="{TemplateBinding Stroke}"
                                 StrokeThickness="{TemplateBinding StrokeThickness}" />
 
-                            <!-- 方形灯默认隐藏，由 Shape 触发器换过来 -->
+                            <!-- 方形灯：由控件代码按 Shape 换过来 -->
                             <Rectangle
                                 x:Name="LampSquare"
-                                Visibility="Collapsed"
                                 RadiusX="3"
                                 RadiusY="3"
                                 Fill="{TemplateBinding LampBrush}"
@@ -54,17 +55,6 @@
                             TextTrimming="CharacterEllipsis"
                             HorizontalAlignment="Center" />
                     </Grid>
-
-                    <ControlTemplate.Triggers>
-                        <!-- 用 Binding 而不是 TemplateBinding：TemplateBinding 只能用在
-                             元素的属性上，不能出现在触发器的 Binding 位置。 -->
-                        <DataTrigger
-                            Binding="{Binding Shape, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="Square">
-                            <Setter TargetName="LampCircle" Property="Visibility" Value="Collapsed" />
-                            <Setter TargetName="LampSquare" Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

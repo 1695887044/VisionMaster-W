@@ -1,9 +1,10 @@
-﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using HalconDotNet;
 
 namespace VisionMaster.Models
 {
@@ -163,9 +164,17 @@ namespace VisionMaster.Models
         public bool IsChildNode => Level == 1;
 
         /// <summary>
-        /// 是否为可编辑节点（根节点且非数组）
+        /// 是否为可编辑节点（根节点、非数组、且初始值能用文本表达）
+        ///
+        /// 图像（HImage）也满足"根节点、非数组"，但它的初始值没法用文本写：
+        /// 位图不是一段字符串，<see cref="DefaultValueText"/> 的 setter 会走
+        /// Convert.ChangeType 而必然抛异常。所以这里一并排除——变量表里那一格就变成只读，
+        /// 而不是等操作员输入完再弹一个他看不懂的异常（图像的来源本就是流程，不是手填）。
         /// </summary>
-        public bool IsEditableNode => Level == 0 && DataType != null && !DataType.IsArray;
+        public bool IsEditableNode => Level == 0 && DataType != null && !DataType.IsArray && !IsImageType(DataType);
+
+        /// <summary>是不是图像变量（位图类，其初始值不可文本化）</summary>
+        private static bool IsImageType(Type type) => typeof(HImage).IsAssignableFrom(type);
 
         /// <summary>
         /// 是否为数组根节点

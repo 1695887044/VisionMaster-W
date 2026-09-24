@@ -9,10 +9,16 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:system="clr-namespace:System;assembly=mscorlib"
     xmlns:ui="http://schemas.UI.com/ui"
-    Width="900"
-    Height="500"
+    MinWidth="560"
+    MinHeight="280"
     d:Background="Gray"
     mc:Ignorable="d">
+    <!--
+        不设 Width/Height，让宿主对话框决定实际大小（去掉了原先写死的 900x500）：
+        宿主窗口初始 880x600、最小 640x420，扣掉边框与上下栏后内容区只有 864x484 / 624x304，
+        写死 900 宽会直接被横向裁掉一截。
+        这里只给下限，保证内容不会被压到不可用。
+    -->
     <UserControl.Resources>
         <!--  显示窗口索引候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不显示）  -->
         <ResourceDictionary>
@@ -37,8 +43,10 @@
     </UserControl.Resources>
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="380" />
-            <ColumnDefinition Width="*" />
+            <!--  左：参数表单（比例伸缩，带上下限：窄了表单控件放不下，宽了会拉成一条空白）  -->
+            <ColumnDefinition Width="1*" MinWidth="300" MaxWidth="430" />
+            <!--  右：预览区（占更大比例，随窗口一起长大）  -->
+            <ColumnDefinition Width="1.6*" MinWidth="240" />
         </Grid.ColumnDefinitions>
 
         <TabControl Style="{StaticResource VerTabControl}">
@@ -55,6 +63,7 @@
                         <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
                             <RadioButton Content="指定图像" IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:AcquisitionMode.SingleFile}}" />
                             <RadioButton Content="文件目录" IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:AcquisitionMode.Folder}}" />
+                            <RadioButton Content="网络推送" IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:AcquisitionMode.Hub}}" />
                         </StackPanel>
                     </GroupBox>
                     <!--  指定图像：仅在 Mode=SingleFile 时显示  -->
@@ -65,9 +74,8 @@
                         <StackPanel VerticalAlignment="Center">
                             <!--  可链接参数编辑器：固定值输入 + 变量链接切换（VisionMaster 风格），双击可浏览  -->
                             <cv:LinkableValueEditor
-                                Width="300"
                                 Margin="10"
-                                HorizontalAlignment="Center"
+                                HorizontalAlignment="Stretch"
                                 BrowseCommand="{Binding BrowseFileCommand}"
                                 Label="图像路径"
                                 Port="{Binding FilePathPort}"
@@ -92,10 +100,24 @@
                                 Port="{Binding FileIndexPort}"
                                 StepData="{Binding StepData}" />
                             <StackPanel Margin="10,8,10,4" Orientation="Horizontal">
+                                <!--  翻页：只改文件索引后重新载图，等价于手动改索引 + 刷新  -->
                                 <Button
                                     Padding="12,2"
+                                    Command="{Binding PreviousImageCommand}"
+                                    Content="◀"
+                                    ToolTip="上一张（文件索引 -1）" />
+                                <Button
+                                    Margin="6,0,0,0"
+                                    Padding="12,2"
+                                    Command="{Binding NextImageCommand}"
+                                    Content="▶"
+                                    ToolTip="下一张（文件索引 +1）" />
+                                <Button
+                                    Margin="12,0,0,0"
+                                    Padding="12,2"
                                     Command="{Binding RefreshPreviewCommand}"
-                                    Content="刷新预览" />
+                                    Content="刷新预览"
+                                    ToolTip="重新扫描文件夹并载入当前索引的图像" />
                             </StackPanel>
                             <StackPanel Margin="10,4" Orientation="Horizontal">
                                 <TextBlock Foreground="#666" Text="当前文件：" />
@@ -106,6 +128,149 @@
                                     Text="{Binding FileCount, StringFormat=（共 {0} 张）}" />
                             </StackPanel>
                         </StackPanel>
+                    </GroupBox>
+                    <!--  网络推送：仅在 Mode=Hub 时显示  -->
+                    <GroupBox
+                        Grid.Row="1"
+                        Header="网络推送"
+                        Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:AcquisitionMode.Hub}}">
+                        <!--
+                            这一格纵向空间很紧：默认窗口约 314px、最小窗口只剩约 134px，
+                            所以说明文字收进默认折叠的 Expander（用的时候再展开），
+                            外面再套一层 ScrollViewer 兜住极端尺寸，任何窗口大小都不会把按钮裁掉。
+                        -->
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10,4,10,8" VerticalAlignment="Top">
+                                <!--  推送测试表单：值由宿主透传预填，可临时改（改错正好用来验证 401/404）  -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Foreground="#666"
+                                        Text="流程名" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Grid.ColumnSpan="3"
+                                        Margin="6,2"
+                                        Padding="4,2"
+                                        Text="{Binding PushFlowName, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="推送目标流程名；改成不存在的名字可验证 404" />
+
+                                    <TextBlock
+                                        Grid.Row="1"
+                                        VerticalAlignment="Center"
+                                        Foreground="#666"
+                                        Text="主机" />
+                                    <TextBox
+                                        Grid.Row="1"
+                                        Grid.Column="1"
+                                        Margin="6,2"
+                                        Padding="4,2"
+                                        Text="{Binding PushHost, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock
+                                        Grid.Row="1"
+                                        Grid.Column="2"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Foreground="#666"
+                                        Text="端口" />
+                                    <TextBox
+                                        Grid.Row="1"
+                                        Grid.Column="3"
+                                        Margin="6,2"
+                                        Padding="4,2"
+                                        Text="{Binding PushPortText, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock
+                                        Grid.Row="2"
+                                        VerticalAlignment="Center"
+                                        Foreground="#666"
+                                        Text="令牌" />
+                                    <TextBox
+                                        Grid.Row="2"
+                                        Grid.Column="1"
+                                        Grid.ColumnSpan="3"
+                                        Margin="6,2"
+                                        Padding="4,2"
+                                        Text="{Binding PushToken, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="Authorization: Bearer {令牌}；填错可验证 401" />
+                                </Grid>
+
+                                <!--  服务端是否在听：打开窗口即告知，省得用户点完按钮再猜原因  -->
+                                <TextBlock
+                                    Margin="0,6,0,0"
+                                    FontSize="11"
+                                    Foreground="#E6A23C"
+                                    Text="{Binding PushServiceHint}"
+                                    TextWrapping="Wrap" />
+
+                                <Button
+                                    Margin="0,8,0,0"
+                                    Padding="12,4"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding PushLocalImageCommand}"
+                                    Content="选择本地图片并推送测试"
+                                    ToolTip="选一张本机图片，按上面的参数真发一次 HTTP POST（执行期间按钮自动置灰）" />
+
+                                <TextBlock
+                                    Margin="0,10,0,2"
+                                    FontSize="11"
+                                    Foreground="#999"
+                                    Text="推送结果（可选中复制）" />
+                                <TextBox
+                                    MinHeight="60"
+                                    MaxHeight="140"
+                                    Padding="4"
+                                    Background="#FAFAFA"
+                                    BorderBrush="#DDDDDD"
+                                    FontFamily="Consolas"
+                                    FontSize="12"
+                                    IsReadOnly="True"
+                                    Text="{Binding PushResultText, Mode=OneWay}"
+                                    TextWrapping="Wrap"
+                                    VerticalScrollBarVisibility="Auto" />
+
+                                <Expander Margin="0,10,0,0" Header="接口说明（点击展开）">
+                                    <StackPanel Margin="0,6,0,0">
+                                        <TextBlock
+                                            Foreground="#666"
+                                            Text="图像不来自本地文件，而是由外部程序（相机 / PLC / 上位机）通过 HTTP 推入本流程的图像槽。"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            Margin="0,10,0,0"
+                                            Foreground="#444"
+                                            Text="POST  http://{主机}:{端口}/flow/{流程名}?outputs=步骤名.端口名"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            Margin="0,6,0,0"
+                                            Foreground="#444"
+                                            Text="Authorization: Bearer {令牌}      请求体：图片文件字节"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            Margin="0,10,0,0"
+                                            Foreground="#666"
+                                            Text="监听地址 / 端口 / 令牌在程序目录的 AppConfig.json → HttpImageServer 节配置；outputs 省略时回传全部步骤的全部输出端口。"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            Margin="0,10,0,0"
+                                            Foreground="#999"
+                                            Text="注意：同一流程同时只允许一次执行，并发推图会被拒绝（409）；图像槽只保留最新一帧。"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                        </ScrollViewer>
                     </GroupBox>
                 </Grid>
 
@@ -172,12 +337,30 @@
                     Background="#F8F8F8"
                     CornerRadius="4">
                     <DockPanel>
+                        <!--
+                            状态文字颜色由 StatusLevel 决定（绿=正常 / 橙=需注意 / 红=不可用）：
+                            颜色是纯界面概念，插件只上报级别，具体色值留在这里，
+                            用 x:Static 直接引枚举，不依赖字符串→枚举的隐式转换
+                        -->
                         <TextBlock
                             DockPanel.Dock="Right"
                             FontSize="12"
-                            Foreground="#0A7"
                             Text="{Binding StatusMessage}"
-                            TextWrapping="Wrap" />
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#0A7" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                            <Setter Property="Foreground" Value="#E6A23C" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                            <Setter Property="Foreground" Value="#F56C6C" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                         <TextBlock
                             MaxWidth="420"
                             VerticalAlignment="Center"

@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using HalconDotNet;
 
 namespace VisionMaster.Helpers
 {
@@ -16,7 +17,8 @@ namespace VisionMaster.Helpers
     /// - 布尔：true/false、1/0、是/否、on/off（忽略大小写）都认；其余按"非零数算真"兜底；
     /// - 字符串：原样；
     /// - 数值/日期：交给 <c>Convert.ChangeType</c>（不变文化，避免小数点随区域漂移）；
-    /// - 数组：不支持（组态动作与界面输入框都是单值场景）。
+    /// - 数组：不支持（组态动作与界面输入框都是单值场景）；
+    /// - 图像：不支持（位图不是一段文本，其值由视觉流程写入，界面这一侧只能报错）。
     /// </summary>
     public static class VariableValueConverter
     {
@@ -43,6 +45,15 @@ namespace VisionMaster.Helpers
             if (target.IsArray)
             {
                 error = $"不支持把文本写入数组类型（{target.Name}）";
+                return false;
+            }
+
+            // 图像（HImage）：位图不是一段文本，手填这条路根本不存在。
+            // 这里挡在 Convert.ChangeType 之前，是为了给一句人能看懂的话——
+            // 否则会掉进下面的兜底分支，抛出一个 ChangeType 的英文异常信息。
+            if (typeof(HImage).IsAssignableFrom(target))
+            {
+                error = $"图像变量的值由视觉流程写入，不能在界面上手填（目标类型 {target.Name}）";
                 return false;
             }
 

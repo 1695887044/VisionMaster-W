@@ -17,12 +17,14 @@ namespace VisionMaster.Communications
 
     /// <summary>
     /// HslCommunication 辅助类，提供数据类型转换功能。
-    /// ⚠ 字节序纪律：Modbus/S7 设备侧字节流是【大端】（寄存器内 Hi,Lo；多寄存器 ABCD 字序），
+    /// ⚠ 字节序纪律：Modbus/S7 设备侧字节流是【大端】（寄存器内 Hi,Lo），
     /// 而 BitConverter 在 x86/x64 上按【小端】解释——旧实现直接 BitConverter 转换，
     /// 导致与标准设备交换数据时字节系统性颠倒（实测暗号：写 21=0x0015 设备存成 0x1500=5376；
     /// 设备写 1221=0x04C5 软件读成 0xC504=50436）。软件自己写自己读"自洽"，接真 PLC 必炸。
-    /// 统一修复：读写两侧都先反转字节 = 按大端解释/编码。
-    /// 32/64 位按 ABCD 字序（与 HSL DataFormat 默认一致；对端模拟器/PLC 若用 CDAB 等需对齐）。
+    /// <para>16 位及以下：线路序即大端，只需整体反转（<see cref="ByteOrderFormat.ABCD"/> 与 CDAB 在此退化等价）。</para>
+    /// <para>32/64 位：多寄存器数值的"字序"由对端设备决定，不能写死。调用方必须把
+    /// <see cref="ByteOrderFormat"/> 显式传进来（读链路）或按同一值配置设备的 ByteTransform（写链路），
+    /// 否则会出现"软件写进去、软件读不回来"的读写不对称。</para>
     /// </summary>
     internal static class HslHelper
     {
@@ -42,19 +44,72 @@ namespace VisionMaster.Communications
         };
 
         /// <summary>
-        /// 将设备返回的大端字节数组转换为指定类型。
+        /// <para>契约层字节序 → HSL 字节序（按【枚举名】映射，绝不按序号强转）。</para>
+        /// <para>⚠ 两套枚举的成员顺序不同：本项目的 <see cref="ByteOrderFormat"/> 是 ABCD/DCBA/BADC/CDAB，
+        /// HSL 的 <see cref="DataFormat"/> 是 ABCD/BADC/CDAB/DCBA。序号强转会静默错位，必须显式按名 switch。</para>
+        /// </summary>
+        public static DataFormat ToDataFormat(ByteOrderFormat order) => order switch
+        {
+            ByteOrderFormat.ABCD => DataFormat.ABCD,
+            ByteOrderFormat.BADC => DataFormat.BADC,
+            ByteOrderFormat.CDAB => DataFormat.CDAB,
+            ByteOrderFormat.DCBA => DataFormat.DCBA,
+            _ => DataFormat.CDAB
+        };
+
+        /// <summary>
+        /// <para>把设备返回的线路字节流（wire）重排成"逻辑大端序"字节数组 V（V[0] 为最高位字节）。</para>
+        /// <para>命名含义：ABCD 表示逻辑值字节 A(最高)~D(最低) 在【线路上】的排列顺序，故换算规则为：</para>
+        /// <para>ABCD → V = wire；BADC → 相邻两字节两两交换；CDAB → 相邻两个 16 位寄存器整体倒排；DCBA → V = reverse(wire)。</para>
+        /// <para>16 位时自动退化：ABCD≡CDAB（V=wire）、BADC≡DCBA（V=reverse），与 HSL ByteTransDataFormat2 的分支一致。</para>
+        /// </summary>
+        private static byte[] ToLogicalBigEndian(byte[] wire, ByteOrderFormat order)
+        {
+            var v = (byte[])wire.Clone();
+            switch (order)
+            {
+                case ByteOrderFormat.ABCD:
+                    break; // 线路序即逻辑序
+
+                case ByteOrderFormat.BADC:
+                    // 每 16 位单元内高低字节互换：BADC → ABCD
+                    for (int i = 0; i + 1 < v.Length; i += 2)
+                        (v[i], v[i + 1]) = (v[i + 1], v[i]);
+                    break;
+
+                case ByteOrderFormat.CDAB:
+                    // 以 16 位寄存器为单位整体倒排：CDAB → ABCD、GHEFCDAB → ABCDEFGH
+                    for (int i = 0, j = v.Length - 2; i < j; i += 2, j -= 2)
+                    {
+                        (v[i], v[j]) = (v[j], v[i]);
+                        (v[i + 1], v[j + 1]) = (v[j + 1], v[i + 1]);
+                    }
+                    break;
+
+                case ByteOrderFormat.DCBA:
+                    Array.Reverse(v); // 全字节倒排：DCBA → ABCD
+                    break;
+            }
+            return v;
+        }
+
+        /// <summary>
+        /// 将设备返回的线路字节数组按指定字序转换为目标类型。
         /// 修复点：旧实现要求 data 至少 2 字节，导致 1 字节的 bool/byte 读取恒返回 default；
         /// 且整体反转在数据长于需求时（批量段切片）会取错位置——现在只取类型所需的头部字节。
         /// </summary>
-        public static T ConvertTo<T>(byte[] data) where T : struct
+        /// <param name="data">设备返回的原始字节流（起点 = 本变量首字节）</param>
+        /// <param name="order">多寄存器数值的线路字序（16 位及以下时 ABCD 与 CDAB 等价）</param>
+        public static T ConvertTo<T>(byte[] data, ByteOrderFormat order) where T : struct
         {
             int need = MinByteCount(typeof(T));
             if (need == 0 || data == null || data.Length < need)
                 return default;
 
-            // 只截取本类型所需的头部字节（大端序，高位在前），反转成小端交给 BitConverter
+            // 只截取本类型所需的头部字节，先按字序还原成逻辑大端序，再反转成小端交给 BitConverter
             var be = new byte[need];
             Array.Copy(data, 0, be, 0, need);
+            be = ToLogicalBigEndian(be, order);
             if (BitConverter.IsLittleEndian && need > 1)
                 Array.Reverse(be);
 
@@ -69,6 +124,10 @@ namespace VisionMaster.Communications
                 TypeCode.Int32 => (T)(object)BitConverter.ToInt32(be, 0),
                 TypeCode.UInt32 => (T)(object)BitConverter.ToUInt32(be, 0),
                 TypeCode.Single => (T)(object)BitConverter.ToSingle(be, 0),
+                // 修复点：Int64/UInt64 原先落到 default 分支，导致 long/ulong 变量恒解出 0
+                //（MinByteCount/RegisterCount 都按 8 字节 4 寄存器读，读回来了却解不出值）
+                TypeCode.Int64 => (T)(object)BitConverter.ToInt64(be, 0),
+                TypeCode.UInt64 => (T)(object)BitConverter.ToUInt64(be, 0),
                 TypeCode.Double => (T)(object)BitConverter.ToDouble(be, 0),
                 _ => default
             };
@@ -78,22 +137,22 @@ namespace VisionMaster.Communications
         /// 非泛型解码入口（批量规划器用，避免每轮反射 MakeGenericMethod）；
         /// 仅覆盖 struct 数值类型，string/byte[] 由调用方单独处理。
         /// </summary>
-        public static object? ConvertToByType(byte[] data, Type type)
+        public static object? ConvertToByType(byte[] data, Type type, ByteOrderFormat order)
         {
             var t = Nullable.GetUnderlyingType(type) ?? type;
             return Type.GetTypeCode(t) switch
             {
-                TypeCode.Boolean => ConvertTo<bool>(data),
-                TypeCode.Byte => ConvertTo<byte>(data),
-                TypeCode.SByte => ConvertTo<sbyte>(data),
-                TypeCode.Int16 => ConvertTo<short>(data),
-                TypeCode.UInt16 => ConvertTo<ushort>(data),
-                TypeCode.Int32 => ConvertTo<int>(data),
-                TypeCode.UInt32 => ConvertTo<uint>(data),
-                TypeCode.Single => ConvertTo<float>(data),
-                TypeCode.Int64 => ConvertTo<long>(data),
-                TypeCode.UInt64 => ConvertTo<ulong>(data),
-                TypeCode.Double => ConvertTo<double>(data),
+                TypeCode.Boolean => ConvertTo<bool>(data, order),
+                TypeCode.Byte => ConvertTo<byte>(data, order),
+                TypeCode.SByte => ConvertTo<sbyte>(data, order),
+                TypeCode.Int16 => ConvertTo<short>(data, order),
+                TypeCode.UInt16 => ConvertTo<ushort>(data, order),
+                TypeCode.Int32 => ConvertTo<int>(data, order),
+                TypeCode.UInt32 => ConvertTo<uint>(data, order),
+                TypeCode.Single => ConvertTo<float>(data, order),
+                TypeCode.Int64 => ConvertTo<long>(data, order),
+                TypeCode.UInt64 => ConvertTo<ulong>(data, order),
+                TypeCode.Double => ConvertTo<double>(data, order),
                 _ => null
             };
         }

@@ -15,9 +15,11 @@
         ApplyStrokeInset 把半线宽转成 Padding 内缩）。用 Border 就不需要这层补偿，
         UpdateFill 里"可用长度 = 实际尺寸 − Padding − 2×描边"与实际像素一一对应。
 
-        走向用 DataTrigger 切换：横向时填充块靠左、拉满高度；纵向时靠底、拉满宽度。
-        用 Binding 而不是 TemplateBinding——TemplateBinding 只能出现在元素的属性上，
-        不能出现在触发器的 Binding 位置（指示灯换形状时踩过同一个坑）。
+        走向与"显不显数值"都由控件代码处理（见 ProgressBarElement.UpdateBarLayout）：
+        横向时填充块靠左、拉满高度、长度落在 Width 上；纵向时靠底、拉满宽度、长度落在 Height 上。
+        不写成模板里的 DataTrigger——本环境下 ControlTemplate.Triggers 里的 DataTrigger 不触发，
+        写了也是死代码（纵向棒图与 ShowValue=False 两个开关以前都没生效）；而且 Setter.Value 里嵌的
+        绑定也一样走不通，所以填充块在这里连 Width/Height/对齐都不写，全部交给代码摆。
     -->
     <Style TargetType="{x:Type local:ProgressBarElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -35,12 +37,9 @@
                         CornerRadius="{TemplateBinding CornerRadius}">
 
                         <Grid>
-                            <!-- 默认横向：靠左、拉满高度，长度由 FillLength 定 -->
+                            <!-- 填充块：长度与对齐由控件代码按走向摆（见 UpdateBarLayout） -->
                             <Border
                                 x:Name="FillBar"
-                                Width="{TemplateBinding FillLength}"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Stretch"
                                 Background="{TemplateBinding Fill}"
                                 CornerRadius="{TemplateBinding CornerRadius}" />
 
@@ -58,25 +57,6 @@
                                 Margin="2,0" />
                         </Grid>
                     </Border>
-
-                    <ControlTemplate.Triggers>
-                        <!-- 纵向：改成靠底、拉满宽度。Width 置 Auto 才能让 HorizontalAlignment=Stretch 生效。 -->
-                        <DataTrigger
-                            Binding="{Binding Orientation, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="Vertical">
-                            <Setter TargetName="FillBar" Property="Width" Value="Auto" />
-                            <Setter TargetName="FillBar" Property="HorizontalAlignment" Value="Stretch" />
-                            <Setter TargetName="FillBar" Property="VerticalAlignment" Value="Bottom" />
-                            <Setter TargetName="FillBar" Property="Height"
-                                    Value="{Binding FillLength, RelativeSource={RelativeSource TemplatedParent}}" />
-                        </DataTrigger>
-
-                        <DataTrigger
-                            Binding="{Binding ShowValue, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="False">
-                            <Setter TargetName="ValueLabel" Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

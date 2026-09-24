@@ -59,6 +59,73 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 条件求值传参的类型归一：把上游/变量里的原始值按条件变量的<b>声明类型</b>转换后再交给 DynamicExpresso。
+        ///
+        /// 为什么必须有这一步（P0-2）：DynamicExpresso 的 Lambda.Invoke 最终落到
+        /// Delegate.DynamicInvoke，其默认 binder 只允许"拓宽"转换（int → double 可以），
+        /// "收窄"（double → int）会抛
+        /// <c>ArgumentException: Object of type 'System.Double' cannot be converted to type 'System.Int32'</c>。
+        /// 而编译期 FlowCompiler.IsLinkable 是按 ValueConverter.Convert（= Convert.ChangeType，
+        /// 支持数值族互转）的口径放行的 —— 运行期不补这一步，"编译通过、一跑就炸"就是必然。
+        /// 本方法与 DefaultForConditionArg 一起，构成运行期口径与编译期口径重新对齐的唯一入口。
+        ///
+        /// 转换失败直接抛：条件变量拿到不可用的值属于图纸错误，由调用方标 Failed 并上抛。
+        /// 静默退化会演变成"按默认值判断 → 走错分支"，比停机危险得多。
+        /// </summary>
+        protected static object CoerceConditionArg(object rawValue, Type expectedType)
+        {
+            if (rawValue == null)
+                return DefaultForConditionArg(expectedType);
+
+            if (expectedType == null)
+                return rawValue;
+
+            // Nullable 拆到实类型再判断，否则 int? 形参会误判为"不是实例"
+            expectedType = Nullable.GetUnderlyingType(expectedType) ?? expectedType;
+
+            // object 形参或类型本就相符：原样交出去，省一次转换
+            if (expectedType == typeof(object) || expectedType.IsInstanceOfType(rawValue))
+                return rawValue;
+
+            try
+            {
+                return ValueConverter.Convert(rawValue, expectedType);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidCastException(
+                    $"条件变量值无法转换为声明类型 {expectedType.Name}。"
+                        + $"实际值类型：{rawValue.GetType().Name}，值：{rawValue}",
+                    ex
+                );
+            }
+        }
+
+        /// <summary>
+        /// 条件变量无值时的类型正确兜底：值类型给 default(T)，引用类型给 null，字符串给空串。
+        ///
+        /// 为什么不能一律注 0.0（P0-3）：0.0 是 double，喂给声明为 int/long/decimal 的
+        /// DynamicExpresso 形参会抛收窄转换异常（同 CoerceConditionArg 的说明），
+        /// 于是"变量没连线"这种图纸疏漏会以"条件求值异常"的面目炸出来，归因错乱。
+        /// Activator.CreateInstance 一行通杀所有值类型。
+        /// </summary>
+        protected static object DefaultForConditionArg(Type expectedType)
+        {
+            if (expectedType == null)
+                return null;
+
+            expectedType = Nullable.GetUnderlyingType(expectedType) ?? expectedType;
+
+            if (expectedType == typeof(object))
+                return null;
+
+            if (expectedType == typeof(string))
+                return string.Empty;
+
+            return expectedType.IsValueType ? Activator.CreateInstance(expectedType) : null;
+        }
+
+        /// <summary>
         /// 执行节点并获取下一个要执行的节点列表
         /// </summary>
         public abstract List<CompiledNode> RunAndGetNext(IExecutionContext context);

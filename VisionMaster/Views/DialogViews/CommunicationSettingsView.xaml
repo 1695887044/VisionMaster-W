@@ -5,10 +5,28 @@
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
-    Width="1080"
-    Height="620"
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="{StaticResource DialogBackgroundBrush}">
+
+    <!--
+        窗口尺寸挂在 Window 上，不写在 UserControl 根节点上。
+        UserControl 的 HorizontalAlignment 默认是 Stretch（撑满父容器），
+        但一旦显式写了 Width，Stretch 就退化成"居中"——窗口一拉大/最大化，
+        内容块就居中缩在中间、四周一圈留白，而且永远不跟着窗口变宽。
+        搬到 Window 后 UserControl 自然撑满，内部 * 行 / * 列才能吸收多余空间。
+        刻意不用 SizeToContent：它会让窗口随内容自己改大小，且手动放大后内容不重排。
+        （与 PluginConfigShellView 同一范式；区别是这里保留系统标题栏，不设 WindowStyle=None）
+    -->
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <Setter Property="SizeToContent" Value="Manual" />
+            <Setter Property="Width" Value="1080" />
+            <Setter Property="Height" Value="620" />
+            <Setter Property="MinWidth" Value="960" />
+            <Setter Property="MinHeight" Value="520" />
+        </Style>
+    </prism:Dialog.WindowStyle>
 
     <!--
         ============================================================================

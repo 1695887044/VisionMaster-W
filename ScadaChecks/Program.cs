@@ -41,6 +41,8 @@ using ScadaRunWindowSettingsVM = VisionMaster.ViewModels.DialogViewModels.ScadaR
 using ScadaSystemParametersVM = VisionMaster.ViewModels.DialogViewModels.ScadaSystemParametersViewModel;
 using ScadaVariableEventRow = VisionMaster.ViewModels.DialogViewModels.ScadaVariableEventRow;
 using ScadaVariableEventDialogViewModel = VisionMaster.ViewModels.DialogViewModels.ScadaVariableEventDialogViewModel;
+using ScadaAlarmConfigRow = VisionMaster.ViewModels.DialogViewModels.ScadaAlarmConfigRow;
+using ScadaAlarmConfigDialogViewModel = VisionMaster.ViewModels.DialogViewModels.ScadaAlarmConfigDialogViewModel;
 using SolutionListVM = VisionMaster.ViewModels.DialogViewModels.SolutionListViewModel;
 using CollectionViewGroup = System.Windows.Data.CollectionViewGroup;
 using ScadaRuntimeWindow = VisionMaster.Views.ScadaRuntimeWindow;
@@ -134,6 +136,7 @@ namespace ScadaChecks
             SolutionListAuditChecks();
             PackagingChecks();
             VariableEventDialogChecks();
+            AlarmConfigDialogChecks();
             if (stress) StressRoundTrip();
             if (stress) StressRegistryLookup();
             if (stress) StressScadaDocument();
@@ -2395,9 +2398,9 @@ namespace ScadaChecks
             {
                 "Hmi.Rectangle", "Hmi.Ellipse", "Hmi.Text", "Hmi.Button", "Hmi.BitButton", "Hmi.Indicator",
                 "Hmi.ProgressBar", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
-                "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner",
+                "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner", "Hmi.ImageView",
             };
-            Check("16 个内置图元全部注册",
+            Check("17 个内置图元全部注册",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -2471,7 +2474,7 @@ namespace ScadaChecks
             // S7 的验收口径里有一条「描述符必须声明可绑变量类型」：指示 / 数值类图元的那个"输入"
             // 属性一定要 IsBindable，否则运行态接不上变量，图元就只是个静态装饰——
             // 而"图元画得出来但绑不了变量"正是 D2（组态 → 运行）最想避免的那种半成品。
-            string[] bindableInputs = { "Hmi.ProgressBar:Value", "Hmi.IOField:Value", "Hmi.Lamp:State", "Hmi.Gauge:Value", "Hmi.Valve:Opening", "Hmi.Pump:State", "Hmi.Motor:State", "Hmi.Pipe:State" };
+            string[] bindableInputs = { "Hmi.ProgressBar:Value", "Hmi.IOField:Value", "Hmi.Lamp:State", "Hmi.Gauge:Value", "Hmi.Valve:Opening", "Hmi.Pump:State", "Hmi.Motor:State", "Hmi.Pipe:State", "Hmi.ImageView:Source" };
             Check("新增图元的「输入」属性都声明了 IsBindable（否则运行态接不上变量）",
                 bindableInputs.All(spec =>
                 {
@@ -2546,8 +2549,172 @@ namespace ScadaChecks
                 Check("控件层断言全程未抛异常", false, failure.ToString());
         }
 
+        /// <summary>
+        /// 把 Dispatcher 队列跑到空闲。
+        ///
+        /// 绑定的重算、模板触发器的求值都排在 DataBind / Idle 优先级上异步跑，
+        /// 只调 UpdateLayout() 是轮不到它们的——必须真泵一次消息才看得到结果。
+        /// </summary>
+        private static void Pump()
+        {
+            var idle = new DispatcherFrame();
+            Dispatcher.CurrentDispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => idle.Continue = false));
+            Dispatcher.PushFrame(idle);
+        }
+
+        /// <summary>
+        /// 模板里的状态切换必须落在控件代码上（本轮修复的回归守卫）。
+        ///
+        /// 本环境下 <c>ControlTemplate.Triggers</c> 里的 DataTrigger 一律不触发，且模板里写死的
+        /// <c>Visibility</c> 初值优先级高于模板触发器 setter——两个病叠加，导致数值域点不进编辑态、
+        /// 灯换不了形状、棒图/表盘/阀门收不起读数。修法是把这些切换全搬进控件的 UpdateXxx 方法
+        /// （经 <see cref="ScadaElementBase.SetPartVisible"/>），模板里既不写初值也不写触发器。
+        /// 这里真起一个窗口，把模板套上后<b>从真实入口走完整条输入链</b>：点一下（隧道左键按下）→
+        /// BeginEdit → 敲字（写进模板里那条 TwoWay 绑定）→ 提交写回，逐条验"点得进、敲得进、写得回"。
+        /// 不手动摆 IsEditing 或手动 Focus()——那样恰好绕过了唯一会失效的那一环。
+        /// </summary>
+        private static void EditAndShapeChecks()
+        {
+            var element = ElementRegistry.CreateElement("Hmi.IOField", 0, 0);
+            var field = (IOFieldElement)ElementRegistry.CreateControl(element);
+
+            var writer = new FakeValueWriter();
+            var engine = new ScadaAlarmEngine(new ScadaDocument(), new FakeValueSource(), () => DateTime.UtcNow);
+            var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
+
+            // 可编辑前提四件套：模式允许写 + 绑了变量 + 宿主给了写通道 + 权限放行（RequiredRole 没配）。
+            element.SetProperty("Mode", IOFieldElement.ModeInputOutput);
+            element.GetOrAddBinding("Value").Bind(Guid.NewGuid(), "SetPoint");
+            element.SetProperty("Value", "10");
+            field.RuntimeContext = new ScadaRuntimeContext(engine, beat, writer);
+            field.Refresh();
+
+            var window = new Window
+            {
+                Width = 260,
+                Height = 90,
+                Left = 0,
+                Top = 0,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Content = field,
+            };
+
+            window.Show();
+            window.Activate();
+            Pump();
+            field.ApplyTemplate();
+            field.UpdateLayout();
+            Pump();
+
+            var editor = field.Template?.FindName(IOFieldElement.PartEditor, field) as TextBox;
+            var display = field.Template?.FindName(IOFieldElement.PartValueDisplay, field) as FrameworkElement;
+            var label = field.Template?.FindName(IOFieldElement.PartLabelText, field) as FrameworkElement;
+
+            Check("数值域模板里有就地编辑框", editor is not null, "PART_Editor 没找到");
+
+            if (editor is not null && display is not null && label is not null)
+            {
+                Check("数值域可编辑前提齐备（模式=输入输出 + 绑了变量 + 有写通道 + 权限放行）",
+                    field.IsEditable, $"mode={field.Mode} / editable={field.IsEditable}");
+
+                // 说明字留空 → 整列塌掉（这条以前是模板触发器干的活）
+                Check("数值域说明字留空时收起（模板触发器已搬进代码）",
+                    label.Visibility == Visibility.Collapsed, label.Visibility.ToString());
+
+                Check("数值域显示态：数值文本露面、编辑框收起",
+                    display.Visibility == Visibility.Visible && editor.Visibility == Visibility.Collapsed,
+                    $"ValueDisplay={display.Visibility} / PART_Editor={editor.Visibility}");
+
+                // 真点一下：走隧道左键按下（OnPreviewMouseLeftButtonDown）这条路——就是操作员在框上按下去的那一下。
+                field.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent,
+                });
+                field.UpdateLayout();
+                Pump();
+
+                Check("数值域点一下进编辑态：数值文本收起、编辑框露面（点不进编辑态的根因）",
+                    field.IsEditing
+                    && display.Visibility == Visibility.Collapsed
+                    && editor.Visibility == Visibility.Visible,
+                    $"editing={field.IsEditing} / ValueDisplay={display.Visibility} / PART_Editor={editor.Visibility}");
+
+                // 焦点是"敲不进字"的最后一环：编辑框刚从 Collapsed 翻成 Visible 时还没排过版，
+                // 不先 UpdateLayout() 就 Focus() 会返回 false。BeginEdit 里已经补了这一次布局。
+                Check("数值域点开后编辑框自动拿到键盘焦点（敲不进字的根因）",
+                    editor.IsKeyboardFocused, $"IsKeyboardFocused={editor.IsKeyboardFocused}");
+
+                Check("数值域进编辑态预填的是当前显示值（操作员改的是他看到的那个量纲）",
+                    field.EditText == "10", $"edit=\"{field.EditText}\"");
+
+                // "敲字"这一段走的是模板里那条 TwoWay 绑定（TextBox.Text ↔ EditText）：
+                // 往编辑框里写字，EditText 就该跟着变——这就是操作员敲键时真实发生的事。
+                editor.Text = "23.5";
+                Pump();
+                Check("数值域敲进去的字进了 EditText（模板里 TextBox.Text ↔ EditText 的 TwoWay 通着）",
+                    field.EditText == "23.5", $"edit=\"{field.EditText}\"");
+
+                field.CommitEdit();
+                Pump();
+
+                Check("数值域提交：写通道收到敲进去的值、退出编辑态（图元自己不改变量）",
+                    writer.Writes.Count == 1
+                    && writer.Writes[0].Target == "Value"
+                    && writer.Writes[0].Text == "23.5"
+                    && !field.IsEditing
+                    && field.EditError is null
+                    && field.Value == 10,
+                    writer.Writes.Count == 1
+                        ? $"写={writer.Writes[0].Text} / editing={field.IsEditing} / value={field.Value}"
+                        : $"写入次数={writer.Writes.Count}");
+
+                field.UpdateLayout();
+                Pump();
+
+                Check("数值域提交后回到显示态：编辑框收起、数值文本回来",
+                    display.Visibility == Visibility.Visible && editor.Visibility == Visibility.Collapsed,
+                    $"ValueDisplay={display.Visibility} / PART_Editor={editor.Visibility}");
+            }
+
+            window.Close();
+
+            // 同一机制的另一处：灯/指示灯的圆方两块，同一时刻只该显一块。
+            var lampElement = ElementRegistry.CreateElement("Hmi.Lamp", 0, 0);
+            var lamp = (ScadaElementBase)ElementRegistry.CreateControl(lampElement);
+            var lampWindow = new Window { Width = 120, Height = 120, Content = lamp };
+            lampWindow.Show();
+            Pump();
+            lamp.ApplyTemplate();
+            lamp.UpdateLayout();
+
+            var square = lamp.Template?.FindName(LampElement.PartLampSquare, lamp) as FrameworkElement;
+            var circle = lamp.Template?.FindName(LampElement.PartLampCircle, lamp) as FrameworkElement;
+
+            if (square is not null && circle is not null)
+            {
+                Check("灯默认形状：圆形露面、方形收起",
+                    circle.Visibility == Visibility.Visible && square.Visibility == Visibility.Collapsed,
+                    $"LampCircle={circle.Visibility} / LampSquare={square.Visibility}");
+
+                lampElement.SetProperty("Shape", "Square");
+                lamp.Refresh();
+                lamp.UpdateLayout();
+                Pump();
+
+                Check("灯换方形后：方形露面、圆形收起（模板触发器已搬进代码）",
+                    circle.Visibility == Visibility.Collapsed && square.Visibility == Visibility.Visible,
+                    $"LampCircle={circle.Visibility} / LampSquare={square.Visibility}");
+            }
+
+            lampWindow.Close();
+        }
+
         private static void RunElementControlChecks()
         {
+            EditAndShapeChecks();
+
             // --- 注册表造控件并绑模型 ---
             var element = ElementRegistry.CreateElement("Hmi.Rectangle", 10, 20);
             var control = ElementRegistry.CreateControl(element);
@@ -2687,6 +2854,15 @@ namespace ScadaChecks
             textControl.Refresh();
             Check("水平对齐落到自建依赖属性（Control.HorizontalContentAlignment 的类型与它不通用）",
                 textControl.TextAlignment == TextAlignment.Right, textControl.TextAlignment.ToString());
+
+            // 「文本」是静态标签：它不认识数值，也不接变量——要显示会变的数就用「数值域」。
+            // 所以它连"内容"都不给 ƒx（旧方案里这里能绑，绑上去只是把一段静态字改成了另一段静态字，
+            // 真正会变的值从来不走这条路）。属性面板据此不画 ƒx 按钮，绑定的入口就只剩「数值域」一家。
+            var textSpec = ElementRegistry.Find("Hmi.Text")!;
+            Check("文本图元：内容与文字颜色都不声明可绑 ƒx（静态标签不接变量——要显示会变的数用「数值域」）",
+                textSpec.Properties.Where(p => p.Key is "Text" or "Foreground").All(p => !p.IsBindable),
+                string.Join(" / ", textSpec.Properties.Where(p => p.Key is "Text" or "Foreground")
+                    .Select(p => $"{p.Key}={p.IsBindable}")));
 
             // --- 按钮：默认外观来自描述符 ---
             var button = ElementRegistry.CreateControl(ElementRegistry.CreateElement("Hmi.Button"));
@@ -2883,6 +3059,42 @@ namespace ScadaChecks
             ioBinding.IsEnabled = true;
             io.Refresh();
 
+            // ④ 权限闸门：写前先查——角色不够，点一下都不进编辑态
+            //
+            // 为什么必须卡在控件这一侧：写通道只认"变量收不收这个值"，它不认识角色；
+            // 领域层那条闸门（ScadaRuntime.RaiseElementEvent）卡的是事件钩子，不是写入本身。
+            // 两边都不管的话，"谁都不许改的数值域，操作员照样能把数写进变量"就是这么漏出来的。
+            var ioPolicy = new FakeAccessPolicy { CurrentRole = ScadaRole.Operator };
+            var ioGuardedContext = new ScadaRuntimeContext(ioEngine, ioBeat, ioWriter, ioPolicy);
+
+            ioElement.RequiredRole = ScadaRole.Engineer;
+            io.RuntimeContext = ioGuardedContext;
+            Check("数值域（权限）：配了「工程师」、当前是「操作员」→ 不可编辑（没权限根本点不出输入框）",
+                !io.IsEditable, $"role={ioPolicy.CurrentRole} / editable={io.IsEditable}");
+
+            ioPolicy.CurrentRole = ScadaRole.Engineer;
+            io.Refresh();
+            Check("数值域（权限）：换成「工程师」→ 可编辑（高角色含低角色，够格就放行）",
+                io.IsEditable, $"role={ioPolicy.CurrentRole} / editable={io.IsEditable}");
+
+            // 编辑中途降权：UpdateEditable 只在模式 / 上下文 / 模型刷新时重算，赶不上登录状态的变化，
+            // 所以提交那一刻还得再查一次——否则"编辑框开着的时候登出"就能把值写进去。
+            io.BeginEdit();
+            io.EditText = "66";
+            ioPolicy.CurrentRole = ScadaRole.Operator;
+            var ioWritesBefore = ioWriter.Writes.Count;
+            io.CommitEdit();
+            Check("数值域（权限）：编辑中途登出 → 提交被拒、留在编辑态并把原因摆在框边（写前再查一次）",
+                ioWriter.Writes.Count == ioWritesBefore && io.IsEditing && !string.IsNullOrEmpty(io.EditError),
+                $"新增写入={ioWriter.Writes.Count - ioWritesBefore} / editing={io.IsEditing} / error={io.EditError ?? "null"}");
+            io.CancelEdit();
+
+            ioElement.RequiredRole = null;
+            io.RuntimeContext = ioContext;
+            io.Refresh();
+            Check("数值域（权限）：权限没配过（RequiredRole = null）→ 一律放行（旧 .vms 不用迁移的实现基础）",
+                io.IsEditable, $"editable={io.IsEditable}");
+
             // ② 显示换算：现场量纲 ≠ 画面量纲时靠它俩对齐
             ioElement.SetProperty("Gain", "2");
             ioElement.SetProperty("Offset", "5");
@@ -3036,25 +3248,29 @@ namespace ScadaChecks
             ioElement.SetProperty("FormatType", IOFieldElement.FormatDecimal);
             io.Refresh();
 
-            // ⑦ 只写模式：值只往变量里送，不往画面里拉
-            ioElement.SetProperty("Mode", IOFieldElement.ModeInput);
+            // ⑦ 两档模式的旧值兜底：撤掉"只写"档之后，判"是不是读写档"用的是"不等于 Output"
+            //
+            // 这里刻意不走常量、直接写字符串 "Input"：那是撤档之前存盘的画面里可能残留的值
+            // （常量已删，只能这么造）。按"等于 InputOutput"去判，这种域会变成只读，
+            // 表现是"存盘时能改、打开后改不动"——比"多能写"难查得多。
+            ioElement.SetProperty("Mode", "Input");
             ioElement.SetProperty("Value", "7");
             io.Refresh();
-            Check("数值域（只写模式）：同样可编辑（模式允许写 + 有写通道 + 绑了变量）",
-                io.IsEditable, $"editable={io.IsEditable}");
+            Check("数值域（旧值兜底）：画面里残留的 Mode=\"Input\" 归入读写档，不会变成只读",
+                io.IsEditable && io.Mode == "Input", $"editable={io.IsEditable} / mode={io.Mode}");
 
             var ioValueSpec = ElementRegistry.FindProperty("Hmi.IOField", "Value")!;
             var ioApplied = io.TryApplyRuntimeValue(ioValueSpec, 88d, null, out var ioApplyError);
-            Check("数值域（只写模式）：变量刷新被认下但不落到控件上（否则操作员正打字、数字自己跳走）",
-                ioApplied && ioApplyError == null && io.Value == 7,
+            Check("数值域：变量刷新照常落到控件上（\"只写\"档撤掉之后不再有例外——每一档都跟随变量）",
+                ioApplied && ioApplyError == null && io.Value == 88d,
                 $"applied={ioApplied} / value={io.Value}");
 
             io.BeginEdit();
             io.EditText = "42";
             io.CommitEdit();
-            Check("数值域（只写模式）：提交成功后本地承接这次输入（那条变量刷新被拒收了，不接一下框里会一直停在旧数）",
-                io.Value == 42 && ioWriter.Writes[^1].Text == "42",
-                $"value={io.Value} / 写出=\"{ioWriter.Writes[^1].Text}\"");
+            Check("数值域：提交只把新值交给写通道，自己不接（值由变量持有，数据泵马上读回来；自己接一份就是画面与变量各存一份）",
+                ioWriter.Writes[^1].Text == "42" && io.Value == 88d,
+                $"写出=\"{ioWriter.Writes[^1].Text}\" / value={io.Value}");
 
             // ⑧ 描述符：新属性必须落在描述符里，属性面板才会出现它们
             var ioSpec = ElementRegistry.Find("Hmi.IOField")!;
@@ -3071,12 +3287,16 @@ namespace ScadaChecks
                 && ioSpec.Properties.Any(p => p.Key == "OverMaxColor" && p.Group == "限制"),
                 string.Join(" / ", ioSpec.Properties.Where(p => p.Group == "限制").Select(p => p.Key)));
 
-            Check("数值域描述符：模式三条候选值就是三个常量（属性面板的下拉直接吃这份声明，两处不会各写一份）",
+            Check("数值域描述符：模式只有「只读 / 读写」两档（撤掉的「只写」不再出现在候选里，常量也随之删掉）",
                 ioSpec.Properties.First(p => p.Key == "Mode").Choices.SequenceEqual(
-                    new[] { IOFieldElement.ModeOutput, IOFieldElement.ModeInput, IOFieldElement.ModeInputOutput })
+                    new[] { IOFieldElement.ModeOutput, IOFieldElement.ModeInputOutput })
                 && ioSpec.Properties.First(p => p.Key == "FormatType").Choices.SequenceEqual(
                     new[] { IOFieldElement.FormatDecimal, IOFieldElement.FormatHex, IOFieldElement.FormatBinary }),
                 string.Join(",", ioSpec.Properties.First(p => p.Key == "Mode").Choices));
+
+            Check("数值域描述符：两档模式都有中文译名（属性面板的下拉直接念这两句）",
+                ScadaChoiceNames.DisplayName("Output") == "只读" && ScadaChoiceNames.DisplayName("InputOutput") == "读写",
+                $"{ScadaChoiceNames.DisplayName("Output")} / {ScadaChoiceNames.DisplayName("InputOutput")}");
 
             // ⑨ 「输入完成时」事件：只在"提交成功"那一刻发（手册 7.5.2 把它挂在数字IO域上）
             //
@@ -3133,7 +3353,7 @@ namespace ScadaChecks
             //   ① 显示什么（DisplayText / DisplayFill / DisplayForeground）= 状态 + 六条状态外观推出来的；
             //   ② 按下/释放各写什么 = 六模式各自的位语义（写出去的是 "1"/"0"，
             //      落到 bool 变量靠的是既有转换器认 1/0、true/false、是/否——不必新增动作类型）；
-            //   ③ 能不能操作（CanOperate）= 有写通道 且 「读变量」真绑了变量 且 没被禁用。
+            //   ③ 能不能操作（CanOperate）= 有写通道 且 「读变量」真绑了变量 且 没被禁用 且 当前角色够格。
             //
             // 按下/释放不伪造鼠标事件，而是走控件公开的 BeginPress / ReleasePress / CancelPress
             // （与数值域的 BeginEdit 同一先例）：MouseEventArgs 连公开构造函数都没有，
@@ -3260,7 +3480,7 @@ namespace ScadaChecks
                 && bitPressOffCancel.Release.Count == 1 && bitPressOffCancel.Release[0] == "1",
                 Texts(bitPressOffCancel));
 
-            // --- ④ 能不能操作：三条件缺一不可（与数值域 IsEditable 同一口径）---
+            // --- ④ 能不能操作：四条件缺一不可（与数值域 IsEditable 同一口径）---
             int bitWrites = bitWriter.Writes.Count;
 
             bit.RuntimeContext = null;
@@ -3302,6 +3522,45 @@ namespace ScadaChecks
             bit.ReleasePress();
             Check("位按钮：释放后按下态必然熄灭（滑开/释放都收口到同一个 EndPress）",
                 !bit.IsPressed, $"pressed={bit.IsPressed}");
+
+            // --- ④-2 权限（第四条闸门）：写前先查 ---
+            //
+            // 这条闸门只能卡在图元自己身上：写通道只认"变量收不收这个值"，它不认识角色；
+            // 领域层那条闸门（ScadaRuntime.RaiseElementEvent）卡的是事件钩子，不是写入本身。
+            // 两边都不管的话，"谁都不许按的按钮，按下去却把变量改了"就是这么漏出来的。
+            var bitPolicy = new FakeAccessPolicy { CurrentRole = ScadaRole.Operator };
+            bit.RuntimeContext = new ScadaRuntimeContext(ioEngine, ioBeat, bitWriter, bitPolicy);
+            bitElement.RequiredRole = ScadaRole.Engineer;
+            bit.Refresh();
+
+            bitWrites = bitWriter.Writes.Count;
+            bit.BeginPress();
+            Check("位按钮（权限）：配了「工程师」、当前是「操作员」→ 不写、按下态也不亮",
+                !bit.IsPressed && bitWriter.Writes.Count == bitWrites,
+                $"pressed={bit.IsPressed} / 新增写入={bitWriter.Writes.Count - bitWrites}");
+            bit.ReleasePress();
+
+            bitPolicy.CurrentRole = ScadaRole.Engineer;
+            bit.Refresh();
+            bit.BeginPress();
+            Check("位按钮（权限）：换成「工程师」→ 照常写（够格就放行，按钮本身的位语义一点没变）",
+                bit.IsPressed && bitWriter.Writes.Count > bitWrites,
+                $"pressed={bit.IsPressed} / 新增写入={bitWriter.Writes.Count - bitWrites}");
+            bit.ReleasePress();
+
+            // 权限没配过 = 不限制：把要求摘掉，同一位「操作员」立刻又能按。
+            // 旧 .vms 里根本没有 RequiredRole 这个字段，读出来就是 null——"不限制"这条是它们能照常跑的基础。
+            bitElement.RequiredRole = null;
+            bit.Refresh();
+            bitWrites = bitWriter.Writes.Count;
+            bit.BeginPress();
+            Check("位按钮（权限）：把要求摘掉（RequiredRole = null）→ 同一位「操作员」立刻又能按（旧 .vms 不用迁移的实现基础）",
+                bit.IsPressed && bitWriter.Writes.Count > bitWrites,
+                $"pressed={bit.IsPressed} / 新增写入={bitWriter.Writes.Count - bitWrites}");
+            bit.ReleasePress();
+
+            bit.RuntimeContext = bitContext;
+            bit.Refresh();
 
             // --- ⑤ 描述符：新属性必须落在描述符里，属性面板才会出现它们 ---
             var bitSpec = ElementRegistry.Find("Hmi.BitButton")!;
@@ -4647,57 +4906,60 @@ namespace ScadaChecks
 
             var menu = editor.BuildElementContextMenu();
 
-            Check("右键菜单十栏且次序冻结：图层 + 叠放次序（标题带当前位次）+ 对齐与分布 + 复制 + 粘贴 + 再制 + 存为模板… + 锁定/解锁 + 组合/取消组合 + 删除图元（删除放末尾，免得误点）",
-                menu.Count == 10 && menu[0].Name == "图层"
+            Check("右键菜单十三栏且次序冻结：图层 + 叠放次序（标题带当前位次）+ 对齐与分布 + 等尺寸 + 等间距 + 对齐网格 + 复制 + 粘贴 + 再制 + 存为模板… + 锁定/解锁 + 组合/取消组合 + 删除图元（删除放末尾，免得误点）",
+                menu.Count == 13 && menu[0].Name == "图层"
                 && menu[1].Name.StartsWith("叠放次序（", StringComparison.Ordinal)
                 && menu[2].Name == "对齐与分布"
-                && menu[3].Name == "复制"
-                && menu[4].Name == "粘贴"
-                && menu[5].Name == "再制"
-                && menu[6].Name == "存为模板…"
-                && (menu[7].Name == "锁定图元" || menu[7].Name == "解锁图元")
-                && (menu[8].Name == "组合" || menu[8].Name == "取消组合")
-                && menu[9].Name == "删除图元",
+                && menu[3].Name == "等尺寸"
+                && menu[4].Name == "等间距"
+                && menu[5].Name == "对齐网格"
+                && menu[6].Name == "复制"
+                && menu[7].Name == "粘贴"
+                && menu[8].Name == "再制"
+                && menu[9].Name == "存为模板…"
+                && (menu[10].Name == "锁定图元" || menu[10].Name == "解锁图元")
+                && (menu[11].Name == "组合" || menu[11].Name == "取消组合")
+                && menu[12].Name == "删除图元",
                 string.Join(" / ", menu.Select(m => m.Name)));
 
-            Check("前三栏是分组项：各带图标、自己不执行任何动作，点开才见子项",
-                menu.Take(3).All(m => m.HasChildren && m.Command == null && !string.IsNullOrEmpty(m.Icon)),
-                string.Join(" / ", menu.Take(3).Select(m => $"{m.Name}:子项{m.Children.Count}")));
+            Check("前五栏是分组项：各带图标、自己不执行任何动作，点开才见子项",
+                menu.Take(5).All(m => m.HasChildren && m.Command == null && !string.IsNullOrEmpty(m.Icon)),
+                string.Join(" / ", menu.Take(5).Select(m => $"{m.Name}:子项{m.Children.Count}")));
 
             // 剪贴板三件（复制 / 粘贴 / 再制）紧挨着摆、不折进子菜单：用得最勤的一组，折一层就多一次移动和判断。
             // 三者都是叶子项、各带图标与命令，且判灰（CanExecute）各自跟着自己的判据走——
             // 复制要选中集合非空、粘贴要有货且有画面。判据全在命令那一侧，菜单这一层不重算。
-            Check("第四~六栏是剪贴板三件（复制 / 粘贴 / 再制）：叶子项、各带图标与命令、按此序紧挨着摆",
-                menu.Skip(3).Take(3).All(m => !m.HasChildren && m.Command != null && !string.IsNullOrEmpty(m.Icon))
-                && menu[3].Command == editor.CopyCommand
-                && menu[4].Command == editor.PasteCommand
-                && menu[5].Command == editor.DuplicateCommand,
-                string.Join(" / ", menu.Skip(3).Take(3).Select(m => $"{m.Name}:命令={(m.Command == null ? "null" : "有")}")));
+            Check("第七~九栏是剪贴板三件（复制 / 粘贴 / 再制）：叶子项、各带图标与命令、按此序紧挨着摆",
+                menu.Skip(6).Take(3).All(m => !m.HasChildren && m.Command != null && !string.IsNullOrEmpty(m.Icon))
+                && menu[6].Command == editor.CopyCommand
+                && menu[7].Command == editor.PasteCommand
+                && menu[8].Command == editor.DuplicateCommand,
+                string.Join(" / ", menu.Skip(6).Take(3).Select(m => $"{m.Name}:命令={(m.Command == null ? "null" : "有")}")));
 
             // "存为模板…"与上面三件同属"把选中的东西变成一份可再用的内容"，故紧随再制之后、锁定之前。
             // 标题必须带省略号——点下去还会问一个名字，不带就是骗用户"点一下就完了"。
-            Check("第七栏是「存为模板…」：叶子项、自带图标与命令，且标题带省略号（点下去要问名字，不能装成一步完成）",
-                !menu[6].HasChildren && menu[6].Command == editor.SaveTemplateCommand
-                && !string.IsNullOrEmpty(menu[6].Icon) && menu[6].Name.EndsWith("…", StringComparison.Ordinal),
-                $"{menu[6].Name}:子项{menu[6].Children.Count} / 命令={(menu[6].Command == null ? "null" : "有")}");
+            Check("第十栏是「存为模板…」：叶子项、自带图标与命令，且标题带省略号（点下去要问名字，不能装成一步完成）",
+                !menu[9].HasChildren && menu[9].Command == editor.SaveTemplateCommand
+                && !string.IsNullOrEmpty(menu[9].Icon) && menu[9].Name.EndsWith("…", StringComparison.Ordinal),
+                $"{menu[9].Name}:子项{menu[9].Children.Count} / 命令={(menu[9].Command == null ? "null" : "有")}");
 
             // 锁定、组合与删除同属"改保护位/改关系/改内容"的一组（上面几栏只换个摆法/搬份内容），
             // 所以都排在删除之前。三者都是叶子项：自带命令与图标——点下去要真生效，不能只是个标题。
-            Check("第八栏是锁定叶子项：无子项、自带命令与图标（与组合、删除同属'改内容'，排在删除之前）",
-                !menu[7].HasChildren && menu[7].Command != null && !string.IsNullOrEmpty(menu[7].Icon),
-                $"{menu[7].Name}:子项{menu[7].Children.Count} / 命令={(menu[7].Command == null ? "null" : "有")}");
+            Check("第十一栏是锁定叶子项：无子项、自带命令与图标（与组合、删除同属'改内容'，排在删除之前）",
+                !menu[10].HasChildren && menu[10].Command != null && !string.IsNullOrEmpty(menu[10].Icon),
+                $"{menu[10].Name}:子项{menu[10].Children.Count} / 命令={(menu[10].Command == null ? "null" : "有")}");
 
             // 组合与锁定同形（叶子项、自带命令与图标），且紧随锁定之后——两者都是"改图元之间的关系/保护状态"。
-            Check("第九栏是组合叶子项：无子项、自带命令与图标（与锁定同形，排在删除之前）",
-                !menu[8].HasChildren && menu[8].Command != null && !string.IsNullOrEmpty(menu[8].Icon),
-                $"{menu[8].Name}:子项{menu[8].Children.Count} / 命令={(menu[8].Command == null ? "null" : "有")}");
+            Check("第十二栏是组合叶子项：无子项、自带命令与图标（与锁定同形，排在删除之前）",
+                !menu[11].HasChildren && menu[11].Command != null && !string.IsNullOrEmpty(menu[11].Icon),
+                $"{menu[11].Name}:子项{menu[11].Children.Count} / 命令={(menu[11].Command == null ? "null" : "有")}");
 
             // 删除与上面几栏分组项的形态刻意不同：它不是"换摆法"而是"改内容"，所以是叶子项而不是分组，
             // 且必须自己带命令与图标——点下去要真删，不能只是个标题。
             // （锁定、组合两栏也是叶子项，同属"改内容"，只是删除放在最末——末位留给唯一不可逆的那一项。）
             Check("末栏是叶子项：无子项、自带命令与图标（分组形态会让它点下去毫无反应）",
-                !menu[9].HasChildren && menu[9].Command != null && !string.IsNullOrEmpty(menu[9].Icon),
-                $"{menu[9].Name}:子项{menu[9].Children.Count} / 命令={(menu[9].Command == null ? "null" : "有")}");
+                !menu[12].HasChildren && menu[12].Command != null && !string.IsNullOrEmpty(menu[12].Icon),
+                $"{menu[12].Name}:子项{menu[12].Children.Count} / 命令={(menu[12].Command == null ? "null" : "有")}");
 
             var hostPage = editor.SelectedPage!;
             var extraLayer = hostPage.AddLayer("设备层");
@@ -4944,6 +5206,164 @@ namespace ScadaChecks
                 && Math.Abs((d2.X - (d1.X + d1.Width)) - (d3.X - (d2.X + d2.Width))) < 1e-9,
                 $"X={d1.X}/{d2.X}/{d3.X} 宽={d1.Width}/{d2.Width}/{d3.Width}");
 
+            // ---- 领域层：TryMatchElementSize / TrySpaceElements / TrySnapElementsToGrid ----
+            //
+            // 三条新写入口与 TryAlignElements 同一副骨架：数量下界 → 可编辑过滤 → 一次 BeginEdit。
+            // 这里逐条钉"什么时候拒绝、拒绝时说什么"与"算式对不对"，理由同上——
+            // 菜单判灰读的是同一个 MinimumCount，但那只是"提前告诉用户"；从键盘、脚本或将来
+            // 别处进来的调用绕不过菜单，只能靠这一道真拦下来。
+
+            // 等尺寸：基准是"最大者"（用户已拍板），且等大小必须恒等于"先等宽再等高"。
+            var szA = editor.AddElement("Hmi.Rectangle", new Point(0, 0))!;
+            var szB = editor.AddElement("Hmi.Rectangle", new Point(60, 0))!;
+            var szLocked = editor.AddElement("Hmi.Rectangle", new Point(120, 0))!;
+            szA.Width = 30;
+            szA.Height = 10;
+            szB.Width = 80;
+            szB.Height = 40;
+            szLocked.Width = 500;
+            szLocked.Height = 500;
+            szLocked.IsLocked = true;
+
+            Check("等尺寸只给一个图元：拒绝并给出人话（等尺寸至少要两个）",
+                !hostPage.TryMatchElementSize(new[] { szA }, ScadaSizeMatch.Width, out string sizeOneErr)
+                && sizeOneErr.Contains("至少") && sizeOneErr.Contains("2"),
+                sizeOneErr);
+
+            Check("等尺寸基准取可编辑里最大的那个（30/80 → 80）：锁定的大图元既不改也不当基准，位置全程不动",
+                hostPage.TryMatchElementSize(new[] { szA, szB, szLocked }, ScadaSizeMatch.Width, out _)
+                && szA.Width == 80 && szB.Width == 80 && szLocked.Width == 500
+                && szA.X == 0 && szB.X == 60,
+                $"宽={szA.Width}/{szB.Width}/{szLocked.Width} X={szA.X}/{szB.X}");
+
+            ScadaEditHistory.Clear();
+            szA.Width = 30;
+            Check("一次等尺寸 = 一条撤销记录（批量改 10 个不该要按 10 次 Ctrl+Z）",
+                hostPage.TryMatchElementSize(new[] { szA, szB }, ScadaSizeMatch.Width, out _)
+                && szA.Width == 80 && ScadaEditHistory.UndoCount == 1,
+                $"{ScadaEditHistory.UndoCount} 条");
+
+            Check("等尺寸：一个可编辑 + 一个锁定 → 可排的只剩一个，拒绝并点名「锁定的图元不参与」",
+                !hostPage.TryMatchElementSize(new[] { szA, szLocked }, ScadaSizeMatch.Width, out string sizeLockErr)
+                && sizeLockErr.Contains("锁定"),
+                sizeLockErr);
+
+            Check("等尺寸传 null：拒绝而不是抛（菜单与脚本共用这条入口）",
+                !hostPage.TryMatchElementSize(null, ScadaSizeMatch.Width, out string sizeNullErr)
+                && sizeNullErr.Length > 0,
+                sizeNullErr);
+
+            Check("等尺寸：不属于本画面的图元被剔除，本画面的也不会被它的尺寸带偏",
+                !hostPage.TryMatchElementSize(new[] { szA, foreignElement }, ScadaSizeMatch.Width, out string sizeForeignErr)
+                && szA.Width == 80,
+                sizeForeignErr);
+
+            // 等大小必须恒等于"先等宽再等高"：各算各的迟早出现"点一个按钮和点两个按钮得到两张画面"。
+            var szBothA = editor.AddElement("Hmi.Rectangle", new Point(0, 300))!;
+            var szBothB = editor.AddElement("Hmi.Rectangle", new Point(100, 300))!;
+            szBothA.Width = 20;
+            szBothA.Height = 90;
+            szBothB.Width = 70;
+            szBothB.Height = 30;
+
+            Check("等大小：两根轴各自取最大（宽 70、高 90），恒等于「先等宽再等高」",
+                hostPage.TryMatchElementSize(new[] { szBothA, szBothB }, ScadaSizeMatch.Both, out _)
+                && szBothA.Width == 70 && szBothA.Height == 90
+                && szBothB.Width == 70 && szBothB.Height == 90,
+                $"{szBothA.Width}×{szBothA.Height} / {szBothB.Width}×{szBothB.Height}");
+
+            // 等间距：第一个钉住、间距由调用方给定（用户已拍板），与"分布两端钉住"互为反面。
+            var spA = editor.AddElement("Hmi.Rectangle", new Point(0, 500))!;
+            var spB = editor.AddElement("Hmi.Rectangle", new Point(100, 500))!;
+            var spC = editor.AddElement("Hmi.Rectangle", new Point(300, 500))!;
+            spA.Width = 20;
+            spB.Width = 30;
+            spC.Width = 40;
+
+            Check("等间距只给一个图元：拒绝并给出人话（等间距至少要两个）",
+                !hostPage.TrySpaceElements(new[] { spA }, ScadaSpacing.Horizontal, 10, out string spaceOneErr)
+                && spaceOneErr.Contains("至少") && spaceOneErr.Contains("2"),
+                spaceOneErr);
+
+            Check("水平等间距：第一个原地不动，其余按「前一个的右边 + 10」依次落位（0 → 30 → 70）",
+                hostPage.TrySpaceElements(new[] { spA, spB, spC }, ScadaSpacing.Horizontal, 10, out _)
+                && spA.X == 0 && spB.X == 30 && spC.X == 70,
+                $"X={spA.X}/{spB.X}/{spC.X}");
+
+            Check("等间距：一个可编辑 + 一个锁定 → 拒绝并点名「锁定的图元不参与」",
+                !hostPage.TrySpaceElements(new[] { spA, szLocked }, ScadaSpacing.Horizontal, 10, out string spaceLockErr)
+                && spaceLockErr.Contains("锁定"),
+                spaceLockErr);
+
+            Check("等间距传 null：拒绝而不是抛",
+                !hostPage.TrySpaceElements(null, ScadaSpacing.Horizontal, 10, out string spaceNullErr)
+                && spaceNullErr.Length > 0,
+                spaceNullErr);
+
+            Check("等间距：不属于本画面的图元被剔除，锚点图元纹丝不动",
+                !hostPage.TrySpaceElements(new[] { spA, foreignElement }, ScadaSpacing.Horizontal, 10, out string spaceForeignErr)
+                && spA.X == 0,
+                spaceForeignErr);
+
+            Check("间距给负数也照排：重叠是「排匀」的合法结果，与分布同一取舍",
+                hostPage.TrySpaceElements(new[] { spA, spB }, ScadaSpacing.Horizontal, -5, out _)
+                && spB.X == 15,
+                $"X={spA.X}/{spB.X}");
+
+            // 垂直那一档按 Y 轴排序：拿错轴会把顺序搅乱，所以特意把入参次序倒着给。
+            var spV1 = editor.AddElement("Hmi.Rectangle", new Point(600, 0))!;
+            var spV2 = editor.AddElement("Hmi.Rectangle", new Point(600, 80))!;
+            spV1.Height = 15;
+            spV2.Height = 25;
+
+            Check("垂直等间距按 Y 轴排序（入参倒着给也认得出谁在头里），第一个仍原地不动",
+                hostPage.TrySpaceElements(new[] { spV2, spV1 }, ScadaSpacing.Vertical, 5, out _)
+                && spV1.Y == 0 && spV2.Y == 20,
+                $"Y={spV1.Y}/{spV2.Y}");
+
+            // 对齐网格：吸"绝对位置"而不是"相对位移"（与画布拖动逐字同源），
+            // 且刻意不看 SnapToGrid 开关（用户已拍板）——按下它就是明确要求吸一次。
+            var gridA = editor.AddElement("Hmi.Rectangle", new Point(13, 27))!;
+            var gridB = editor.AddElement("Hmi.Rectangle", new Point(46, 4))!;
+
+            Check("对齐网格空表：拒绝并给出人话",
+                !hostPage.TrySnapElementsToGrid(Array.Empty<ScadaElement>(), out string gridEmptyErr)
+                && gridEmptyErr.Contains("至少"),
+                gridEmptyErr);
+
+            Check("对齐网格传 null：拒绝而不是抛",
+                !hostPage.TrySnapElementsToGrid(null, out string gridNullErr)
+                && gridNullErr.Length > 0,
+                gridNullErr);
+
+            Check("对齐网格：选中的全锁定时拒绝并点名「锁定的图元不参与」",
+                !hostPage.TrySnapElementsToGrid(new[] { szLocked }, out string gridLockErr)
+                && gridLockErr.Contains("锁定"),
+                gridLockErr);
+
+            // 网格步长的门槛必须与画布 GridStep 同源：小于 1（或 NaN）视为"没有可用的网格"。
+            // 不同源就会出现"画布上拖不动、按钮却把图元吸到 0.3 像素格点上"。
+            double gridSizeBefore = hostPage.GridSize;
+            hostPage.GridSize = 0.5;
+            Check("网格间距小于 1：拒绝并给出人话，图元一动不动",
+                !hostPage.TrySnapElementsToGrid(new[] { gridA }, out string gridTinyErr)
+                && gridTinyErr.Contains("网格") && gridA.X == 13 && gridA.Y == 27,
+                gridTinyErr);
+
+            hostPage.GridSize = double.NaN;
+            Check("网格间距是 NaN：同样拒绝（NaN 参与运算会把坐标算成 NaN，那是「图元凭空消失」级的破坏）",
+                !hostPage.TrySnapElementsToGrid(new[] { gridA }, out string gridNaNErr)
+                && !double.IsNaN(gridA.X) && !double.IsNaN(gridA.Y),
+                gridNaNErr);
+
+            hostPage.GridSize = gridSizeBefore;
+            hostPage.SnapToGrid = false;
+            Check("关掉「吸附」开关照样吸：那开关管的是拖动，对齐网格是一次显式命令（用户已拍板）",
+                hostPage.TrySnapElementsToGrid(new[] { gridA, gridB }, out _)
+                && gridA.X == 10 && gridA.Y == 30 && gridB.X == 50 && gridB.Y == 0,
+                $"{gridA.X},{gridA.Y} / {gridB.X},{gridB.Y}");
+            hostPage.SnapToGrid = true;
+
             ScadaEditHistory.Clear();
 
             editor.SelectedElement = null;
@@ -5095,7 +5515,7 @@ namespace ScadaChecks
             // 词汇表是"面板显示中文"的唯一产地，也是将来做中英切换要换的那张表。
             // 这里钉的是它的两条对外契约：认得的值翻成中文、认不得的原样返回（原样返回的理由见类注释）。
             Check("词汇表：认得的值翻中文，认不得的原样返回（位按钮的中文候选、权限行的「不限制」都靠这一条）",
-                ScadaChoiceNames.DisplayName("Output") == "输出"
+                ScadaChoiceNames.DisplayName("Output") == "只读"
                 && ScadaChoiceNames.DisplayName("Circle") == "圆形"
                 && ScadaChoiceNames.DisplayName("置位") == "置位"
                 && ScadaChoiceNames.DisplayName("不限制") == "不限制"
@@ -5608,8 +6028,8 @@ namespace ScadaChecks
 
             // 菜单用到的码点逐个验：缺一个字形就是一格空白/豆腐块，而字符串层的断言照样全绿——
             // 那种绿是骗人的。这里把整份清单列全（图层 + 叠放四箭头 + 垃圾桶 + 对齐与分布九颗 + 锁定/解锁
-            // + 复制/粘贴/再制/存为模板），以后换字形或改码点，漏验的这颗会以"证据图上一格空白"的形式暴露，
-            // 而不是靠人眼去数。
+            // + 复制/粘贴/再制/存为模板 + 等尺寸/等间距两栏与对齐网格），以后换字形或改码点，
+            // 漏验的这颗会以"证据图上一格空白"的形式暴露，而不是靠人眼去数。
             var menuGlyphs = new (uint Code, string What)[]
             {
                 (0xF5FD, "图层"),
@@ -5634,6 +6054,14 @@ namespace ScadaChecks
                 (0xF0EA, "粘贴"),
                 (0xF24D, "再制"),
                 (0xF02E, "存为模板"),
+                (0xF065, "等尺寸（分组）"),
+                (0xE4BA, "等宽"),
+                (0xF07D, "等高"),
+                (0xF424, "等大小"),
+                (0xF550, "等间距（分组）"),
+                (0xF7A5, "水平等间距"),
+                (0xF7A4, "垂直等间距"),
+                (0xF84C, "对齐网格"),
             };
 
             bool hasIconGlyphs = iconFace.TryGetGlyphTypeface(out var iconGlyphs);
@@ -5698,16 +6126,21 @@ namespace ScadaChecks
             var layerMenu = BuildMenu(menuDesc[0].Children);
             var zMenu = BuildMenu(menuDesc[1].Children);
             var alignMenu = BuildMenu(menuDesc[2].Children);
+            var sizeMenu = BuildMenu(menuDesc[3].Children);
+            var spacingMenu = BuildMenu(menuDesc[4].Children);
 
             var headerItems = headerMenu.Items.OfType<MenuItem>().ToList();
-            Check("顶层十栏都翻成了控件：前三栏是分组项（各有子项、自己不带命令），第四~七栏是剪贴板与模板叶子项，末三栏是锁定/组合/删除叶子项",
-                headerItems.Count == 10
+            Check("顶层十三栏都翻成了控件：前五栏是分组项（各有子项、自己不带命令），第六栏起是叶子项"
+                + "（对齐网格 + 剪贴板三件 + 存模板 + 锁定 + 组合 + 删除）",
+                headerItems.Count == 13
                 && headerItems.All(m => m.Icon is string icon && icon.Length > 0)
-                && headerItems.Take(3).All(m => m.Items.Count > 0 && m.Command == null)
+                && headerItems.Take(5).All(m => m.Items.Count > 0 && m.Command == null)
                 && headerItems[0].Items.Count == menuDesc[0].Children.Count
                 && headerItems[1].Items.Count == menuDesc[1].Children.Count
                 && headerItems[2].Items.Count == menuDesc[2].Children.Count
-                && headerItems.Skip(3).All(m => m.Items.Count == 0 && m.Command != null),
+                && headerItems[3].Items.Count == menuDesc[3].Children.Count
+                && headerItems[4].Items.Count == menuDesc[4].Children.Count
+                && headerItems.Skip(5).All(m => m.Items.Count == 0 && m.Command != null),
                 string.Join(" / ", headerItems.Select(m => $"{m.Header}:子项{m.Items.Count}")));
 
             // 勾选态要真的长在模板上：默认模板里 CheckMark 是 Collapsed，只有 IsChecked=True 才翻出来。
@@ -5763,6 +6196,29 @@ namespace ScadaChecks
                 && alignShotItems.All(i => i.IsEnabled),
                 string.Join("、", alignShotItems.Select(i => $"{i.Header}={i.Icon}")));
 
+            // 新增的两栏与「对齐网格」那一项也各钉一次：它们和「对齐与分布」是同一类缺陷面
+            //（翻译漏抄 Command 或漏抄 CanExecute，菜单长得一模一样、点了一点反应没有）。
+            // 「对齐网格」是顶层第六栏的叶子项，判灰跟着工具栏那条属性型命令走。
+            var sizeShotItems = sizeMenu.Items.OfType<MenuItem>().ToList();
+            var spacingShotItems = spacingMenu.Items.OfType<MenuItem>().ToList();
+            var sizeAndSpacing = sizeShotItems.Concat(spacingShotItems).ToList();
+
+            Check("「等尺寸」「等间距」两栏翻出来（3 项 / 2 项），各带图标、同栏内图标互不相同、选中三个时全亮",
+                sizeShotItems.Count == menuDesc[3].Children.Count && sizeShotItems.Count == 3
+                && spacingShotItems.Count == menuDesc[4].Children.Count && spacingShotItems.Count == 2
+                && sizeAndSpacing.All(i => i.Icon is string a && a.Length > 0 && i.Command != null)
+                && sizeShotItems.Select(i => (string)i.Icon).Distinct().Count() == 3
+                && spacingShotItems.Select(i => (string)i.Icon).Distinct().Count() == 2
+                && sizeAndSpacing.All(i => i.IsEnabled),
+                string.Join("、", sizeAndSpacing.Select(i => $"{i.Header}={i.Icon}")));
+
+            var gridShotItem = headerItems[5];
+            Check("「对齐网格」是顶层第六栏的叶子项：带图标、有命令、自己没有子项",
+                gridShotItem.Header is string gridHeader && gridHeader == "对齐网格"
+                && gridShotItem.Icon is string gridIcon && gridIcon.Length > 0
+                && gridShotItem.Items.Count == 0 && gridShotItem.Command != null,
+                $"{gridShotItem.Header}={gridShotItem.Icon} / 子项{gridShotItem.Items.Count}");
+
             // 真执行一次：走的是控件上那颗 Command（翻译搬过来的那个），不是描述里那个。
             // 判灰亮着只说明"能点"，点下去动不动还得看 Command 有没有被搬到控件上。
             var alignGroupShot = new[] { shotLamp, alignShotA, alignShotB };
@@ -5801,6 +6257,8 @@ namespace ScadaChecks
                          (layerMenu, "scada-element-context-menu-layer.png"),
                          (zMenu, "scada-element-context-menu-zorder.png"),
                          (alignMenu, "scada-element-context-menu-align.png"),
+                         (sizeMenu, "scada-element-context-menu-size.png"),
+                         (spacingMenu, "scada-element-context-menu-spacing.png"),
                      })
             {
                 string path = Path.Combine(shotDir, fileName);
@@ -9561,6 +10019,421 @@ namespace ScadaChecks
         }
 
         // ==================================================================
+        //  [ACfg] 报警配置弹窗：平铺表增删改 + 就地编辑 + 撤销作用域 + 审计
+        //
+        //  这一节钉的是"报警定义没有归属图元、属性面板里没有落脚点"这件事的解法：
+        //  一个专门管方案级报警表的弹窗（平铺表 + 就地编辑 + 顶部工具条）。
+        //  断言分五组：
+        //    · 表结构：空方案为空、新增自动命名并选中、条数提示与空态标志同步；
+        //    · 就地写回：改一个单元格 = 立刻落进模型 + 包一层作用域（撤销得回去）；
+        //    · 校验：数值填错回灌原值 + 中文原因；改名查重拒收并回灌；
+        //    · 报警组：自由文本 + 历史值下拉（候选来自本方案已用过的组名）；
+        //    · 审计与关闭：成功 / 失败都留痕，署名来自注入的提供者。
+        //  与 [VEd] 的关键差别：本弹窗的增删改名走 ScadaDocument 那三个"自带作用域"的方法，
+        //  所以断言能直接数撤销栈条数——一次操作 = 一条记录，不会被外面多包一层拆成两条。
+        // ==================================================================
+        private static void AlarmConfigDialogChecks()
+        {
+            Section("[ACfg] 报警配置弹窗：平铺表增删改 + 就地编辑 + 撤销作用域 + 审计");
+
+            Exception? failure = null;
+
+            // 样板与 [VEd] 一致：单开 STA 线程，把弹窗整条链（含审计落盘）走完。
+            var thread = new Thread(() =>
+            {
+                try { RunAlarmConfigDialogChecks(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            thread.Join();
+
+            if (failure != null)
+                Check("报警配置弹窗断言全程未抛异常", false, failure.ToString());
+        }
+
+        private static void RunAlarmConfigDialogChecks()
+        {
+            var picker = new FakeVariablePicker();
+
+            var workspace = new WorkspaceContext();
+            var solution = new SolutionModel();
+            solution.Flows.Clear();
+            workspace.SwitchSolution(solution);
+            workspace.GlobalVariables.Clear();
+            var doc = solution.Scada;
+
+            var vm = new ScadaAlarmConfigDialogViewModel(workspace, picker);
+            vm.OnDialogOpened(new DialogParameters());
+
+            // ---------------- ① 空方案：表里一条都没有 ----------------
+
+            Check("方案里一条报警都没有时表为空（空态提示靠 HasRows 显隐）",
+                vm.Rows.Count == 0 && !vm.HasRows && vm.AlarmCount == 0 && vm.CountHint == "共 0 条报警",
+                $"行数 {vm.Rows.Count} / HasRows={vm.HasRows} / 「{vm.CountHint}」");
+
+            Check("刚打开时不预选任何一行（免得随手一个回车就把某条报警删了）",
+                vm.SelectedRow == null && !vm.HasSelection, $"选中=「{vm.SelectedRow?.Name}」");
+
+            Check("没有选中行时「删除」「选择变量」置灰，而「新增」始终可用（新增不需要先选）",
+                vm.AddCommand.CanExecute() && !vm.RemoveCommand.CanExecute() && !vm.PickVariableCommand.CanExecute(),
+                $"新增={vm.AddCommand.CanExecute()} / 删除={vm.RemoveCommand.CanExecute()} / 选变量={vm.PickVariableCommand.CanExecute()}");
+
+            // ---------------- ② 新增：自动命名 + 自动选中 + 默认值来自领域层 ----------------
+
+            vm.AddCommand.Execute();
+
+            Check("点「新增」真的建进方案（AddAlarm 内部自带作用域，弹窗不重复包一层）",
+                doc.Alarms.Count == 1 && vm.Rows.Count == 1, $"方案 {doc.Alarms.Count} 条 / 表 {vm.Rows.Count} 行");
+
+            Check("新增后条数提示与空态标志同步（不刷新的话标题栏还写着「共 0 条报警」）",
+                vm.AlarmCount == 1 && vm.CountHint == "共 1 条报警" && vm.HasRows,
+                $"「{vm.CountHint}」/ HasRows={vm.HasRows}");
+
+            var row1 = vm.Rows[0];
+
+            Check("新增后自动选中这一条（工具条的删除 / 选变量立刻可用）",
+                ReferenceEquals(vm.SelectedRow, row1) && vm.HasSelection
+                && vm.RemoveCommand.CanExecute() && vm.PickVariableCommand.CanExecute(),
+                $"选中=「{vm.SelectedRow?.Name}」");
+
+            Check("新报警的名字是领域层自动给的「报警_1」",
+                row1.Name == "报警_1" && row1.Model.Name == "报警_1", row1.Name);
+
+            Check("新报警的默认值来自 AddAlarm：种类高限、等级由 DefaultSeverity 推出（只在新建时给一次，之后改种类不再联动）",
+                row1.Kind == ScadaAlarmKind.High
+                && row1.Severity == ScadaAlarmKind.High.DefaultSeverity()
+                && row1.IsEnabled && row1.IsLimitKind && !row1.IsStaleKind && !row1.IsBooleanKind,
+                $"种类={row1.KindText} / 等级={row1.SeverityText} / 启用={row1.IsEnabled}");
+
+            Check("还没选变量时变量列显示「未选变量」兜底文案（不是一片空白）",
+                !row1.HasVariable && row1.VariableDisplay == "未选变量" && row1.VariableName == null,
+                $"「{row1.VariableDisplay}」");
+
+            // ---------------- ③ 就地改字段：立刻写回 + 包一层作用域 ----------------
+
+            ScadaEditHistory.Clear();
+
+            row1.ThresholdText = "80";
+
+            Check("改阈值立刻写进模型（本弹窗没有「确定」，每一次编辑都当场落盘）",
+                row1.Model.Threshold == 80 && row1.ThresholdText == "80" && !vm.HasError,
+                $"模型={row1.Model.Threshold} / 框内=「{row1.ThresholdText}」");
+
+            Check("一次字段编辑 = 撤销栈里一条记录，且记录名就是那次操作（撤销按钮据此显示提示）",
+                ScadaEditHistory.UndoCount == 1
+                && ScadaEditHistory.NextUndoLabel == "修改报警 [报警_1] 的阈值",
+                $"{ScadaEditHistory.UndoCount} 条 / 「{ScadaEditHistory.NextUndoLabel}」");
+
+            var undoneThreshold = ScadaEditHistory.Undo();
+
+            Check("撤销一次把阈值退回原值（作用域真的包住了这次 SetProperty）",
+                undoneThreshold && row1.Model.Threshold == 0 && row1.ThresholdText == "0",
+                $"模型={row1.Model.Threshold} / 框内=「{row1.ThresholdText}」");
+
+            ScadaEditHistory.Clear();
+            row1.ThresholdText = "0";
+            Check("填的数字和原值一样时不产记录（「点了但没改」不该占一次撤销位）",
+                ScadaEditHistory.UndoCount == 0, $"{ScadaEditHistory.UndoCount} 条");
+
+            // ---------------- ④ 数值校验：解析不了回灌原值 + 中文原因 ----------------
+
+            row1.ThresholdText = "8O";   // 字母 O，不是零
+
+            Check("填了非数字（8O，字母 O）：回灌原值 + 一句中文原因，模型一个数都不动",
+                vm.HasError && row1.ThresholdText == "0" && row1.Model.Threshold == 0
+                && (vm.ErrorMessage ?? string.Empty).Contains("请填数字"),
+                $"提示=「{vm.ErrorMessage}」/ 框内=「{row1.ThresholdText}」/ 模型={row1.Model.Threshold}");
+
+            row1.ThresholdText = "   ";
+            Check("清空数值格也算解析不了（给的是「不能为空」而不是「请填数字」），同样回灌原值",
+                vm.HasError && (vm.ErrorMessage ?? string.Empty).Contains("不能为空")
+                && row1.ThresholdText == "0" && row1.Model.Threshold == 0,
+                $"提示=「{vm.ErrorMessage}」");
+
+            // 领域层的下限夹取：回差 / 延时夹到 0，断线判定夹到 1（填进去的负数不会原样落盘）
+            row1.DeadbandText = "-5";
+            Check("回差填负数被领域层夹到 0（弹窗不自己判，落值口径只由模型一处决定）",
+                row1.Model.Deadband == 0 && row1.DeadbandText == "0",
+                $"模型={row1.Model.Deadband} / 框内=「{row1.DeadbandText}」");
+
+            row1.StaleSecondsText = "0";
+            Check("断线判定填 0 被夹到下限 1 秒（0 秒超时会让每次轮询都报断线）",
+                row1.Model.StaleSeconds == 1 && row1.StaleSecondsText == "1",
+                $"模型={row1.Model.StaleSeconds} / 框内=「{row1.StaleSecondsText}」");
+
+            // ---------------- ⑤ 种类与等级：下拉改值 + 摘要跟着换口径 ----------------
+
+            row1.Kind = ScadaAlarmKind.Stale;
+            Check("种类改「通信断线」立刻写回，且「阈值」那一格的显隐条件跟着翻（IsLimitKind 变假）",
+                row1.Model.Kind == ScadaAlarmKind.Stale && !row1.IsLimitKind && row1.IsStaleKind,
+                $"种类={row1.KindText} / 是四限={row1.IsLimitKind}");
+
+            Check("种类一改条件摘要就换口径（断线走秒数，不走阈值）",
+                row1.ConditionText == "通信断线 > 1s", row1.ConditionText);
+
+            Check("改种类不动等级（领域层刻意不联动，用户特意调过的等级不该被静默推翻）",
+                row1.Severity == ScadaAlarmSeverity.Warning, row1.SeverityText);
+
+            row1.Kind = ScadaAlarmKind.High;
+            Check("种类改回高限：摘要回到阈值口径，且回差为 0 时不追加「（回差 …）」",
+                row1.ConditionText == "高限 > 0", row1.ConditionText);
+
+            row1.Severity = ScadaAlarmSeverity.Critical;
+            Check("等级下拉改值立刻写回（严重 / 警告 / 提示 三档来自枚举的 DisplayName）",
+                row1.Model.Severity == ScadaAlarmSeverity.Critical && row1.SeverityText == "严重",
+                row1.SeverityText);
+
+            Check("下拉候选直接取枚举全量（枚举加成员时下拉自动跟上，不会漏）",
+                vm.KindOptions.Count == Enum.GetValues<ScadaAlarmKind>().Length
+                && vm.SeverityOptions.Count == Enum.GetValues<ScadaAlarmSeverity>().Length
+                && vm.KindOptions.All(o => o.DisplayName == o.Kind.DisplayName())
+                && vm.SeverityOptions.All(o => o.DisplayName == o.Severity.DisplayName()),
+                $"种类 {vm.KindOptions.Count} 项 / 等级 {vm.SeverityOptions.Count} 项");
+
+            // ---------------- ⑥ 启用开关 + 长文本 ----------------
+
+            row1.IsEnabled = false;
+            Check("停用开关写回模型（停用后运行态完全跳过它，但配置保留）",
+                !row1.Model.IsEnabled, $"启用={row1.IsEnabled}");
+
+            row1.IsEnabled = true;
+
+            row1.Message = "炉温偏高";
+            Check("信息文本写回模型（留空时报警条与历史里回落显示报警名）",
+                row1.Model.Message == "炉温偏高" && row1.Model.DisplayText == "炉温偏高", row1.Model.Message ?? "null");
+
+            row1.Cause = "冷却水泵停转";
+            row1.Remedy = "检查水泵电源与接触器";
+            row1.ExtraInfo = "停机后需重新标定";
+            Check("故障原因 / 解决措施 / 附加信息三个长文本各自独立落盘（现场排查是「先核实原因、再照措施处理」两条路径）",
+                row1.Model.Cause == "冷却水泵停转" && row1.Model.Remedy == "检查水泵电源与接触器"
+                && row1.Model.ExtraInfo == "停机后需重新标定",
+                $"{row1.Model.Cause} / {row1.Model.Remedy} / {row1.Model.ExtraInfo}");
+
+            row1.Message = "";
+            Check("长文本清空落 null 而不是空串（空串会在导出里变成一列空白，null 才是「未填」）",
+                row1.Model.Message == null && row1.Model.DisplayText == "报警_1",
+                $"模型={(row1.Model.Message == null ? "null" : $"「{row1.Model.Message}」")} / 显示文本={row1.Model.DisplayText}");
+
+            // ---------------- ⑦ 报警组：自由文本 + 历史值下拉 ----------------
+
+            row1.AlarmGroup = "冷却水";
+            Check("改报警组写回模型，并把新组名并进历史值候选（下拉里下次就能直接选）",
+                row1.Model.AlarmGroup == "冷却水" && vm.AlarmGroupSuggestions.Contains("冷却水"),
+                $"模型=「{row1.Model.AlarmGroup}」/ 候选 {vm.AlarmGroupSuggestions.Count} 项");
+
+            vm.AddCommand.Execute();
+            var row2 = vm.Rows[1];
+
+            Check("第二条自动命名「报警_2」（取当前未被占用的最小号，不会与第一条撞名）",
+                row2.Name == "报警_2", row2.Name);
+
+            row2.AlarmGroup = "冷却水";
+            Check("第二条用同一个组名：历史值候选去重后仍只有一项（同一份方案里组名不重复出现）",
+                vm.AlarmGroupSuggestions.Count == 1 && vm.AlarmGroupSuggestions[0] == "冷却水",
+                string.Join("、", vm.AlarmGroupSuggestions));
+
+            row2.AlarmGroup = "一号线";
+            Check("换一个组名：候选按名字排序重建（下拉里两项都有）",
+                vm.AlarmGroupSuggestions.Count == 2
+                && string.Join("/", vm.AlarmGroupSuggestions) == "一号线/冷却水",
+                string.Join("/", vm.AlarmGroupSuggestions));
+
+            row1.ApplyGroupCommand.Execute("一号线");
+            Check("从历史值下拉里挑一项等同于把名字敲进输入框（走的是同一个 setter，不是绕过校验的旁路）",
+                row1.Model.AlarmGroup == "一号线" && row1.AlarmGroup == "一号线",
+                $"模型=「{row1.Model.AlarmGroup}」");
+
+            row2.AlarmGroup = "";
+            Check("清空报警组落 null 而不是空串，且候选里那项随之消失（组名是从现有报警回读出来的，不是另存一份清单）",
+                row2.Model.AlarmGroup == null && vm.AlarmGroupSuggestions.Count == 1,
+                $"模型={(row2.Model.AlarmGroup == null ? "null" : $"「{row2.Model.AlarmGroup}」")} / 候选 {vm.AlarmGroupSuggestions.Count} 项");
+
+            // ---------------- ⑧ 改名：查重拒收 + 回灌 ----------------
+
+            var nameNotices = 0;
+            void OnRow2Changed(object? sender, PropertyChangedEventArgs e)
+            {
+                if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(ScadaAlarmConfigRow.Name))
+                    nameNotices++;
+            }
+
+            row2.PropertyChanged += OnRow2Changed;
+            row2.Name = "报警_1";   // 与第一条撞名
+            row2.PropertyChanged -= OnRow2Changed;
+
+            Check("改名撞上已有名字：给中文原因、模型一个字节都不动",
+                vm.HasError && (vm.ErrorMessage ?? string.Empty).Contains("已存在同名报警")
+                && row2.Name == "报警_2" && row2.Model.Name == "报警_2" && doc.Alarms.Count == 2,
+                $"提示=「{vm.ErrorMessage}」/ 名字=「{row2.Name}」");
+
+            Check("改名失败要抛一次变更通知（不抛的话输入框里留着的还是那个被拒的新名字）",
+                nameNotices > 0, $"通知 {nameNotices} 次");
+
+            row2.Name = "冷却水温度";
+            Check("改名成功立刻写回，并按新名字能查到（查重只挡重复，不挡正常改名）",
+                !vm.HasError && row2.Name == "冷却水温度"
+                && ReferenceEquals(doc.FindAlarmByName("冷却水温度"), row2.Model),
+                $"名字=「{row2.Name}」/ 提示=「{vm.ErrorMessage}」");
+
+            row2.Name = "   ";
+            Check("改名清空被文档拒收（报警名必填，空名会让报警列表里出现一条没法称呼的记录）",
+                vm.HasError && (vm.ErrorMessage ?? string.Empty).Contains("不能为空") && row2.Name == "冷却水温度",
+                $"提示=「{vm.ErrorMessage}」");
+
+            // ---------------- ⑨ 选变量：预选参数 + 回填包作用域 ----------------
+
+            var targetVar = VariableFactory.CreateLocal("炉温", typeof(double), "炉膛温度", 23.0);
+            workspace.GlobalVariables.Add(targetVar);
+
+            vm.SelectedRow = row1;
+            picker.NextId = targetVar.VariableId;
+            picker.NextName = targetVar.Name;
+
+            ScadaEditHistory.Clear();
+            vm.PickVariableCommand.Execute();
+
+            Check("「选择变量」把当前绑定交给选择器做预选（不是传空让选择器从零开始）",
+                picker.PickCalls == 1 && picker.LastCurrentId == Guid.Empty && picker.LastCurrentName == null,
+                $"调用 {picker.PickCalls} 次 / 预选 Id={picker.LastCurrentId} / 预选名=「{picker.LastCurrentName}」");
+
+            Check("选完回填：变量列从「未选变量」翻成变量名，HasVariable 跟着翻",
+                row1.HasVariable && row1.VariableName == "炉温" && row1.VariableDisplay == "炉温"
+                && row1.Model.VariableId == targetVar.VariableId,
+                $"「{row1.VariableDisplay}」/ HasVariable={row1.HasVariable}");
+
+            Check("回填包了一层作用域：Bind 的两次属性写（Id + 名字）合并成一条撤销记录，不会只退一半",
+                ScadaEditHistory.UndoCount == 1
+                && (ScadaEditHistory.NextUndoLabel ?? string.Empty).Contains("选择变量"),
+                $"{ScadaEditHistory.UndoCount} 条 / 「{ScadaEditHistory.NextUndoLabel}」");
+
+            var unbound = ScadaEditHistory.Undo();
+            Check("撤销一次把绑定整体回退（Id 与名字一起回，界面回读同一份模型）",
+                unbound && row1.Model.VariableId == Guid.Empty && row1.VariableName == null && !row1.HasVariable,
+                $"Id={row1.Model.VariableId} / 名=「{row1.VariableName}」");
+
+            // 取消选择：回调一次都不触发，原绑定原样保留
+            picker.NextId = Guid.Empty;
+            vm.PickVariableCommand.Execute();
+            Check("在选择器里点取消：回调一次都不触发，原绑定（这里是「未选变量」）原样保留",
+                picker.PickCalls == 2 && !row1.HasVariable, $"调用 {picker.PickCalls} 次 / HasVariable={row1.HasVariable}");
+
+            // ---------------- ⑩ 删除：删到空表 + 选中落到剩下第一条 ----------------
+
+            vm.SelectedRow = row1;
+            var beforeRemove = doc.Alarms.Count;
+            vm.RemoveCommand.Execute();
+
+            Check("点「删除」把定义从方案里摘掉（TryRemoveAlarm 内部自带作用域）",
+                doc.Alarms.Count == beforeRemove - 1 && vm.Rows.Count == 1 && !vm.Rows.Contains(row1),
+                $"方案 {beforeRemove} → {doc.Alarms.Count} 条 / 表 {vm.Rows.Count} 行");
+
+            Check("删完选中落在剩下第一条（而不是塌回「什么都没选」：用户刚动过的地方不该整个消失）",
+                ReferenceEquals(vm.SelectedRow, row2) && vm.HasSelection
+                && vm.RemoveCommand.CanExecute(), $"选中=「{vm.SelectedRow?.Name}」");
+
+            Check("删完条数提示同步（标题栏的「共 N 条」要跟着少）",
+                vm.AlarmCount == 1 && vm.CountHint == "共 1 条报警", $"「{vm.CountHint}」");
+
+            vm.RemoveCommand.Execute();
+            Check("允许删到一条不剩（「这个方案不需要报警」是完全正常的组态结果），空态提示重新出现",
+                doc.Alarms.Count == 0 && vm.Rows.Count == 0 && !vm.HasRows && vm.AlarmCount == 0
+                && vm.SelectedRow == null && !vm.RemoveCommand.CanExecute(),
+                $"方案 {doc.Alarms.Count} 条 / HasRows={vm.HasRows} / 选中=「{vm.SelectedRow?.Name}」");
+
+            // ---------------- ⑪ 关闭：本弹窗没有「确定」，关的就是窗 ----------------
+
+            IDialogResult? closed = null;
+            vm.RequestClose = MakeDialogCloseListener(r => closed = r);
+            vm.CloseCommand.Execute();
+
+            Check("「关闭」以 OK 关窗、且不带任何参数（写回是即时的，关窗不代表「是否采纳」）",
+                closed != null && closed.Result == ButtonResult.OK && closed.Parameters.Count == 0,
+                closed == null ? "没有回调" : $"{closed.Result} / 参数 {closed.Parameters.Count} 项");
+
+            Check("标题固定写「报警配置」（弹窗标题栏直接绑它，不走硬编码字符串）",
+                vm.Title == "报警配置", vm.Title);
+
+            // ---------------- ⑫ 审计：成功与失败都记，署名来自注入的提供者 ----------------
+
+            string auditDir = Path.Combine(Path.GetTempPath(), "ScadaACfgAudit_" + Guid.NewGuid().ToString("N"));
+            var audit = new ScadaAuditWriter(auditDir);
+
+            // 读回全部审计行（跳过每份文件的表头）。按目录里所有 Audit-*.csv 汇总，
+            // 这样断言不会因为"正好跑过午夜"而假红。
+            string[] AuditRows()
+            {
+                if (!Directory.Exists(auditDir)) return Array.Empty<string>();
+                return Directory.GetFiles(auditDir, "Audit-*.csv")
+                    .OrderBy(p => p, StringComparer.Ordinal)
+                    .SelectMany(p => File.ReadAllLines(p).Skip(1))
+                    .ToArray();
+            }
+
+            string actor = "王工";
+            var audited = new ScadaAlarmConfigDialogViewModel(workspace, picker, audit, () => actor);
+            audited.OnDialogOpened(new DialogParameters());
+
+            audited.AddCommand.Execute();
+            var acRows1 = AuditRows();
+            Check("新增落一条审计：事件列写「报警配置」、动作列写「新建报警」、说明里带上报警名",
+                acRows1.Length == 1 && acRows1[0].Contains("报警配置") && acRows1[0].Contains("新建报警")
+                && acRows1[0].Contains("成功") && acRows1[0].Contains("报警_1"),
+                string.Join(" | ", acRows1));
+
+            Check("署名来自注入的提供者（本类不认识会话，宿主把它接到「此刻登录着谁」上）",
+                acRows1.Length == 1 && acRows1[0].Contains("王工"), acRows1[0]);
+
+            var auditedRow = audited.Rows[0];
+
+            actor = "李工";
+            auditedRow.ThresholdText = "88";
+            var acRows2 = AuditRows();
+            Check("改阈值落一条「修改报警」审计，说明写「旧值 → 新值」：把阈值从 0 提到 88 之后要答得出是谁改的",
+                acRows2.Length == 2 && acRows2[1].Contains("修改报警") && acRows2[1].Contains("阈值：0 → 88")
+                && acRows2[1].Contains("李工"),
+                acRows2[1]);
+
+            auditedRow.ThresholdText = "8O";   // 解析不了：不写模型、也不落审计
+            Check("填了非数字不落审计（没写进模型的事不该在审计里冒充「改过」），只给一句中文原因",
+                AuditRows().Length == 2 && audited.HasError, $"提示=「{audited.ErrorMessage}」");
+
+            auditedRow.Name = "冷却水温度";
+            var acRows3 = AuditRows();
+            Check("改名单独落一条「报警改名」审计（「改名」在现场排查时比「改字段」有用得多）",
+                acRows3.Length == 3 && acRows3[2].Contains("报警改名") && acRows3[2].Contains("报警_1 → 冷却水温度"),
+                acRows3[2]);
+
+            audited.RemoveCommand.Execute();
+            var acRows4 = AuditRows();
+            Check("删除落一条「删除报警」审计",
+                acRows4.Length == 4 && acRows4[3].Contains("删除报警") && acRows4[3].Contains("成功"),
+                acRows4[3]);
+
+            // 没有打开的方案：新增必须失败，而且失败也要留痕
+            var noSolution = new WorkspaceContext();
+            noSolution.GlobalVariables.Clear();
+
+            var orphanVm = new ScadaAlarmConfigDialogViewModel(noSolution, picker, audit, () => null);
+            orphanVm.OnDialogOpened(new DialogParameters());
+            orphanVm.AddCommand.Execute();
+
+            var acRows5 = AuditRows();
+            Check("没有打开的方案时新增失败：给一句中文原因，且失败也落一条审计（「试着建但没建成」与「建成了」是两条不同的线索）",
+                orphanVm.HasError && (orphanVm.ErrorMessage ?? string.Empty).Contains("没有打开的方案")
+                && acRows5.Length == 5 && acRows5[4].Contains("新建报警") && acRows5[4].Contains("失败")
+                && acRows5[4].Contains("没有打开的方案"),
+                $"提示=「{orphanVm.ErrorMessage}」/ 审计={acRows5.LastOrDefault() ?? "（无）"}");
+
+            Check("取不到「此刻登录着谁」时署名回落「未登录」，而不是留一格空白（有人没登录就改了配置，这本身是线索）",
+                acRows5.Length == 5 && acRows5[4].Contains("未登录"), acRows5[4]);
+
+            ScadaEditHistory.Clear();   // 撤销栈是全局静态的，本段压栈、出段前清
+        }
+
+        // ==================================================================
         //  [AB] 运行窗口显示形态：软件级配置（AppConfig.json）+ 两种形态的属性组合
         //
         //  这一节钉的是真机反馈的那个问题：「点运行，整个主界面（含视觉图像）被盖住」。
@@ -10416,6 +11289,27 @@ namespace ScadaChecks
                 error = FailReason;
                 return FailReason == null;
             }
+        }
+
+        /// <summary>
+        /// 假的权限出口：角色由一个可写属性摆布，用来演"同一个图元，换个身份点得动 / 点不动"。
+        ///
+        /// 判定规则<b>复用领域层那一份</b>（<see cref="ScadaRoleExtensions.Allows"/>）而不是自己写一遍：
+        /// 断言里再实现一套"高角色含低角色"，就等于给这条规则造了第三个副本——
+        /// 哪天它变了，这里会跟着一起错，却什么都不会报。
+        /// </summary>
+        private sealed class FakeAccessPolicy : IScadaAccessPolicy
+        {
+            public ScadaRole CurrentRole { get; set; } = ScadaRole.Operator;
+
+            public bool IsLoggedIn { get; set; }
+
+            public string CurrentUserName => IsLoggedIn ? "假用户" : "未登录";
+
+            public string LoginStateText => $"{CurrentUserName}（{CurrentRole.DisplayName()}）";
+
+            public bool CanOperate(ScadaRole? required, out string? reason)
+                => CurrentRole.Allows(required, out reason);
         }
 
         /// <summary>
@@ -11899,13 +12793,13 @@ namespace ScadaChecks
                     var lockMenu = editor.BuildElementContextMenu();
 
                     Check("主选中未锁：菜单那一项写「锁定图元」、图标是闭锁（图标跟动作走，免得与标题打架）",
-                        lockMenu[7].Name == "锁定图元" && lockMenu[7].Icon == lockGlyph,
-                        $"{lockMenu[7].Name} / U+{(lockMenu[7].Icon is string s && s.Length > 0 ? ((int)s[0]).ToString("X4") : "----")}");
+                        lockMenu[10].Name == "锁定图元" && lockMenu[10].Icon == lockGlyph,
+                        $"{lockMenu[10].Name} / U+{(lockMenu[10].Icon is string s && s.Length > 0 ? ((int)s[0]).ToString("X4") : "----")}");
 
                     Check("整批都亮着的时候那一项也能点（判灰只看「有没有选中」，不抄删除那条「可编辑」判据）",
-                        editor.CanSetSelectedLocked() && lockMenu[7].Command!.CanExecute(null), "");
+                        editor.CanSetSelectedLocked() && lockMenu[10].Command!.CanExecute(null), "");
 
-                    lockMenu[7].Command!.Execute(null);
+                    lockMenu[10].Command!.Execute(null);
 
                     Check("点一下：整批拉齐到主选中的相反状态（三个一起锁上，不是只锁主选中那一个）",
                         e1.IsLocked && e2.IsLocked && e3.IsLocked,
@@ -11914,13 +12808,13 @@ namespace ScadaChecks
                     var unlockMenu = editor.BuildElementContextMenu();
 
                     Check("锁上之后菜单自己翻成「解锁图元」+ 开锁图标（标题与图标都跟主选中走，菜单每次弹出即重建）",
-                        unlockMenu[7].Name == "解锁图元" && unlockMenu[7].Icon == unlockGlyph,
-                        $"{unlockMenu[7].Name} / U+{(unlockMenu[7].Icon is string u && u.Length > 0 ? ((int)u[0]).ToString("X4") : "----")}");
+                        unlockMenu[10].Name == "解锁图元" && unlockMenu[10].Icon == unlockGlyph,
+                        $"{unlockMenu[10].Name} / U+{(unlockMenu[10].Icon is string u && u.Length > 0 ? ((int)u[0]).ToString("X4") : "----")}");
 
                     Check("整批已锁定时那一项仍是亮的——解锁恰是此刻唯一该亮的动作（抄删除的判据会让它永远灰着）",
-                        editor.CanSetSelectedLocked() && unlockMenu[7].Command!.CanExecute(null), "");
+                        editor.CanSetSelectedLocked() && unlockMenu[10].Command!.CanExecute(null), "");
 
-                    unlockMenu[7].Command!.Execute(null);
+                    unlockMenu[10].Command!.Execute(null);
 
                     Check("再点一下：整批解锁（锁了之后必须解得开）",
                         !e1.IsLocked && !e2.IsLocked && !e3.IsLocked,
@@ -11935,8 +12829,8 @@ namespace ScadaChecks
                     var soloMenu = editor.BuildElementContextMenu();
 
                     Check("二态判据读的是主选中：主选中已锁时菜单写「解锁图元」（哪怕同批里还有没锁的）",
-                        soloMenu[7].Name == "解锁图元" && editor.IsMainSelectionLocked,
-                        $"{soloMenu[7].Name} / 主选中已锁={editor.IsMainSelectionLocked}");
+                        soloMenu[10].Name == "解锁图元" && editor.IsMainSelectionLocked,
+                        $"{soloMenu[10].Name} / 主选中已锁={editor.IsMainSelectionLocked}");
 
                     editor.ToggleSelectedLock();
 
@@ -12341,14 +13235,14 @@ namespace ScadaChecks
                     var groupMenu = editor.BuildElementContextMenu();
 
                     Check("主选中未分组：菜单那一项写「组合」、图标是成组（排在锁定之后、删除之前——末位留给唯一不可逆的那一项）",
-                        groupMenu[8].Name == "组合" && groupMenu[8].Icon == groupGlyph,
-                        $"{groupMenu[8].Name} / U+{(groupMenu[8].Icon is string s && s.Length > 0 ? ((int)s[0]).ToString("X4") : "----")}");
+                        groupMenu[11].Name == "组合" && groupMenu[11].Icon == groupGlyph,
+                        $"{groupMenu[11].Name} / U+{(groupMenu[11].Icon is string s && s.Length > 0 ? ((int)s[0]).ToString("X4") : "----")}");
 
                     Check("选中 3 个时「组合」可点（判灰只数「确实在本画面上的选中」≥2，与领域层前置校验同源）",
                         editor.CanGroupSelected() && editor.CanToggleSelectedGroup()
-                        && groupMenu[8].Command!.CanExecute(null), "");
+                        && groupMenu[11].Command!.CanExecute(null), "");
 
-                    groupMenu[8].Command!.Execute(null);
+                    groupMenu[11].Command!.Execute(null);
 
                     Check("点一下：三个图元进同一个组（判据与动作传的是同一份集合，不会出现「亮着但点了没反应」）",
                         e1.GroupId != Guid.Empty && e1.GroupId == e2.GroupId && e2.GroupId == e3.GroupId,
@@ -12357,11 +13251,11 @@ namespace ScadaChecks
                     var ungroupMenu = editor.BuildElementContextMenu();
 
                     Check("组上之后菜单自己翻成「取消组合」+ 拆组图标（标题与图标都跟主选中走，菜单每次弹出即重建）",
-                        ungroupMenu[8].Name == "取消组合" && ungroupMenu[8].Icon == ungroupGlyph,
-                        $"{ungroupMenu[8].Name} / U+{(ungroupMenu[8].Icon is string u && u.Length > 0 ? ((int)u[0]).ToString("X4") : "----")}");
+                        ungroupMenu[11].Name == "取消组合" && ungroupMenu[11].Icon == ungroupGlyph,
+                        $"{ungroupMenu[11].Name} / U+{(ungroupMenu[11].Icon is string u && u.Length > 0 ? ((int)u[0]).ToString("X4") : "----")}");
 
                     Check("已是组员时「取消组合」仍可点（判灰数的是「确实有组的」，不是「选中的」——否则空操作也会亮着）",
-                        editor.CanUngroupSelected() && ungroupMenu[8].Command!.CanExecute(null), "");
+                        editor.CanUngroupSelected() && ungroupMenu[11].Command!.CanExecute(null), "");
 
                     // 选中即整组：清空选中之后"点中一个组员"（走 SelectedElement setter 那条路）
                     editor.SelectedElements = Array.Empty<ScadaElement>();
@@ -12398,7 +13292,7 @@ namespace ScadaChecks
 
                     Check("主选中在组里、同批还有组外的：那一项写「取消组合」（走哪边由主选中决定，"
                         + "标题与实际动作必须是同一个判据）",
-                        editor.IsMainSelectionGrouped && editor.BuildElementContextMenu()[8].Name == "取消组合", "");
+                        editor.IsMainSelectionGrouped && editor.BuildElementContextMenu()[11].Name == "取消组合", "");
 
                     editor.ToggleSelectedGroup();
 
@@ -14348,8 +15242,8 @@ namespace ScadaChecks
 
             var exportedLines = File.ReadAllLines(visiblePath);
 
-            Check("第一行是表头、共 13 列（列错位在 Excel 里表现为「数据莫名其妙对不上」）",
-                exportedLines.Length == 3 && exportedLines[0].Split(',').Length == 13,
+            Check("第一行是表头、共 17 列（列错位在 Excel 里表现为「数据莫名其妙对不上」）",
+                exportedLines.Length == 3 && exportedLines[0].Split(',').Length == 17,
                 $"{exportedLines.Length} 行 / {exportedLines[0].Split(',').Length} 列");
 
             Check("带 BOM（不带 BOM 的 UTF-8 CSV 用 Excel 打开中文必乱码）",
@@ -14524,8 +15418,8 @@ namespace ScadaChecks
                     $"前 3 字节 {bytes[0]:X2} {bytes[1]:X2} {bytes[2]:X2}");
 
                 var lines1 = File.ReadAllLines(path1);
-                const string expectedHeader = "激活时间,报警名称,报警文本,严重度,报警类型,变量名,条件描述,触发值,状态,确认时间,恢复时间,清除时间,持续时长";
-                Check("表头 13 列、列序就是现场阅读顺序（先说是什么 → 再说多严重 → 最后是时间线）",
+                const string expectedHeader = "激活时间,报警名称,报警文本,严重度,报警类型,变量名,条件描述,触发值,状态,确认时间,恢复时间,清除时间,持续时长,报警组,故障原因,解决措施,附加信息";
+                Check("表头 17 列、列序就是现场阅读顺序（先说是什么 → 再说多严重 → 最后是时间线；组态补充信息追加在末尾，不挪既有列的下标）",
                     lines1[0] == expectedHeader, lines1[0]);
 
                 string row1 = lines1[1];
@@ -14554,7 +15448,7 @@ namespace ScadaChecks
                     $"行数={lines2.Length}");
 
                 Check("恢复之后才写持续时长，且算到恢复而非清除（清除时刻里含「人多久才来确认」，那是人慢不是报警持续）",
-                    lines2[2].EndsWith("5分0秒")
+                    lines2[2].Contains(",5分0秒,,,,")
                     && lines2[2].Contains(record.AcknowledgedAtLocal!.Value.ToString("yyyy-MM-dd HH:mm:ss"))
                     && lines2[2].Contains(record.RecoveredAtLocal!.Value.ToString("yyyy-MM-dd HH:mm:ss")),
                     lines2[2]);

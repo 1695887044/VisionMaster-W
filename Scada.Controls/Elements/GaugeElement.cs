@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace VisionMaster.Scada.Controls
@@ -30,8 +31,12 @@ namespace VisionMaster.Scada.Controls
     ///
     /// 运行时的接法（S6）：把 <see cref="Value"/> 绑到工程变量上，指针就活了。
     /// </summary>
+    [TemplatePart(Name = PartValueLabel, Type = typeof(TextBlock))]
     public class GaugeElement : ScadaElementBase
     {
+        /// <summary>模板部件名：表盘下方的数值文字</summary>
+        public const string PartValueLabel = "ValueLabel";
+
         private static readonly Brush DefaultTrackColor = ScadaBrushes.Frozen("#FF3A3A3A");
         private static readonly Brush DefaultScaleColor = ScadaBrushes.Frozen("#FF9AA5B1");
 
@@ -80,7 +85,8 @@ namespace VisionMaster.Scada.Controls
         /// <summary>是否显示数值</summary>
         public static readonly DependencyProperty ShowValueProperty = DependencyProperty.Register(
             nameof(ShowValue), typeof(bool), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowValueChanged));
 
         #endregion
 
@@ -159,6 +165,14 @@ namespace VisionMaster.Scada.Controls
         // 而半径要扣掉半线宽，StrokeThickness 是在 RefreshCore 里才落到控件上的。
         // 所以放在收尾钩子上重算一次，一定晚于所有输入落地（与棒图的 OnElementRefreshed 同一个理由）。
         protected override void OnElementRefreshed() => UpdateDial();
+
+        // 模板刚套上时补摆一次：ShowValue 若在套模板之前就落地，那次 SetPartVisible 是空操作
+        //（那时还取不到模板部件），这里必须再摆一次。
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            UpdateDial();
+        }
 
         /// <summary>当前值（见 <see cref="ValueProperty"/>）</summary>
         public double Value
@@ -276,8 +290,16 @@ namespace VisionMaster.Scada.Controls
         private static void OnDialInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((GaugeElement)d).UpdateDial();
 
+        // 「显不显数值」是个纯模板层的开关，但本环境下 ControlTemplate.Triggers 里的 DataTrigger
+        // 不触发（见 ScadaElementBase.SetPartVisible），所以由代码翻，模板里也不写 Visibility 初值。
+        private static void OnShowValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((GaugeElement)d).SetPartVisible(PartValueLabel, ((GaugeElement)d).ShowValue);
+
         private void UpdateDial()
         {
+            // 数值文字的显隐与尺寸无关，先办掉——下面尺寸为 0 时会提前 return，别把它漏在外面。
+            SetPartVisible(PartValueLabel, ShowValue);
+
             // ---- 与尺寸无关的两项：先算，保证断言环境（不跑布局）里也是对的 ----
 
             double start = NormalizeAngle(StartAngle);

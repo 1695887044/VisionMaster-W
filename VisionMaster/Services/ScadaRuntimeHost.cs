@@ -472,7 +472,11 @@ namespace VisionMaster.Services
             //
             // 回写通道（第三个）与读通道（数据泵里的 _valueSource）同生共死：都在这里装、
             // 都在 TeardownAlarms 里随上下文一起撤（上下文一置空，图元手里的写口就跟着失效）。
-            window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(engine, beat, _valueWriter);
+            //
+            // 权限出口（第四个）也一起装进去：图元要"写前先查"，可它只攥着这个上下文，
+            // 够不着会话（_accessPolicy 在本类里，图元不认识本类）。它与写通道同一时机进出，
+            // 且会话对象是活的——"此刻是谁"由它每次现问，登录/登出立刻生效。
+            window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(engine, beat, _valueWriter, _accessPolicy);
 
             engine.Attach();
             beat.Start();

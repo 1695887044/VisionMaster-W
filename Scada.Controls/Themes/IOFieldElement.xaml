@@ -18,8 +18,8 @@
         （Rectangle 的描边骑在边界线上，所以矩形图元得靠 ApplyStrokeInset 把半线宽转成内缩）。
         用 Border 就不需要那层补偿，视觉外沿天然等于标注尺寸，一排框摆在一起不会错开。
 
-        说明字留空时整列塌掉（DataTrigger 收起那个 TextBlock）：列宽是 Auto，
-        收起后数值那一格自然从最左边起排，不必再为"有没有标签"分两种模板。
+        说明字留空时整列塌掉（由控件代码收起那个 TextBlock，见 IOFieldElement.UpdateEditorVisibility）：
+        列宽是 Auto，收起后数值那一格自然从最左边起排，不必再为"有没有标签"分两种模板。
         列间距放在说明字的 Margin 上而不是 Grid 的列宽上，收起时连间距一起消失。
 
         ==== 就地编辑（S9）：右列是两块叠着的元素 ====
@@ -28,6 +28,11 @@
         由 IsEditing 决定谁露面。为什么不干脆"把 TextBlock 换成 TextBox"：
         换元素要动可视树，而模板一旦重建，名字域、焦点、绑定全要重来一遍；
         叠着只是两个 Visibility 翻转，编辑态与显示态共用同一套字体、对齐、内衬，字号对不上的问题不存在。
+
+        ★ 这几块元素的显隐<b>一律由控件代码翻</b>（UpdateEditorVisibility），模板里既不写 Visibility 初值、
+        也不写 ControlTemplate.Triggers——本环境下模板里的 DataTrigger 不触发，写了也是死代码，
+        而写死的 Visibility 初值优先级又高过触发器 setter，两个坑叠在一起会让编辑框永远出不来。
+        详见 ScadaElementBase.SetPartVisible 的注释。
 
         TextBox 那层淡蓝底（#332196F3，半透明）是唯一的"正在编辑"提示：
         故意不拿边框去换色，因为提交失败时边框必须是红的（DisplayStroke 已经占了这个位置），
@@ -102,25 +107,9 @@
                                 FontWeight="{TemplateBinding FontWeight}"
                                 TextAlignment="{TemplateBinding TextAlignment}"
                                 VerticalContentAlignment="Center"
-                                VerticalAlignment="Stretch"
-                                Visibility="Collapsed" />
+                                VerticalAlignment="Stretch" />
                         </Grid>
                     </Border>
-
-                    <ControlTemplate.Triggers>
-                        <DataTrigger
-                            Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="">
-                            <Setter TargetName="LabelText" Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-
-                        <DataTrigger
-                            Binding="{Binding IsEditing, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="True">
-                            <Setter TargetName="ValueDisplay" Property="Visibility" Value="Collapsed" />
-                            <Setter TargetName="PART_Editor" Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

@@ -1,4 +1,5 @@
 using HslCommunication;
+using HslCommunication.Core;
 using HslCommunication.ModBus;
 using System;
 
@@ -11,6 +12,7 @@ namespace VisionMaster.Communications
     public class ModbusTcpConnection : ICommunicationConnection
     {
         private readonly ModbusTcpNet _device;
+        private readonly ModbusTcpConfig _config;
         private bool _isConnected;
 
         /// <inheritdoc />
@@ -26,14 +28,23 @@ namespace VisionMaster.Communications
         public bool IsConnected => _isConnected;
 
         /// <inheritdoc />
+        public ByteOrderFormat ByteOrder => _config.ByteOrder;
+
+        /// <inheritdoc />
         public ModbusTcpConnection(ModbusTcpConfig config)
         {
+            _config = config;
             Config = config;
             ConnectionName = $"{config.IpAddress}:{config.Port}";
             
             _device = new ModbusTcpNet();
             _device.IpAddress = config.IpAddress;
             _device.Port = config.Port;
+            // 字序必须下发到设备的 ByteTransform：HSL 的 ModbusTcpNet 默认是 DataFormat.CDAB，
+            // 写链路（Write(addr,int/float/...) → ByteTransform.TransByte）与 HSL 强类型读都走它。
+            // 不下发就会出现"读侧跟随配置、写侧永远 CDAB"的读写不对称：
+            // 软件写 int 1221 再读回可能不是 1221（16 位因 CDAB 与 ABCD 退化等价而看不出来）。
+            _device.ByteTransform = new RegularByteTransform(HslHelper.ToDataFormat(config.ByteOrder));
             // 把配置的"连接超时"真正下发到设备：HSL 的 ConnectTimeOut 默认是 10000ms，
             // 与界面上的 TimeoutMs（默认 3000ms）是两套数。不下发的话会出现两种错位：
             // ① 用户把超时调大（如慢速 VPN 想等 20 秒）→ socket 仍 10 秒就放弃；
@@ -74,7 +85,7 @@ namespace VisionMaster.Communications
             // Modbus 读取长度按寄存器粒度：bool/byte/short=1，int/uint/float=2，long/ulong/double=4
             var result = _device.Read(address, HslHelper.RegisterCount<T>());
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
-            return HslHelper.ConvertTo<T>(result.Content);
+            return HslHelper.ConvertTo<T>(result.Content, _config.ByteOrder);
         }
 
         /// <inheritdoc />

@@ -11,8 +11,13 @@ namespace VisionMaster.Communications
     /// <para>1) B2——HSL 设备对象不是线程安全的，旧实现 Timer 回调/UI 线程/重连线程并发读写同一 socket，随机错包；</para>
     /// <para>2) C1——旧心跳只看 IsConnected 属性（半开连接永远"正常"），现在以"真实读写成功时刻"为生命依据；</para>
     /// <para>3) C5——旧重连固定间隔且多个 Timer 可叠加发起，现在单一状态机 + 指数退避，重连节奏可收敛。</para>
-    /// <para>用法：Manager 为每个连接持有一个 Worker；读写通过 <see cref="Invoke"/> / <see cref="InvokeAsync"/> 投递命令并等待结果；</para>
+    /// <para>用法：Manager 为每个连接持有一个 Worker；读命令通过 <see cref="Invoke"/> / <see cref="InvokeAsync"/> 投递，
+    /// 写命令通过 <see cref="InvokeWrite"/> / <see cref="EnqueueWrite"/> 投递；</para>
     /// <para>轮询逻辑经 <see cref="PollScheduler"/> 注入，由 Worker 线程按各扫描组各自的目标周期驱动（组间周期升序 = 优先级）。</para>
+    /// <para>N1（写命令优先级）：读/写分成两条队列，Worker 每轮先清空写队列再清空读队列——
+    /// 写命令只需等"当前这一条命令/一段轮询"跑完即可插队，不再与读命令挤同一条 FIFO 排在队尾；</para>
+    /// <para>N2（队列背压）：队列容量 <see cref="CommandQueueCapacity"/>，投递时最多等待 <see cref="CommandEnqueueTimeoutMs"/>
+    /// 让 Worker 消化，超时才判失败——把"瞬时排队"与"真故障"分开。</para>
     /// </summary>
     public sealed class ConnectionWorker : IDisposable
     {
@@ -28,8 +33,28 @@ namespace VisionMaster.Communications
 
         #endregion
 
+        /// <summary>N2：命令队列容量（UI 连点写 / 脚本批量写不再轻易打满）</summary>
+        private const int CommandQueueCapacity = 4096;
+
+        /// <summary>N2：投递命令时等待 Worker 消化的上限（ms），超时才判"队列已满"失败</summary>
+        private const int CommandEnqueueTimeoutMs = 2000;
+
+        /// <summary>
+        /// C1：单次等待时长上限（ms）。轮询到期时刻再远（扫描组周期最长 1 小时）也不睡超过它，
+        /// 保证"轮询计划脏标记重编译 / 状态机变化"的最坏响应延迟与旧实现同量级（旧实现在"已连接但无轮询工作"时正是睡 200ms）。
+        /// </summary>
+        private const int MaxIdleWaitMs = 200;
+
         private readonly ICommunicationConnection _connection;
-        private readonly BlockingCollection<WorkItem> _queue = new(boundedCapacity: 256);
+
+        // N1：读/写分队列——Worker 每轮先清空写队列再清空读队列，写命令得以插队，不再与读命令挤同一条 FIFO
+        private readonly BlockingCollection<WorkItem> _readQueue = new(boundedCapacity: CommandQueueCapacity);
+        private readonly BlockingCollection<WorkItem> _writeQueue = new(boundedCapacity: CommandQueueCapacity);
+
+        // N1：唤醒信号——Worker 阻塞等待时，任一条队列有新命令入队都要能立刻叫醒它；
+        // 容量固定为 1：只表达"有活干了"，多余信号被吞掉即可（醒来后无条件排空两队列，不会漏命令）
+        private readonly SemaphoreSlim _commandSignal = new(0, 1);
+
         private readonly CancellationTokenSource _cts = new();
         private readonly Thread _thread;
 
@@ -174,14 +199,28 @@ namespace VisionMaster.Communications
 
         #region 命令投递（读写都串行到 Worker 线程）
 
-        /// <summary>在 Worker 线程执行任意委托并取回结果（通信失败时异常回抛给调用方）</summary>
+        /// <summary>在 Worker 线程执行"读/普通"委托并取回结果（通信失败时异常回抛给调用方）</summary>
         public Task<TResult> Invoke<TResult>(Func<ICommunicationConnection, TResult> func)
+            => EnqueueCommand(_readQueue, func);
+
+        /// <summary>
+        /// 在 Worker 线程执行"写"委托并取回结果（N1：走写队列，优先于读命令与轮询执行）。
+        /// 语义与 <see cref="Invoke"/> 完全一致，仅排队优先级不同。
+        /// </summary>
+        public Task<TResult> InvokeWrite<TResult>(Func<ICommunicationConnection, TResult> func)
+            => EnqueueCommand(_writeQueue, func);
+
+        /// <summary>
+        /// 命令投递核心（N2）：带超时等待入队——队列满时先给 Worker 一点时间消化（默认 2s），
+        /// 仍无法入队才判失败，避免"瞬时排队"被误报成通信故障。
+        /// </summary>
+        private Task<TResult> EnqueueCommand<TResult>(BlockingCollection<WorkItem> queue, Func<ICommunicationConnection, TResult> func)
         {
             ThrowIfDisposed();
             var tcs = new TaskCompletionSource<TResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             try
             {
-                if (!_queue.TryAdd(new WorkItem
+                if (!queue.TryAdd(new WorkItem
                 {
                     Action = conn =>
                     {
@@ -197,20 +236,29 @@ namespace VisionMaster.Communications
                         }
                     },
                     OnAbandon = () => tcs.TrySetCanceled()
-                }))
+                }, CommandEnqueueTimeoutMs))
                 {
-                    tcs.TrySetException(new InvalidOperationException($"连接 {ConnectionName} 命令队列已满"));
+                    tcs.TrySetException(new InvalidOperationException(
+                        $"连接 {ConnectionName} 命令队列已满（等待 {CommandEnqueueTimeoutMs}ms 仍未消化）"));
+                    return tcs.Task;
                 }
             }
             catch (InvalidOperationException)
             {
                 // Dispose 竞态：CompleteAdding 之后 TryAdd 会抛
                 tcs.TrySetException(new ObjectDisposedException(nameof(ConnectionWorker)));
+                return tcs.Task;
             }
+
+            // 入队成功 → 唤醒 Worker（若它正阻塞等待）。已有待处理信号时 Release 会抛，吞掉即可：
+            // 醒来后无条件排空两队列，多一次空转无害，少一次信号才会漏命令
+            try { _commandSignal.Release(); }
+            catch (SemaphoreFullException) { /* 已有信号待消费，无需重复通知 */ }
+
             return tcs.Task;
         }
 
-        /// <summary>在 Worker 线程执行任意委托（需要回执）</summary>
+        /// <summary>在 Worker 线程执行任意委托（需要回执，走读队列）</summary>
         public Task InvokeAsync(Action<ICommunicationConnection> action)
         {
             return Invoke(conn =>
@@ -220,10 +268,10 @@ namespace VisionMaster.Communications
             });
         }
 
-        /// <summary>投递写命令（真异步 B7：调用方拿 Task，不阻塞流程线程）</summary>
+        /// <summary>投递写命令（真异步 B7：调用方拿 Task，不阻塞流程线程；N1：走写队列优先执行）</summary>
         public Task<bool> EnqueueWrite(string address, object value)
         {
-            return Invoke(conn =>
+            return InvokeWrite(conn =>
             {
                 conn.Write(address, value);
                 return true;
@@ -247,13 +295,11 @@ namespace VisionMaster.Communications
                         TryConnect();
                     }
 
-                    // 2) 等待命令：有负载时最多等"距下一轮轮询的剩余时间"，空闲时 200ms 醒一次检查状态机
-                    int waitMs = ComputeWaitMs();
-                    if (_queue.TryTake(out var item, waitMs, token))
-                    {
-                        ExecuteItem(item);
-                        DrainQueue();
-                    }
+                    // 2) 等待命令：阻塞在唤醒信号上。睡多久由 ComputeWaitMs 决定——C1 之后是"距最近一个扫描组到期还有多久"
+                    //    （封顶 200ms），空闲时 200ms 醒一次检查状态机。命令到达由 _commandSignal 立刻叫醒，不受这里影响。
+                    //    返回值不参与判定——无论因超时还是因新命令 Release 醒来，都无条件排空两队列，避免漏命令
+                    _commandSignal.Wait(ComputeWaitMs(), token);
+                    DrainQueues();
 
                     // 3) 拍前消费"轮询计划脏"标记（H1）：必须独立于轮询分支——
                     //    "在线且从零注册第一个变量"时调度器为 null/无工作，进不了下面的轮询分支，脏标记会被饿死
@@ -291,8 +337,14 @@ namespace VisionMaster.Communications
 
         private int ComputeWaitMs()
         {
-            if (State == ConnectionState.Connected && _scheduler?.HasWork == true)
-                return 10; // 轮询节拍由各组的到期判定控制，等待只用于快速响应命令
+            // C1：已连接且有轮询工作时，按"距最近一个扫描组到期还有多久"睡，而不是固定 10ms 空转。
+            // 为什么现在敢这么改：旧实现的 10ms 里有一半理由是"好快点响应命令"，而命令唤醒已由
+            // _commandSignal 接管（N1）——等待时长可以纯粹为轮询节拍服务了。
+            // 下限 1ms：返回 0 会让 Wait 立即返回，万一出现"到期却没能跑"的边角场景就会变成死循环空转，
+            //        留 1ms 兜底（对轮询精度无可感影响）；上限 MaxIdleWaitMs 见常量注释。
+            if (State == ConnectionState.Connected && _scheduler is { HasWork: true } scheduler)
+                return Math.Clamp(scheduler.MsUntilNextDue(), 1, MaxIdleWaitMs);
+
             if (_autoConnect && State != ConnectionState.Connected)
                 return 100; // 重连中：小步快跑检查退避时刻
             return 200;
@@ -400,16 +452,28 @@ namespace VisionMaster.Communications
             }
         }
 
-        private void DrainQueue()
+        /// <summary>
+        /// N1：每取一条命令前都**先看一眼写队列**——写优先；写队列空才取读命令。
+        /// <para>为什么不是"先 while 抽干写队列、再 while 抽干读队列"：那样内层读循环会一次性把读队列抽干，
+        /// 期间新到的写命令仍只能排在这些读命令后面，写优先形同虚设（C13-2 断言就是这么抓出来的）。
+        /// 写成"写一条、读一条"的交替形式，既保证写优先，又保证写命令持续涌入时读命令不被饿死。</para>
+        /// </summary>
+        private void DrainQueues()
         {
-            while (_queue.TryTake(out var item, 0))
-                ExecuteItem(item);
+            while (true)
+            {
+                if (_writeQueue.TryTake(out var w, 0)) { ExecuteItem(w); continue; }
+                if (_readQueue.TryTake(out var r, 0)) { ExecuteItem(r); continue; }
+                break;
+            }
         }
 
         private void ReleasePendingItems()
         {
-            while (_queue.TryTake(out var item, 0))
-                item.OnAbandon?.Invoke();
+            while (_writeQueue.TryTake(out var w, 0))
+                w.OnAbandon?.Invoke();
+            while (_readQueue.TryTake(out var r, 0))
+                r.OnAbandon?.Invoke();
         }
 
         private async Task<bool> WaitStateAsync(ConnectionState target, int millisecondsTimeout)
@@ -454,7 +518,12 @@ namespace VisionMaster.Communications
 
             _autoConnect = false;
             _cts.Cancel();
-            _queue.CompleteAdding();
+            _readQueue.CompleteAdding();
+            _writeQueue.CompleteAdding();
+            // 唤醒可能正阻塞在信号上的 Worker 线程，让它尽快看到取消并退出
+            try { _commandSignal.Release(); }
+            catch (SemaphoreFullException) { }
+            catch (ObjectDisposedException) { }
 
             bool threadExited = true;
             try
@@ -465,9 +534,10 @@ namespace VisionMaster.Communications
                     System.Diagnostics.Debug.WriteLine($"ConnectionWorker[{ConnectionName}] 线程未在 3s 内退出");
                 }
             }
-            catch (InvalidOperationException)
+            catch (ThreadStateException)
             {
-                // 线程尚未 Start
+                // 线程尚未 Start：Join 对未启动线程抛的是 ThreadStateException（不是 InvalidOperationException）。
+                // 这种 Worker 从没跑过，直接按"已退出"继续释放即可。
             }
 
             if (!threadExited)
@@ -482,7 +552,9 @@ namespace VisionMaster.Communications
 
             try { _connection.Disconnect(); } catch { }
             _connection.Dispose();
-            _queue.Dispose();
+            _readQueue.Dispose();
+            _writeQueue.Dispose();
+            _commandSignal.Dispose();
             _cts.Dispose();
         }
     }

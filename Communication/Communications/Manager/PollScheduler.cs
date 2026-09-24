@@ -14,19 +14,26 @@ namespace VisionMaster.Communications
     /// <param name="SegmentCount">该组每轮的段读次数（= 设备往返次数）</param>
     /// <param name="FallbackCount">该组每轮的兜底单读次数</param>
     /// <param name="AvgActualMs">实测周期（相邻两次开跑时刻之差的指数滑动平均）；0 = 还没测到</param>
+    /// <param name="FaultedSegmentCount">该组当前的"异常段"数量（连续失败达 <see cref="PollBatchPlanner.FaultedSegmentThreshold"/> 轮的段）；0 = 全部正常</param>
+    /// <param name="FaultDetail">首个异常段的摘要（地址 + 连续失败轮数 + 错误原因）；无异常段时为 null</param>
     public readonly record struct ScanGroupStats(
         string GroupName,
         int TargetIntervalMs,
         int VariableCount,
         int SegmentCount,
         int FallbackCount,
-        int AvgActualMs)
+        int AvgActualMs,
+        int FaultedSegmentCount,
+        string? FaultDetail)
     {
         /// <summary>
         /// 达成率 = 目标周期 / 实测周期，封顶 100%（实测比目标还快时按 100% 计）。
         /// 低于 100% 的含义：本组被"同拍内排在它前面的短周期组"拖慢了（同一 socket 串行，物理上限使然）。
         /// </summary>
         public double AchieveRate => AvgActualMs <= 0 ? 0 : Math.Min(1.0, (double)TargetIntervalMs / AvgActualMs);
+
+        /// <summary>是否有异常段（有坏地址读不到）。与达成率无关：坏段不影响周期，但会让变量停在黄点</summary>
+        public bool HasFaultedSegment => FaultedSegmentCount > 0;
     }
 
     /// <summary>
@@ -67,6 +74,15 @@ namespace VisionMaster.Communications
         /// <summary>是否到期（距上次成功已过目标周期）</summary>
         public bool IsDue() => Environment.TickCount64 >= Volatile.Read(ref _lastSuccessTicks) + IntervalMs;
 
+        /// <summary>
+        /// 距本组下次到期还有多少毫秒（&lt;= 0 = 已到期）。
+        /// <para>C1：Worker 用它算"该睡多久"，替代旧的"每 10ms 醒一次看看到期没"。
+        /// 与 <see cref="IsDue"/> 用同一个基准（<c>_lastSuccessTicks + IntervalMs</c>），故二者永不矛盾：
+        /// 返回 &lt;= 0 当且仅当 <see cref="IsDue"/> 为 true（除 TickCount64 的 15.6ms 粒度抖动外）。</para>
+        /// <para>注意 <see cref="MarkDueNow"/> 把基准写成 0，此处会得到一个大负数——调用方按"已到期"处理即可。</para>
+        /// </summary>
+        public long MsUntilDue() => Volatile.Read(ref _lastSuccessTicks) + IntervalMs - Environment.TickCount64;
+
         /// <summary>开跑前调用：更新"实测周期"的 EMA（相邻两次开跑时刻之差）</summary>
         public void BeginRun()
         {
@@ -85,10 +101,18 @@ namespace VisionMaster.Communications
         /// <summary>本轮跑成功：刷新到期基准时刻</summary>
         public void MarkSuccess() => Volatile.Write(ref _lastSuccessTicks, Environment.TickCount64);
 
-        public ScanGroupStats Snapshot() => new(
-            Name, IntervalMs, VariableCount,
-            Planner.SegmentCount, Planner.FallbackCount,
-            Volatile.Read(ref _avgActualMs));
+        public ScanGroupStats Snapshot()
+        {
+            // 坏段信息走规划器的旁路健康通道：它不影响本轮"是否通信成功"的判定，
+            // 只把"某个地址连续读不到"如实上报给诊断面板
+            var (faultedCount, faultDetail) = Planner.GetHealthSnapshot();
+
+            return new ScanGroupStats(
+                Name, IntervalMs, VariableCount,
+                Planner.SegmentCount, Planner.FallbackCount,
+                Volatile.Read(ref _avgActualMs),
+                faultedCount, faultDetail);
+        }
     }
 
     /// <summary>
@@ -197,6 +221,29 @@ namespace VisionMaster.Communications
                 if (_groups[i].IsDue()) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// 距"最近一个到期组"还有多少毫秒；&lt;= 0 = 现在就有组到期（立刻干活，别睡）。
+        /// <para>C1 的<b>唯一</b>消费者是 <see cref="ConnectionWorker.ComputeWaitMs"/>：
+        /// 旧实现只要"已连接且有轮询工作"就固定睡 10ms（100Hz 拿不到任何收益的空转），
+        /// 现在改成"睡到下一组该跑的时刻"——短周期组照旧准时，长周期组（如 10s）不再被高频唤醒。</para>
+        /// <para>为什么取<b>最小</b>值：组间周期升序即优先级，最短周期组决定下一次"最早需要醒来的时刻"，
+        /// 睡过头会让联锁点错过周期。</para>
+        /// <para>无组时返回 <see cref="int.MaxValue"/>（调用方自行封顶）：正常不会走到——
+        /// <see cref="Create"/> 在无有效组时返回 null，<see cref="HasWork"/> 为 false 的实例不存在。</para>
+        /// </summary>
+        public int MsUntilNextDue()
+        {
+            long min = long.MaxValue;
+            for (int i = 0; i < _groups.Count; i++)
+            {
+                long d = _groups[i].MsUntilDue();
+                if (d < min) min = d;
+            }
+
+            if (min == long.MaxValue) return int.MaxValue;
+            return min <= 0 ? 0 : (int)Math.Min(min, int.MaxValue);
         }
 
         /// <summary>

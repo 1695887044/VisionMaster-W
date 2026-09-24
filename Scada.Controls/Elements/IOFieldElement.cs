@@ -33,13 +33,24 @@ namespace VisionMaster.Scada.Controls
     /// 又会变成第二处可配项。并进 <see cref="ValueText"/> 之后，"单位留空 = 只显数值"是自然结果，
     /// 与时钟图元把标签留空就塌掉整行是同一个口径。
     ///
-    /// <b>可读可写（S9）：三种模式 + 缩放 + 上下限</b>
+    /// <b>可读可写（S9）：两档模式 + 缩放 + 上下限 + 权限</b>
     /// ---------
     /// 组态时选 <see cref="Mode"/>：<see cref="ModeOutput"/>（只读显示，S6 的老行为）、
-    /// <see cref="ModeInput"/>（只写：不跟随变量，只把操作员敲的数送下去）、
-    /// <see cref="ModeInputOutput"/>（可读可写）。后两种模式下，运行态点一下框子就地变成输入框，
+    /// <see cref="ModeInputOutput"/>（读写）。读写档下，运行态点一下框子就地变成输入框，
     /// 回车提交、Esc 放弃。提交不自己改值——交给 <see cref="IScadaValueWriter"/> 写回工程变量，
     /// 再由数据泵读回来显示，保证"画面上显示的"与"变量里存的"永远是同一个数。
+    ///
+    /// <b>为什么"只写"那一档被撤掉</b>
+    /// ---------
+    /// 只写（框里的数不跟随变量，只把操作员敲的值送下去）本是"密码框"那一类场景的产物，
+    /// 现场罕用，却让"这个框到底跟不跟变量走"多出一个要解释的分支——组态的人每见到它
+    /// 都要停下来想一次。撤掉之后只剩一条规则：不是只读，就是读写；读写档一律跟随变量。
+    ///
+    /// <b>能不能点进去，四道门</b>
+    /// ---------
+    /// 模式选了读写、宿主给了写通道、<see cref="Value"/> 真绑了变量、当前角色过得了
+    /// <see cref="IScadaAccessPolicy"/>——少任何一条，点一下都不进编辑态。
+    /// 权限为什么卡在控件这一侧（而不是等写通道拒绝）见 <see cref="UpdateEditable"/>。
     ///
     /// <see cref="Gain"/> / <see cref="Offset"/> 是一对工程换算：现场量纲与 HMI 显示量纲不一致时
     /// （PLC 里是 0.1℃ 整数、画面要显示 ℃）用它对齐，公式见两个属性各自的注释。
@@ -49,18 +60,23 @@ namespace VisionMaster.Scada.Controls
     /// 运行时的接法（S6）：把 <see cref="Value"/> 绑到工程变量上，框里的数就跟着变量走。
     /// </summary>
     [TemplatePart(Name = PartEditor, Type = typeof(TextBox))]
+    [TemplatePart(Name = PartValueDisplay, Type = typeof(TextBlock))]
+    [TemplatePart(Name = PartLabelText, Type = typeof(TextBlock))]
     public class IOFieldElement : ScadaElementBase
     {
         /// <summary>模板部件名：就地编辑用的输入框</summary>
         public const string PartEditor = "PART_Editor";
 
+        /// <summary>模板部件名：显示态的数值文本（与 <see cref="PartEditor"/> 叠在同一格）</summary>
+        public const string PartValueDisplay = "ValueDisplay";
+
+        /// <summary>模板部件名：说明字（<see cref="ScadaElementBase.Text"/> 留空时收起，列间距一起消失）</summary>
+        public const string PartLabelText = "LabelText";
+
         /// <summary>模式取值：输出——只读显示（变量的值显示出来，不能改）</summary>
         public const string ModeOutput = "Output";
 
-        /// <summary>模式取值：输入——只写（操作员敲的数写回变量，显示不跟随变量）</summary>
-        public const string ModeInput = "Input";
-
-        /// <summary>模式取值：输入输出——可读可写</summary>
+        /// <summary>模式取值：输入输出——读写（既能显示变量的值，也能就地改并写回）</summary>
         public const string ModeInputOutput = "InputOutput";
 
         /// <summary>格式类型取值：十进制（配合 <see cref="ValueFormat"/> 使用）</summary>
@@ -96,7 +112,7 @@ namespace VisionMaster.Scada.Controls
             new FrameworkPropertyMetadata(
                 string.Empty, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
 
-        /// <summary>模式（见 <see cref="ModeOutput"/> / <see cref="ModeInput"/> / <see cref="ModeInputOutput"/>）</summary>
+        /// <summary>模式（见 <see cref="ModeOutput"/> / <see cref="ModeInputOutput"/>）</summary>
         public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
             nameof(Mode), typeof(string), typeof(IOFieldElement),
             new FrameworkPropertyMetadata(ModeOutput, OnModeChanged));
@@ -158,7 +174,7 @@ namespace VisionMaster.Scada.Controls
         /// <summary>是否正处于就地编辑态（运行态内部状态，不落描述符、不落 .vms）</summary>
         public static readonly DependencyProperty IsEditingProperty = DependencyProperty.Register(
             nameof(IsEditing), typeof(bool), typeof(IOFieldElement),
-            new FrameworkPropertyMetadata(false));
+            new FrameworkPropertyMetadata(false, OnIsEditingChanged));
 
         /// <summary>编辑框里的文本（运行态内部状态；双向绑到模板里的输入框）</summary>
         public static readonly DependencyProperty EditTextProperty = DependencyProperty.Register(
@@ -203,6 +219,14 @@ namespace VisionMaster.Scada.Controls
             DefaultStyleKeyProperty.OverrideMetadata(
                 typeof(IOFieldElement),
                 new FrameworkPropertyMetadata(typeof(IOFieldElement)));
+
+            // 说明字留空时整列要塌掉，所以「文字」一变就得重算一次显隐。基类注册它时没挂变更回调，
+            // 这里为本类型补一个（与 BitButtonElement 补 TextProperty 是同一个套路，
+            // OverrideMetadata 只影响本类型，基类与其它图元一行不动）。
+            TextProperty.OverrideMetadata(
+                typeof(IOFieldElement),
+                new FrameworkPropertyMetadata(
+                    string.Empty, FrameworkPropertyMetadataOptions.AffectsRender, OnLabelTextChanged));
         }
 
         public IOFieldElement()
@@ -236,8 +260,13 @@ namespace VisionMaster.Scada.Controls
         }
 
         /// <summary>
-        /// 模式：<see cref="ModeOutput"/> 只读显示 / <see cref="ModeInput"/> 只写 / <see cref="ModeInputOutput"/> 可读可写。
+        /// 模式：<see cref="ModeOutput"/> 只读显示 / <see cref="ModeInputOutput"/> 读写。
         /// 默认 <see cref="ModeOutput"/>——老方案里的数值域全是只读显示，默认值必须让它们保持原样。
+        ///
+        /// 判"是不是读写档"一律用"不等于 <see cref="ModeOutput"/>"，而不是"等于 <see cref="ModeInputOutput"/>"：
+        /// 撤掉"只写"档之前存盘的画面里可能残留 <c>Mode = "Input"</c>，那些值读出来既不是 Output
+        /// 也不是 InputOutput。按前一种判法它们自动归入读写档——旧画面最多"多能写"，
+        /// 而按后一种判法它们会变成只读，"存盘时能改、打开后改不动"才是真的坑。
         /// </summary>
         public string? Mode
         {
@@ -365,6 +394,10 @@ namespace VisionMaster.Scada.Controls
             EditError = null;
             IsEditing = true;
 
+            // 编辑框是从 Collapsed 翻成 Visible 的（见 UpdateEditorVisibility），刚翻过来还没排过版。
+            // 先强制一次布局，再要焦点——否则 Focus() 会因为"还不可见"而返回 False，字就敲不进去。
+            UpdateLayout();
+
             if (GetTemplateChild(PartEditor) is TextBox editor)
             {
                 editor.Focus();
@@ -428,6 +461,15 @@ namespace VisionMaster.Scada.Controls
                 return;
             }
 
+            // 写前再查一次权限。编辑框可能是在有权限时打开的，之后操作员登出/换了角色——
+            // UpdateEditable 只在模式、上下文、模型刷新时重算，赶不上登录状态的变化。
+            // 这条与 UpdateEditable 里那道闸门同一口径，只是位置更靠后，挡住"编辑中途降权"。
+            if (!CanOperate)
+            {
+                EditError = "当前角色没有操作权限，未写入";
+                return;
+            }
+
             // 不换算时把操作员敲的原文原样交出去：这样"23.50"这种写法与"写变量"动作、
             // 变量管理弹窗走的是同一条转换口径，不会因为这里先转成 double 而丢掉写法。
             //
@@ -449,15 +491,12 @@ namespace VisionMaster.Scada.Controls
             EditError = null;
 
             // 成功也不自己改 Value：值由变量持有，数据泵马上会把新值读回来。
-            // 唯一例外是"只写"模式——那条变量刷新被本图元拒收了（见 TryApplyRuntimeValue），
-            // 不在这里承接一下，框里会一直停在旧数上。
-            if (IsInputOnly)
-                SetCurrentValue(ValueProperty, raw);
+            // （"只写"档撤掉之后这里不再有例外——每一档都跟随变量，见 Mode 的注释。）
 
             // "输入完成时"发在最后一行，位置是有讲究的：
             // ① 只发在成功路径上——上面每一条失败分支都已经 return，压根走不到这里，
             //    于是"输入失败也发一次"在结构上就不可能发生（不靠一个额外的 if 去记着判）。
-            // ② 发在"只写"模式补值之后，动作拿到的变量值与框里显示的值已经是同一个数；
+            // ② 发在写回之后，动作读到的变量值已经是操作员敲进去的那个新值；
             //    若发在前面，配在这条事件上的"写变量"动作会把旧值再写一遍。
             // 这里只负责发声：有没有配钩子、该不该执行、按什么顺序执行，全在运行态会话那几道闸门里
             // （见 ScadaElementBase.RaiseScadaEvent 的注释）。
@@ -472,24 +511,6 @@ namespace VisionMaster.Scada.Controls
 
             IsEditing = false;
             EditError = null;
-        }
-
-        /// <summary>
-        /// 只写模式（<see cref="ModeInput"/>）下拒收变量的刷新：该域的值由操作员敲进去，
-        /// 让数据泵把现场值盖上来就会出现"操作员正打字、数字自己跳走"。
-        /// </summary>
-        public override bool TryApplyRuntimeValue(
-            ElementPropertyDescriptor property, object? value, string? format, out string? error)
-        {
-            ArgumentNullException.ThrowIfNull(property);
-
-            if (IsInputOnly && property.TargetProperty == ValueProperty)
-            {
-                error = null; // 认下这条刷新（返回 true = 已处理），控件保持操作员敲进去的值
-                return true;
-            }
-
-            return base.TryApplyRuntimeValue(property, value, format, out error);
         }
 
         protected override void OnRuntimeContextChanged(ScadaRuntimeContext? oldContext, ScadaRuntimeContext? newContext)
@@ -533,6 +554,11 @@ namespace VisionMaster.Scada.Controls
                 _editor.KeyDown += OnEditorKeyDown;
                 _editor.LostKeyboardFocus += OnEditorLostFocus;
             }
+
+            // 模板刚套上时，几块叠着的元素还都按模板里的初值摆着，这里按当前状态摆一次。
+            // 不能指望模板触发器：本环境下 ControlTemplate.Triggers 里的 DataTrigger 不触发
+            //（见 ScadaElementBase.SetPartVisible 的注释）。
+            UpdateEditorVisibility();
         }
 
         private TextBox? _editor;
@@ -568,8 +594,25 @@ namespace VisionMaster.Scada.Controls
             field.UpdateDisplay();
         }
 
-        /// <summary>只写模式：值只往变量里送，不往画面里拉</summary>
-        private bool IsInputOnly => string.Equals(Mode, ModeInput, StringComparison.OrdinalIgnoreCase);
+        private static void OnIsEditingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((IOFieldElement)d).UpdateEditorVisibility();
+
+        private static void OnLabelTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((IOFieldElement)d).UpdateEditorVisibility();
+
+        /// <summary>
+        /// 按当前状态摆好模板里那几块叠着的元素。
+        ///
+        /// 编辑态：显示用的 TextBlock 收起、编辑用的 TextBox 露面（两者叠在同一格里，只是翻显隐，
+        /// 不动可视树，所以字体、对齐、内衬天然一致，进编辑态字不会跳）。
+        /// 说明字留空时整列塌掉：列宽是 Auto，收起后数值那一格自然从最左边起排。
+        /// </summary>
+        private void UpdateEditorVisibility()
+        {
+            SetPartVisible(PartValueDisplay, !IsEditing);
+            SetPartVisible(PartEditor, IsEditing);
+            SetPartVisible(PartLabelText, !string.IsNullOrEmpty(Text));
+        }
 
         /// <summary>
         /// 是否十进制格式。十六进制/二进制下输入框里的字与变量里的数不是同一个写法
@@ -615,17 +658,30 @@ namespace VisionMaster.Scada.Controls
 
         private void UpdateEditable()
         {
-            // 三个条件缺一不可：模式允许写、宿主给了写通道、这个域的 Value 真绑了变量。
+            // 四个条件缺一不可：模式允许写、宿主给了写通道、这个域的 Value 真绑了变量、当前角色够格。
             // 少任何一条都点不出输入框——"点了没反应"总好过"敲完才告诉你写不了"。
+            //
+            // 权限这一条为什么卡在这里，而不是等写通道拒绝：写通道只认变量收不收这个值，
+            // 它不认识角色；领域层的权限闸门（ScadaRuntime.RaiseElementEvent）卡的是事件钩子，
+            // 不是写入本身。所以只有发起写入的图元自己能做"写前先查"。
             var editable = !string.Equals(Mode, ModeOutput, StringComparison.OrdinalIgnoreCase)
                            && RuntimeContext?.Writer is not null
-                           && Element?.FindBinding(ValueKey) is { IsEnabled: true };
+                           && Element?.FindBinding(ValueKey) is { IsEnabled: true }
+                           && CanOperate;
 
             SetValue(IsEditablePropertyKey, editable);
 
             if (!editable)
-                CancelEdit(); // 运行停了 / 绑定被摘了：正在编辑的框要收掉，否则会留下一个改不动的输入框
+                CancelEdit(); // 运行停了 / 绑定被摘了 / 登出了：正在编辑的框要收掉，否则会留下一个改不动的输入框
         }
+
+        /// <summary>
+        /// 此刻的角色够不够改这个域。<see cref="ScadaElement.RequiredRole"/> 为 null（没配过权限）
+        /// 一律放行——口径与领域层那条闸门逐字一致，不在这里另立一套。
+        /// </summary>
+        private bool CanOperate
+            => Element?.RequiredRole is not { } required
+               || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true;
 
         /// <summary>
         /// 显示域的值 → 显示串。十六进制/二进制按整数出（工业画面里的位状态、字状态、设备地址都当整数看），

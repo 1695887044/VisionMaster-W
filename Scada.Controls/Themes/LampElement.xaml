@@ -10,8 +10,9 @@
         而 LampBrush = State 从四个颜色里挑一个。模板依旧完全不关心状态，
         所以将来状态从 4 个扩到 8 个，这个文件一行都不用改。
 
-        换形状用 DataTrigger（纯模板层的选择，与"什么状态"无关）；
-        用 Binding 而不是 TemplateBinding——TemplateBinding 不能出现在触发器的 Binding 位置。
+        换形状：圆/方两块灯体叠在同一格，由控件代码按 Shape 翻显隐（见 LampElement.UpdateShapeVisibility）。
+        不写成模板里的 DataTrigger——本环境下 ControlTemplate.Triggers 里的 DataTrigger 不触发，
+        写了也是死代码；同理模板里也不写 Visibility 初值（它的优先级高过触发器 setter）。
     -->
     <Style TargetType="{x:Type local:LampElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -33,10 +34,9 @@
                                 Stroke="{TemplateBinding Stroke}"
                                 StrokeThickness="{TemplateBinding StrokeThickness}" />
 
-                            <!-- 方形灯默认隐藏，由 Shape 触发器换过来 -->
+                            <!-- 方形灯：由控件代码按 Shape 换过来 -->
                             <Rectangle
                                 x:Name="LampSquare"
-                                Visibility="Collapsed"
                                 RadiusX="3"
                                 RadiusY="3"
                                 Fill="{TemplateBinding LampBrush}"
@@ -55,15 +55,6 @@
                             TextTrimming="CharacterEllipsis"
                             HorizontalAlignment="Center" />
                     </Grid>
-
-                    <ControlTemplate.Triggers>
-                        <DataTrigger
-                            Binding="{Binding Shape, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="Square">
-                            <Setter TargetName="LampCircle" Property="Visibility" Value="Collapsed" />
-                            <Setter TargetName="LampSquare" Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

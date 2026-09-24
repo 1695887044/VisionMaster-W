@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 
 namespace VisionMaster.Scada.Controls
@@ -34,8 +35,16 @@ namespace VisionMaster.Scada.Controls
     ///
     /// 运行时的接法（S6）：把 <see cref="Value"/> 绑到工程变量上，棒图就跟着变量长。
     /// </summary>
+    [TemplatePart(Name = PartFillBar, Type = typeof(Border))]
+    [TemplatePart(Name = PartValueLabel, Type = typeof(TextBlock))]
     public class ProgressBarElement : ScadaElementBase
     {
+        /// <summary>模板部件名：填充块</summary>
+        public const string PartFillBar = "FillBar";
+
+        /// <summary>模板部件名：条上的数值文字</summary>
+        public const string PartValueLabel = "ValueLabel";
+
         /// <summary>当前值（绑到工程变量上）</summary>
         public static readonly DependencyProperty ValueProperty = DependencyProperty.Register(
             nameof(Value), typeof(double), typeof(ProgressBarElement),
@@ -69,7 +78,8 @@ namespace VisionMaster.Scada.Controls
         /// <summary>是否在条上显示数值</summary>
         public static readonly DependencyProperty ShowValueProperty = DependencyProperty.Register(
             nameof(ShowValue), typeof(bool), typeof(ProgressBarElement),
-            new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(
+                true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowValueChanged));
 
         /// <summary>数值的显示格式（标准 .NET 数字格式串，可带单位，如 <c>0.0 ℃</c>）</summary>
         public static readonly DependencyProperty ValueFormatProperty = DependencyProperty.Register(
@@ -164,8 +174,19 @@ namespace VisionMaster.Scada.Controls
         // 这两个值都在 RefreshCore 里落地，所以放在收尾钩子上一定晚于它们。
         protected override void OnElementRefreshed() => UpdateFill();
 
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+
+            // 模板刚套上时填充块还是"裸"的（模板里不再写 Width/Height/对齐），这里按走向摆一次。
+            UpdateFill();
+        }
+
         private static void OnBarInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ProgressBarElement)d).UpdateFill();
+
+        private static void OnShowValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((ProgressBarElement)d).UpdateBarLayout();
 
         private void UpdateFill()
         {
@@ -182,6 +203,33 @@ namespace VisionMaster.Scada.Controls
 
             SetValue(FillLengthPropertyKey, available * Ratio());
             SetValue(ValueTextPropertyKey, FormatValue());
+
+            UpdateBarLayout();
+        }
+
+        /// <summary>
+        /// 按走向把填充块摆好，并按 <see cref="ShowValue"/> 翻数值文字的显隐。
+        ///
+        /// 为什么不用模板里的 DataTrigger：本环境下 ControlTemplate.Triggers 里的 DataTrigger
+        /// 不触发（见 ScadaElementBase.SetPartVisible），纵向棒图与"不显数值"两个开关以前都是死的。
+        /// 另外 Setter.Value 里嵌的绑定（原来是 <c>{Binding FillLength}</c>）同样走不通，
+        /// 所以长度也一律在代码里赋。
+        /// </summary>
+        private void UpdateBarLayout()
+        {
+            if (GetTemplateChild(PartFillBar) is not FrameworkElement fillBar)
+                return;
+
+            var vertical = Orientation == ProgressBarOrientation.Vertical;
+
+            // 长度落在哪条边、靠哪一边，两档是成对的：纵向靠底拉满宽、横向靠左拉满高。
+            // 两条边都要显式赋（用 NaN 表示"不约束"），否则从纵向切回横向时会留着上一档的 Height。
+            fillBar.Width = vertical ? double.NaN : FillLength;
+            fillBar.Height = vertical ? FillLength : double.NaN;
+            fillBar.HorizontalAlignment = vertical ? HorizontalAlignment.Stretch : HorizontalAlignment.Left;
+            fillBar.VerticalAlignment = vertical ? VerticalAlignment.Bottom : VerticalAlignment.Stretch;
+
+            SetPartVisible(PartValueLabel, ShowValue);
         }
 
         /// <summary>当前值在量程里的比例（恒在 0~1；量程非法或值超界都被收敛，绝不返回 NaN）</summary>

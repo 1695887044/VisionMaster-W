@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -54,6 +54,9 @@ namespace UI.Converters
                 "String" => "文本 (String)",
                 "Boolean" => "布尔 (Bool)",
                 "Mat" => "图像 (Image)",
+                // Halcon 图像：与上面的 Mat 都是"图像"，靠括号里的类型名区分，
+                // 免得同时存在两种图像变量时，列表里出现两行一模一样的"图像 (Image)"
+                "HImage" => "图像 (HImage)",
                 "Point2D" => "二维点 (Point)",
                 _ => elementType.Name // 兜底：如果是不认识的类，就显示原名
             };

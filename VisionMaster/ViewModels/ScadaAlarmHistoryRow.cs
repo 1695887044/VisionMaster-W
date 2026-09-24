@@ -52,6 +52,14 @@ namespace VisionMaster.ViewModels
             Name = record.Name;
             Detail = record.DetailText;
             VariableName = record.VariableName ?? string.Empty;
+            AlarmGroup = record.AlarmGroup ?? string.Empty;
+
+            // 名称列的悬停提示：报警文本 + 「怎么修」。表格宽度有限，三段长文本挤不进列，
+            // 而现场查历史时"当时到底该干什么"正是翻这条记录的目的。
+            // 拼装口径统一在记录上（见 ScadaAlarmRecord.HelpText），本行只做拼接。
+            NameToolTip = string.IsNullOrWhiteSpace(record.HelpText)
+                ? record.Message
+                : record.Message + Environment.NewLine + Environment.NewLine + record.HelpText;
 
             State = record.State;
             StateText = record.State.DisplayName();
@@ -94,6 +102,12 @@ namespace VisionMaster.ViewModels
         /// <summary>被监视的变量名；没有时为空串</summary>
         public string VariableName { get; }
 
+        /// <summary>报警组；没配时为空串（列里显示空白，不显示"（无）"之类的占位）</summary>
+        public string AlarmGroup { get; }
+
+        /// <summary>名称列的悬停提示：报警文本 + 故障原因/解决措施/附加信息</summary>
+        public string NameToolTip { get; }
+
         /// <summary>态机状态（筛选按它判）</summary>
         public ScadaAlarmState State { get; }
 
@@ -128,9 +142,12 @@ namespace VisionMaster.ViewModels
         public void RefreshDuration() => DurationText = Record.DurationText;
 
         /// <summary>
-        /// 关键字是否命中本行。搜的是<b>报警名 / 报警文本 / 变量名 / 条件描述</b>四样——
-        /// 现场找一条报警时手里可能只有其中任何一样（"1#电机""Temp01""高限"）。
+        /// 关键字是否命中本行。搜的是<b>报警名 / 报警文本 / 变量名 / 条件描述 / 报警组</b>五样——
+        /// 现场找一条报警时手里可能只有其中任何一样（"1#电机""Temp01""高限""一号线"）。
         /// 空关键字一律算命中（等价于不过滤）。
+        ///
+        /// 故障原因/解决措施/附加信息<b>刻意不搜</b>：那三段是长句子，
+        /// 搜一个常用字（如"检查"）会把整张表点亮，反而筛不出想找的那条。
         /// </summary>
         public bool Matches(string? keyword)
         {
@@ -140,7 +157,8 @@ namespace VisionMaster.ViewModels
             return Contains(Name, keyword)
                 || Contains(Record.Message, keyword)
                 || Contains(VariableName, keyword)
-                || Contains(Detail, keyword);
+                || Contains(Detail, keyword)
+                || Contains(AlarmGroup, keyword);
         }
 
         /// <summary>忽略大小写与首尾空格：现场没人会为了搜一个变量名去对大小写</summary>

@@ -156,18 +156,18 @@ namespace VisionMaster.Scada.Controls
                 Category = "基础",
                 DefaultWidth = 120,
                 DefaultHeight = 24,
-                Description = "标题、说明、单位；把文字属性绑到变量上就是动态数值显示",
+                Description = "静态标签：标题、说明、单位。它不认识数值，也不接变量——要显示会变的数就用「数值域」",
                 Properties = GeometryProperties.With(
                     new()
                     {
                         Key = "Text", DisplayName = "内容", Kind = ElementPropertyKind.MultilineText,
-                        Group = "文字", DefaultValue = "文本", IsBindable = true,
+                        Group = "文字", DefaultValue = "文本",
                         TargetProperty = ScadaElementBase.TextProperty,
                     },
                     new()
                     {
                         Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020", IsBindable = true,
+                        Group = "文字", DefaultValue = "#FF202020",
                         TargetProperty = ScadaElementBase.ForegroundProperty,
                     },
                     new()
@@ -564,7 +564,7 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 140,
                 DefaultHeight = 28,
                 Description = "带边框的数值框：左边一行说明字，右边「数值 + 单位」；把「数值」绑到变量上即可（温度、计数、位置）。" +
-                              "模式选「Input / InputOutput」后，运行态点一下框子就能就地改数并写回变量",
+                              "模式选「InputOutput」后，运行态点一下框子就能就地改数并写回变量（还需当前角色的权限够，见属性面板「权限」那一行）",
                 // 手册 7.5.2 把"输入完成时"挂在数字IO域 / 字符IO域 / 日期时间域上；本库当前只有
                 // 这一个可输入图元，所以只在这一条描述符上声明。将来加了字符域/日期域，各自加一行即可。
                 Events = new[] { ScadaEventType.InputCompleted },
@@ -595,10 +595,10 @@ namespace VisionMaster.Scada.Controls
                     {
                         Key = "Mode", DisplayName = "模式", Kind = ElementPropertyKind.Choice,
                         Group = "数据", DefaultValue = "Output",
-                        Choices = new[] { "Output", "Input", "InputOutput" },
+                        Choices = new[] { "Output", "InputOutput" },
                         Description = "Output = 只读显示（老行为，运行态点不动）；" +
-                                      "Input = 只写（框里的数不跟变量走，只把操作员敲的值送下去）；" +
-                                      "InputOutput = 可读可写。后两种要运行态能点进输入，还必须把「数值」绑到变量上",
+                                      "InputOutput = 读写。读写档要运行态能点进输入，还必须把「数值」绑到变量上、" +
+                                      "且当前角色的权限够（见属性面板「权限」那一行）",
                         TargetProperty = IOFieldElement.ModeProperty,
                     },
                     new()
@@ -1299,7 +1299,7 @@ namespace VisionMaster.Scada.Controls
                 Category = "工艺",
                 DefaultWidth = 160,
                 DefaultHeight = 32,
-                Description = "工艺流程图上的一段管子（管身 + 一组流向箭头）；流向可选正向/反向/不显示，状态绑变量后箭头随流动变色",
+                Description = "工艺流程图上的一段管子（管身 + 一组流向箭头）；流向可选正向/反向/无，状态绑变量后箭头随流动变色",
                 Properties = GeometryProperties.With(
                     new()
                     {
@@ -1467,6 +1467,72 @@ namespace VisionMaster.Scada.Controls
                         Choices = new[] { "Normal", "SemiBold", "Bold" },
                         Description = "报警名与标题的字重；行内次要信息固定用常规字重，层级靠字重与透明度拉开",
                         TargetProperty = ScadaElementBase.FontWeightProperty,
+                    }),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.ImageView",
+                DisplayName = "图像显示",
+                ControlType = typeof(ImageViewElement),
+                Category = "基础",
+                DefaultWidth = 200,
+                DefaultHeight = 160,
+                Description = "把一张位图摆到画面上：绑一个图像变量，流程每次产出新图就自动刷新；" +
+                              "还没绑变量时显示「无图像」占位提示",
+                Properties = GeometryProperties.With(
+                    new()
+                    {
+                        Key = "Source", DisplayName = "图像", Kind = ElementPropertyKind.Image,
+                        Group = "图像", DefaultValue = string.Empty, IsBindable = true,
+                        Description = "绑一个图像变量（HImage）。Halcon 像素到 WPF 位图的换算在宿主侧完成，" +
+                                      "本图元只认 WPF 位图——图元库刻意不认识视觉库，换算法库不必动画面。" +
+                                      "位图没法手打，所以这一行只给绑定入口，不给输入框",
+                        TargetProperty = ImageViewElement.SourceProperty,
+                    },
+                    new()
+                    {
+                        Key = "Stretch", DisplayName = "缩放方式", Kind = ElementPropertyKind.Choice,
+                        Group = "图像", DefaultValue = "Uniform",
+                        Choices = new[] { "None", "Fill", "Uniform", "UniformToFill" },
+                        Description = "图像在框内的缩放规则，直接复用 WPF 自带的 Stretch 枚举；" +
+                                      "默认 Uniform（等比缩放到框内，不变形），" +
+                                      "要看像素真值（不缩放）选 None",
+                        TargetProperty = ImageViewElement.StretchProperty,
+                    },
+                    new()
+                    {
+                        Key = "PlaceholderText", DisplayName = "无图提示", Kind = ElementPropertyKind.Text,
+                        Group = "图像", DefaultValue = "无图像",
+                        Description = "还没绑变量、或变量当前没有图时显示的字。" +
+                                      "有它才能分清「没配」和「配了但没图」——" +
+                                      "否则操作员看到的只是一个像坏掉的空白框",
+                        TargetProperty = ImageViewElement.PlaceholderTextProperty,
+                    },
+                    new()
+                    {
+                        Key = "Fill", DisplayName = "底色", Kind = ElementPropertyKind.Color,
+                        Group = "外观", DefaultValue = "#00FFFFFF",
+                        Description = "图像背后的底色；默认全透明，让图像直接落在画面上",
+                        TargetProperty = ScadaElementBase.FillProperty,
+                    },
+                    new()
+                    {
+                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
+                        Group = "外观", DefaultValue = "#FF7A7A7A",
+                        TargetProperty = ScadaElementBase.StrokeProperty,
+                    },
+                    new()
+                    {
+                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
+                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
+                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
+                    },
+                    new()
+                    {
+                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
+                        Group = "外观", DefaultValue = "0", Min = 0, Max = 200,
+                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
                     }),
             },
         };

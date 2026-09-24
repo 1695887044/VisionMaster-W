@@ -26,6 +26,10 @@ namespace VisionMaster.Communications
         public bool IsConnected => _isConnected;
 
         /// <inheritdoc />
+        /// <remarks>S7 报文本身就是大端字节流，没有 Modbus 那种"多寄存器字序"概念，恒为 ABCD。</remarks>
+        public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+
+        /// <inheritdoc />
         public SiemensS7Connection(SiemensS7Config config)
         {
             Config = config;
@@ -72,10 +76,19 @@ namespace VisionMaster.Communications
         public T Read<T>(string address) where T : struct
         {
             if (!_isConnected) throw new InvalidOperationException("设备未连接");
-            // S7 按字节粒度读取：bool/byte=1，short/ushort=2，int/uint/float=4，long/ulong/double=8
-            var result = _device.Read(address, (ushort)System.Runtime.InteropServices.Marshal.SizeOf<T>());
+            // S7 按字节粒度读取：bool/byte=1，short/ushort=2，int/uint/float=4，long/ulong/double=8。
+            // ⚠ 不能用 Marshal.SizeOf<T>()：它对 bool 返回 4（Win32 BOOL 的尺寸），
+            // 会让 bool 读请求从 1 字节变成 4 字节——多读相邻字节，靠近区末还会越界读失败。
+            // 值本身常常"碰巧对"（ConvertTo<bool> 只取首字节），属藏得住的错。
+            // MinByteCount 与读/写链路的字节表同源；未知类型（decimal/DateTime/自定义 struct）
+            // 返回 0，此时回退 Marshal.SizeOf 保持旧行为（读回字节但解不出值，由 ConvertTo 返回 default）
+            int byteCount = HslHelper.MinByteCount(typeof(T));
+            if (byteCount == 0)
+                byteCount = System.Runtime.InteropServices.Marshal.SizeOf<T>();
+
+            var result = _device.Read(address, (ushort)byteCount);
             if (!result.IsSuccess) throw new InvalidOperationException(result.Message);
-            return HslHelper.ConvertTo<T>(result.Content);
+            return HslHelper.ConvertTo<T>(result.Content, ByteOrderFormat.ABCD);
         }
 
         /// <inheritdoc />

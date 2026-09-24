@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Media;
+using HalconDotNet;
 using Prism.Commands;
 using Prism.Dialogs;
 using UI.CustomControl;
@@ -446,18 +447,24 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 new DataTypeOption { DisplayName = "小数数组 (double[])", ActualType = typeof(double[]) },
                 new DataTypeOption { DisplayName = "文本数组 (string[])", ActualType = typeof(string[]) },
                 new DataTypeOption { DisplayName = "布尔数组 (bool[])", ActualType = typeof(bool[]) },
+                // 图像变量：给"图像显示"图元（Hmi.ImageView）当输入源用。
+                // 位图没法用文本初始值表达，所以它在变量表里的"初始值"单元格是只读的
+                // （见 VariableNode.IsEditableNode 的同名判断）。
+                new DataTypeOption { DisplayName = "图像 (HImage)", ActualType = typeof(HImage) },
             };
 
         /// <summary>
         /// 当前模式可选类型（新建面板下拉绑定此属性）：
-        /// 网络模式下过滤文本与数组——通信层仅支持标量点读，
-        /// ToDataValueType 对 string/数组会兜底成 Int32，导致地址语义错误（隐患修复）
+        /// 网络模式下过滤文本、数组与图像——通信层仅支持标量点读，
+        /// ToDataValueType 对 string/数组会兜底成 Int32，导致地址语义错误（隐患修复）；
+        /// 图像更是设备侧根本没有对应点位，留着只会让人配出一个永远为空的变量。
         /// </summary>
         public IEnumerable<DataTypeOption> FilteredTypes =>
             _isNetworkSource
                 ? AvailableTypes.Where(t =>
                     t.ActualType != typeof(string) &&
                     t.ActualType != typeof(string[]) &&
+                    t.ActualType != typeof(HImage) &&
                     !t.ActualType.IsArray)
                 : AvailableTypes;
 

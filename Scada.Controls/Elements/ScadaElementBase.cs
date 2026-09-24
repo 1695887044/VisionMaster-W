@@ -301,6 +301,27 @@ namespace VisionMaster.Scada.Controls
             Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        /// <summary>
+        /// 按条件翻转模板内某个子部件的可见性。<b>模板里的状态切换一律走这里，不要写 ControlTemplate.Triggers。</b>
+        ///
+        /// 为什么不写在模板触发器里：本环境下 <c>ControlTemplate.Triggers</c> 中的 DataTrigger
+        /// 无论 Binding 指向 <c>TemplatedParent</c>、裸 Binding 还是配了 DataContext，<b>一律不触发</b>，
+        /// 且一条绑定报错都不写（静默失效）。同一位置上属性触发器（<c>Trigger Property=</c>）与
+        /// <c>Style.Triggers</c> 里的 DataTrigger 都照常工作——所以"状态翻显隐"这类模板触发器
+        /// 在本工程里是死代码。诊断过程见 docs/code-changes/2026-09-24-SCADA模板触发器失效与就地编辑修复.md。
+        ///
+        /// 另外，模板里写死的属性值（如 <c>Visibility="Collapsed"</c>）优先级高于模板触发器 setter，
+        /// 就算触发器能响也会被压住——所以模板里这些子部件一律不写 Visibility 初值，由本方法接管。
+        /// 模板尚未套上（<see cref="FrameworkElement.GetTemplateChild"/> 取不到）时是空操作。
+        /// </summary>
+        /// <param name="partName">模板部件名（x:Name）</param>
+        /// <param name="visible">true 显示 / false 收起</param>
+        protected void SetPartVisible(string partName, bool visible)
+        {
+            if (GetTemplateChild(partName) is UIElement part)
+                part.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private ScadaRuntimeContext? _runtimeContext;
 
         /// <summary>
@@ -380,19 +401,12 @@ namespace VisionMaster.Scada.Controls
         /// Width/Height、Canvas 附加属性、RenderTransform。把"这个键落在哪"的判断留在本类里，
         /// 与设计期 <see cref="ApplyGeometry"/> 同一处口径；数据泵就只管"变量变了 → 叫控件写"。
         /// </summary>
-        /// <b>为什么是 virtual</b>
-        /// ---------
-        /// 绝大多数图元"变量给了值就照写"，但有一类图元要<b>拒收</b>某条变量的刷新：
-        /// 数值域的"输入"模式（只写域）——它的值由操作员敲进去，若还让数据泵把现场值盖上来，
-        /// 就会出现"操作员正打字、数字自己跳走"。这类图元覆写本方法、把该属性直接认下（返回 true 表示
-        /// "已处理"），刷新链路照常收工，不必在数据泵里为某个图元开特例。
-        /// </summary>
         /// <param name="property">属性声明（由 <see cref="ElementRegistry.FindProperty"/> 取到）</param>
         /// <param name="value">变量当前值（任意 CLR 对象，由 <see cref="ScadaValueConverter"/> 换算）</param>
         /// <param name="format">展示格式串（<see cref="ScadaBinding.DisplayFormat"/>，仅文本类目标使用）</param>
         /// <param name="error">失败原因（可直接展示给操作员的中文）；成功为 null</param>
         /// <returns>写成功返回 true；转换失败返回 false 且控件保持原样</returns>
-        public virtual bool TryApplyRuntimeValue(ElementPropertyDescriptor property, object? value, string? format, out string? error)
+        public bool TryApplyRuntimeValue(ElementPropertyDescriptor property, object? value, string? format, out string? error)
         {
             ArgumentNullException.ThrowIfNull(property);
 

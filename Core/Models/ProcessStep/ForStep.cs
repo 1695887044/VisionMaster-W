@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace VisionMaster.Models
 {
@@ -18,10 +19,19 @@ namespace VisionMaster.Models
         /// </summary>
         public int DefaultLoopCount { get; set; } = 10;
 
+        private ObservableCollection<StepCollection> _children = new();
+
         /// <summary>
         /// 循环体步骤集合
+        /// 必须"带 setter + ObjectCreationHandling.Replace"两件套齐备，理由同 ConditionStep.Children：
+        /// 构造函数已预建循环体，若属性只读，Newtonsoft 走 Populate 追加而非替换 → 存盘往返后循环体翻倍。
         /// </summary>
-        public ObservableCollection<StepCollection> Children { get; } = new();
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<StepCollection> Children
+        {
+            get => _children;
+            set => _children = value ?? new ObservableCollection<StepCollection>();
+        }
 
         /// <summary>
         /// 创建 For 循环步骤

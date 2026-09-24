@@ -212,6 +212,15 @@
                                 <TextBlock Text="&#xf0c7;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
+                            <MenuItem
+                                Command="{Binding SolutionCommand}"
+                                CommandParameter="{x:Static local:SolutionAction.AlarmConfig}"
+                                Header="报警配置(A)"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0f3;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
                         </MenuItem>
 
                         <MenuItem Header="视图(V)">

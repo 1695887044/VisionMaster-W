@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Width="640"
+    Width="720"
     HorizontalAlignment="Right"
     Visibility="Collapsed"
     mc:Ignorable="d">
@@ -25,6 +25,13 @@
     <!--  DataContext 由代码后置在构造期设为 ScadaAlarmHistoryViewModel（见 .xaml.cs）：  -->
     <!--  这里不写 prism:ViewModelLocator.AutoWireViewModel——本面板的视图模型要注入  -->
     <!--  「二次确认」这个口，而自动装配只能调无参构造。  -->
+    <!--  -->
+    <!--  ★ 为什么宽度从 640 提到 720（新增「报警组」列时改的）  -->
+    <!--  640 时列宽之和 572 与可用宽度<b>恰好相等</b>，一个像素都挤不出来（见下面表格处的预算注释）。  -->
+    <!--  加一列有两条路：把四五个既有列各削十几像素，或者把这块覆盖层放宽 80。  -->
+    <!--  选了后者——覆盖层不参与画布测量，放宽只是多盖住一点画面；  -->
+    <!--  而削窄既有列会同时伤到「激活时间」（等宽字体一挤就截尾）与「条件 / 触发值」两列，  -->
+    <!--  那是每天都在看的列，不该为一条新列买单。  -->
     <!--  ============================================================  -->
 
     <UserControl.Resources>
@@ -54,7 +61,7 @@
                             BorderThickness="0,0,0,1"
                             SnapsToDevicePixels="True">
                             <!--  ★ 必须是 GridViewRowPresenter ★
-                                  七列的摆位全靠它按 Columns 排；换成裸 ContentPresenter
+                                  八列的摆位全靠它按 Columns 排；换成裸 ContentPresenter
                                   列布局整体丢失，ListView 会退化成一行行的类型全名。  -->
                             <GridViewRowPresenter
                                 Columns="{TemplateBinding GridView.ColumnCollection}"
@@ -399,11 +406,11 @@
             </Grid>
 
             <!--  ====================  表格  ====================  -->
-            <!--  列宽预算（面板总宽 640）：
-                    640 − 1（左边线）− 17（竖滚动条）= 622 的行区；
-                    行两侧还要让出 4×2（行容器内距）+ 7×6（GridViewRowPresenter 给每个
-                    单元格内置的 6px）= 50，真正能摆列的只剩 572。
-                    六列定宽之和取 456，「详情」列吃掉剩下的约 116。
+            <!--  列宽预算（面板总宽 720）：
+                    720 − 1（左边线）− 17（竖滚动条）= 702 的行区；
+                    行两侧还要让出 4×2（行容器内距）+ 8×6（GridViewRowPresenter 给每个
+                    单元格内置的 6px）= 56，真正能摆列的只剩 646。
+                    八列定宽之和取 632，余 14 当余量。
                     超宽的后果不是「多出横向滚动条」（已关），而是最后一列被硬裁。  -->
             <Border
                 Grid.Row="2"
@@ -463,16 +470,33 @@
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
 
-                                <GridViewColumn Header="报警名称" Width="130">
+                                <GridViewColumn Header="报警名称" Width="120">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <!--  悬停给报警文本：名字列窄，而「到底怎么了」那句话（如
-                                                  「温度超过 80℃ 持续 5 秒」）正是操作员要看的下一句  -->
+                                            <!--  悬停给报警文本 + 「怎么修」：名字列窄，而「到底怎么了」
+                                                  那句话（如「温度超过 80℃ 持续 5 秒」）正是操作员要看的下一句；
+                                                  故障原因/解决措施/附加信息三段长文本更是塞不进列，
+                                                  但它们恰恰是"翻这条历史到底要干什么"的答案。  -->
                                             <TextBlock
                                                 Style="{StaticResource CellText}"
                                                 FontWeight="SemiBold"
                                                 Text="{Binding Name}"
-                                                ToolTip="{Binding Message}" />
+                                                ToolTip="{Binding NameToolTip}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <GridViewColumn Header="报警组" Width="70">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <!--  报警组是现场按设备/工艺段分的类（如"一号线"），
+                                                  窄列放不下长组名，所以截尾 + 悬停看全。  -->
+                                            <TextBlock
+                                                Style="{StaticResource CellText}"
+                                                Foreground="{StaticResource PanelMutedBrush}"
+                                                Text="{Binding AlarmGroup}"
+                                                TextTrimming="CharacterEllipsis"
+                                                ToolTip="{Binding AlarmGroup}" />
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>

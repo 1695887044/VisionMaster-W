@@ -133,17 +133,22 @@ namespace VisionMaster.Communications
             if (!config.Validate(out string error))
                 throw new InvalidOperationException($"连接配置验证失败: {error}");
 
+            // B4：这两个对象提到 try 外面声明，catch 里才够得着去回滚。
+            // 只用 `var connection = ...` 写在 try 内部的话，异常一抛就出了作用域，想收拾也没得收拾。
+            ICommunicationConnection? connection = null;
+            ConnectionWorker? worker = null;
+
             try
             {
                 LogInfo($"正在添加连接: {config.ConnectionName} ({config.Protocol})");
 
                 // ✅ 使用你的 ConnectionFactoryManager 创建连接
-                var connection = _factoryManager.CreateConnection(config);
+                connection = _factoryManager.CreateConnection(config);
                 _connections[config.ConnectionName] = connection;
                 _configCache[config.ConnectionName] = config;
 
                 // 每个连接配一条专属工作线程：此后该连接的所有设备 I/O 都只在这条线程上发生
-                var worker = new ConnectionWorker(connection);
+                worker = new ConnectionWorker(connection);
                 worker.StateChanged += (oldState, newState) => OnWorkerStateChanged(config.ConnectionName, oldState, newState);
                 worker.CommunicationError += ex => OnWorkerCommunicationError(config.ConnectionName, ex);
                 _workers[config.ConnectionName] = worker;
@@ -162,9 +167,77 @@ namespace VisionMaster.Communications
             }
             catch (Exception ex)
             {
+                // B4：走到这里说明"登记了一部分，然后炸了"，必须把登记痕迹摘干净。
+                // 登记顺序是 _connections → _configCache → _workers →（Start）→ _connectionsList，
+                // 唯一"登记之后还可能抛"的动作就是 worker.Start()：此时前三个字典里已有它、
+                // 而 _connectionsList 里还没有它。不回滚的后果不是"加失败"这么简单：
+                // 它是一个**隐形僵尸连接**——UI 列表里看不见，线程却在跑；
+                // 且开头那句 ContainsKey 预检会永远为真，用户换参数重试也只会一直得到
+                // "已存在同名连接"，除了删连接无路可走。
+                RollbackFailedAdd(config, connection, worker);
+
                 LogError($"添加连接失败: {config.ConnectionName}", ex);
                 OnConnectionError(config.ConnectionName, ex);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// B4：添加连接中途失败时回滚——只摘**本次调用自己写进去的那一份**。
+        /// <para>为什么不直接按名字 <c>TryRemove</c>：方法开头那句 <c>ContainsKey</c> 预检与后面的写入
+        /// 之间没有锁，**不是原子的**（TOCTOU）。并发下同一名字可能已由另一路 Add 写入了它自己的对象，
+        /// 盲删就会把别人的连接连线程一起干掉。故每一步都先 <c>TryGetValue</c> 再用
+        /// <see cref="ReferenceEquals"/> 比对，确认"就是我放进去的那个"才摘。</para>
+        /// <para>worker 与 connection 的释放归属：<b>Worker 负责释放 connection</b>
+        /// （见 <see cref="ConnectionWorker.Dispose"/>），故有 worker 就只释放 worker，
+        /// 没有 worker 才直接释放 connection。两边的 Dispose 都有幂等保护，重复调用安全。</para>
+        /// </summary>
+        private void RollbackFailedAdd(
+            CommunicationConfig config,
+            ICommunicationConnection? connection,
+            ConnectionWorker? worker)
+        {
+            string name = config.ConnectionName;
+
+            if (worker != null && _workers.TryGetValue(name, out var registeredWorker) && ReferenceEquals(registeredWorker, worker))
+                _workers.TryRemove(name, out _);
+
+            if (connection != null && _connections.TryGetValue(name, out var registeredConnection) && ReferenceEquals(registeredConnection, connection))
+                _connections.TryRemove(name, out _);
+
+            if (_configCache.TryGetValue(name, out var registeredConfig) && ReferenceEquals(registeredConfig, config))
+                _configCache.TryRemove(name, out _);
+
+            lock (_connectionsListLock)
+            {
+                // CommunicationConfig 没覆写 Equals，故 IndexOf 就是按引用找——正好是我们要的语义
+                int index = _connectionsList.IndexOf(config);
+                if (index >= 0)
+                    _connectionsList.RemoveAt(index);
+            }
+
+            if (worker != null)
+            {
+                try
+                {
+                    worker.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    LogError($"回滚时释放连接工作线程失败: {name}", ex);
+                }
+            }
+            else if (connection != null)
+            {
+                try
+                {
+                    connection.Disconnect();
+                    connection.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    LogError($"回滚时释放连接对象失败: {name}", ex);
+                }
             }
         }
 
@@ -532,7 +605,8 @@ namespace VisionMaster.Communications
 
             try
             {
-                worker.Invoke(c => { c.Write(address, value); return true; }).GetAwaiter().GetResult();
+                // N1：写走"写队列"——优先于轮询与读命令执行，UI 点写值不再排在整轮轮询之后
+                worker.InvokeWrite(c => { c.Write(address, value); return true; }).GetAwaiter().GetResult();
                 LogDebug($"写入成功: {connectionName}.{address} = {value}");
             }
             catch (Exception ex)

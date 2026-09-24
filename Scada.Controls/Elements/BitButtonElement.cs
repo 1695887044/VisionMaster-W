@@ -342,14 +342,20 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>
         /// 能不能操作：有写通道（运行态才有，设计期 RuntimeContext 是 null，点一下只是选中图元）、
-        /// 「读变量」真绑了变量且没被停用、且没被禁用。与数值域的可写判定（
+        /// 「读变量」真绑了变量且没被停用、没被禁用、且当前角色够格。与数值域的可写判定（
         /// <see cref="IOFieldElement.IsEditable"/>）同一口径——少任何一条，点击都不该动现场量：
         /// "点了没反应"总好过"点完才在日志里说写不进去"。
+        ///
+        /// 权限这一条只能卡在这里：写通道不认识角色，领域层那条闸门（<c>ScadaRuntime.RaiseElementEvent</c>）
+        /// 卡的是事件钩子而不是写入本身——"谁都不许按的按钮，按下去却把变量改了"就是这么漏出来的。
+        /// <see cref="ScadaElement.RequiredRole"/> 为 null（没配过权限）一律放行。
         /// </summary>
         private bool CanOperate
             => RuntimeContext?.Writer is not null
                && Element?.FindBinding(StateKey) is { IsEnabled: true }
-               && IsEnabled;
+               && IsEnabled
+               && (Element?.RequiredRole is not { } required
+                   || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true);
 
         /// <summary>
         /// 把状态写回工程变量。<b>刻意不自己改 <see cref="IsOn"/></b>：值由变量持有，

@@ -13,8 +13,11 @@
            RelativeSource 去取本图元配的颜色——出错时是"静默显示成默认色"，最难查的一类问题。
         2) 不排序。引擎的 ActiveAlarms 已按"严重度降序、同级按激活时间降序"排好（那是产品规则，
            不是某个面板的显示偏好），这里只负责从上往下画。
-        3) 不闪自己。相位是控件从全画面共享节拍源算出来的只读属性 BlinkOn，模板只是把它翻译成
-           Opacity——模板可被替换，控件拿不到模板内部元素，所以相位必须做成属性。
+        3) 不闪自己。相位是控件从全画面共享节拍源算出来的只读属性 BlinkOn，模板不碰它；
+           "色条此刻该多亮"由控件代码按 IsFlashing / BlinkOn 直接改 AccentBar 的 Opacity
+           （见 AlarmBannerElement.UpdateBannerLayout）——模板可被替换，控件拿不到模板内部元素，
+           所以相位必须做成属性；又因为本环境下 ControlTemplate.Triggers 里的 DataTrigger
+           一律不触发（见 ScadaElementBase.SetPartVisible），这个"翻状态"的活儿只能落在代码里。
 
         文字属性（字体/字号/字重/前景色）靠 WPF 的属性继承往下传：设在外层 Border 上，
         表头、行、空态提示全都继承到。之所以不用 TemplateBinding 逐个绑，
@@ -43,7 +46,8 @@
                         <!-- 左侧严重度色条：盖在底框之上的一层描边，圆角跟着底框走，
                              所以色条的左上/左下角与底框严丝合缝。粗细固定 3px——
                              它是一条"提示"不是"边框"，不该跟着 StrokeThickness 一起变。
-                             闪烁就是这一层的 Opacity 在 1 与 0.25 之间切换。 -->
+                             闪烁就是这一层的 Opacity 在 1 与 0.25 之间切换，
+                             由控件代码按 IsFlashing / BlinkOn 改（见 AlarmBannerElement.UpdateBannerLayout）。 -->
                         <Border
                             x:Name="AccentBar"
                             BorderBrush="{TemplateBinding AccentBrush}"
@@ -107,7 +111,12 @@
                                         <ItemsControl ItemsSource="{TemplateBinding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid x:Name="RowRoot" Margin="0,3">
+                                                    <!-- 整行悬停给出「怎么修」（故障原因/解决措施/附加信息）。
+                                                         报警条一行要挤五样东西，这三段长文本放不下，
+                                                         但现场看到报警后第一个动作就是"我该干什么"。
+                                                         HelpText 为空时由下面的触发器把提示清掉：
+                                                         一个空白提示框比没有提示框更让人怀疑软件。 -->
+                                                    <Grid x:Name="RowRoot" Margin="0,3" ToolTip="{Binding HelpText}">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="Auto" />
@@ -169,6 +178,11 @@
                                                         <DataTrigger Binding="{Binding IsAcknowledged}" Value="True">
                                                             <Setter TargetName="RowRoot" Property="Opacity" Value="0.5" />
                                                         </DataTrigger>
+
+                                                        <!-- 没配"怎么修"就不弹提示框（HelpText 为空串） -->
+                                                        <DataTrigger Binding="{Binding HelpText}" Value="">
+                                                            <Setter TargetName="RowRoot" Property="ToolTip" Value="{x:Null}" />
+                                                        </DataTrigger>
                                                     </DataTemplate.Triggers>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -176,7 +190,9 @@
                                     </ScrollViewer>
 
                                     <!-- 空态：设计期预览、以及现场"一切正常"时看到的东西。
-                                         与列表互斥，由 HasAlarms 触发器切换。 -->
+                                         与列表互斥，由控件代码按 HasAlarms 翻显隐
+                                         （见 AlarmBannerElement.UpdateBannerLayout）——
+                                         所以这里不写 Visibility 初值。 -->
                                     <TextBlock
                                         x:Name="EmptyHint"
                                         Text="{TemplateBinding EmptyText}"
@@ -184,36 +200,11 @@
                                         TextAlignment="Center"
                                         TextWrapping="Wrap"
                                         HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Visibility="Collapsed" />
+                                        VerticalAlignment="Center" />
                                 </Grid>
                             </Grid>
                         </Border>
                     </Grid>
-
-                    <ControlTemplate.Triggers>
-                        <DataTrigger
-                            Binding="{Binding HasAlarms, RelativeSource={RelativeSource TemplatedParent}}"
-                            Value="False">
-                            <Setter TargetName="ListScroll" Property="Visibility" Value="Collapsed" />
-                            <Setter TargetName="EmptyHint" Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-
-                        <!-- 闪烁：只有"严重且未确认"的报警存在时 IsFlashing 才为真，
-                             且不闪时 BlinkOn 恒为真（见控件的 RebuildRows），
-                             所以这一个触发器就足以表达"该闪且正在暗的那一拍"。 -->
-                        <MultiDataTrigger>
-                            <MultiDataTrigger.Conditions>
-                                <Condition
-                                    Binding="{Binding IsFlashing, RelativeSource={RelativeSource TemplatedParent}}"
-                                    Value="True" />
-                                <Condition
-                                    Binding="{Binding BlinkOn, RelativeSource={RelativeSource TemplatedParent}}"
-                                    Value="False" />
-                            </MultiDataTrigger.Conditions>
-                            <Setter TargetName="AccentBar" Property="Opacity" Value="0.25" />
-                        </MultiDataTrigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
