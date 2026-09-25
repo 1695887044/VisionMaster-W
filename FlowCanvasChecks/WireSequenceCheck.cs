@@ -89,10 +89,13 @@ namespace FlowCanvasChecks
             if (flow == null) return;
 
             // ---- W3 流程骨架 ----
-            Check("流程有 5 个步骤（采集 → 找线 → 选配方 → 比对 → 结果分流）",
-                flow.Steps.Count == 5,
+            // 只断言"主干在"，不断言"总数正好 5" —— 用户往流程后面再挂节点（例如加一个变量赋值把图写进全局变量）
+            // 是完全正常的编辑，钉死总数会让断言在用户正常操作后无谓变红。
+            var trunk = new[] { "图像采集_0", "找线", "选配方", "比对", "结果分流" };
+            Check("流程主干前 5 步依次是 采集 → 找线 → 选配方 → 比对 → 结果分流",
+                flow.Steps.Count >= 5 && flow.Steps.Take(5).Select(s => s.StepName).SequenceEqual(trunk),
                 $"步骤数={flow.Steps.Count}: {string.Join(" → ", flow.Steps.Select(s => s.StepName))}");
-            if (flow.Steps.Count != 5) return;
+            if (flow.Steps.Count < 5) return;
 
             var collect = flow.Steps[0];
             var scan = flow.Steps[1];

@@ -36,16 +36,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly FlowCompiler _flowCompiler;
         private readonly HttpImageServer _httpServer;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras)
         {
             _workspace = workspace;
             _logger = logger;
             _flowCompiler = flowCompiler;
             _httpServer = httpServer;
+            _cameras = cameras ?? NullCameraProvider.Instance;
             ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(Cancel);
         }
+
+        /// <summary>
+        /// 相机仓库：一是给插件的配置上下文提供"当前有哪些相机"（相机采集模式的下拉），
+        /// 二是透传给试运行的执行上下文（否则试运行里取相机会拿到 NullCameraProvider）。
+        /// </summary>
+        private readonly ICameraProvider _cameras;
 
         #region IDialogAware
 
@@ -157,9 +164,51 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 HttpHost = host is "0.0.0.0" or "[::]" or "::" ? "127.0.0.1" : host,
                 HttpPort = cfg.Port > 0 && cfg.Port <= 65535 ? cfg.Port : HttpImageServerSettings.DefaultPort,
                 HttpToken = cfg.Token ?? string.Empty,
-                RequestTimeoutMs = cfg.RequestTimeoutMs
+                RequestTimeoutMs = cfg.RequestTimeoutMs,
+                Cameras = BuildCameraOptions()
             };
         }
+
+        /// <summary>
+        /// 把当前方案的相机拷成快照列表。
+        /// 只拷展示与寻址需要的字段，不让插件拿到宿主方案里的活对象（见 PluginConfigContext.Cameras 的说明）。
+        /// 状态文字一并带上：用户在配置界面选相机时最想知道的就是"这台现在连上没有"，
+        /// 若只给个名字，选完才发现相机根本没连，白跑一次试运行。
+        /// </summary>
+        private List<CameraOption> BuildCameraOptions()
+        {
+            var options = new List<CameraOption>();
+
+            foreach (var descriptor in _cameras.Cameras)
+            {
+                var state = CameraConnectionState.Closed;
+                if (_cameras.TryGetDevice(descriptor.Id, out var device) && device != null)
+                    state = device.State;
+
+                options.Add(new CameraOption
+                {
+                    Id = descriptor.Id,
+                    SerialNo = descriptor.SerialNo ?? string.Empty,
+                    DisplayName = descriptor.DisplayName ?? string.Empty,
+                    State = state,
+                    StateText = DescribeCameraState(state)
+                });
+            }
+
+            return options;
+        }
+
+        /// <summary>
+        /// 状态 → 界面文案。写成"人在现场会怎么描述它"，不要用枚举名直译：
+        /// 用户在配置界面上看到 "Connecting" 只会更困惑，看到"等待接入"才知道要去看客户端。
+        /// </summary>
+        private static string DescribeCameraState(CameraConnectionState state) => state switch
+        {
+            CameraConnectionState.Streaming => "采流中",
+            CameraConnectionState.Online => "已连接·未采流",
+            CameraConnectionState.Connecting => "等待接入",
+            _ => "未连接"
+        };
 
         #endregion
 
@@ -256,7 +305,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 try
                 {
-                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session);
+                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras);
                 }
                 catch (Exception ex)
                 {

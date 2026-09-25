@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.CodeReader</RootNamespace>
+    <AssemblyName>Plugin.CodeReader</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core.Halcon 只用来复用既有的图像显示与参数控件风格；本插件不做框选，不需要 ImageEdit -->
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    本插件**没有需要投递的资源文件**，这是与 Plugin.Ocr 的一个重要差别：
+    一维/二维码的模型是 HALCON 用 create_bar_code_model / create_data_code_2d_model
+    在运行期按码制名现场构造出来的，不依赖任何外部模型文件（OCR 的 .omc 则是训练产物，必须随插件带）。
+    所以既不需要 Assets 目录，也不需要 PostBuild 投递 —— 少一条会出错的链路。
+    插件 DLL 自身的投递由 Plugins\Directory.Build.targets 统一处理。
+  -->
+
+</Project>

@@ -1,0 +1,178 @@
+<UserControl
+    x:Class="Plugin.CodeReader.CodeReaderView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Width="900"
+    Height="560"
+    d:DesignHeight="560"
+    d:DesignWidth="900"
+    mc:Ignorable="d">
+
+    <!--
+        码读取的配置视图。
+
+        与 Plugin.Ocr 的配置界面相比少了一整块：没有图像编辑器、没有框选。
+        本节点按用户要求不做定位（上级裁好小图再传进来），所以识别区参数一概不存在，
+        右侧就只是一个只读图像显示（ImageReadOnly，不能画图 —— 免得让人以为能框选）。
+
+        参数区按码制家族分派：一维与二维的可调参数不重合（实测一维根本没有极性参数），
+        所以"极性"那一块只在选了二维码时出现。把用不上的参数显示出来，
+        只会让现场以为动它能解决问题。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="14" />
+            </Style>
+
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="ParamLabel" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="#555555" />
+            </Style>
+
+            <Style x:Key="ParamBox" TargetType="TextBox">
+                <Setter Property="Height" Value="24" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Padding" Value="4,0,0,0" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="330" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer Grid.Column="0" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!--  ── 码制 ──  -->
+                <Border Margin="0,0,0,8" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="码制" />
+                        <ComboBox
+                            Margin="0,8,0,0"
+                            Height="26"
+                            DisplayMemberPath="DisplayName"
+                            ItemsSource="{Binding SymbologyOptions}"
+                            SelectedValue="{Binding Symbology}"
+                            SelectedValuePath="HalconName" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="{Binding SymbologyHint}" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ── 二维专属参数：仅在选了二维码时出现  ──  -->
+                <Border
+                    Margin="0,0,0,8"
+                    Style="{StaticResource CardBorder}"
+                    Visibility="{Binding Is2D, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="二维码参数" />
+                        <TextBlock Margin="0,8,0,0" Style="{StaticResource ParamLabel}" Text="极性" />
+                        <ComboBox
+                            Margin="0,4,0,0"
+                            Height="26"
+                            DisplayMemberPath="DisplayName"
+                            ItemsSource="{Binding PolarityOptions}"
+                            SelectedValue="{Binding Polarity}"
+                            SelectedValuePath="Value" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="默认「自动」：激光打码在金属上常是亮码暗底或低对比，两种都试更稳。已知极性时明确指定可提速。" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ── 公共参数 ──  -->
+                <Border Margin="0,0,0,8" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="通用参数" />
+
+                        <TextBlock Margin="0,8,0,0" Style="{StaticResource ParamLabel}" Text="搜索超时(ms，0 = 不限)" />
+                        <TextBox Style="{StaticResource ParamBox}" Text="{Binding TimeoutMs}" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="图上没有码时 HALCON 会在候选区域反复尝试。没有超时保护会拖住整条流程。" />
+
+                        <TextBlock Margin="0,10,0,0" Style="{StaticResource ParamLabel}" Text="示意图路径（仅配置期用）" />
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button
+                                Grid.Column="1"
+                                Width="56"
+                                Height="24"
+                                Margin="6,0,0,0"
+                                Click="OnLoadPreviewClick"
+                                Content="载入" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!--  ── 试算 ──  -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <Button
+                            Height="28"
+                            Click="OnTryRecognizeClick"
+                            Content="试算一下" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="{Binding Hint}" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontFamily="Consolas"
+                            FontSize="11"
+                            Foreground="#1F1F1F"
+                            Text="{Binding ResultSummary}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="提示：上级传进来的图要把码完整包住、留点余量。贴边裁可能导致找不到码（HALCON 文档明确说明）。" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  右侧：只读显示。本节点不吃 ROI，所以刻意不用 ImageEdit，免得让人以为能框选  -->
+        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource CardBorder}">
+            <h:ImageReadOnly HImage="{Binding DisplayImage, Mode=OneWay}" />
+        </Border>
+    </Grid>
+</UserControl>

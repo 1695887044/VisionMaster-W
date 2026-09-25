@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Reflection;
 using System.Windows;
 using Core.Interfaces;
@@ -68,6 +68,12 @@ namespace FlowCanvasChecks
             ExecutionChecks.SessionStateTransitionSemantics();
             ExecutionChecks.ContractHygieneAndStepCollection();
 
+            // OCR：字符分割 + 识别（真图 + 真模型）
+            OcrChecks.Run();
+            CodeReaderChecks.Run();
+            YoloChecks.Run();
+            BlobDetectChecks.Run();
+
             // HTTP 收图端到端冒烟（真起服务端 + 真发 HTTP 图片）
             HttpImageSmoke.Run();
 
@@ -79,6 +85,18 @@ namespace FlowCanvasChecks
 
             // 变量赋值：运行时 / 全局两种作用域
             VariableAssignmentCheck.Run();
+
+            // 颜色序列检查插件（第一刀）：ROI 采样区的画框 / 存盘 / 回填
+            ColorCheckRoiCheck.Run();
+
+            // 颜色序列检查插件（第二刀 / 第三刀）：自适应找线 → 配方判定 → 结果投射
+            ColorCheckSequenceCheck.Run();
+
+            // 区域颜色检查算子（第二个颜色算子，兼验颜色内核真的通用）
+            ColorRegionCheck.Run();
+
+            // 线序检测·插件版方案端到端（真加载 .vms + 真编译 + 真执行 + 断言结果与投射）
+            WireSequencePluginCheck.Run();
 
             Finish();
             return Environment.ExitCode;

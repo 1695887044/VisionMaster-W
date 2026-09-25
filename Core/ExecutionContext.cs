@@ -46,6 +46,15 @@ namespace VisionMaster.Services
         public IWorkspaceManager Workspace { get; init; }
 
         /// <summary>
+        /// 相机仓库（方案级硬件资源）。
+        ///
+        /// 默认值是 <see cref="NullCameraProvider"/>，而不是 null —— 与 GlobalVariables 同一口径：
+        /// 容器注册用的简化构造（没有工作区）与单元测试夹具都走这条默认路径，
+        /// 插件侧因此只需判 <c>TryGetDevice</c> 的返回值，不必再为"相机能力可能不存在"写一层判空。
+        /// </summary>
+        public ICameraProvider Cameras { get; init; } = NullCameraProvider.Instance;
+
+        /// <summary>
         /// 当前执行节点的ID（用于调试和追踪）
         /// </summary>
         public Guid? CurrentNodeId { get; set; }

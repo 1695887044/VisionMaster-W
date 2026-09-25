@@ -171,7 +171,7 @@ namespace FlowCanvasChecks
             var locks = new ResourceLockService();
             var log = new StubLog();
             var engine = new FlowEngineService(
-                new RuntimeManager(), log, run.Workspace!, null, locks);
+                new RuntimeManager(), log, run.Workspace!, null, locks, Core.Interfaces.NullCameraProvider.Instance);
             var session = run.Session!;
 
             var first = engine.RunSessionAsync(session);
@@ -614,7 +614,7 @@ namespace FlowCanvasChecks
             var locks = new ResourceLockService();
             var log = new StubLog();
             var manager = new RuntimeManager();
-            var engine = new FlowEngineService(manager, log, run.Workspace!, null, locks);
+            var engine = new FlowEngineService(manager, log, run.Workspace!, null, locks, Core.Interfaces.NullCameraProvider.Instance);
             var session = run.Session!;
             var lockKey = $"FlowSession:{session.SessionID}";
 
@@ -873,7 +873,7 @@ namespace FlowCanvasChecks
 
             var log = new StubLog();
             var engine = new FlowEngineService(
-                new RuntimeManager(), log, run.Workspace!, null, new ResourceLockService());
+                new RuntimeManager(), log, run.Workspace!, null, new ResourceLockService(), Core.Interfaces.NullCameraProvider.Instance);
             var session = run.Session!;
 
             // ---- ① + ② 同时采集：转换序列 + session 上 State 通知次数 ----

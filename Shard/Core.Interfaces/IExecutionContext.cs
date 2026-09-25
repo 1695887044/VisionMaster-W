@@ -41,6 +41,15 @@ namespace Core.Interfaces
         /// </summary>
         IGlobalVariableWriter GlobalVariables { get; }
 
+        /// <summary>
+        /// 相机仓库：方案级硬件资源（连接 / 帧队列 / 状态机都在宿主侧，插件只拿契约）。
+        ///
+        /// 与 <see cref="GlobalVariables"/> 同一范式——插件物理上够不到宿主的 CameraProvider，
+        /// 只能由上下文递送。实现方必须保证"非空"：没有相机服务时返回 <see cref="NullCameraProvider"/>，
+        /// 让插件只判 <c>TryGetDevice</c> 的返回值即可。
+        /// </summary>
+        ICameraProvider Cameras { get; }
+
         IDictionary<string, object> LocalVariables { get; }
     }
 }

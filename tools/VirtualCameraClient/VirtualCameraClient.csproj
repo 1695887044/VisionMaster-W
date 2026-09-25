@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    虚拟相机客户端：完全独立的 WPF 小工具。
+    刻意"三不"：不加入 VisionMaster.sln、不引用主解决方案任何工程、不引入任何 NuGet 包。
+    它只通过 HTTP 与主软件通信，所以对主仓库的编译产线零影响（可直接单独 dotnet build 本 csproj）。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>VirtualCameraClient</RootNamespace>
+    <AssemblyName>VirtualCameraClient</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+</Project>

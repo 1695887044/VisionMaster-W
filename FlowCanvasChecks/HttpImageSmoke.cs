@@ -144,7 +144,7 @@ namespace FlowCanvasChecks
             var runtime = new RuntimeManager();
             var locks = new ResourceLockService();
             var compiler = new FlowCompiler(workspace);
-            var engine = new FlowEngineService(runtime, log, workspace, null, locks);
+            var engine = new FlowEngineService(runtime, log, workspace, null, locks, Core.Interfaces.NullCameraProvider.Instance);
             var collector = new FlowOutputCollector();
             var server = new HttpImageServer(log, settings, runtime, engine, compiler, workspace, collector);
 

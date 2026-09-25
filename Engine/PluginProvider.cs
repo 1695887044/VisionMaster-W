@@ -1,4 +1,4 @@
-﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -86,22 +86,28 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 注册相机插件
+        /// 注册相机驱动插件。
         ///
-        /// 【为什么是"转交普通模块注册"，而不是"写进 _cameras"】
-        /// 引擎里目前没有任何"按分类消费"的地方：工具面板与画布都只读 ModulePlugins，
-        /// 而 CameraPlugins/LaserPlugins/MotionPlugins 三个视图除了 PluginScanCheck 统计总数外无调用方。
-        /// 所以真把插件写进 _cameras，它会从算子列表里消失 —— "加载成功却拖不出来"，
-        /// 比抛异常更难排查。转交模块注册表后，算子正常出现、能拖能用，只是不带分类。
+        /// 【与 RegisterLaser / RegisterMotion 的关键区别：这里真的写进 _cameras】
+        /// 相机驱动**不是流程步骤**——它实现的是 ICameraDevice 而不是 IVisionPlugin，
+        /// 所以它本来就不会出现在算子列表里，也就不存在"写进 _cameras 就从算子列表消失"的问题
+        /// （那个隐患只针对"用 [Display(GroupName="相机")] 伪装成相机分类的普通算子"，
+        ///   那种插件走的是 RegisterModule，见 PluginService.LoadPlugin 里 case "相机" 的说明）。
         ///
-        /// 分类仓库（_cameras/_lasers/_motions）作为文档里写明的"后续接入 EtherCAT/脉冲的挂接点"保留。
-        /// 将来真要启用分类，必须连同消费端（算子列表、画布端口）一起设计，不能只改这里。
-        ///
-        /// 【为什么必须修】这三个方法原先直接抛 NotImplementedException，而 PluginService 会按插件的
-        /// GroupName 分派到这里 —— 于是任何用「相机/激光/轴卡」组名的外部 DLL 都会**整个加载失败**，
-        /// 且失败被 per-file catch 吞成一句"加载插件失败 {dllPath}"，现场根本看不出是组名的问题。
+        /// _cameras 现在的消费方是宿主 CameraProvider.AvailableDrivers：
+        /// 「系统 → 相机设置」靠它列出"可选的相机类型"。写进模块表反而会让它查不到驱动，
+        /// 表现为"相机设置里一个类型都没有"。
         /// </summary>
-        public void RegisterCamera(ToolItemModel plugin) => RegisterModule(plugin);
+        public void RegisterCamera(ToolItemModel plugin)
+        {
+            lock (_lock)
+            {
+                if (!_cameras.TryAdd(plugin.ModuleTypeName, plugin))
+                {
+                    _notifier.ShowError($"{plugin.ModuleTypeName} 相机驱动命名重复");
+                }
+            }
+        }
 
         /// <summary>
         /// 注册激光插件（同 <see cref="RegisterCamera"/>：分类未启用，转交模块注册表）
@@ -114,12 +120,19 @@ namespace VisionMaster.Services
         public void RegisterMotion(ToolItemModel plugin) => RegisterModule(plugin);
 
         /// <summary>
-        /// 获取相机插件
+        /// 获取相机驱动插件。
         ///
-        /// 与注册同表查找：分类未启用时注册实际上落在模块表，
-        /// 若这里仍去查恒空的 _cameras，就会出现"注册进去了却查不到"的错位。
+        /// 与注册同表查找：注册写进 _cameras，这里就必须查 _cameras。
+        /// 两边不同表会出现"注册进去了却查不到"的错位。
         /// </summary>
-        public ToolItemModel GetCamera(string name) => GetModule(name);
+        public ToolItemModel GetCamera(string name)
+        {
+            lock (_lock)
+            {
+                _cameras.TryGetValue(name, out var plugin);
+                return plugin;
+            }
+        }
 
         /// <summary>获取激光插件（同 <see cref="GetCamera"/>：与注册同表查找）</summary>
         public ToolItemModel GetLaser(string name) => GetModule(name);

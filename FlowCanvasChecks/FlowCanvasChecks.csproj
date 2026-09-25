@@ -14,6 +14,20 @@
   <ItemGroup>
     <!-- 引用主程序即可拿到 Core / Engine / Core.Interfaces 的全部 public 面 -->
     <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
+    <!--
+      直接引用 OCR 插件工程（而不是像生产那样从 Modules\ 反射加载）：
+      本文件要断言的是「分割 + 识别」这一步算法对不对，直接调类才能拿到编译期检查与可读的失败信息。
+      副作用是顺带把插件工程拉进构建图，Plugin.Ocr.dll 与它的 Assets 会被投递到位（见该工程 csproj）。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.Ocr\Plugin.Ocr.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.CodeReader\Plugin.CodeReader.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.Yolo\Plugin.Yolo.csproj" />
+    <!--
+      Blob 缺陷检测：直接引用插件工程（而不是从 Modules\ 反射加载），
+      这样"触边排除 / 长宽比 / 合并 / 填孔 / 排序 / 像素当量 / 位深底图"这些契约
+      能在编译期就拿到类型检查，失败信息也更好读。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.BlobDetect\Plugin.BlobDetect.csproj" />
   </ItemGroup>
 
   <ItemGroup>

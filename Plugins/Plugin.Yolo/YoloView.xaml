@@ -1,0 +1,231 @@
+<UserControl
+    x:Class="Plugin.Yolo.YoloView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Width="980"
+    Height="620"
+    d:DesignHeight="620"
+    d:DesignWidth="980"
+    mc:Ignorable="d">
+
+    <!--
+        YOLO 目标检测的配置视图。
+
+        与 Plugin.Ocr / Plugin.CodeReader 的界面同范式：左参数、右图像。
+        本节点**不吃 ROI**（检测整幅图），所以右侧用只读的 ImageReadOnly，不给框选能力 ——
+        免得让人以为能框。
+
+        界面上刻意显示两处"排障用的信息"，它们不是装饰：
+          · 模型摘要（输入输出形状 / task / 类别名）—— 模型选错时这里是唯一线索；
+          · 试算结果里的 letterbox 参数 —— 框整体偏移时先看它。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="14" />
+            </Style>
+
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="ParamLabel" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="#555555" />
+            </Style>
+
+            <Style x:Key="ParamBox" TargetType="TextBox">
+                <Setter Property="Height" Value="24" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Padding" Value="4,0,0,0" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer Grid.Column="0" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!--  ── 模型 ──  -->
+                <Border Margin="0,0,0,8" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="检测模型（.onnx）" />
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding ModelPath, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button
+                                Grid.Column="1"
+                                Width="56"
+                                Height="24"
+                                Margin="6,0,0,0"
+                                Click="OnBrowseModelClick"
+                                Content="浏览" />
+                        </Grid>
+
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="支持相对路径（相对宿主程序目录），换机器部署时不用改配置。" />
+
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontFamily="Consolas"
+                            FontSize="11"
+                            Foreground="#1F1F1F"
+                            Text="{Binding ModelSummary}"
+                            TextWrapping="Wrap" />
+
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="只支持「目标检测」模型。分割 / 姿态 / 分类模型的输出格式不同，会被明确拒绝（不会拿错格式硬算）。" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ── 检测参数 ──  -->
+                <Border Margin="0,0,0,8" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="检测参数" />
+
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource ParamLabel}"
+                            Text="置信度阈值（0~1）"
+                            ToolTip="低于它的候选直接丢弃。调高会减少误检、调低会减少漏检。默认 0.25。" />
+                        <TextBox Style="{StaticResource ParamBox}" Text="{Binding ConfidenceThreshold}" />
+
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource ParamLabel}"
+                            Text="NMS 重叠阈值（0~1）"
+                            ToolTip="同类框重叠超过它就只留置信度高的那个。默认 0.45。按类别分别做 —— 人骑车这种异类重叠不会被压制。" />
+                        <TextBox Style="{StaticResource ParamBox}" Text="{Binding NmsIoU}" />
+
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource ParamLabel}"
+                            Text="最多保留目标数（0 = 不限）"
+                            ToolTip="按置信度排序后截断，避免异常图上刷出成千上万个框。" />
+                        <TextBox Style="{StaticResource ParamBox}" Text="{Binding MaxDetections}" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ── 高级参数（折叠）  ──  -->
+                <Expander Margin="0,0,0,8" Header="高级参数（多数场景不用动）">
+                    <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                        <StackPanel>
+                            <TextBlock
+                                Margin="0,0,0,0"
+                                Style="{StaticResource ParamLabel}"
+                                Text="输入尺寸（0 = 用模型自带的）"
+                                ToolTip="letterbox 的目标边长。模型元数据里有静态尺寸时留 0 即可；模型是动态形状才需要手填（常见 640）。" />
+                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding InputSize}" />
+
+                            <TextBlock
+                                Margin="0,8,0,0"
+                                Style="{StaticResource ParamLabel}"
+                                Text="类别过滤（如 0,2；留空 = 全部）"
+                                ToolTip="只保留指定类别索引的目标。用于「我只关心缺陷这一类」的场景。填错会明确报错，不会静默当成不过滤。" />
+                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding ClassFilterText}" />
+
+                            <TextBlock
+                                Margin="0,8,0,0"
+                                Style="{StaticResource ParamLabel}"
+                                Text="裁剪边距（像素）"
+                                ToolTip="「最佳目标裁剪图」向外扩张的边距。下游要做精细测量时给几像素余量，避免把目标边缘切掉。" />
+                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding CropMargin}" />
+                        </StackPanel>
+                    </Border>
+                </Expander>
+
+                <!--  ── 试算 ──  -->
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="试算（用示意图，不连上游也能看结果）" />
+
+                        <TextBlock Margin="0,8,0,0" Style="{StaticResource ParamLabel}" Text="示意图路径" />
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button
+                                Grid.Column="1"
+                                Width="56"
+                                Height="24"
+                                Margin="6,0,0,0"
+                                Click="OnBrowsePreviewClick"
+                                Content="浏览" />
+                        </Grid>
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button
+                                Grid.Column="0"
+                                Height="26"
+                                Margin="0,0,4,0"
+                                Click="OnLoadPreviewClick"
+                                Content="载入" />
+                            <Button
+                                Grid.Column="1"
+                                Height="26"
+                                Margin="4,0,0,0"
+                                Click="OnTryDetectClick"
+                                Content="试算一下" />
+                        </Grid>
+
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="{Binding Hint}" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontFamily="Consolas"
+                            FontSize="11"
+                            Foreground="#1F1F1F"
+                            Text="{Binding ResultSummary}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  右侧：只读显示。本节点检测整幅图，不吃 ROI，所以刻意不用可框选的控件  -->
+        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource CardBorder}">
+            <h:ImageReadOnly HImage="{Binding DisplayImage, Mode=OneWay}" />
+        </Border>
+    </Grid>
+</UserControl>

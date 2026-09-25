@@ -115,6 +115,55 @@ namespace VisionMaster.Models
     }
 
     /// <summary>
+    /// 网络相机收图服务的配置节（见 <see cref="AppConfigModel.NetworkCameraServer"/>）。
+    ///
+    /// 为什么与 <see cref="HttpImageServerSettings"/> 分开成两节、且用独立端口
+    /// ---------
+    /// 两者都是"HTTP 收图"，但语义完全不同：
+    ///   HttpImageServer  = 外部推一张图 → 立刻跑一次流程 → 同步回结果（一请求一帧一次执行，只留最新帧）；
+    ///   NetworkCameraServer = 客户端按相机该有的样子持续送帧（消费语义 + 环形缓冲 + 溢出计数 + 心跳判活）。
+    /// 挤在同一个服务上，每次改相机逻辑都要重测已上线的"网络推送"功能，回归面白白翻倍；
+    /// 端口分开后两条链路互不影响，现场排障也能一眼看出是哪条通道在报错。
+    /// </summary>
+    public class NetworkCameraServerSettings
+    {
+        /// <summary>默认监听端口。刻意与 HttpImageServer 的 19000 错开，避免两个服务抢同一端口</summary>
+        public const int DefaultPort = 19100;
+
+        /// <summary>默认令牌（与 HttpImageServer 同值的占位值，只防误连、不是安全防线）</summary>
+        public const string DefaultToken = "visionmaster";
+
+        /// <summary>默认监听地址：<c>0.0.0.0</c> = 所有网卡（相机客户端可能来自另一台机器）</summary>
+        public const string DefaultHost = "0.0.0.0";
+
+        /// <summary>
+        /// 是否启用网络相机收图服务。默认<b>开启</b>——不启用则"网络相机"这一类相机完全无法工作。
+        /// 现场只用真机时改 false 即可省一个监听端口。
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>监听地址。<c>0.0.0.0</c> = 所有网卡；<c>127.0.0.1</c> = 只收本机</summary>
+        public string Host { get; set; } = DefaultHost;
+
+        /// <summary>监听端口。改它时客户端的推图地址要同步改，联调通过后不要再动</summary>
+        public int Port { get; set; } = DefaultPort;
+
+        /// <summary>
+        /// 访问令牌（Bearer）。客户端须在 <c>Authorization: Bearer {Token}</c> 头里带上。
+        /// 默认值是写在源码与文档里的占位值，只用于防止"别的程序恰好往这个端口发东西"。
+        /// </summary>
+        public string Token { get; set; } = DefaultToken;
+
+        /// <summary>
+        /// 令牌是否仍是默认占位值（服务启动时据此 Warn 提醒现场修改）
+        /// </summary>
+        [JsonIgnore]
+        public bool IsUsingDefaultToken =>
+            string.IsNullOrWhiteSpace(Token) ||
+            string.Equals(Token, DefaultToken, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 软件级配置（AppConfig.json）：方案清单 + 默认启动方案
     /// 注意：这是软件全局配置，不随任何解决方案持久化
     /// </summary>
@@ -230,5 +279,16 @@ namespace VisionMaster.Models
         /// 不会自动 new，只会留 null。初始化器保证"文件里没有"与"文件里写了默认值"走同一条路。
         /// </summary>
         public HttpImageServerSettings HttpImageServer { get; set; } = new();
+
+        /// <summary>
+        /// 网络相机收图服务配置（客户端持续推帧 + 心跳 → 相机帧队列 → 流程消费，
+        /// 见 <see cref="NetworkCameraServerSettings"/>）。
+        ///
+        /// <b>不能为 null</b>：与 <see cref="HttpImageServer"/> 同一理由——运行时会被直接点着用
+        /// （<c>Current.NetworkCameraServer.Enabled</c>），而老版本的 AppConfig.json 里没有这个节，
+        /// Newtonsoft 遇到缺失的引用类型只留 null 不会自动 new。初始化器让"文件里没有"
+        /// 与"文件里写了默认值"走同一条路。
+        /// </summary>
+        public NetworkCameraServerSettings NetworkCameraServer { get; set; } = new();
     }
 }

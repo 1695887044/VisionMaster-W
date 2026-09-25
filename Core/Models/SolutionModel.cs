@@ -109,6 +109,25 @@ namespace VisionMaster.Models
         public ObservableCollection<Communications.CommunicationConfig> CommunicationConfigs { get; set; } = new();
 
         /// <summary>
+        /// 相机配置集合（跟着解决方案走）。
+        ///
+        /// 为什么相机属于方案而不是程序级全局配置
+        /// ---------
+        /// 相机是"这条产线这台设备上装了哪几台相机、什么型号、什么序列号"的描述，
+        /// 与产品配方一起构成"这一套检测方案"。现场换方案 = 换产品 = 常常同时换相机工位，
+        /// 所以它跟 .vms 走；而"监听端口/令牌"那种"这台机器怎么对外"的东西才进 AppConfig.json。
+        ///
+        /// 存的是 <see cref="global::Core.Interfaces.CameraDescriptor"/>（纯配置），
+        /// 运行态设备（句柄 / 帧队列 / 状态机）由宿主 CameraProvider 另存，从不序列化。
+        ///
+        /// ObjectCreationHandling.Replace：反序列化时整体替换，避免与初始化器预置内容叠加。
+        /// 注意 <c>global::</c> 前缀不能省：本文件命名空间是 VisionMaster.Models，
+        /// 裸写 Core.Interfaces 会被解析成 VisionMaster.Core.Interfaces（CS0234）。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<global::Core.Interfaces.CameraDescriptor> CameraConfigs { get; set; } = new();
+
+        /// <summary>
         /// 全局变量集合（跟着解决方案走）
         /// E3：变量持久化已统一走 VariableSnapshots（DTO 多态可控），本属性全库无人写入、
         /// 恒为空却仍参与序列化（且 IVariable 多态 $type 正是数组白名单雷区），

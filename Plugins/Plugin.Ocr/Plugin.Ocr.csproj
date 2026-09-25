@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.Ocr</RootNamespace>
+    <AssemblyName>Plugin.Ocr</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core.Halcon：ImageEdit（在图上框识别区）与标注库，插件不自己造图像控件 -->
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    内置 OCR 模型（Industrial_0-9A-Z_Rej.omc，0.2 MB）需要两条投递路径，缺一不可：
+
+    ① Update + CopyToOutputDirectory —— 让本工程、以及"编译期引用本工程"的消费者
+       （FlowCanvasChecks 断言工程）的输出目录里都有这份模型。
+       断言才能真的按"内置模型开箱可用"这条路径跑一遍，而不是手动传绝对路径把它绕过。
+
+    ② PostBuild 投到 $(HostBinDir) —— 生产宿主（VisionMaster）并不引用本工程，
+       它按 DLL 反射加载插件，拿不到 ① 的传递拷贝。缺这条，现场运行期会找不到模型。
+
+    用 Update 而不是 Include：SDK 风格的工程已把非 .cs 文件默认纳为 None，
+    再 Include 一次会撞成重复项（NETSDK1022）。
+  -->
+  <ItemGroup>
+    <None Update="Assets\ocr\*.omc" CopyToOutputDirectory="PreserveNewest" Link="Assets\ocr\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(ProjectDir)Assets&quot; &quot;$(HostBinDir)Assets\&quot; /E /I /Y /Q" />
+  </Target>
+
+</Project>

@@ -2,6 +2,7 @@
   "SolutionName": "线序颜色检测",
   "Version": 1.0,
   "Config": {
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/25/2026 12:52:40\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"329.79999999999995\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/25/2026 12:52:41\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"09/25/2026 04:18:58\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"185.7218796036847*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"09/25/2026 12:53:10\" />\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/25/2026 12:53:11\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/25/2026 04:16:46\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/25/2026 01:09:22\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"09/25/2026 01:09:26\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"09/25/2026 09:37:57\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"300\" />\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup PreviousContainerId=\"bfd2cf71-aff6-48c9-a05a-30af76768841\">\r\n      <LayoutAnchorable AutoHideWidth=\"174.28571428571422\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/25/2026 09:37:06\" />\r\n      <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"09/25/2026 09:37:49\" />\r\n    </LayoutAnchorGroup>\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden />\r\n</LayoutRoot>",
     "ImageViewMode": 0
   },
   "Flows": [
@@ -9,33 +10,92 @@
       "FlowID": "5c2746a6a9924c20bee2bda3b4ecd7d4",
       "FlowName": "线序检测",
       "Description": "多产品配方 + 条件分支：按芯数自动选配方，逐位比对，结果分流",
-      "Version": 6,
+      "Version": 19,
       "IsEnabled": true,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
       "TriggerMode": 1,
       "Layout": {
-        "Nodes": {},
-        "Count": 0
+        "Nodes": {
+          "442c564b-1174-44fc-a16a-e3a8b58d1e9d": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Collapsed": false
+          },
+          "e4769f0e-ffec-4016-ba27-77c23f5ce1c3": {
+            "X": 0.0,
+            "Y": 90.0,
+            "Collapsed": false
+          },
+          "fbb161c6-c3d8-47a0-aee9-288b6c06c436": {
+            "X": 0.0,
+            "Y": 180.0,
+            "Collapsed": false
+          },
+          "7bc9d28d-75ab-4ab9-9ed2-234304a843e2": {
+            "X": 220.0,
+            "Y": 270.0,
+            "Collapsed": false
+          },
+          "9ed467f3-931a-4fa2-bd4d-6be2e47f3ee7": {
+            "X": 480.0,
+            "Y": 270.0,
+            "Collapsed": false
+          },
+          "56b9c670-8abe-4a8a-8094-7794a39f62bd": {
+            "X": 740.0,
+            "Y": 270.0,
+            "Collapsed": false
+          },
+          "bd587803-8503-4e74-ac6f-3795922d930e": {
+            "X": 0.0,
+            "Y": 270.0,
+            "Collapsed": false
+          },
+          "92079b89-99dc-42e9-92d2-c6fde5b62773": {
+            "X": 0.0,
+            "Y": 360.0,
+            "Collapsed": false
+          },
+          "73d6c4f9-426a-4476-b9d6-211143a4445e": {
+            "X": 220.0,
+            "Y": 450.0,
+            "Collapsed": false
+          },
+          "c555aa6a-fa8e-4edb-81b8-0a6f0106640e": {
+            "X": 480.0,
+            "Y": 450.0,
+            "Collapsed": false
+          },
+          "1333ddd0-236f-498d-9dc6-d4de6c78ccfa": {
+            "X": 0.0,
+            "Y": 450.0,
+            "Collapsed": false
+          }
+        },
+        "Count": 11
       },
       "Steps": [
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
           "StepID": "442c564b-1174-44fc-a16a-e3a8b58d1e9d",
-          "Icon": "\uf1c5",
+          "Icon": "",
           "PluginName": "图像采集",
           "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
           "StepName": "图像采集_0",
           "Description": "图像采集",
           "SortId": 0,
           "IsDisEnable": false,
-          "State": 0,
+          "State": 1,
           "InputValues": {
-            "Mode": 0,
+            "Mode": 3,
             "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\颜色\\cable1.png",
             "FolderPath": "",
-            "DisplayViewIndex": 1
+            "DisplayViewIndex": 1,
+            "FileIndex": 0,
+            "FrameTimeoutMs": 3000,
+            "CameraSerial": "VIRTUAL-001"
           },
           "LinkedSources": {},
           "OutputPortDefinitions": []
@@ -43,7 +103,7 @@
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
           "StepID": "e4769f0e-ffec-4016-ba27-77c23f5ce1c3",
-          "Icon": "\uf0ac",
+          "Icon": "",
           "PluginName": "C#脚本",
           "PluginTypeName": "Plugin.CSharpScript.CSharpScriptPlugin, Plugin.CSharpScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
           "StepName": "找线",
@@ -112,7 +172,7 @@
                 {
                   "$type": "VisionMaster.Models.ActionStep, VM.Core",
                   "StepID": "7bc9d28d-75ab-4ab9-9ed2-234304a843e2",
-                  "Icon": "\uf044",
+                  "Icon": "",
                   "PluginName": "变量赋值",
                   "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
                   "StepName": "赋值_Expected",
@@ -139,7 +199,7 @@
                 {
                   "$type": "VisionMaster.Models.ActionStep, VM.Core",
                   "StepID": "9ed467f3-931a-4fa2-bd4d-6be2e47f3ee7",
-                  "Icon": "\uf044",
+                  "Icon": "",
                   "PluginName": "变量赋值",
                   "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
                   "StepName": "赋值_Expected",
@@ -166,7 +226,7 @@
                 {
                   "$type": "VisionMaster.Models.ActionStep, VM.Core",
                   "StepID": "56b9c670-8abe-4a8a-8094-7794a39f62bd",
-                  "Icon": "\uf044",
+                  "Icon": "",
                   "PluginName": "变量赋值",
                   "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
                   "StepName": "赋值_Expected",
@@ -189,7 +249,7 @@
             }
           ],
           "StepID": "fbb161c6-c3d8-47a0-aee9-288b6c06c436",
-          "Icon": "\uf0e8",
+          "Icon": "",
           "PluginName": "条件分支",
           "PluginTypeName": "BuiltIn_If",
           "StepName": "选配方",
@@ -204,7 +264,7 @@
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
           "StepID": "bd587803-8503-4e74-ac6f-3795922d930e",
-          "Icon": "\uf0ac",
+          "Icon": "",
           "PluginName": "C#脚本",
           "PluginTypeName": "Plugin.CSharpScript.CSharpScriptPlugin, Plugin.CSharpScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
           "StepName": "比对",
@@ -273,7 +333,7 @@
                 {
                   "$type": "VisionMaster.Models.ActionStep, VM.Core",
                   "StepID": "73d6c4f9-426a-4476-b9d6-211143a4445e",
-                  "Icon": "\uf044",
+                  "Icon": "",
                   "PluginName": "变量赋值",
                   "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
                   "StepName": "赋值_Verdict",
@@ -300,7 +360,7 @@
                 {
                   "$type": "VisionMaster.Models.ActionStep, VM.Core",
                   "StepID": "c555aa6a-fa8e-4edb-81b8-0a6f0106640e",
-                  "Icon": "\uf044",
+                  "Icon": "",
                   "PluginName": "变量赋值",
                   "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
                   "StepName": "赋值_Verdict",
@@ -323,7 +383,7 @@
             }
           ],
           "StepID": "92079b89-99dc-42e9-92d2-c6fde5b62773",
-          "Icon": "\uf0e8",
+          "Icon": "",
           "PluginName": "条件分支",
           "PluginTypeName": "BuiltIn_If",
           "StepName": "结果分流",
@@ -334,16 +394,170 @@
           "InputValues": {},
           "LinkedSources": {},
           "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "1333ddd0-236f-498d-9dc6-d4de6c78ccfa",
+          "Icon": "",
+          "PluginName": "变量赋值",
+          "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "变量赋值_5",
+          "Description": "变量赋值",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "CreateIfNotExists": false,
+            "Scope": "Global"
+          },
+          "LinkedSources": {
+            "Name": {
+              "Kind": 4,
+              "TargetStepId": "00000000-0000-0000-0000-000000000000",
+              "TargetPortName": "Img",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "常量值: Img"
+            },
+            "Value": {
+              "Kind": 1,
+              "TargetStepId": "442c564b-1174-44fc-a16a-e3a8b58d1e9d",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
         }
       ]
     }
   ],
-  "CommunicationConfigs": [],
-  "VariableSnapshots": [],
+  "CommunicationConfigs": [
+    {
+      "ConnectionName": "Conn_014013",
+      "Protocol": 0,
+      "Config": {
+        "$type": "VisionMaster.Communications.ModbusTcpConfig, VM.Core",
+        "ByteoRDER": 0,
+        "IpAddress": "127.0.0.1",
+        "Port": 502,
+        "EnableKeepAlive": true,
+        "KeepAliveIntervalMs": 30000,
+        "Type": 0,
+        "TimeoutMs": 3000,
+        "RetryCount": 3,
+        "RetryIntervalMs": 1000,
+        "ReadTimeoutMs": 5000
+      },
+      "ReadCycleMs": 1000,
+      "ScanGroups": [
+        {
+          "Name": "100ms",
+          "IntervalMs": 100
+        },
+        {
+          "Name": "500ms",
+          "IntervalMs": 500
+        },
+        {
+          "Name": "5000ms",
+          "IntervalMs": 5000
+        },
+        {
+          "Name": "组1",
+          "IntervalMs": 1000
+        }
+      ],
+      "AutoStart": true,
+      "AutoReconnect": true,
+      "IsEnabled": true,
+      "Description": ""
+    }
+  ],
+  "CameraConfigs": [
+    {
+      "Id": "c44d062b-fc48-4742-8853-20b4ce0641be",
+      "SerialNo": "VIRTUAL-001",
+      "DisplayName": "VIRTUAL-001",
+      "DriverTypeKey": "Plugin.Camera.Network.NetworkCameraDevice, Plugin.Camera.Network, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "Remarks": "",
+      "AutoConnect": false,
+      "Settings": {
+        "ExposureTimeUs": 10000.0,
+        "Gain": 0.0,
+        "TriggerMode": 0,
+        "FrameTimeoutMs": 3000,
+        "BufferCapacity": 8,
+        "HeartbeatTimeoutMs": 3000
+      },
+      "Caption": "VIRTUAL-001"
+    }
+  ],
+  "VariableSnapshots": [
+    {
+      "VarType": "Local",
+      "Name": "Img",
+      "VariableId": "d7023695-2697-4756-af43-e6d75abe868b",
+      "DataTypeString": "HalconDotNet.HImage, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8",
+      "Description": "",
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    }
+  ],
   "WatchItems": [],
   "Scada": {
     "SchemaVersion": 1,
-    "Pages": [],
+    "Pages": [
+      {
+        "PageId": "df51c17b-73bf-429b-a6bf-744b4eaaac8a",
+        "Name": "画面_1",
+        "Description": "",
+        "Width": 1920.0,
+        "Height": 1080.0,
+        "Background": "#FF1E1E1E",
+        "ShowGrid": true,
+        "GridSize": 10.0,
+        "SnapToGrid": true,
+        "Elements": [
+          {
+            "ElementId": "a7e543cc-3d8a-43eb-8e5f-b75d28b61ccc",
+            "Name": "图像显示",
+            "LayerId": "e306436a-2d67-4717-b472-764bf58ab698",
+            "GroupId": "00000000-0000-0000-0000-000000000000",
+            "TypeKey": "Hmi.ImageView",
+            "X": 280.0,
+            "Y": 180.0,
+            "Width": 200.0,
+            "Height": 160.0,
+            "Rotation": 0.0,
+            "ZIndex": 1,
+            "IsLocked": false,
+            "Properties": {},
+            "Bindings": [
+              {
+                "TargetProperty": "Source",
+                "VariableId": "d7023695-2697-4756-af43-e6d75abe868b",
+                "VariableName": "Img",
+                "IsEnabled": true,
+                "IsLegacyByName": false
+              }
+            ],
+            "EventHooks": [],
+            "Animations": []
+          }
+        ],
+        "Layers": [
+          {
+            "LayerId": "e306436a-2d67-4717-b472-764bf58ab698",
+            "Name": "图层_1",
+            "IsVisible": true,
+            "IsLocked": false
+          }
+        ],
+        "EventHooks": []
+      }
+    ],
     "Alarms": [],
     "VariableEvents": [],
     "StartupPageId": "00000000-0000-0000-0000-000000000000"

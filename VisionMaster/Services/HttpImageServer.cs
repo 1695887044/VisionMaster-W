@@ -1,12 +1,9 @@
 using Core.Interfaces;
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using VisionMaster.Models;
 using WatsonWebserver;
 using WatsonWebserver.Core;
@@ -357,68 +354,24 @@ namespace VisionMaster.Services
 
         /// <summary>
         /// 把图片编码字节解码成 HubImageItem。
-        ///
-        /// 为什么在后台线程用 WPF 的 BitmapDecoder 是安全的
-        /// ---------
-        /// 解码全程（Create → 转格式 → CopyPixels）都在当前这一个线程内完成，产出的 byte[]
-        /// 是不带线程亲和性的纯托管数组；WPF 的 BitmapSource 不出这个方法，
-        /// 所以不存在"跨线程使用 DispatcherObject"的问题。
-        /// BitmapCacheOption.OnLoad 让帧在 Create 时就完全载入，之后 MemoryStream 可以安全释放。
+        /// 解码本身（含"灰度单通道 / 彩色 BGR24 交错"的通道约定）收口在
+        /// <see cref="ImageBytesCodec"/>，与网络相机收图链路共用同一份实现。
         /// </summary>
         private static HubImageItem DecodeImage(byte[] bytes, string requestId, string flowName, string sourceName)
         {
-            using var stream = new MemoryStream(bytes, writable: false);
-
-            var decoder = BitmapDecoder.Create(
-                stream,
-                BitmapCreateOptions.PreservePixelFormat,
-                BitmapCacheOption.OnLoad);
-
-            if (decoder.Frames.Count == 0)
-                throw new InvalidOperationException("图片中没有可用的帧");
-
-            BitmapSource frame = decoder.Frames[0];
-
-            // 灰度图保持单通道（HALCON 侧走 GenImage1），其余一律转 BGR24
-            // （与 HALCON 的 "bgr" 交错格式逐字节对应，插件侧不需要再换通道序）
-            var isGray = IsGrayFormat(frame.Format);
-            var targetFormat = isGray ? PixelFormats.Gray8 : PixelFormats.Bgr24;
-
-            if (frame.Format != targetFormat)
-            {
-                var converted = new FormatConvertedBitmap();
-                converted.BeginInit();
-                converted.Source = frame;
-                converted.DestinationFormat = targetFormat;
-                converted.EndInit();
-                frame = converted;
-            }
-
-            var width = frame.PixelWidth;
-            var height = frame.PixelHeight;
-            var channels = isGray ? 1 : 3;
-            var stride = width * channels;
-
-            var pixels = new byte[stride * height];
-            frame.CopyPixels(pixels, stride, 0);
+            var decoded = ImageBytesCodec.Decode(bytes);
 
             return new HubImageItem
             {
                 RequestId = requestId,
                 FlowName = flowName,
-                PixelData = pixels,
-                Width = width,
-                Height = height,
-                Channels = channels,
+                PixelData = decoded.Pixels,
+                Width = decoded.Width,
+                Height = decoded.Height,
+                Channels = decoded.Channels,
                 SourceName = sourceName ?? string.Empty
             };
         }
-
-        private static bool IsGrayFormat(PixelFormat format)
-            => format == PixelFormats.Gray8
-            || format == PixelFormats.Gray16
-            || format == PixelFormats.Gray32Float
-            || format == PixelFormats.BlackWhite;
 
         #endregion
     }

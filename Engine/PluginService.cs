@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
@@ -226,8 +226,13 @@ namespace VisionMaster.Services
                 };
                 switch (att.GroupName)
                 {
-                    // 相机/激光/轴卡：分类仓库目前是"预留挂接点"（见 PluginProvider.RegisterCamera 注释），
-                    // 注册实际落在模块表。显式提示一句，免得现场以为分类已生效。
+                    // 「相机/激光/轴卡」这个分支处理的是**伪装成设备分类的普通算子**——
+                    // 它们实现了 IVisionPlugin，本来该出现在算子列表里，只是组名借用了设备分类。
+                    // 今天没有这类插件，保留分支只是给未来留一句明确提示，免得现场以为分类已生效。
+                    //
+                    // 真正的相机驱动插件走的是 LoadCameraDrivers 那条独立路径（实现 ICameraDevice），
+                    // 与这里互不相干 —— 别把两者混起来改。
+                    //
                     // 【这里绝不能有会抛异常的分支】一旦抛，外层 per-file catch 会把整个 DLL 判为加载失败，
                     // 而错误文案只有"加载插件失败 {dllPath}"，现场看不出是组名的问题。
                     case "相机":
@@ -241,6 +246,49 @@ namespace VisionMaster.Services
                         _registry.RegisterModule(toolItem);
                         break;
                 }
+            }
+
+            LoadCameraDrivers(assembly);
+        }
+
+        /// <summary>
+        /// 扫描相机驱动插件：实现 <see cref="ICameraDevice"/> 且带 <c>[Display]</c> 的类型。
+        ///
+        /// 为什么必须是**独立**于算子扫描的一条路径
+        /// ---------
+        /// 相机驱动不是流程步骤（不实现 IVisionPlugin），它不该、也不会出现在算子列表里，
+        /// 只会出现在「系统 → 相机设置」的"相机类型"下拉里。两类插件共用一条扫描路径，
+        /// 结果就是要么驱动跑进算子列表、要么算子被当成驱动，怎么改都别扭。
+        ///
+        /// 注册进的是 CameraPlugins 表（RegisterCamera 真写 _cameras），
+        /// 消费方是 CameraProvider.AvailableDrivers。
+        /// </summary>
+        private void LoadCameraDrivers(Assembly assembly)
+        {
+            var driverTypes = assembly
+                .GetTypes()
+                .Where(t => !t.IsAbstract && typeof(ICameraDevice).IsAssignableFrom(t));
+
+            foreach (var type in driverTypes)
+            {
+                var att = type.GetCustomAttribute<DisplayAttribute>();
+                if (att == null)
+                {
+                    // 没有 [Display] 的驱动无法在界面上被选中（拿不到显示名），直接跳过并留一句日志：
+                    // 静默跳过会让"我明明写了驱动却选不到"变成一个无从下手的谜题
+                    _notifier.ShowWarn($"相机驱动 {type.FullName} 缺少 [Display] 特性，无法在相机设置中显示，已跳过");
+                    continue;
+                }
+
+                _registry.RegisterCamera(new ToolItemModel
+                {
+                    Category = att.GroupName,
+                    Description = att.Description,
+                    Name = att.Name,
+                    Icon = att.ShortName,
+                    ModuleTypeName = type.AssemblyQualifiedName,
+                    IsContainer = false,
+                });
             }
         }
     }

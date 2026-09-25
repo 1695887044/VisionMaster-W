@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 纯托管驱动插件：只做「HTTP 收图 → 原始像素帧」的搬运，既不需要 WPF，也不需要 Halcon。
+         刻意停在 net9.0（不带 -windows）：驱动层不碰任何 Windows 专有 API，框架依赖越窄，
+         将来若要把采集链路搬到 Linux 工控机，只需重编这个 csproj，代码一行不用改。 -->
+    <TargetFrameworks>net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只引用契约层：CameraDeviceBase / CameraFrame / CameraSettings 都在这里。
+         刻意不引用 halcondotnet：帧全程以 byte[] 流转，HImage 的生成留给消费者一侧，
+         否则「换一家相机就要和宿主对齐同一个 HALCON 版本」，插件会被 SDK 版本绑死。 -->
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+</Project>

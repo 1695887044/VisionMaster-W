@@ -1,0 +1,242 @@
+<UserControl
+    x:Class="Core.Controls.ColorThresholdEditor"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="260"
+    d:DesignWidth="320"
+    mc:Ignorable="d">
+
+    <!--
+        颜色判据阈值编辑器（共用控件）。
+
+        为什么做成一个共用控件：颜色算子在工具箱里会越来越多（序列 / 区域 / 占比 / 存在性…），
+        而"玫红从哪里算起"这套阈值每个算子都要调一遍。若每个算子的视图里各写 13 行绑定，
+        以后改一处样式就要改 N 个文件，而且迟早写歪。
+
+        DataContext 约定：宿主视图的 DataContext（也就是插件对象）**直接继承下来**，
+        控件内部按属性名绑定。所以插件只要暴露同名属性就能用，不需要任何接口。
+        好处是所有颜色算子的参数名强制统一 —— 现场在哪个算子界面里看到的
+        "玫红起点"都是同一个意思、同一个阈值。
+
+        参数含义见 Core.Halcon\Color\ColorThresholds.cs。
+    -->
+    <UserControl.Resources>
+        <Style x:Key="ThresholdLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#555555" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+        <Style x:Key="ThresholdBox" TargetType="TextBox">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="4,0,0,0" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="RowGrid" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  第 1 行：无彩/有彩分界、黑明度  -->
+        <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="无彩饱和度"
+            ToolTip="饱和度低于它就算「没有颜色」（黑/白/灰/棕都在这条线以下）" />
+        <TextBox
+            Grid.Row="0"
+            Grid.Column="1"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding ColorlessSaturation}"
+            ToolTip="默认 0.45。线色普遍很淡（看起来发灰）时调小" />
+
+        <TextBlock
+            Grid.Row="0"
+            Grid.Column="2"
+            Margin="12,0,6,0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="黑明度"
+            ToolTip="无彩且明度低于它 → 黑" />
+        <TextBox
+            Grid.Row="0"
+            Grid.Column="3"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding BlackValue}"
+            ToolTip="默认 80" />
+
+        <!--  第 2 行：白饱和度、白明度  -->
+        <TextBlock
+            Grid.Row="1"
+            Grid.Column="0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="白饱和度"
+            ToolTip="无彩且饱和度低于它、明度又高于「白明度」→ 白" />
+        <TextBox
+            Grid.Row="1"
+            Grid.Column="1"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding WhiteSaturation}"
+            ToolTip="默认 0.15" />
+
+        <TextBlock
+            Grid.Row="1"
+            Grid.Column="2"
+            Margin="12,0,6,0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="白明度"
+            ToolTip="无彩且明度高于它 → 白。浅背景被误判成白线时调高它" />
+        <TextBox
+            Grid.Row="1"
+            Grid.Column="3"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding WhiteValue}"
+            ToolTip="默认 195" />
+
+        <!--  第 3 行：棕暖度、棕明度  -->
+        <TextBlock
+            Grid.Row="2"
+            Grid.Column="0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="棕暖度"
+            ToolTip="无彩但偏暖（红比绿蓝都高出这么多）且不亮 → 棕" />
+        <TextBox
+            Grid.Row="2"
+            Grid.Column="1"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding BrownWarmth}"
+            ToolTip="默认 12。浅棕/米色被当成棕时调大" />
+
+        <TextBlock
+            Grid.Row="2"
+            Grid.Column="2"
+            Margin="12,0,6,0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="棕明度"
+            ToolTip="棕的明度上限（比它亮就不是棕，归灰）" />
+        <TextBox
+            Grid.Row="2"
+            Grid.Column="3"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding BrownValue}"
+            ToolTip="默认 175" />
+
+        <!--  第 4 行：玫红起、红起  -->
+        <TextBlock
+            Grid.Row="3"
+            Grid.Column="0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="玫红起点"
+            ToolTip="色相（度）：从这里到「红起点」之间算玫红" />
+        <TextBox
+            Grid.Row="3"
+            Grid.Column="1"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding RoseHueFrom}"
+            ToolTip="默认 330 度。玫红被认成红时把它调小" />
+
+        <TextBlock
+            Grid.Row="3"
+            Grid.Column="2"
+            Margin="12,0,6,0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="红起点"
+            ToolTip="色相（度）：红跨 0 度，区间是 [红起点,360) ∪ [0,红止点)" />
+        <TextBox
+            Grid.Row="3"
+            Grid.Column="3"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding RedHueFrom}"
+            ToolTip="默认 350 度" />
+
+        <!--  第 5 行：红止、橙止  -->
+        <TextBlock
+            Grid.Row="4"
+            Grid.Column="0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="红止点"
+            ToolTip="色相（度）：红区间的另一端" />
+        <TextBox
+            Grid.Row="4"
+            Grid.Column="1"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding RedHueTo}"
+            ToolTip="默认 20 度" />
+
+        <TextBlock
+            Grid.Row="4"
+            Grid.Column="2"
+            Margin="12,0,6,0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="橙止点"
+            ToolTip="色相（度）：橙的色相上限" />
+        <TextBox
+            Grid.Row="4"
+            Grid.Column="3"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding OrangeHueTo}"
+            ToolTip="默认 45 度" />
+
+        <!--  第 6 行：黄止、绿止  -->
+        <TextBlock
+            Grid.Row="5"
+            Grid.Column="0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="黄止点"
+            ToolTip="色相（度）：黄的色相上限" />
+        <TextBox
+            Grid.Row="5"
+            Grid.Column="1"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding YellowHueTo}"
+            ToolTip="默认 70 度" />
+
+        <TextBlock
+            Grid.Row="5"
+            Grid.Column="2"
+            Margin="12,0,6,0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="绿止点"
+            ToolTip="色相（度）：绿的色相上限" />
+        <TextBox
+            Grid.Row="5"
+            Grid.Column="3"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding GreenHueTo}"
+            ToolTip="默认 160 度" />
+
+        <!--  第 7 行：蓝止  -->
+        <TextBlock
+            Grid.Row="6"
+            Grid.Column="0"
+            Style="{StaticResource ThresholdLabel}"
+            Text="蓝止点"
+            ToolTip="色相（度）：蓝的色相上限，比它高就是紫" />
+        <TextBox
+            Grid.Row="6"
+            Grid.Column="1"
+            Style="{StaticResource ThresholdBox}"
+            Text="{Binding BlueHueTo}"
+            ToolTip="默认 230 度。紫被认成蓝时把它调小" />
+    </Grid>
+</UserControl>

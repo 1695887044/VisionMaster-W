@@ -525,7 +525,7 @@ namespace VisionMaster
                     dialogService.ShowDialog("ScadaLoginView");
                     break;
                 case SystemAction.CameraSettings:
-                    // TODO: 弹出相机配置 Dialog
+                    ShowCameraSettings();
                     break;
                 case SystemAction.CommSettings:
                     ShowCommunicationSettings();
@@ -572,6 +572,27 @@ namespace VisionMaster
             var minutes = _accessPolicy.IdleTimeout.TotalMinutes;
             Notifier.ShowWarning(
                 $"账号「{userName}」已因 {minutes:0.#} 分钟无操作自动退出登录，权限回到「操作员」。如需继续，请重新登录。");
+        }
+
+        /// <summary>
+        /// 打开「相机设置」。
+        ///
+        /// 相机的**配置**直接挂在当前方案上（<see cref="SolutionModel.CameraConfigs"/>），
+        /// 运行态设备由 CameraProvider 按方案对齐，所以：
+        ///   ① 没有方案时无处可写，必须先拦一道并说明原因——否则点下去只会得到一个
+        ///      "改了也不知道存哪"的界面；
+        ///   ② 不给弹窗传任何参数：相机清单与运行态一律由 CameraProvider 从"当前方案"现取。
+        ///      传一份快照反而会出现"界面里那份和方案里那份不是同一个对象"，改一份丢一份。
+        /// </summary>
+        private void ShowCameraSettings()
+        {
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("请先打开一个解决方案");
+                return;
+            }
+
+            dialogService.ShowDialog("CameraSettingsView");
         }
 
         private void ShowCommunicationSettings()

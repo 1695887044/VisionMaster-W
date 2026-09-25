@@ -38,6 +38,8 @@ namespace VisionMaster.Services
         /// 试运行跑在后台线程，令牌到位后即使插件永久等待也能被叫停</param>
         /// <param name="trialSession">输出的试运行会话（含上游链编译实例及输出数据，所有权归调用方）；
         /// 编译失败/步骤不存在时为 null，执行失败时仍有已执行部分的留存数据</param>
+        /// <param name="cameras">相机仓库：试运行也要能取相机（相机采集步骤"试采一帧"就靠它）。
+        /// 允许为 null —— 检查/测试夹具调用时回落 NullCameraProvider，插件侧会得到明确的失败原因</param>
         /// <returns>执行结果</returns>
         public static PluginExecuteResult Run(
             IVisionPlugin configPlugin,
@@ -46,7 +48,8 @@ namespace VisionMaster.Services
             ILogService logger,
             FlowCompiler compiler,
             CancellationToken cancellationToken,
-            out FlowSession trialSession)
+            out FlowSession trialSession,
+            ICameraProvider cameras = null)
         {
             var sw = Stopwatch.StartNew();
             trialSession = null;
@@ -84,7 +87,10 @@ namespace VisionMaster.Services
 
             // 4. 正式执行上下文（与正式运行一致）；取消令牌由调用方（配置窗口）提供，
             //    而非写死 None——否则插件里等图这类阻塞将永远无法被叫停
-            var context = new ExecutionContext(logger, session, workspace, cancellationToken);
+            var context = new ExecutionContext(logger, session, workspace, cancellationToken)
+            {
+                Cameras = cameras ?? NullCameraProvider.Instance
+            };
 
             try
             {

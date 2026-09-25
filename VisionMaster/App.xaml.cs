@@ -32,6 +32,7 @@ namespace VisionMaster
     {
         private AppLifetimeService? _lifetime;
         private SingleInstanceCheck? _singleInstance;
+        private HalconCheck? _halconCheck;
         private VisionMaster.Lifetime.SplashScreen? _splash;
         private readonly List<IAppModule> _modules = new();
 
@@ -80,6 +81,10 @@ namespace VisionMaster
             _singleInstance = new SingleInstanceCheck();
             _lifetime.RegisterCheck(_singleInstance);
             _lifetime.RegisterCheck(new ConfigCheck(Container.Resolve<AppSettingsService>(), Container.Resolve<ILogService>()));
+            // 视觉引擎自检：结果判 Warning —— 缺 HALCON 只影响视觉功能，不该把整个软件挡在门外。
+            // 详细说明不在这里弹（Splash 转瞬即逝），留到主界面出来后再弹，见 ShowHalconNotice
+            _halconCheck = new HalconCheck(Container.Resolve<ILogService>());
+            _lifetime.RegisterCheck(_halconCheck);
             _lifetime.RegisterCheck(new PluginScanCheck(
                 () => Container.Resolve<PluginService>(),
                 () => Container.Resolve<IPluginProvider>(),
@@ -130,6 +135,9 @@ namespace VisionMaster
             // 收图服务放在最后：它初始化时要解析 IRuntimeManager / IFlowEngine / FlowCompiler，
             // 这几个都由上面的引擎模块注册，顺序错了 Initialize 会解析不到
             _modules.Add(new HttpImageServerModule());
+            // 相机模块排在收图服务之后：它初始化时会尝试自动连接相机，
+            // 而"连上即开始收帧"这条链路需要收图服务已经就绪
+            _modules.Add(new CameraModule());
             foreach (var module in _modules)
                 module.Register(containerRegistry);
 
@@ -253,6 +261,10 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
             containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
             containerRegistry.RegisterDialog<CommunicationSettingsView, CommunicationSettingsViewModel>("CommunicationSettingsView");
+            // 相机设置：方案级相机资源（增删相机 / 连接 / 采流 / 参数 / 溢出计数 / 预览）。
+            // 与通讯设置同一范式，但相机配置不走 Manager——它直接就是 SolutionModel.CameraConfigs，
+            // 弹窗从"当前方案"现取，故 ShellViewModel 侧不传任何参数（见 ShowCameraSettings）。
+            containerRegistry.RegisterDialog<CameraSettingsView, CameraSettingsViewModel>("CameraSettingsView");
             // 扫描组编辑器：从连接设置的设备表格操作列进入，编辑的是**连接级**的组表
             // （一条连接一个组表；变量只存组名引用，见 ScanGroupEditorViewModel 注释）
             containerRegistry.RegisterDialog<ScanGroupEditorView, ScanGroupEditorViewModel>(
@@ -359,6 +371,45 @@ namespace VisionMaster
 
             // 上次异常退出/有未保存草稿的提示：延到界面空闲再弹，别卡在启动链上
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(ShowRecoveryNotice));
+
+            // HALCON 不可用的提示：同样延到界面空闲 —— 自检那一刻 Splash 转瞬即逝，
+            // 详细说明必须在主界面出来之后才看得见
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(ShowHalconNotice));
+        }
+
+        /// <summary>
+        /// HALCON 视觉引擎不可用时弹一次中文提示。
+        ///
+        /// 为什么不在自检链里直接弹
+        /// ---------
+        /// 自检链跑在 Splash 上，而 Splash 在主窗口显示后立刻关闭 —— 提示写得再清楚也是一闪而过。
+        /// 所以自检只负责"判"，详细说明延到主界面出来后再弹，用户一定看得到。
+        ///
+        /// 为什么不禁用视觉入口
+        /// ---------
+        /// 缺 HALCON 只影响能不能跑图像算法，不影响用户看方案、配流程、调通讯。
+        /// 把入口灰掉反而挡住了"先把流程编好，等 HALCON 装好再跑"这条正常路径。
+        ///
+        /// 只弹一次：引擎可用时不弹；不可用时每次启动弹一次（既不重复骚扰，也不常驻遮挡界面）。
+        /// </summary>
+        private void ShowHalconNotice()
+        {
+            if (_halconCheck?.FailureDetail == null) return;   // 引擎可用 → 什么都不做
+
+            try
+            {
+                var owner = Current.MainWindow;
+                string text = _halconCheck.FailureDetail;
+                if (owner == null)
+                    MessageBox.Show(text, "视觉引擎不可用", MessageBoxButton.OK, MessageBoxImage.Warning);
+                else
+                    MessageBox.Show(owner, text, "视觉引擎不可用", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                // 提示本身失败绝不能影响主界面：记一行日志就够了（与 ShowRecoveryNotice 同口径）
+                try { Container.Resolve<ILogService>().Warn($"[启动自检] HALCON 提示显示失败：{ex.Message}"); } catch { }
+            }
         }
 
         /// <summary>

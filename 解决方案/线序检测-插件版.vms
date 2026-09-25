@@ -1,0 +1,92 @@
+{
+  "SolutionName": "线序检测（插件版）",
+  "Version": 1.0,
+  "Config": {
+    "ImageViewMode": 0
+  },
+  "Flows": [
+    {
+      "FlowID": "31b0bb05e1024a3cb2484ef8e439a3b7",
+      "FlowName": "线序检测",
+      "Description": "插件版：采集 → 颜色序列检查（一个节点顶掉脚本版的找线 / 选配方 / 比对 / 投射）",
+      "Version": 2,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": [
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "6c53dc8d-566e-4c38-998a-e9144388a75f",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_0",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\颜色\\cable2.png",
+            "FolderPath": "",
+            "DisplayViewIndex": 1
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "7ce51c82-dcac-49ea-ac91-46fad952f593",
+          "Icon": "",
+          "PluginName": "颜色序列检查",
+          "PluginTypeName": "Plugin.ColorCheck.ColorCheckPlugin, Plugin.ColorCheck, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "颜色序列检查_0",
+          "Description": "颜色序列检查",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "RoiParams": {
+              "$type": "System.Double[], System.Private.CoreLib",
+              "$values": [
+                240.0,
+                440.0,
+                0.0,
+                120.0,
+                100.0
+              ]
+            },
+            "RecipeText": "# 线序配方（井号是注释，空行忽略）\r\n5 芯排线  = 黑,棕,玫红,红,黄\r\n\r\n10 芯排线 = 黑,白,灰,紫,蓝,绿,黄,红,玫红,棕\r\n",
+            "DisplayViewIndex": 1
+          },
+          "LinkedSources": {
+            "Image": {
+              "Kind": 1,
+              "TargetStepId": "6c53dc8d-566e-4c38-998a-e9144388a75f",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        }
+      ]
+    }
+  ],
+  "CommunicationConfigs": [],
+  "VariableSnapshots": [],
+  "WatchItems": [],
+  "Scada": {
+    "SchemaVersion": 1,
+    "Pages": [],
+    "Alarms": [],
+    "VariableEvents": [],
+    "StartupPageId": "00000000-0000-0000-0000-000000000000"
+  }
+}

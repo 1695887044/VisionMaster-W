@@ -7,6 +7,7 @@ using Newtonsoft.Json.Linq;
 using Prism.Commands;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
@@ -70,6 +71,23 @@ namespace Plugin.ImageAcquisition
             set => SetProperty(ref _displayViewIndex, value);
         }
 
+        private string _cameraSerial = string.Empty;
+        /// <summary>
+        /// 相机采集：目标相机的序列号。
+        ///
+        /// 为什么存序列号而不是内部 Id / 相机名
+        /// ---------
+        /// 序列号是对外寻址键（客户端收图 URL 里的那一段），也是方案里唯一稳定的相机标识：
+        /// 存 Id 没法在界面上显示也没法人工核对；存显示名则改个名就断链，而且重名无约束。
+        /// 宿主侧 CameraProvider.TryGetDeviceBySerial 与它同口径，本步骤不必自己查表。
+        /// </summary>
+        [StepConfig]
+        public string CameraSerial
+        {
+            get => _cameraSerial;
+            set => SetProperty(ref _cameraSerial, value);
+        }
+
         #endregion
 
         #region 输入端口（数据流参数：可被变量链接，界面绑定 TypedValue）
@@ -101,6 +119,21 @@ namespace Plugin.ImageAcquisition
             "FileIndex",
             0,
             "文件夹内的文件索引（0-based）"
+        )
+        { IsRequired = false };
+
+        /// <summary>
+        /// 相机采集：等一帧的超时（毫秒）。
+        ///
+        /// 做成端口而不是纯配置项，是为了让"等多久"可以被上游变量控制（不同产品的节拍不一样）；
+        /// 填 0 表示"用相机自身配置里的超时"（见 CameraSettings.FrameTimeoutMs）。
+        /// 这个口存在的意义就是**绝不能没有超时**：相机一旦不触发，没有超时的等图会让
+        /// 流程线程永久卡死，现场只能杀进程。
+        /// </summary>
+        public InputPort<int> FrameTimeoutPort { get; } = new(
+            "FrameTimeoutMs",
+            0,
+            "相机取图超时（毫秒）；0 = 使用相机自身配置的超时"
         )
         { IsRequired = false };
 
@@ -248,6 +281,77 @@ namespace Plugin.ImageAcquisition
         /// 下一张（文件索引 +1）
         /// </summary>
         public DelegateCommand NextImageCommand { get; }
+
+        #endregion
+
+        #region 相机采集（配置态：相机候选列表 + 状态提示）
+
+        /// <summary>
+        /// 可选相机列表（由宿主通过 SetConfigContext 推过来）。
+        /// 快照而非活对象：插件不该持有宿主方案里的相机描述符（见 PluginConfigContext.Cameras）。
+        ///
+        /// 注意这里**刻意没有"预览相机图像"按钮**：预览需要拿到设备对象，而设备只存在于宿主的
+        /// CameraProvider 里（配置上下文给的是快照，不含设备）。硬要预览就得让插件持有宿主对象，
+        /// 破坏"插件只认契约"这条线。相机图像预览因此归于「系统 → 相机设置」——
+        /// 那里本来就有 Live 预览，也是更该检查相机的地方。本步骤要验证"能不能取到图"，
+        /// 用配置窗口的「执行（试运行）」即可，它跑的就是正式运行的同一段代码。
+        /// </summary>
+        public ObservableCollection<CameraOption> CameraOptions { get; } = new();
+
+        private CameraOption _selectedCameraOption;
+        /// <summary>
+        /// 下拉选中的相机。
+        ///
+        /// 为什么要有这个"影子属性"而不是直接双向绑定 CameraSerial：
+        /// 下拉的候选项是 CameraOption 对象，而落盘的只有序列号。中间隔一层，
+        /// 才能做到"序列号在方案里、候选列表在运行期"，并且序列号对应的相机被删掉时
+        /// 下拉能诚实显示为"空"而不是停在一个不存在的项上。
+        /// </summary>
+        public CameraOption SelectedCameraOption
+        {
+            get => _selectedCameraOption;
+            set
+            {
+                if (!SetProperty(ref _selectedCameraOption, value)) return;
+
+                CameraSerial = value?.SerialNo ?? string.Empty;
+                ValidatePathInputs();
+            }
+        }
+
+        private string _cameraStateText = string.Empty;
+        /// <summary>
+        /// 相机状态提示（"采流中 / 等待接入 / 未连接"），由 ValidateCameraSelection 写入
+        /// </summary>
+        public string CameraStateText
+        {
+            get => _cameraStateText;
+            private set => SetProperty(ref _cameraStateText, value);
+        }
+
+        /// <summary>
+        /// 接收宿主下发的相机候选列表，并按序列号回显选中项。
+        ///
+        /// 为什么必须做"回显"这一步：落盘的是序列号，而下拉的候选项是运行时对象，
+        /// 两者只能按序列号对齐。不做这一步，重新打开配置窗口时下拉永远是空的，
+        /// 用户会以为自己的配置丢了——其实它在方案里好好存着。
+        /// </summary>
+        private void ApplyCameraOptions(IReadOnlyList<CameraOption> options)
+        {
+            CameraOptions.Clear();
+            if (options != null)
+            {
+                foreach (var option in options) CameraOptions.Add(option);
+            }
+
+            var serial = (CameraSerial ?? string.Empty).Trim();
+            _selectedCameraOption = serial.Length == 0
+                ? null
+                : CameraOptions.FirstOrDefault(o => string.Equals(o.SerialNo, serial, StringComparison.OrdinalIgnoreCase));
+            OnPropertyChanged(nameof(SelectedCameraOption));
+
+            ValidatePathInputs();
+        }
 
         #endregion
 
@@ -402,6 +506,11 @@ namespace Plugin.ImageAcquisition
             PushToken = context.HttpToken ?? string.Empty;
             _pushTimeoutMs = context.RequestTimeoutMs;
 
+            // 相机候选列表随上下文一起下发。放在这里而不是 Initialize：
+            // Initialize 只拿到步骤的已存配置，拿不到"宿主现在有哪些相机"——
+            // 而这一步正是"序列号回显对不对得上"的判定依据。
+            ApplyCameraOptions(context.Cameras);
+
             // 服务有没有在听是"能不能推"的第一现场：没在听时推送必然连接失败，
             // 与其让用户点完按钮再猜原因，不如打开窗口就说清楚
             if (context.HttpListening)
@@ -464,9 +573,80 @@ namespace Plugin.ImageAcquisition
                 case AcquisitionMode.Hub:
                     return AcquireFromHub(context);
 
+                case AcquisitionMode.Camera:
+                    return AcquireFromCamera(context);
+
                 default:
                     return new CoreResult { Error = $"未知的采集模式: {mode}" };
             }
+        }
+
+        /// <summary>
+        /// 相机取图：从方案里已配置的相机**消费**一帧（每帧只会被取到一次）。
+        ///
+        /// 三种收尾必须分清楚，它们的处置完全不同：
+        ///   1) 取消（用户点了停止流程）—— 本步没产出，但不是业务失败，交回引擎按取消语义处理；
+        ///   2) 超时（相机没出图）—— 业务失败，错误信息里必须带上相机状态与队列帧数，
+        ///      否则现场只知道"超时了"，分不清是掉线、没触发还是流程太慢没消费完；
+        ///   3) 配置错（序列号没选 / 相机不存在 / 未连接）—— 业务失败，并给出可操作的下一步。
+        ///
+        /// 为什么不做"重试等下一帧"：这一帧没等到就是没等到，继续等只会让流程越来越滞后于生产。
+        /// 产线上"这一件没检出"必须被明确记录，而不是靠等待把它掩盖过去。
+        /// </summary>
+        private CoreResult AcquireFromCamera(IExecutionContext context)
+        {
+            var serial = (CameraSerial ?? string.Empty).Trim();
+            if (serial.Length == 0)
+                return new CoreResult { Error = "尚未选择相机，请在「相机采集」页选择一个已配置的相机" };
+
+            // 插件只认契约：相机仓库由宿主通过执行上下文递过来（插件够不到宿主程序集）
+            if (!context.Cameras.TryGetDeviceBySerial(serial, out var device) || device == null)
+                return new CoreResult
+                {
+                    Error = $"找不到序列号为「{serial}」的相机。请到「系统 → 相机设置」添加该相机，"
+                          + "或回到本步骤的「相机采集」页重新选择"
+                };
+
+            if (device.State == CameraConnectionState.Closed)
+                return new CoreResult
+                {
+                    Error = $"相机「{device.Descriptor.Caption}」未连接（{device.StateDetail}）。"
+                          + "请到「系统 → 相机设置」连接该相机后再运行"
+                };
+
+            var timeoutMs = FrameTimeoutPort.GetTypedValue();
+            if (timeoutMs <= 0) timeoutMs = device.ReadSettings().FrameTimeoutMs;
+
+            if (!device.WaitNextFrame(out var frame, timeoutMs, context.CancellationToken))
+            {
+                // 取消优先判定：令牌已取消时超时是"被取消顺带产生的"，报超时会把用户自己的操作说成故障
+                if (context.CancellationToken.IsCancellationRequested)
+                    return new CoreResult { Cancelled = true };
+
+                return new CoreResult
+                {
+                    Error = $"等待相机「{device.Descriptor.Caption}」出图超时（{timeoutMs} ms）"
+                          + $"；相机状态：{device.StateDetail}，待消费 {device.PendingFrameCount} 帧，"
+                          + $"累计收帧 {device.ReceivedFrameCount}，溢出丢帧 {device.OverflowCount}"
+                };
+            }
+
+            if (frame == null || !frame.IsValid)
+                return new CoreResult { Error = "相机返回的帧数据无效（宽高与像素字节数不自洽）" };
+
+            return new CoreResult
+            {
+                Success = true,
+                Image = ToHImage(frame),
+                // 来源名由客户端声明（通常就是文件名），拿不到时回落到伪路径，保证输出口不为空
+                CurrentPath = string.IsNullOrEmpty(frame.SourceName) ? $"camera://{serial}" : frame.SourceName,
+                // 相机模式下"索引/总数"沿用输出口的既有含义，改为表达"第几帧 / 累计收到多少帧"：
+                // 加一对新输出口会让下游接线全要重连，而这两个数在位图溯源上表达力足够
+                CurrentIndex = unchecked((int)frame.FrameId),
+                TotalFiles = device.ReceivedFrameCount > int.MaxValue ? int.MaxValue : (int)device.ReceivedFrameCount,
+                Error = $"已从相机取图: {frame.Width}x{frame.Height}x{frame.Channels}"
+                      + $"（第 {frame.FrameId} 帧，来源 {frame.SourceName}）"
+            };
         }
 
         /// <summary>
@@ -522,8 +702,20 @@ namespace Plugin.ImageAcquisition
             };
         }
 
+        /// <summary>网络推送帧 → HImage（与相机采集共用同一个转换核心）</summary>
+        private static HImage ToHImage(HubImageItem item)
+            => ToHImage(item.PixelData, item.Width, item.Height, item.Channels);
+
+        /// <summary>相机帧 → HImage（像素约定与网络推送完全一致，所以共用同一个转换核心）</summary>
+        private static HImage ToHImage(CameraFrame frame)
+            => ToHImage(frame.PixelData, frame.Width, frame.Height, frame.Channels);
+
         /// <summary>
-        /// 原始像素字节 → HImage。
+        /// 原始像素字节 → HImage 的**唯一**转换核心（网络推送与相机采集共用）。
+        ///
+        /// 为什么必须只有一处：两条链路的像素约定必须逐字节一致（灰度单通道、彩色 BGR 交错）。
+        /// 各写一份的话，早晚出现"相机采的彩色图颜色是反的、网络推送的却是对的"——
+        /// 而灰度图上完全看不出来，只表现为彩色判别类算子结果莫名不对。
         ///
         /// 为什么走非托管中转
         /// ---------
@@ -531,31 +723,29 @@ namespace Plugin.ImageAcquisition
         /// gen_image1 会把指针指向的数据**复制**进新建的图（这正是它与 gen_image1_extern 的区别：
         /// 后者是"引用 + 归还回调"），所以 Copy 进 HGlobal 后立刻释放是安全的。
         ///
-        /// 通道约定：彩色按 BGR 交错传 "bgr"——与宿主解码时选定的 PixelFormats.Bgr24 逐字节对应，
-        /// 中间不做任何通道交换；灰度走 gen_image1 单通道。
-        /// alignment 传 -1 表示"行间无填充"，正好匹配宿主输出的紧凑 stride。
+        /// alignment 传 -1 表示"行间无填充"，正好匹配宿主/客户端输出的紧凑 stride。
         /// </summary>
-        private static HImage ToHImage(HubImageItem item)
+        private static HImage ToHImage(byte[] pixelData, int width, int height, int channels)
         {
             var image = new HImage();
-            var length = item.PixelData.Length;
+            var length = pixelData.Length;
             var pointer = Marshal.AllocHGlobal(length);
 
             try
             {
-                Marshal.Copy(item.PixelData, 0, pointer, length);
+                Marshal.Copy(pixelData, 0, pointer, length);
 
-                if (item.Channels >= 3)
+                if (channels >= 3)
                 {
                     image.GenImageInterleaved(
                         pointer,
                         "bgr",
-                        item.Width,
-                        item.Height,
+                        width,
+                        height,
                         -1,
                         "byte",
-                        item.Width,
-                        item.Height,
+                        width,
+                        height,
                         0,
                         0,
                         -1,
@@ -563,7 +753,7 @@ namespace Plugin.ImageAcquisition
                 }
                 else
                 {
-                    image.GenImage1("byte", item.Width, item.Height, pointer);
+                    image.GenImage1("byte", width, height, pointer);
                 }
             }
             finally
@@ -748,7 +938,7 @@ namespace Plugin.ImageAcquisition
                 return;
             }
 
-            // 其余情况（未选文件 / 路径已失效 / 网络推送）：交给统一校验给出提示，
+            // 其余情况（未选文件 / 路径已失效 / 相机未选 / 网络推送）：交给统一校验给出提示，
             // 否则打开窗口时信息栏是空白的，用户不知道下一步该做什么
             ValidatePathInputs();
         }
@@ -943,11 +1133,90 @@ namespace Plugin.ImageAcquisition
                     CheckPath(FolderPathPort, "请选择图像文件夹", Directory.Exists);
                     break;
 
+                case AcquisitionMode.Camera:
+                    ValidateCameraSelection();
+                    break;
+
                 default:
                     // 网络推送模式没有本地路径可校验
+                    ClearCameraState();
                     SetStatus(string.Empty);
                     break;
             }
+        }
+
+        /// <summary>
+        /// 校验相机选择（B6：边改边提示，切到相机页立刻告诉用户"现在能不能跑"）。
+        ///
+        /// 判据全部来自宿主下发的快照（CameraOptions），不在这里查设备——
+        /// 配置态本来就够不到设备，硬查只会引入"有时查得到有时查不到"的不确定性。
+        /// 状态文字与状态等级分开给：等级决定颜色，文字解释"该做什么"。
+        /// </summary>
+        private void ValidateCameraSelection()
+        {
+            var serial = (CameraSerial ?? string.Empty).Trim();
+
+            if (serial.Length == 0)
+            {
+                CameraStateText = "未选择";
+                SetStatus(
+                    CameraOptions.Count == 0
+                        ? "当前方案还没有配置任何相机。请先到「系统 → 相机设置」添加并连接一台相机"
+                        : "请选择一个相机",
+                    CameraOptions.Count == 0 ? StatusLevel.Error : StatusLevel.Warning);
+                return;
+            }
+
+            var option = CameraOptions.FirstOrDefault(o =>
+                string.Equals(o.SerialNo, serial, StringComparison.OrdinalIgnoreCase));
+
+            if (option == null)
+            {
+                // 序列号配了但候选里没有：相机被删了或被改了序列号。此时必须报错而不是静默通过，
+                // 否则要等到运行时才以"找不到相机"暴露，而那时用户早已忘了自己动过什么
+                CameraStateText = "不在当前方案中";
+                SetStatus(
+                    $"本步骤引用的相机「{serial}」不在当前方案的相机列表里。"
+                    + "请到「系统 → 相机设置」确认，或回到本页重新选择",
+                    StatusLevel.Error);
+                return;
+            }
+
+            CameraStateText = option.StateText;
+
+            switch (option.State)
+            {
+                case CameraConnectionState.Streaming:
+                    SetStatus(string.Empty);
+                    break;
+
+                case CameraConnectionState.Online:
+                    // 已连接但没开始采流：程序上不算错，但运行必然取不到图，必须提前说清楚
+                    SetStatus(
+                        $"相机「{option.Caption}」已连接但未开始采流，运行时会取不到图像。"
+                        + "请到「系统 → 相机设置」点「开始采流」",
+                        StatusLevel.Warning);
+                    break;
+
+                case CameraConnectionState.Connecting:
+                    SetStatus(
+                        $"相机「{option.Caption}」{option.StateText}，运行时会因取不到图像而失败。"
+                        + "网络相机请确认客户端已启动且序列号填写一致",
+                        StatusLevel.Warning);
+                    break;
+
+                default:
+                    SetStatus(
+                        $"相机「{option.Caption}」尚未连接，运行时会失败。请到「系统 → 相机设置」连接该相机",
+                        StatusLevel.Error);
+                    break;
+            }
+        }
+
+        /// <summary>切走相机模式时清掉相机状态栏，避免"文件夹模式下还挂着相机的状态"</summary>
+        private void ClearCameraState()
+        {
+            CameraStateText = string.Empty;
         }
 
         /// <summary>

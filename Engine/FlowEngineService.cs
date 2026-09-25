@@ -58,14 +58,21 @@ namespace VisionMaster.Services
             ILogService logService, 
             IWorkspaceManager workspaceManager, 
             IPerformanceMonitor performanceMonitor,
-            IResourceLockService resourceLocks)
+            IResourceLockService resourceLocks,
+            ICameraProvider cameras)
         {
             _runtimeManager = runtimeManager ?? throw new ArgumentNullException(nameof(runtimeManager));
             _logService = logService ?? throw new ArgumentNullException(nameof(logService));
             _workspaceManager = workspaceManager ?? throw new ArgumentNullException(nameof(workspaceManager));
             _performanceMonitor = performanceMonitor;
             _resourceLocks = resourceLocks ?? throw new ArgumentNullException(nameof(resourceLocks));
+            // 允许为 null：检查/测试夹具直接 new 本类时给 null，插件侧会拿到 NullCameraProvider
+            //（"取相机即失败并说明原因"），不必在每个夹具里都造一个假的相机仓库。
+            _cameras = cameras ?? NullCameraProvider.Instance;
         }
+
+        /// <summary>相机仓库：每次执行都递给 ExecutionContext，插件据此取相机（见 IExecutionContext.Cameras）</summary>
+        private readonly ICameraProvider _cameras;
 
         /// <summary>
         /// 会话启动锁的资源名
@@ -214,7 +221,10 @@ namespace VisionMaster.Services
                             step.ResetState();
                         }
 
-                        var context = new ExecutionContext(_logService, session, _workspaceManager, token);
+                        var context = new ExecutionContext(_logService, session, _workspaceManager, token)
+                        {
+                            Cameras = _cameras
+                        };
                         session.ExecutionEngine.Run(context);
 
                         // 用令牌等待替代 Thread.Sleep：空闲节流 10ms，但停止请求会立即唤醒退出
@@ -324,7 +334,10 @@ namespace VisionMaster.Services
 
                 await Task.Run(() =>
                 {
-                    var context = new ExecutionContext(_logService, session, _workspaceManager, token);
+                    var context = new ExecutionContext(_logService, session, _workspaceManager, token)
+                    {
+                        Cameras = _cameras
+                    };
                     session.ExecutionEngine.Run(context);
                 }, token);
             }

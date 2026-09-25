@@ -1,0 +1,350 @@
+<UserControl
+    x:Class="Plugin.ColorCheck.ColorCheckView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:cc="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    MinWidth="700"
+    MinHeight="360"
+    d:DesignHeight="484"
+    d:DesignWidth="864"
+    mc:Ignorable="d">
+
+    <!--
+        颜色序列检查的配置视图。
+
+        左列参数、右列图像编辑器 —— 与 Plugin.CreateRoi 同一布局范式：
+        图像上的框选由 Core.Halcon 的 ImageEdit 控件提供（右键 → 新建矩形），
+        本视图只负责把控件的能力绑上、把结果呈现出来，业务逻辑全在 ColorCheckPlugin。
+
+        参数的露法（与用户确认过的口径一致）：
+        日常只用【线数】和【规整化】两个旋钮，其余 6 项收进「高级参数」折叠区；
+        每个高级项都写了 ToolTip 说明"什么情况下该动它"，免得现场乱改。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="CardBorder" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E5E5E5" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="14" />
+            </Style>
+
+            <Style x:Key="CardTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#1F1F1F" />
+            </Style>
+
+            <Style x:Key="HintText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="#888888" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="ParamLabel" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="#555555" />
+            </Style>
+
+            <Style x:Key="ParamBox" TargetType="TextBox">
+                <Setter Property="Height" Value="24" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Padding" Value="4,0,0,0" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="330" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!--  左列：参数卡片（内容较长，套滚动条）  -->
+        <ScrollViewer Grid.Column="0" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="采样区" />
+
+                        <TextBlock
+                            Margin="0,10,0,4"
+                            Style="{StaticResource HintText}"
+                            Text="有上游图像时会自动显示（点下面的「执行」把它带进来）；也可以填路径手动载入一张示意图" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox
+                                Height="26"
+                                Padding="4,0,0,0"
+                                VerticalContentAlignment="Center"
+                                Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="例如 E:\...\Image\颜色\cable2.png" />
+                            <Button
+                                Grid.Column="1"
+                                MinWidth="60"
+                                Height="26"
+                                Margin="8,0,0,0"
+                                Click="OnLoadPreviewClick"
+                                Content="载入" />
+                        </Grid>
+
+                        <TextBlock
+                            Margin="0,12,0,4"
+                            Style="{StaticResource CardTitle}"
+                            Text="当前采样区" />
+                        <TextBlock Style="{StaticResource HintText}" Text="{Binding RoiSummary}" />
+
+                        <Button
+                            Height="26"
+                            Margin="0,12,0,0"
+                            HorizontalAlignment="Left"
+                            MinWidth="110"
+                            Click="OnClearRoiClick"
+                            Content="清空采样区" />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="检查参数" />
+
+                        <CheckBox
+                            Margin="0,10,0,0"
+                            Content="序列反向"
+                            FontSize="12"
+                            IsChecked="{Binding ReverseSequence}"
+                            ToolTip="勾上则把序列首尾对调：线束摆放方向与上次相反时用它，免得改框" />
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="72" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource ParamLabel}" Text="线数（0 = 自动反推）" />
+                            <TextBox
+                                Grid.Column="1"
+                                Style="{StaticResource ParamBox}"
+                                Text="{Binding WireCount}"
+                                ToolTip="留 0 由算法按线距反推根数；填了正数就按这个根数展开（以检出范围的中点为基准）" />
+                        </Grid>
+
+                        <CheckBox
+                            Margin="0,8,0,0"
+                            Content="等间距规整化"
+                            FontSize="12"
+                            IsChecked="{Binding Regularize}"
+                            ToolTip="开：按估出的线距铺满整束，看不见的白线也能补出来；关：只报看得见的线（调参时用来对比）" />
+
+                        <Button
+                            Height="26"
+                            Margin="0,10,0,0"
+                            HorizontalAlignment="Left"
+                            MinWidth="110"
+                            Click="OnTryAnalyzeClick"
+                            Content="试算一下"
+                            ToolTip="用左侧示意图跑一遍算法，看看几根、什么颜色、哪几根是补出来的" />
+
+                        <Border
+                            Margin="0,10,0,0"
+                            Padding="8"
+                            Background="#F7F8FA"
+                            CornerRadius="4">
+                            <TextBlock
+                                FontFamily="Consolas, Microsoft YaHei"
+                                FontSize="11"
+                                Foreground="#333333"
+                                Text="{Binding ResultSummary}"
+                                TextWrapping="Wrap" />
+                        </Border>
+
+                        <Expander
+                            Margin="0,10,0,0"
+                            FontSize="12"
+                            Header="高级参数">
+                            <StackPanel Margin="0,6,0,0">
+                                <Grid Margin="0,3,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="72" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource ParamLabel}" Text="暗线判据幅度" ToolTip="判定线 = 剖面众数亮度 减去 这个百分比 ×（众数亮度 − 最暗像素）" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource ParamBox}"
+                                        Text="{Binding DarkSpanRatio}"
+                                        ToolTip="默认 35%：比线间缝再暗 35% 的对比度幅度才算「可靠的暗线」。线色普遍偏浅时调小，把背景误当暗线时调大" />
+                                </Grid>
+
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="72" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource ParamLabel}" Text="白线百分位" ToolTip="亮度高于这条百分位的行算「白线」；浅色背景被误当线时报的错就靠调小它避开" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource ParamBox}"
+                                        Text="{Binding BrightPercentile}"
+                                        ToolTip="默认 92：亮度最高的 8% 视为白线。日志出现「丢弃过长可靠区间」时把它调小" />
+                                </Grid>
+
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="72" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource ParamLabel}" Text="最小段长" ToolTip="连续多少行都可靠才算一根线，用来滤掉噪点" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource ParamBox}"
+                                        Text="{Binding MinRun}"
+                                        ToolTip="默认 4 行。图像噪声大时调大" />
+                                </Grid>
+
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="72" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource ParamLabel}" Text="最大段长比例" ToolTip="长过剖面长度这个比例的可靠段按背景丢弃；填 0 = 不做这个保护" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource ParamBox}"
+                                        Text="{Binding MaxRunRatio}"
+                                        ToolTip="默认 0.33：一根线不可能占掉剖面三分之一以上，占到了就是背景混进来了" />
+                                </Grid>
+
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="72" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource ParamLabel}" Text="补色窗口比例" ToolTip="给「补出来」的那几根取色时的窗口半宽，单位是线距的比例" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource ParamBox}"
+                                        Text="{Binding RuleWindowRatio}"
+                                        ToolTip="默认 0.30：取中心上下各 0.3 倍线距的范围求中位色。线间距很密时调小" />
+                                </Grid>
+
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="72" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource ParamLabel}" Text="投射视图窗口" ToolTip="结果画到主界面哪个视图窗口（1~9）；填 0 = 不投射" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource ParamBox}"
+                                        Text="{Binding DisplayViewIndex}"
+                                        ToolTip="默认 1：采样线 + 逐根颜色标签 + 结论行都投到 1 号窗口" />
+                                </Grid>
+
+                                <CheckBox
+                                    Margin="0,8,0,0"
+                                    Content="端点外推"
+                                    FontSize="12"
+                                    IsChecked="{Binding ExtendEnds}"
+                                    ToolTip="允许在检出范围两端各多探一根（靠「那一格有没有起伏」判断）；只有线色均匀的单色线束才建议关掉" />
+
+                                <TextBlock
+                                    Margin="0,12,0,4"
+                                    Style="{StaticResource ParamLabel}"
+                                    Text="颜色判据阈值"
+                                    ToolTip="把实测颜色归到哪个颜色词用的阈值。所有颜色算子共用同一套颜色词，这里只是本算子的一份可调副本（随方案落盘）" />
+                                <!--  共用控件：一份阈值编辑器，所有颜色算子都嵌它，免得 N 个视图各写 13 行  -->
+                                <cc:ColorThresholdEditor />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="配方" />
+
+                        <TextBlock
+                            Margin="0,8,0,4"
+                            Style="{StaticResource HintText}"
+                            Text="一行一条：产品名 = 颜色1,颜色2,...　（井号开头是注释；颜色词只有 黑/白/灰/紫/蓝/绿/黄/红/玫红/橙 才认得出来；某一位写 * 表示这一位不检）" />
+                        <TextBox
+                            Height="96"
+                            AcceptsReturn="True"
+                            FontFamily="Consolas, Microsoft YaHei"
+                            FontSize="11"
+                            Text="{Binding RecipeText, UpdateSourceTrigger=PropertyChanged}"
+                            VerticalScrollBarVisibility="Auto" />
+
+                        <Button
+                            Height="26"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Left"
+                            MinWidth="160"
+                            Click="OnSaveRecipeClick"
+                            Content="把试算结果存成配方"
+                            ToolTip="拿一张已知良品的图点「试算一下」，再点这里 —— 省得手打颜色词打错" />
+
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="运行期按实测根数匹配（期望序列的长度就是这条配方要求几根）；另有「期望序列」输入端口，端口填了就以端口为准。" />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="怎么用" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="① 先在流程里把本节点的 Image 连到上游（画布上拖一条线，或右键 → 变量绑定，选上游的 Image 输出）；② 打开本窗口点「执行」——上游图像会显示在右侧；③ 在图上右键 → 新建矩形，框住整条线束；④ 再点「执行」或「试算一下」核对结果。" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="第一次点「执行」会报「尚未框选采样区」——那是对的，此时图已经上屏，框完再执行一次即可。" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="没有上游节点时：填「示意图路径」并点「载入」，一样能框。框的短边方向要与线束走向垂直（横着铺的线束就画一个横着的长框），框要贴住线束、别把大片背景圈进来。" />
+                    </StackPanel>
+                </Border>
+
+                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardTitle}" Text="本轮范围" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            Style="{StaticResource HintText}"
+                            Text="现在能做到「算出颜色序列 + 按配方判定合格与否 + 把结果投到视图窗口」，输出 根数 / 序列 / 逐根来源 / 行号 / 判定 / 第几位不符 / 结论。颜色色卡目前是内置的（阈值暂写死），可调与示教是下一步。" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock
+                    Margin="2,10,2,10"
+                    Style="{StaticResource HintText}"
+                    Text="{Binding Hint}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  右列：图像编辑器（能力全部来自控件 DP，插件只做绑定）  -->
+        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource CardBorder}">
+            <h:ImageEdit
+                x:Name="ImageEditor"
+                ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
+                DrawObjectList="{Binding CanvasRois}"
+                HImage="{Binding DisplayImage, Mode=OneWay}" />
+        </Border>
+    </Grid>
+</UserControl>

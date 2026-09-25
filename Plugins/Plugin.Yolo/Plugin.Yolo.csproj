@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.Yolo</RootNamespace>
+    <AssemblyName>Plugin.Yolo</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    ONNX Runtime 按**仓库既有约定**从 DLL\ 引用，而不是引 NuGet 包。
+    三个理由，都是实测出来的：
+      ① 本仓第三方库一律放 DLL\ 用 HintPath 引（Halcon 80MB / HslCommunication 55MB 都是这个套路），保持一致；
+      ② 这台机器的 NuGet 默认源（V2 端点）**稳定返 502**，只有 V3 端点通 —— 若用 PackageReference，
+         在 VS 里直接打开工程 restore 会失败，而加 nuget.config 是仓库级改动；
+      ③ 走本地文件后构建**完全离线可复现**，不依赖任何包源。
+
+    Microsoft.ML.OnnxRuntime.dll 与 System.Numerics.Tensors.dll 是托管程序集，可以用 <Reference>；
+    onnxruntime.dll / onnxruntime_providers_shared.dll 是**原生** DLL，绝不能用 <Reference>（编译期会报错），
+    只能当普通文件随输出走 —— 见下面两个 ItemGroup。
+  -->
+  <ItemGroup>
+    <Reference Include="Microsoft.ML.OnnxRuntime">
+      <HintPath>..\..\DLL\OnnxRuntime\Microsoft.ML.OnnxRuntime.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Numerics.Tensors">
+      <HintPath>..\..\DLL\OnnxRuntime\System.Numerics.Tensors.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    两个原生库必须随输出走：
+      · 本工程与"编译期引用本工程"的消费者（断言工程）的输出目录 —— 否则断言跑不起来；
+      · 生产宿主的 exe 目录 —— 见下面的 PostBuild。
+    为什么原生库一定要在**宿主 exe 旁边**：Windows 加载原生 DLL 时按 exe 所在目录、系统目录、PATH 顺序搜索，
+    **不会**递归搜索 Modules\ 或 Assets\ 这类子目录。放错位置的表现是运行期一句
+    "DllNotFoundException: onnxruntime"，而编译期完全看不出问题 —— 这类部署坑只能在真机上暴露。
+  -->
+  <ItemGroup>
+    <None Include="..\..\DLL\OnnxRuntime\onnxruntime.dll">
+      <Link>onnxruntime.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\DLL\OnnxRuntime\onnxruntime_providers_shared.dll">
+      <Link>onnxruntime_providers_shared.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    生产宿主（VisionMaster）并不引用本工程 —— 它按 Plugin*.dll 反射加载，
+    拿不到上面那些 CopyToOutputDirectory 的传递拷贝，所以必须显式投递到宿主运行目录。
+  -->
+  <Target Name="DeployOnnxRuntimeToHost" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(MSBuildThisFileDirectory)..\..\DLL\OnnxRuntime&quot; &quot;$(HostBinDir)&quot; /Y /Q /I" />
+  </Target>
+
+</Project>
