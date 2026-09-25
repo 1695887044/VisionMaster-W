@@ -8,6 +8,8 @@
     xmlns:local="clr-namespace:Plugin.CreateRoi"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:system="clr-namespace:System;assembly=mscorlib"
+    MinWidth="{DynamicResource PluginViewMinWidth}"
+    MinHeight="{DynamicResource PluginViewMinHeight}"
     Height="600"
     Width="1000"
     xmlns:ui="http://schemas.UI.com/ui">
@@ -25,70 +27,14 @@
             <local:InverseBoolConverter x:Key="InverseBool" />
             <local:SmearModeConverter x:Key="SmearModeEq" />
 
-            <!--  Win11 风格卡片（与 UI 库 Win11Card 同参数：圆角 + 柔和阴影层次）  -->
-            <Style x:Key="CardBorder" TargetType="Border">
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#E5E5E5" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="8" />
-                <Setter Property="Padding" Value="14" />
-                <Setter Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect
-                            BlurRadius="12"
-                            Direction="270"
-                            Opacity="0.05"
-                            ShadowDepth="2"
-                            Color="Black" />
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!--  卡片小标题  -->
-            <Style x:Key="CardTitle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Foreground" Value="#1F1F1F" />
-            </Style>
-
-            <!--  次要说明文字  -->
-            <Style x:Key="HintText" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="11" />
-                <Setter Property="Foreground" Value="#888888" />
-            </Style>
-
-            <!--  ROI 列表行：透明背景 + 圆角悬浮/选中高亮  -->
-            <Style x:Key="RoiListBoxItem" TargetType="ListBoxItem">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Padding" Value="8,5" />
-                <Setter Property="Margin" Value="0,1" />
-                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ListBoxItem">
-                            <Border
-                                x:Name="Bd"
-                                Padding="{TemplateBinding Padding}"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="4">
-                                <ContentPresenter />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#F5F5F5" />
-                                </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#E8F1FD" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
+            <!--
+                本视图不再定义任何样式/颜色：卡片、标题、提示文字、ROI 列表行一律取自
+                UI 库的 Plugin* 公共样式（PluginCard / PluginCardTitle / PluginHintText / PluginListBoxItem）。
+                与 CaliperMeasure/BlobDetect 用的是同一个键，改一次主题三张卡片一起变。
+            -->
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid Margin="12">
+    <Grid Margin="{StaticResource PluginViewMargin}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="320" />
             <ColumnDefinition Width="*" />
@@ -104,16 +50,16 @@
             </Grid.RowDefinitions>
 
             <!--  卡片：图像输入  -->
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource PluginCard}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource CardTitle}" Text="图像输入" />
+                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
                     <cv:LinkableValueEditor
-                        Margin="0,10,0,0"
+                        Margin="{StaticResource PluginFirstRowMargin}"
                         HorizontalAlignment="Stretch"
                         Label="图像路径"
                         Port="{Binding SrcImage}"
                         StepData="{Binding StepData}" />
-                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                    <StackPanel Margin="{StaticResource PluginFirstRowMargin}" Orientation="Horizontal">
                         <TextBlock VerticalAlignment="Center" Text="显示窗口" />
                         <ComboBox
                             Width="120"
@@ -137,16 +83,16 @@
             </Border>
 
             <!--  卡片：参数微调（绑定 SelectedRoi.ParamEntries，纯绑定无 code-behind）  -->
-            <Border Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+            <Border Grid.Row="1" Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                 <StackPanel>
                     <Grid>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="参数微调" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="参数微调" />
                         <TextBlock
                             HorizontalAlignment="Right"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="{Binding SelectedRoi.Name, TargetNullValue='选中 ROI 后可编辑'}" />
                     </Grid>
-                    <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedRoi.ParamEntries}">
+                    <ItemsControl Margin="{StaticResource PluginSectionMargin}" ItemsSource="{Binding SelectedRoi.ParamEntries}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,3,0,3">
@@ -157,12 +103,12 @@
                                     <TextBlock
                                         VerticalAlignment="Center"
                                         FontSize="12"
-                                        Foreground="#888888"
+                                        Foreground="{StaticResource PluginHintTextBrush}"
                                         Text="{Binding Name}" />
                                     <TextBox
                                         Grid.Column="1"
-                                        Height="24"
-                                        Padding="4,0,0,0"
+                                        Height="{StaticResource PluginControlHeight}"
+                                        Padding="{StaticResource PluginNumericBoxPadding}"
                                         VerticalContentAlignment="Center"
                                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}" />
                                 </Grid>
@@ -173,16 +119,16 @@
             </Border>
 
             <!--  卡片：ROI 列表  -->
-            <Border Grid.Row="2" Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+            <Border Grid.Row="2" Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top">
-                        <TextBlock Style="{StaticResource CardTitle}" Text="ROI 列表" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="ROI 列表" />
                         <TextBlock
                             HorizontalAlignment="Right"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="右键图像 → 区域 → 新建" />
                     </Grid>
-                    <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" Orientation="Horizontal">
+                    <StackPanel DockPanel.Dock="Bottom" Margin="{StaticResource PluginSectionMargin}" Orientation="Horizontal">
                         <Button
                             MinWidth="76"
                             Command="{Binding DeleteSelectedCommand}"
@@ -194,11 +140,11 @@
                             Content="清空" />
                     </StackPanel>
                     <ListBox
-                        Margin="0,10,0,0"
+                        Margin="{StaticResource PluginFirstRowMargin}"
                         Background="Transparent"
                         BorderThickness="0"
                         DisplayMemberPath="DisplayText"
-                        ItemContainerStyle="{StaticResource RoiListBoxItem}"
+                        ItemContainerStyle="{StaticResource PluginListBoxItem}"
                         ItemsSource="{Binding RoiList}"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                         SelectedItem="{Binding SelectedRoi}"
@@ -207,19 +153,19 @@
             </Border>
 
             <!--  操作提示  -->
-            <Border Grid.Row="3" Margin="0,8,0,0" Style="{StaticResource CardBorder}">
-                <TextBlock Style="{StaticResource HintText}" Text="拖拽句柄粗调，参数微调精调；选中后按 Del 快速删除" />
+            <Border Grid.Row="3" Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                <TextBlock Style="{StaticResource PluginHintText}" Text="拖拽句柄粗调，参数微调精调；选中后按 Del 快速删除" />
             </Border>
         </Grid>
 
         <!--  右列：图像编辑区  -->
-        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource CardBorder}">
+        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource PluginCard}">
             <DockPanel>
                 <!--  掩膜预览工具条  -->
                 <Border
                     DockPanel.Dock="Top"
                     Padding="0,0,0,8"
-                    BorderBrush="#EEEEEE"
+                    BorderBrush="{StaticResource PluginDividerBrush}"
                     BorderThickness="0,0,0,1">
                     <DockPanel>
                         <StackPanel Orientation="Horizontal">
@@ -246,7 +192,7 @@
                 <Border
                     DockPanel.Dock="Top"
                     Padding="0,6,0,8"
-                    BorderBrush="#EEEEEE"
+                    BorderBrush="{StaticResource PluginDividerBrush}"
                     BorderThickness="0,0,0,1">
                     <StackPanel Orientation="Horizontal">
                         <RadioButton

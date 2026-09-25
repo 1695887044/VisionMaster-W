@@ -168,4 +168,234 @@
         <Setter Property="Padding" Value="{StaticResource PluginStatusPanelPadding}" />
     </Style>
 
+    <!--
+        ==================== 第二批收编（9 视图样式统一）新增的键 ====================
+        来源与"为什么不合并"逐个写在各键注释里。同样只写结构与引用，具体数值在 Colors。
+    -->
+
+    <!--
+        固定宽字段标签：两栏表单（Auto 标签列 + * 编辑列）用。
+        PluginFieldLabel 是 "*" 弹性标签列的版本；这一份多了 Width=72，
+        收编自 Excel/ResultUpload/DataRecord 三家逐字相同的 FieldLabel 抄写。
+    -->
+    <Style x:Key="PluginFieldLabelFixed" BasedOn="{StaticResource PluginFieldLabel}" TargetType="TextBlock">
+        <Setter Property="Width" Value="{StaticResource PluginFieldLabelWidth}" />
+    </Style>
+
+    <!--
+        普通文本输入框：路径 / 文件名模板这类"非数值"场景。
+        与 PluginNumericBox 语义不同、不可混用 —— NumericBox 是"数值 + 校验红框"（带完整自绘模板），
+        这一份是朴素默认模板（收编自三家相同的 FieldBox）。换成 NumericBox 会让文本框凭空长出圆角与聚焦环。
+    -->
+    <Style x:Key="PluginFieldBox" TargetType="TextBox">
+        <Setter Property="Height" Value="{StaticResource PluginControlHeight}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+    </Style>
+
+    <!--  主操作按钮（"立即导出 / 立即发送"这类）：收编自 Excel/ResultUpload 两家相同的 PrimaryButton  -->
+    <Style x:Key="PluginPrimaryButton" TargetType="Button">
+        <Setter Property="Padding" Value="16,5" />
+        <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <!--
+        紧凑按钮标准件：插件配置视图里"载入 / 试算一下 / 清空xx"这类小按钮的统一去处。
+
+        【为什么必须 BasedOn 隐式样式】显式样式一旦套上，未写明的属性回落到 WPF 主题默认而不是
+        隐式样式 —— 不 BasedOn 会丢掉 DefaultStyle 的自绘模板，按钮瞬间变回 Windows 灰块。
+
+        【为什么只给 MinHeight、绝不写死 Height】隐式样式的 Padding 是 18,7 + 13px 字，
+        按钮内容实际需要约 34px；历史上多个视图把按钮写死 Height=24/26，文字下缘被硬裁
+        （码读取/颜色检查/YOLO 的"载入/浏览/试算一下"集体裁字）。改用 MinHeight=26 后高度由
+        内容撑开：12px 字行高约 16 + 本样式 Padding 8 + 边框 2 = 26px，恰好与旁边
+        Height=26 的 TextBox 齐平，文字完整。给按钮写死 Height 是被禁止的写法。
+    -->
+    <Style
+        x:Key="PluginButton"
+        BasedOn="{StaticResource {x:Type Button}}"
+        TargetType="Button">
+        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
+    <!--
+        等宽预览文字："实际读取/写出/发出 →" 后面那行。
+        收编自 Excel/ResultUpload 两家相同的 PreviewText —— 浅蓝 + 等宽，一眼分清
+        "配置文本"和"实际算出来的路径/报文"。
+    -->
+    <Style x:Key="PluginPreviewText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource PluginHintFontSize}" />
+        <Setter Property="FontFamily" Value="{StaticResource PluginMonoFontFamily}" />
+        <Setter Property="Foreground" Value="{StaticResource PluginMonoTextBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!--
+        列表行：透明背景 + 圆角悬浮/选中高亮。
+        收编自 Caliper(CreateRoi 同款)/CreateRoi/PreProcessing 三家的
+        RegionListBoxItem / RoiListBoxItem / ChainListBoxItem —— 除行内边距(8,5 vs 6,4)外逐字相同，
+        取多数派 8,5。
+    -->
+    <Style x:Key="PluginListBoxItem" TargetType="ListBoxItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border
+                        x:Name="Bd"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="4">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginListHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginListSelectedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        现代下拉基础样式：自绘圆角边框 + 悬停/聚焦高亮 + 自绘箭头。
+        收编自 Excel/ResultUpload/DataRecord 三家逐字相同的 ModernComboBase。
+        为什么要完整自绘模板：宿主默认 ComboBox 模板放在视图外层作用域会失效（原抄写注释），
+        且改不了圆角与箭头配色 —— 与 PluginNumericBox 自己写 Template 是同一类理由。
+    -->
+    <Style x:Key="PluginModernComboBase" TargetType="ComboBox">
+        <Setter Property="Height" Value="{StaticResource PluginControlHeight}" />
+        <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+        <Setter Property="Foreground" Value="{StaticResource PluginComboTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource PluginSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource PluginComboBorderBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton
+                            x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1"
+                            ClickMode="Press"
+                            Cursor="Hand"
+                            Focusable="False"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border
+                                        x:Name="Bd"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <Path
+                                            x:Name="Arrow"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,9,0"
+                                            Data="M 0 0 L 4 4 L 8 0 Z"
+                                            Fill="{StaticResource PluginComboArrowBrush}" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PluginComboHighlightBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PluginComboHighlightBrush}" />
+                                            <Setter TargetName="Arrow" Property="Fill" Value="{StaticResource PluginComboHighlightBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter
+                            Margin="8,0,24,0"
+                            VerticalAlignment="Center"
+                            Content="{TemplateBinding SelectionBoxItem}"
+                            ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                            IsHitTestVisible="False" />
+                        <Popup
+                            AllowsTransparency="True"
+                            Placement="Bottom"
+                            PopupAnimation="Fade"
+                            IsOpen="{TemplateBinding IsDropDownOpen}"
+                            StaysOpen="False">
+                            <Border
+                                MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                Margin="0,3,0,0"
+                                Background="{StaticResource PluginSurfaceBrush}"
+                                BorderBrush="{StaticResource PluginComboBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                                <Border.Effect>
+                                    <DropShadowEffect
+                                        BlurRadius="10"
+                                        Direction="270"
+                                        Opacity="0.15"
+                                        ShadowDepth="2"
+                                        Color="Black" />
+                                </Border.Effect>
+                                <ScrollViewer Margin="2">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        下拉条目容器：圆角、悬停浅灰、选中浅蓝（系统蓝色高亮模板一并替换）。
+        收编自同上三家的 ModernComboItem。选中文字色沿用抄写源的 #1565C0（与 PluginMonoTextBrush 同值，
+        同一份抄写里的同一个蓝；按"同一份抄写只开一个键"处理，不另开 ComboItemSelectedTextBrush）。
+    -->
+    <Style x:Key="PluginModernComboItem" TargetType="ComboBoxItem">
+        <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+        <Setter Property="Foreground" Value="{StaticResource PluginComboTextBrush}" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border
+                        x:Name="Bd"
+                        Padding="{TemplateBinding Padding}"
+                        Background="Transparent"
+                        CornerRadius="3">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginComboItemHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginComboItemSelectedBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource PluginMonoTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

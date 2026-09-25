@@ -20,7 +20,18 @@
         这里只给下限，保证内容不会被压到不可用。
     -->
     <UserControl.Resources>
-        <!--  显示窗口索引候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不显示）  -->
+        <!--
+            显示窗口索引候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不显示）。
+
+            样式资源：本视图没有本地样式键，颜色/字号已逐值对齐到 UI 库 Plugin* 令牌。
+            两处刻意的决策（详见 docs/code-changes/2026-09-25-插件配置视图样式统一.md）：
+            ① 默认状态色 #0A7 归一到 PluginOkBrush(#00AA77)——语义相同值不同，统一后换主题只改字典；
+            ② 根元素 MinWidth=560 / MinHeight=280 保持字面量不动：这是按宿主对话框
+              （初始 880×600、最小 640×420，内容区最小 624×304）算出来的下限，
+              公共令牌 620×360 的 MinHeight=360 会超出最小内容区高度 56px，不硬套。
+            其余 #666/#333/#999/#FAFAFA/#DDDDDD/#E0E0E0 等灰阶字典里没有对应令牌，
+            保持内联原值（不硬造），已记录汇报。
+        -->
         <ResourceDictionary>
             <x:Array x:Key="ViewIndexes" Type="system:Int32">
                 <system:Int32>0</system:Int32>
@@ -214,8 +225,8 @@
                                 <!--  服务端是否在听：打开窗口即告知，省得用户点完按钮再猜原因  -->
                                 <TextBlock
                                     Margin="0,6,0,0"
-                                    FontSize="11"
-                                    Foreground="#E6A23C"
+                                    FontSize="{StaticResource PluginHintFontSize}"
+                                    Foreground="{StaticResource PluginWarningBrush}"
                                     Text="{Binding PushServiceHint}"
                                     TextWrapping="Wrap" />
 
@@ -229,7 +240,7 @@
 
                                 <TextBlock
                                     Margin="0,10,0,2"
-                                    FontSize="11"
+                                    FontSize="{StaticResource PluginHintFontSize}"
                                     Foreground="#999"
                                     Text="推送结果（可选中复制）" />
                                 <TextBox
@@ -239,7 +250,7 @@
                                     Background="#FAFAFA"
                                     BorderBrush="#DDDDDD"
                                     FontFamily="Consolas"
-                                    FontSize="12"
+                                    FontSize="{StaticResource PluginLabelFontSize}"
                                     IsReadOnly="True"
                                     Text="{Binding PushResultText, Mode=OneWay}"
                                     TextWrapping="Wrap"
@@ -253,12 +264,12 @@
                                             TextWrapping="Wrap" />
                                         <TextBlock
                                             Margin="0,10,0,0"
-                                            Foreground="#444"
+                                            Foreground="{StaticResource PluginLabelTextBrush}"
                                             Text="POST  http://{主机}:{端口}/flow/{流程名}?outputs=步骤名.端口名"
                                             TextWrapping="Wrap" />
                                         <TextBlock
                                             Margin="0,6,0,0"
-                                            Foreground="#444"
+                                            Foreground="{StaticResource PluginLabelTextBrush}"
                                             Text="Authorization: Bearer {令牌}      请求体：图片文件字节"
                                             TextWrapping="Wrap" />
                                         <TextBlock
@@ -396,7 +407,7 @@
         <Border
             Grid.Column="1"
             Padding="12"
-            Background="White"
+            Background="{StaticResource PluginSurfaceBrush}"
             BorderBrush="#E0E0E0"
             BorderThickness="1"
             CornerRadius="6">
@@ -409,30 +420,29 @@
                 <!--  信息栏：来源路径（左）+ 操作状态（右），三模式统一反馈  -->
                 <Border
                     Grid.Row="1"
-                    Margin="0,8,0,0"
-                    Padding="10,8"
-                    Background="#F8F8F8"
-                    CornerRadius="4">
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginStatusPanel}">
                     <DockPanel>
                         <!--
                             状态文字颜色由 StatusLevel 决定（绿=正常 / 橙=需注意 / 红=不可用）：
-                            颜色是纯界面概念，插件只上报级别，具体色值留在这里，
-                            用 x:Static 直接引枚举，不依赖字符串→枚举的隐式转换
+                            颜色是纯界面概念，插件只上报级别，三色一律走公共令牌。
+                            原默认色 #0A7 与 PluginOkBrush(#00AA77) 语义相同值不同，收编时归一到字典值
+                            （刻意的归一，非视觉还原）。
                         -->
                         <TextBlock
                             DockPanel.Dock="Right"
-                            FontSize="12"
+                            FontSize="{StaticResource PluginLabelFontSize}"
                             Text="{Binding StatusMessage}"
                             TextWrapping="Wrap">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#0A7" />
+                                    <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                            <Setter Property="Foreground" Value="#E6A23C" />
+                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
-                                            <Setter Property="Foreground" Value="#F56C6C" />
+                                            <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -441,8 +451,8 @@
                         <TextBlock
                             MaxWidth="420"
                             VerticalAlignment="Center"
-                            FontSize="12"
-                            Foreground="#444"
+                            FontSize="{StaticResource PluginLabelFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
                             Text="{Binding PreviewImagePath}"
                             TextTrimming="CharacterEllipsis" />
                     </DockPanel>

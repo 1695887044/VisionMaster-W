@@ -3,11 +3,17 @@
     <ResourceDictionary.MergedDictionaries>
 
         <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
-        <!--  插件配置界面令牌：颜色/尺寸放在 Colors 之前合并，Styles 只做引用。换主题时替换前者即可  -->
+        <!--  插件配置界面令牌：颜色先合并，Styles 只做引用。换主题时替换前者即可  -->
         <ResourceDictionary Source="/UI;component/Themes/PluginConfigColors.xaml" />
-        <ResourceDictionary Source="/UI;component/Themes/PluginConfigStyles.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/IconDictionary.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/DefaultStyle.xaml" />
+        <!--
+            PluginConfigStyles 必须排在 DefaultStyle 之后：
+            PluginButton 要 BasedOn 隐式 Button 样式（{StaticResource {x:Type Button}}），
+            而该样式定义在 DefaultStyle.xaml —— 隐式样式未合并前解析会当场抛异常。
+            它自身只引用 PluginConfigColors 的令牌（在其之前已合并），其余无顺序依赖。
+        -->
+        <ResourceDictionary Source="/UI;component/Themes/PluginConfigStyles.xaml" />
         <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Popover.xaml" />
         <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/LogConsole.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/AlarmBar.xaml" />

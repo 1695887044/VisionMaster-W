@@ -8,6 +8,8 @@
     xmlns:local="clr-namespace:Plugin.PreProcessing"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.UI.com/ui"
+    MinWidth="{DynamicResource PluginViewMinWidth}"
+    MinHeight="{DynamicResource PluginViewMinHeight}"
     d:DesignHeight="620"
     d:DesignWidth="1120"
     mc:Ignorable="d">
@@ -17,6 +19,8 @@
         右侧"处理链/算子参数"直接被裁掉）。
         打开时的初始大小由代码后置在 Loaded 时把宿主窗口"只放大不缩小"地撑到舒适尺寸；
         d:Design* 只喂设计器，不影响运行。
+        最小尺寸与其它插件视图统一取 UI 库令牌（620×360，DynamicResource）：
+        只是下限，不与"不写死宽高"冲突。
     -->
 
     <UserControl.InputBindings>
@@ -27,7 +31,7 @@
     <!--
         布局：左「算子库」→ 中「图像预览」→ 右「处理链 + 参数面板」
         读图顺序即操作顺序：挑算子 → 看效果 → 调参数。
-        样式与 CreateRoiView 保持同一套（卡片、标题、提示文字、列表行），避免两个插件长得不像一家人。
+        卡片/标题/提示文字/链列表行取自 UI 库 Plugin* 公共样式，与 CreateRoiView 天然一家人。
     -->
     <UserControl.Resources>
         <ResourceDictionary>
@@ -39,73 +43,20 @@
             <!--  链列表步号：AlternationIndex 从 0 起算，界面要给人看 1 起算  -->
             <local:StepNumberConverter x:Key="StepNumber" />
 
-            <!--  Win11 风格卡片  -->
-            <Style x:Key="CardBorder" TargetType="Border">
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#E5E5E5" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="8" />
-                <Setter Property="Padding" Value="14" />
-                <Setter Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect
-                            BlurRadius="12"
-                            Direction="270"
-                            Opacity="0.05"
-                            ShadowDepth="2"
-                            Color="Black" />
-                    </Setter.Value>
-                </Setter>
-            </Style>
+            <!--
+                本视图不再定义卡片/标题/提示/列表行样式（原 CardBorder/CardTitle/HintText/
+                ChainListBoxItem 已收编进 UI 库 Plugin* 键）。
+                注意两处刻意的归一：
+                ① 链列表行内边距原为 6,4，公共 PluginListBoxItem 取三视图多数派 8,5；
+                ② 提示文字获得了公共版的 TextWrapping=Wrap（本地版原本没有）。
+            -->
 
-            <Style x:Key="CardTitle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Foreground" Value="#1F1F1F" />
-            </Style>
-
-            <Style x:Key="HintText" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="11" />
-                <Setter Property="Foreground" Value="#888888" />
-                <Setter Property="TextWrapping" Value="Wrap" />
-            </Style>
-
-            <!--  链列表行：透明 + 悬浮/选中高亮  -->
-            <Style x:Key="ChainListBoxItem" TargetType="ListBoxItem">
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Padding" Value="6,4" />
-                <Setter Property="Margin" Value="0,1" />
-                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ListBoxItem">
-                            <Border
-                                x:Name="Bd"
-                                Padding="{TemplateBinding Padding}"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="4">
-                                <ContentPresenter />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#F5F5F5" />
-                                </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#E8F1FD" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!--  算子库里的"添加"按钮：去掉默认边框阴影，做成一行可点的文字条目  -->
+            <!--  算子库里的"添加"按钮：去掉默认边框阴影，做成一行可点的文字条目（本视图专属，留本地）  -->
             <Style x:Key="LibraryItemButton" TargetType="Button">
                 <Setter Property="HorizontalContentAlignment" Value="Left" />
                 <Setter Property="Padding" Value="8,4" />
                 <Setter Property="Margin" Value="0,1" />
-                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Setter Property="Template">
                     <Setter.Value>
@@ -119,7 +70,8 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#E8F1FD" />
+                                    <!--  悬停高亮与列表选中色同值（同一份抄写源），走公共令牌  -->
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginListSelectedBrush}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -129,7 +81,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="{StaticResource PluginViewMargin}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="210" />
             <ColumnDefinition Width="*" MinWidth="300" />
@@ -143,16 +95,16 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource PluginCard}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource CardTitle}" Text="图像输入" />
+                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
                     <cv:LinkableValueEditor
-                        Margin="0,10,0,0"
+                        Margin="{StaticResource PluginFirstRowMargin}"
                         HorizontalAlignment="Stretch"
                         Label="图像路径"
                         Port="{Binding SrcImage}"
                         StepData="{Binding StepData}" />
-                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                    <StackPanel Margin="{StaticResource PluginFirstRowMargin}" Orientation="Horizontal">
                         <TextBlock VerticalAlignment="Center" Text="显示窗口" />
                         <ComboBox
                             Width="110"
@@ -178,17 +130,17 @@
             <!--  算子库：完全由 OperatorRegistry 反射出来的分组驱动，新增算子这里自动多一行  -->
             <Border
                 Grid.Row="1"
-                Margin="0,8,0,0"
-                Style="{StaticResource CardBorder}">
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource PluginCard}">
                 <DockPanel>
                     <TextBlock
                         DockPanel.Dock="Top"
-                        Style="{StaticResource CardTitle}"
+                        Style="{StaticResource PluginCardTitle}"
                         Text="算子库" />
                     <TextBlock
                         Margin="0,4,0,6"
                         DockPanel.Dock="Top"
-                        Style="{StaticResource HintText}"
+                        Style="{StaticResource PluginHintText}"
                         Text="点击添加到处理链末尾" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding OperatorLibrary}">
@@ -197,7 +149,7 @@
                                     <StackPanel Margin="0,0,0,8">
                                         <TextBlock
                                             Margin="2,0,0,2"
-                                            FontSize="11"
+                                            FontSize="{StaticResource PluginHintFontSize}"
                                             FontWeight="SemiBold"
                                             Foreground="#5B8FF9"
                                             Text="{Binding Name}" />
@@ -223,12 +175,12 @@
         </Grid>
 
         <!--  ================= 中：图像预览 =================  -->
-        <Border Grid.Column="1" Margin="8,0" Style="{StaticResource CardBorder}">
+        <Border Grid.Column="1" Margin="8,0" Style="{StaticResource PluginCard}">
             <DockPanel>
                 <Border
                     DockPanel.Dock="Top"
                     Padding="0,0,0,8"
-                    BorderBrush="#EEEEEE"
+                    BorderBrush="{StaticResource PluginDividerBrush}"
                     BorderThickness="0,0,0,1">
                     <DockPanel>
                         <StackPanel Orientation="Horizontal">
@@ -269,15 +221,15 @@
                         </StackPanel>
                     </DockPanel>
                 </Border>
-                <StackPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                <StackPanel DockPanel.Dock="Bottom" Margin="{StaticResource PluginFieldRowMargin}">
                     <TextBlock
                         Foreground="#D83B01"
-                        Style="{StaticResource HintText}"
+                        Style="{StaticResource PluginHintText}"
                         Text="{Binding LoadWarning}" />
                     <!--  复制/粘贴/导出的结果都落在这行：配置界面拿不到日志通道，只能靠文字反馈  -->
                     <TextBlock
                         Foreground="#1A7F4B"
-                        Style="{StaticResource HintText}"
+                        Style="{StaticResource PluginHintText}"
                         Text="{Binding ActionHint}" />
                 </StackPanel>
                 <!--  图像显示；带框算子选中时，画布上会多出一个可拖拽的编辑框（框参数与算子参数双向同步）  -->
@@ -296,16 +248,16 @@
                 <RowDefinition Height="3*" MinHeight="220" />
             </Grid.RowDefinitions>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{StaticResource PluginCard}">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top">
-                        <TextBlock Style="{StaticResource CardTitle}" Text="处理链" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="处理链" />
                         <TextBlock
                             HorizontalAlignment="Right"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="{Binding Operators.Count, StringFormat='共 {0} 步'}" />
                     </Grid>
-                    <StackPanel Margin="0,8,0,0" DockPanel.Dock="Bottom">
+                    <StackPanel Margin="{StaticResource PluginSectionMargin}" DockPanel.Dock="Bottom">
                         <StackPanel Orientation="Horizontal">
                             <Button
                                 MinWidth="52"
@@ -328,7 +280,7 @@
                                 Content="清空" />
                         </StackPanel>
                         <!--  整链搬运：复制出来的是纯文本，贴到另一台机、另一个方案都能还原  -->
-                        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                        <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
                             <Button
                                 MinWidth="52"
                                 Command="{Binding CopyChainCommand}"
@@ -343,11 +295,11 @@
                         </StackPanel>
                     </StackPanel>
                     <ListBox
-                        Margin="0,10,0,0"
+                        Margin="{StaticResource PluginFirstRowMargin}"
                         AlternationCount="1000"
                         Background="Transparent"
                         BorderThickness="0"
-                        ItemContainerStyle="{StaticResource ChainListBoxItem}"
+                        ItemContainerStyle="{StaticResource PluginListBoxItem}"
                         ItemsSource="{Binding Operators}"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                         SelectedItem="{Binding SelectedOperator}">
@@ -363,7 +315,7 @@
                                         MinWidth="16"
                                         Margin="0,0,6,0"
                                         VerticalAlignment="Center"
-                                        FontSize="11"
+                                        FontSize="{StaticResource PluginHintFontSize}"
                                         Foreground="#AAAAAA"
                                         Text="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource StepNumber}}" />
                                     <!--  取消勾选 = 这一步透传，图像原样流到下一步  -->
@@ -373,10 +325,10 @@
                                         IsChecked="{Binding Enabled}"
                                         ToolTip="启用/停用（停用后图像原样流向下一个算子）" />
                                     <StackPanel Grid.Column="2" Margin="8,0,0,0">
-                                        <TextBlock FontSize="12" Text="{Binding DisplayName}" />
+                                        <TextBlock FontSize="{StaticResource PluginLabelFontSize}" Text="{Binding DisplayName}" />
                                         <TextBlock
-                                            FontSize="11"
-                                            Foreground="#888888"
+                                            FontSize="{StaticResource PluginHintFontSize}"
+                                            Foreground="{StaticResource PluginHintTextBrush}"
                                             Text="{Binding Summary}"
                                             TextTrimming="CharacterEllipsis"
                                             ToolTip="{Binding Description}" />
@@ -399,14 +351,14 @@
             <Border
                 Grid.Row="2"
                 Padding="0"
-                Style="{StaticResource CardBorder}">
+                Style="{StaticResource PluginCard}">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="14,12,14,0">
-                        <TextBlock Style="{StaticResource CardTitle}" Text="算子参数" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="算子参数" />
                         <TextBlock
                             Margin="8,0,0,0"
                             HorizontalAlignment="Right"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="{Binding SelectedOperator.DisplayName, TargetNullValue='在上方选中一个算子', FallbackValue='在上方选中一个算子'}" />
                     </DockPanel>
                     <ui:FlatPropertyGrid BindingObject="{Binding SelectedOperator}" />

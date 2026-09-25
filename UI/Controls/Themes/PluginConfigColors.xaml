@@ -63,6 +63,38 @@
     <SolidColorBrush x:Key="PluginErrorBrush" Color="#F56C6C" />
 
     <!--
+        ==================== 下拉（第二批收编） ====================
+        收编自 Plugin.ExcelExport / Plugin.ResultUpload / Plugin.DataRecord 三家逐字相同的
+        ModernComboBase / ModernComboItem 抄写。值全部照抄原抄写源，不做顺手美化。
+        悬停蓝 #2196F3 / 选中蓝 #E3F0FB 与直方图蓝 #3A7BD5 看着像但不是同一个 —— 按"用在哪"分键，
+        不合并，否则将来想单独调下拉高亮就得先查一遍谁还在用。
+    -->
+    <SolidColorBrush x:Key="PluginComboTextBrush" Color="#1F1F1F" />
+    <SolidColorBrush x:Key="PluginComboBorderBrush" Color="#D5D5D5" />
+    <SolidColorBrush x:Key="PluginComboArrowBrush" Color="#8A8A8A" />
+    <SolidColorBrush x:Key="PluginComboHighlightBrush" Color="#2196F3" />
+    <SolidColorBrush x:Key="PluginComboItemHoverBrush" Color="#F0F4F8" />
+    <SolidColorBrush x:Key="PluginComboItemSelectedBrush" Color="#E3F0FB" />
+
+    <!--
+        ==================== 列表行（第二批收编） ====================
+        收编自 Plugin.CaliperMeasure / Plugin.CreateRoi / Plugin.PreProcessing 三家的
+        RegionListBoxItem / RoiListBoxItem / ChainListBoxItem。
+        原本 PreProcessing 的行内边距是 6,4、另外两家是 8,5 —— 收编取多数派 8,5，
+        PreProcessing 迁移后链列表行会胖 1~2px，属刻意的归一（记录已注明）。
+    -->
+    <SolidColorBrush x:Key="PluginListHoverBrush" Color="#F5F5F5" />
+    <SolidColorBrush x:Key="PluginListSelectedBrush" Color="#E8F1FD" />
+
+    <!--
+        ==================== 等宽预览文字（第二批收编） ====================
+        "实际读取/写出/发出 →" 预览路径与报文：Consolas 优先、中文回退雅黑。
+        浅蓝 #1565C0 与下拉高亮 #2196F3 同为蓝系但值不同、来源不同，分键。
+    -->
+    <FontFamily x:Key="PluginMonoFontFamily">Consolas, Microsoft YaHei</FontFamily>
+    <SolidColorBrush x:Key="PluginMonoTextBrush" Color="#1565C0" />
+
+    <!--
         ==================== 图表（灰度直方图） ====================
         这五个原先硬编码在 Plugin.BlobDetect\HistogramPlot.cs 的静态画笔里。
         C# 侧改成"先查资源、查不到再退回内置值"（见该文件的注释），
@@ -101,6 +133,9 @@
     <sys:Double x:Key="PluginLabelFontSize">12</sys:Double>
     <sys:Double x:Key="PluginHintFontSize">11</sys:Double>
     <sys:Double x:Key="PluginControlHeight">24</sys:Double>
+    <!--  固定宽字段标签：两栏表单（Auto 标签列 + * 编辑列）的左列宽，
+          收编自 Excel/ResultUpload/DataRecord 三家的 FieldLabel Width=72  -->
+    <sys:Double x:Key="PluginFieldLabelWidth">72</sys:Double>
     <sys:Double x:Key="PluginCardShadowBlur">12</sys:Double>
     <sys:Double x:Key="PluginCardShadowOpacity">0.05</sys:Double>
     <sys:Double x:Key="PluginCardShadowDepth">2</sys:Double>

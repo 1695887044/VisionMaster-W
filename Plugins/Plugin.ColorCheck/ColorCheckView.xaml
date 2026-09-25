@@ -80,7 +80,7 @@
                             <Button
                                 Grid.Column="1"
                                 MinWidth="60"
-                                Height="26"
+                                Style="{StaticResource PluginButton}"
                                 Margin="8,0,0,0"
                                 Click="OnLoadPreviewClick"
                                 Content="载入" />
@@ -93,7 +93,7 @@
                         <TextBlock Style="{StaticResource PluginHintText}" Text="{Binding RoiSummary}" />
 
                         <Button
-                            Height="26"
+                            Style="{StaticResource PluginButton}"
                             Margin="0,12,0,0"
                             HorizontalAlignment="Left"
                             MinWidth="110"
@@ -134,7 +134,7 @@
                             ToolTip="开：按估出的线距铺满整束，看不见的白线也能补出来；关：只报看得见的线（调参时用来对比）" />
 
                         <Button
-                            Height="26"
+                            Style="{StaticResource PluginButton}"
                             Margin="0,10,0,0"
                             HorizontalAlignment="Left"
                             MinWidth="110"
@@ -274,7 +274,7 @@
                             VerticalScrollBarVisibility="Auto" />
 
                         <Button
-                            Height="26"
+                            Style="{StaticResource PluginButton}"
                             Margin="0,8,0,0"
                             HorizontalAlignment="Left"
                             MinWidth="160"

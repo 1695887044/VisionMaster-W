@@ -238,6 +238,18 @@ namespace Plugin.Ocr
         public OcrPlugin()
         {
             CanvasRois.CollectionChanged += OnCanvasRoisChanged;
+
+            // 试运行时上游图是**通过给端口赋值**桥接进配置实例的（PluginTestRunner.BridgeInputs），
+            // 所以盯着端口的变化就能把上游图搬到预览上 ——
+            // 否则配置界面里只有"填示意图路径"这一条路，用户会觉得"图像绑不上上游"
+            //（与 RegionColor/ColorCheck 同一模式）
+            Image.PropertyChanged += OnImagePortChanged;
+        }
+
+        private void OnImagePortChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(IInputPort.Value)) return;
+            ShowUpstreamImage();
         }
 
         public override void Initialize() { }
@@ -275,8 +287,34 @@ namespace Plugin.Ocr
             return new OcrView { DataContext = this };
         }
 
-        /// <summary>视图就绪回调（视图 code-behind 只留这一个信号）：把示意图读进来</summary>
-        public void OnViewLoaded() => LoadPreviewImage();
+        /// <summary>视图就绪回调：优先显示上游图（试运行桥接进来的），没有才退回示意图路径</summary>
+        public void OnViewLoaded()
+        {
+            if (!ShowUpstreamImage()) LoadPreviewImage();
+        }
+
+        /// <summary>
+        /// 把上游图显示到预览。有则返回 true。
+        /// 显示的是**自己拷的一份**：上游那张图的句柄归框架管，我们只负责自己的副本。
+        /// </summary>
+        public bool ShowUpstreamImage()
+        {
+            var upstream = Image.GetTypedValue();
+            if (upstream == null || !upstream.IsInitialized()) return false;
+
+            try
+            {
+                DisplayImage?.Dispose();
+                DisplayImage = new HImage(upstream);
+                Hint = "已显示上游图像（点「执行」试运行带进来的）：可直接点「试算一下」看识别效果";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Hint = "上游图像显示失败：" + ex.Message;
+                return false;
+            }
+        }
 
         /// <summary>读示意图。路径空/不存在/读失败都给中文提示，不抛异常</summary>
         public void LoadPreviewImage()

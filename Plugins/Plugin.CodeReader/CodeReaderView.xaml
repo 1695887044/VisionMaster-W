@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Width="900"
@@ -59,6 +60,19 @@
         <ScrollViewer Grid.Column="0" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
 
+                <!--  ── 图像输入：配置窗口内直接链接上游，不必回画布拖线 ──  -->
+                <Border Margin="0,0,0,8" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="输入图像"
+                            Port="{Binding Image}"
+                            StepData="{Binding StepData}" />
+                    </StackPanel>
+                </Border>
+
                 <!--  ── 码制 ──  -->
                 <Border Margin="0,0,0,8" Style="{StaticResource PluginCard}">
                     <StackPanel>
@@ -111,7 +125,11 @@
                             Style="{StaticResource PluginHintText}"
                             Text="图上没有码时 HALCON 会在候选区域反复尝试。没有超时保护会拖住整条流程。" />
 
-                        <TextBlock Margin="0,10,0,0" Style="{StaticResource ParamLabel}" Text="示意图路径（仅配置期用）" />
+                        <TextBlock
+                            Margin="0,10,0,0"
+                            Style="{StaticResource PluginHintText}"
+                            Text="在上方「图像输入」里链接上游后点「执行」，上游图会自动显示进来；不连上游时也可以填路径手动载入一张示意图" />
+                        <TextBlock Margin="0,6,0,0" Style="{StaticResource ParamLabel}" Text="示意图路径（仅配置期用）" />
                         <Grid Margin="0,4,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -121,7 +139,7 @@
                             <Button
                                 Grid.Column="1"
                                 Width="56"
-                                Height="24"
+                                Style="{StaticResource PluginButton}"
                                 Margin="6,0,0,0"
                                 Click="OnLoadPreviewClick"
                                 Content="载入" />
@@ -133,7 +151,7 @@
                 <Border Style="{StaticResource PluginCard}">
                     <StackPanel>
                         <Button
-                            Height="28"
+                            Style="{StaticResource PluginButton}"
                             Click="OnTryRecognizeClick"
                             Content="试算一下" />
                         <TextBlock
