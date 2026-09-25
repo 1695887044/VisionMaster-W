@@ -666,24 +666,6 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 递归收集步骤（含 If/For 等容器内的嵌套子步骤）
-        /// 这份扁平清单供调度层统一复位运行状态；
-        /// 只填顶层会导致嵌套步骤永不复位，界面上停在上一轮的"成功/失败"颜色里
-        /// </summary>
-        private static void CollectStepsDeep(IEnumerable<StepModel> steps, ICollection<StepModel> into)
-        {
-            foreach (var step in steps)
-            {
-                into.Add(step);
-                if (step is IContainerStep container && container.Children != null)
-                {
-                    foreach (var branch in container.Children)
-                        CollectStepsDeep(branch.Steps, into);
-                }
-            }
-        }
-
-        /// <summary>
         /// 编译当前单个流程（保留原有方法用于兼容性）
         /// </summary>
         private void DoCompile()
@@ -709,7 +691,7 @@ namespace VisionMaster
             };
 
             // 蓝图必须填充（含嵌套步骤）：否则编译出的会话运行时步骤状态无法回写 UI
-            CollectStepsDeep(Workspace.CurrentFlow.Steps, newSession.Blueprints);
+            newSession.AddBlueprintsDeep(Workspace.CurrentFlow.Steps);
 
             _runtimeManager.RegisterSession(newSession);
 
@@ -752,7 +734,7 @@ namespace VisionMaster
                         CompiledVersion = flow.Version,
                     };
 
-                    CollectStepsDeep(flow.Steps, newSession.Blueprints);
+                    newSession.AddBlueprintsDeep(flow.Steps);
 
                     _runtimeManager.RegisterSession(newSession);
                     successCount++;
@@ -824,7 +806,7 @@ namespace VisionMaster
                         CompiledVersion = flow.Version,
                     };
 
-                    CollectStepsDeep(flow.Steps, session.Blueprints);
+                    session.AddBlueprintsDeep(flow.Steps);
 
                     _runtimeManager.RegisterSession(session);
                 }
@@ -893,7 +875,7 @@ namespace VisionMaster
                         CompiledVersion = flow.Version,
                     };
 
-                    CollectStepsDeep(flow.Steps, session.Blueprints);
+                    session.AddBlueprintsDeep(flow.Steps);
 
                     _runtimeManager.RegisterSession(session);
                 }

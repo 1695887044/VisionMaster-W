@@ -329,6 +329,13 @@ Context.SetOutput(""Result"", ""ok"");
                 {
                     if (img != null && img.IsInitialized())
                         this.PublishPreview(img, view);
+                },
+                showAnnotated: (img, view, marks) =>
+                {
+                    // 带标注的显示走同一个预览事件，只是多挂一层标注；
+                    // 标注为空时退化成普通显示，避免给画面挂一个空的渲染层
+                    if (img != null && img.IsInitialized())
+                        this.PublishPreview(img, view, marks);
                 })
             {
                 Host = InstanceName

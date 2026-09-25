@@ -98,8 +98,48 @@ namespace Plugin.ImageScript
         public object GetConfigView(IStepConfigData stepData)
         {
             Initialize(stepData);
+            EnsureDefaultScriptIfNeverSaved(stepData);
             EnsureSelectedProcedure();
             return new ImageScriptView { DataContext = this };
+        }
+
+        /// <summary>配置字典里代表"这个步骤配置过脚本"的键名（= [StepConfig] Procedures 的属性名）</summary>
+        private const string ProceduresConfigKey = "Procedures";
+
+        /// <summary>
+        /// 首次打开配置窗口时自动装一份默认脚本（1 图进 → 1 图出 + OK/NG 结论），
+        /// 让新步骤开箱可用，不必先去 HDevelop 写过程、导出 .hdev 再「导入.hdev」。
+        ///
+        /// 判据取的是「从未保存过脚本配置」而不是「当前没有脚本」：
+        /// 前者只送一次（用户手动删空并保存后不再回来），后者会让删不掉的脚本变幽灵。
+        /// </summary>
+        private void EnsureDefaultScriptIfNeverSaved(IStepConfigData stepData)
+        {
+            // 两个条件都要满足：
+            // ① 配置字典里没有 Procedures 键 = 这个步骤从没保存过脚本配置
+            // ② 内存里也没有过程 = 用户上次点"取消"留下的未保存内容不该被冲掉
+            if (stepData?.InputValues != null && stepData.InputValues.ContainsKey(ProceduresConfigKey))
+                return;
+            if (Procedures != null && Procedures.Count > 0) return;
+
+            ApplyDefaultScript();
+        }
+
+        /// <summary>
+        /// 装回插件自带的默认脚本（整表替换：过程 + 输入输出变量表一起换）。
+        /// 两个入口共用：①首次打开配置窗口自动预置 ②工具栏「恢复默认脚本」按钮。
+        /// 本方法只做替换、不弹确认框 —— 它会覆盖现有脚本，调用方（按钮）负责先询问用户。
+        /// </summary>
+        public void ApplyDefaultScript()
+        {
+            var proc = ScriptTemplates.CreateDefaultProcedure();
+
+            // 先过程、后变量表：变量表决定动态端口的名字与类型，端口随变量表 setter 重建
+            Procedures = new List<EProcedure> { proc };
+            SelectedProcedure = proc.Name;
+
+            InputVars = new ObservableCollection<ScriptVarDef>(ScriptTemplates.CreateDefaultInputVars());
+            OutputVars = new ObservableCollection<ScriptVarDef>(ScriptTemplates.CreateDefaultOutputVars());
         }
 
         public override void ApplyConfigValues(IStepConfigData stepData)

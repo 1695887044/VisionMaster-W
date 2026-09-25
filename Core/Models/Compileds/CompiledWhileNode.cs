@@ -72,6 +72,10 @@ namespace VisionMaster.Models
 
             if (LoopBranch?.ConditionLambda == null) return;
 
+            // 上限配成 0 或负数 = "这个循环不执行"，属正常配置而非死循环。
+            // 提到循环外判断，循环体里就不必再夹一个 MaxIterations > 0 的条件。
+            if (MaxIterations <= 0) return;
+
             int iter = 0;
 
             // args 数组布局：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames）
@@ -79,9 +83,17 @@ namespace VisionMaster.Models
             int totalArgs = LoopBranch.LocalVarIds.Count + LoopBranch.RuntimeVarNames.Count;
             var args = new object[totalArgs];
 
-            while (iter < MaxIterations)
+            // 【为什么是 while (true) 而不是 while (iter < MaxIterations)】
+            // 旧写法把"上限"当循环头守卫，退出后无法区分两种退出原因：
+            //   (a) 条件自然转假 —— 循环正常跑完
+            //   (b) 跑满上限被掐断 —— 疑似死循环
+            // 于是 `i < 9999` 这种"正好跑满 9999 圈后条件转假"的完全合法写法会被误报成死循环，
+            // 整条流程 Faulted。默认上限就是 9999，工业连续场景真会撞上。
+            // 现在把条件求值放在上限判断之前："自然跑完"从 return 走、"被掐断"从 throw 走，两者不再混淆。
+            // 代价仅是"真死循环"场景多求值一次条件（自然结束路径的求值次数与旧实现完全一致）。
+            while (true)
             {
-                if (context.CancellationToken.IsCancellationRequested) break;
+                if (context.CancellationToken.IsCancellationRequested) return;
 
                 // 局部变量：从 UpstreamLinks 取值
                 // P0-2/P0-3：取值一律经 CoerceConditionArg 按声明类型归一，无值走 DefaultForConditionArg。
@@ -126,7 +138,22 @@ namespace VisionMaster.Models
                     throw;
                 }
 
-                if (!isTrue) break;
+                // 条件转假 = 循环自然跑完，走这条出口正常返回（绝不会被误判成死循环）
+                if (!isTrue) return;
+
+                // 条件仍为真却已跑满上限 = 循环没跑完就被强行掐断，结果不可信。
+                // P2-⑧（语义升级）：与 CompiledPluginNode 的失败语义对齐 ——
+                // 标 Failed（由 RunAndGetNext 的 catch 落状态）+ 上抛中断流程。
+                // 旧实现只 Warn 一声就把步骤标成 Success，现场会误以为"循环正常跑完"。
+                // 【顺序是这条修复的全部要害】上限判断必须在"条件为真"之后做。
+                // 提到前面（旧实现的等价物）就会把"条件恰好在上限那一圈转假"误判成死循环 ——
+                // [E8] ④b 已用灵敏度实测钉住：探针一挪位置，两条断言立刻变红。
+                if (iter >= MaxIterations)
+                {
+                    throw new InvalidOperationException(
+                        $"While节点 '{Name}' 达到最大迭代次数 {MaxIterations}，循环被强制中断（疑似死循环，请检查循环条件与变量刷新）"
+                    );
+                }
 
                 // A1：循环体交给全引擎统一的序列执行器。
                 // 旧实现是 foreach 挨个 step.RunAndGetNext(context) 并丢弃返回值，
@@ -152,23 +179,6 @@ namespace VisionMaster.Models
 
                 // Continue 与正常跑完一圈都要计数，否则 MaxIterations 拦不住"每圈都 Continue"的死循环
                 iter++;
-            }
-
-            // P2-⑧（语义升级）：迭代上限被触发 = 循环没跑完就被强行掐断，结果不可信。
-            // 旧实现只 Warn 一声就把步骤标成 Success，现场会误以为"循环正常跑完"。
-            // 现在与 CompiledPluginNode 的失败语义对齐：程序级异常 → 标 Failed（由 RunAndGetNext 的 catch 落状态）+ 上抛中断流程。
-            // 这里能成立的前提：只有 while 的循环头守卫能带着 iter == MaxIterations 退出，
-            // 其余出口（条件为假 break / 取消 break / Continue / Break / Return）退出时 iter 必然 < MaxIterations。
-            // MaxIterations > 0 是为了排除"上限配成 0 圈"这种正常的不执行，别误报成死循环。
-            if (
-                iter >= MaxIterations
-                && MaxIterations > 0
-                && !context.CancellationToken.IsCancellationRequested
-            )
-            {
-                throw new InvalidOperationException(
-                    $"While节点 '{Name}' 达到最大迭代次数 {MaxIterations}，循环被强制中断（疑似死循环，请检查循环条件与变量刷新）"
-                );
             }
         }
     }

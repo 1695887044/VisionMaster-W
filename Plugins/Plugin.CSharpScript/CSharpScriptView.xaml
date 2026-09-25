@@ -46,16 +46,30 @@
                 <Setter Property="Foreground" Value="#888888" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
+
+            <!--  变量表行内的输入框样式。两件事：
+                  ① 不写死高度 —— 写死 24px 时，输入框比右边的下拉框（主题给 ComboBox 的 MinHeight=32）矮一截，整行是歪的；
+                  ② 用 MinHeight 兜底 —— 以后谁再手滑加一个 Height，也不会把行压矮。
+                  离屏渲染实测：行内输入框 120×32 / 112×32 / 备注 178×32，与下拉框齐平。  -->
+            <Style x:Key="VarRowInput" TargetType="TextBox">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="MinHeight" Value="32" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="400" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="460" MinWidth="420" />
+            <ColumnDefinition Width="*" MinWidth="360" />
         </Grid.ColumnDefinitions>
 
         <!--  左列：输入变量（声明类型 + 连线/手填） + 输出变量（供下游连线 / 逐路显示）  -->
+        <!--  横向 Disabled 是刻意的：一旦允许横向滚动，ScrollViewer 会用「无限宽」测量内容，
+             里面的 TextWrapping 就失效——提示文字撑成一条长线，把卡片顶宽，右边的
+             「显示窗口 / 备注 / 删除」整列被推出视口，表现就是「输入输出变量显示不全」。
+             所以这里必须锁死横向，靠列宽自己塞得下。  -->
         <ScrollViewer
             Grid.Column="0"
             Margin="0,0,8,0"
@@ -85,20 +99,17 @@
                                 <DataTemplate>
                                     <Grid Margin="0,3,0,3">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="108" />
-                                            <ColumnDefinition Width="92" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="104" />
+                                            <ColumnDefinition Width="*" MinWidth="140" />
+                                            <ColumnDefinition Width="30" />
                                         </Grid.ColumnDefinitions>
                                         <TextBox
-                                            Height="24"
-                                            VerticalContentAlignment="Center"
-                                            FontSize="12"
+                                            Style="{StaticResource VarRowInput}"
                                             Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                             ToolTip="变量名 = 端口名（字母开头，勿含空格）" />
                                         <ComboBox
                                             Grid.Column="1"
-                                            Height="24"
                                             Margin="6,0"
                                             VerticalContentAlignment="Center"
                                             ItemsSource="{Binding DataContext.ScriptVarTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -165,21 +176,21 @@
                                 <DataTemplate>
                                     <Grid Margin="0,3,0,3">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="112" />
                                             <ColumnDefinition Width="100" />
-                                            <ColumnDefinition Width="86" />
-                                            <ColumnDefinition Width="84" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="28" />
+                                            <!--  Auto：这一列只有图形输出（HImage/HRegion…）才显示，
+                                                  非图形时控件是 Collapsed，Auto 让它连宽度一起收掉，
+                                                  省下的宽度留给右边的「备注」，不必挤在一起  -->
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" MinWidth="80" />
+                                            <ColumnDefinition Width="30" />
                                         </Grid.ColumnDefinitions>
                                         <TextBox
-                                            Height="24"
-                                            VerticalContentAlignment="Center"
-                                            FontSize="12"
+                                            Style="{StaticResource VarRowInput}"
                                             Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
                                             ToolTip="变量名 = 端口名" />
                                         <ComboBox
                                             Grid.Column="1"
-                                            Height="24"
                                             Margin="4,0"
                                             VerticalContentAlignment="Center"
                                             ItemsSource="{Binding DataContext.ScriptVarTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -188,7 +199,6 @@
                                         <!--  图形类输出（HImage/HRegion/HXld/HObject）才有"显示到窗口"下拉  -->
                                         <ComboBox
                                             Grid.Column="2"
-                                            Height="24"
                                             VerticalContentAlignment="Center"
                                             SelectedIndex="{Binding DisplayWindow}"
                                             ToolTip="把该图形结果显示到主界面第几号视图窗口">
@@ -215,10 +225,8 @@
                                         </ComboBox>
                                         <TextBox
                                             Grid.Column="3"
-                                            Height="24"
                                             Margin="6,0,0,0"
-                                            VerticalContentAlignment="Center"
-                                            FontSize="12"
+                                            Style="{StaticResource VarRowInput}"
                                             Text="{Binding Remark, UpdateSourceTrigger=PropertyChanged}"
                                             ToolTip="备注（可选）" />
                                         <Button
@@ -254,7 +262,7 @@
                             FontFamily="Consolas"
                             FontSize="11.5"
                             Foreground="#444444"
-                            TextWrapping="Wrap"><Run Text="Context.GetInput&lt;T&gt;(&quot;名&quot;)  取上游输入" /><LineBreak /><Run Text="Context.SetOutput(&quot;名&quot;, 值)   写输出端口" /><LineBreak /><Run Text="Context.GetVar&lt;T&gt;(&quot;名&quot;)      读运行期变量" /><LineBreak /><Run Text="Context.SetVar(&quot;名&quot;, 值)     写运行期变量" /><LineBreak /><Run Text="Context.Info/Warn/Error/Success(文本)" /><LineBreak /><Run Text="Context.ShowImage(img, 窗口号)" /><LineBreak /><Run Text="Context.Fail(&quot;原因&quot;)         主动判失败" /></TextBlock>
+                            TextWrapping="Wrap"><Run Text="Context.GetInput&lt;T&gt;(&quot;名&quot;)  取上游输入" /><LineBreak /><Run Text="Context.SetOutput(&quot;名&quot;, 值)   写输出端口" /><LineBreak /><Run Text="Context.GetVar&lt;T&gt;(&quot;名&quot;)      读运行期变量" /><LineBreak /><Run Text="Context.SetVar(&quot;名&quot;, 值)     写运行期变量" /><LineBreak /><Run Text="Context.Info/Warn/Error/Success(文本)" /><LineBreak /><Run Text="Context.ShowImage(img, 窗口号)" /><LineBreak /><Run Text="Context.ShowImage(img, 窗口号, 标注)  把结果画在图上" /><LineBreak /><Run Text="Context.NewMarks()           建标注层" /><LineBreak /><Run Text="Context.MarkText(行, 列, 文本, 色)  文本标注" /><LineBreak /><Run Text="Context.MarkLine(行1,列1,行2,列2,色)  线标注" /><LineBreak /><Run Text="Context.Fail(&quot;原因&quot;)         主动判失败" /></TextBlock>
                     </StackPanel>
                 </Border>
             </StackPanel>

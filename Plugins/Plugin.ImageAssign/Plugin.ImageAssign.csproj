@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <RootNamespace>Plugin.ImageAssign</RootNamespace>
+    <AssemblyName>Plugin.ImageAssign</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- 本插件只负责"把 HImage 交给全局变量"，不画界面：
+       因此不引 UI / Core.Controls，也不需要 UseWPF。
+       写全局变量的能力由 Core.Interfaces 里的 IGlobalVariableWriter 契约提供，
+       实现留在主程序侧，插件这边永远看不到变量的内部结构。 -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+  <!-- 图像类型来源：halcondotnet 由主程序目录统一提供，
+       本工程只做编译期引用，切勿把 halcondotnet.dll 拷进 Modules\（会造成运行期两份同名程序集、类型标识冲突）。
+       插件自身 DLL 的投递已由 Plugins\Directory.Build.targets 统一处理，本工程无需写 PostBuild。 -->
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

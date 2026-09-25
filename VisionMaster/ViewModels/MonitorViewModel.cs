@@ -262,9 +262,11 @@ namespace VisionMaster.ViewModels
 
         private IEnumerable<KeyValuePair<Guid, IVisionPlugin>> GetAllCompiledPlugins()
         {
-            if (_runtimeManager.ActiveSessions == null) yield break;
-
-            foreach (var session in _runtimeManager.ActiveSessions)
+            // 必须走快照：本方法由 UI 的搜索框驱动，而会话的增删发生在别的线程上
+            // （HTTP 请求线程会 RegisterSession）。裸枚举 ActiveSessions 会撞上
+            // "Collection was modified" —— EnableCollectionSynchronization 只替
+            // WPF 的 CollectionView 兜底，不替这里的 foreach 兜底。
+            foreach (var session in _runtimeManager.SnapshotSessions())
             {
                 if (session.ExecutionEngine is CompiledFlow compiledFlow && compiledFlow.PluginLookup != null)
                 {

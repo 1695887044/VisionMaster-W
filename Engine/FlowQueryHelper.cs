@@ -1,9 +1,9 @@
-﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Core.Interfaces;
 using VisionMaster.Models;
@@ -17,7 +17,32 @@ namespace VisionMaster.Helpers
     /// </summary>
     public static class FlowQueryHelper
     {
-        static IPluginProvider pluginProvider;
+        /// <summary>
+        /// 插件提供者（懒解析）。
+        ///
+        /// 【为什么不裸写 if (x == null) x = Resolve()】那是非原子的"检查-赋值"：
+        /// 多线程下两个调用方可能各自 Resolve 一次，且一方可能读到另一方尚未发布完成的引用。
+        ///
+        /// 【为什么不用 Lazy&lt;T&gt;】Lazy 会**缓存首次 Resolve 抛出的异常** ——
+        /// 万一第一次调用发生在容器注册完成之前，之后每次调用都会重抛同一个异常，
+        /// 而本类没有任何"容器已就绪"的信号可以等。
+        /// CompareExchange 只让其中一个赢，输的一方下次调用会重新尝试，
+        /// 行为与原来的懒解析一致，但发布是原子的。
+        /// </summary>
+        private static IPluginProvider _pluginProvider;
+
+        private static IPluginProvider PluginProvider
+        {
+            get
+            {
+                var current = _pluginProvider;
+                if (current != null) return current;
+
+                var resolved = ContainerLocator.Container.Resolve<IPluginProvider>();
+                Interlocked.CompareExchange(ref _pluginProvider, resolved, null);
+                return _pluginProvider;
+            }
+        }
 
         /// <summary>
         /// 获取可用于绑定的变量树
@@ -29,10 +54,6 @@ namespace VisionMaster.Helpers
             StepModel targetStep
         )
         {
-            if (pluginProvider == null)
-            {
-                pluginProvider = ContainerLocator.Container.Resolve<IPluginProvider>();
-            }
             var treeNodes = new List<ToolItemModel>();
 
             if (globals != null && globals.Any())
@@ -82,7 +103,7 @@ namespace VisionMaster.Helpers
 
             foreach (var node in upstreamNodes)
             {
-                var data = pluginProvider.ModulePlugins[node.PluginTypeName];
+                var data = PluginProvider.ModulePlugins[node.PluginTypeName];
                 if (data == null || data.OutputDefinitions == null || !data.OutputDefinitions.Any())
                     continue;
 

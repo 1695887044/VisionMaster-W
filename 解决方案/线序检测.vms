@@ -1,0 +1,351 @@
+{
+  "SolutionName": "线序颜色检测",
+  "Version": 1.0,
+  "Config": {
+    "ImageViewMode": 0
+  },
+  "Flows": [
+    {
+      "FlowID": "5c2746a6a9924c20bee2bda3b4ecd7d4",
+      "FlowName": "线序检测",
+      "Description": "多产品配方 + 条件分支：按芯数自动选配方，逐位比对，结果分流",
+      "Version": 6,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": [
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "442c564b-1174-44fc-a16a-e3a8b58d1e9d",
+          "Icon": "\uf1c5",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_0",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\颜色\\cable1.png",
+            "FolderPath": "",
+            "DisplayViewIndex": 1
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "e4769f0e-ffec-4016-ba27-77c23f5ce1c3",
+          "Icon": "\uf0ac",
+          "PluginName": "C#脚本",
+          "PluginTypeName": "Plugin.CSharpScript.CSharpScriptPlugin, Plugin.CSharpScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "找线",
+          "Description": "C#脚本",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "ScriptText": "// =====================================================================\n// 线序检测 · 第一步：找线\n//\n//   只报事实（几芯、颜色序列是什么），不判定合格与否 ——\n//   配方选择与判定都不在这里，交给后面的条件分支与比对步骤。\n//\n//   为什么用「等间距规整化」而不是「按间隙切分」：\n//     ① 线束在连接器附近是密排的，线之间的缝是 V≈165 的暗影、不是亮背景；\n//     ② 更要命的是白线/浅灰线与浅色背景只差几个灰阶 ——\n//        任何「按颜色判线」的规则都抓不到它。\n//     但线束是等间距排的。于是先抓出所有能确定的线（暗 / 彩 / 极亮），\n//     由它们的中心算出线距，再把整条链按等间距铺开 —— 抓不到的那根就被补回来了。\n// =====================================================================\n\n// ---- 参数区（换产品只改这里）---------------------------------------\nconst int SampleX = 440;     // 采样线 X 坐标：取线束最整齐的那一列\nconst int HalfCol = 3;       // 采样线左右各取几列（多列取中位，抗单点噪声）\nconst int MinRun  = 4;       // 一根线至少要占几行，用来滤掉噪点\n\n// ---- 取图 ----------------------------------------------------------\nvar image = Context.GetInput<HImage>(\"Image\");\nif (image == null || !image.IsInitialized()) { Context.Fail(\"上游没有图像\"); return; }\n\nimage.GetImageSize(out int width, out int height);\nif (SampleX - HalfCol < 0 || SampleX + HalfCol >= width)\n{\n    Context.Fail($\"采样线 X={SampleX} 超出图像宽度 {width}\");\n    return;\n}\n\nint channels = (int)image.CountChannels().D;\nif (channels < 3)\n{\n    Context.Fail($\"线序检测要彩色图，当前图像只有 {channels} 个通道\");\n    return;\n}\n\n// ---- ① 一次取回整条采样带的像素 -------------------------------------\n// 用元组版 GetGrayval：一次调用拿回（整高 × 条带宽）所有点的灰度。\n// 比逐点调用快两个数量级；也不必再把通道包成 HImage 对象去管 Halcon 句柄\n// （那条路上踩过 HALCON error #4056 object-ID is NULL）。\nint stripW = 2 * HalfCol + 1;\nint total = height * stripW;\n\nvar rowsT = new HTuple();\nvar colsT = new HTuple();\nfor (int y = 0; y < height; y++)\n{\n    for (int dx = -HalfCol; dx <= HalfCol; dx++)\n    {\n        rowsT = rowsT.TupleConcat(y);\n        colsT = colsT.TupleConcat(SampleX + dx);\n    }\n}\n\nint[][] strip = new int[3][];\nfor (int ci = 0; ci < 3; ci++)\n{\n    HOperatorSet.AccessChannel(image, out HObject chObj, ci + 1);\n    try\n    {\n        HOperatorSet.GetGrayval(chObj, rowsT, colsT, out HTuple vals);\n        var buf = new int[total];\n        for (int i = 0; i < total; i++) buf[i] = (int)Math.Round(vals[i].D);\n        strip[ci] = buf;\n    }\n    finally { chObj?.Dispose(); }\n}\n\n// 取第 y 行、偏移 dx 处的某通道灰度\nint At(int c, int y, int dx) => strip[c][y * stripW + (dx + HalfCol)];\n\n// 逐行的中位色（三个通道各取该行条带的中位数）\nint[] mr = new int[height], mg = new int[height], mb = new int[height];\nvar colBuf = new int[stripW];\nfor (int y = 0; y < height; y++)\n{\n    for (int c = 0; c < 3; c++)\n    {\n        for (int k = 0; k < stripW; k++) colBuf[k] = strip[c][y * stripW + k];\n        Array.Sort(colBuf);\n        int m = colBuf[stripW / 2];\n        if (c == 0) mr[y] = m; else if (c == 1) mg[y] = m; else mb[y] = m;\n    }\n}\n\n// ---- ② 判「可靠线像素」：暗 / 彩 / 极亮 --------------------------------\n// 这一步故意不指望抓到白线 —— 白线与浅背景只差几个灰阶，靠颜色分不开。\n// 抓得到的先抓，抓不到的交给第 ④ 步的等间距规整化补回来。\nbool[] isWire = new bool[height];\nfor (int y = 0; y < height; y++)\n{\n    int mx = Math.Max(mr[y], Math.Max(mg[y], mb[y]));\n    int mn = Math.Min(mr[y], Math.Min(mg[y], mb[y]));\n    isWire[y] = (mx < 150) || ((mx - mn) > 40) || (mx > 240);\n}\n\n// ---- ③ 分段：连续可靠行 ≥ MinRun 才算一根线 ----------------------------\nvar segs = new List<int[]>();\nint st = -1;\nfor (int y = 0; y <= height; y++)\n{\n    bool w = y < height && isWire[y];\n    if (w) { if (st < 0) st = y; }\n    else if (st >= 0) { if (y - st >= MinRun) segs.Add(new[] { st, y - 1 }); st = -1; }\n}\nif (segs.Count < 2)\n{\n    Context.Fail($\"采样线上只找到 {segs.Count} 根线，无法估计线距（确认 SampleX 是否落在线束上）\");\n    return;\n}\n\n// ---- ④ 等间距规整化：由可靠线的中心算出线距与线数 ------------------------\nvar cen = new List<double>();\nforeach (var s in segs) cen.Add((s[0] + s[1]) / 2.0);\n\nvar gaps = new List<double>();\nfor (int i = 1; i < cen.Count; i++) gaps.Add(cen[i] - cen[i - 1]);\ngaps.Sort();\ndouble pitch = gaps[gaps.Count / 2];          // 取中位：漏检造成的 2 倍间距会被自动忽略\nif (pitch < 2 || pitch > height / 2)\n{\n    Context.Fail($\"线距估计异常（{pitch:0.0} 像素），检查采样线是否落在线束上\");\n    return;\n}\n\ndouble span = cen[cen.Count - 1] - cen[0];\nint n = (int)Math.Round(span / pitch) + 1;    // 线数由跨度与线距反推\n\n// ---- ⑤ 逐根取色 ---------------------------------------------------\n// 能对上已检出段的，用它干净的中位色（避开两侧暗缝）；\n// 对不上的（就是那些白线/浅灰线），用规整位置附近的窗口色。\nvar names = new List<string>();\nvar rows = new List<int>();\nvar rr = new List<int>(); var gg = new List<int>(); var bb = new List<int>();\n\nfor (int i = 0; i < n; i++)\n{\n    int cy = (int)Math.Round(cen[0] + i * span / (n - 1));\n\n    int match = -1;\n    for (int t = 0; t < cen.Count; t++)\n        if (Math.Abs(cen[t] - cy) <= pitch * 0.45) match = t;\n\n    int lo, hi;\n    if (match >= 0)\n    {\n        lo = segs[match][0]; hi = segs[match][1];\n        int len = hi - lo + 1;\n        lo += len / 4; hi -= len / 4;              // 掐掉上下各 1/4 边缘\n    }\n    else\n    {\n        int hh = Math.Max(2, (int)(pitch * 0.30));\n        lo = Math.Max(0, cy - hh); hi = Math.Min(height - 1, cy + hh);\n    }\n\n    rr.Clear(); gg.Clear(); bb.Clear();\n    for (int y = lo; y <= hi; y++)\n    {\n        for (int dx = -HalfCol; dx <= HalfCol; dx++)\n        {\n            rr.Add(At(0, y, dx)); gg.Add(At(1, y, dx)); bb.Add(At(2, y, dx));\n        }\n    }\n    rr.Sort(); gg.Sort(); bb.Sort();\n    int m = rr.Count / 2;\n    names.Add(Classify(rr[m], gg[m], bb[m]));\n    rows.Add(cy);\n}\n\n// ---- ⑥ 交棒：事实写进运行时变量，后面的条件分支与比对步骤从这里取 --------\nstring seq = string.Join(\",\", names);\nContext.SetVar(\"WireCount\", n);\nContext.SetVar(\"Sequence\", seq);\nContext.SetVar(\"Rows\", string.Join(\",\", rows));\nContext.SetVar(\"SampleX\", SampleX);           // 比对步骤画采样线时要用\n\nContext.SetOutput(\"WireCount\", n);\nContext.SetOutput(\"Sequence\", seq);\nContext.Info($\"找到 {n} 根线：{seq}\");\n\n// 顺手把\"在哪量的、每根判成什么\"标到画面上：光有日志不够，现场要一眼看得见\nvar marks = Context.NewMarks();\nmarks.Add(Context.MarkLine(0, SampleX, height - 1, SampleX, \"green\"));\nfor (int i = 0; i < names.Count; i++)\n    marks.Add(Context.MarkText(rows[i], SampleX + 10, $\"{i + 1}.{names[i]}\", \"green\"));\nContext.ShowImage(image, 1, marks);\n\n// =====================================================================\n//  颜色分类\n//    先判「有没有颜色」：暗到没色相 → 黑；亮且不彩 → 白；\n//    不彩但偏暖又偏暗 → 棕（灰是中性色，R/G/B 基本齐平）；其余按色相分色系。\n//    红与玫红用色相分开（两者只差十几度），分界取 350 度。\n// =====================================================================\nstring Classify(int R, int G, int B)\n{\n    double mx = Math.Max(R, Math.Max(G, B));\n    double mn = Math.Min(R, Math.Min(G, B));\n    double d = mx - mn;\n    double s = mx <= 0 ? 0 : d / mx;        // 饱和度\n    double v = mx;                           // 明度\n\n    if (s < 0.45)\n    {\n        if (v < 80) return \"黑\";\n        if (s < 0.15 && v > 195) return \"白\";\n        if ((R - G) >= 12 && (R - B) >= 12 && v < 175) return \"棕\";\n        return \"灰\";\n    }\n\n    double h;                                // 色相（度）\n    if (d == 0) h = 0;\n    else if (mx == R) h = 60 * (((G - B) / d) % 6);\n    else if (mx == G) h = 60 * (((B - R) / d) + 2);\n    else h = 60 * (((R - G) / d) + 4);\n    if (h < 0) h += 360;\n\n    if (h >= 330 && h < 350) return \"玫红\";\n    if (h >= 350 || h < 20) return \"红\";\n    if (h < 45) return \"橙\";\n    if (h < 70) return \"黄\";\n    if (h < 160) return \"绿\";\n    if (h < 230) return \"蓝\";\n    return \"紫\";\n}\n",
+            "InputVars": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CSharpScript.ScriptVarDef, Plugin.CSharpScript]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "Image",
+                  "Type": 6,
+                  "Remark": "",
+                  "DisplayWindow": 0,
+                  "IsIconic": true
+                }
+              ]
+            },
+            "OutputVars": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CSharpScript.ScriptVarDef, Plugin.CSharpScript]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "WireCount",
+                  "Type": 1,
+                  "Remark": "",
+                  "DisplayWindow": 0,
+                  "IsIconic": false
+                },
+                {
+                  "Name": "Sequence",
+                  "Type": 4,
+                  "Remark": "",
+                  "DisplayWindow": 0,
+                  "IsIconic": false
+                }
+              ]
+            }
+          },
+          "LinkedSources": {
+            "Image": {
+              "Kind": 1,
+              "TargetStepId": "442c564b-1174-44fc-a16a-e3a8b58d1e9d",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ConditionStep, VM.Core",
+          "LocalVariables": [],
+          "RuntimeVariableRefs": [
+            {
+              "Id": "67cb3423-9faa-4fcf-ba4f-568d94bd8c2e",
+              "Name": "WireCount",
+              "DataTypeName": "System.Int32"
+            }
+          ],
+          "Children": [
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "7bc9d28d-75ab-4ab9-9ed2-234304a843e2",
+                  "Icon": "\uf044",
+                  "PluginName": "变量赋值",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "赋值_Expected",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "Expected",
+                    "Value": "黑,棕,玫红,红,黄",
+                    "CreateIfNotExists": true
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 1,
+              "StepName": "If",
+              "Expression": "WireCount == 5",
+              "DisplayName": "If [ WireCount == 5 ]"
+            },
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "9ed467f3-931a-4fa2-bd4d-6be2e47f3ee7",
+                  "Icon": "\uf044",
+                  "PluginName": "变量赋值",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "赋值_Expected",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "Expected",
+                    "Value": "黑,白,灰,紫,蓝,绿,黄,红,玫红,棕",
+                    "CreateIfNotExists": true
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 3,
+              "StepName": "ElseIf",
+              "Expression": "WireCount == 10",
+              "DisplayName": "ElseIf [ WireCount == 10 ]"
+            },
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "56b9c670-8abe-4a8a-8094-7794a39f62bd",
+                  "Icon": "\uf044",
+                  "PluginName": "变量赋值",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "赋值_Expected",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "Expected",
+                    "Value": "",
+                    "CreateIfNotExists": true
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 2,
+              "StepName": "Else",
+              "DisplayName": "Else"
+            }
+          ],
+          "StepID": "fbb161c6-c3d8-47a0-aee9-288b6c06c436",
+          "Icon": "\uf0e8",
+          "PluginName": "条件分支",
+          "PluginTypeName": "BuiltIn_If",
+          "StepName": "选配方",
+          "Description": "条件分支",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {},
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "bd587803-8503-4e74-ac6f-3795922d930e",
+          "Icon": "\uf0ac",
+          "PluginName": "C#脚本",
+          "PluginTypeName": "Plugin.CSharpScript.CSharpScriptPlugin, Plugin.CSharpScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "比对",
+          "Description": "C#脚本",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "ScriptText": "// =====================================================================\n// 线序检测 · 第二步：比对\n//\n//   期望序列（配方）由上游的条件分支按芯数选好，放在运行时变量 Expected 里。\n//   本步只做一件事：逐位比，并把「第几位不对」说清楚 ——\n//   产线上最需要的不是\"不合格\"，而是\"第 7 位错了\"。\n// =====================================================================\n\nvar image = Context.GetInput<HImage>(\"Image\");\n\nstring seq = Context.GetVar<string>(\"Sequence\") ?? \"\";\nstring exp = Context.GetVar<string>(\"Expected\") ?? \"\";\nstring rws = Context.GetVar<string>(\"Rows\") ?? \"\";\nint sampleX = Context.GetVar<int>(\"SampleX\");\n\nvar actual = seq.Length == 0 ? new string[0] : seq.Split(',');\nvar want = exp.Length == 0 ? new string[0] : exp.Split(',');\n\nbool ok;\nstring detail;\n\nif (want.Length == 0)\n{\n    // 配方的 Else 分支就是\"未知产品\"，这里必须明确说出来，不能含糊成\"线数不符\"\n    ok = false;\n    detail = $\"未知产品：{actual.Length} 芯没有对应配方（上游条件分支走到了 Else）\";\n}\nelse if (actual.Length != want.Length)\n{\n    ok = false;\n    detail = $\"线数不符：实测 {actual.Length} 芯 [{seq}]，配方 {want.Length} 芯 [{exp}]\";\n}\nelse\n{\n    int bad = -1;\n    for (int i = 0; i < want.Length; i++) if (actual[i] != want[i]) { bad = i; break; }\n    ok = bad < 0;\n    detail = ok\n        ? $\"线序正确，{actual.Length} 芯：{seq}\"\n        : $\"第 {bad + 1} 位不符：实测「{actual[bad]}」，应为「{want[bad]}」 ｜ 实测 [{seq}] 配方 [{exp}]\";\n}\n\nContext.SetOutput(\"Result\", ok);\nContext.SetOutput(\"Detail\", detail);\nContext.SetVar(\"Result\", ok);                 // 供下游条件分支判真假\nif (ok) Context.Success(detail); else Context.Warn(detail);\n\n// 把结论标到画面上：现场不翻日志，一眼看到合格与否 + 是第几位错\nif (image != null && image.IsInitialized())\n{\n    image.GetImageSize(out int w, out int h);\n    var marks = Context.NewMarks();\n    marks.Add(Context.MarkLine(0, sampleX, h - 1, sampleX, \"green\"));\n\n    var rows = rws.Split(',');\n    for (int i = 0; i < rows.Length; i++)\n    {\n        int y;\n        if (!int.TryParse(rows[i], out y)) continue;\n        string nm = i < actual.Length ? actual[i] : \"?\";\n        marks.Add(Context.MarkText(y, sampleX + 10, $\"{i + 1}.{nm}\", \"green\"));\n    }\n\n    marks.Add(Context.MarkText(4, 6, detail, ok ? \"green\" : \"red\"));\n    Context.ShowImage(image, 1, marks);\n}\n",
+            "InputVars": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CSharpScript.ScriptVarDef, Plugin.CSharpScript]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "Image",
+                  "Type": 6,
+                  "Remark": "",
+                  "DisplayWindow": 0,
+                  "IsIconic": true
+                }
+              ]
+            },
+            "OutputVars": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CSharpScript.ScriptVarDef, Plugin.CSharpScript]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "Result",
+                  "Type": 3,
+                  "Remark": "",
+                  "DisplayWindow": 0,
+                  "IsIconic": false
+                },
+                {
+                  "Name": "Detail",
+                  "Type": 4,
+                  "Remark": "",
+                  "DisplayWindow": 0,
+                  "IsIconic": false
+                }
+              ]
+            }
+          },
+          "LinkedSources": {
+            "Image": {
+              "Kind": 1,
+              "TargetStepId": "442c564b-1174-44fc-a16a-e3a8b58d1e9d",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ConditionStep, VM.Core",
+          "LocalVariables": [],
+          "RuntimeVariableRefs": [
+            {
+              "Id": "6b9d4b80-8576-4b11-8c12-ac53675eff40",
+              "Name": "Result",
+              "DataTypeName": "System.Boolean"
+            }
+          ],
+          "Children": [
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "73d6c4f9-426a-4476-b9d6-211143a4445e",
+                  "Icon": "\uf044",
+                  "PluginName": "变量赋值",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "赋值_Verdict",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "Verdict",
+                    "Value": "OK",
+                    "CreateIfNotExists": true
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 1,
+              "StepName": "If",
+              "Expression": "Result == true",
+              "DisplayName": "If [ Result == true ]"
+            },
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "c555aa6a-fa8e-4edb-81b8-0a6f0106640e",
+                  "Icon": "\uf044",
+                  "PluginName": "变量赋值",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "赋值_Verdict",
+                  "Description": "变量赋值",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Name": "Verdict",
+                    "Value": "NG",
+                    "CreateIfNotExists": true
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 2,
+              "StepName": "Else",
+              "DisplayName": "Else"
+            }
+          ],
+          "StepID": "92079b89-99dc-42e9-92d2-c6fde5b62773",
+          "Icon": "\uf0e8",
+          "PluginName": "条件分支",
+          "PluginTypeName": "BuiltIn_If",
+          "StepName": "结果分流",
+          "Description": "条件分支",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {},
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        }
+      ]
+    }
+  ],
+  "CommunicationConfigs": [],
+  "VariableSnapshots": [],
+  "WatchItems": [],
+  "Scada": {
+    "SchemaVersion": 1,
+    "Pages": [],
+    "Alarms": [],
+    "VariableEvents": [],
+    "StartupPageId": "00000000-0000-0000-0000-000000000000"
+  }
+}

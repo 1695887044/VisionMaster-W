@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Core.Interfaces;
 using VisionMaster;
 using VisionMaster.Models;
@@ -195,8 +196,6 @@ namespace FlowCanvasChecks
                 !session.IsRunning && session.State == SessionState.Stopped,
                 $"IsRunning={session.IsRunning} State={session.State}");
             Check("停止后会话锁干净归还", !locks.IsLocked(lockKey), lockKey);
-            Check("停止后 LockedResources 不残留", session.LockedResources.Count == 0,
-                $"残留 {session.LockedResources.Count} 项");
 
             // 锁泄漏的判据是"这个会话再也启不来"，所以必须真启一次
             GatePlugin.Reached.Reset();
@@ -305,11 +304,11 @@ namespace FlowCanvasChecks
             Check("注册期间并发查询未卡死", joined, joined ? "" : "读线程 5 秒没跑完，集合锁被长时间占住");
             Check("边注册边查询未抛异常", readerBoom == null,
                 readerBoom == null ? $"完成 {lookups} 轮查询" : readerBoom.Message);
-            Check("20 个会话注册后同名替换未堆积", manager.ActiveSessions.Count(s => s.FlowName!.StartsWith("并发注册会话")) == 20,
-                $"实际 {manager.ActiveSessions.Count}");
+            Check("20 个会话注册后同名替换未堆积", manager.SnapshotSessions().Count(s => s.FlowName!.StartsWith("并发注册会话")) == 20,
+                $"实际 {manager.SnapshotSessions().Count}");
 
             manager.ClearAll();
-            Check("ClearAll 后集合清空", manager.ActiveSessions.Count == 0, $"残留 {manager.ActiveSessions.Count}");
+            Check("ClearAll 后集合清空", manager.SnapshotSessions().Count == 0, $"残留 {manager.SnapshotSessions().Count}");
         }
 
         // ==================================================================
@@ -507,6 +506,36 @@ namespace FlowCanvasChecks
                 Check("恰好跑满上限 5 圈（不多不少）", CountingPlugin.Runs == 5, $"实际 Runs={CountingPlugin.Runs}");
             }
 
+            // ---- ④b 反证 ④：条件恰好在上限那一圈转假 = 正常跑完，绝不能误报死循环 ----
+            // 与 ④ 的差别只有"退出原因"：④ 是条件恒真被掐断（该抛），本组是条件自然转假（不该抛）。
+            // 旧实现用 while (iter < MaxIterations) 当守卫，退出后无法区分这两种原因 → 一律抛"疑似死循环"，
+            // 于是 `i < N` 配 MaxIterations = N 这种完全合法的写法会让整条流程 Faulted。
+            // 默认上限就是 9999，工业连续场景真会撞上，所以这不是纸面问题。
+            CountingPlugin.Reset();
+            var whileExact = new WhileStep("W", "条件循环", "SomeWhileOperator", "刚好跑满While");
+            whileExact.Children[0].Expression = "Counter < 5"; // 第 5 圈结束后转假
+            whileExact.RuntimeVariableRefs.Add(
+                new LocalVariableItem { Name = "Counter", DataTypeName = "System.Double" });
+            Put(whileExact.Children[0], new ActionStep("A", "累加计数", TypeOf(new CounterStepPlugin()), "每圈累加"));
+
+            var runExact = ExecHarness.Prepare(new StepModel[] { whileExact });
+            Check("刚好跑满上限的图纸编译通过", runExact.Compiled, runExact.Errors);
+            if (runExact.Compiled)
+            {
+                // 上限恰好等于条件允许的圈数：Counter 从 0 走到 5，正好 5 圈后转假
+                ((CompiledWhileNode)runExact.Engine!.NodeLookup[whileExact.StepID]).MaxIterations = 5;
+
+                Exception exactBoom = null;
+                try { runExact.Engine.Run(runExact.NewContext(new StubLog())); }
+                catch (Exception ex) { exactBoom = ex; }
+
+                Check("条件恰好在上限那一圈转假 → 不误报死循环（旧实现此处必抛）", exactBoom == null,
+                    exactBoom == null ? "" : exactBoom.GetType().Name + ": " + exactBoom.Message);
+                Check("While 节点落 Success（不是 Failed）",
+                    whileExact.State == StepState.Success, $"State={whileExact.State}");
+                Check("恰好跑 5 圈（不多不少）", CountingPlugin.Runs == 5, $"实际 Runs={CountingPlugin.Runs}");
+            }
+
             // ---- ⑤ Else 之后的分支不可达：编译期就得拦下来 ----
             var unordered = new ConditionStep("I", "条件", "SomeIfOperator", "乱序If");
             unordered.Children[0].Expression = "1 == 1";
@@ -552,6 +581,441 @@ namespace FlowCanvasChecks
                 whileBack.Children.Count == 1, $"实际 {whileBack.Children.Count}");
 
             LoopVarPlugin.Value = 3;
+        }
+
+        // ==================================================================
+        //  [E9] 会话生命周期的锁归还纪律（A 组并发修复的防回归面）
+        //
+        //  这四条断言的共同命题只有一句：**收尾路径上无论谁抛异常，会话锁都必须还回去**。
+        //  锁漏还的后果不是"少跑一次"，而是该会话永久停在"已在运行中"，
+        //  除了重启软件再也启不来 —— 现场表现是"点启动没反应"，极难定位。
+        //
+        //  所以这里不是"新代码也能过"的同义反复，而是让订阅者主动去抛异常、
+        //  主动去释放收尾还要用到的对象，把旧实现的漏还现场真做出来。
+        // ==================================================================
+        internal static void SessionLockAlwaysReturned()
+        {
+            Section("[E9] A 组 会话锁归还纪律");
+
+            // Task.Wait 在任务 Faulted 时会抛 AggregateException，而"旧实现收尾炸掉"正是要抓的东西，
+            // 所以把"跑完了"和"炸出来了"都收成一个 bool，别让断言自己先炸。
+            static bool RanClean(Task t)
+            {
+                try { return t.Wait(TimeSpan.FromSeconds(5)); }
+                catch { return false; }
+            }
+
+            GatePlugin.Reset();
+            var gate = new ActionStep("G", "闸门", TypeOf(new GatePlugin()), "生命周期闸门");
+            var run = ExecHarness.Prepare(new StepModel[] { gate });
+            Check("生命周期图纸编译通过", run.Compiled, run.Errors);
+            if (!run.Compiled) return;
+
+            var locks = new ResourceLockService();
+            var log = new StubLog();
+            var manager = new RuntimeManager();
+            var engine = new FlowEngineService(manager, log, run.Workspace!, null, locks);
+            var session = run.Session!;
+            var lockKey = $"FlowSession:{session.SessionID}";
+
+            // 订阅者固定挂在 engine 上，用 mode 切换"怎么捣乱"。
+            // 只对 Stopped 动手：Running/Faulted 那两次通知在 try 体内，会被业务 catch 提前接走，
+            // 验不到我们真正要守的收尾路径。
+            int mode = 0; // 0=不捣乱 1=Stopped 时抛异常 2=Stopped 时释放 PauseLock
+            engine.SessionStateChanged += (_, e) =>
+            {
+                if (e.NewState != SessionState.Stopped) return;
+                if (mode == 1)
+                    throw new InvalidOperationException("订阅者故意在 Stopped 上炸");
+                if (mode == 2)
+                    session.PauseLock.Dispose();
+            };
+
+            // ---- ① 订阅者抛异常：锁照还、任务照正常结束 ----
+            // 旧实现：异常从 finally 里爬出来，把后面的 RecordSessionEnd / PauseLock.Set /
+            // CTS.Dispose / ReleaseSession 全部跳过 → 锁永久泄漏 + 任务 Faulted。
+            mode = 1;
+            var first = engine.RunSessionAsync(session);
+            bool arrived = GatePlugin.Reached.Wait(TimeSpan.FromSeconds(5));
+            Check("执行线程已抵达闸门（构造出运行中的窗口）", arrived, arrived ? "" : "5 秒内没进到算子");
+            GatePlugin.Proceed.Set();
+            // 连续执行是死循环（只在取消时退出），必须显式停，否则任务永远不结束
+            engine.StopSession(session);
+
+            Check("订阅者抛异常不影响本轮正常收尾（任务不 Faulted）", RanClean(first),
+                first.IsFaulted ? $"任务已 Faulted：{first.Exception?.GetBaseException().Message}" : "");
+            Check("订阅者异常被就地隔离并留痕",
+                log.Errors.Any(x => x.Contains("状态变更订阅者抛出异常")),
+                string.Join(" | ", log.Errors));
+            Check("【核心】订阅者抛异常后会话锁仍被归还", !locks.IsLocked(lockKey), lockKey);
+            Check("停稳后 IsRunning=false 且状态归为 Stopped",
+                !session.IsRunning && session.State == SessionState.Stopped,
+                $"IsRunning={session.IsRunning} State={session.State}");
+
+            // ---- ② 收尾窗口里 PauseLock 被释放：锁照还、任务照正常结束 ----
+            // 真实场景：IsRunning 已置 false，RuntimeManager.RemoveAndDispose 据此判定"跑完了"
+            // 并去 session.Dispose()（内含 PauseLock.Dispose()），而收尾还没走到 PauseLock.Set()。
+            // 这里让订阅者替 RemoveAndDispose 动手，把这个窗口稳定做出来。
+            // 旧实现：PauseLock.Set() 抛 ObjectDisposedException → 跳过 CTS.Dispose 与 ReleaseSession → 锁泄漏。
+            mode = 2;
+            GatePlugin.Reached.Reset();
+            var second = engine.RunSessionAsync(session);
+            bool arrivedAgain = GatePlugin.Reached.Wait(TimeSpan.FromSeconds(5));
+            GatePlugin.Proceed.Set();
+            engine.StopSession(session);
+
+            // 这条必须先过，否则下面那句"任务正常结束"是空过的：
+            // 一旦①把锁泄漏了，②会被 TryOccupySession 挡在门外、直接返回一个已完成的空任务，
+            // 于是"正常结束"假通过 —— 灵敏度实测（把 finally 还原成旧结构）正是观察到了这个现象。
+            Check("第二次执行确实进到了算子（不是被残留的锁拒之门外）", arrivedAgain,
+                arrivedAgain ? "" : "没进到算子：上一轮的会话锁没归还");
+            Check("收尾窗口里 PauseLock 被释放，任务仍正常结束", RanClean(second),
+                second.IsFaulted ? $"任务已 Faulted：{second.Exception?.GetBaseException().Message}" : "");
+            Check("【核心】PauseLock 被提前释放后会话锁仍被归还", !locks.IsLocked(lockKey), lockKey);
+
+            mode = 0;
+
+            // ---- ③ 对已释放的取消令牌调 StopSession：不抛 ----
+            // 白盒构造（同 [E8] ④ 用反射改 MaxIterations 的理由）：真实时序是"循环线程在 finally 里
+            // Dispose 了令牌"与"退出任务/停止按钮调 Cancel"撞车，窗口窄且不可控；
+            // 这里直接把那个中间态摆出来，把"公共 StopSession 必须容错"这个契约钉死。
+            // 旧实现：属性读两次，Cancel() 打在已释放的 CTS 上 → ObjectDisposedException 冲出公共 API。
+            session.IsRunning = true;
+            session.CancellationTokenSource = new CancellationTokenSource();
+            session.CancellationTokenSource.Dispose();
+
+            Exception stopBoom = null;
+            try { engine.StopSession(session); }
+            catch (Exception ex) { stopBoom = ex; }
+            Check("对已释放的取消令牌调 StopSession 不抛", stopBoom == null,
+                stopBoom == null ? "" : stopBoom.GetType().Name + ": " + stopBoom.Message);
+
+            session.IsRunning = false;
+            session.CancellationTokenSource = null;
+
+            // ---- ④ 边注册边 StopAll / ActiveSessionCount：裸枚举会撞 "Collection was modified" ----
+            // 生产触发路径：HTTP 请求线程 RegisterSession 的同时，退出任务在跑 StopAll。
+            // 旧实现直接遍历 ActiveSessions，撞上增删即抛 —— 而 StopAll 是退出任务的一环，
+            // 抛出去会拖住整条退出链。
+            Exception enumBoom = null;
+            var reading = new Thread(() =>
+            {
+                try
+                {
+                    for (int i = 0; i < 10000; i++)
+                    {
+                        _ = engine.ActiveSessionCount;
+                        engine.StopAll();
+                    }
+                }
+                catch (Exception ex) { enumBoom = ex; }
+            }) { IsBackground = true };
+            reading.Start();
+
+            for (int i = 0; i < 300; i++)
+                manager.RegisterSession(new FlowSession { FlowName = $"生命周期并发会话{i % 10}" });
+
+            bool joined = reading.Join(TimeSpan.FromSeconds(10));
+            Check("StopAll/ActiveSessionCount 与注册并发时未卡死", joined, joined ? "" : "10 秒没跑完");
+            Check("StopAll/ActiveSessionCount 与注册并发时未抛异常", enumBoom == null,
+                enumBoom == null ? "" : enumBoom.GetType().Name + ": " + enumBoom.Message);
+        }
+
+        // ==================================================================
+        //  [E10] 编译期静默失效收口（C 组）
+        //
+        //  这一段的共同命题：**"取到了数据源却无处安放"绝不能无声无息**。
+        //  旧实现在这些出口一律什么都不做 —— sourcePort 留 null，公共赋值段整段被跳过，
+        //  用户拿到的是"编译成功"，但那条线永远不生效。现场表现为"变量没值 / 圈数不对"，
+        //  却找不到任何错误提示，只能通读图纸猜。
+        //
+        //  另两条（重复 Id / While 无分支）原本分别会炸成"系统崩溃级错误"和静默空操作。
+        //
+        //  【为什么不用带输出口的桩】这几条路径的错误都在"查输出端口"之前发出，
+        //  只需要"上游是一个真算子"；而 ExecutionHarness 的桩刻意不声明端口（见该文件注释）。
+        // ==================================================================
+        internal static void CompileTimeSilentFailuresAreReported()
+        {
+            Section("[E10] C 组 编译期静默失效收口");
+
+            string counting = TypeOf(new CountingPlugin());
+
+            // ---- ① #12-2 重复 StepId：不再冒到顶层变成无定位的"系统崩溃级错误" ----
+            var dupA = new ActionStep("A", "计数", counting, "重复Id甲");
+            var dupB = new ActionStep("B", "计数", counting, "重复Id乙");
+            dupB.StepID = dupA.StepID; // 手工制造重复 Id（StepID 是可写属性）
+            var runDup = ExecHarness.Prepare(new StepModel[] { dupA, dupB });
+            Check("重复 StepId 不再炸成无定位的'系统崩溃级错误'",
+                !runDup.Compiled && runDup.Errors.Contains("[结构错误]") && runDup.Errors.Contains("Id 重复"),
+                runDup.Errors);
+            Check("重复 StepId 的错误带上了节点名（可定位）",
+                runDup.Errors.Contains("重复Id乙"), runDup.Errors);
+
+            // ---- ② #12-3 While 没有循环分支：不再静默编成空操作 ----
+            var emptyWhile = new WhileStep("W", "条件循环", "SomeWhileOperator", "空体While");
+            emptyWhile.Children.Clear();
+            var runEmptyWhile = ExecHarness.Prepare(new StepModel[] { emptyWhile });
+            Check("While 没有循环分支 → 编译报错（不再静默成空操作）",
+                !runEmptyWhile.Compiled && runEmptyWhile.Errors.Contains("没有循环分支"),
+                runEmptyWhile.Errors);
+
+            // ---- ③ #10-1 上游是条件节点：它不提供输出端口，连线必须报错 ----
+            var ifUp = new ConditionStep("I", "条件", "SomeIfOperator", "上游If");
+            ifUp.Children[0].Expression = "1 == 1";
+            var sinkCondUp = new ActionStep("A", "计数", counting, "条件上游的下游");
+            sinkCondUp.LinkedSources["InImage"] = new LinkReference
+            {
+                Kind = LinkKind.StepPort,
+                TargetStepId = ifUp.StepID,
+                TargetPortName = "Value",
+            };
+            var runCondUp = ExecHarness.Prepare(new StepModel[] { ifUp, sinkCondUp });
+            Check("上游是 If 节点（无输出端口）→ 连线报错，不再无声失效",
+                !runCondUp.Compiled && runCondUp.Errors.Contains("不提供输出端口"),
+                runCondUp.Errors);
+
+            // ---- ④ #10-2 RuntimeVariable 连到不存在的输入名 ----
+            var sinkBadInput = new ActionStep("A", "计数", counting, "错输入名的下游");
+            sinkBadInput.LinkedSources["不存在的输入"] = new LinkReference
+            {
+                Kind = LinkKind.RuntimeVariable,
+                TargetStepId = LinkProtocol.RuntimeVariableMarkerGuid,
+                TargetPortName = "someVar",
+            };
+            var runBadInput = ExecHarness.Prepare(new StepModel[] { sinkBadInput });
+            Check("运行时变量连到不存在的输入名 → 连线报错",
+                !runBadInput.Compiled && runBadInput.Errors.Contains("没有名为"),
+                runBadInput.Errors);
+
+            // ---- ⑤ #10-3 For 的连线键不是 LoopCount ----
+            var badFor = new ForStep("F", "计次循环", "BuiltIn_For", "错键For");
+            badFor.DefaultLoopCount = 1;
+            badFor.LinkedSources["Bogus"] = new LinkReference
+            {
+                Kind = LinkKind.RuntimeVariable,
+                TargetStepId = LinkProtocol.RuntimeVariableMarkerGuid,
+                TargetPortName = "loopN",
+            };
+            var runBadFor = ExecHarness.Prepare(new StepModel[] { badFor });
+            Check("For 的连线键不是 LoopCount → 连线报错",
+                !runBadFor.Compiled && runBadFor.Errors.Contains("只接受循环次数端口"),
+                runBadFor.Errors);
+
+            // ---- ⑥ #12-1 端口下标溢出：OverflowException 变成定位错误 ----
+            var idxUp = new ActionStep("U", "计数", counting, "下标上游");
+            var idxDown = new ActionStep("D", "计数", counting, "下标下游");
+            idxDown.LinkedSources["InImage"] = new LinkReference
+            {
+                Kind = LinkKind.StepPort,
+                TargetStepId = idxUp.StepID,
+                TargetPortName = "Value[99999999999999]",
+            };
+            var runOverflow = ExecHarness.Prepare(new StepModel[] { idxUp, idxDown });
+            Check("端口下标超出整数范围 → 定位错误（不再炸成'系统崩溃级错误'）",
+                !runOverflow.Compiled && runOverflow.Errors.Contains("超出整数范围"),
+                runOverflow.Errors);
+            Check("下标溢出的错误带上了出错节点名（可定位）",
+                runOverflow.Errors.Contains("下标下游"), runOverflow.Errors);
+
+            // ---- ⑦ 端口名格式非法：同一条正则的另一半出口 ----
+            var badNameDown = new ActionStep("D", "计数", counting, "坏名下游");
+            badNameDown.LinkedSources["InImage"] = new LinkReference
+            {
+                Kind = LinkKind.StepPort,
+                TargetStepId = idxUp.StepID,
+                TargetPortName = "Value[abc]",
+            };
+            var runBadName = ExecHarness.Prepare(new StepModel[] { idxUp, badNameDown });
+            Check("端口名格式非法 → 定位错误，不再无声失效",
+                !runBadName.Compiled && runBadName.Errors.Contains("格式非法"),
+                runBadName.Errors);
+        }
+
+        // ==================================================================
+        //  [E11] 会话状态转换语义（D 组）
+        //
+        //  三条命题：
+        //   ① OldState 必须是真的"旧值"，不能恒等于 NewState
+        //      （CommStress 压测程序正是靠 OldState 统计状态转换的，恒等 = 那个工具在统计空气）
+        //   ② 一次状态转换只触发一次 PropertyChanged —— 用来反证清单里"会触发两次"的推测
+        //   ③ 单次执行不接受暂停且拒绝时留痕；连续执行照常可暂停（防止语义澄清改过头）
+        // ==================================================================
+        internal static void SessionStateTransitionSemantics()
+        {
+            Section("[E11] D 组 状态转换语义");
+
+            // 引擎里"停止"是个合法出口：循环可能正好停在 PauseLock.Wait(token) 上，
+            // 此时令牌取消会让它抛 OperationCanceledException，任务状态变 Canceled 而不是 RanToCompletion。
+            // 两种都算"退出了"，只有 Faulted 才是异常。
+            static bool EndedCleanly(Task t)
+            {
+                try
+                {
+                    t.Wait(TimeSpan.FromSeconds(5));
+                    return true;
+                }
+                catch (AggregateException ae)
+                    when (t.IsCanceled && ae.InnerExceptions.All(x => x is TaskCanceledException))
+                {
+                    return true;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            GatePlugin.Reset();
+            var gate = new ActionStep("G", "闸门", TypeOf(new GatePlugin()), "状态语义闸门");
+            var run = ExecHarness.Prepare(new StepModel[] { gate });
+            Check("状态语义图纸编译通过", run.Compiled, run.Errors);
+            if (!run.Compiled) return;
+
+            var log = new StubLog();
+            var engine = new FlowEngineService(
+                new RuntimeManager(), log, run.Workspace!, null, new ResourceLockService());
+            var session = run.Session!;
+
+            // ---- ① + ② 同时采集：转换序列 + session 上 State 通知次数 ----
+            var transitions = new List<(SessionState Old, SessionState New)>();
+            engine.SessionStateChanged += (_, e) =>
+            {
+                lock (transitions) transitions.Add((e.OldState, e.NewState));
+            };
+
+            int stateNotices = 0;
+            session.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(FlowSession.State)) Interlocked.Increment(ref stateNotices);
+            };
+
+            var continuous = engine.RunSessionAsync(session);
+            GatePlugin.Reached.Wait(TimeSpan.FromSeconds(5));
+            GatePlugin.Proceed.Set();
+            engine.StopSession(session);
+            Check("连续执行正常收尾", EndedCleanly(continuous), continuous.IsFaulted ? "任务 Faulted" : "");
+
+            List<(SessionState Old, SessionState New)> snapshot;
+            lock (transitions) snapshot = new List<(SessionState, SessionState)>(transitions);
+            string seq = string.Join(" → ", snapshot.Select(t => $"{t.Old}▶{t.New}"));
+
+            var stoppedStep = snapshot.FirstOrDefault(t => t.New == SessionState.Stopped);
+            Check("【核心】OldState 不再恒等于 NewState（Stopped 事件的旧状态是 Running）",
+                stoppedStep.Old == SessionState.Running && stoppedStep.New == SessionState.Stopped,
+                $"实际 {snapshot.Count} 次转换: {seq}");
+            Check("本次运行恰好两次转换 Running / Stopped（无冗余通知）",
+                snapshot.Count == 2, seq);
+            Check("一次状态转换只触发一次 State 通知（反证清单'触发两次'的推测）",
+                stateNotices == 2, $"实际 {stateNotices} 次");
+
+            // ---- ③a 单次执行：暂停必须被拒绝并留痕 ----
+            GatePlugin.Reset();
+            var single = engine.RunSessionOnceAsync(session);
+            bool inSingle = GatePlugin.Reached.Wait(TimeSpan.FromSeconds(5));
+            Check("单次执行已进入算子（构造出真实运行窗口）", inSingle,
+                inSingle ? "" : "5 秒内没进到算子，后面的暂停断言无意义");
+            Check("单次执行期间 IsContinuousRun=false", !session.IsContinuousRun,
+                $"IsContinuousRun={session.IsContinuousRun}");
+
+            engine.PauseSession(session);
+            Check("【核心】单次执行期间 PauseSession 不生效（State 仍是 Running，不是 Paused）",
+                session.State == SessionState.Running, $"State={session.State}");
+            Check("单次执行的暂停请求被显式拒绝并留痕（不静默吞掉）",
+                log.Warns.Any(w => w.Contains("单次执行不支持暂停")),
+                string.Join(" | ", log.Warns));
+
+            GatePlugin.Proceed.Set();
+            Check("单次执行正常收尾", EndedCleanly(single), single.IsFaulted ? "任务 Faulted" : "");
+
+            // ---- ③b 连续执行：暂停照常生效（防止语义澄清改过头） ----
+            GatePlugin.Reset();
+            var again = engine.RunSessionAsync(session);
+            bool inContinuous = GatePlugin.Reached.Wait(TimeSpan.FromSeconds(5));
+            Check("连续执行已进入算子", inContinuous,
+                inContinuous ? "" : "5 秒内没进到算子，后面的暂停断言无意义");
+            Check("连续执行期间 IsContinuousRun=true", session.IsContinuousRun,
+                $"IsContinuousRun={session.IsContinuousRun}");
+
+            engine.PauseSession(session);
+            Check("【核心】连续执行期间 PauseSession 照常生效（State=Paused）",
+                session.State == SessionState.Paused, $"State={session.State}");
+
+            engine.ResumeSession(session);
+            Check("恢复后回到 Running", session.State == SessionState.Running, $"State={session.State}");
+
+            GatePlugin.Proceed.Set();
+            engine.StopSession(session);
+            Check("连续执行正常收尾", EndedCleanly(again), again.IsFaulted ? "任务 Faulted" : "");
+        }
+
+        // ==================================================================
+        //  [E12] 契约与步骤收集（E 组）
+        //
+        //  两条命题：
+        //   ① #8 插件分类注册口绝不能抛 —— 它一旦抛，PluginService 的按组名分派会让
+        //      整个外部 DLL 加载失败，而错误文案只有"加载插件失败 {dllPath}"，看不出是组名问题。
+        //   ② #9 Blueprints 必须递归填充 —— 只填顶层，嵌套步骤就永远不上报运行状态。
+        //
+        //  #13（删掉恒为 null 的 PortBindingService）由"删除 + 编译通过"保证，无需运行期断言。
+        // ==================================================================
+        internal static void ContractHygieneAndStepCollection()
+        {
+            Section("[E12] E 组 契约与步骤收集");
+
+            // ---- ① #8 分类注册口不再抛，且注册结果可见 ----
+            var notifier = new StubNotifier();
+            var provider = new PluginProvider(notifier);
+            var camera = new ToolItemModel
+            {
+                ModuleTypeName = "Stub.Camera",
+                Name = "桩相机",
+                Category = "相机",
+            };
+
+            Exception regBoom = null;
+            try { provider.RegisterCamera(camera); }
+            catch (Exception ex) { regBoom = ex; }
+            Check("RegisterCamera 不再抛 NotImplementedException（旧实现必抛）",
+                regBoom == null, regBoom == null ? "" : regBoom.GetType().Name + ": " + regBoom.Message);
+            Check("相机插件转交模块注册表后可见（否则等于'加载成功却拖不出来'）",
+                provider.ModulePlugins.ContainsKey("Stub.Camera"),
+                $"模块表 {provider.ModulePlugins.Count} 项，相机分类表 {provider.CameraPlugins.Count} 项");
+            Check("GetCamera 与注册同表查找，不再'注册进去却查不到'",
+                provider.GetCamera("Stub.Camera") != null, "返回 null 说明两个口查了不同的表");
+
+            Exception getBoom = null;
+            try { provider.GetLaser("查不到的名字"); }
+            catch (Exception ex) { getBoom = ex; }
+            Check("GetLaser 查不到时返回 null 而不是抛（旧实现必抛）",
+                getBoom == null, getBoom == null ? "" : getBoom.GetType().Name);
+
+            // ---- ② #9 Blueprints 必须递归填充 ----
+            // 结构：For → 循环体 → If → If 分支 → 计数桩（三层）
+            var leaf = new ActionStep("A", "计数", TypeOf(new CountingPlugin()), "最内层计数");
+            var innerIf = new ConditionStep("I", "条件", "SomeIfOperator", "内层If");
+            innerIf.Children[0].Expression = "1 == 1";
+            Put(innerIf.Children[0], leaf);
+
+            var outerFor = new ForStep("F", "计次循环", "BuiltIn_For", "外层For");
+            outerFor.DefaultLoopCount = 1;
+            Put(outerFor.Children[0], innerIf);
+
+            var deep = new FlowSession { FlowName = "蓝图深填断言" };
+            deep.AddBlueprintsDeep(new StepModel[] { outerFor });
+            Check("顶层步骤进 Blueprints", deep.Blueprints.Contains(outerFor), "");
+            Check("循环体内的一层步骤也进 Blueprints（浅填会漏掉）",
+                deep.Blueprints.Contains(innerIf), $"共 {deep.Blueprints.Count} 项");
+            Check("分支里的第二层步骤也进 Blueprints（递归到底）",
+                deep.Blueprints.Contains(leaf), $"共 {deep.Blueprints.Count} 项");
+            Check("递归收集恰好 3 个（For / 内层If / 最内层计数）",
+                deep.Blueprints.Count == 3, $"实际 {deep.Blueprints.Count}");
+
+            // 反证：这正是 #9 的病灶 —— PluginTestRunner 原来就是这么浅填的
+            var shallow = new FlowSession { FlowName = "蓝图浅填对照" };
+            foreach (var s in new StepModel[] { outerFor })
+                shallow.Blueprints.Add(s);
+            Check("对照：浅填只拿到顶层 1 个（#9 病灶本身）",
+                shallow.Blueprints.Count == 1, $"实际 {shallow.Blueprints.Count}");
         }
     }
 }

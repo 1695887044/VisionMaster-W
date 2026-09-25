@@ -175,9 +175,15 @@ namespace VisionMaster.Communications
 
         public CommunicationConfig(string connectionName, ConnectionConfigBase config)
         {
+            if (config == null) throw new ArgumentNullException(nameof(config));
+
             ConnectionName = connectionName;
-            Config = config ?? throw new ArgumentNullException(nameof(config));
+            // 顺序不可颠倒：Protocol 的 setter 内部会 OnChanged() 重建一份默认 Config，
+            // 若先赋 Config 再赋 Protocol，刚传进来的这份会被那份默认配置顶掉
+            // （端口/超时全变默认值，连接就打到错的地方去了）。
+            // 与 CopyFrom 同一道理，两处必须保持一致。
             Protocol = config.Type;
+            Config = config;
         }
 
         /// <summary>

@@ -48,14 +48,62 @@ namespace VisionMaster.Services
                             VariableId = local.VariableId,
                             DataTypeString = local.DataTypeString,
                             Description = local.Description,
-                            DefaultValue = local.DefaultValue,
-                            Value = local.Value
+                            DefaultValue = PersistableValue(local.DefaultValue),
+                            Value = PersistableValue(local.Value)
                         });
                         break;
                 }
             }
             solution.VariableSnapshots = snapshots;
         }
+
+        /// <summary>
+        /// 只让"JSON 原生"的值落盘（数字 / 字符串 / 布尔 / 枚举 / 由它们构成的数组），其余一律落 null。
+        ///
+        /// 为什么必须挡：
+        /// 图像变量的值是个 HImage。Newtonsoft 序列化它时会走 Halcon 自己的序列化
+        /// （operator serialize_image），只要句柄是空的（未初始化 / 已释放）就抛
+        /// HALCON error #4056，而这一抛发生在"保存方案"里 —— 整个方案都存不下来。
+        /// 就算句柄有效，把整幅像素写进 .vms 也是荒唐的。
+        ///
+        /// 落 null 是安全的：图像变量的值本就是流程产物、重启即失效，只该存"定义"。
+        /// 平台的既有口径也是这样 —— VariableNode 写着"图像的来源本就是流程，不是手填"，
+        /// VariableValueConverter 写着"位图不是一段文本，手填这条路根本不存在"。
+        /// </summary>
+        private static object? PersistableValue(object? value)
+        {
+            switch (value)
+            {
+                case null:
+                    return null;
+                case HalconDotNet.HObject:
+                    return null;
+                case string:
+                case bool:
+                case byte:
+                case sbyte:
+                case short:
+                case ushort:
+                case int:
+                case uint:
+                case long:
+                case ulong:
+                case float:
+                case double:
+                case decimal:
+                case DateTime:
+                    return value;
+                default:
+                    if (value is Enum) return value;
+                    // 数组：逐元素判断，有一个不能落盘就整体落 null（例如 HImage[]）
+                    if (value is Array array)
+                        return array.Cast<object?>().All(IsPersistable) ? value : null;
+                    // 其余类型（自定义对象、位图类第三方对象……）：宁可不存，也不能把方案存坏
+                    return null;
+            }
+        }
+
+        private static bool IsPersistable(object? value) => PersistableValue(value) != null;
 
         /// <summary>
         /// 按快照重建变量集合（加载方案后调用；在 NetworkVariableBridge.RebindAll 之前执行）

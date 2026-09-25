@@ -187,12 +187,13 @@ namespace VisionMaster.Communications
             var buckets = ScanGroupTable.Bucket(all, defs, log);
 
             // ③ 每组各编译一次批量计划（组内照常合并段）；空组 / 无可轮询项 → 不建运行态，避免空转
+            var transport = ResolveTransport(config);
             var groups = new List<PollGroup>(defs.Count);
             foreach (var def in defs)
             {
                 if (!buckets.TryGetValue(def.Name, out var vars) || vars.Count == 0) continue;
 
-                var planner = PollBatchPlanner.Build(vars, log);
+                var planner = PollBatchPlanner.Build(vars, transport, log);
                 if (planner.PollItemCount == 0) continue;
 
                 groups.Add(new PollGroup(def.Name, def.IntervalMs, planner, vars.Count));
@@ -204,6 +205,18 @@ namespace VisionMaster.Communications
             groups.Sort((a, b) => a.IntervalMs.CompareTo(b.IntervalMs));
             return new PollScheduler(groups);
         }
+
+        /// <summary>
+        /// 判定连接的传输家族（决定批量规划器的"空档代价"，见 <see cref="PollTransportKind"/>）。
+        /// <para>判据直接取配置类的继承关系：以太网配置都继承 <see cref="EthernetConfigBase"/>，串口配置是
+        /// <see cref="SerialConfig"/>。<b>不能用协议枚举反推</b>——同一个协议两种传输都有
+        /// （ModbusTcp / ModbusRtu），协议名本身分不出传输。</para>
+        /// <para>配置缺失（config 为 null，或 Config 尚未建起来）时取保守档
+        /// <see cref="PollTransportKind.Serial"/>：这条路径本就是"安全兜底"（全部走默认组），
+        /// 退保守档只是少合并，不会读错数据。</para>
+        /// </summary>
+        private static PollTransportKind ResolveTransport(CommunicationConfig? config)
+            => config?.Config is EthernetConfigBase ? PollTransportKind.Ethernet : PollTransportKind.Serial;
 
         /// <summary>取某连接可用的扫描组名（含默认组，恒在首位），供 UI 下拉框使用</summary>
         public static IReadOnlyList<string> ResolveGroupNames(CommunicationConfig? config)

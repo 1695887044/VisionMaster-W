@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -16,8 +16,22 @@ namespace VisionMaster.Services
     {
         /// <summary>
         /// 暴露给 UI 绑定的活动会话集合
+        ///
+        /// 【只给 XAML 绑定 / CollectionChanged 订阅用】
+        /// 应用代码要"遍历会话"请走 <see cref="SnapshotSessions"/>：
+        /// ObservableCollection 的枚举带版本校验，而增删发生在别的线程上
+        /// （HTTP 请求线程会 RegisterSession）。EnableCollectionSynchronization
+        /// 只替 WPF 的 CollectionView 兜底，不替我们代码里的 foreach / LINQ 兜底。
         /// </summary>
         ObservableCollection<FlowSession> ActiveSessions { get; }
+
+        /// <summary>
+        /// 在集合锁内取一份活动会话快照（线性复制一份，几微秒，绝不等待）
+        ///
+        /// 【为什么遍历必须走这里】理由见 <see cref="ActiveSessions"/> 的注释：
+        /// 裸枚举的后果是后台线程一 Add，这边这次枚举就抛 "Collection was modified"。
+        /// </summary>
+        IReadOnlyList<FlowSession> SnapshotSessions();
 
         /// <summary>
         /// 注册会话
@@ -103,9 +117,9 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 在集合锁内取快照（只做线性查找，不做任何等待）
+        /// 在集合锁内取快照（只做线性复制，不做任何等待）
         /// </summary>
-        private List<FlowSession> Snapshot()
+        public IReadOnlyList<FlowSession> SnapshotSessions()
         {
             lock (_lock)
             {
@@ -136,7 +150,7 @@ namespace VisionMaster.Services
         {
             lock (_registryLock)
             {
-                var existing = Snapshot().FirstOrDefault(s => s.FlowName == session.FlowName);
+                var existing = SnapshotSessions().FirstOrDefault(s => s.FlowName == session.FlowName);
 
                 // 先让旧会话的执行循环退出再替换，杜绝僵尸循环；等待必须在集合锁外
                 StopSessionGracefully(existing);
@@ -159,7 +173,7 @@ namespace VisionMaster.Services
         {
             lock (_registryLock)
             {
-                var session = Snapshot().FirstOrDefault(s => s.SessionID == sessionId);
+                var session = SnapshotSessions().FirstOrDefault(s => s.SessionID == sessionId);
                 if (session == null) return;
 
                 StopSessionGracefully(session);
@@ -201,7 +215,7 @@ namespace VisionMaster.Services
         {
             lock (_registryLock)
             {
-                var sessions = Snapshot();
+                var sessions = SnapshotSessions();
 
                 // 逐个等退出，全程不碰集合锁；先集中停再统一摘，
                 // 避免"停一个摘一个"时，后面那些会话被反复枚举打断

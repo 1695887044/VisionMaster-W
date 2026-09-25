@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Reflection;
 using System.Windows;
 using Core.Interfaces;
@@ -63,9 +63,22 @@ namespace FlowCanvasChecks
             ExecutionChecks.RegistryLockDoesNotBlockCollection();
             ExecutionChecks.ForLoopCountReadsRuntimeVariable();
             ExecutionChecks.ConditionBranchFailureSemantics();
+            ExecutionChecks.SessionLockAlwaysReturned();
+            ExecutionChecks.CompileTimeSilentFailuresAreReported();
+            ExecutionChecks.SessionStateTransitionSemantics();
+            ExecutionChecks.ContractHygieneAndStepCollection();
 
             // HTTP 收图端到端冒烟（真起服务端 + 真发 HTTP 图片）
             HttpImageSmoke.Run();
+
+            // 线序颜色检测方案端到端（真加载 .vms + 真编译 + 真执行 + 断言线序）
+            WireSequenceCheck.Run();
+
+            // 变量绑定窗口：回显当前值 / 换端口不串值
+            VariableBindingCheck.Run();
+
+            // 变量赋值：运行时 / 全局两种作用域
+            VariableAssignmentCheck.Run();
 
             Finish();
             return Environment.ExitCode;

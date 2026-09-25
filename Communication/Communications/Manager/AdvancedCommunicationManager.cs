@@ -106,6 +106,39 @@ namespace VisionMaster.Communications
         }
 
         /// <summary>
+        /// 读取连接当前状态（读 Worker 状态机，<b>不经 Dispatcher</b>，任何宿主下都正确）。
+        /// <para>为什么需要它：<c>GetAllConnections()[i].State</c> 那条回写被包在 SafeDispatch.BeginInvoke 里，
+        /// 而 SafeDispatch 在 Application.Current == null（控制台 / Windows 服务 / 单元测试）时直接丢弃动作——
+        /// 于是 config.State 会永久停在 Disconnected。本方法读 Worker（连接状态的唯一真相源）绕开该限制。</para>
+        /// <para>未登记的连接返回 <see cref="ConnectionState.Disconnected"/>。</para>
+        /// </summary>
+        public ConnectionState GetConnectionState(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                return ConnectionState.Disconnected;
+
+            if (_workers.TryGetValue(connectionName, out var worker))
+                return worker.State;
+
+            // 兜底：Worker 尚未建好等极少数情况，用连接实现自身的 IsConnected 推断
+            if (_connections.TryGetValue(connectionName, out var conn))
+                return conn.IsConnected ? ConnectionState.Connected : ConnectionState.Disconnected;
+
+            return ConnectionState.Disconnected;
+        }
+
+        /// <summary>
+        /// 读取连接最近一次通信故障消息（读 Worker，<b>不经 Dispatcher</b>）；无故障或连接不存在时返回 null。
+        /// </summary>
+        public string? GetConnectionError(string connectionName)
+        {
+            if (string.IsNullOrWhiteSpace(connectionName))
+                return null;
+
+            return _workers.TryGetValue(connectionName, out var worker) ? worker.LastError : null;
+        }
+
+        /// <summary>
         /// 启动通讯子系统：按 <see cref="CommunicationConfig.AutoStart"/> 发起自动连接并置运行标志。
         /// 建连不在此等待（见 <see cref="ConnectAll"/>），调用方不必担心被离线设备阻塞。
         /// </summary>

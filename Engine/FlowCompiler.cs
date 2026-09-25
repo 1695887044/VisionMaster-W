@@ -2,13 +2,11 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
 using Core.Interfaces;
 using DynamicExpresso;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
-using static System.Windows.Forms.LinkLabel;
 using Parameter = DynamicExpresso.Parameter;
 
 namespace VisionMaster.Services
@@ -220,6 +218,22 @@ namespace VisionMaster.Services
                 if (model.IsDisEnable)
                     continue;
 
+                // 前置判重（#12-2）：下面 7 处装配分支都会 nodeLookup.Add(model.StepID, …)，
+                // 而 Dictionary.Add 遇重复键抛 ArgumentException —— 它会一路冒到 Compile 的顶层 catch，
+                // 变成一条 StepId 留空、没有节点名的"系统崩溃级错误"，现场根本不知道是哪个节点重了。
+                // 重复 Id 在图纸层是可出现的（FlowTopology 对重复 Id 是容忍的，与这里口径不一致），
+                // 所以自己判重并给出定位错误；continue 跳过该节点，也就保证后面的 Add 不会再撞。
+                if (nodeLookup.ContainsKey(model.StepID))
+                {
+                    errors.Add(
+                        Err(
+                            model,
+                            $"[结构错误] 节点 Id 重复：'{model.StepName}' 与先前的节点撞了同一个 Id（{model.StepID}），请删除重复节点后重新编译。"
+                        )
+                    );
+                    continue;
+                }
+
                 // ==========================================
                 // 🎯 场景 A-1：While 循环节点 (🚨 必须放在 ConditionStep 之前！)
                 // ==========================================
@@ -285,6 +299,18 @@ namespace VisionMaster.Services
                                 );
                             }
                         }
+                    }
+                    else
+                    {
+                        // 原来这里是静默的（#12-3）：没有分支 → ConditionLambda 留 null →
+                        // CompiledWhileNode.RunLoop 第一句就 return，编译出来的 While 是个空操作，
+                        // 而用户拿到的是"编译成功"。改成硬错误，与"条件表达式为空"同一口径。
+                        errors.Add(
+                            Err(
+                                model,
+                                $"[编译错误] '{whileModel.StepName}' 没有循环分支（画布上该节点下没有循环体），编译出来是个空操作，请补上循环分支。"
+                            )
+                        );
                     }
 
                     whileNode.LoopBranch = compiledBranch;
@@ -635,12 +661,37 @@ namespace VisionMaster.Services
                                 linkRef.TargetPortName,
                                 @"^(?<port>[^\[]+)(\[(?<idx>\d+)\])?$"
                             );
-                            if (match.Success)
+                            if (!match.Success)
+                            {
+                                // 端口名写成 "Port[abc]" / "Out[0][1]" 这种会让正则整体失配，
+                                // 旧实现落到这里什么都不做 → sourcePort 留 null → 连线无声失效。
+                                errors.Add(
+                                    Err(
+                                        model,
+                                        $"[连线错误] '{model.StepName}' 引用的上游输出端口名 '{linkRef.TargetPortName}' 格式非法（应为「端口名」或「端口名[下标]」）。"
+                                    )
+                                );
+                            }
+                            else
                             {
                                 string cleanPortName = match.Groups["port"].Value;
-                                int arrayIdx = match.Groups["idx"].Success
-                                    ? int.Parse(match.Groups["idx"].Value)
-                                    : -1;
+
+                                // 下标用 TryParse（#12-1）：写成 Port[99999999999999] 时 int.Parse 抛 OverflowException，
+                                // 冒到顶层变成一条 StepId 留空、没有定位的"系统崩溃级错误"，现场不知道是哪个节点写错了。
+                                int arrayIdx = -1;
+                                if (
+                                    match.Groups["idx"].Success
+                                    && !int.TryParse(match.Groups["idx"].Value, out arrayIdx)
+                                )
+                                {
+                                    arrayIdx = -1;
+                                    errors.Add(
+                                        Err(
+                                            model,
+                                            $"[连线错误] '{model.StepName}' 引用的上游输出端口下标 '{match.Groups["idx"].Value}' 超出整数范围。"
+                                        )
+                                    );
+                                }
 
                                 if (upPlugin.Outputs.TryGetValue(cleanPortName, out sourcePort))
                                 {
@@ -666,6 +717,18 @@ namespace VisionMaster.Services
                                 // 记录执行依赖：下游依赖 For 节点的 Index 输出（供试运行先执行 For）
                                 AddDependency(dependencyMap, model.StepID, linkRef.TargetStepId);
                                 actualUpstreamName = "ForLoop"; // 或者从图纸查名字
+                            }
+                            else
+                            {
+                                // 原来这里是静默的（#10-1）：sourcePort 留 null → 下面公共赋值段整段被跳过 → 连线无声失效。
+                                // If/While 这类容器节点根本不提供输出端口，For 也只有 Index 一根 ——
+                                // 这种连线本身就是无意义的（画布也不给容器节点长输出脚），所以显式报错。
+                                errors.Add(
+                                    Err(
+                                        model,
+                                        $"[连线错误] '{model.StepName}' 的上游节点 '{upNode.StepName}' 不提供输出端口 '{linkRef.TargetPortName}'（条件/循环节点只接收连线，不能向外提供数据）。"
+                                    )
+                                );
                             }
                         }
                         else
@@ -702,6 +765,14 @@ namespace VisionMaster.Services
                                 )
                                     myInPort.LinkedSource = sourcePort;
                             }
+                            else
+                            {
+                                // 原来这里是静默的（#10-2）：RuntimeVariable 的 proxy 已经挂进 ContextAwareBindings，
+                                // 连线却因为"输入名不存在"而无声失效。输入名来自图纸，可能被手改或来自旧版算子定义。
+                                errors.Add(
+                                    Err(model, $"[连线错误] '{model.StepName}' 没有名为 '{myInputName}' 的输入端口，这条连线不会生效。")
+                                );
+                            }
                         }
                         else if (targetNode is CompiledIfNode ifNode)
                         {
@@ -721,6 +792,13 @@ namespace VisionMaster.Services
                                 )
                                     ifNode.UpstreamLinks[varId] = sourcePort;
                             }
+                            else
+                            {
+                                // 同 #10-2 性质：条件节点的连线键必须是条件变量的 Guid，转不动就无声丢线
+                                errors.Add(
+                                    Err(model, $"[连线错误] If 节点 '{model.StepName}' 的连线键 '{myInputName}' 不是条件变量 Id，这条连线不会生效。")
+                                );
+                            }
                         }
                         // 🌟🌟 补全：While 算子的连线逻辑 (和 If 一模一样，都是接收 Guid 作为键)
                         else if (targetNode is CompiledWhileNode whileNode)
@@ -738,6 +816,13 @@ namespace VisionMaster.Services
                                     )
                                 )
                                     whileNode.UpstreamLinks[varId] = sourcePort;
+                            }
+                            else
+                            {
+                                // 同 #10-2 性质
+                                errors.Add(
+                                    Err(model, $"[连线错误] While 节点 '{model.StepName}' 的连线键 '{myInputName}' 不是条件变量 Id，这条连线不会生效。")
+                                );
                             }
                         }
                         // 🌟🌟 补全：For 算子接收外部传来的循环次数 (连线名我们在注册时叫 "LoopCount")
@@ -757,6 +842,15 @@ namespace VisionMaster.Services
                                     )
                                 )
                                     forNode.LoopCountLink = sourcePort;
+                            }
+                            else
+                            {
+                                // 原来这里是静默的（#10-3）：连上了线却名字对不上，sourcePort 就这么扔掉了。
+                                // 注意本段只在 sourcePort != null 时才走到 —— 即"确实取到了数据源却无处安放"，
+                                // 正是"连线被静默丢弃"的定义，不会误伤正常图纸。
+                                errors.Add(
+                                    Err(model, $"[连线错误] For 节点 '{model.StepName}' 只接受循环次数端口 'LoopCount'，实际收到 '{myInputName}'，这条连线不会生效。")
+                                );
                             }
                         }
                     }

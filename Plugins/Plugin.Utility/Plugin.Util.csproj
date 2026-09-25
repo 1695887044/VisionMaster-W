@@ -1,12 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-	  <TargetFrameworks>net9.0</TargetFrameworks>
+    <!-- 本插件带自定义配置视图（VariableAssignmentView），故需要 WPF。
+         从 net9.0 升到 net9.0-windows：只影响 Windows（本软件本来就是 Windows 专用）。 -->
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Core.Controls 提供 LinkableValueEditor：手填常量 + 链接上游二合一，插件配置视图统一用它 -->
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
     <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>
 

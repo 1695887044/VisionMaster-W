@@ -72,6 +72,11 @@ namespace VisionMaster.Communications
         // 避免"后台线程仍在使用连接对象时主线程抢先 Dispose"（socket 层竞态 / 诡异报错）
         private volatile bool _disposeConnectionOnExit;
 
+        // 最近一次通信故障消息：Worker 线程写、任意线程读。
+        // 不经 Dispatcher，因此在 Application.Current == null 的宿主（控制台 / Windows 服务 / 单元测试）下依然可用——
+        // 而 CommunicationConfig.LastError 的回写被 SafeDispatch 丢弃，那种形态下不可信。
+        private volatile string? _lastError;
+
         #region 公共配置与事件
 
         /// <summary>连接当前状态（由本 Worker 独家维护，是唯一的真相源）</summary>
@@ -81,6 +86,13 @@ namespace VisionMaster.Communications
 
         /// <summary>是否处于已连接状态</summary>
         public bool IsConnected => State == ConnectionState.Connected && _connection.IsConnected;
+
+        /// <summary>
+        /// 最近一次通信故障消息（Worker 线程写入、可跨线程读，不经 Dispatcher）；连接成功后自动清空。
+        /// <para>与 <c>CommunicationConfig.LastError</c> 的区别：后者回写被包在 SafeDispatch.BeginInvoke 里，
+        /// 无 WPF 宿主时会被直接丢弃，故本属性才是任何宿主下都可靠的错误来源。</para>
+        /// </summary>
+        public string? LastError => _lastError;
 
         /// <summary>基础重连间隔（失败后按 2 的幂退避到 <see cref="ReconnectMaxIntervalMs"/>）</summary>
         public int ReconnectBaseIntervalMs { get; set; } = 5000;
@@ -377,6 +389,7 @@ namespace VisionMaster.Communications
                 if (_connection.Connect())
                 {
                     _reconnectAttempt = 0;
+                    _lastError = null;
                     TouchCommunicationSuccess();
                     _scheduler?.ResetAllDue(); // 立即允许首轮轮询
                     SetState(ConnectionState.Connected);
@@ -393,6 +406,7 @@ namespace VisionMaster.Communications
         /// <summary>连接动作本身失败：进入退避重连</summary>
         private void OnConnectionFailed(Exception ex, bool connectPhase)
         {
+            _lastError = ex.Message;
             CommunicationError?.Invoke(ex);
             ScheduleReconnect();
         }
@@ -400,6 +414,7 @@ namespace VisionMaster.Communications
         /// <summary>已连接后通信断裂（轮询失败/异常）：断开 socket 并进入退避重连</summary>
         private void OnConnectionBroken(Exception ex)
         {
+            _lastError = ex.Message;
             try { _connection.Disconnect(); } catch { /* 断开失败不改变调度 */ }
             CommunicationError?.Invoke(ex);
             if (_autoConnect)

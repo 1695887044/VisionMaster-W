@@ -16,4 +16,13 @@
     <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 显式引用 Halcon：halcondotnet 在 deps.json 里是 type:reference，不会随 ProjectReference
+         传递到本工程的编译引用集。线序检测的投射断言要命名 ImageDisplayEvent<HImage>，
+         故这里照插件工程的做法直接引一份。 -->
+    <Reference Include="halcondotnet">
+      <HintPath>..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

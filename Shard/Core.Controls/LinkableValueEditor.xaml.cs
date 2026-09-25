@@ -223,12 +223,17 @@ namespace Core.Controls
 
         /// <summary>
         /// 判断端口类型是否支持文本输入
-        /// 白名单：string、基元类型（int/double/bool/...）、enum、decimal
+        /// 白名单：string、object、基元类型（int/double/bool/...）、enum、decimal
+        ///
+        /// object 必须在名单里：「变量赋值」的「值」端口就是 InputPort&lt;object&gt;
+        /// （因为它要能接任意类型的上游结果）。若不认 object，那一行就只剩链接按钮、没有输入框 ——
+        /// 而它最常见的用法恰恰是手填一个常量。
         /// </summary>
         private static bool IsTextEditableType(Type type)
         {
             if (type == null) return false;
             return type == typeof(string)
+                || type == typeof(object)
                 || type.IsPrimitive
                 || type.IsEnum
                 || type == typeof(decimal);

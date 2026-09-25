@@ -12,6 +12,28 @@ namespace VisionMaster.Communications
     }
 
     /// <summary>
+    /// 轮询地址所在的传输家族。与 <see cref="PollProtocol"/> 是<b>正交</b>的两个维度：
+    /// 协议决定"怎么编址"，传输决定"多读一个单元要花多少代价"。
+    /// </summary>
+    /// <remarks>
+    /// <para>为什么批量规划器需要它："把一个段内的空档一起读回来"这件事，在两种传输上的账完全不同——</para>
+    /// <para>· <b>以太网</b>：多读 119 个寄存器 = 238 字节，在 100Mbps 上是零头，而省下的是整整一次往返
+    /// （实测单次往返 ≈ 1ms）。所以空档近乎免费，段大小只受"单请求上限"约束；</para>
+    /// <para>· <b>串口</b>：多读 1 个寄存器 = 2 字节 × 11 位 ÷ 9600bps ≈ 2.29ms 线时。多读 118 个 ≈ 270ms，
+    /// 比一次往返还贵两个数量级——此时"合并"反而是亏的。</para>
+    /// <para>早期实现只按协议分档、不看传输，于是 TCP 上白白发了大量可以合并的请求
+    /// （实测 1000 点 / 步长 10 的稀疏点表被拆成 1000 段，923 请求/s 把 1000ms 周期占满）。</para>
+    /// </remarks>
+    public enum PollTransportKind
+    {
+        /// <summary>以太网（TCP）：空档代价可忽略，按单请求上限放开合并</summary>
+        Ethernet,
+
+        /// <summary>串口（RTU/ASCII 等）：空档要花真实线时，按保守常数合并</summary>
+        Serial
+    }
+
+    /// <summary>
     /// <para>结构化的轮询地址：把"读哪里、读多少"从字符串猜测变成直接字段。</para>
     /// <para>批量轮询规划器按 <see cref="GroupKey"/> 分组、按 <see cref="Start"/> 排序合并区间，
     /// 再用 <see cref="SegmentPrefix"/> + 段起点拼出 HSL 可直接解析的段地址。</para>

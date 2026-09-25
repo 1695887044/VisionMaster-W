@@ -342,30 +342,13 @@ namespace VisionMaster.Services
                 ExecutionEngine = result.Data,
                 CompiledVersion = flow.Version
             };
-            CollectStepsDeep(flow.Steps, session.Blueprints);
+            session.AddBlueprintsDeep(flow.Steps);
 
             // 注意副作用：同名会话已存在时，RegisterSession 会先停旧循环（最长等 3s）再挂新实例。
             // 走到这里说明旧会话要么不存在、要么已过期，停下来是预期行为
             _runtimeManager.RegisterSession(session);
             _log.Info($"[HttpImageServer] 请求 {requestId} 已为流程「{flowName}」补编译并注册会话");
             return true;
-        }
-
-        /// <summary>
-        /// 递归收集步骤（含 If/For 等容器内的嵌套步骤）—— 与 ShellViewModel.CollectStepsDeep 同语义。
-        /// Blueprints 是调度层复位运行状态、以及本类反查步骤名的唯一依据，只填顶层会漏掉嵌套步骤。
-        /// </summary>
-        private static void CollectStepsDeep(System.Collections.Generic.IEnumerable<StepModel> steps, System.Collections.Generic.ICollection<StepModel> into)
-        {
-            foreach (var step in steps)
-            {
-                into.Add(step);
-                if (step is IContainerStep container && container.Children != null)
-                {
-                    foreach (var branch in container.Children)
-                        CollectStepsDeep(branch.Steps, into);
-                }
-            }
         }
 
         #endregion

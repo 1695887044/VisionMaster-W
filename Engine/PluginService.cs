@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
@@ -226,14 +226,16 @@ namespace VisionMaster.Services
                 };
                 switch (att.GroupName)
                 {
+                    // 相机/激光/轴卡：分类仓库目前是"预留挂接点"（见 PluginProvider.RegisterCamera 注释），
+                    // 注册实际落在模块表。显式提示一句，免得现场以为分类已生效。
+                    // 【这里绝不能有会抛异常的分支】一旦抛，外层 per-file catch 会把整个 DLL 判为加载失败，
+                    // 而错误文案只有"加载插件失败 {dllPath}"，现场看不出是组名的问题。
                     case "相机":
-                        _registry.RegisterCamera(toolItem);
-                        break;
                     case "激光":
-                        _registry.RegisterLaser(toolItem);
-                        break;
                     case "轴卡":
-                        _registry.RegisterMotion(toolItem);
+                        _notifier.ShowWarn(
+                            $"{att.GroupName} 类插件暂未支持分类，'{toolItem?.ModuleTypeName}' 已按普通模块注册");
+                        _registry.RegisterModule(toolItem);
                         break;
                     default:
                         _registry.RegisterModule(toolItem);

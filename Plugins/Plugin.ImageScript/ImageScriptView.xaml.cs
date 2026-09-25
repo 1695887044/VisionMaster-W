@@ -234,6 +234,32 @@ namespace Plugin.ImageScript
             UpdateEditorIntel();
         }
 
+        /// <summary>
+        /// 恢复默认脚本：用插件自带的「1 个图像进 → 1 个图像出 + OK/NG 结论」整表替换现有过程。
+        /// 会清掉现有脚本，所以先弹确认框；替换动作与"首次打开自动预置"共用插件层的同一份定义。
+        /// </summary>
+        private void RestoreDefault_Click(object sender, RoutedEventArgs e)
+        {
+            if (Plugin == null) return;
+
+            int count = Plugin.Procedures?.Count ?? 0;
+            if (count > 0 &&
+                MessageBox.Show(
+                    $"将清空当前 {count} 个脚本过程，替换为插件自带的默认脚本。\n\n" +
+                    "方案未保存前关闭本窗口即可放弃这次修改。\n\n确定继续？",
+                    "恢复默认脚本", MessageBoxButton.OKCancel, MessageBoxImage.Question)
+                != MessageBoxResult.OK)
+                return;
+
+            Plugin.ApplyDefaultScript();
+
+            RefreshLists();
+            // 不靠下拉的 SelectionChanged 刷编辑器：它只在"选中项真的变了"时才触发，
+            // 而替换后第 0 项仍是过程（只是换了实例），编辑器会停在旧文本上
+            EditProcCombo.SelectedItem = Plugin.CurrentProcedure;
+            LoadEditorText(Plugin.CurrentProcedure);
+        }
+
         /// <summary>校验脚本：强制重编译全部过程，结果显示在编辑器底部并标红错误行（不执行）。</summary>
         private void Validate_Click(object sender, RoutedEventArgs e)
         {

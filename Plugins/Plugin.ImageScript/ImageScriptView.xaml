@@ -114,6 +114,12 @@
                                 Margin="0,0,6,6"
                                 Click="SyncVars_Click"
                                 Content="同步接口变量" />
+                            <Button
+                                MinWidth="60"
+                                Margin="0,0,6,6"
+                                Click="RestoreDefault_Click"
+                                Content="恢复默认脚本"
+                                ToolTip="用插件自带的默认脚本（1 个图像进 → 1 个图像出 + OK/NG 结论）替换当前全部过程" />
                         </WrapPanel>
                     </StackPanel>
                 </Border>

@@ -9,7 +9,7 @@ namespace VisionMaster.Communications
     /// <para>Modbus TCP 协议连接实现类。</para>
     /// <para>封装 HslCommunication 的 ModbusTcpNet 设备，提供标准化的通信接口。</para>
     /// </summary>
-    public class ModbusTcpConnection : ICommunicationConnection
+    public class ModbusTcpConnection : ICommunicationConnection, ILinkHealthProbe
     {
         private readonly ModbusTcpNet _device;
         private readonly ModbusTcpConfig _config;
@@ -26,6 +26,19 @@ namespace VisionMaster.Communications
 
         /// <inheritdoc />
         public bool IsConnected => _isConnected;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// <para>取 HSL 管道自身的链路错误判定 <c>CommunicationPipe.IsConnectError()</c>：
+        /// 它是"上一次传输 I/O 是否失败"的状态（收发异常/超时时自增 <c>connectErrorCount</c>，
+        /// 一次成功读又自动清零，socket 被关掉则直接判错），与异常类型、与报错语言都无关——
+        /// 产品的连接实现把所有 HSL 错误一律包成 InvalidOperationException(result.Message)，
+        /// 原始 SocketException 已丢失，靠异常类型或消息文本判定都不可靠。</para>
+        /// <para>只表达"链路级"故障：Modbus 非法地址异常是在帧正常收到之后才由 UnpackResponseContent
+        /// 解析出错误码的（此时管道读已成功、计数已清零），所以个别坏地址不会误判为链路断开——
+        /// 这一点对本短路判断至关重要，否则一个坏地址会把整条好连接打进无限重连。</para>
+        /// </remarks>
+        public bool HasLinkFault => _device.CommunicationPipe?.IsConnectError() ?? false;
 
         /// <inheritdoc />
         public ByteOrderFormat ByteOrder => _config.ByteOrder;

@@ -1,3 +1,4 @@
+using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
 using System;
@@ -22,17 +23,20 @@ namespace Plugin.CSharpScript
         private readonly Func<string, object> _getInput;
         private readonly Action<string, object> _setOutput;
         private readonly Action<HImage, int> _showImage;
+        private readonly Action<HImage, int, IEnumerable<MeasureAnnotation>> _showAnnotated;
 
         internal ScriptContext(
             IExecutionContext exec,
             Func<string, object> getInput,
             Action<string, object> setOutput,
-            Action<HImage, int> showImage)
+            Action<HImage, int> showImage,
+            Action<HImage, int, IEnumerable<MeasureAnnotation>> showAnnotated = null)
         {
             _exec = exec;
             _getInput = getInput;
             _setOutput = setOutput;
             _showImage = showImage;
+            _showAnnotated = showAnnotated;
         }
 
         /// <summary>自引用：脚本里 <c>Context.xxx</c> 即指向本门面。</summary>
@@ -97,6 +101,40 @@ namespace Plugin.CSharpScript
 
         /// <summary>把一张 Halcon 图像发布到主界面第 viewIndex（1~9）号视图窗口。</summary>
         public void ShowImage(HImage image, int viewIndex = 1) => _showImage?.Invoke(image, viewIndex);
+
+        /// <summary>
+        /// 把图像连同<b>测量标注</b>一起发布到第 viewIndex 号视图窗口（标注与图像同帧覆盖渲染）。
+        ///
+        /// 用途：把判定结果"画"在画面上，而不是只留一行日志——
+        /// 例如在采样线位置画一条绿线、每根线旁边标出判到的颜色、顶部给一行结论。
+        /// 坐标用图像坐标（行, 列）；颜色取 Halcon 颜色名（green / red / yellow / blue / white …）。
+        /// </summary>
+        public void ShowImage(HImage image, int viewIndex, IEnumerable<MeasureAnnotation> annotations)
+            => _showAnnotated?.Invoke(image, viewIndex, annotations);
+
+        // ── 自定义函数：标注构造（让脚本不必认识标注类型，一行一个图元）──────
+
+        /// <summary>建一个空的标注层（配 <see cref="MarkLine"/> / <see cref="MarkText"/> 使用）。</summary>
+        public List<MeasureAnnotation> NewMarks() => new List<MeasureAnnotation>();
+
+        /// <summary>造一条标注线（图像坐标：行1, 列1, 行2, 列2）。</summary>
+        public MeasureAnnotation MarkLine(double row1, double col1, double row2, double col2, string color = "green")
+            => new MeasureAnnotation
+            {
+                Type = MeasureType.Line,
+                Points = new[] { row1, col1, row2, col2 },
+                Color = color
+            };
+
+        /// <summary>造一条标注文本（图像坐标：行, 列；文字画在该点右侧）。</summary>
+        public MeasureAnnotation MarkText(double row, double col, string text, string color = "green")
+            => new MeasureAnnotation
+            {
+                Type = MeasureType.Text,
+                Points = new[] { row, col },
+                Text = text,
+                Color = color
+            };
 
         // ── 自定义函数：控制流 ────────────────────────────────
 

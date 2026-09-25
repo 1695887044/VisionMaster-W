@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Plugin.ImageScript
 {
     /// <summary>
@@ -5,6 +7,11 @@ namespace Plugin.ImageScript
     /// 编辑器右键菜单「插入示例代码」使用。
     /// 图片/模型只写短名（如 'marks'），插件运行时自动解析到程序目录 ScriptAssets，
     /// 脚本无死路径，换电脑直接跑；装了 Halcon 时官方图像名（如 'fabrik'）也能直接用。
+    ///
+    /// 本类同时是「插件自带默认脚本」的唯一真相源（DefaultProcedureName / DefaultBody /
+    /// CreateDefaultProcedure / CreateDefaultInputVars / CreateDefaultOutputVars）：
+    /// 新步骤首次打开配置窗口时自动装一份，工具栏「恢复默认脚本」按钮也调这一份，
+    /// 两个入口共用同一定义，行为永远一致。
     /// </summary>
     public sealed class TemplateDef
     {
@@ -22,6 +29,94 @@ namespace Plugin.ImageScript
 
     public static class ScriptTemplates
     {
+        // ═══════════════════════ 插件自带的默认脚本 ═══════════════════════
+
+        /// <summary>
+        /// 默认过程名。不能叫 main —— RunProcedureNameList 明确排除 main，
+        /// 叫了会导致「运行过程」下拉里看不到它、执行时也找不到过程。
+        /// </summary>
+        public const string DefaultProcedureName = "script";
+
+        /// <summary>
+        /// 默认脚本正文：1 个图像进 → 1 个图像出 + 1 个 OK/NG 结论出。
+        /// 判定阈值放在「示教参数区」，不额外开控制量输入端口 —— 端口越少越好懂。
+        /// </summary>
+        public const string DefaultBody = @"* ──────────────────────────────────────
+* 默认脚本：1 个图像进 → 1 个图像出 + 1 个结论出
+*   Image       输入图像（本步骤的输入端口，需要连上游）
+*   ResultImage 处理后的图像（可以直接连给下游）
+*   Result      判定结论 'OK' / 'NG'（可以接条件分支）
+* 下面这段是「数亮斑个数」的示范，把它换成你自己的算子即可
+* ──────────────────────────────────────
+* ── 示教参数区：换产品只改这一段，下面代码不用动 ──
+* 阈值下限：亮于它的像素算目标（0~255，先看灰度直方图再定，别拍脑袋）
+ThreshMin := 128
+* 目标最小面积（像素）：比它小的当噪点丢掉
+MinArea := 50
+
+* 第1步 彩色转灰度：机器视觉大多在灰度图上做，数据量小一半
+* 必须先判断通道数——对单通道图调用 rgb1_to_gray 会直接报错
+count_channels (Image, Channels)
+if (Channels >= 3)
+    rgb1_to_gray (Image, GrayImage)
+else
+    copy_image (Image, GrayImage)
+endif
+
+* 第2步 阈值分割：亮于 ThreshMin 的像素连成候选区域
+threshold (GrayImage, Region, ThreshMin, 255)
+
+* 第3步 拆分与筛选：粘连的拆成一个个，再按面积甩掉噪点
+connection (Region, ConnectedRegions)
+select_shape (ConnectedRegions, Targets, 'area', 'and', MinArea, 1e7)
+count_obj (Targets, Number)
+
+* 第4步 判定：数出个数就能判 OK/NG
+* 换成测量 / 匹配 / OCR 也是同一套路：先算出来，再和规格比，最后给结论
+if (Number > 0)
+    Result := 'NG'
+else
+    Result := 'OK'
+endif
+
+* 第5步 画在画布上：脚本结束时会自动回读成效果图送到界面窗口1
+dev_display (GrayImage)
+dev_set_draw ('margin')
+dev_set_line_width (2)
+dev_set_color ('red')
+dev_display (Targets)
+dev_disp_text ('Result: ' + Result + '  数量: ' + Number$'.0f', 'window', 12, 12, 'black', ['box','box_color'], ['true','yellow'])
+
+* 第6步 输出图像：ResultImage 就是本步骤的图像输出端口
+ResultImage := GrayImage";
+
+        /// <summary>默认脚本的输入变量表（与 CreateDefaultProcedure 的接口列表严格对应）</summary>
+        public static ScriptVarDef[] CreateDefaultInputVars() => new[]
+        {
+            new ScriptVarDef { Name = "Image", Type = ScriptVarType.HImage },
+        };
+
+        /// <summary>默认脚本的输出变量表：一张图 + 一个结论</summary>
+        public static ScriptVarDef[] CreateDefaultOutputVars() => new[]
+        {
+            new ScriptVarDef { Name = "ResultImage", Type = ScriptVarType.HImage },
+            // 必须显式写 String：GuessType 对不以 i/s 开头的名字一律猜 Double，
+            // 而 Result 这个输出要的就是 'OK'/'NG' 文本
+            new ScriptVarDef { Name = "Result", Type = ScriptVarType.String },
+        };
+
+        /// <summary>构造默认过程：接口列表必须与上面两张变量表一致，否则编译前反向同步会打架</summary>
+        public static EProcedure CreateDefaultProcedure() => new EProcedure
+        {
+            Name = DefaultProcedureName,
+            IconicInputList = new List<string> { "Image" },
+            IconicOutputList = new List<string> { "ResultImage" },
+            CtrlOutputList = new List<string> { "Result" },
+            Body = DefaultBody,
+        };
+
+        // ═══════════════════════ 右键菜单「插入示例代码」的模板 ═══════════════════════
+
         public static readonly TemplateDef[] All =
         {
             // ═══════════════════════ A 图像预处理 ═══════════════════════

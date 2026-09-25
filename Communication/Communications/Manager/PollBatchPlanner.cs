@@ -12,7 +12,8 @@ namespace VisionMaster.Communications
     /// <para>为什么需要它：旧实现每个变量发一条读命令（N 个变量 = N 次往返），在 20~50ms 周期下既打满网络又拖长扫描时间。
     /// 批量化思路：同协议、同存储区、地址相近的变量合并成一次块读，一次读回一整片区域，再在内存里切片解码。</para>
     /// <para>编译期做三件事：</para>
-    /// <para>1) 规划——按 协议+存储区 分组、按起始地址排序、贪心合并成若干"段"（间隙容忍 + 单请求上限封顶）；</para>
+    /// <para>1) 规划——按 协议+存储区 分组、按起始地址排序、贪心合并成若干"段"（间隙容忍 + 单请求上限封顶）；
+    /// 间隙容忍按<b>传输</b>分档（见 <see cref="PollTransportKind"/>）：以太网上空档近乎免费，只受单请求上限约束；</para>
     /// <para>2) 兜底——地址无法结构化解析、类型无法解码、或类型字节数大于地址跨度的变量，退回旧的按类型单读；</para>
     /// <para>3) 预编译——解码所需信息（段内偏移、位序号、目标类型）在编译期算好，轮询时零解析零反射。</para>
     /// <para>执行契约（与 <see cref="ConnectionWorker"/> 的约定）：返回 true = 本轮通信成功；返回 false = 通信级故障（触发断线重连）。
@@ -102,7 +103,9 @@ namespace VisionMaster.Communications
 
         #region 编译期参数
 
-        // 间隙容忍：两段之间允许"多读"的空洞上限。太小则合并率低，太大则每轮白读大量无关数据。
+        // 间隙容忍：两段之间允许"多读"的空洞上限（**串口档**专用，见 GapOf）。
+        // 太小则合并率低，太大则每轮白读大量无关数据。
+        // ⚠ 以太网上不用这些常数：那里空档近乎免费，阈值直接取单请求上限（理由见 PollTransportKind 的文档）。
         private const int GapUnitsS7 = 16;              // S7 按字节编址，16 字节空洞可接受
         private const int GapUnitsModbusRegister = 8;   // Modbus 寄存器区，8 个寄存器（16 字节）
         private const int GapUnitsModbusBit = 64;       // Modbus 位区，64 个点位
@@ -178,8 +181,16 @@ namespace VisionMaster.Communications
         /// 编译轮询计划。
         /// </summary>
         /// <param name="variables">某连接下的全部已注册变量</param>
+        /// <param name="transport">
+        /// 传输家族（决定"空档代价"，见 <see cref="PollTransportKind"/>）。
+        /// <para><b>刻意不给默认值</b>：默认值会让"调用方忘了传"静默退回保守档，行为悄悄变旧、编译期毫无提示——
+        /// 本会话修掉的构造器缺陷正是同一类坑。必填能让编译器替我们盯住每个调用点。</para>
+        /// </param>
         /// <param name="log">编译期告警输出（只写不可行的变量，不进热路径）</param>
-        public static PollBatchPlanner Build(IEnumerable<CommunicationVariable> variables, Action<string>? log = null)
+        public static PollBatchPlanner Build(
+            IEnumerable<CommunicationVariable> variables,
+            PollTransportKind transport,
+            Action<string>? log = null)
         {
             var batchable = new List<(PollAddress Address, CommunicationVariable Variable)>();
             var fallbacks = new List<SingleRead>();
@@ -259,13 +270,15 @@ namespace VisionMaster.Communications
                 batchable.Add((poll, variable));
             }
 
-            var segments = MergeSegments(batchable);
+            var segments = MergeSegments(batchable, transport);
             CompileItems(segments, batchable);
             return new PollBatchPlanner(segments, fallbacks, log);
         }
 
         /// <summary>按 协议+存储区 分组、起始地址排序后贪心合并成段</summary>
-        private static List<ReadSegment> MergeSegments(List<(PollAddress Address, CommunicationVariable Variable)> batchable)
+        private static List<ReadSegment> MergeSegments(
+            List<(PollAddress Address, CommunicationVariable Variable)> batchable,
+            PollTransportKind transport)
         {
             var result = new List<ReadSegment>();
 
@@ -279,7 +292,7 @@ namespace VisionMaster.Communications
                     {
                         int newEnd = Math.Max(current.EndUnit, poll.EndUnit);
                         bool overflow = newEnd - current.Start > poll.MaxSegmentUnits; // 段过长 → 超过单请求上限
-                        bool tooFar = poll.Start - current.EndUnit > GapOf(poll);      // 空洞太大 → 白读太多
+                        bool tooFar = poll.Start - current.EndUnit > GapOf(poll, transport); // 空洞太大 → 白读太多
 
                         if (overflow || tooFar)
                         {
@@ -343,8 +356,19 @@ namespace VisionMaster.Communications
             }
         }
 
-        private static int GapOf(PollAddress poll)
+        /// <summary>
+        /// 相邻两段之间允许多大的空档（单元数）。超过就断开、另起一段。
+        /// <para>两档的差别就是"多读一个单元要花多少代价"，见 <see cref="PollTransportKind"/>：</para>
+        /// <para>· <b>以太网</b>：空档几乎免费，于是阈值直接取该区的单请求上限——等价于"不限空档"，
+        /// 段大小完全由 <see cref="PollAddress.MaxSegmentUnits"/> 决定。
+        /// 代价可算：最坏一个段白读 上限−1 个单元（Modbus 寄存器区 = 119 寄存器 = 238 字节，S7 = 109 字节，
+        /// 位区 = 1999 点 = 250 字节），在 TCP 上都是零头，而省下的每次往返实测约 1ms。</para>
+        /// <para>· <b>串口</b>：空档要花线时（9600bps 下 1 个寄存器 ≈ 2.29ms），沿用下面的保守常数。</para>
+        /// </summary>
+        private static int GapOf(PollAddress poll, PollTransportKind transport)
         {
+            if (transport == PollTransportKind.Ethernet) return poll.MaxSegmentUnits;
+
             if (poll.Protocol == PollProtocol.S7) return GapUnitsS7;
             return poll.IsBitArea ? GapUnitsModbusBit : GapUnitsModbusRegister;
         }
@@ -381,6 +405,10 @@ namespace VisionMaster.Communications
             int attempted = 0;
             int failed = 0;
 
+            // 链路级故障短路标志：段读失败且连接自证"链路已死"时置位，
+            // 跳过剩余段与全部单读，本轮回 false 让 Worker 立刻断开重连。
+            bool linkFault = false;
+
             // 字序取自连接本身（ModbusTcp 跟随配置，S7/串口恒 ABCD），保证与单点读同源
             var byteOrder = connection.ByteOrder;
 
@@ -416,28 +444,46 @@ namespace VisionMaster.Communications
 
                     // C5：key 必须带连接名——_logTicks 是 static 的，不含连接名时两条连接读同一地址会互相吞日志
                     LogThrottled($"seg:{seg.ConnectionName}.{seg.Address}", $"段读失败 {seg.Address}（{seg.SpanUnits} 单元）: {ex.Message}");
+
+                    // early-abort：段读失败后问一句"是链路死了，还是只是这个地址读不到"。
+                    // 探针读的是底层 socket 的错误标志（传输层 I/O 是否失败），不含"帧收到了但内容是错误码"
+                    // 的情况（Modbus 非法地址 / S7 越界），所以个别坏地址不会误触发短路。
+                    // 不做这层判断的话，半开链路下每段都要烧掉一整个读超时：段数 × ReadTimeoutMs
+                    // （167 段 × 3s ≈ 8 分钟才判掉线，实测 5 段就已是 15s）。
+                    if (connection is ILinkHealthProbe probe && probe.HasLinkFault)
+                    {
+                        linkFault = true;
+                        _log?.Invoke($"[轮询] 段读失败且链路已判定断开，跳过剩余 {_segments.Count - attempted} 段并立即重连：{seg.Address}: {ex.Message}");
+                        break;
+                    }
                 }
             }
 
-            foreach (var single in _fallbacks)
+            // 链路已死就不要再跑单读：那些读必然也一样超时，而且它们若"部分成功"，
+            // 后面的 failed < attempted 会把这次链路故障算成通信正常，短路就白做了。
+            if (!linkFault)
             {
-                attempted++;
-                try
+                foreach (var single in _fallbacks)
                 {
-                    var value = single.ReadMethod.Invoke(connection, new object[] { single.Variable.Address });
-                    single.Variable.UpdateValue(value);
-                }
-                catch (Exception ex)
-                {
-                    failed++;
-                    single.Variable.MarkUncertain(); // 单读失败：保留旧值，降级 Uncertain
-                    var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
-                    LogThrottled($"var:{single.Variable.ConnectionName}.{single.Variable.VariableName}",
-                        $"单读失败 {single.Variable.VariableName}（{single.Variable.Address}）: {inner.Message}");
+                    attempted++;
+                    try
+                    {
+                        var value = single.ReadMethod.Invoke(connection, new object[] { single.Variable.Address });
+                        single.Variable.UpdateValue(value);
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        single.Variable.MarkUncertain(); // 单读失败：保留旧值，降级 Uncertain
+                        var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
+                        LogThrottled($"var:{single.Variable.ConnectionName}.{single.Variable.VariableName}",
+                            $"单读失败 {single.Variable.VariableName}（{single.Variable.Address}）: {inner.Message}");
+                    }
                 }
             }
 
             if (attempted == 0) return true;   // 无读项：不算故障（连接活性由其它读写刷新）
+            if (linkFault) return false;       // ★ 必须显式判：前几段成功、后段链路断时 failed < attempted 会误判为正常
             return failed < attempted;         // 全失败 ⇒ 通信级故障，交给 Worker 断线重连
         }
 

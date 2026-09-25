@@ -16,8 +16,6 @@ namespace Core.Interfaces
     {
         ILogService Logger { get; }
 
-        IPortBindingService PortBindingService { get; }
-        
         CancellationToken CancellationToken { get; }
 
         FlowControlState CurrentFlowState { get; set; }
@@ -32,7 +30,17 @@ namespace Core.Interfaces
         string CurrentFlowName { get; }
         
         DateTime ExecutionStartTime { get; }
-        
+
+        /// <summary>
+        /// 全局变量写入口：把运行期产出（如 HImage、检测结果）交给"变量管理"里的全局变量。
+        ///
+        /// 为什么挂在执行上下文上：插件只引用 Core.Interfaces，物理上够不到全局变量所在的程序集，
+        /// 上下文是运行期唯一能递送能力的通道（与 Logger 同一范式）。
+        /// 实现方必须保证"非空"：没有工作区时也要返回一个"写入即失败并说明原因"的实现，
+        /// 让插件侧不必为"这个能力可能不存在"再写一层判空。
+        /// </summary>
+        IGlobalVariableWriter GlobalVariables { get; }
+
         IDictionary<string, object> LocalVariables { get; }
     }
 }

@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using HslCommunication.ModBus;
 using HslCommunication.Profinet.Siemens;
+using Newtonsoft.Json;
 using VisionMaster;
 using VisionMaster.Communications;
 
@@ -36,11 +39,13 @@ internal static class Program
     private static long _events;
     private static readonly List<string> Findings = new();
 
-    private static int Main()
+    private static int Main(string[] args)
     {
         Console.OutputEncoding = Encoding.UTF8;
         _real = Console.Out;
         Console.SetOut(Sink);
+
+        bool diagOnly = args.Length > 0 && args[0] == "diag";
 
         int exit = 0;
         try
@@ -55,6 +60,14 @@ internal static class Program
             }
 
             StartS7Server();
+
+            if (diagOnly)
+            {
+                RunDiag();
+                PrintFindings();
+                PrintSinkTail();
+                return 0;
+            }
 
             RunS1();
             RunS2();
@@ -180,7 +193,7 @@ internal static class Program
 
         Say($"  IsStarted={_modbusServer.IsStarted}  端口={_modbusServer.Port}  " +
             $"真连真读={ok}（写 {(w.IsSuccess ? "OK" : w.Message)} / 读 {(r.IsSuccess ? "OK" : r.Message)}）");
-        if (!ok) Find("Modbus 靶子服务器无法完成"写→读"回环，压测数据不可信");
+        if (!ok) Find("Modbus 靶子服务器无法完成「写→读」回环，压测数据不可信");
         Say();
         return ok;
     }
@@ -213,7 +226,140 @@ internal static class Program
         }
 
         if (!_s7Available)
-            Find("S7 虚拟服务器未跑通（HSL 源码注释为"仅限商业授权"），S7 侧压测本轮无法覆盖");
+            Find("S7 虚拟服务器未跑通（HSL 源码注释为「仅限商业授权」），S7 侧压测本轮无法覆盖");
+        Say();
+    }
+
+    /// <summary>把"配置 → 连接实现 → Manager"三段链路逐层拆开，定位连接失败发生在哪一层</summary>
+    private static void RunDiag()
+    {
+        Say("== Diagnostic：逐层拆开连接链路 ==");
+
+        // 保存"传进去的那个实例"的引用，后面靠它做引用同一性比对
+        var original = new ModbusTcpConfig
+        {
+            Type = CommunicationType.ModbusTcp,
+            IpAddress = Host,
+            Port = ModbusPort,
+            TimeoutMs = 2000,
+            ReadTimeoutMs = 3000,
+            RetryCount = 1,
+            RetryIntervalMs = 500,
+        };
+        var cfg = new CommunicationConfig("Diag_Modbus", original) { ReadCycleMs = 1000, AutoReconnect = true };
+        var mcfg = cfg.Config as ModbusTcpConfig;
+        Say($"  传入的 original ：Type={original.Type}  TimeoutMs={original.TimeoutMs}  " +
+            $"ReadTimeoutMs={original.ReadTimeoutMs}  Ip={original.IpAddress}  Port={original.Port}");
+        Say($"  cfg.Config 实际 ：Type={mcfg?.Type}  TimeoutMs={mcfg?.TimeoutMs}  " +
+            $"ReadTimeoutMs={mcfg?.ReadTimeoutMs}  Ip={mcfg?.IpAddress}  Port={mcfg?.Port}");
+        Say($"  引用同一性 ReferenceEquals(cfg.Config, original) = {ReferenceEquals(cfg.Config, original)}" +
+            "   ← True 即「2 参构造器把传入配置原样落了进去」（修复前恒为 False）");
+
+        // ① 裸 HSL：无参构造 + 赋 Ip/Port（与 ModbusTcpConnection 完全同构）
+        var raw = new ModbusTcpNet
+        {
+            IpAddress = Host,
+            Port = ModbusPort,
+            ConnectTimeOut = 2000,
+            ReceiveTimeOut = 3000,
+        };
+        var rc = raw.ConnectServer();
+        Say($"  ① HSL 裸连（无参构造 + 赋 Ip/Port）：IsSuccess={rc.IsSuccess}  " +
+            $"ErrorCode={rc.ErrorCode}  Msg={rc.Message}  回读Ip/Port={raw.IpAddress}:{raw.Port}");
+        if (rc.IsSuccess)
+        {
+            var rr = raw.Read("x=3;0", 1);
+            Say($"     读 x=3;0 → IsSuccess={rr.IsSuccess}  Msg={rr.Message}");
+            raw.ConnectClose();
+        }
+
+        // ② 裸 HSL：带参构造（对照组）
+        var raw2 = new ModbusTcpNet(Host, ModbusPort) { ConnectTimeOut = 2000, ReceiveTimeOut = 3000 };
+        var rc2 = raw2.ConnectServer();
+        Say($"  ② HSL 带参构造 new ModbusTcpNet(ip, port)：IsSuccess={rc2.IsSuccess}  " +
+            $"ErrorCode={rc2.ErrorCode}  Msg={rc2.Message}");
+        raw2.ConnectClose();
+
+        // ③ 产品连接实现（用 cfg.Config —— 即"构造之后实际留在配置里的那一份"）
+        using (var conn = new ModbusTcpConnection((ModbusTcpConfig)cfg.Config!))
+        {
+            bool ok3 = conn.Connect();
+            Say($"  ③ ModbusTcpConnection.Connect()（用 cfg.Config）：{ok3}   实际目标={conn.ConnectionName}");
+            if (ok3) conn.Disconnect();
+        }
+
+        // ③c 产品连接实现（用 original —— 我本意要连的那一份 1502）
+        using (var conn = new ModbusTcpConnection(original))
+        {
+            bool ok3c = conn.Connect();
+            Say($"  ③c ModbusTcpConnection.Connect()（用 original）：{ok3c}   实际目标={conn.ConnectionName}");
+            if (ok3c) conn.Disconnect();
+        }
+
+        // ★ ③b 结论：CommunicationConfig(name, config) 是否把传进来的 config 原样保留
+        Say($"  ③b 引用同一性 ReferenceEquals(cfg.Config, 传入的 original) = {ReferenceEquals(cfg.Config, original)}" +
+            "（True = 传入配置被原样保留；修复前恒为 False，即被默认配置顶掉）");
+
+        // ④ 走 Manager 全景
+        using (var mgr = NewManager())
+        {
+            try { mgr.AddConnection(cfg); }
+            catch (Exception ex) { Say($"  ④ AddConnection 抛异常：{ex.Message}"); return; }
+
+            Say($"  ④ AddConnection 后：cfg.Config?.TimeoutMs={cfg.Config?.TimeoutMs}  cfg.State={cfg.State}");
+            bool ok4 = mgr.Connect(cfg.ConnectionName);
+            var st = mgr.GetAllConnections().FirstOrDefault(c => c.ConnectionName == cfg.ConnectionName);
+            var impl = mgr.GetConnection(cfg.ConnectionName);
+            Say($"  ④ Manager.Connect()：{ok4}   最终 State={st?.State}   " +
+                $"LastError={(st?.HasError == true ? st.LastError : "无")}");
+            Say($"  ④ GetConnection 实现：{(impl == null ? "null" : impl.GetType().Name)}  IsConnected={impl?.IsConnected}");
+        }
+
+        // ⑤ 回归：不再需要任何二次赋值，2 参构造器直接把 original 落进去，连接就应当成功
+        using (var mgr = NewManager())
+        {
+            var cfg2 = new CommunicationConfig("Diag_Modbus2", original) { ReadCycleMs = 1000, AutoReconnect = true };
+            mgr.AddConnection(cfg2);
+            bool ok5 = mgr.Connect(cfg2.ConnectionName);
+            var impl2 = mgr.GetConnection(cfg2.ConnectionName);
+            Say($"  ⑤ 只用 2 参构造器（不二次赋 Config）→ Manager.Connect()：{ok5}   IsConnected={impl2?.IsConnected}" +
+                "（True = 构造器已修；修复前这里会失败，必须靠构造后再赋一次 Config 才能连上）");
+        }
+
+        // ⑥ JSON 往返：验证"存盘 → 读盘"这条路同样安全
+        var cfg3 = new CommunicationConfig("Diag_Modbus3", original) { ReadCycleMs = 1000, AutoReconnect = true };
+        string json = JsonConvert.SerializeObject(cfg3, Formatting.None);
+        var back = JsonConvert.DeserializeObject<CommunicationConfig>(json);
+        var backCfg = back?.Config as ModbusTcpConfig;
+        Say($"  ⑥ JSON 往返后：Port={backCfg?.Port}  TimeoutMs={backCfg?.TimeoutMs}  " +
+            $"（1502 / 2000 即「存盘读盘安全」，本坑只在 2 参构造这条 API 上）");
+        Say($"     JSON 里 Protocol 与 Config 的先后：Protocol@{json.IndexOf("\"Protocol\"", StringComparison.Ordinal)}  " +
+            $"Config@{json.IndexOf("\"Config\"", StringComparison.Ordinal)}（Protocol 在前 → 反序列化先建默认、后被真值覆盖）");
+
+        // ⑦ 无 WPF 宿主下 config.State 是否可用：SafeDispatch.BeginInvoke 在 Application.Current == null
+        //    时直接 return，而 OnWorkerStateChanged 把 `config.State = newState` 正放在这条会被丢弃的路径里。
+        using (var mgr = NewManager())
+        {
+            var cfg4 = NewModbusConfig("Diag_State", 1000);
+            bool added = mgr.AddConnection(cfg4);
+            bool conn4 = mgr.Connect(cfg4.ConnectionName);
+            Thread.Sleep(1500); // 留足时间让 Worker 状态机走到 Connected 并尝试回写 config.State
+
+            var snap = mgr.GetAllConnections().FirstOrDefault(c => c.ConnectionName == cfg4.ConnectionName);
+            bool implConnected = mgr.GetConnection(cfg4.ConnectionName)?.IsConnected ?? false;
+            var newApiState = mgr.GetConnectionState(cfg4.ConnectionName);
+            Say($"  ⑦ AddConnection={added}  Manager.Connect={conn4}  等待 1500ms 后：");
+            Say($"     config.State（GetAllConnections 返回的 UI 绑定字段）= {snap?.State}");
+            Say($"     GetConnection(name).IsConnected（连接实现，真实值）  = {implConnected}");
+            Say($"     GetConnectionState(name)（新增：读 Worker，不经 Dispatcher） = {newApiState}" +
+                "   ← 非 WPF 宿主下应当用这一条");
+            Say($"     Application.Current = {(System.Windows.Application.Current == null ? "null（无 WPF 宿主）" : "非空")}" +
+                "   ← null 即 SafeDispatch.BeginInvoke 直接丢弃，config.State 永远是 Disconnected");
+            if (implConnected && snap?.State != ConnectionState.Connected)
+                Find("【Headless 状态失真】无 WPF 宿主时 GetAllConnections()[i].State 恒为 Disconnected（SafeDispatch 丢弃回写），" +
+                     "控制台/Windows 服务/单元测试里查询连接状态会得到错误结果；已新增 GetConnectionState(name) / GetConnectionError(name) 读 Worker 绕开该限制");
+        }
+
         Say();
     }
 
@@ -230,18 +376,26 @@ internal static class Program
 
     private static CommunicationConfig NewModbusConfig(
         string name, int cycleMs, params ScanGroupConfig[] groups)
+        => NewModbusConfigCore(name, cycleMs, ModbusPort, groups);
+
+    /// <summary>可指定目标端口的版本（S8 要连 TCP 继电器，故不能固定 ModbusPort）</summary>
+    private static CommunicationConfig NewModbusConfigCore(
+        string name, int cycleMs, int port, ScanGroupConfig[] groups)
     {
-        var cfg = new CommunicationConfig(name, new ModbusTcpConfig
+        var link = new ModbusTcpConfig
         {
             // ⚠ 必写：Type 默认值是 0(=ModbusTcp)，但 S7/串口配置漏写会被 Validate 判"协议类型不匹配"
             Type = CommunicationType.ModbusTcp,
             IpAddress = Host,
-            Port = ModbusPort,
+            Port = port,
             TimeoutMs = 2000,
             ReadTimeoutMs = 3000,
             RetryCount = 1,
             RetryIntervalMs = 500,
-        })
+        };
+        // 2 参构造器内部按 Protocol 先、Config 后的顺序赋值，传入的 link 会原样落进去（曾经不是，
+        // 修好后这里不再需要"构造之后再赋一次 Config"的绕行；diag 模式 ③/③b/⑤ 是这条结论的回归探针）。
+        var cfg = new CommunicationConfig(name, link)
         {
             ReadCycleMs = cycleMs,
             AutoReconnect = true,
@@ -252,7 +406,7 @@ internal static class Program
 
     private static CommunicationConfig NewS7Config(string name, int cycleMs, int retryMs = 500)
     {
-        return new CommunicationConfig(name, new SiemensS7Config
+        var link = new SiemensS7Config
         {
             Type = CommunicationType.SiemensS7,
             IpAddress = Host,
@@ -261,7 +415,9 @@ internal static class Program
             ReadTimeoutMs = 3000,
             RetryCount = 1,
             RetryIntervalMs = retryMs,
-        })
+        };
+        // 同上：2 参构造器已修，无需再二次赋 Config
+        return new CommunicationConfig(name, link)
         {
             ReadCycleMs = cycleMs,
             AutoReconnect = true,
@@ -452,7 +608,7 @@ internal static class Program
 
     private static void RunS3()
     {
-        Say("== S3 稀疏地址 1000 点 step=10（间隔 9 > 合并阈值 8）==");
+        Say("== S3 稀疏地址 1000 点 step=10（相邻间隔 9）==");
         const int points = 1000;
         var cfg = NewModbusConfig("S3_Modbus", 1000);
         using var mgr = NewManager();
@@ -461,13 +617,17 @@ internal static class Program
 
         var preview = mgr.GetScanGroupPreview(cfg.ConnectionName).FirstOrDefault();
         Say($"  静态画像：段数 {preview.SegmentCount}，点/段 {(preview.SegmentCount > 0 ? (double)preview.VariableCount / preview.SegmentCount : 0):F2}");
-        Say($"  期望：每点独立成段（段数 ≈1000、点/段 = 1.0）");
+        // 空档容忍按传输分档（见 PollTransportKind）：
+        //   以太网 = 单请求上限 120 → 一段装 12 个点（10×11+1 = 111 ≤ 120）→ 段数 ≈ 84、点/段 ≈ 11.9
+        //   串口   = 保守常数 8     → 9 > 8 → 每点自成一段 → 段数 ≈ 1000、点/段 = 1.0
+        // 本机靶子是 ModbusTcp，故期望 84 段；修复前不论传输都按 8 走，拿到的是 1000 段。
+        Say($"  期望（以太网档）：段数 ≈ 84、点/段 ≈ 11.9；若走串口档则仍是 ≈1000 段 / 1.0");
 
         if (!mgr.Connect(cfg.ConnectionName)) { Say("  连接失败"); return; }
         var m = Measure(mgr, cfg.ConnectionName, $"{points} 点 / 步长 10", 2000, 5000, points);
 
         if (m.Stats.FirstOrDefault().SegmentCount > 500)
-            Find("S3 稀疏点位产生近千个单点段（1000 请求/轮）：建议增加"段内允许空档"或点位密度自适应，把稀疏区按更大跨度整体读回后本地裁剪");
+            Find("S3 稀疏点位仍产生近千个单点段（1000 请求/轮）：说明该连接走的是串口档（阈值 8）或点表步长超过单请求上限，无法靠放宽空档合并");
     }
 
     private static void RunS4()
@@ -690,8 +850,26 @@ internal static class Program
 
     private static void RunS8()
     {
-        Say("== S8 断线重连：靶子服务器关停→恢复（RetryIntervalMs=500）==");
-        var cfg = NewModbusConfig("S8_Modbus", 200);
+        const int relayPort = 1602;
+        Say($"== S8 断线重连：经 TCP 继电器 {relayPort} → {ModbusPort}（RetryIntervalMs=500）==");
+
+        using var relay = new TcpRelay(relayPort, ModbusPort);
+        relay.Start();
+
+        // 继电器自检：不通就说明压测台自身有问题，结论不可信，直接收摊
+        using (var probe = new ModbusTcpNet(Host, relayPort) { ConnectTimeOut = 2000, ReceiveTimeOut = 2000 })
+        {
+            var pr = probe.Read("x=3;0", 1);
+            Say($"  继电器自检：读 x=3;0 IsSuccess={pr.IsSuccess}  Msg={pr.Message}");
+            if (!pr.IsSuccess)
+            {
+                Find("S8 TCP 继电器不通，断线重连结论不可信");
+                Say();
+                return;
+            }
+        }
+
+        var cfg = NewModbusConfigCore("S8_Modbus", 200, relayPort, Array.Empty<ScanGroupConfig>());
         using var mgr = NewManager();
         if (!mgr.AddConnection(cfg)) { Say("  AddConnection 失败"); return; }
         RegModbusBlock(mgr, cfg.ConnectionName, 0, 500, 1);
@@ -705,44 +883,74 @@ internal static class Program
 
         if (!mgr.Connect(cfg.ConnectionName)) { Say("  连接失败"); return; }
         Thread.Sleep(2000);
+        long warnBefore = Sink.WarnLines;
         long errBefore = Sink.ErrorLines;
-        Say($"  已连接，开始关停靶子服务器…");
 
-        // 关服务器 → 量掉线检测耗时
-        _modbusServer!.ServerClose();
-        long lostAt = WaitState(mgr, cfg.ConnectionName, ConnectionState.Connected, want: false, timeoutMs: 15000);
-        Say($"  掉线检测耗时：{(lostAt < 0 ? "超时未检测到" : lostAt + " ms")}（轮询周期 200ms + 读超时 3000ms）");
+        // ── 阶段 A：掐断继电器（客户端立刻收到连接关闭，等价于拔网线）→ 量掉线检测耗时
+        Say("  [A] 掐断继电器（连接被关闭）…");
+        relay.Stop();
+        long lostAt = WaitState(mgr, cfg.ConnectionName, wantConnected: false, timeoutMs: 15000);
+        Say($"      掉线检测耗时：{(lostAt < 0 ? "超时未检测到" : lostAt + " ms")}（轮询周期 200ms + 读超时 3000ms）");
+        Thread.Sleep(4000); // 保持断开：确保每个段都真失败过，排除 HSL 在段间自愈把故障吞掉的可能
 
-        // 恢复服务器 → 量重连耗时
-        _modbusServer.ServerStart();
-        long backAt = WaitState(mgr, cfg.ConnectionName, ConnectionState.Connected, want: true, timeoutMs: 30000);
-        Say($"  重连恢复耗时：{(backAt < 0 ? "超时未恢复" : backAt + " ms")}（退避基准 500ms）");
+        // ── 阶段 B：恢复继电器 → 量重连耗时
+        Say("  [B] 恢复继电器…");
+        relay.Start();
+        long backAt = WaitState(mgr, cfg.ConnectionName, wantConnected: true, timeoutMs: 30000);
+        Say($"      重连恢复耗时：{(backAt < 0 ? "超时未恢复" : backAt + " ms")}（退避基准 500ms）");
+        Thread.Sleep(1000);
+
+        // ── 阶段 C：静默（TCP 还在、就是不回包）→ 只能靠读超时兜底，验证"半开"场景
+        Say("  [C] 继电器静默（连接保持着，字节不再搬运）…");
+        relay.Pause();
+        long silentAt = WaitState(mgr, cfg.ConnectionName, wantConnected: false, timeoutMs: 20000);
+        Say($"      静默掉线检测耗时：{(silentAt < 0 ? "超时未检测到" : silentAt + " ms")}（下限应为 ReadTimeoutMs=3000）");
+        Thread.Sleep(2000);
+
+        // ── 阶段 D：解除静默 → 量恢复
+        Say("  [D] 解除静默…");
+        relay.Resume();
+        long silentBackAt = WaitState(mgr, cfg.ConnectionName, wantConnected: true, timeoutMs: 30000);
+        Say($"      静默后恢复耗时：{(silentBackAt < 0 ? "超时未恢复" : silentBackAt + " ms")}");
 
         Thread.Sleep(1500);
         var vars = mgr.GetScanGroupStats(cfg.ConnectionName).FirstOrDefault();
-        var conns = mgr.GetAllConnections();
-        var st = conns.FirstOrDefault(c => c.ConnectionName == cfg.ConnectionName);
-        Say($"  恢复后状态：{st?.State}  坏段 {vars.FaultedSegmentCount}  最后错误 {(st?.HasError == true ? st.LastError : "无")}");
-        Say($"  通信库错误日志行数：{Sink.ErrorLines - errBefore}（这段时间内）");
+        var st = mgr.GetAllConnections().FirstOrDefault(c => c.ConnectionName == cfg.ConnectionName);
+        bool live = mgr.GetConnection(cfg.ConnectionName)?.IsConnected ?? false;
+        // ★ 两个状态源对照：控制台（无 WPF 宿主）下 config.State 会被 SafeDispatch 静默丢弃，恒为 Disconnected
+        Say($"  状态源对照：config.State={st?.State}（UI 绑定字段）  连接实现 IsConnected={live}（真实值）");
+        Say($"  恢复后：坏段 {vars.FaultedSegmentCount}  最后错误 {(st?.HasError == true ? st.LastError : "无")}");
+        Say($"  本轮日志增量：WARNING {Sink.WarnLines - warnBefore} 行 / ERROR {Sink.ErrorLines - errBefore} 行");
         Say($"  状态迁移轨迹：{string.Join(" → ", transitions.Select(x => $"{x.from}→{x.to}@{x.ms}ms"))}");
         Say();
 
-        if (lostAt < 0) Find("S8 服务器关停后 15s 内未检测到掉线，掉线检测偏慢");
-        else if (lostAt > 5000) Find($"S8 掉线检测耗时 {lostAt} ms（轮询周期 200ms + ReceiveTimeOut 3000ms）：单次读超时决定了下限，可考虑按周期自适应收紧读超时");
-        if (backAt < 0) Find("S8 服务器恢复后 30s 内未重连成功，重连链路有问题");
-        if (Sink.ErrorLines - errBefore > 50)
-            Find($"S8 一次断线刷了 {Sink.ErrorLines - errBefore} 行错误日志：按"每次失败都打"产生日志风暴，建议按连接+地址限流");
+        long warnDelta = Sink.WarnLines - warnBefore;
+        if (lostAt < 0) Find("S8[A] 掐线后 15s 内未检测到掉线，掉线检测偏慢");
+        else if (lostAt > 5000) Find($"S8[A] 掐线掉线检测耗时 {lostAt} ms 偏长：单次读超时（3000ms）决定了下限，可考虑按轮询周期自适应收紧读超时");
+        if (backAt < 0) Find("S8[B] 继电器恢复后 30s 内未重连成功，重连链路有问题");
+        else if (backAt > 3000) Find($"S8[B] 重连耗时 {backAt} ms（退避基准 500ms）：断线恢复偏慢");
+        if (silentAt < 0) Find("S8[C] 服务器静默 20s 内未判掉线：ReadTimeoutMs=3000 未兜住半开连接，属于严重漏检");
+        else if (silentAt > 6000) Find($"S8[C] 静默掉线检测 {silentAt} ms（ReadTimeoutMs=3000）：连续多次超时才判掉线，恢复及时性受影响");
+        if (silentBackAt < 0) Find("S8[D] 静默解除后 30s 内未恢复");
+        if (warnDelta > 50)
+            Find($"S8 一次断线刷了 {warnDelta} 行 WARNING 日志：按「每次失败都打」产生日志风暴，建议按连接+地址限流");
     }
 
+    /// <summary>
+    /// 等到连接进入/离开 Connected。
+    /// <para><b>为什么不用 config.State</b>：Manager 的 OnWorkerStateChanged 把 `config.State = newState`
+    /// 包在 SafeDispatch.BeginInvoke 里，而 SafeDispatch 在 `Application.Current == null`（控制台/服务等
+    /// 无 WPF 宿主）时**直接 return、动作永不执行**——config.State 会永久停在 Disconnected。
+    /// 故这里改读连接实现自身的 IsConnected（Connect/Disconnect 直接置位，不经 Dispatcher）。</para>
+    /// </summary>
     private static long WaitState(
-        AdvancedCommunicationManager mgr, string conn, ConnectionState target, bool want, int timeoutMs)
+        AdvancedCommunicationManager mgr, string conn, bool wantConnected, int timeoutMs)
     {
         var sw = Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)
         {
-            var st = mgr.GetAllConnections().FirstOrDefault(c => c.ConnectionName == conn);
-            bool isTarget = st != null && st.State == target;
-            if (isTarget == want) return sw.ElapsedMilliseconds;
+            if ((mgr.GetConnection(conn)?.IsConnected ?? false) == wantConnected)
+                return sw.ElapsedMilliseconds;
             Thread.Sleep(50);
         }
         return -1;
@@ -794,6 +1002,148 @@ internal static class Program
     }
 
     private static void Find(string text) => Findings.Add(text);
+
+    #endregion
+
+    #region TCP 继电器（S8 掐线用）
+
+    /// <summary>
+    /// 可随时掐断 / 恢复的 TCP 继电器：监听 <see cref="_listenPort"/>，把字节原样转发到 127.0.0.1:<see cref="_upstreamPort"/>。
+    ///
+    /// <para><b>为什么要它（踩过的坑）</b>：HSL 的 <c>CommunicationTcpServer.ServerClose()</c> 在"客户端正连着"时
+    /// 会直接关掉监听 socket，而它的接受循环（<c>AsyncAcceptCallback</c>）在连续 3 次 <c>BeginAccept</c> 失败后
+    /// 会 <c>throw new Exception</c>（见 CommunicationTcpServer.cs:243-247）。这个异常在线程池线程上抛出，
+    /// 调用方的 try/catch 拦不到，**整个进程被带走**——本轮首次完整压测就是这么崩的（崩在 S8）。
+    /// 那是 HSL **服务端**代码的缺陷；本产品的通信库是纯客户端，不受影响，但压测台必须绕开它。</para>
+    ///
+    /// <para><b>做法</b>：靶子服务器全程不动，改在中间加一跳继电器。掐断继电器 = 客户端侧看到连接被关闭（等价于断网 / 交换机拔线），
+    /// 恢复继电器 = 客户端重连成功。既真实，又不碰 HSL 那个服务端地雷。</para>
+    ///
+    /// <para>本类自身也刻意做到"任何异常都不外抛"：接受循环、转发线程全部兜底 catch，
+    /// 绝不让自己变成第二个把进程干掉的元凶。</para>
+    /// </summary>
+    private sealed class TcpRelay : IDisposable
+    {
+        private readonly int _listenPort;
+        private readonly int _upstreamPort;
+        private readonly List<Socket> _sockets = new();
+        private Socket? _listener;
+        private volatile bool _running;
+
+        /// <summary>静默模式：TCP 连接照旧保持着，但不再搬运任何字节（模拟"服务器进程还在、就是不回包"的半开场景）</summary>
+        private volatile bool _paused;
+
+        public TcpRelay(int listenPort, int upstreamPort)
+        {
+            _listenPort = listenPort;
+            _upstreamPort = upstreamPort;
+        }
+
+        /// <summary>静默：连接不断，但客户端发的请求被吞掉、服务端的应答也回不去 → 只能靠读超时兜底</summary>
+        public void Pause() => _paused = true;
+
+        /// <summary>恢复搬运</summary>
+        public void Resume() => _paused = false;
+
+        public void Start()
+        {
+            if (_running) return;
+            _running = true;
+            var listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            // 允许"掐断后立刻重开"复用同一个监听端口（否则 TIME_WAIT 会让第二次 Bind 失败）
+            listener.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            listener.Bind(new IPEndPoint(IPAddress.Loopback, _listenPort));
+            listener.Listen(64);
+            _listener = listener;
+            new Thread(AcceptLoop) { IsBackground = true, Name = "relay-accept" }.Start();
+        }
+
+        /// <summary>掐线：关监听 + 关掉所有已建立的转发连接（客户端会立刻收到连接关闭）</summary>
+        public void Stop()
+        {
+            if (!_running) return;
+            _running = false;
+            try { _listener?.Close(); } catch { /* 已关或未开，忽略 */ }
+            _listener = null;
+            lock (_sockets)
+            {
+                foreach (var s in _sockets) TryClose(s);
+                _sockets.Clear();
+            }
+        }
+
+        public void Dispose() => Stop();
+
+        private void AcceptLoop()
+        {
+            while (_running)
+            {
+                Socket client;
+                try
+                {
+                    client = _listener!.Accept();
+                }
+                catch (ObjectDisposedException) { break; }            // 正常掐线
+                catch (SocketException) { if (!_running) break; continue; }
+                catch { break; }                                     // 兜底：继电器绝不外抛
+
+                var upstream = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                try
+                {
+                    upstream.Connect(IPAddress.Loopback, _upstreamPort);
+                }
+                catch
+                {
+                    // 靶子服务器没在听：关掉这条，继续接下一根
+                    TryClose(client);
+                    TryClose(upstream);
+                    continue;
+                }
+
+                lock (_sockets)
+                {
+                    _sockets.Add(client);
+                    _sockets.Add(upstream);
+                }
+                Pump(client, upstream);
+                Pump(upstream, client);
+            }
+        }
+
+        /// <summary>单向搬运字节；任一方向断开就把这对 socket 都关掉（Modbus 是请求/应答式，不需要半关闭语义）</summary>
+        private void Pump(Socket from, Socket to)
+        {
+            new Thread(() =>
+            {
+                var buffer = new byte[16 * 1024];
+                try
+                {
+                    while (true)
+                    {
+                        if (_paused) { Thread.Sleep(20); continue; }   // 静默期：把字节留在缓冲里，谁也不发
+                        int n = from.Receive(buffer);
+                        if (n <= 0) break;
+                        if (_paused) continue;                          // 收下但不转发
+                        to.Send(buffer, 0, n, SocketFlags.None);
+                    }
+                }
+                catch { /* 掐线时必然抛，属预期 */ }
+                finally
+                {
+                    TryClose(from);
+                    TryClose(to);
+                }
+            })
+            { IsBackground = true, Name = "relay-pump" }.Start();
+        }
+
+        private static void TryClose(Socket? s)
+        {
+            if (s == null) return;
+            try { s.Shutdown(SocketShutdown.Both); } catch { /* 未连接 / 已关闭 */ }
+            try { s.Close(); } catch { /* 已关闭 */ }
+        }
+    }
 
     #endregion
 }

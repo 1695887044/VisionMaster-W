@@ -44,8 +44,8 @@ namespace FlowCanvasChecks
                 return run;
 
             var session = new FlowSession { FlowName = FlowName, ExecutionEngine = result.Data };
-            foreach (var step in blueprints)
-                session.Blueprints.Add(step);
+            // 与生产同口径：递归填充（含容器内嵌套步骤），别在断言宿主里留一份浅填
+            session.AddBlueprintsDeep(blueprints);
 
             run.Session = session;
             return run;
@@ -94,6 +94,21 @@ namespace FlowCanvasChecks
 
         private static void Add(List<string> target, string[] messages, string level)
             => target.Add(level + ":" + string.Join(";", messages));
+    }
+
+    /// <summary>
+    /// 用户通知桩：把 Info/Warn/Error 文案收进内存，供断言"该提示的有没有提示"。
+    /// PluginProvider / PluginService 的构造要求 notifier 非空，断言里要直接建它们。
+    /// </summary>
+    internal sealed class StubNotifier : IUserNotifier
+    {
+        public List<string> Infos { get; } = new();
+        public List<string> Warns { get; } = new();
+        public List<string> Errors { get; } = new();
+
+        public void ShowInfo(string message) => Infos.Add(message);
+        public void ShowWarn(string message) => Warns.Add(message);
+        public void ShowError(string message) => Errors.Add(message);
     }
 
     /// <summary>

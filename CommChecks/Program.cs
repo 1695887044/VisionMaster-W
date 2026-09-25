@@ -69,6 +69,7 @@ namespace CommChecks
             FaultedSegmentHealth();
             WritePriorityAndBackpressure();
             WaitSchedulingAndLogThrottleKey();
+            GapToleranceByTransport();
             CommunicationProtocolsAndAddRollback();
             // 本段是唯一会真发起 TCP 连接的断言（靶子是本机未监听端口，内核秒拒），放最后
             TestConnectionAsyncContract().GetAwaiter().GetResult();
@@ -916,9 +917,11 @@ namespace CommChecks
 
             var cfg = MakeConfig(1000);
 
-            // 两个地址相隔 100 个寄存器 → 超过间隙容忍（8）→ 必然拆成 2 段，可分别注入失败
+            // 两个地址相隔 200 个寄存器 → 超过以太网档的间隙容忍（= 单请求上限 120）→ 必然拆成 2 段，可分别注入失败。
+            // ⚠ 必须 > 120：早期用 100 是"串口档阈值 8"下调出来的数；放宽阈值后 100 < 120 会被并成 1 段，
+            // 本组"可分别注入失败"的前提就塌了。
             var goodVar = MakeVar("GOOD", "", 0);
-            var badVar = MakeVar("BAD", "", 100);
+            var badVar = MakeVar("BAD", "", 200);
             string badAddress = badVar.Address; // 段地址 = SegmentPrefix + Start，与变量地址同串
 
             var logs = new List<string>();
@@ -1295,8 +1298,8 @@ namespace CommChecks
 
             var logsA = new List<string>();
             var logsB = new List<string>();
-            var plannerA = PollBatchPlanner.Build(new[] { badA }, logsA.Add)!;
-            var plannerB = PollBatchPlanner.Build(new[] { badB }, logsB.Add)!;
+            var plannerA = PollBatchPlanner.Build(new[] { badA }, PollTransportKind.Ethernet, logsA.Add)!;
+            var plannerB = PollBatchPlanner.Build(new[] { badB }, PollTransportKind.Ethernet, logsB.Add)!;
 
             using var connA = new FaultyConnection("C5_A", _ => true);
             using var connB = new FaultyConnection("C5_B", _ => true);
@@ -1357,6 +1360,56 @@ namespace CommChecks
             worker.PollScheduler = scheduler;
             WorkerStateField!.SetValue(worker, (int)ConnectionState.Connected);
             return (int)WorkerComputeWaitMsMethod!.Invoke(worker, null)!;
+        }
+
+        #endregion
+
+        #region C15 空档容忍按传输分档
+
+        /// <summary>
+        /// 空档容忍（<c>GapOf</c>）必须按<b>传输</b>分档，而不是一刀切。
+        ///
+        /// <para>背景：原实现只看协议（S7 / Modbus 寄存器区 / Modbus 位区）给了三个常数（16 / 8 / 64），
+        /// 在以太网上代价失衡——多读 119 个寄存器只有 238 字节，却省下一次往返（实测约 1ms），
+        /// 而"步长 10"的点表因为 9 &gt; 8 被拆成"每点一段"（压测 S3：1000 点 → 1000 段 → 923 请求/s 占满 1000ms 周期）。</para>
+        ///
+        /// <para>但也不能无脑放开：串口上多读 1 个寄存器 ≈ 2.29ms 线时（9600bps），
+        /// 合并反而比多跑一次往返还贵。故以太网档取"该区的单请求上限"（等价于不限空档，只受上限约束），
+        /// 串口档保留原常数。<b>本组同时钉住"放开"与"不放开"两侧</b>，缺任何一侧都可能被后人改坏。</para>
+        /// </summary>
+        private static void GapToleranceByTransport()
+        {
+            Section("C15 空档容忍按传输分档（以太网放开 / 串口不变）");
+
+            // 100 个点、步长 10 个寄存器（相邻间隔 9）——压测 S3 里"每个点自成一段"的那张点表
+            var sparse = Enumerable.Range(0, 100)
+                .Select(i => MakeVar($"V{i}", "", i * 10))
+                .ToArray();
+
+            var tcpCfg = MakeConfig(1000);   // ModbusTcp → EthernetConfigBase → 以太网档
+            var rtuCfg = new CommunicationConfig(CommunicationType.ModbusRtu)
+            {
+                ConnectionName = "PLC1",
+                ReadCycleMs = 1000
+            };                               // ModbusRtu → SerialConfig → 串口档
+
+            var tcp = PollScheduler.Create(sparse, tcpCfg, null)!;
+            var rtu = PollScheduler.Create(sparse, rtuCfg, null)!;
+
+            // 以太网档：一段能装下 12 个点（10×11+1 = 111 ≤ 120，第 13 个点 121 > 120 必须另起）→ ceil(100/12) = 9
+            Check("C15-1 以太网档：100 点 / 步长 10 → 9 段（空档近乎免费，只受单请求上限 120 约束）",
+                tcp.TotalSegments == 9, tcp.Describe());
+            Check("C15-2 串口档：同一点表 → 100 段（空档要花真实线时，行为与改动前一字不差）",
+                rtu.TotalSegments == 100, rtu.Describe());
+            Check("C15-3 两种档位点数守恒（合并只改变往返次数，一个点都不丢）",
+                tcp.GetStats()[0].VariableCount == 100 && rtu.GetStats()[0].VariableCount == 100,
+                $"TCP={tcp.GetStats()[0].VariableCount} / RTU={rtu.GetStats()[0].VariableCount}");
+
+            // 上限必须仍然生效：放开的是"空档"，不是"段大小"。900 个连续寄存器不能并成 1 段
+            var dense = Enumerable.Range(0, 900).Select(i => MakeVar($"D{i}", "", i)).ToArray();
+            var denseTcp = PollScheduler.Create(dense, tcpCfg, null)!;
+            Check("C15-4 以太网档仍受单请求上限封顶：900 个连续寄存器 → 8 段（不是 1 段）",
+                denseTcp.TotalSegments == 8, denseTcp.Describe());
         }
 
         #endregion

@@ -8,7 +8,7 @@ namespace VisionMaster.Communications
     /// <para>西门子 S7 协议连接实现类。</para>
     /// <para>封装 HslCommunication 的 SiemensS7Net 设备，提供标准化的通信接口。</para>
     /// </summary>
-    public class SiemensS7Connection : ICommunicationConnection
+    public class SiemensS7Connection : ICommunicationConnection, ILinkHealthProbe
     {
         private readonly SiemensS7Net _device;
         private bool _isConnected;
@@ -24,6 +24,14 @@ namespace VisionMaster.Communications
 
         /// <inheritdoc />
         public bool IsConnected => _isConnected;
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// <para>取 HSL 管道自身的链路错误判定 <c>CommunicationPipe.IsConnectError()</c>
+        /// （与 ModbusTcpConnection.HasLinkFault 同一原理）：只反映"上一次传输 I/O 是否失败"，
+        /// S7 地址越界之类的协议错误发生在帧收到之后，不会误触发。</para>
+        /// </remarks>
+        public bool HasLinkFault => _device.CommunicationPipe?.IsConnectError() ?? false;
 
         /// <inheritdoc />
         /// <remarks>S7 报文本身就是大端字节流，没有 Modbus 那种"多寄存器字序"概念，恒为 ABCD。</remarks>

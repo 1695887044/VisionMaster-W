@@ -1,0 +1,120 @@
+<UserControl
+    x:Class="VisionMaster.Plugins.Util.VariableAssignmentView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="240"
+    d:DesignWidth="560"
+    mc:Ignorable="d">
+
+    <!--
+        「变量赋值」的自定义配置视图。
+
+        为什么不用通用的「变量绑定」窗口：那个窗口是"给任意端口绑任意数据源"的通用工具，
+        而本节点只有"给一个变量赋一个值"这么简单的事。用通用工具表达简单意图，
+        用户不得不先消化「输入端口 / 绑定 / 常量 / 上游输出端口」一整套概念 ——
+        于是三栏并列看起来像三个平等选项、上游列表里全是无关节点、右下的 Success/ErrorMessage
+        也看不出归属。这里直接把语义摊平成三行：变量名 / 值 / 自动创建。
+
+        两个控件选择：
+          · 「变量名」「值」用 LinkableValueEditor —— 它把"手填常量"与"链接上游"合成一行，
+            想引上游结果时才点行尾的链接图标，平常见到的就是一个普通输入框。
+          · 「自动创建」用 CheckBox —— 布尔开关用勾选框比在文本框里敲 true 直观。
+    -->
+    <Border
+        Margin="12"
+        Padding="16"
+        Background="#FFFFFF"
+        BorderBrush="#E5E5E5"
+        BorderThickness="1"
+        CornerRadius="8">
+        <StackPanel>
+            <TextBlock
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="#303133"
+                Text="给一个运行时变量赋值" />
+
+            <TextBlock
+                Margin="0,4,0,0"
+                FontSize="11"
+                Foreground="#909399"
+                TextWrapping="Wrap"
+                Text="运行时变量只在本轮执行内有效、跑完即弃；全局变量就是变量管理里那些，可跨流程、随方案存盘。" />
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="72" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="#606266"
+                    Text="作用域" />
+                <ComboBox
+                    Grid.Column="1"
+                    Width="170"
+                    HorizontalAlignment="Left"
+                    VerticalContentAlignment="Center"
+                    SelectedValue="{Binding Scope.Value, Mode=TwoWay}"
+                    SelectedValuePath="Tag"
+                    ToolTip="决定下面这个名字写到哪里">
+                    <ComboBoxItem Content="运行时变量" Tag="Runtime" />
+                    <ComboBoxItem Content="全局变量" Tag="Global" />
+                </ComboBox>
+            </Grid>
+
+            <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="72" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="#606266"
+                    Text="变量名" />
+                <cv:LinkableValueEditor
+                    Grid.Column="1"
+                    Port="{Binding VariableName}"
+                    StepData="{Binding StepData}" />
+            </Grid>
+
+            <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="72" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="#606266"
+                    Text="值" />
+                <cv:LinkableValueEditor
+                    Grid.Column="1"
+                    Port="{Binding Value}"
+                    StepData="{Binding StepData}" />
+            </Grid>
+
+            <CheckBox
+                Margin="0,16,0,0"
+                VerticalContentAlignment="Center"
+                Content="变量不存在时自动创建（仅运行时变量）"
+                FontSize="12"
+                IsChecked="{Binding CreateIfNotExists.Value}" />
+
+            <TextBlock
+                Margin="0,14,0,0"
+                FontSize="11"
+                Foreground="#909399"
+                TextWrapping="Wrap"
+                Text="「值」填常量文本，要引用上游步骤的结果就点该行尾部的链接图标。作用域选「全局变量」时，该变量必须先在变量管理里建好（类型要与写入的值匹配）——运行期找不到会明确报错，不会静默新建。" />
+        </StackPanel>
+    </Border>
+</UserControl>

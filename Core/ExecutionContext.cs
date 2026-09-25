@@ -2,6 +2,7 @@ using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using VisionMaster.Binding;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -16,11 +17,6 @@ namespace VisionMaster.Services
         /// 日志服务
         /// </summary>
         public ILogService Logger { get; init; }
-
-        /// <summary>
-        /// 端口绑定服务
-        /// </summary>
-        public IPortBindingService PortBindingService { get; init; }
 
         /// <summary>
         /// 取消令牌，用于终止执行
@@ -63,6 +59,18 @@ namespace VisionMaster.Services
         /// 本地变量字典
         /// </summary>
         public IDictionary<string, object> LocalVariables { get; } = new Dictionary<string, object>();
+
+        private IGlobalVariableWriter? _globalVariables;
+
+        /// <summary>
+        /// 全局变量写入口（懒建：绝大多数节点用不到，不必每次执行都构造）。
+        ///
+        /// 为什么不做成 init 属性：简化构造（容器注册用的那份，没有会话也没有工作区）下
+        /// 也要能拿到一个非空对象——传入 null 工作区的写入器会"写入即失败并给出中文原因"，
+        /// 这样插件侧只判断 TryWrite 的返回值即可，不必再判能力是否为空。
+        /// </summary>
+        public IGlobalVariableWriter GlobalVariables
+            => _globalVariables ??= new GlobalVariableWriter(Workspace);
 
         /// <summary>
         /// 构造函数（简化版本）

@@ -139,6 +139,25 @@ namespace Plugin.CSharpScript
                     catch { /* 反射取 Location 失败忽略 */ }
                 }
 
+                // 2.5) 宿主根目录整目录扫描。
+                //
+                // 为什么单靠 1) 和 2) 不够：deps.json 里登记为 "type": "reference" 的库
+                // （halcondotnet 就是这一类）**不会**被塞进运行期 TPA，于是它能不能进引用集，
+                // 完全取决于"编译脚本那一刻它有没有恰好被加载过"。
+                // 表现就是同一份脚本、同一份插件：无界面宿主里先跑了采集（碰过 HImage）→ 编译通过；
+                // 主程序里若脚本先编译 → 报「The type or namespace name 'HImage' could not be found」。
+                // 这里把宿主根目录里的 dll 全部登记一遍，把"引用集依赖加载顺序"这个不确定性从根上掐掉。
+                // 原生 dll（halcon.dll / hcanvas.dll 等）不是托管程序集，CreateFromFile 会抛异常，
+                // 被 AddAssembly 内部的 catch 就地丢弃，不影响其余引用。
+                try
+                {
+                    var hostDir = AppDomain.CurrentDomain.BaseDirectory;
+                    if (!string.IsNullOrEmpty(hostDir) && Directory.Exists(hostDir))
+                        foreach (var dll in Directory.GetFiles(hostDir, "*.dll"))
+                            AddAssembly(dll);
+                }
+                catch { /* 目录不可枚举不致命：引用集少几项，总好过整个脚本引擎起不来 */ }
+
                 // 3) ExternalLibs 扩展目录：仅加载白名单登记且哈希校验通过的 dll（默认拒绝）
                 LoadWhitelistedExtensions(refs, hostSimpleNames);
 

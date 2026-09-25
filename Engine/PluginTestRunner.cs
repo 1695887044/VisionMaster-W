@@ -76,8 +76,9 @@ namespace VisionMaster.Services
             // 3. 临时会话：仅用于节点状态回报（流程图上显示 运行中/成功/失败），不注册到 RuntimeManager
             //    会话从这里创建，所有权即转移给调用方（本方法不再负责 Dispose）
             var session = new FlowSession { FlowName = flow.FlowName };
-            foreach (var step in flow.Steps)
-                session.Blueprints.Add(step);
+            // 走会话的统一递归填充（#9）：这里原来是 foreach 浅填顶层，
+            // 导致试运行嵌套在循环体/分支里的步骤时画布不显示状态（MarkStepState 只在这个清单里找）。
+            session.AddBlueprintsDeep(flow.Steps);
 
             trialSession = session;
 
