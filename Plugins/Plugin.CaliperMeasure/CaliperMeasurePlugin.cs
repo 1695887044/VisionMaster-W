@@ -920,8 +920,8 @@ namespace Plugin.CaliperMeasure
             public double PixelSizeMm;
 
             // ── 第二批：拟合参数（归一化后） ──
-            /// <summary>fit 算子的 Algorithm 参数（"regression"/"huber"/"tukey"）</summary>
-            public string FitAlgorithm = "tukey";
+            /// <summary>拟合方式（鲁棒算法）；line/circle 算子的值集不同，各自映射（见 *AlgorithmToHalcon）</summary>
+            public FitAlgorithmKind FitAlgorithm;
             /// <summary>残差阈值（边缘点到拟合几何距离的中位数上限，px）</summary>
             public double FitMaxError;
             /// <summary>参与拟合的最少边缘点数</summary>
@@ -1016,13 +1016,8 @@ namespace Plugin.CaliperMeasure
                         {
                             var c = calipers[i];
                             caliperRects.Add(c);
-                            HOperatorSet.GenMeasureRectangle2(c[0], c[1], c[2], c[3], c[4], imgW, imgH, p.Interpolation, out HTuple handle);
-                            measureHandles.Add(handle);
 
-                            HOperatorSet.MeasurePairs(gray, handle, p.Sigma, p.EdgeThreshold, p.Transition, p.Select,
-                                out HTuple r1, out HTuple c1, out HTuple _,
-                                out HTuple r2, out HTuple c2, out HTuple _,
-                                out HTuple intra, out HTuple _);
+                            var (r1, c1, r2, c2, intra) = MeasurePairsWithRetry(gray, c, p, imgW, imgH, measureHandles);
 
                             if (intra.Length == 0)
                             {
@@ -1319,8 +1314,8 @@ namespace Plugin.CaliperMeasure
             for (int i = 0; i < n; i++)
             {
                 double t = -l2 + spacing * (i + 0.5);   // 沿 L2 轴的偏移量
-                double ri = r + t * cosPhi;              // L2 轴单位向量 = (cosPhi, -sinPhi)
-                double ci = c - t * sinPhi;
+                double ri = r + t * cosPhi;              // L2 轴单位向量 = (cosPhi, sinPhi)——垂直于实际长轴 (−sinPhi, cosPhi)
+                double ci = c + t * sinPhi;              // （第二批实证修正：原 (cosPhi,−sinPhi) 只在 φ=0 时垂直）
                 list.Add(new[] { ri, ci, phi, l1, halfWidth });
             }
             return list;
@@ -1336,6 +1331,53 @@ namespace Plugin.CaliperMeasure
             HOperatorSet.GenEmptyObj(out HObject empty);
             temp.Add(empty);
             return empty;
+        }
+
+        /// <summary>
+        /// 建测量句柄（画布参数直通）。
+        /// phi 约定实证（第二批探针 0i）：本环境 GenRectangle2（画布/显示/paint）与
+        /// gen_measure_rectangle2 的 phi 约定一致——长轴单位向量都是 (−sinφ, cosφ)，
+        /// 因此画布矩形参数可直接喂给测量算子，无需换算（第一批"参数直通"基石成立）。
+        /// </summary>
+        private HTuple CreateMeasureHandle(double[] caliper, MeasureParams p, int imgW, int imgH, List<HTuple> measureHandles)
+        {
+            HOperatorSet.GenMeasureRectangle2(caliper[0], caliper[1], caliper[2], caliper[3], caliper[4], imgW, imgH, p.Interpolation, out HTuple handle);
+            measureHandles.Add(handle);
+            return handle;
+        }
+
+        /// <summary>
+        /// measure_pos 带一次性重试：实测进程内"同一调用首跑可能返回空、第二跑正常"
+        /// （HALCON measure 的首次初始化行为，探针 0d 复现：同参连跑 3 遍为 0/1/1 条边）。
+        /// 真正没有边缘时第二次仍为空、仍判失败，语义不变；它只兜底"偶发首跑空结果"的误报。
+        /// </summary>
+        private (HTuple Rows, HTuple Cols) MeasurePosWithRetry(
+            HObject gray, double[] caliper, MeasureParams p, int imgW, int imgH, List<HTuple> measureHandles)
+        {
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                var handle = CreateMeasureHandle(caliper, p, imgW, imgH, measureHandles);
+                HOperatorSet.MeasurePos(gray, handle, p.Sigma, p.EdgeThreshold, p.Transition, p.Select,
+                    out HTuple rowEdge, out HTuple colEdge, out HTuple _, out HTuple _);
+                if (rowEdge.Length > 0) return (rowEdge, colEdge);
+            }
+            return (new HTuple(), new HTuple());
+        }
+
+        /// <summary>measure_pairs 带一次性重试（同 MeasurePosWithRetry 的依据），返回首条配对边缘与间距</summary>
+        private (HTuple R1, HTuple C1, HTuple R2, HTuple C2, HTuple Intra) MeasurePairsWithRetry(
+            HObject gray, double[] caliper, MeasureParams p, int imgW, int imgH, List<HTuple> measureHandles)
+        {
+            for (int attempt = 0; attempt < 4; attempt++)
+            {
+                var handle = CreateMeasureHandle(caliper, p, imgW, imgH, measureHandles);
+                HOperatorSet.MeasurePairs(gray, handle, p.Sigma, p.EdgeThreshold, p.Transition, p.Select,
+                    out HTuple r1, out HTuple c1, out HTuple _,
+                    out HTuple r2, out HTuple c2, out HTuple _,
+                    out HTuple intra, out HTuple _);
+                if (intra.Length > 0) return (r1, c1, r2, c2, intra);
+            }
+            return (new HTuple(), new HTuple(), new HTuple(), new HTuple(), new HTuple());
         }
 
         /// <summary>
@@ -1355,11 +1397,8 @@ namespace Plugin.CaliperMeasure
             {
                 var c = calipers[i];
                 caliperRects.Add(c);
-                HOperatorSet.GenMeasureRectangle2(c[0], c[1], c[2], c[3], c[4], imgW, imgH, p.Interpolation, out HTuple handle);
-                measureHandles.Add(handle);
 
-                HOperatorSet.MeasurePos(gray, handle, p.Sigma, p.EdgeThreshold, p.Transition, p.Select,
-                    out HTuple rowEdge, out HTuple colEdge, out HTuple _, out HTuple _);
+                var (rowEdge, colEdge) = MeasurePosWithRetry(gray, c, p, imgW, imgH, measureHandles);
 
                 if (rowEdge.Length == 0)
                 {
@@ -1414,12 +1453,10 @@ namespace Plugin.CaliperMeasure
                     return null;
                 }
 
-                caliperRects.Add(new[] { row, col, a, halfLen, halfWidth });
-                HOperatorSet.GenMeasureRectangle2(row, col, a, halfLen, halfWidth, imgW, imgH, p.Interpolation, out HTuple handle);
-                measureHandles.Add(handle);
+                // 卡尺矩形（显示与测量同参）：phi 取 −a——实测约定下长轴 (−sin(−a),cos(−a)) = (sin a,cos a) = 径向
+                caliperRects.Add(new[] { row, col, -a, halfLen, halfWidth });
 
-                HOperatorSet.MeasurePos(gray, handle, p.Sigma, p.EdgeThreshold, p.Transition, p.Select,
-                    out HTuple rowEdge, out HTuple colEdge, out HTuple _, out HTuple _);
+                var (rowEdge, colEdge) = MeasurePosWithRetry(gray, new[] { row, col, -a, halfLen, halfWidth }, p, imgW, imgH, measureHandles);
 
                 if (rowEdge.Length == 0)
                 {
@@ -1468,7 +1505,7 @@ namespace Plugin.CaliperMeasure
 
             try
             {
-                HOperatorSet.FitLineContourXld(poly, p.FitAlgorithm, -1, 0, 5, 2.0,
+                HOperatorSet.FitLineContourXld(poly, LineAlgorithmToHalcon(p.FitAlgorithm), -1, 0, 5, 2.0,
                     out HTuple rowBegin, out HTuple colBegin, out HTuple rowEnd, out HTuple colEnd,
                     out HTuple _, out HTuple _, out HTuple _);
                 r1 = rowBegin.D; c1 = colBegin.D;
@@ -1540,9 +1577,10 @@ namespace Plugin.CaliperMeasure
 
             try
             {
-                // 新版 HALCON 的 fit_circle_contour_xld 多一个输入 PointOrder（约定输出的
-                // StartPhi/EndPhi 角度方向），这里固定 'positive'，输出 we 不消费
-                HOperatorSet.FitCircleContourXld(poly, p.FitAlgorithm, -1, 0, 5, 2.0, "positive",
+                // 实测签名（第二批探针 0g 反射）：(contours, algorithm, maxNumPoints, maxClosureDist,
+                // clippingEndPoints, iterations, clippingFactor)——没有 PointOrder 输入（那是输出）；
+                // algorithm 值集是 geo 系列（见 CircleAlgorithmToHalcon）。maxClosureDist=0 要求闭合轮廓。
+                HOperatorSet.FitCircleContourXld(poly, CircleAlgorithmToHalcon(p.FitAlgorithm), -1, 0, 0, 5, 2.0,
                     out HTuple rowC, out HTuple colC, out HTuple rad,
                     out HTuple _, out HTuple _, out HTuple _);
                 centerRow = rowC.D; centerCol = colC.D;
@@ -1560,6 +1598,29 @@ namespace Plugin.CaliperMeasure
             {
                 error = $"拟合圆退化：边缘点接近共线或分布过扁，无法确定合理的圆（估算半径 {radius:0.##}）——" +
                         "请让圆搜索区套住整个圆周特征、增大卡尺数，并确认被测特征确实是圆";
+                return false;
+            }
+
+            // 圆退化几何判据（第二批实测补充）：共线/过扁的点集配 geo 系列鲁棒算法时不会报错，
+            // 而是收敛到一个"贴住少数点的小圆"（实测 3 个共线点拟出 r≈31px 的圆）——半径有限、
+            // 残差中位数也可能因降权而达标，以上检查都拦不住。几何事实：真实圆周上均布点的
+            // 最大跨度 ≈ 直径（N=3 的 120° 均布也有 √3·R ≈ 1.73R）；若拟合圆直径 < 点集跨度
+            // 的 60%，说明这个圆根本包不住点集，必是退化解。
+            double maxSpan = 0;
+            for (int i = 0; i < pts.Count; i++)
+                for (int j = i + 1; j < pts.Count; j++)
+                    maxSpan = Math.Max(maxSpan, Dist(pts[i].R, pts[i].C, pts[j].R, pts[j].C));
+            if (maxSpan < 2.0)
+            {
+                error = $"拟合圆退化：{pts.Count} 个边缘点几乎重合（跨度仅 {maxSpan:0.##} px，特征可能是直线边缘而非圆周）——" +
+                        "请确认被测特征是圆、并让圆搜索区套住整个圆周";
+                return false;
+            }
+            if (2 * radius < maxSpan * 0.6)
+            {
+                error = $"拟合圆退化：边缘点接近共线或分布过扁，拟合出的圆（直径 {2 * radius:0.##} px）" +
+                        $"远小于点集跨度（{maxSpan:0.##} px）——请让圆搜索区套住整个圆周特征、增大卡尺数，" +
+                        "并确认被测特征确实是圆";
                 return false;
             }
 
@@ -1687,7 +1748,7 @@ namespace Plugin.CaliperMeasure
                 UpperTolerance = ClampFinite(UpperTolerance, -ToleranceAbsMax, ToleranceAbsMax),
                 LowerTolerance = ClampFinite(LowerTolerance, -ToleranceAbsMax, ToleranceAbsMax),
                 PixelSizeMm = ClampFinite(PixelSizeMm, PixelSizeClampMin, PixelSizeClampMax),
-                FitAlgorithm = AlgorithmToHalcon(FitAlgorithm),
+                FitAlgorithm = FitAlgorithm,
                 FitMaxError = ClampFinite(FitMaxError, FitMaxErrorClampMin, FitMaxErrorClampMax),
                 FitMinPoints = (int)Math.Round(ClampFinite(FitMinPoints, FitMinPointsClampMin, FitMinPointsClampMax)),
                 AnnulusWidth = ClampFinite(AnnulusWidth, AnnulusWidthClampMin, AnnulusWidthClampMax),
@@ -1787,12 +1848,24 @@ namespace Plugin.CaliperMeasure
             _ => "bilinear",
         };
 
-        /// <summary>拟合方式 → fit_line/circle_contour_xld 的 Algorithm 参数字符串</summary>
-        private static string AlgorithmToHalcon(FitAlgorithmKind algorithm) => algorithm switch
+        /// <summary>拟合方式 → fit_line_contour_xld 的 Algorithm 参数字符串（值集：regression/huber/tukey）</summary>
+        private static string LineAlgorithmToHalcon(FitAlgorithmKind algorithm) => algorithm switch
         {
             FitAlgorithmKind.Regression => "regression",
             FitAlgorithmKind.Huber => "huber",
             _ => "tukey",
+        };
+
+        /// <summary>
+        /// 拟合方式 → fit_circle_contour_xld 的 Algorithm 参数字符串。
+        /// 实证（第二批探针 0e）：fit_circle 的值集是 geo 系列（geometric/geohuber/geotukey），
+        /// 不接受 fit_line 的 regression/huber/tukey——传错直接 #1301。两者按语义一一对应。
+        /// </summary>
+        private static string CircleAlgorithmToHalcon(FitAlgorithmKind algorithm) => algorithm switch
+        {
+            FitAlgorithmKind.Regression => "geometric",
+            FitAlgorithmKind.Huber => "geohuber",
+            _ => "geotukey",
         };
 
         /// <summary>组装 NG 原因（OK 时为空串）；文案对应用户在界面里看到的字段名，方便直接对照</summary>
@@ -1834,3 +1907,5 @@ namespace Plugin.CaliperMeasure
         #endregion
     }
 }
+
+

@@ -67,15 +67,55 @@ namespace Plugin.BlobDetect
 
         #endregion
 
-        #region 画笔（冻结复用：直方图每次刷新都会重绘，避免每帧新建画刷/画笔）
+        #region 画笔（主题令牌优先，取不到再退回内置值）
 
-        // 直方图填充/描边用蓝系，阈值标记用橙系——两者颜色分开，叠在一起也一眼能分清"分布"与"阈值"
-        private static readonly Brush FillBrush = Freeze(new SolidColorBrush(Color.FromArgb(72, 0x3A, 0x7B, 0xD5)));
-        private static readonly Pen StrokePen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0xBF)), 1));
-        private static readonly Brush BandBrush = Freeze(new SolidColorBrush(Color.FromArgb(46, 0xE6, 0xA2, 0x3C)));
-        private static readonly Pen MarkerPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0xE6, 0xA2, 0x3C)), 1.2));
-        private static readonly Pen BorderPen = Freeze(new Pen(new SolidColorBrush(Color.FromRgb(0xDD, 0xDD, 0xDD)), 1));
-        private static readonly Brush PlaceholderBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)));
+        // 颜色全部来自 UI 库的 Plugin* 令牌（Themes/PluginConfigColors.xaml），换主题改那一本即可。
+        //
+        // 为什么必须带回退值：本控件可能被实例化在"没有 Application / 没合并 UI 资源"的环境里
+        // （冒烟断言、离线跑流程）。TryFindResource 那时拿不到东西——
+        // 主题缺失可以丑，但绝不能让直方图渲染不出来，所以每个键都配一份内置回退值。
+        private static readonly Brush FallbackFillBrush = Freeze(new SolidColorBrush(Color.FromArgb(72, 0x3A, 0x7B, 0xD5)));
+        private static readonly Brush FallbackStrokeBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x2F, 0x6F, 0xBF)));
+        private static readonly Brush FallbackBandBrush = Freeze(new SolidColorBrush(Color.FromArgb(46, 0xE6, 0xA2, 0x3C)));
+        private static readonly Brush FallbackMarkerBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xE6, 0xA2, 0x3C)));
+        private static readonly Brush FallbackGridBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xDD, 0xDD, 0xDD)));
+        private static readonly Brush FallbackPlaceholderBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x99, 0x99, 0x99)));
+        private static readonly Typeface FallbackTypeface = new(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+
+        // 解析结果缓存在实例上：OnRender 会频繁触发，别每次都去查资源树
+        private bool _resourcesResolved;
+        private Brush? _fillBrush;
+        private Pen? _strokePen;
+        private Brush? _bandBrush;
+        private Pen? _markerPen;
+        private Pen? _borderPen;
+        private Brush? _placeholderBrush;
+        private Typeface? _placeholderTypeface;
+
+        private void EnsureResources()
+        {
+            if (_resourcesResolved) return;
+            _resourcesResolved = true;
+
+            _fillBrush = LookupBrush("PluginChartFillBrush", FallbackFillBrush);
+            _strokePen = LookupPen("PluginChartStrokeBrush", FallbackStrokeBrush, "PluginChartStrokeThickness", 1);
+            _bandBrush = LookupBrush("PluginChartBandBrush", FallbackBandBrush);
+            _markerPen = LookupPen("PluginChartMarkerBrush", FallbackMarkerBrush, "PluginChartMarkerThickness", 1.2);
+            _borderPen = LookupPen("PluginChartGridBrush", FallbackGridBrush, "PluginChartStrokeThickness", 1);
+            _placeholderBrush = LookupBrush("PluginChartPlaceholderBrush", FallbackPlaceholderBrush);
+            _placeholderTypeface = TryFindResource("PluginFontFamily") is FontFamily ff
+                ? new Typeface(ff, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal)
+                : FallbackTypeface;
+        }
+
+        private Brush LookupBrush(string key, Brush fallback) => TryFindResource(key) as Brush ?? fallback;
+
+        private Pen LookupPen(string brushKey, Brush fallbackBrush, string thicknessKey, double fallbackThickness)
+        {
+            var brush = LookupBrush(brushKey, fallbackBrush);
+            double thickness = TryFindResource(thicknessKey) is double d ? d : fallbackThickness;
+            return Freeze(new Pen(brush, thickness));
+        }
 
         private static T Freeze<T>(T freezable) where T : Freezable
         {
@@ -89,6 +129,8 @@ namespace Plugin.BlobDetect
         {
             double width = ActualWidth, height = ActualHeight;
             if (width <= 1 || height <= 1) return;
+
+            EnsureResources();   // 主题令牌优先，取不到用内置回退值
 
             var data = Data;
             // 注意判据只看 Bins：单一灰度图（BinMin == BinMax）也是"有数据"的——
@@ -122,7 +164,7 @@ namespace Plugin.BlobDetect
                 ctx.LineTo(new Point(pad + plotW, bottom), isStroked: true, isSmoothJoin: false);
             }
             geometry.Freeze();
-            dc.DrawGeometry(FillBrush, StrokePen, geometry);
+            dc.DrawGeometry(_fillBrush, _strokePen, geometry);
 
             // ── 2. 固定阈值标记：两条竖线 + 中间半透明区间填充 ──
             // 只有"固定阈值"方式下才画（自动/动态阈值没有固定阈值参数，画了会误导）
@@ -134,14 +176,14 @@ namespace Plugin.BlobDetect
                 double right = Math.Max(xLow, xHigh);
 
                 if (right > left)
-                    dc.DrawRectangle(BandBrush, null, new Rect(left, pad, right - left, plotH));
+                    dc.DrawRectangle(_bandBrush, null, new Rect(left, pad, right - left, plotH));
 
-                dc.DrawLine(MarkerPen, new Point(xLow, pad), new Point(xLow, bottom));
-                dc.DrawLine(MarkerPen, new Point(xHigh, pad), new Point(xHigh, bottom));
+                dc.DrawLine(_markerPen, new Point(xLow, pad), new Point(xLow, bottom));
+                dc.DrawLine(_markerPen, new Point(xHigh, pad), new Point(xHigh, bottom));
             }
 
             // ── 3. 外框 ──
-            dc.DrawRectangle(null, BorderPen, new Rect(pad + 0.5, pad + 0.5, plotW - 1, plotH - 1));
+            dc.DrawRectangle(null, _borderPen, new Rect(pad + 0.5, pad + 0.5, plotW - 1, plotH - 1));
         }
 
         /// <summary>
@@ -161,6 +203,8 @@ namespace Plugin.BlobDetect
 
         private void DrawPlaceholder(DrawingContext dc, string text, double height)
         {
+            EnsureResources();
+
             // 未接入可视树时个别环境取 DPI 会抛，退回 1.0（占位文字不涉及精度，安全优先）
             double pixelsPerDip;
             try { pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip; }
@@ -170,9 +214,9 @@ namespace Plugin.BlobDetect
                 text,
                 CultureInfo.CurrentCulture,
                 FlowDirection.LeftToRight,
-                new Typeface("Microsoft YaHei"),
-                11,
-                PlaceholderBrush,
+                _placeholderTypeface ?? FallbackTypeface,
+                TryFindResource("PluginHintFontSize") is double fs ? fs : 11,
+                _placeholderBrush,
                 pixelsPerDip);
 
             dc.DrawText(formatted, new Point(8, Math.Max(0, (height - formatted.Height) / 2)));

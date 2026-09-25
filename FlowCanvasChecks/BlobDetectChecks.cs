@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Core.Interfaces;
 using HalconDotNet;
 using Plugin.BlobDetect;
@@ -37,6 +40,148 @@ namespace FlowCanvasChecks
             RunMergeAndFill();
             RunJudgementAndUnits();
             RunResetAndBitDepth();
+            RunViewAndThemeContract();
+        }
+
+        // ==================================================================
+        //  ⑥ 视图样式收编契约（UI 库 Plugin* 公共令牌）
+        // ==================================================================
+
+        /// <summary>插件视图必须能解析到的公共样式键（键名即跨程序集契约）</summary>
+        private static readonly string[] RequiredStyleKeys =
+        {
+            "PluginCard", "PluginCardTitle", "PluginFieldLabel", "PluginHintText",
+            "PluginNumericBox", "PluginStatusPanel",
+        };
+
+        /// <summary>插件视图必须能解析到的颜色/尺寸令牌（主题可变部分）</summary>
+        private static readonly string[] RequiredTokenKeys =
+        {
+            "PluginSurfaceBrush", "PluginCardBorderBrush", "PluginTitleTextBrush",
+            "PluginLabelTextBrush", "PluginHintTextBrush",
+            "PluginOkBrush", "PluginWarningBrush", "PluginErrorBrush", "PluginChartFillBrush",
+        };
+
+        /// <summary>已经收编到 UI 库、不允许插件再本地定义的键</summary>
+        private static readonly string[] ForbiddenLocalKeys =
+        {
+            "CardBorder", "CardTitle", "HintText", "FieldLabel", "NumericBox",
+        };
+
+        /// <summary>
+        /// 视图样式收编契约 —— **全部静态扫描，不碰 WPF 运行时**。
+        ///
+        /// 为什么刻意不"实例化视图"来验证（那才是最直接的验证）：
+        /// 实例化需要 Application.Current，而在一个控制台进程里 new Application 有两个实测后果 ——
+        ///   ① 插件的预览帧投射会改走 UI 线程投递分支、在无消息泵的控制台里永远不落地，
+        ///      实测让后续 7 条投射类断言变红；
+        ///   ② 进程退出时挂住（STA 线程上的 Application 没有消息泵也没 Shutdown），
+        ///      命令不返回 → 被后台化 → 进程残留 → 后续 build 撞上 exe 被锁（MSB3021/3027）。
+        /// 详见 docs/code-changes/2026-09-25-冒烟命令超时排障与规避.md。
+        ///
+        /// 于是改成"读源文件比对键名"：这正好等价于运行期那句"找不到资源"的判据
+        /// （运行期报的是"无法找到名为 X 的资源"，这里报的是"用到但没定义"），
+        /// 而且快、无副作用、不会挂。视图真能打开与否由一次性探针验证（见开发记录）。
+        /// </summary>
+        private static void RunViewAndThemeContract()
+        {
+            Section("[Blob] 视图样式收编契约（UI 库 Plugin* 令牌）");
+
+            // ---- ① 静态扫描：插件 XAML 里不许再出现硬编码颜色 / 本地样式定义 ----
+            string? xamlPath = ResolveRepoFile(@"Plugins\Plugin.BlobDetect\BlobDetectView.xaml");
+            if (xamlPath == null)
+            {
+                Check("插件视图样式收编（静态扫描）", true, "跳过：定位不到 BlobDetectView.xaml");
+            }
+            else
+            {
+                string xaml = File.ReadAllText(xamlPath);
+
+                // 颜色字面量：#RGB / #RRGGBB / #AARRGGBB。d:DesignHeight 那类数字不是颜色，不会被这个正则命中
+                var colors = Regex.Matches(xaml, @"#[0-9A-Fa-f]{3}\b|#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{8}\b");
+                Check("【收编】插件视图里已无硬编码颜色（颜色一律走令牌）",
+                    colors.Count == 0,
+                    colors.Count == 0 ? "" : string.Join(", ", colors.Select(m => m.Value).Take(8)));
+
+                var localDefs = ForbiddenLocalKeys.Where(k => xaml.Contains($"x:Key=\"{k}\"")).ToList();
+                Check("【收编】插件视图不再本地定义 CardBorder/CardTitle/HintText/FieldLabel/NumericBox",
+                    localDefs.Count == 0,
+                    localDefs.Count == 0 ? "" : "仍在本地定义：" + string.Join(", ", localDefs));
+
+                Check("【收编】插件视图改用 Plugin* 公共样式",
+                    xaml.Contains("StaticResource PluginCard") && xaml.Contains("StaticResource PluginNumericBox"),
+                    "");
+            }
+
+            // ---- ② UI 库侧：必需键必须存在 + 插件用到的每个 Plugin* 键都必须有定义 ----
+            string? colorsPath = ResolveRepoFile(@"UI\Controls\Themes\PluginConfigColors.xaml");
+            string? stylesPath = ResolveRepoFile(@"UI\Controls\Themes\PluginConfigStyles.xaml");
+            string? genericPath = ResolveRepoFile(@"UI\Controls\Themes\Generic.xaml");
+
+            if (colorsPath == null || stylesPath == null || genericPath == null)
+            {
+                Check("UI 库 Plugin* 字典定位", true, "跳过：定位不到 UI 库主题文件");
+                return;
+            }
+
+            var colorsText = File.ReadAllText(colorsPath);
+            var stylesText = File.ReadAllText(stylesPath);
+            var genericText = File.ReadAllText(genericPath);
+
+            string[] definedKeys = KeysOf(colorsText).Concat(KeysOf(stylesText)).ToArray();
+
+            var missingTokens = RequiredTokenKeys.Where(k => !definedKeys.Contains(k)).ToList();
+            var missingStyles = RequiredStyleKeys.Where(k => !definedKeys.Contains(k)).ToList();
+            Check("【核心】主题令牌（颜色/尺寸）全部在 UI 库里（换主题只改这一本）",
+                missingTokens.Count == 0,
+                missingTokens.Count == 0 ? "" : "缺失：" + string.Join(", ", missingTokens));
+            Check("【核心】Plugin* 公共样式全部在 UI 库里",
+                missingStyles.Count == 0,
+                missingStyles.Count == 0 ? "" : "缺失：" + string.Join(", ", missingStyles));
+
+            if (xamlPath == null)
+            {
+                Check("插件视图引用的每个 Plugin* 键都有定义", true, "跳过：定位不到 BlobDetectView.xaml");
+            }
+            else
+            {
+                // 插件 XAML 引用的每个 Plugin* 键都必须有定义 —— 这条等价于运行期"找不到资源"的判据
+                string pluginXaml = File.ReadAllText(xamlPath);
+                var usedPluginKeys = Regex.Matches(pluginXaml, @"(?:Static|Dynamic)Resource ([A-Za-z0-9]+)")
+                    .Select(m => m.Groups[1].Value)
+                    .Where(k => k.StartsWith("Plugin"))
+                    .Distinct()
+                    .ToArray();
+                var undefined = usedPluginKeys.Where(k => !definedKeys.Contains(k)).ToList();
+                Check("【核心】插件视图引用的每个 Plugin* 键都有定义（运行期报'找不到资源'就是这条没守住）",
+                    undefined.Count == 0,
+                    undefined.Count == 0 ? $"共引用 {usedPluginKeys.Length} 个键" : "未定义：" + string.Join(", ", undefined));
+            }
+
+            // 合并字典内部的 StaticResource 只查"自己 + 自己的 MergedDictionaries"，
+            // 不会横向去查 Generic 的其它合并项 —— 漏了这行会抛"无法找到名为 PluginCardShadowBlur 的资源"
+            Check("【核心】PluginConfigStyles 自己合并了 PluginConfigColors（合并字典不横向查找）",
+                stylesText.Contains("PluginConfigColors.xaml"), "");
+            Check("Generic.xaml 已合并 Plugin* 两本字典（宿主与插件都靠它拿到样式）",
+                genericText.Contains("PluginConfigColors.xaml") && genericText.Contains("PluginConfigStyles.xaml"), "");
+        }
+
+        /// <summary>取一段 XAML 文本里所有 x:Key 的名字</summary>
+        private static string[] KeysOf(string xaml)
+            => Regex.Matches(xaml, @"x:Key=""([A-Za-z0-9]+)""")
+                .Select(m => m.Groups[1].Value)
+                .ToArray();
+
+        /// <summary>从输出目录往上找仓库根，再拼相对路径（定位不到返回 null，由调用方跳过）</summary>
+        private static string? ResolveRepoFile(string relative)
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return null;
         }
 
         // ==================================================================

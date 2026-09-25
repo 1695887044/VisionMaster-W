@@ -1,0 +1,171 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        为什么本字典要自己再合并一次 PluginConfigColors.xaml：
+        Generic.xaml 里虽然已经合并了 Colors 与 Styles 两本，但**合并字典内部的 StaticResource
+        只在"自己 + 自己的 MergedDictionaries"里找**，不会横向去查 Generic 的其它合并项。
+        不写这一行，下面 BlurRadius="{StaticResource PluginCardShadowBlur}" 就会抛
+        "无法找到名为 PluginCardShadowBlur 的资源"（冒烟断言 + 独立探针抓到的就是这条）。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/UI;component/Themes/PluginConfigColors.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        ==================== 插件配置界面公共样式 ====================
+
+        这一本只写"结构与引用"，不写任何具体颜色/尺寸 —— 具体数值全在
+        PluginConfigColors.xaml 里。换主题时只需替换那一本。
+
+        键名即跨程序集契约：14 个插件的配置视图都会 {StaticResource PluginCard}，
+        改键名等于一次破坏性变更，必须按"公共 API 变更"评审。
+
+        收录范围（本次从 Plugin.BlobDetect 试点收编的 5 个）：
+          PluginCard        卡片容器（Border）
+          PluginCardTitle   卡片标题（TextBlock）
+          PluginFieldLabel  字段名（TextBlock）
+          PluginHintText    灰色提示说明（TextBlock）
+          PluginNumericBox  数值输入框（TextBox，含校验失败红框 + 悬停中文原因）
+    -->
+
+    <!--  卡片容器  -->
+    <Style x:Key="PluginCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource PluginSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource PluginCardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource PluginCardCornerRadius}" />
+        <Setter Property="Padding" Value="{StaticResource PluginCardPadding}" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect
+                    BlurRadius="{StaticResource PluginCardShadowBlur}"
+                    Direction="270"
+                    Opacity="{StaticResource PluginCardShadowOpacity}"
+                    ShadowDepth="{StaticResource PluginCardShadowDepth}"
+                    Color="{StaticResource PluginCardShadowColor}" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  卡片标题  -->
+    <Style x:Key="PluginCardTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource PluginTitleFontSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource PluginTitleTextBrush}" />
+    </Style>
+
+    <!--  字段名（左列标签）  -->
+    <Style x:Key="PluginFieldLabel" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+        <Setter Property="Foreground" Value="{StaticResource PluginLabelTextBrush}" />
+    </Style>
+
+    <!--  灰色提示说明  -->
+    <Style x:Key="PluginHintText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource PluginHintFontSize}" />
+        <Setter Property="Foreground" Value="{StaticResource PluginHintTextBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!--
+        数值输入框（现代化版）：圆角 + 悬停/聚焦/禁用/错误四态。
+        校验失败时红框 + 淡红底 + 悬停显示中文原因。
+
+        ValidationRule 跑在"字符串写回绑定源"之前，校验不通过时源属性根本不会被改写，
+        所以插件参数永远停在最近一次合法值 —— 界面填错不会把非法值带进 HALCON 算子。
+
+        为什么要自己写 Template：默认 TextBox 模板改不了圆角边框，
+        也没法做"聚焦外圈"。模板里必须保留名为 PART_ContentHost 的宿主，否则输入不显示。
+    -->
+    <Style x:Key="PluginNumericBox" TargetType="TextBox">
+        <Setter Property="Height" Value="{StaticResource PluginControlHeight}" />
+        <Setter Property="Padding" Value="{StaticResource PluginInputPadding}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{StaticResource PluginInputTextBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource PluginCaretBrush}" />
+        <Setter Property="Background" Value="{StaticResource PluginInputBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource PluginInputBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Validation.ErrorTemplate">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border
+                        BorderBrush="{StaticResource PluginErrorBrush}"
+                        BorderThickness="{StaticResource PluginErrorBorderThickness}"
+                        CornerRadius="{StaticResource PluginInputCornerRadius}">
+                        <AdornedElementPlaceholder />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Grid>
+                        <!--  聚焦外圈：平时透明，键盘聚焦时淡入（Fluent focus ring）  -->
+                        <Border
+                            x:Name="FocusRing"
+                            Margin="-2"
+                            BorderBrush="{StaticResource PluginInputFocusRingBrush}"
+                            BorderThickness="2"
+                            CornerRadius="{StaticResource PluginInputFocusRingRadius}"
+                            Opacity="0" />
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource PluginInputCornerRadius}">
+                            <ScrollViewer
+                                x:Name="PART_ContentHost"
+                                Padding="{TemplateBinding Padding}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Focusable="False"
+                                HorizontalScrollBarVisibility="Hidden"
+                                VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PluginInputHoverBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PluginInputFocusBrush}" />
+                            <Setter TargetName="FocusRing" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginInputDisabledBackgroundBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource PluginInputDisabledTextBrush}" />
+                        </Trigger>
+                        <Trigger Property="Validation.HasError" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PluginErrorBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginInputErrorBackgroundBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=(Validation.Errors)[0].ErrorContent}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  参数行：左标签 + 右编辑器（两列栅格）  -->
+    <Style x:Key="PluginParamRow" TargetType="Grid">
+        <Setter Property="Margin" Value="{StaticResource PluginFieldRowMargin}" />
+    </Style>
+
+    <!--  信息栏：判定结果 / 失败原因，颜色由视图按 StatusLevel 决定  -->
+    <Style x:Key="PluginStatusPanel" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource PluginSubtleBackgroundBrush}" />
+        <Setter Property="CornerRadius" Value="{StaticResource PluginStatusPanelCornerRadius}" />
+        <Setter Property="Padding" Value="{StaticResource PluginStatusPanelPadding}" />
+    </Style>
+
+</ResourceDictionary>

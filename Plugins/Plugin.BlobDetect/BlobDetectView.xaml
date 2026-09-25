@@ -7,16 +7,31 @@
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.BlobDetect"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    MinWidth="620"
-    MinHeight="360"
+    MinWidth="{DynamicResource PluginViewMinWidth}"
+    MinHeight="{DynamicResource PluginViewMinHeight}"
     d:DesignHeight="620"
     d:DesignWidth="900"
     mc:Ignorable="d">
 
     <!--
-        布局：左「参数四区（可滚动）」+ 右「标注图预览」。
-        配色/圆角/字体与 ImageAcquisitionView、CreateRoiView 保持同一套（卡片 + 卡片标题 + 灰色提示文字），
-        避免三个插件长得不像一家人。数值输入统一走 NumericBox 样式（红框 + 中文 ToolTip）。
+        布局：左「参数五区（可滚动）」+ 右「标注图预览 + 灰度直方图」。
+
+        【本视图不定义任何样式/颜色】
+        卡片、标题、字段名、提示文字、数值框一律取自 UI 库的 Plugin* 公共样式
+        （UI/Controls/Themes/PluginConfigStyles.xaml），具体颜色与尺寸在
+        PluginConfigColors.xaml 里 —— 换主题时改那一本即可，本文件不用动。
+        这里只合并一次 UI 的 Generic.xaml（宿主 App.xaml 也合并了同一本，
+        重复合并无害但能保证本视图被单独实例化时仍能解析资源）。
+
+        为什么根元素的 MinWidth/MinHeight 用 DynamicResource 而不是 StaticResource：
+        StaticResource 在"解析根元素属性"的那一刻就要能查到键，而 UserControl.Resources
+        是内容属性、此刻还没合并进来 —— 用 StaticResource 会在 InitializeComponent 当场抛
+        XamlParseException（冒烟断言抓到的就是这个）。子元素（Grid/ColumnDefinition）没这问题，
+        照常用 StaticResource。
+
+        为什么不再本地写 CardBorder/CardTitle/…：那套样式在 14 个插件里被抄了 15 份，
+        颜色直接写死在各家 XAML 里，想统一调一次色得全仓搜一遍。现在收编为唯一真相，
+        本文件是第一个试点。
     -->
     <UserControl.Resources>
         <ResourceDictionary>
@@ -25,78 +40,18 @@
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!--  枚举 → 中文名（读 [Display(Name)]，新增枚举成员界面自动生效）  -->
+            <!--  仅剩本视图专属的两个转换器（与主题无关，故留本地）  -->
             <local:EnumDisplayNameConverter x:Key="EnumName" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
-
-            <!--  Win11 风格卡片  -->
-            <Style x:Key="CardBorder" TargetType="Border">
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#E5E5E5" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="8" />
-                <Setter Property="Padding" Value="14" />
-                <Setter Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect
-                            BlurRadius="12"
-                            Direction="270"
-                            Opacity="0.05"
-                            ShadowDepth="2"
-                            Color="Black" />
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="CardTitle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Foreground" Value="#1F1F1F" />
-            </Style>
-
-            <Style x:Key="HintText" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="11" />
-                <Setter Property="Foreground" Value="#888888" />
-                <Setter Property="TextWrapping" Value="Wrap" />
-            </Style>
-
-            <Style x:Key="FieldLabel" TargetType="TextBlock">
-                <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="FontSize" Value="12" />
-                <Setter Property="Foreground" Value="#444444" />
-            </Style>
-
-            <!--
-                数值输入框：校验失败时红框 + 悬停显示中文原因。
-                ValidationRule 在"字符串写回属性之前"跑，非法输入根本进不了 ViewModel，
-                所以插件里的参数永远停在最近一次合法值——界面填错不会炸算法。
-            -->
-            <Style x:Key="NumericBox" TargetType="TextBox">
-                <Setter Property="Height" Value="24" />
-                <Setter Property="Padding" Value="4,0,0,0" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="Validation.ErrorTemplate">
-                    <Setter.Value>
-                        <ControlTemplate>
-                            <Border BorderBrush="#F56C6C" BorderThickness="1" CornerRadius="3">
-                                <AdornedElementPlaceholder />
-                            </Border>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-                <Style.Triggers>
-                    <Trigger Property="Validation.HasError" Value="True">
-                        <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=(Validation.Errors)[0].ErrorContent}" />
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Margin="12">
+    <Grid Margin="{StaticResource PluginViewMargin}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="330" MinWidth="300" />
-            <ColumnDefinition Width="*" MinWidth="240" />
+            <ColumnDefinition
+                Width="{StaticResource PluginParamsColumnWidth}"
+                MinWidth="{StaticResource PluginParamsColumnMinWidth}" />
+            <ColumnDefinition Width="*" MinWidth="{StaticResource PluginPreviewColumnMinWidth}" />
         </Grid.ColumnDefinitions>
 
         <!--  ================= 左：参数四区 =================  -->
@@ -108,11 +63,11 @@
             <StackPanel>
 
                 <!--  图像输入  -->
-                <Border Style="{StaticResource CardBorder}">
+                <Border Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="图像输入" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
                         <cv:LinkableValueEditor
-                            Margin="0,10,0,0"
+                            Margin="{StaticResource PluginFirstRowMargin}"
                             HorizontalAlignment="Stretch"
                             Label="输入图像"
                             Port="{Binding SrcImage}"
@@ -120,33 +75,33 @@
 
                         <!--  手动自适应：任何时候都能按当前图像重算阈值/面积  -->
                         <Button
-                            Margin="0,10,0,0"
+                            Margin="{StaticResource PluginFirstRowMargin}"
                             Padding="0,4"
                             HorizontalAlignment="Stretch"
                             Command="{Binding AdaptToImageCommand}"
                             Content="按当前图像重新适配"
                             ToolTip="按当前输入图像的实际灰度范围与分辨率，换算固定阈值上下限与面积规格；不改变二值化方式、检测目标、形态学参数" />
                         <TextBlock
-                            Margin="0,6,0,0"
-                            Style="{StaticResource HintText}"
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
                             Text="首次加载图像时，若参数仍是出厂默认值会自动适配一次；一旦改过参数就不再自动覆盖（避免软件静默改掉你调好的值）。" />
                     </StackPanel>
                 </Border>
 
                 <!--  ① 二值化  -->
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="① 二值化" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 二值化" />
 
-                        <Grid Margin="0,10,0,0">
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="二值化方式" />
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="二值化方式" />
                             <ComboBox
                                 Grid.Column="1"
-                                Height="24"
+                                Height="{StaticResource PluginControlHeight}"
                                 VerticalContentAlignment="Center"
                                 ItemsSource="{Binding ThresholdModes}"
                                 SelectedItem="{Binding ThresholdMode, Mode=TwoWay}"
@@ -161,13 +116,13 @@
 
                         <!--  固定阈值：只显示本方式自己的参数  -->
                         <StackPanel Visibility="{Binding IsFixedThreshold, Converter={StaticResource BoolToVis}}">
-                            <Grid Margin="0,10,0,0">
+                            <Grid Margin="{StaticResource PluginFirstRowMargin}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="下限灰度" ToolTip="被检目标的灰度下界（含）。找暗缺陷填小区间、找亮缺陷填大区间" />
-                                <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                                <TextBlock Style="{StaticResource PluginFieldLabel}" Text="下限灰度" ToolTip="被检目标的灰度下界（含）。找暗缺陷填小区间、找亮缺陷填大区间" />
+                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                     <TextBox.Text>
                                         <Binding Path="MinGray" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -177,13 +132,13 @@
                                     </TextBox.Text>
                                 </TextBox>
                             </Grid>
-                            <Grid Margin="0,6,0,0">
+                            <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="上限灰度" ToolTip="被检目标的灰度上界（含）" />
-                                <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                                <TextBlock Style="{StaticResource PluginFieldLabel}" Text="上限灰度" ToolTip="被检目标的灰度上界（含）" />
+                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                     <TextBox.Text>
                                         <Binding Path="MaxGray" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -194,28 +149,28 @@
                                 </TextBox>
                             </Grid>
                             <TextBlock
-                                Margin="0,6,0,0"
-                                Style="{StaticResource HintText}"
+                                Margin="{StaticResource PluginFieldRowMargin}"
+                                Style="{StaticResource PluginHintText}"
                                 Text="上下限填反了会按区间自动排序，不会报错。" />
                         </StackPanel>
 
                         <!--  自动阈值：无额外参数  -->
                         <StackPanel Visibility="{Binding IsAutoThreshold, Converter={StaticResource BoolToVis}}">
                             <TextBlock
-                                Margin="0,10,0,0"
-                                Style="{StaticResource HintText}"
+                                Margin="{StaticResource PluginFirstRowMargin}"
+                                Style="{StaticResource PluginHintText}"
                                 Text="自动求分割点（最大类间方差法），适合来料灰度整体漂移、不方便固定阈值的场合，无需额外参数。" />
                         </StackPanel>
 
                         <!--  动态阈值：只显示本方式自己的参数  -->
                         <StackPanel Visibility="{Binding IsDynamicThreshold, Converter={StaticResource BoolToVis}}">
-                            <Grid Margin="0,10,0,0">
+                            <Grid Margin="{StaticResource PluginFirstRowMargin}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="局部窗口宽" ToolTip="动态阈值的邻域宽度（像素）。要略大于缺陷宽度，否则缺陷会被当成本地背景" />
-                                <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                                <TextBlock Style="{StaticResource PluginFieldLabel}" Text="局部窗口宽" ToolTip="动态阈值的邻域宽度（像素）。要略大于缺陷宽度，否则缺陷会被当成本地背景" />
+                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                     <TextBox.Text>
                                         <Binding Path="VarMaskWidth" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -229,13 +184,13 @@
                                     </TextBox.Text>
                                 </TextBox>
                             </Grid>
-                            <Grid Margin="0,6,0,0">
+                            <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="局部窗口高" ToolTip="动态阈值的邻域高度（像素）" />
-                                <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                                <TextBlock Style="{StaticResource PluginFieldLabel}" Text="局部窗口高" ToolTip="动态阈值的邻域高度（像素）" />
+                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                     <TextBox.Text>
                                         <Binding Path="VarMaskHeight" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -249,13 +204,13 @@
                                     </TextBox.Text>
                                 </TextBox>
                             </Grid>
-                            <Grid Margin="0,6,0,0">
+                            <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="标准差权重" ToolTip="局部灰度标准差要乘的系数；越大越严格、检出的越少" />
-                                <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                                <TextBlock Style="{StaticResource PluginFieldLabel}" Text="标准差权重" ToolTip="局部灰度标准差要乘的系数；越大越严格、检出的越少" />
+                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                     <TextBox.Text>
                                         <Binding Path="VarStdDevScale" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -265,13 +220,13 @@
                                     </TextBox.Text>
                                 </TextBox>
                             </Grid>
-                            <Grid Margin="0,6,0,0">
+                            <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="绝对灰度偏移" ToolTip="相对局部均值的固定灰度偏移量，兜底那些对比度很低的区域" />
-                                <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                                <TextBlock Style="{StaticResource PluginFieldLabel}" Text="绝对灰度偏移" ToolTip="相对局部均值的固定灰度偏移量，兜底那些对比度很低的区域" />
+                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                     <TextBox.Text>
                                         <Binding Path="VarAbsThreshold" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -284,15 +239,15 @@
                         </StackPanel>
 
                         <!--  检测目标：固定阈值下由灰度区间决定极性，故隐藏  -->
-                        <Grid Margin="0,10,0,0" Visibility="{Binding ShowDetectTarget, Converter={StaticResource BoolToVis}}">
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}" Visibility="{Binding ShowDetectTarget, Converter={StaticResource BoolToVis}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="检测目标" ToolTip="亮缺陷：比背景亮的划痕/亮点；暗缺陷：比背景暗的划痕/暗斑" />
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="检测目标" ToolTip="亮缺陷：比背景亮的划痕/亮点；暗缺陷：比背景暗的划痕/暗斑" />
                             <ComboBox
                                 Grid.Column="1"
-                                Height="24"
+                                Height="{StaticResource PluginControlHeight}"
                                 VerticalContentAlignment="Center"
                                 ItemsSource="{Binding DetectTargets}"
                                 SelectedItem="{Binding DetectTarget, Mode=TwoWay}">
@@ -307,16 +262,16 @@
                 </Border>
 
                 <!--  ② 特征筛选：面积 / 形状 / 触边  -->
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="② 特征筛选" />
-                        <Grid Margin="0,10,0,0">
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 特征筛选" />
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="面积下限" ToolTip="小于该面积（像素）的连通域当噪点丢弃。注意单位是像素，不是毫米" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="面积下限" ToolTip="小于该面积（像素）的连通域当噪点丢弃。注意单位是像素，不是毫米" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MinArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -326,13 +281,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="面积上限" ToolTip="超过它的连通域直接不算缺陷（不计数、不判定）。填 0 = 不限，此时上限自动取图像像素总数" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="面积上限" ToolTip="超过它的连通域直接不算缺陷（不计数、不判定）。填 0 = 不限，此时上限自动取图像像素总数" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MaxBlobArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -342,13 +297,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="圆度下限" ToolTip="0~1，1=正圆。细长划痕约 0.02~0.1，方块约 0.67。用来把「圆形斑点」与「细长划痕」分开；填 0 = 不按圆度筛" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="圆度下限" ToolTip="0~1，1=正圆。细长划痕约 0.02~0.1，方块约 0.67。用来把「圆形斑点」与「细长划痕」分开；填 0 = 不按圆度筛" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MinCircularity" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -358,13 +313,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="长宽比上限" ToolTip="外接矩形 长边/短边，越大越细长（正方形=1）。挑「细长划痕」就把它调大（如 10）；填 0 = 不按长宽比筛" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="长宽比上限" ToolTip="外接矩形 长边/短边，越大越细长（正方形=1）。挑「细长划痕」就把它调大（如 10）；填 0 = 不按长宽比筛" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MaxAspectRatio" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -374,13 +329,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="排除触边(px)" ToolTip="缺陷外接矩形碰到图像最外 N 像素就丢弃——打光/裁切边缘效应是固定误检源，上游 ROI 只能整体裁形状、没法往里缩一圈。填 0 = 不排除" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="排除触边(px)" ToolTip="缺陷外接矩形碰到图像最外 N 像素就丢弃——打光/裁切边缘效应是固定误检源，上游 ROI 只能整体裁形状、没法往里缩一圈。填 0 = 不排除" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="ExcludeBorderPx" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -395,23 +350,23 @@
                             </TextBox>
                         </Grid>
                         <TextBlock
-                            Margin="0,6,0,0"
-                            Style="{StaticResource HintText}"
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
                             Text="筛选掉的不计数也不判定；判定规格在下面第 ④ 区，两者是两回事。" />
                     </StackPanel>
                 </Border>
 
                 <!--  ③ 形态学  -->
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="③ 形态学" />
-                        <Grid Margin="0,10,0,0">
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 形态学" />
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="开运算半径" ToolTip="先腐蚀后膨胀，磨掉细小毛刺、断开粘连细桥。填 0 表示不做" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="开运算半径" ToolTip="先腐蚀后膨胀，磨掉细小毛刺、断开粘连细桥。填 0 表示不做" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="OpenRadius" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -421,13 +376,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="闭运算半径" ToolTip="先膨胀后腐蚀，补上缺陷内部的小孔、连接断裂的划痕。填 0 表示不做" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="闭运算半径" ToolTip="先膨胀后腐蚀，补上缺陷内部的小孔、连接断裂的划痕。填 0 表示不做" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="CloseRadius" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -437,13 +392,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="合并半径" ToolTip="把间距小于 2 倍半径的几段连成一个缺陷。一条划痕常被噪声断成几段、个数虚高好几倍，用它合回去。填 0 = 不合并" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="合并半径" ToolTip="把间距小于 2 倍半径的几段连成一个缺陷。一条划痕常被噪声断成几段、个数虚高好几倍，用它合回去。填 0 = 不合并" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MergeRadius" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -454,29 +409,29 @@
                             </TextBox>
                         </Grid>
                         <CheckBox
-                            Margin="0,10,0,0"
+                            Margin="{StaticResource PluginFirstRowMargin}"
                             Content="填孔（缺陷内部反光会把它挖成环形）"
                             FontSize="12"
                             IsChecked="{Binding FillHoles, Mode=TwoWay}"
                             ToolTip="勾选后按外轮廓计算面积。缺陷内部有亮斑/反光时，不填孔会让面积偏小、甚至被拆成多个区域" />
                         <TextBlock
-                            Margin="0,6,0,0"
-                            Style="{StaticResource HintText}"
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
                             Text="开/闭运算填 0 表示跳过该步（默认两步都跳过）。" />
                     </StackPanel>
                 </Border>
 
                 <!--  ④ 判定规格  -->
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="④ 判定规格" />
-                        <Grid Margin="0,10,0,0">
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="④ 判定规格" />
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="缺陷个数上限" ToolTip="缺陷个数超过它即判 NG。填 0 表示一个缺陷都不允许" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缺陷个数上限" ToolTip="缺陷个数超过它即判 NG。填 0 表示一个缺陷都不允许" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MaxDefectCount" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -490,13 +445,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="缺陷个数下限" ToolTip="缺陷个数少于它即判 NG。Blob 常用来做「存在性检测」——一个都没检到恰恰是坏消息；填 0 = 不做这项判定" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缺陷个数下限" ToolTip="缺陷个数少于它即判 NG。Blob 常用来做「存在性检测」——一个都没检到恰恰是坏消息；填 0 = 不做这项判定" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MinDefectCount" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -510,13 +465,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="单个缺陷面积上限" ToolTip="最大单缺陷面积超过它即判 NG（单位：像素）" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="单个缺陷面积上限" ToolTip="最大单缺陷面积超过它即判 NG（单位：像素）" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MaxSingleArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -526,13 +481,13 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="缺陷总面积上限" ToolTip="所有缺陷面积之和超过它即判 NG。每个都合格、但整片脏污/麻点密布时只有总面积能兜住；填 0 = 不做这项判定" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缺陷总面积上限" ToolTip="所有缺陷面积之和超过它即判 NG。每个都合格、但整片脏污/麻点密布时只有总面积能兜住；填 0 = 不做这项判定" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MaxTotalArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -543,23 +498,23 @@
                             </TextBox>
                         </Grid>
                         <TextBlock
-                            Margin="0,6,0,0"
-                            Style="{StaticResource HintText}"
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
                             Text="判定：个数超出上/下限、单个面积或总面积超出上限，任一命中即 NG。" />
                     </StackPanel>
                 </Border>
 
                 <!--  ⑤ 输出  -->
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="⑤ 输出" />
-                        <Grid Margin="0,10,0,0">
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="⑤ 输出" />
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="像素当量(mm/px)" ToolTip="标定后填真实值，MaxAreaMm2 / TotalAreaMm2 即为物理量。默认 1.0 = 输出的 mm² 数值等于像素值。注意判定仍按像素做，改当量不会改判定结果" />
-                            <TextBox Grid.Column="1" Style="{StaticResource NumericBox}">
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="像素当量(mm/px)" ToolTip="标定后填真实值，MaxAreaMm2 / TotalAreaMm2 即为物理量。默认 1.0 = 输出的 mm² 数值等于像素值。注意判定仍按像素做，改当量不会改判定结果" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="PixelSizeMm" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
@@ -569,15 +524,15 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
-                        <Grid Margin="0,6,0,0">
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="输出排序" ToolTip="CenterRows / CenterCols / DefectAreas / DefectWidths / DefectHeights 与 Defects 端口按同一顺序逐项对齐，下游按同一索引取即可对上号" />
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="输出排序" ToolTip="CenterRows / CenterCols / DefectAreas / DefectWidths / DefectHeights 与 Defects 端口按同一顺序逐项对齐，下游按同一索引取即可对上号" />
                             <ComboBox
                                 Grid.Column="1"
-                                Height="24"
+                                Height="{StaticResource PluginControlHeight}"
                                 VerticalContentAlignment="Center"
                                 ItemsSource="{Binding SortModes}"
                                 SelectedItem="{Binding SortMode, Mode=TwoWay}">
@@ -589,8 +544,8 @@
                             </ComboBox>
                         </Grid>
                         <TextBlock
-                            Margin="0,6,0,0"
-                            Style="{StaticResource HintText}"
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
                             Text="新增端口：DefectAreas / DefectWidths / DefectHeights / TotalArea / MaxAreaMm2 / TotalAreaMm2。" />
                     </StackPanel>
                 </Border>
@@ -598,18 +553,18 @@
         </ScrollViewer>
 
         <!--  ================= 右：标注图预览 =================  -->
-        <Border Grid.Column="1" Style="{StaticResource CardBorder}">
+        <Border Grid.Column="1" Style="{StaticResource PluginCard}">
             <DockPanel>
                 <Border
                     DockPanel.Dock="Top"
                     Padding="0,0,0,8"
-                    BorderBrush="#EEEEEE"
+                    BorderBrush="{StaticResource PluginDividerBrush}"
                     BorderThickness="0,0,0,1">
                     <Grid>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="标注图预览" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="标注图预览" />
                         <TextBlock
                             HorizontalAlignment="Right"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="改参数后自动刷新" />
                     </Grid>
                 </Border>
@@ -617,20 +572,19 @@
                 <!--  信息栏：判定结果 / 失败原因，颜色由 StatusLevel 决定  -->
                 <Border
                     DockPanel.Dock="Bottom"
-                    Margin="0,8,0,0"
-                    Padding="10,8"
-                    Background="#F8F8F8"
-                    CornerRadius="4">
-                    <TextBlock FontSize="12" Text="{Binding StatusMessage}" TextWrapping="Wrap">
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginStatusPanel}">
+                    <TextBlock FontSize="{StaticResource PluginLabelFontSize}" Text="{Binding StatusMessage}" TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#0A7" />
+                                <!--  默认=正常（绿）；级别由视图的 DataTrigger 切换，颜色一律走公共令牌  -->
+                                <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
-                                        <Setter Property="Foreground" Value="#E6A23C" />
+                                        <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
-                                        <Setter Property="Foreground" Value="#F56C6C" />
+                                        <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -641,19 +595,19 @@
                 <!--  灰度直方图：矢量绘制、随窗口缩放；固定阈值方式下叠上下限标记  -->
                 <Border
                     DockPanel.Dock="Bottom"
-                    Margin="0,8,0,0"
-                    Style="{StaticResource CardBorder}">
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginCard}">
                     <StackPanel>
                         <Grid>
-                            <TextBlock Style="{StaticResource CardTitle}" Text="灰度直方图" />
+                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="灰度直方图" />
                             <TextBlock
                                 HorizontalAlignment="Right"
-                                Style="{StaticResource HintText}"
-                                Text="橙色区间 = 当前固定阈值"
+                                Style="{StaticResource PluginHintText}"
+                                Text="标记区间 = 当前固定阈值"
                                 Visibility="{Binding IsFixedThreshold, Converter={StaticResource BoolToVis}}" />
                         </Grid>
 
-                        <Grid Height="104" Margin="0,8,0,0">
+                        <Grid Height="{StaticResource PluginHistogramHeight}" Margin="{StaticResource PluginSectionMargin}">
                             <!--  矢量绘制控件：数据与阈值都走绑定，缩放时在 OnRender 里按实际尺寸重算坐标  -->
                             <local:HistogramPlot
                                 Data="{Binding Histogram}"
@@ -665,16 +619,16 @@
                             <TextBlock
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                Style="{StaticResource HintText}"
+                                Style="{StaticResource PluginHintText}"
                                 Text="{Binding HistogramError}"
                                 Visibility="{Binding HistogramErrorVisible, Converter={StaticResource BoolToVis}}" />
                         </Grid>
 
-                        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource HintText}" Text="{Binding HistogramRangeText}" />
+                        <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource PluginHintText}" Text="{Binding HistogramRangeText}" />
                             <TextBlock
                                 Margin="12,0,0,0"
-                                Style="{StaticResource HintText}"
+                                Style="{StaticResource PluginHintText}"
                                 Text="{Binding HistogramTypeText}" />
                         </StackPanel>
                     </StackPanel>

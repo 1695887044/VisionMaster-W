@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="Plugin.ColorCheck.ColorCheckView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -30,29 +30,15 @@
                 <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <Style x:Key="CardBorder" TargetType="Border">
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#E5E5E5" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="8" />
-                <Setter Property="Padding" Value="14" />
-            </Style>
+            
 
-            <Style x:Key="CardTitle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="Foreground" Value="#1F1F1F" />
-            </Style>
+            
 
-            <Style x:Key="HintText" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="11" />
-                <Setter Property="Foreground" Value="#888888" />
-                <Setter Property="TextWrapping" Value="Wrap" />
-            </Style>
+            
 
-            <Style x:Key="ParamLabel" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+            <Style x:Key="ParamLabel" TargetType="TextBlock" BasedOn="{StaticResource PluginHintText}">
                 <Setter Property="VerticalAlignment" Value="Center" />
-                <Setter Property="Foreground" Value="#555555" />
+                <Setter Property="Foreground" Value="{StaticResource PluginLabelTextBrush}" />
             </Style>
 
             <Style x:Key="ParamBox" TargetType="TextBox">
@@ -72,13 +58,13 @@
         <!--  左列：参数卡片（内容较长，套滚动条）  -->
         <ScrollViewer Grid.Column="0" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <Border Style="{StaticResource CardBorder}">
+                <Border Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="采样区" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="采样区" />
 
                         <TextBlock
                             Margin="0,10,0,4"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="有上游图像时会自动显示（点下面的「执行」把它带进来）；也可以填路径手动载入一张示意图" />
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -102,9 +88,9 @@
 
                         <TextBlock
                             Margin="0,12,0,4"
-                            Style="{StaticResource CardTitle}"
+                            Style="{StaticResource PluginCardTitle}"
                             Text="当前采样区" />
-                        <TextBlock Style="{StaticResource HintText}" Text="{Binding RoiSummary}" />
+                        <TextBlock Style="{StaticResource PluginHintText}" Text="{Binding RoiSummary}" />
 
                         <Button
                             Height="26"
@@ -116,9 +102,9 @@
                     </StackPanel>
                 </Border>
 
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="0,8,0,0" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="检查参数" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="检查参数" />
 
                         <CheckBox
                             Margin="0,10,0,0"
@@ -159,12 +145,12 @@
                         <Border
                             Margin="0,10,0,0"
                             Padding="8"
-                            Background="#F7F8FA"
+                            Background="{StaticResource PluginSubtleBackgroundBrush}"
                             CornerRadius="4">
                             <TextBlock
                                 FontFamily="Consolas, Microsoft YaHei"
                                 FontSize="11"
-                                Foreground="#333333"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
                                 Text="{Binding ResultSummary}"
                                 TextWrapping="Wrap" />
                         </Border>
@@ -271,13 +257,13 @@
                     </StackPanel>
                 </Border>
 
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="0,8,0,0" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="配方" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="配方" />
 
                         <TextBlock
                             Margin="0,8,0,4"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="一行一条：产品名 = 颜色1,颜色2,...　（井号开头是注释；颜色词只有 黑/白/灰/紫/蓝/绿/黄/红/玫红/橙 才认得出来；某一位写 * 表示这一位不检）" />
                         <TextBox
                             Height="96"
@@ -298,48 +284,48 @@
 
                         <TextBlock
                             Margin="0,8,0,0"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="运行期按实测根数匹配（期望序列的长度就是这条配方要求几根）；另有「期望序列」输入端口，端口填了就以端口为准。" />
                     </StackPanel>
                 </Border>
 
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="0,8,0,0" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="怎么用" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="怎么用" />
                         <TextBlock
                             Margin="0,8,0,0"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="① 先在流程里把本节点的 Image 连到上游（画布上拖一条线，或右键 → 变量绑定，选上游的 Image 输出）；② 打开本窗口点「执行」——上游图像会显示在右侧；③ 在图上右键 → 新建矩形，框住整条线束；④ 再点「执行」或「试算一下」核对结果。" />
                         <TextBlock
                             Margin="0,8,0,0"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="第一次点「执行」会报「尚未框选采样区」——那是对的，此时图已经上屏，框完再执行一次即可。" />
                         <TextBlock
                             Margin="0,8,0,0"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="没有上游节点时：填「示意图路径」并点「载入」，一样能框。框的短边方向要与线束走向垂直（横着铺的线束就画一个横着的长框），框要贴住线束、别把大片背景圈进来。" />
                     </StackPanel>
                 </Border>
 
-                <Border Margin="0,8,0,0" Style="{StaticResource CardBorder}">
+                <Border Margin="0,8,0,0" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource CardTitle}" Text="本轮范围" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="本轮范围" />
                         <TextBlock
                             Margin="0,8,0,0"
-                            Style="{StaticResource HintText}"
+                            Style="{StaticResource PluginHintText}"
                             Text="现在能做到「算出颜色序列 + 按配方判定合格与否 + 把结果投到视图窗口」，输出 根数 / 序列 / 逐根来源 / 行号 / 判定 / 第几位不符 / 结论。颜色色卡目前是内置的（阈值暂写死），可调与示教是下一步。" />
                     </StackPanel>
                 </Border>
 
                 <TextBlock
                     Margin="2,10,2,10"
-                    Style="{StaticResource HintText}"
+                    Style="{StaticResource PluginHintText}"
                     Text="{Binding Hint}" />
             </StackPanel>
         </ScrollViewer>
 
         <!--  右列：图像编辑器（能力全部来自控件 DP，插件只做绑定）  -->
-        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource CardBorder}">
+        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource PluginCard}">
             <h:ImageEdit
                 x:Name="ImageEditor"
                 ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"

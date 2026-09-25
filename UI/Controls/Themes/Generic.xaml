@@ -3,6 +3,9 @@
     <ResourceDictionary.MergedDictionaries>
 
         <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+        <!--  插件配置界面令牌：颜色/尺寸放在 Colors 之前合并，Styles 只做引用。换主题时替换前者即可  -->
+        <ResourceDictionary Source="/UI;component/Themes/PluginConfigColors.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/PluginConfigStyles.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/IconDictionary.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/DefaultStyle.xaml" />
         <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Popover.xaml" />
