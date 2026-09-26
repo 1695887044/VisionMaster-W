@@ -11,8 +11,12 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Windows;
 using System.Windows.Input;
 
 namespace Plugin.CreateRoi
@@ -55,6 +59,12 @@ namespace Plugin.CreateRoi
 
         public OutputPort<int> RoiCount { get; } = new();
 
+        /// <summary>合并有效区域 = (ΣROI ∪ 涂抹) − 擦除（不随排除模式反转，区域语义恒为"有效区"）</summary>
+        public OutputPort<HRegion> MaskRegion { get; } = new("MaskRegion", "合并有效区域（ROI∪涂抹−擦除）");
+
+        /// <summary>二值掩膜图（有效区 255、其余 0；排除模式下反转），下游可做掩膜运算</summary>
+        public OutputPort<HImage> MaskImage { get; } = new("MaskImage", "二值掩膜图（排除模式下反转）");
+
         #endregion
 
         #region 视图属性
@@ -73,12 +83,19 @@ namespace Plugin.CreateRoi
             get => _selectedRoi;
             set
             {
-                if (_selectedRoi != null) _selectedRoi.ParamEdited -= OnSelectedRoiParamEdited;
-                if (SetProperty(ref _selectedRoi, value) && _selectedRoi != null)
+                var old = _selectedRoi;
+                // 先判断再退订： setter 会经 CanvasActiveRoi 联动回写同值重入，
+                // 若无条件先退订，同值路径短路后 ParamEdited 订阅被摘走不再补回 —— 参数微调就此断链
+                if (!SetProperty(ref _selectedRoi, value)) return;
+                if (old != null) old.ParamEdited -= OnSelectedRoiParamEdited;
+                if (_selectedRoi != null)
                 {
                     _selectedRoi.ParamEdited += OnSelectedRoiParamEdited;
-                    // 列表选中 → 画布挂接句柄（控件 ActiveRoi DP 回调完成 Attach）
-                    CanvasActiveRoi = CanvasRois.FirstOrDefault(x => x.RoiName == _selectedRoi.Name);
+                    // 列表选中 → 画布挂接句柄（控件 ActiveRoi DP 回调完成 Attach）；
+                    // 画布活动对象没变就不写入，避免 setter 互相回环
+                    var info = CanvasRois.FirstOrDefault(x => x.RoiName == _selectedRoi.Name);
+                    if (!ReferenceEquals(CanvasActiveRoi, info))
+                        CanvasActiveRoi = info;
                 }
             }
         }
@@ -99,8 +116,11 @@ namespace Plugin.CreateRoi
             get => _canvasActiveRoi;
             set
             {
-                if (SetProperty(ref _canvasActiveRoi, value) && value != null)
-                    SelectedRoi = RoiList.FirstOrDefault(x => x.Name == value.RoiName); // 画布点选 → 列表定位
+                if (!SetProperty(ref _canvasActiveRoi, value)) return;
+                // 画布点选 → 列表定位；点空白（null）→ 列表同步取消选中（否则列表仍高亮却无句柄可拖）
+                var roi = value == null ? null : RoiList.FirstOrDefault(x => x.Name == value.RoiName);
+                if (!ReferenceEquals(SelectedRoi, roi))
+                    SelectedRoi = roi;
             }
         }
 
@@ -173,6 +193,11 @@ namespace Plugin.CreateRoi
                     foreach (DrawingObjectInfo info in e.NewItems)
                     {
                         info.PropertyChanged += OnCanvasRoiTuplesChanged;
+                        // 重名防御：控件命名序号每开一次配置界面就归零，重开配置再画必然撞上历史名字
+                        //（动态端口静默去重 → 输出互相覆盖 + 内存泄漏 + 按名查找歧义）。强制唯一名并回写控件标签
+                        info.RoiName = NextFreeName(info.RoiName,
+                            RoiList.Select(x => x.Name)
+                                .Concat(CanvasRois.Where(x => !ReferenceEquals(x, info)).Select(x => x.RoiName)));
                         RoiList.Add(new RoiItem
                         {
                             Name = info.RoiName,
@@ -243,8 +268,20 @@ namespace Plugin.CreateRoi
                 _ => System.Windows.Input.Keyboard.FocusedElement is not System.Windows.Controls.TextBox);
         private ICommand? _deleteSelectedCommand;
 
+        /// <summary>
+        /// 清空全部 ROI（按钮命令）：二次确认防误触（清空不可恢复）；
+        /// 集合 Reset → 画布摘句柄释放 + RoiList 回写
+        /// </summary>
         public ICommand ClearRoisCommand => _clearRoisCommand ??=
-            new RelayCommand(_ => CanvasRois.Clear());
+            new RelayCommand(
+                _ =>
+                {
+                    if (MessageBox.Show("确认清空全部 ROI 区域？该操作不可撤销。", "清空 ROI",
+                            MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                        return;
+                    CanvasRois.Clear();
+                },
+                _ => CanvasRois.Count > 0);
         private ICommand? _clearRoisCommand;
 
         private void OnRoiListChanged()
@@ -269,12 +306,64 @@ namespace Plugin.CreateRoi
             try
             {
                 CanvasRois.Clear();
+                // 旧方案可能带有历史重名（旧版控件命名序号重置 bug 所致），播种前统一去重，
+                // 否则 Crop_ 动态端口静默去重后输出互相覆盖
+                var used = new HashSet<string>();
+                var renamed = false;
                 foreach (var roi in RoiList)
+                {
+                    var free = NextFreeName(roi.Name, used);
+                    if (free != roi.Name) renamed = true;
+                    roi.Name = free;
+                    used.Add(free);
                     CanvasRois.Add(new DrawingObjectInfo(
                         roi.ShapeType, roi.Params.Select(p => new HTuple(p)).ToArray(), roi.Name));
+                }
+                if (renamed)
+                    RebuildDynamicOutputs(); // 有改名时端口与快照同步跟进
             }
             finally { _seedingCanvas = false; }
             RestoreSmear();
+        }
+
+        /// <summary>
+        /// 取一个不在 taken 集合中的 ROI 名：不冲突原样返回；冲突则取同词干现有最大序号 +1
+        /// （"ROI_0/ROI_2" 在场 → "ROI_3"；无序号名"缺陷区" → "缺陷区_1"）
+        /// </summary>
+        internal static string NextFreeName(string? desired, IEnumerable<string?> taken)
+        {
+            var name = string.IsNullOrWhiteSpace(desired) ? "ROI" : desired.Trim();
+            var used = new HashSet<string>();
+            foreach (var t in taken)
+                if (!string.IsNullOrWhiteSpace(t)) used.Add(t);
+            if (used.Count == 0 || !used.Contains(name)) return name;
+
+            string stem;
+            long next;
+            var m = Regex.Match(name, @"^(.*?)(\d+)$");
+            if (m.Success)
+            {
+                stem = m.Groups[1].Value;
+                next = long.TryParse(m.Groups[2].Value, out var n0) ? n0 : 0;
+            }
+            else
+            {
+                stem = name + "_";
+                next = 0;
+            }
+            foreach (var t in used)
+            {
+                var tm = Regex.Match(t, "^" + Regex.Escape(stem) + @"(\d+)$");
+                if (tm.Success && long.TryParse(tm.Groups[1].Value, out var n))
+                    next = Math.Max(next, n);
+            }
+            var candidate = stem + (next + 1);
+            while (used.Contains(candidate))
+            {
+                next++;
+                candidate = stem + (next + 1);
+            }
+            return candidate;
         }
 
         private bool _seedingCanvas;
@@ -286,12 +375,14 @@ namespace Plugin.CreateRoi
             if (src != null && src.IsInitialized()) PreviewImage = src;
         }
 
-        /// <summary>配置实例释放：掩膜预览图、防抖计时器与涂擦区域（直接清字段，避免析构期触发 INPC/持久化）</summary>
+        /// <summary>配置实例释放：掩膜预览图、防抖计时器、主窗口合成图与涂擦区域（直接清字段，避免析构期触发 INPC/持久化）</summary>
         public override void Dispose()
         {
             _maskDebounce.Stop();
             _maskPreviewImage?.Dispose();
             _maskPreviewImage = null;
+            _runtimeMaskedImg?.Dispose();
+            _runtimeMaskedImg = null;
             _smearDraw?.Dispose(); _smearDraw = null;
             _smearErase?.Dispose(); _smearErase = null;
             // 画布 ROI 兜底释放：正常路径控件 Unloaded 已处置，此处覆盖控件未挂接/异常路径（Dispose 幂等）
@@ -310,55 +401,106 @@ namespace Plugin.CreateRoi
             }
             PreviewImage = src;
             // 上一轮输出的 HImage 由基类轮首自动回收（AutoDisposeRoundOutputs），无需手写 Dispose
+            // 发布到主窗口的合成图不走端口，自管生命周期（轮首 + Dispose 释放）
+            _runtimeMaskedImg?.Dispose();
+            _runtimeMaskedImg = null;
 
-            RoiCount.Value = RoiList.Count;
+            src.GetImageSize(out int width, out int height);
 
-            // 6. 动态输出端口填值：每个 ROI 裁剪一张图，按端口名 Crop_{ROI名} 输出
-            for (int i = 0; i < RoiList.Count && i < _dynamicPortNames.Count; i++)
+            // 合并有效区域 = (ΣROI ∪ 涂抹) − 擦除，与配置界面掩膜预览同一口径；
+            // 所有权移交 MaskRegion 端口，由基类轮首统一回收
+            var merged = BuildMergedRegion();
+            MaskRegion.Value = merged;
+
+            // 二值掩膜（排除模式反转：ROI 内 0 外 255）+ 无效区置黑的合成图（发布主界面用）
+            var visual = BuildMaskAndResult(src, merged, MaskInvert, out var mask, out _);
+            MaskImage.Value = mask; // 所有权移交端口
+            _runtimeMaskedImg = visual;
+
+            // 发布主界面：0 = 不显示（此前选"不显示"仍会发布到窗口1）；发布合并掩膜合成图，
+            // 一帧看清全部 ROI 与涂擦修正——此前逐 ROI 发到同一窗口互相覆盖，只能看到最后一个
+            if (DisplayViewIndex > 0 && visual != null && visual.IsInitialized())
+                this.PublishPreview(visual, DisplayViewIndex + 1);
+
+            // 逐 ROI 裁剪：Crop_{ROI名} 动态端口；单个失败不阻断整体，但必须留痕供现场追查
+            var written = new HashSet<string>(StringComparer.Ordinal);
+            int writtenCount = 0;
+            foreach (var roi in RoiList)
             {
-                var roi = RoiList[i];
-                var portName = _dynamicPortNames[i];
-                using var region = BuildRegion(roi);
-                if (region == null || !Outputs.TryGetValue(portName, out var port)) continue;
+                var portName = $"Crop_{roi.Name}";
+                if (!written.Add(portName)) continue; // 重名防御：只输出第一个（正常路径已被唯一名校验拦截）
+                if (!Outputs.TryGetValue(portName, out var port)) continue;
+
+                HRegion? region = BuildRegion(roi);
+                if (region == null)
+                {
+                    context?.Logger?.Warn($"{InstanceName} ROI[{portName}] 形状参数无效，跳过裁剪");
+                    continue;
+                }
+
+                HImage? crop = null;
                 try
                 {
-                    HOperatorSet.ReduceDomain(src, region, out HObject cropped);
-                    HOperatorSet.CropDomain(cropped, out HObject croppedImg);
-                    cropped.Dispose();
-                    var tempRoiImg = new HImage(croppedImg);
-                    port.Set(tempRoiImg); // 免强转写动态端口：命中 OutputPort<HImage> 走 TypedValue 强类型路径
-                    this.PublishPreview(tempRoiImg, DisplayViewIndex + 1);
+                    // 擦除涂抹同样作用于每个 ROI 的有效域（否则"擦掉的地方"仍原样出现在裁剪图里）
+                    if (_smearErase != null && _smearErase.IsInitialized())
+                    {
+                        var cut = region.Difference(_smearErase);
+                        region.Dispose();
+                        region = cut;
+                    }
+                    HOperatorSet.AreaCenter(region, out HTuple area, out HTuple _, out HTuple _);
+                    if (area.D <= 0)
+                    {
+                        context?.Logger?.Warn($"{InstanceName} ROI[{portName}] 有效区域为空（被擦除殆尽），跳过裁剪");
+                        continue;
+                    }
+
+                    HOperatorSet.ReduceDomain(src, region, out HObject reduced);
+                    HOperatorSet.CropDomain(reduced, out HObject croppedImg);
+                    reduced.Dispose();
+                    crop = new HImage(croppedImg);
                     croppedImg.Dispose();
+                    port.Set(crop); // 免强转写动态端口：命中 OutputPort<HImage> 走 TypedValue 强类型路径
+                    writtenCount++;
+                    crop = null;    // 所有权已移交端口（轮首统一回收）
                 }
                 catch (Exception ex)
                 {
-                    // 单个 ROI 裁剪失败不阻断整体，但必须留痕：否则坏件无痕迹，现场无法追查
-                    context.Logger.Warn($"{InstanceName} ROI[{portName}] 裁剪失败：{ex.Message}");
+                    context?.Logger?.Warn($"{InstanceName} ROI[{portName}] 裁剪失败：{ex.Message}");
+                }
+                finally
+                {
+                    region.Dispose();
+                    if (crop != null) crop.Dispose(); // 端口写入前抛异常时不泄漏
                 }
             }
-         
+
+            // RoiCount = 本轮实际成功输出的裁剪图数（配置数 ≠ 成功数，下游按此循环取数才不越界）
+            RoiCount.Value = writtenCount;
+
             // Success 基类已预置 true（默认成功、显式失败），无需再写
         }
 
-        /// <summary>动态端口名缓存（端口重建与填值查找用）</summary>
-        private readonly List<string> _dynamicPortNames = new();
+        /// <summary>发布到主窗口的掩膜合成图（不走端口，轮首与 Dispose 释放）</summary>
+        private HImage? _runtimeMaskedImg;
 
         /// <summary>
         /// 按 RoiList 重建动态输出端口（Crop_{ROI名}），并同步定义快照（名字+类型）到 StepData
         /// - 配置实例：RoiList 变化时调用（setter + 视图 CollectionChanged）
         /// - 编译实例：FlowCompiler 在 ApplyConfigValues 后调用（从存盘快照恢复端口供接线）
+        /// 重名 ROI 只建一个端口（正常路径已被唯一名校验拦截，此处兜底历史数据）
         /// </summary>
         public void RebuildDynamicOutputs()
         {
             ClearDynamicOutputs();
-            _dynamicPortNames.Clear();
             var snapshot = new List<DynamicPortInfo>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var roi in RoiList)
             {
                 string portName = $"Crop_{roi.Name}";
-                AddDynamicOutput(new OutputPort<HImage>(portName));
-                _dynamicPortNames.Add(portName);
+                if (!seen.Add(portName)) continue;
+                AddDynamicOutput(new OutputPort<HImage>(portName, $"ROI '{roi.Name}' 的裁剪图"));
                 snapshot.Add(new DynamicPortInfo
                 {
                     Name = portName,
@@ -484,11 +626,18 @@ namespace Plugin.CreateRoi
             new RelayCommand(_ => { SmearDraw = null; SmearErase = null; });
         private ICommand? _clearSmearCommand;
 
-        /// <summary>配置窗口打开时调用：从持久化快照重建涂擦区域（绑定建立后自动上屏）</summary>
+        /// <summary>
+        /// 配置窗口打开时调用：从持久化快照重建涂擦区域（绑定建立后自动上屏）。
+        /// 必须直接写字段后一次性通知，不能逐个走 SmearDraw/SmearErase setter——
+        /// setter 内的 SyncSmearData 会把另一边的持久化快照用"尚未恢复的 null"覆盖成空，
+        /// 表现为擦除区域重开配置即丢、下次确认时方案数据被静默抹掉
+        /// </summary>
         public void RestoreSmear()
         {
-            SmearDraw = DataToRegion(_smearDrawData);
-            SmearErase = DataToRegion(_smearEraseData);
+            _smearDraw = DataToRegion(_smearDrawData);
+            _smearErase = DataToRegion(_smearEraseData);
+            OnPropertyChanged(nameof(SmearDraw));
+            OnPropertyChanged(nameof(SmearErase));
         }
 
         /// <summary>涂擦变化后同步持久化快照（区域是运行态，字段是存储态，单向同步）</summary>
@@ -500,7 +649,11 @@ namespace Plugin.CreateRoi
             OnPropertyChanged(nameof(SmearEraseData));
         }
 
-        /// <summary>HRegion → 游程编码文本（"行,起列,止列;..."，get_region_runs 标准算子）</summary>
+        /// <summary>
+        /// HRegion → 游程编码文本（"行,起列,止列;..."，get_region_runs 标准算子）。
+        /// 超过 4KB 自动 GZip+base64（"gz:" 前缀标识）——大图大范围涂擦的游程文本会让方案文件膨胀；
+        /// 无前缀的旧格式照常解析，两代格式互认
+        /// </summary>
         private static string RegionToData(HRegion? region)
         {
             if (region == null || !region.IsInitialized()) return "";
@@ -511,7 +664,8 @@ namespace Plugin.CreateRoi
                 var sb = new StringBuilder();
                 for (int i = 0; i < rows.Length; i++)
                     sb.Append(rows[i].I).Append(',').Append(colStart[i].I).Append(',').Append(colEnd[i].I).Append(';');
-                return sb.ToString();
+                var rle = sb.ToString();
+                return rle.Length <= 4096 ? rle : "gz:" + Convert.ToBase64String(GZipCompress(rle));
             }
             catch
             {
@@ -519,16 +673,19 @@ namespace Plugin.CreateRoi
             }
         }
 
-        /// <summary>游程编码文本 → HRegion（加载方案时 gen_region_runs 重建区域）</summary>
+        /// <summary>游程编码文本 → HRegion（加载方案时重建区域；"gz:" 前缀先解压）</summary>
         private static HRegion? DataToRegion(string data)
         {
             if (string.IsNullOrEmpty(data)) return null;
             try
             {
+                var text = data.StartsWith("gz:", StringComparison.Ordinal)
+                    ? GZipDecompress(Convert.FromBase64String(data.Substring(3)))
+                    : data;
                 var rows = new List<int>();
                 var c1 = new List<int>();
                 var c2 = new List<int>();
-                foreach (var seg in data.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                foreach (var seg in text.Split(';', StringSplitOptions.RemoveEmptyEntries))
                 {
                     var p = seg.Split(',');
                     if (p.Length != 3) continue;
@@ -545,6 +702,24 @@ namespace Plugin.CreateRoi
             {
                 return null; // 数据损坏时静默降级为无涂擦
             }
+        }
+
+        private static byte[] GZipCompress(string text)
+        {
+            using var src = new MemoryStream(Encoding.UTF8.GetBytes(text));
+            using var dst = new MemoryStream();
+            using (var gz = new GZipStream(dst, CompressionLevel.Fastest))
+                src.CopyTo(gz);
+            return dst.ToArray();
+        }
+
+        private static string GZipDecompress(byte[] bytes)
+        {
+            using var src = new MemoryStream(bytes);
+            using var gz = new GZipStream(src, CompressionMode.Decompress);
+            using var dst = new MemoryStream();
+            gz.CopyTo(dst);
+            return Encoding.UTF8.GetString(dst.ToArray());
         }
 
         #endregion

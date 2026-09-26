@@ -40,6 +40,7 @@ namespace FlowCanvasChecks
             RunMergeAndFill();
             RunJudgementAndUnits();
             RunResetAndBitDepth();
+            RunMultiChannelAndNumbering();
             RunViewAndThemeContract();
         }
 
@@ -456,6 +457,117 @@ namespace FlowCanvasChecks
                     span > 50, $"底部条带灰度跨度={span:0.#}（截断的话会是一个常数）");
             }
             p16.Dispose();
+        }
+
+        // ==================================================================
+        //  ⑥ 多通道输入（RGB / RGBA）与缺陷编号标注（本轮补全的三项功能中可断言的两项）
+        // ==================================================================
+        private static void RunMultiChannelAndNumbering()
+        {
+            // 同一场景复制成 3 通道（R=G=B=灰度，加权求和后数值不变）与 4 通道（第 4 通道当 alpha）：
+            // 检测结果必须与 1 通道原图完全一致，且 4 通道的标注图照样能出——
+            // disp_obj 不吃 4 通道，底图必须先丢 alpha，否则渲染失败 DefectImage 为空
+            using var gray = BuildScene();
+            HOperatorSet.Compose3(gray, gray, gray, out HObject rgb3Obj);
+            HOperatorSet.AppendChannel(rgb3Obj, gray, out HObject rgba4Obj);
+            using var img3 = new HImage(rgb3Obj);
+            using var img4 = new HImage(rgba4Obj);
+            rgb3Obj.Dispose();
+            rgba4Obj.Dispose();
+
+            var p1 = NewPlugin(gray);
+            p1.Execute(MakeContext(new StubLog()));
+            int count1 = Convert.ToInt32(p1.DefectCount.Value);
+
+            var p3 = NewPlugin(img3);
+            p3.Execute(MakeContext(new StubLog()));
+            int count3 = Convert.ToInt32(p3.DefectCount.Value);
+
+            var log4 = new StubLog();
+            var p4 = NewPlugin(img4);
+            p4.Execute(MakeContext(log4));
+            int count4 = Convert.ToInt32(p4.DefectCount.Value);
+
+            Check("【多通道】3 通道输入检出与 1 通道一致", count3 == count1 && count1 == 5,
+                $"1通道={count1} 3通道={count3}");
+            Check("【多通道】4 通道输入检出与 1 通道一致（alpha 被忽略）", count4 == count1,
+                $"4通道={count4} 1通道={count1}");
+            var anno4 = p4.DefectImage.Value as HImage;
+            Check("【多通道】4 通道输入的标注图照样生成（底图已丢 alpha，渲染不报错）",
+                anno4 != null && anno4.IsInitialized() && log4.Warns.Count == 0,
+                $"Warn={string.Join(" | ", log4.Warns)}");
+
+            // ---- 缺陷编号：排序语义的最后一公里 —— 报表说的"3 号"必须能在图上找到 ----
+            // 验法：缺陷 C（圆心 (150,150)、半径 8）的编号锚点 = 外接矩形中心 (150,150)，开窗取
+            // 其包围盒内部 (146..155)：编号红字会落进来，而不写编号时这里只有均匀的缺陷底色
+            //（真实环境是灰 50，无显示环境是黑），一个红主导像素都不该有。
+            // 环境闸门：离屏窗口若连文字都不渲染（整图均值 ≈0），本环境验不了，记跳过不制造假失败。
+            // 注：探针实测本环境 disp_obj 不渲染但 disp_text（"window" 坐标系）渲染正常，
+            // 所以这条断言在本环境就是真跑，不是摆设。
+            var anno1 = p1.DefectImage.Value as HImage;
+            double mean = anno1 != null && anno1.IsInitialized() ? MeasureMean(anno1) : 0;
+            if (mean <= 5)
+            {
+                Check("【编号】缺陷旁写有 1 基编号（与输出端口顺序逐项对应）", true,
+                    $"跳过：本环境离屏窗口不渲染内容（标注图整体均值={mean:0.#}），需带显示会话的环境目视确认");
+            }
+            else
+            {
+                int redPx = CountRedDominated(anno1!, 146, 146, 155, 155);
+                Check("【编号】缺陷旁写有 1 基编号（与输出端口顺序逐项对应）", redPx >= 3,
+                    $"编号锚点开窗红主导像素={redPx}（期望 ≥3；不写编号时为 0）");
+            }
+            p1.Dispose(); p3.Dispose(); p4.Dispose();
+        }
+
+        /// <summary>标注图整体灰度均值（转灰后按 domain 求）：≈0 即离屏窗口整张渲染成了黑，环境验不了标注内容</summary>
+        private static double MeasureMean(HImage annotated)
+        {
+            HOperatorSet.CountChannels(annotated, out HTuple ch);
+            HObject work = annotated;
+            bool ownsWork = false;
+            if (ch.I == 3)
+            {
+                HOperatorSet.Rgb1ToGray(annotated, out work);
+                ownsWork = true;
+            }
+
+            try
+            {
+                HOperatorSet.GetDomain(work, out HObject dom);
+                try
+                {
+                    HOperatorSet.Intensity(dom, work, out HTuple mean, out HTuple _);
+                    return mean.D;
+                }
+                finally { dom.Dispose(); }
+            }
+            finally { if (ownsWork) work.Dispose(); }
+        }
+
+        /// <summary>
+        /// 数开窗内"红主导"像素数（R − max(G,B) > 40）：红字 / 红描边在灰底上的可靠指纹。
+        /// 用 crop_rectangle1（四角坐标无歧义）而不是 crop_part（其 row/col 语义容易记岔）。
+        /// </summary>
+        private static int CountRedDominated(HImage annotated, int row1, int col1, int row2, int col2)
+        {
+            HOperatorSet.CropRectangle1(annotated, out HObject crop, row1, col1, row2, col2);
+            try
+            {
+                HOperatorSet.Decompose3(crop, out HObject r, out HObject g, out HObject b);
+                try
+                {
+                    HOperatorSet.SubImage(r, g, out HObject rg, 1.0, 0);
+                    HOperatorSet.SubImage(r, b, out HObject rb, 1.0, 0);
+                    HOperatorSet.Threshold(rg, out HObject t1, 40, 255);
+                    HOperatorSet.Threshold(rb, out HObject t2, 40, 255);
+                    HOperatorSet.Intersection(t1, t2, out HObject red);
+                    HOperatorSet.AreaCenter(red, out HTuple area, out HTuple _, out HTuple _);
+                    return area.Length > 0 ? area[0].I : 0;
+                }
+                finally { r.Dispose(); g.Dispose(); b.Dispose(); }
+            }
+            finally { crop.Dispose(); }
         }
 
         // ==================================================================

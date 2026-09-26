@@ -310,6 +310,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 catch (Exception ex)
                 {
                     error = ex;
+                    // 堆栈必须落日志：状态栏只显示 Message，跨线程/UI 这类问题没有堆栈无法定位
+                    _logger.Error($"[试运行] {plugin.InstanceName} 执行异常堆栈: {error}");
                 }
 
                 // "是否被取消"由发起方判定（令牌是自己 Cancel 的），不依赖插件的返回约定

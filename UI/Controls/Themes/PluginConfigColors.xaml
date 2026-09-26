@@ -87,6 +87,28 @@
     <SolidColorBrush x:Key="PluginListSelectedBrush" Color="#E8F1FD" />
 
     <!--
+        ==================== Windows 11 强调色（第三批新增） ====================
+        模板匹配配置视图先行使用。主色取输入框聚焦蓝同源的 #2F6FBF —— 与既有蓝色体系同族，
+        不引入第二套"看起来像的蓝"；悬停/按下按 Win11 accent button 的"悬停变亮、按下变暗"节奏取值。
+    -->
+    <SolidColorBrush x:Key="PluginAccentBrush" Color="#2F6FBF" />
+    <SolidColorBrush x:Key="PluginAccentHoverBrush" Color="#3D7CC9" />
+    <SolidColorBrush x:Key="PluginAccentPressedBrush" Color="#28588F" />
+    <SolidColorBrush x:Key="PluginAccentTextBrush" Color="#FFFFFF" />
+
+    <!--
+        状态徽标（胶囊）底色：浅底 + 深字（文字仍用 PluginOkBrush / PluginErrorBrush / PluginHintTextBrush）。
+        Win11 的"一眼状态"小件：模板已创建/未创建、执行结果摘要等。
+    -->
+    <SolidColorBrush x:Key="PluginOkSubtleBrush" Color="#E6F5EF" />
+    <SolidColorBrush x:Key="PluginWarningSubtleBrush" Color="#FDF3E6" />
+    <SolidColorBrush x:Key="PluginErrorSubtleBrush" Color="#FDECEC" />
+    <SolidColorBrush x:Key="PluginNeutralSubtleBrush" Color="#F1F3F5" />
+
+    <!--  胶囊圆角：状态徽标用（半高全圆）  -->
+    <CornerRadius x:Key="PluginPillCornerRadius">10</CornerRadius>
+
+    <!--
         ==================== 等宽预览文字（第二批收编） ====================
         "实际读取/写出/发出 →" 预览路径与报文：Consolas 优先、中文回退雅黑。
         浅蓝 #1565C0 与下拉高亮 #2196F3 同为蓝系但值不同、来源不同，分键。

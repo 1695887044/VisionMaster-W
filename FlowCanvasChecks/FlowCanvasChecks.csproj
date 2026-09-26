@@ -28,6 +28,12 @@
       能在编译期就拿到类型检查，失败信息也更好读。
     -->
     <ProjectReference Include="..\Plugins\Plugin.BlobDetect\Plugin.BlobDetect.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.Matching\Plugin.Matching.csproj" />
+    <!--
+      创建ROI：直接引用插件工程（同上，不走 Modules\ 反射加载），
+      断言三形状区域构建 / 掩膜 / 涂擦合并 / 动态端口与重名防御 / 运行端到端契约。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.CreateRoi\Plugin.CreateRoi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

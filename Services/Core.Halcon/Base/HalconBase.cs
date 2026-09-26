@@ -182,6 +182,8 @@ namespace Core.Halcon.Controls
         private ObservableCollection<DrawingObjectInfo> _boundList; // 当前订阅的画布集合（防重复订阅）
         private readonly List<DrawingObjectInfo> _trackedRois = new(); // 集合内对象的影子表：Reset（Clear）后拿不到旧项，靠它释放原生句柄
 
+        private bool _pendingFitOnLoad; // 图像先于控件 Loaded 到达时，Loaded 后补一次"铺满"
+
         // 通道取样缓存：MouseMove 高频触发，避免每次移动都 AccessChannel 生成 3 个临时图像
         private HImage _cacheSource; // 缓存对应的源图实例引用，换图即失效
         private HImage _sampleRed;
@@ -258,8 +260,29 @@ namespace Core.Halcon.Controls
                 catch { }
             }
             if (sizeChanged)
-                view.hWindow?.SetPart(0, 0, -2, -2);
-            view.RenderAll();
+            {
+                // 铺满必须走控件层的 SetFullImagePart：它同步 HSmartWindowControlWPF 的内部缩放状态。
+                // 直接设 HWindow.SetPart 会被控件内部状态顶掉 —— 表现为"新图不铺满，要手动适应"。
+                // 时序与右键"适应图片/窗口"一致：先把图画上（旧 part 无妨）→ 控件层铺满 → 新 part 重绘。
+                // 在 disp 之前调 SetFullImagePart(图) 实测会得到一整帧黑屏。
+                // 窗口尚未就绪（图像先于 Loaded 到达，如流程后台先跑、用户才切到视觉图像页）时
+                // 记一笔，Loaded 后补铺满。
+                if (view.hSmart != null && view.hWindow != null)
+                {
+                    view.RenderAll();
+                    view.hSmart.SetFullImagePart();
+                    view.RenderAll();
+                }
+                else
+                {
+                    view._pendingFitOnLoad = true;
+                    view.RenderAll();
+                }
+            }
+            else
+            {
+                view.RenderAll();
+            }
             var size = newImg.GetImageSize(); // 仅调用一次，避免重复查询
             view.DisplayImageInfo.Width = size[0];
             view.DisplayImageInfo.Height = size[1];
@@ -285,6 +308,18 @@ namespace Core.Halcon.Controls
                     hWindow = hSmart.HalconWindow;
                     HWindow = hWindow;
                     //DrawCheckerboardBackground(hWindow);
+                    // 图像先于窗口就绪到达过的：渲染前补一次"铺满"，
+                    // 否则首帧按默认 part 显示 = 小图 + 黑边，用户得手动适应
+                    if (_pendingFitOnLoad)
+                    {
+                        _pendingFitOnLoad = false;
+                        try
+                        {
+                            if (HImage != null && HImage.IsInitialized())
+                                hSmart.SetFullImagePart(HImage);
+                        }
+                        catch { /* 铺满失败退回默认 part，不阻断渲染 */ }
+                    }
                     RenderAll();
                     // Loaded 前设置的 ActiveRoi 当时挂接被跳过（hWindow 未就绪），此处补挂
                     if (ActiveRoi?.DrawObject != null)
@@ -954,21 +989,38 @@ namespace Core.Halcon.Controls
                     hWindow.WriteString(info.RoiName);
                 }
 
-                // 涂抹层：涂=橙色、擦=红色（填充显示修正区域；笔画中优先显示工作副本）
-                var drawShow = strokeDraw ?? SmearDraw;
+                // 涂抹层：橙=净涂抹（涂抹−擦除），红=擦除位置的细轮廓。
+                // 擦除若用红色填充，看起来像"涂了红色"而不是"擦掉了"——
+                // 擦掉的地方必须露出底图，红轮廓只作位置标记（笔画中优先显示工作副本）
+                var drawBase = strokeDraw ?? SmearDraw;
                 var eraseShow = strokeErase ?? SmearErase;
-                if (drawShow != null && drawShow.IsInitialized())
+                HRegion? drawShow = drawBase;
+                bool drawShowIsTemp = false;
+                if (drawBase != null && drawBase.IsInitialized()
+                    && eraseShow != null && eraseShow.IsInitialized())
                 {
-                    hWindow.SetDraw("fill");
-                    hWindow.SetColor("orange");
-                    hWindow.DispObj(drawShow);
+                    drawShow = drawBase.Difference(eraseShow);
+                    drawShowIsTemp = true;
                 }
-                if (eraseShow != null && eraseShow.IsInitialized())
+                try
                 {
-                    hWindow.SetDraw("fill");
-                    hWindow.SetColor("red");
-                    hWindow.DispObj(eraseShow);
-                    hWindow.SetDraw("margin");
+                    if (drawShow != null && drawShow.IsInitialized())
+                    {
+                        hWindow.SetDraw("fill");
+                        hWindow.SetColor("orange");
+                        hWindow.DispObj(drawShow);
+                    }
+                    if (eraseShow != null && eraseShow.IsInitialized())
+                    {
+                        hWindow.SetDraw("margin");
+                        hWindow.SetColor("red");
+                        hWindow.DispObj(eraseShow);
+                    }
+                }
+                finally
+                {
+                    if (drawShowIsTemp)
+                        drawShow?.Dispose();
                 }
 
                 // 测量标注层（线段/角度/文本，随帧覆盖）
@@ -987,6 +1039,7 @@ namespace Core.Halcon.Controls
         #region 画笔涂擦掩膜
 
         private bool isSmearing;
+        private double? lastSmearRow, lastSmearCol; // 上一落点（连续线条插值的起点）
         private DateTime lastSmearRenderUtc; // 渲染节流时间戳：MouseMove 高频触发，全量重绘按 ~40ms 一帧节流
 
         public static readonly DependencyProperty SmearModeProperty =
@@ -1003,7 +1056,26 @@ namespace Core.Halcon.Controls
             // 进入涂擦模式时退出 ROI 编辑，避免画笔与句柄拖拽抢鼠标
             if (SmearMode != SmearModeType.None && ActiveRoi != null)
                 SetCurrentValue(ActiveRoiProperty, null);
+
+            // 涂抹期间必须关闭控件自带的"拖拽平移"（HMoveContent 默认 true）：
+            // 不关的话按住拖动时平移逻辑接管鼠标，笔画只能落下第一个圆 —— 表现就是
+            // "一次画一个圆，不能连续"。退出涂抹时恢复原设置。
+            if (hSmart != null)
+            {
+                if (SmearMode != SmearModeType.None)
+                {
+                    _moveContentBeforeSmear = hSmart.HMoveContent;
+                    hSmart.HMoveContent = false;
+                }
+                else if (_moveContentBeforeSmear.HasValue)
+                {
+                    hSmart.HMoveContent = _moveContentBeforeSmear.Value;
+                    _moveContentBeforeSmear = null;
+                }
+            }
         }
+
+        private bool? _moveContentBeforeSmear;
 
         public static readonly DependencyProperty BrushRadiusProperty =
             DependencyProperty.Register(nameof(BrushRadius), typeof(double), typeof(HalconBase),
@@ -1046,6 +1118,7 @@ namespace Core.Halcon.Controls
             if (SmearMode == SmearModeType.None || e.Button != MouseButton.Left)
                 return;
             isSmearing = true;
+            lastSmearRow = lastSmearCol = null;   // 新笔画从零开始
             ApplySmear(e.Row, e.Column, forceRender: true); // 落笔立即反馈
         }
 
@@ -1061,6 +1134,7 @@ namespace Core.Halcon.Controls
             if (!isSmearing)
                 return;
             isSmearing = false;
+            lastSmearRow = lastSmearCol = null;   // 笔画结束，下一笔重新起笔
             // 一次笔画结束：工作副本移交 DP（TwoWay 绑定回传 VM 持久化；VM 负责释放被替换的旧实例）
             if (strokeDraw != null)
                 SetCurrentValue(SmearDrawProperty, strokeDraw);
@@ -1077,23 +1151,47 @@ namespace Core.Halcon.Controls
         {
             try
             {
-                HOperatorSet.GenCircle(out HObject discObj, row, column, Math.Max(1.0, BrushRadius));
-                using var disc = new HRegion(discObj);
-                discObj.Dispose();
-                if (SmearMode == SmearModeType.Draw)
+                double radius = Math.Max(1.0, BrushRadius);
+
+                // 连续线条（用户实测反馈"一次画一个圆，不能连续"）：从上一落点到当前点，
+                // 按 半径×0.6 的间距插值盖章 —— 无论鼠标事件多稀疏，笔画都是连贯的。
+                // 单点去重：距上一落点不足半个间距时不重复盖章。
+                var stamps = new List<(double Row, double Col)>();
+                if (lastSmearRow.HasValue && lastSmearCol.HasValue)
                 {
-                    var baseRegion = strokeDraw ?? SmearDraw; // DP 值为 VM 所有，只读参与并集
-                    var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
-                    strokeDraw?.Dispose(); // 旧工作副本（仅控件持有的实例）才可释放
-                    strokeDraw = added;
+                    double dr = row - lastSmearRow.Value;
+                    double dc = column - lastSmearCol.Value;
+                    double dist = Math.Sqrt(dr * dr + dc * dc);
+                    double spacing = Math.Max(1.0, radius * 0.6);
+                    int steps = (int)Math.Ceiling(dist / spacing);
+                    for (int i = 1; i <= steps; i++)
+                        stamps.Add((lastSmearRow.Value + dr * i / steps, lastSmearCol.Value + dc * i / steps));
                 }
-                else if (SmearMode == SmearModeType.Erase)
+                stamps.Add((row, column));
+                lastSmearRow = row;
+                lastSmearCol = column;
+
+                foreach (var (sr, sc) in stamps)
                 {
-                    var baseRegion = strokeErase ?? SmearErase;
-                    var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
-                    strokeErase?.Dispose();
-                    strokeErase = added;
+                    HOperatorSet.GenCircle(out HObject discObj, sr, sc, radius);
+                    using var disc = new HRegion(discObj);
+                    discObj.Dispose();
+                    if (SmearMode == SmearModeType.Draw)
+                    {
+                        var baseRegion = strokeDraw ?? SmearDraw; // DP 值为 VM 所有，只读参与并集
+                        var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
+                        strokeDraw?.Dispose(); // 旧工作副本（仅控件持有的实例）才可释放
+                        strokeDraw = added;
+                    }
+                    else if (SmearMode == SmearModeType.Erase)
+                    {
+                        var baseRegion = strokeErase ?? SmearErase;
+                        var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
+                        strokeErase?.Dispose();
+                        strokeErase = added;
+                    }
                 }
+
                 var now = DateTime.UtcNow;
                 if (forceRender || (now - lastSmearRenderUtc).TotalMilliseconds >= 40)
                 {

@@ -449,8 +449,9 @@ namespace Plugin.CaliperMeasure
         {
             CanvasRegions.CollectionChanged += OnCanvasRegionsChanged;
 
-            // 输入图像变了（换图/接上上游变量）也刷新预览，否则选了图还得再动一下参数才看得到
-            SrcImage.ValueChanged += (_, _) => OnSourceImageChanged();
+            // 注意：SrcImage.ValueChanged 不在这里订阅——预览是配置态能力，订阅动作挪进
+            // MarkAsConfigInstance()（配置视图加载时才调用），运行实例从不订阅。
+            // 理由见 _isConfigInstance 的注释
 
             _previewDebounce.Tick += (_, _) => { _previewDebounce.Stop(); RefreshPreview(); };
 
@@ -675,18 +676,41 @@ namespace Plugin.CaliperMeasure
             StatusLevel = level;
         }
 
+        /// <summary>
+        /// 是否为"配置态实例"（宿主为打开配置界面而创建的那个）。运行实例一律 false。
+        ///
+        /// 为什么必须区分：预览是给人调参用的配置态能力。放在运行实例上会——
+        /// ① 产线每帧在 UI 线程多跑一遍完整测量（N 把卡尺 + 拟合 + 离屏渲染），界面响应变差、CPU 白烧；
+        /// ② 同一运行实例里，流程线程的 RunAlgorithm 与 UI 线程的 RefreshPreview 并发共用同一扇
+        ///    离屏渲染窗口（有锁不崩，但互相阻塞）；
+        /// ③ 每帧 new 一张标注图给没人绑定的 PreviewImage，随即丢弃——纯内存抖动。
+        /// 防抖计时器还绑定"创建线程"的 Dispatcher，运行实例的编译线程不确定（UI/后台皆可能），
+        /// 问题是否显形取决于线程归属——行为不确定本身就是缺陷（与 BlobDetect 的同类守卫同源）。
+        /// </summary>
+        private bool _isConfigInstance;
+
+        /// <summary>标记为配置态实例（幂等）。输入图变化的订阅动作也在这里完成——只有配置实例才收得到"上游每帧新图"</summary>
+        private void MarkAsConfigInstance()
+        {
+            if (_isConfigInstance) return;
+            _isConfigInstance = true;
+            // 输入图像变了（换图/接上上游变量）也刷新预览，否则选了图还得再动一下参数才看得到
+            SrcImage.ValueChanged += OnSourceImageChanged;
+        }
+
         /// <summary>参数逐字符刷新，整幅图+多把卡尺算一遍不便宜，200ms 防抖（与既有插件同参数）</summary>
         private readonly DispatcherTimer _previewDebounce = new() { Interval = TimeSpan.FromMilliseconds(200) };
 
-        /// <summary>视图就绪信号（视图 Loaded 时调用）：补足搜索区并取输入图做预览底图</summary>
+        /// <summary>视图就绪信号（视图 Loaded 时调用）：标记配置态 + 补足搜索区并取输入图做预览底图</summary>
         public void OnViewLoaded()
         {
+            MarkAsConfigInstance();
             EnsureRequiredRegions();
             RefreshPreview();
         }
 
         /// <summary>源图变化（换图/接上游）：补足搜索区 + 刷新预览；可能发生在非 UI 线程，先投递回去</summary>
-        private void OnSourceImageChanged()
+        private void OnSourceImageChanged(object? sender, EventArgs e)
         {
             var dispatcher = UiDispatcher;
             if (dispatcher != null && !dispatcher.CheckAccess())
@@ -700,6 +724,9 @@ namespace Plugin.CaliperMeasure
 
         private void SchedulePreview()
         {
+            // 运行实例不跑预览（理由见 _isConfigInstance 的注释）；订阅已按配置态收口，这里是纵深防御
+            if (!_isConfigInstance) return;
+
             // 流程线程上跑算法时参数纠偏也会发通知，一路调到这儿。
             // DispatcherTimer 只能在创建它的线程上启停，所以非 UI 线程先投递回去。
             var dispatcher = UiDispatcher;
@@ -1364,7 +1391,7 @@ namespace Plugin.CaliperMeasure
             return (new HTuple(), new HTuple());
         }
 
-        /// <summary>measure_pairs 带一次性重试（同 MeasurePosWithRetry 的依据），返回首条配对边缘与间距</summary>
+        /// <summary>measure_pairs 带重试（最多 4 次，依据同 MeasurePosWithRetry），返回首条配对边缘与间距</summary>
         private (HTuple R1, HTuple C1, HTuple R2, HTuple C2, HTuple Intra) MeasurePairsWithRetry(
             HObject gray, double[] caliper, MeasureParams p, int imgW, int imgH, List<HTuple> measureHandles)
         {

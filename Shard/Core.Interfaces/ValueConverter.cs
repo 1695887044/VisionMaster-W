@@ -50,8 +50,16 @@ namespace Core.Interfaces
                 return token.ToString();
             }
 
-            if (targetType.IsEnum && rawValue is string strValue)
-                return System.Enum.Parse(targetType, strValue);
+            if (targetType.IsEnum)
+            {
+                // 枚举以 JSON 数字落盘，回读拆包后是 Int64——ChangeType 不认"数值→枚举"，
+                // 之前在这里抛异常被 ApplyConfigValues 的宽容 catch 吞掉，
+                // 表现为"方案重开后枚举配置静默还原成默认值"（所有插件的枚举配置都中招）
+                if (rawValue is string strValue)
+                    return System.Enum.Parse(targetType, strValue);
+                return System.Enum.ToObject(targetType,
+                    System.Convert.ChangeType(rawValue, System.Enum.GetUnderlyingType(targetType)));
+            }
 
             return System.Convert.ChangeType(rawValue, targetType);
         }

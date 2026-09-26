@@ -11,13 +11,14 @@
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
 
-    <!--  窗口：固定初始尺寸 + 允许调整大小（不用 SizeToContent，否则手动放大后内容不会重新布局填满）  -->
+    <!--  窗口：固定初始尺寸 + 允许调整大小（不用 SizeToContent，否则手动放大后内容不会重新布局填满）。
+        880×600 时代内容区只有 ~490px 高，参数多的插件（创建ROI 等）左列底部会被裁掉 → 放大到 960×680  -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
-            <Setter Property="Width" Value="880" />
-            <Setter Property="Height" Value="600" />
+            <Setter Property="Width" Value="960" />
+            <Setter Property="Height" Value="680" />
             <Setter Property="MinWidth" Value="640" />
             <Setter Property="MinHeight" Value="420" />
         </Style>

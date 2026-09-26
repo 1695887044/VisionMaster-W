@@ -216,6 +216,16 @@ namespace Core.Controls
 
         private void OnPortValueChanged(object sender, EventArgs e)
         {
+            // 端口灌值发生在后台线程（试运行桥接 / 流程运行给端口赋值），而本控件是 UI 对象——
+            // 下面读 IsLinked / 写 PortValue 都是依赖属性操作，异线程直接碰会抛
+            // "调用线程无法访问此对象"（VerifyAccess），导致整个试运行失败。一律投递回 UI 线程。
+            var dispatcher = Dispatcher;
+            if (!dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(() => OnPortValueChanged(sender, e)));
+                return;
+            }
+
             // 端口外部变更（如链接灌值）→ 同步输入框
             if (IsLinked) return;
             SyncPortValue();

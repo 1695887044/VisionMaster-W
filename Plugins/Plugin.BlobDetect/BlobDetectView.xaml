@@ -7,6 +7,7 @@
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.BlobDetect"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:system="clr-namespace:System;assembly=mscorlib"
     MinWidth="{DynamicResource PluginViewMinWidth}"
     MinHeight="{DynamicResource PluginViewMinHeight}"
     d:DesignHeight="620"
@@ -43,6 +44,20 @@
             <!--  仅剩本视图专属的两个转换器（与主题无关，故留本地）  -->
             <local:EnumDisplayNameConverter x:Key="EnumName" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+            <!--  运行显示窗口候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不发布）  -->
+            <x:Array x:Key="ViewIndexes" Type="system:Int32">
+                <system:Int32>0</system:Int32>
+                <system:Int32>1</system:Int32>
+                <system:Int32>2</system:Int32>
+                <system:Int32>3</system:Int32>
+                <system:Int32>4</system:Int32>
+                <system:Int32>5</system:Int32>
+                <system:Int32>6</system:Int32>
+                <system:Int32>7</system:Int32>
+                <system:Int32>8</system:Int32>
+                <system:Int32>9</system:Int32>
+            </x:Array>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -509,6 +524,37 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource PluginCardTitle}" Text="⑤ 输出" />
                         <Grid Margin="{StaticResource PluginFirstRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="运行显示窗口" ToolTip="正式运行时把标注图发布到主界面几号视图窗口（1~9）；选「不显示」则不发布。配置态预览不受影响" />
+                            <!--  ItemsSource 绑定 0~9 整数数组，SelectedItem 直接对应 DisplayViewIndex（0=不显示，1~9=窗口号）  -->
+                            <ComboBox
+                                Grid.Column="1"
+                                Height="{StaticResource PluginControlHeight}"
+                                VerticalContentAlignment="Center"
+                                ItemsSource="{StaticResource ViewIndexes}"
+                                SelectedItem="{Binding DisplayViewIndex}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock>
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{Binding StringFormat=图像窗口{0}}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding}" Value="0">
+                                                            <Setter Property="Text" Value="不显示" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />

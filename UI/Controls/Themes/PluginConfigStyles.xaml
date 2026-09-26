@@ -398,4 +398,81 @@
         </Setter>
     </Style>
 
+    <!--
+        ==================== Windows 11 强调控件（第三批新增） ====================
+        与既有键同规：本字典只写结构与引用，颜色/圆角在 PluginConfigColors.xaml。
+    -->
+
+    <!--
+        强调色主操作按钮（"创建模板"这类一步定乾坤的动作）：实心圆角 + 悬停变亮/按下变暗 + 聚焦环，
+        与 PluginNumericBox 同一套 Fluent 节奏。普通小按钮仍用 PluginButton，不要滥用强调色。
+    -->
+    <Style x:Key="PluginAccentButton" TargetType="Button">
+        <Setter Property="Padding" Value="14,5" />
+        <Setter Property="FontSize" Value="{StaticResource PluginLabelFontSize}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{StaticResource PluginAccentTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource PluginAccentBrush}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <!--  聚焦外圈：与输入框同款，键盘聚焦时淡入  -->
+                        <Border
+                            x:Name="FocusRing"
+                            Margin="-2"
+                            BorderBrush="{StaticResource PluginInputFocusRingBrush}"
+                            BorderThickness="2"
+                            CornerRadius="{StaticResource PluginInputFocusRingRadius}"
+                            Opacity="0" />
+                        <Border
+                            x:Name="Bd"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource PluginInputCornerRadius}">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginAccentHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginAccentPressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginNeutralSubtleBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource PluginInputDisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        状态徽标（胶囊）："模板已创建 / 未创建"这类一眼状态。
+        底色由使用处按级别指定（PluginOkSubtleBrush / PluginErrorSubtleBrush / PluginNeutralSubtleBrush），
+        文字配对使用 PluginOkBrush / PluginErrorBrush / PluginHintTextBrush。
+    -->
+    <Style x:Key="PluginChip" TargetType="Border">
+        <Setter Property="Padding" Value="9,2" />
+        <Setter Property="CornerRadius" Value="{StaticResource PluginPillCornerRadius}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="PluginChipText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
 </ResourceDictionary>

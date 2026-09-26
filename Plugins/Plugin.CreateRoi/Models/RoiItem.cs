@@ -56,14 +56,24 @@ namespace Plugin.CreateRoi.Models
                 if (_paramEntries.Count != ExpectedEntryCount)
                     RebuildParamEntries();
                 else
-                    foreach (var e in _paramEntries) e.RaiseValueChanged();
+                    foreach (var e in _paramEntries) e.RaiseWithValue();
                 OnPropertyChanged(nameof(ParamEntries));
             }
         }
 
-        /// <summary>列表显示文本</summary>
+        /// <summary>列表显示文本（形状用中文名，英文枚举名对现场不友好）</summary>
         [JsonIgnore]
-        public string DisplayText => $"{Name}  [{ShapeType}]";
+        public string DisplayText => $"{Name}  [{ShapeTypeCN}]";
+
+        /// <summary>形状中文名</summary>
+        [JsonIgnore]
+        public string ShapeTypeCN => ShapeType switch
+        {
+            DrawShapeType.Rectangle => "矩形",
+            DrawShapeType.Circle => "圆形",
+            DrawShapeType.Ellipse => "椭圆",
+            _ => ShapeType.ToString()
+        };
 
         /// <summary>参数中文名（按形状类型；与 Params 下标一一对应）</summary>
         [JsonIgnore]
@@ -137,6 +147,35 @@ namespace Plugin.CreateRoi.Models
         /// <summary>参数中文名</summary>
         public string Name { get; }
 
+        /// <summary>显示格式：角度类参数是弧度小量用 4 位小数，其余 1 位（原始浮点全位数显示会截断且难看）</summary>
+        public string Format => Name.Contains("角") || Name.Contains("Phi") ? "F4" : "F1";
+
+        /// <summary>
+        /// 格式化文本（TextBox 绑定入口）：读按 Format 格式化、写按不变区域解析，
+        /// 非法输入还原显示。与 Value 双向同步：拖拽改参数经 RaiseWithValue 刷新文本
+        /// </summary>
+        public string Text
+        {
+            get
+            {
+                if (_index >= _owner.Params.Length) return "0";
+                return _owner.Params[_index].ToString(Format, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            set
+            {
+                if (_index < _owner.Params.Length
+                    && double.TryParse(value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var v))
+                {
+                    Value = v;
+                }
+                else
+                {
+                    OnPropertyChanged(); // 非法输入：按当前值还原显示
+                }
+            }
+        }
+
         /// <summary>当前值（实时读 Params；编辑后写回 Params）</summary>
         public double Value
         {
@@ -156,9 +195,13 @@ namespace Plugin.CreateRoi.Models
         }
 
         /// <summary>
-        /// Params 数组被整体替换后（拖拽场景），由 RoiItem 调用以触发 Value 的 INPC 通知，
-        /// 让绑定到 Value 的 TextBox 直接刷新，不依赖 WPF 重新读取整个 ParamEntries 集合
+        /// Params 数组被整体替换后（拖拽场景），由 RoiItem 调用以触发绑定刷新，
+        /// 让绑定到 Text 的 TextBox 直接刷新，不依赖 WPF 重新读取整个 ParamEntries 集合
         /// </summary>
-        public void RaiseValueChanged() => OnPropertyChanged(nameof(Value));
+        public void RaiseWithValue()
+        {
+            OnPropertyChanged(nameof(Value));
+            OnPropertyChanged(nameof(Text));
+        }
     }
 }

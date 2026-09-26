@@ -125,7 +125,9 @@ namespace VisionMaster.Services
             }
             catch (Exception ex)
             {
-                // 执行失败：会话不释放，已执行部分的数据留存供调试查看
+                // 执行失败：会话不释放，已执行部分的数据留存供调试查看。
+                // 堆栈必须落日志——状态栏只显示 Message，跨线程/UI 这类问题没有堆栈无法定位
+                logger?.Error($"[试运行] 执行异常堆栈: {ex}");
                 return PluginExecuteResult.Fail(sw.ElapsedMilliseconds, $"执行异常: {ex.Message}");
             }
 

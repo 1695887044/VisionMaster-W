@@ -1,0 +1,641 @@
+<UserControl
+    x:Class="Plugin.Matching.MatchingView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:local="clr-namespace:Plugin.Matching"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+    MinWidth="{DynamicResource PluginViewMinWidth}"
+    MinHeight="{DynamicResource PluginViewMinHeight}"
+    d:DesignHeight="520"
+    d:DesignWidth="900"
+    mc:Ignorable="d">
+
+    <!--
+        模板匹配配置视图 —— Win11 现代风格（第三批 UI 令牌的首个使用者）。
+
+        与 14 张既有插件卡同一套布局范式（左参数右图像），但引入三个 Win11 元素：
+          ① PluginAccentButton —— 实心强调色主操作按钮（"创建模板"是本算子一步定乾坤的动作）；
+          ② PluginChip —— 卡片标题旁的胶囊状态徽标（模板已创建/未创建，一眼可辨）；
+          ③ 更松的呼吸感 —— 卡片间 8、行间 6 沿用令牌，模板卡片内留出说明区。
+        颜色零硬编码：一律 Plugin* 令牌（换主题改 PluginConfigColors.xaml 一本）。
+
+        画布能力全部来自 Core.Halcon 的 ImageEdit 控件 DP（画框/拖拽/右键菜单），
+        画布与参数的同步都在 MatchingPlugin 里，本视图不写业务逻辑。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+            <!--  运行显示窗口候选（int 数组保证 SelectedItem 值相等匹配回显；0 = 不发布）  -->
+            <x:Array x:Key="ViewIndexes" Type="sys:Int32">
+                <sys:Int32>0</sys:Int32>
+                <sys:Int32>1</sys:Int32>
+                <sys:Int32>2</sys:Int32>
+                <sys:Int32>3</sys:Int32>
+                <sys:Int32>4</sys:Int32>
+                <sys:Int32>5</sys:Int32>
+                <sys:Int32>6</sys:Int32>
+                <sys:Int32>7</sys:Int32>
+                <sys:Int32>8</sys:Int32>
+                <sys:Int32>9</sys:Int32>
+            </x:Array>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="{StaticResource PluginViewMargin}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{StaticResource PluginParamsColumnWidth}" MinWidth="{StaticResource PluginParamsColumnMinWidth}" />
+            <ColumnDefinition Width="*" MinWidth="{StaticResource PluginPreviewColumnMinWidth}" />
+        </Grid.ColumnDefinitions>
+
+        <!--  ================= 左：参数卡片 =================  -->
+        <ScrollViewer
+            Grid.Column="0"
+            Margin="0,0,8,0"
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!--  ① 模板  -->
+                <Border Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 模板" />
+                            <!--  状态徽标：模板是否已创建（Win11 胶囊）。
+                                  注意：行内样式的 BasedOn 引不到合并字典里的键（BAML 解析顺序坑），
+                                  所以这里的样式完全自包含，令牌只出现在 Setter 值上  -->
+                            <Border Grid.Column="1">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Padding" Value="9,2" />
+                                        <Setter Property="CornerRadius" Value="{StaticResource PluginPillCornerRadius}" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                        <Setter Property="SnapsToDevicePixels" Value="True" />
+                                        <Setter Property="Background" Value="{StaticResource PluginNeutralSubtleBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTemplateCreated}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource PluginOkSubtleBrush}" />
+                                            </DataTrigger>
+                                            <!--  放最后：过期态覆盖已创建态（提取参数改过 → 橙）  -->
+                                            <DataTrigger Binding="{Binding IsModelStale}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource PluginWarningSubtleBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding TemplateStatusText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontSize" Value="11" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Setter Property="VerticalAlignment" Value="Center" />
+                                            <Setter Property="Foreground" Value="{StaticResource PluginHintTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTemplateCreated}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsModelStale}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+
+                        <!--  模板库列表：一条 = 一个产品配方；选中即进入编辑态  -->
+                        <ListBox
+                            Height="92"
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            ItemContainerStyle="{StaticResource PluginListBoxItem}"
+                            ItemsSource="{Binding Library}"
+                            SelectedItem="{Binding EditingEntry, Mode=TwoWay}"
+                            ToolTip="模板库：一条 = 一个产品配方。运行时按 RecipeName 端口选条目；未连接用「设为默认」选中的这条">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
+                            <Button
+                                MinWidth="64"
+                                Click="OnAddEntryClick"
+                                Content="新增"
+                                Style="{StaticResource PluginButton}"
+                                ToolTip="新增一个模板条目（配方）" />
+                            <Button
+                                MinWidth="64"
+                                Margin="8,0,0,0"
+                                Click="OnDeleteEntryClick"
+                                Content="删除"
+                                Style="{StaticResource PluginButton}"
+                                ToolTip="删除当前选中的模板条目" />
+                            <Button
+                                MinWidth="90"
+                                Margin="8,0,0,0"
+                                Click="OnSetDefaultClick"
+                                Content="设为默认"
+                                Style="{StaticResource PluginButton}"
+                                ToolTip="RecipeName 端口未连接/为空时使用这个模板" />
+                        </StackPanel>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="配方名" ToolTip="当前条目的配方键；RecipeName 端口按它选模板。改名即时刷新列表" />
+                            <TextBox
+                                Grid.Column="1"
+                                Style="{StaticResource PluginFieldBox}"
+                                Text="{Binding EditingEntry.Name, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+
+                        <!--  图像入口：可链接编辑器（与预处理/图像采集同一控件）。
+                              HImage 端口不可文本输入 → 控件呈现"占位提示 + 绑定"按钮，
+                              在这里或流程画布上连上游都行，两条路同一份链接数据  -->
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="上游图像"
+                            Port="{Binding Image}"
+                            StepData="{Binding StepData}" />
+
+                        <!--  参考图（可选）：只在配置态用 —— 画模板/调参需要一张图看；
+                              运行期一律吃上游 Image 端口，路径不参与数据流，所以不做成可链接  -->
+                        <TextBlock
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="参考图（可选）：连了上游就点下方「执行」把图带进来；单独调模板时才填路径载入" />
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox
+                                Style="{StaticResource PluginFieldBox}"
+                                Text="{Binding EditingEntry.RefImagePath, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="当前条目的参考图完整路径（每个模板各自的示意图；仅配置态使用，运行期不用它）" />
+                            <Button
+                                Grid.Column="1"
+                                MinWidth="60"
+                                Margin="8,0,0,0"
+                                Click="OnLoadImageClick"
+                                Content="载入"
+                                Style="{StaticResource PluginButton}" />
+                        </Grid>
+
+                        <TextBlock
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="当前模板区域" />
+                        <TextBlock
+                            Margin="0,2,0,0"
+                            Style="{StaticResource PluginPreviewText}"
+                            Text="{Binding TemplateSummary}" />
+
+                        <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
+                            <Button
+                                MinWidth="104"
+                                Click="OnCreateTemplateClick"
+                                Content="创建模板"
+                                Style="{StaticResource PluginAccentButton}"
+                                ToolTip="把当前区域做成 shape model，随方案保存；改了框或提取参数后需要重新创建" />
+                            <Button
+                                MinWidth="76"
+                                Margin="8,0,0,0"
+                                Click="OnClearTemplateClick"
+                                Content="清除"
+                                Style="{StaticResource PluginButton}"
+                                ToolTip="清空画布上的模板区域（已创建的模板要重新创建才会变）" />
+                        </StackPanel>
+
+                        <!--  模板预览：裁剪图 + 绿色特征轮廓（模型记住的特征边），随 HasTemplatePreview 显隐  -->
+                        <TextBlock
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="模板预览（绿色 = 模型记住的特征边）"
+                            Visibility="{Binding HasTemplatePreview, Converter={StaticResource BoolToVis}}" />
+                        <Border
+                            Margin="0,4,0,0"
+                            Background="{StaticResource PluginSubtleBackgroundBrush}"
+                            BorderBrush="{StaticResource PluginCardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource PluginSmallCornerRadius}"
+                            Visibility="{Binding HasTemplatePreview, Converter={StaticResource BoolToVis}}">
+                            <h:ImageReadOnly Height="120" HImage="{Binding TemplatePreviewImage}" />
+                        </Border>
+
+                        <!--  涂抹编辑：把反光面/会变的区域从模板域里挖掉（随 CreateTemplate 生效）  -->
+                        <Expander Margin="{StaticResource PluginFieldRowMargin}" Header="涂抹编辑">
+                            <StackPanel Margin="0,6,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource PluginFieldLabel}" Text="涂抹模式" ToolTip="绘制涂抹 = 笔刷涂过的部分不参与学习；擦除涂抹 = 把涂多的找回来" />
+                                    <ComboBox
+                                        Grid.Column="1"
+                                        ItemContainerStyle="{StaticResource PluginModernComboItem}"
+                                        ItemsSource="{Binding SmearModeOptions}"
+                                        SelectedIndex="{Binding SmearModeIndex}"
+                                        Style="{StaticResource PluginModernComboBase}" />
+                                </Grid>
+                                <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource PluginFieldLabel}" Text="笔刷半径(px)" ToolTip="涂抹笔刷的半径（1~50）" />
+                                    <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                        <TextBox.Text>
+                                            <Binding Path="BrushSize" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <local:NumberValidationRule FieldName="笔刷半径" Max="50" Min="1" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+                                        </TextBox.Text>
+                                    </TextBox>
+                                </Grid>
+                                <Button
+                                    MinWidth="90"
+                                    Margin="{StaticResource PluginFieldRowMargin}"
+                                    HorizontalAlignment="Left"
+                                    Click="OnClearSmearClick"
+                                    Content="清除涂抹"
+                                    Style="{StaticResource PluginButton}"
+                                    ToolTip="清空全部涂抹（模型恢复整域学习；要重新创建模板才生效）" />
+                                <TextBlock
+                                    Margin="{StaticResource PluginFieldRowMargin}"
+                                    Style="{StaticResource PluginHintText}"
+                                    Text="涂抹后要重新点「创建模板」才生效；掩膜随方案保存，重开配置界面会以橙色显示。" />
+                            </StackPanel>
+                        </Expander>
+
+                        <TextBlock
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="画框要领：框住目标上稳定、独特、随产品一起动的特征（丝印、边角组合、安装孔位），不要框到反光面或会变的区域。" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ② 提取参数  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 提取参数" />
+                        <TextBlock
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="这一区决定模型怎么学（角度/缩放/步长/对比度/极性）—— 改任何一项都需要重新点「创建模板」，徽标会转橙提醒。" />
+
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最小角度(度)" ToolTip="模板允许的最小旋转角（-180~180），与商用工具同口径" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="EditingEntry.MinAngleDeg" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="最小角度" Max="180" Min="-180" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最大角度(度)" ToolTip="模板允许的最大旋转角（-180~180）。产线偏转小就收窄（如 -15~15），模型更小、匹配更快" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="EditingEntry.MaxAngleDeg" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="最大角度" Max="180" Min="-180" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="角度步长(度)" ToolTip="相邻两个旋转变体的间隔（0 = 按模板尺寸自动定）。越小越准、模型越大" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="EditingEntry.AngleStepDeg" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="角度步长" Max="30" Min="0" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="梯度阈值" ToolTip="边缘提取的对比度门限（1~255，0 = 自动）。越高特征越少越快，过低会把噪声当特征" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="EditingEntry.GradientThreshold" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="梯度阈值" Max="255" Min="0" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="使用极性" ToolTip="使用极性 = 黑白方向必须一致才算命中（更快）；光照会反相的场合选忽略极性" />
+                            <ComboBox
+                                Grid.Column="1"
+                                ItemContainerStyle="{StaticResource PluginModernComboItem}"
+                                ItemsSource="{Binding PolarityOptions}"
+                                SelectedIndex="{Binding PolarityIndex}"
+                                Style="{StaticResource PluginModernComboBase}" />
+                        </Grid>
+                        <CheckBox
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Content="启用缩放匹配（目标远近会变才开）"
+                            FontSize="12"
+                            IsChecked="{Binding EditingEntry.ScaleEnabled, Mode=TwoWay}" />
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最小比例(倍)" ToolTip="相对模板尺寸的最小倍率（0.5~2）" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="EditingEntry.ScaleMin" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="最小比例" Max="2" Min="0.5" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最大比例(倍)" ToolTip="相对模板尺寸的最大倍率（0.5~2）。范围越宽模型越大越慢" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="EditingEntry.ScaleMax" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="最大比例" Max="2" Min="0.5" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="金字塔层数" ToolTip="1~10：层数多找得快，但太粗会丢小目标。一般 4~6" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="EditingEntry.NumLevels" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="金字塔层数" Max="10" Min="1" IntegerOnly="True" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!--  ③ 匹配参数  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 匹配参数" />
+                        <TextBlock
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="这一区是运行期参数，改完立即生效，不用重新创建模板。" />
+
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="分数下限" ToolTip="低于它的命中不算找到（0~1）。找不到目标先试着降到 0.3；误匹配多就往上提" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="MinScore" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="分数下限" Max="1" Min="0.01" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="匹配数上限" ToolTip="最多输出几个命中实例（1 = 单目标）。多目标计数/抓取场景才调大" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="MaxMatches" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="匹配数上限" Max="100" Min="1" IntegerOnly="True" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最大重叠" ToolTip="两个命中区域允许的最大重叠比例（0~1），防止同一目标报两次" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="MaxOverlap" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="最大重叠" Max="1" Min="0" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="搜索激进度" ToolTip="0.1~0.9：越大越快、越容易漏检。产线不稳就调小（0.5~0.7）" />
+                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
+                                <TextBox.Text>
+                                    <Binding Path="Greediness" UpdateSourceTrigger="PropertyChanged">
+                                        <Binding.ValidationRules>
+                                            <local:NumberValidationRule FieldName="搜索激进度" Max="0.9" Min="0.1" IntegerOnly="False" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                            </TextBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!--  ④ 输出  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="④ 输出" />
+                        <Grid Margin="{StaticResource PluginFirstRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="配方名端口" ToolTip="链接上游的配方变量（产品型号），运行时按名字选模板；也可手填固定名字（留空 = 用默认模板）" />
+                            <cv:LinkableValueEditor
+                                Grid.Column="1"
+                                HorizontalAlignment="Stretch"
+                                Port="{Binding RecipeName}"
+                                StepData="{Binding StepData}" />
+                        </Grid>
+                        <Grid Margin="{StaticResource PluginFieldRowMargin}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="运行显示窗口" ToolTip="正式运行时把标注图发布到主界面几号视图窗口（1~9）；选「不显示」则不发布" />
+                            <ComboBox
+                                Grid.Column="1"
+                                ItemContainerStyle="{StaticResource PluginModernComboItem}"
+                                ItemsSource="{StaticResource ViewIndexes}"
+                                SelectedItem="{Binding DisplayViewIndex}"
+                                Style="{StaticResource PluginModernComboBase}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock>
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{Binding StringFormat=图像窗口{0}}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding}" Value="0">
+                                                            <Setter Property="Text" Value="不显示" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        <CheckBox
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Content="输出位姿归一化图像（AlignedImage 端口）"
+                            FontSize="12"
+                            IsChecked="{Binding OutputAlignedImage, Mode=TwoWay}"
+                            ToolTip="把整图刚性变换到「目标永远在标准位置、标准角度」—— 下游所有固定坐标插件（画框裁剪/Blob/卡尺）零改动直接吃，产品偏移旋转不再作废固定框" />
+                    </StackPanel>
+                </Border>
+
+                <!--  怎么用  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="怎么用" />
+                        <TextBlock
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="① 先在流程里把本节点的 Image 连到上游；② 打开本窗口点「执行」把上游图带进来（或填参考图路径点「载入」）；③ 在图上右键 → 新建矩形/圆形/椭圆，框住模板特征；④ 点「创建模板」；⑤ 提取参数（角度/缩放/步长/梯度阈值/极性/金字塔）按需调整 —— 改了任何一项都要重新点「创建模板」，徽标转橙就是在提醒。" />
+                        <TextBlock
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="分数下限找不到目标先降到 0.3 看看是不是光照变了；误匹配就往上调，或换一块更独特的模板区域。" />
+                        <TextBlock
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="执行内核已接通：连线上跑即可定位（位姿端口 + 主界面标注图）；提取参数改过记得重新点「创建模板」。" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  ================= 右：参考图画布 =================  -->
+        <Border Grid.Column="1" Margin="8,0,0,0" Style="{StaticResource PluginCard}">
+            <DockPanel>
+                <Border
+                    DockPanel.Dock="Top"
+                    Padding="0,0,0,8"
+                    BorderBrush="{StaticResource PluginDividerBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Grid>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="参考图像" />
+                        <TextBlock
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource PluginHintText}"
+                            Text="右键 → 新建矩形/圆形/椭圆，框住模板特征" />
+                    </Grid>
+                </Border>
+
+                <!--  信息栏：载图/创建模板/改框提醒，颜色由 StatusLevel 决定  -->
+                <Border
+                    DockPanel.Dock="Bottom"
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginStatusPanel}">
+                    <TextBlock FontSize="{StaticResource PluginLabelFontSize}" Text="{Binding StatusMessage}" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                        <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                        <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
+                <h:ImageEdit
+                    ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
+                    BrushRadius="{Binding BrushSize, Mode=TwoWay}"
+                    DrawObjectList="{Binding CanvasRois}"
+                    HImage="{Binding DisplayImage, Mode=OneWay}"
+                    SmearDraw="{Binding SmearMask, Mode=TwoWay}"
+                    SmearErase="{Binding SmearEraseRegion, Mode=TwoWay}"
+                    SmearMode="{Binding CanvasSmearMode, Mode=TwoWay}" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

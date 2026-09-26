@@ -7,11 +7,12 @@
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.CreateRoi"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
     xmlns:system="clr-namespace:System;assembly=mscorlib"
     MinWidth="{DynamicResource PluginViewMinWidth}"
     MinHeight="{DynamicResource PluginViewMinHeight}"
-    Height="600"
-    Width="1000"
+    d:DesignHeight="600"
+    d:DesignWidth="1000"
     xmlns:ui="http://schemas.UI.com/ui">
     <UserControl.InputBindings>
         <!--  Del 删除选中 ROI（CanExecute 守卫：焦点在文本框时不触发）  -->
@@ -44,8 +45,8 @@
         <Grid Grid.Column="0" Margin="0,0,8,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <!--  ROI 列表主区：保底高度，参数微调再高也不会把它挤没  -->
+                <RowDefinition Height="*" MinHeight="150" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -82,51 +83,16 @@
                 </StackPanel>
             </Border>
 
-            <!--  卡片：参数微调（绑定 SelectedRoi.ParamEntries，纯绑定无 code-behind）  -->
+            <!--  卡片：ROI 列表（主区：占据剩余全部高度，参数面板再高也挤不掉它）  -->
             <Border Grid.Row="1" Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
-                <StackPanel>
-                    <Grid>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="参数微调" />
-                        <TextBlock
-                            HorizontalAlignment="Right"
-                            Style="{StaticResource PluginHintText}"
-                            Text="{Binding SelectedRoi.Name, TargetNullValue='选中 ROI 后可编辑'}" />
-                    </Grid>
-                    <ItemsControl Margin="{StaticResource PluginSectionMargin}" ItemsSource="{Binding SelectedRoi.ParamEntries}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,3,0,3">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="90" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        FontSize="12"
-                                        Foreground="{StaticResource PluginHintTextBrush}"
-                                        Text="{Binding Name}" />
-                                    <TextBox
-                                        Grid.Column="1"
-                                        Height="{StaticResource PluginControlHeight}"
-                                        Padding="{StaticResource PluginNumericBoxPadding}"
-                                        VerticalContentAlignment="Center"
-                                        Text="{Binding Value, UpdateSourceTrigger=LostFocus}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <!--  卡片：ROI 列表  -->
-            <Border Grid.Row="2" Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                 <DockPanel>
                     <Grid DockPanel.Dock="Top">
                         <TextBlock Style="{StaticResource PluginCardTitle}" Text="ROI 列表" />
                         <TextBlock
                             HorizontalAlignment="Right"
                             Style="{StaticResource PluginHintText}"
-                            Text="右键图像 → 区域 → 新建" />
+                            Text="右键图像 → 区域 → 新建；Del 删除选中"
+                            ToolTip="拖拽句柄粗调，参数微调精调；选中后按 Del 快速删除" />
                     </Grid>
                     <StackPanel DockPanel.Dock="Bottom" Margin="{StaticResource PluginSectionMargin}" Orientation="Horizontal">
                         <Button
@@ -152,10 +118,54 @@
                 </DockPanel>
             </Border>
 
-            <!--  操作提示  -->
-            <Border Grid.Row="3" Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
-                <TextBlock Style="{StaticResource PluginHintText}" Text="拖拽句柄粗调，参数微调精调；选中后按 Del 快速删除" />
+            <!--  操作提示卡已并入上方列表头的 ToolTip（省出一行高度给列表）  -->
+            <Border
+                Grid.Row="2"
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource PluginCard}">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="参数微调" />
+                        <TextBlock
+                            HorizontalAlignment="Right"
+                            Style="{StaticResource PluginHintText}"
+                            Text="{Binding SelectedRoi.Name, TargetNullValue='选中 ROI 后可编辑'}" />
+                    </Grid>
+                    <ItemsControl Margin="{StaticResource PluginFirstRowMargin}" ItemsSource="{Binding SelectedRoi.ParamEntries}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2,4,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource PluginHintTextBrush}"
+                                        Text="{Binding Name}"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="{Binding Name}" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Height="{StaticResource PluginControlHeight}"
+                                        MinWidth="0"
+                                        Padding="{StaticResource PluginNumericBoxPadding}"
+                                        VerticalContentAlignment="Center"
+                                        HorizontalContentAlignment="Right"
+                                        Text="{Binding Text, UpdateSourceTrigger=LostFocus}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </Border>
+
         </Grid>
 
         <!--  右列：图像编辑区  -->
@@ -164,7 +174,7 @@
                 <!--  掩膜预览工具条  -->
                 <Border
                     DockPanel.Dock="Top"
-                    Padding="0,0,0,8"
+                    Padding="0,2,0,6"
                     BorderBrush="{StaticResource PluginDividerBrush}"
                     BorderThickness="0,0,0,1">
                     <DockPanel>
@@ -215,8 +225,9 @@
                             Text="笔刷:" />
                         <TextBox
                             Width="40"
+                            local:NumericInput.Enabled="True"
                             Text="{Binding BrushRadius, ElementName=ImageEditor, UpdateSourceTrigger=PropertyChanged}"
-                            ToolTip="笔刷半径（像素）" />
+                            ToolTip="笔刷半径（像素，正数）" />
                         <Button
                             Margin="10,0,0,0"
                             Command="{Binding ClearSmearCommand}"

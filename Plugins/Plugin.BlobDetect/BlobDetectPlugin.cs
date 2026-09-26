@@ -1,4 +1,5 @@
 using Core.Commands;
+using Core.Events;
 using Core.Interfaces;
 using HalconDotNet;
 using System;
@@ -108,6 +109,7 @@ namespace Plugin.BlobDetect
         private const double DefaultMaxTotalArea = 0;     // 0 = 不限总面积
         private const double DefaultPixelSizeMm = 1.0;    // 1.0 = 输出即像素值，不假设标定（与卡尺插件同口径）
         private const DefectSortMode DefaultSortMode = DefectSortMode.None;
+        private const int DefaultDisplayViewIndex = 1;    // 默认发布到 1 号视图窗口（与图像采集插件同口径）
 
         /// <summary>浮点相等判断的容差（自适应换算会产生小数，不能用 == 比）</summary>
         private const double DefaultTolerance = 1e-6;
@@ -434,6 +436,22 @@ namespace Plugin.BlobDetect
         {
             get => _sortMode;
             set { if (SetProperty(ref _sortMode, value)) SchedulePreview(); }
+        }
+
+        private int _displayViewIndex = DefaultDisplayViewIndex;
+        /// <summary>
+        /// 运行显示窗口索引：正式运行时把标注图发布到主界面几号视图窗口（1~9），0 = 不发布。
+        ///
+        /// 为什么必须有这一项：检测完成后操作员要能在产线屏幕上直接看到"缺陷在哪、判了什么"，
+        /// 而配置对话框只在调参时打开。与图像采集等出图插件的 DisplayViewIndex 同一口径；
+        /// 0 档留给"标注图由下游专门步骤处理"的方案。
+        /// 注意它只影响正式运行，配置态预览（右侧标注图）始终显示。
+        /// </summary>
+        [StepConfig]
+        public int DisplayViewIndex
+        {
+            get => _displayViewIndex;
+            set => SetProperty(ref _displayViewIndex, value);
         }
 
         #endregion
@@ -863,7 +881,8 @@ namespace Plugin.BlobDetect
                 && NearlyEqual(MaxSingleArea, DefaultMaxSingleArea)
                 && NearlyEqual(MaxTotalArea, DefaultMaxTotalArea)
                 && NearlyEqual(PixelSizeMm, DefaultPixelSizeMm)
-                && SortMode == DefaultSortMode;
+                && SortMode == DefaultSortMode
+                && DisplayViewIndex == DefaultDisplayViewIndex;
         }
 
         private static bool NearlyEqual(double a, double b) => Math.Abs(a - b) <= DefaultTolerance;
@@ -1065,6 +1084,12 @@ namespace Plugin.BlobDetect
             DefectWidths.Value = result.Widths;
             DefectHeights.Value = result.Heights;
 
+            // 发布到主程序视图窗口（DisplayViewIndex 已是真实窗口号 1~9；0 = 不发布则跳过）。
+            // NG 也要发——恰恰是判 NG 时操作员最需要立刻看到缺陷在哪。
+            // 总线无订阅者/无 WPF 宿主时是 no-op，离线跑流程不受影响
+            if (DisplayViewIndex > 0 && result.AnnotatedImage != null)
+                this.PublishPreview(result.AnnotatedImage, DisplayViewIndex);
+
             // NG 是正常结果（Success 保持 true），但原因必须留痕，便于日志/上报/现场排查
             if (!result.IsOk)
                 ErrorMessage.Value = result.NgReason;
@@ -1163,9 +1188,23 @@ namespace Plugin.BlobDetect
             {
                 HOperatorSet.Rgb1ToGray(src, out gray);
             }
+            else if (channels.I == 4)
+            {
+                // 4 通道（RGBA/BGRA，常见于相机 SDK 与带透明通道的解码）：alpha 对亮度没有贡献，
+                // 取前 3 通道按彩色转灰度即可，不该让整次检测直接失败。
+                // 注意 HALCON 只认"通道序"不认颜色语义：BGRA 输入时加权里 R/B 对调，
+                // 得到的仍是对比度保留的有效灰度图，对 Blob 检测无实质影响。
+                HOperatorSet.AccessChannel(src, out HObject c1, 1);
+                HOperatorSet.AccessChannel(src, out HObject c2, 2);
+                HOperatorSet.AccessChannel(src, out HObject c3, 3);
+                temp.Add(c1);
+                temp.Add(c2);
+                temp.Add(c3);
+                HOperatorSet.Rgb3ToGray(c1, c2, c3, out gray);
+            }
             else
             {
-                error = $"不支持的图像通道数：{channels.I}（仅支持 1 通道灰度或 3 通道彩色）";
+                error = $"不支持的图像通道数：{channels.I}（仅支持 1 通道灰度、3 通道彩色或 4 通道 RGBA/BGRA）";
                 return false;
             }
 
@@ -1381,14 +1420,24 @@ namespace Plugin.BlobDetect
         /// </summary>
         private HObject BuildDisplayBase(HImage src, List<HObject> temp)
         {
-            HOperatorSet.GetImageType(src, out HTuple type);
-            if (type.S == "byte") return src;
+            HOperatorSet.CountChannels(src, out HTuple channels);
+
+            // 4 通道（RGBA/BGRA）：disp_obj 只稳妥支持 1/3 通道，4 通道直接画会报"通道数不对"，
+            // 整张标注图就没了。先丢 alpha 转成 3 通道再走显示流程（检测走的是 TryToGrayImage，不受影响）
+            HObject displaySource = src;
+            if (channels.I == 4)
+            {
+                displaySource = DropAlphaChannel(src, temp);
+                HOperatorSet.CountChannels(displaySource, out channels);
+            }
+
+            HOperatorSet.GetImageType(displaySource, out HTuple type);
+            if (type.S == "byte") return displaySource;
 
             // 多通道（如彩色 uint2）不参与灰度范围度量，直接转
-            HOperatorSet.CountChannels(src, out HTuple channels);
             if (channels.I != 1)
             {
-                HOperatorSet.ConvertImageType(src, out HObject direct, "byte");
+                HOperatorSet.ConvertImageType(displaySource, out HObject direct, "byte");
                 temp.Add(direct);
                 return direct;
             }
@@ -1396,26 +1445,47 @@ namespace Plugin.BlobDetect
             // HALCON 图形显示只稳妥支持 byte。但 convert_image_type(...,'byte') 是"截断"不是"缩放"：
             // 实测 uint2 灰度 1632 转出来就是 255，12/16 位相机的标注底图会整片死白，底图信息全丢。
             // 所以先按"实际灰度范围"线性拉伸到 0~255 再转。
-            HOperatorSet.GetDomain(src, out HObject domain);
+            HOperatorSet.GetDomain(displaySource, out HObject domain);
             temp.Add(domain);
-            HOperatorSet.MinMaxGray(domain, src, 0, out HTuple minT, out HTuple maxT, out HTuple _);
+            HOperatorSet.MinMaxGray(domain, displaySource, 0, out HTuple minT, out HTuple maxT, out HTuple _);
             double gMin = minT.Length > 0 ? minT[0].D : 0;
             double gMax = maxT.Length > 0 ? maxT[0].D : 0;
 
             if (double.IsNaN(gMin) || double.IsNaN(gMax) || gMax - gMin < 1e-9)
             {
                 // 退化（均匀图/空图）：拉伸没有意义，直接转（反正没有层次可保留）
-                HOperatorSet.ConvertImageType(src, out HObject flat, "byte");
+                HOperatorSet.ConvertImageType(displaySource, out HObject flat, "byte");
                 temp.Add(flat);
                 return flat;
             }
 
             double k = 255.0 / (gMax - gMin);
-            HOperatorSet.ScaleImage(src, out HObject scaled, k, -gMin * k);
+            HOperatorSet.ScaleImage(displaySource, out HObject scaled, k, -gMin * k);
             temp.Add(scaled);
             HOperatorSet.ConvertImageType(scaled, out HObject converted, "byte");
             temp.Add(converted);
             return converted;
+        }
+
+        /// <summary>
+        /// 取前 3 通道组成一张 3 通道图（丢掉第 4 通道 alpha）。
+        /// HALCON 没有一步到位的"去通道"算子，用 append_channel 两步拼出来；
+        /// 全部中间对象登记进 temp，由调用方 finally 统一释放。
+        /// </summary>
+        private static HObject DropAlphaChannel(HObject src, List<HObject> temp)
+        {
+            HOperatorSet.AccessChannel(src, out HObject c1, 1);
+            HOperatorSet.AccessChannel(src, out HObject c2, 2);
+            HOperatorSet.AccessChannel(src, out HObject c3, 3);
+            temp.Add(c1);
+            temp.Add(c2);
+            temp.Add(c3);
+
+            HOperatorSet.AppendChannel(c1, c2, out HObject c12);
+            temp.Add(c12);
+            HOperatorSet.AppendChannel(c12, c3, out HObject rgb);
+            temp.Add(rgb);
+            return rgb;
         }
 
         /// <summary>

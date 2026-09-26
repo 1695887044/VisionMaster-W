@@ -54,7 +54,7 @@ namespace Plugin.BlobDetect
                 HOperatorSet.SetColor(win, "white");
                 HOperatorSet.DispObj(baseImage, win);
 
-                // 2. 缺陷描边（只画边界，不遮挡产品图像，便于人眼判断缺陷位置）
+                // 2. 缺陷描边 + 逐个编号（只画边界，不遮挡产品图像，便于人眼判断缺陷位置）
                 if (HasContent(defects))
                 {
                     HOperatorSet.SetDraw(win, "margin");
@@ -62,6 +62,10 @@ namespace Plugin.BlobDetect
                     HOperatorSet.SetColor(win, "red");
                     HOperatorSet.DispObj(defects!, win);
                     HOperatorSet.SetLineWidth(win, 1);   // 还原，别把线宽状态带去下一张
+
+                    // 编号与描边同色同字级：先把字号定下来（窗口状态跨渲染保留，不定就是上一次的残留）
+                    TrySetFont(win, 20);
+                    DrawDefectNumbers(win, defects!, w, h);
                 }
 
                 // 3. 左上角文字：加白底框，保证在任何背景上都读得清
@@ -84,6 +88,53 @@ namespace Plugin.BlobDetect
                 // 本插件的标注渲染在配置预览与流程运行都会走到，长期运行会持续累积，故包装后立刻释放。
                 shot.Dispose();
                 return result;
+            }
+        }
+
+        /// <summary>
+        /// 逐个缺陷写编号（1 基，顺序 = 对象集顺序 = CenterRows / DefectAreas 等输出端口的顺序）。
+        ///
+        /// 为什么必须有：输出排序提供了"最大缺陷排第一 / 按行列编号"的语义，但图上不写号，
+        /// 报表说 3 号超标时操作员在图上找不到 3 号——排序链路必须在标注图这最后一步落地。
+        ///
+        /// 锚点用外接矩形中心而不是质心：细长 / L 形区域的质心可能漂到区域外甚至图外，
+        /// 外接矩形中心永远落在缺陷包围盒内，与红色描边的从属关系一眼可辨。
+        ///
+        /// 为什么用 "window" 坐标系而不是 "image"：
+        /// 本窗口按底图尺寸 1:1 创建、底图原点在 (0,0)，两种坐标天然等价（左上角汇总文字
+        /// 一直用的就是 "window"）；而实测无显示会话的环境里 buffer 窗口的 disp_obj 不生效、
+        /// image part 不成立，"image" 坐标的 disp_text 会整段画不出来——"window" 则总是可靠。
+        ///
+        /// 编号写失败只丢这一个号（try 在循环体内），绝不能让整张标注图渲染失败——
+        /// 渲染失败 DefectImage 就是空，损失的是全部可视化而不是一个序号。
+        /// </summary>
+        private static void DrawDefectNumbers(HTuple win, HObject defects, int imgW, int imgH)
+        {
+            HOperatorSet.CountObj(defects, out HTuple count);
+            int n = count.I;
+            if (n <= 0) return;
+
+            HOperatorSet.SmallestRectangle1(defects, out HTuple r1, out HTuple c1, out HTuple r2, out HTuple c2);
+
+            for (int i = 0; i < n; i++)
+            {
+                try
+                {
+                    // 夹进图内：贴边缺陷的编号锚点可能落在图外，不夹就整字被裁掉
+                    double row = Math.Clamp((r1[i].D + r2[i].D) / 2.0, 0, imgH - 1);
+                    double col = Math.Clamp((c1[i].D + c2[i].D) / 2.0, 0, imgW - 1);
+
+                    HOperatorSet.DispText(
+                        win,
+                        (i + 1).ToString(),
+                        "window",
+                        row,
+                        col,
+                        "red",
+                        new HTuple("box"),
+                        new HTuple("false"));   // 不画白底框：白框会把小缺陷整个盖住；红字与红描边同色已足够醒目
+                }
+                catch { /* 单个编号失败只丢号，不丢图 */ }
             }
         }
 

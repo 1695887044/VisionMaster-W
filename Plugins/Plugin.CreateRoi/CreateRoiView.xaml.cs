@@ -1,6 +1,7 @@
 using Core.Halcon.Controls;
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -44,6 +45,28 @@ namespace Plugin.CreateRoi
                 if (d is ListBox lb)
                     lb.SelectionChanged += (_, __) =>
                         lb.Dispatcher.BeginInvoke(() => lb.ScrollIntoView(lb.SelectedItem));
+            }));
+
+        public static void SetEnabled(DependencyObject o, bool v) => o.SetValue(EnabledProperty, v);
+        public static bool GetEnabled(DependencyObject o) => (bool)o.GetValue(EnabledProperty);
+    }
+
+    /// <summary>
+    /// 数字输入过滤附加属性：TextBox 键盘输入只放行数字与小数点（笔刷半径等参数框），
+    /// 负号/字母/空格直接拦下，避免非法文本静默不生效让用户困惑
+    /// </summary>
+    public static class NumericInput
+    {
+        public static readonly DependencyProperty EnabledProperty = DependencyProperty.RegisterAttached(
+            "Enabled", typeof(bool), typeof(NumericInput),
+            new PropertyMetadata(false, (d, _) =>
+            {
+                if (d is TextBox tb)
+                    tb.PreviewTextInput += (_, e) =>
+                    {
+                        var t = e.Text ?? "";
+                        e.Handled = !(t.All(char.IsDigit) || (t == "." && !tb.Text.Contains('.')));
+                    };
             }));
 
         public static void SetEnabled(DependencyObject o, bool v) => o.SetValue(EnabledProperty, v);

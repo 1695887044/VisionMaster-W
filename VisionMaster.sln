@@ -1,3 +1,4 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.37027.9
@@ -77,6 +78,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VM.Scada", "Scada\VM.Scada.csproj", "{691CF87E-4CE3-4E6B-B37B-992F801ABA7B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VM.Scada.Controls", "Scada.Controls\VM.Scada.Controls.csproj", "{C7A4E1B8-3D52-4F96-8B0E-5A2C9F1E7D64}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Matching", "Plugins\Plugin.Matching\Plugin.Matching.csproj", "{D45F028E-F912-4F79-B9A4-3BDEED332802}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -460,6 +463,18 @@ Global
 		{C7A4E1B8-3D52-4F96-8B0E-5A2C9F1E7D64}.Release|x64.Build.0 = Release|Any CPU
 		{C7A4E1B8-3D52-4F96-8B0E-5A2C9F1E7D64}.Release|x86.ActiveCfg = Release|Any CPU
 		{C7A4E1B8-3D52-4F96-8B0E-5A2C9F1E7D64}.Release|x86.Build.0 = Release|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Debug|x64.Build.0 = Debug|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Debug|x86.Build.0 = Debug|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Release|x64.ActiveCfg = Release|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Release|x64.Build.0 = Release|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Release|x86.ActiveCfg = Release|Any CPU
+		{D45F028E-F912-4F79-B9A4-3BDEED332802}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -491,6 +506,7 @@ Global
 		{D9A6E4B3-7F3A-4D85-9C42-5EAB3F8A6D27} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 		{691CF87E-4CE3-4E6B-B37B-992F801ABA7B} = {42BF1815-DAFD-E1E2-9706-7FD7464F5E39}
 		{C7A4E1B8-3D52-4F96-8B0E-5A2C9F1E7D64} = {42BF1815-DAFD-E1E2-9706-7FD7464F5E39}
+		{D45F028E-F912-4F79-B9A4-3BDEED332802} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B65F7027-912C-4508-AF09-E1435EEC2173}

@@ -73,6 +73,8 @@ namespace FlowCanvasChecks
             CodeReaderChecks.Run();
             YoloChecks.Run();
             BlobDetectChecks.Run();
+            MatchingChecks.Run();
+            CreateRoiChecks.Run();
 
             // HTTP 收图端到端冒烟（真起服务端 + 真发 HTTP 图片）
             HttpImageSmoke.Run();

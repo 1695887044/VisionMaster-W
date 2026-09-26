@@ -1,0 +1,426 @@
+{
+  "SolutionName": "卡尺测量测试",
+  "Version": 1.0,
+  "Config": {
+    "ImageViewMode": 0
+  },
+  "Flows": [
+    {
+      "FlowID": "073699e62173424fb1098fa0cebfe5ed",
+      "FlowName": "GoHome",
+      "Description": "回原",
+      "Version": 0,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": []
+    },
+    {
+      "FlowID": "c1e612579a684a61a3052596905877de",
+      "FlowName": "MainTask",
+      "Description": "主任务",
+      "Version": 0,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": []
+    },
+    {
+      "FlowID": "96369395f30e4952a1351810be54592f",
+      "FlowName": "卡尺功能测试",
+      "Description": "卡尺测量 5 种类型真值验证",
+      "Version": 11,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": [
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "5fb347e5-ce56-4640-b679-5addff65d760",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_宽度",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\卡尺测试\\1-宽度40px.png",
+            "DisplayViewIndex": 0
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "26ff99ca-6147-42b9-9d75-3db6350007f5",
+          "Icon": "",
+          "PluginName": "卡尺测量",
+          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "卡尺_宽度",
+          "Description": "卡尺测量",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "MeasureKind": 0,
+            "CaliperCount": 5,
+            "PixelSizeMm": 1.0,
+            "StandardValue": 40.0,
+            "UpperTolerance": 0.5,
+            "LowerTolerance": -0.5,
+            "CaliperRegions": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CaliperMeasure.Models.CaliperRegion, Plugin.CaliperMeasure]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "搜索区1",
+                  "ShapeType": 0,
+                  "Params": [
+                    240.0,
+                    300.0,
+                    0.0,
+                    80.0,
+                    100.0
+                  ]
+                }
+              ]
+            }
+          },
+          "LinkedSources": {
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "5fb347e5-ce56-4640-b679-5addff65d760",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_宽度.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "e8ecf661-e3c1-4f8c-9525-d86caad2d1fa",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_两点距",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\卡尺测试\\2-两点距240px.png",
+            "DisplayViewIndex": 0
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "a8cfbfd9-68e4-4066-acc2-7df4f546dcbf",
+          "Icon": "",
+          "PluginName": "卡尺测量",
+          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "卡尺_两点距",
+          "Description": "卡尺测量",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "MeasureKind": 1,
+            "CaliperCount": 5,
+            "PixelSizeMm": 1.0,
+            "StandardValue": 240.0,
+            "UpperTolerance": 0.5,
+            "LowerTolerance": -0.5,
+            "CaliperRegions": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CaliperMeasure.Models.CaliperRegion, Plugin.CaliperMeasure]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "搜索区1",
+                  "ShapeType": 0,
+                  "Params": [
+                    240.0,
+                    100.0,
+                    0.0,
+                    60.0,
+                    80.0
+                  ]
+                },
+                {
+                  "Name": "搜索区2",
+                  "ShapeType": 0,
+                  "Params": [
+                    240.0,
+                    340.0,
+                    0.0,
+                    60.0,
+                    80.0
+                  ]
+                }
+              ]
+            }
+          },
+          "LinkedSources": {
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "e8ecf661-e3c1-4f8c-9525-d86caad2d1fa",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_两点距.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "f4dd7f03-e70a-4ae1-9bdf-85bf2a77a0f1",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_点线距",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\卡尺测试\\3-点到线距200px.png",
+            "DisplayViewIndex": 0
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "290b5159-93db-45e2-b770-ef9afd2c4763",
+          "Icon": "",
+          "PluginName": "卡尺测量",
+          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "卡尺_点线距",
+          "Description": "卡尺测量",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "MeasureKind": 2,
+            "CaliperCount": 5,
+            "PixelSizeMm": 1.0,
+            "StandardValue": 200.0,
+            "UpperTolerance": 0.5,
+            "LowerTolerance": -0.5,
+            "CaliperRegions": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CaliperMeasure.Models.CaliperRegion, Plugin.CaliperMeasure]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "搜索区1",
+                  "ShapeType": 0,
+                  "Params": [
+                    250.0,
+                    300.0,
+                    0.0,
+                    60.0,
+                    60.0
+                  ]
+                },
+                {
+                  "Name": "搜索区2",
+                  "ShapeType": 0,
+                  "Params": [
+                    250.0,
+                    100.0,
+                    0.0,
+                    60.0,
+                    80.0
+                  ]
+                }
+              ]
+            }
+          },
+          "LinkedSources": {
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "f4dd7f03-e70a-4ae1-9bdf-85bf2a77a0f1",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_点线距.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "f0d89233-77d2-47ed-9c64-0987078cb8ff",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_圆直径",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\卡尺测试\\4-圆直径200px.png",
+            "DisplayViewIndex": 0
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "57330828-a0cc-4208-ae44-1bb6098a6ab7",
+          "Icon": "",
+          "PluginName": "卡尺测量",
+          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "卡尺_圆直径",
+          "Description": "卡尺测量",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "MeasureKind": 3,
+            "CaliperCount": 16,
+            "PixelSizeMm": 1.0,
+            "StandardValue": 200.0,
+            "UpperTolerance": 1.0,
+            "LowerTolerance": -1.0,
+            "CaliperRegions": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CaliperMeasure.Models.CaliperRegion, Plugin.CaliperMeasure]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "圆搜索区",
+                  "ShapeType": 2,
+                  "Params": [
+                    240.0,
+                    320.0,
+                    100.0
+                  ]
+                }
+              ]
+            },
+            "AnnulusWidth": 30.0
+          },
+          "LinkedSources": {
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "f0d89233-77d2-47ed-9c64-0987078cb8ff",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_圆直径.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "409ad43b-8834-4ee2-af1e-f14376e546de",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_角度",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": 0,
+            "FilePath": "E:\\VM\\VisionMaster-W-master\\Image\\卡尺测试\\5-角度90.png",
+            "DisplayViewIndex": 0
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "a92aa2d2-e81c-4c35-845f-280a2254374f",
+          "Icon": "",
+          "PluginName": "卡尺测量",
+          "PluginTypeName": "Plugin.CaliperMeasure.CaliperMeasurePlugin, Plugin.CaliperMeasure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "卡尺_角度",
+          "Description": "卡尺测量",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "MeasureKind": 4,
+            "CaliperCount": 5,
+            "PixelSizeMm": 1.0,
+            "StandardValue": 90.0,
+            "UpperTolerance": 0.5,
+            "LowerTolerance": -0.5,
+            "CaliperRegions": {
+              "$type": "System.Collections.ObjectModel.ObservableCollection`1[[Plugin.CaliperMeasure.Models.CaliperRegion, Plugin.CaliperMeasure]], System.ObjectModel",
+              "$values": [
+                {
+                  "Name": "搜索区1",
+                  "ShapeType": 0,
+                  "Params": [
+                    120.0,
+                    240.0,
+                    1.5708,
+                    60.0,
+                    80.0
+                  ]
+                },
+                {
+                  "Name": "搜索区2",
+                  "ShapeType": 0,
+                  "Params": [
+                    240.0,
+                    440.0,
+                    0.0,
+                    60.0,
+                    80.0
+                  ]
+                }
+              ]
+            }
+          },
+          "LinkedSources": {
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "409ad43b-8834-4ee2-af1e-f14376e546de",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_角度.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        }
+      ]
+    }
+  ],
+  "CommunicationConfigs": [],
+  "CameraConfigs": [],
+  "VariableSnapshots": [],
+  "WatchItems": [],
+  "Scada": {
+    "SchemaVersion": 1,
+    "Pages": [],
+    "Alarms": [],
+    "VariableEvents": [],
+    "StartupPageId": "00000000-0000-0000-0000-000000000000"
+  }
+}
