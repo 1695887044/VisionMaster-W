@@ -14,83 +14,131 @@
     mc:Ignorable="d">
 
     <!--  ==========================================  -->
-    <!--  流程节点画布（M2-1）  -->
-    <!--  一层全展开：主列 + 分支泳道 + 祖先层根锚点，三类东西共用一个 ItemsSource，  -->
-    <!--  靠 CanvasNodeViewModel.Kind 分流模板与交互（能拖/能选/坐标存不存）  -->
-    <!--  执行顺序与连线合法性一律来自 FlowTopology，视图不参与判定  -->
+    <!--  流程节点画布（海康式一图全展开）  -->
+    <!--  整棵流程树摊在同一张画布上：模块盒 + 容器框（可折叠）+ 分支泳道 + 模块级聚合连线；  -->
+    <!--  连线只在模块间画，具体端口绑定在变量绑定弹窗里维护（右键连线可逐条解绑/重开弹窗）。  -->
+    <!--  执行顺序与连线合法性一律来自 FlowTopology，视图不参与判定。  -->
     <!--  ==========================================  -->
 
     <UserControl.Resources>
 
-        <!--  ====================  端口模板（步骤与层根共用）  ====================  -->
-        <!--  不可连的端口画灰：Nodify 的 Connector 没有禁用开关，只能靠 CanConnect 真拒 + 这里视觉降级。
-               变灰做在外层 Border 上而不是 Connector 的 Style 上——直接给 Connector 写 Style 会把它
-               从主题里继承的那套默认赋值一起顶掉，包一层只为承载 Opacity 触发器最省事  -->
-        <DataTemplate x:Key="InputConnectorTemplate" DataType="{x:Type vm:CanvasConnectorViewModel}">
-            <Border>
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsConnectable}" Value="False">
-                                <Setter Property="Opacity" Value="0.3" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <nodify:NodeInput
-                    Anchor="{Binding Anchor, Mode=OneWayToSource}"
-                    DisconnectCommand="{Binding DataContext.DisconnectConnectorCommand, RelativeSource={RelativeSource AncestorType={x:Type nodify:NodifyEditor}}}"
-                    Header="{Binding DisplayLabel}"
-                    IsConnected="{Binding IsConnected}"
-                    ToolTip="{Binding UnconnectableReason}" />
-            </Border>
-        </DataTemplate>
+        <!--  模块卡片：圆角 + 运行态描边 + 禁用降透明（尺寸与 FlowCanvasViewModel.NodeWidth/Height 常量一致，锚点是边缘中点的纯数学）  -->
+        <Style x:Key="StepCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource FlowCanvasNodeBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasNodeBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Model.State}" Value="Running">
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasRunningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Model.State}" Value="Success">
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasSuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Model.State}" Value="Failed">
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasFailedBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Model.State}" Value="Skipped">
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasSkippedBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Model.IsDisEnable}" Value="True">
+                    <Setter Property="Opacity" Value="0.55" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 
-        <DataTemplate x:Key="OutputConnectorTemplate" DataType="{x:Type vm:CanvasConnectorViewModel}">
-            <Border>
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsConnectable}" Value="False">
-                                <Setter Property="Opacity" Value="0.3" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <nodify:NodeOutput
-                    Anchor="{Binding Anchor, Mode=OneWayToSource}"
-                    Header="{Binding DisplayLabel}"
-                    IsConnected="{Binding IsConnected}"
-                    ToolTip="{Binding UnconnectableReason}" />
-            </Border>
-        </DataTemplate>
+        <!--  连接点（每节点左入右出各一枚，骑在盒子边缘上）：
+              DataContext 切到连接器 VM（IsConnected 驱动实心/空心外观）；
+              Anchor 不在这里回报——连线端点由主 VM 按盒子边缘中点直接算（确定性）。  -->
+        <Style x:Key="FlowConnectorStyle" TargetType="Control">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
 
-        <!--  ====================  步骤节点  ====================  -->
+        <!--  ====================  模块盒（真实步骤，固定 210×62）  ====================  -->
         <DataTemplate x:Key="StepNodeTemplate" DataType="{x:Type vm:CanvasNodeViewModel}">
-            <Grid>
-                <nodify:Node
-                    MinWidth="180"
-                    Background="White"
-                    BorderBrush="#FFC0C4CC"
-                    BorderThickness="1"
-                    Foreground="#FF303133"
-                    Header="{Binding Header}"
-                    Input="{Binding Inputs}"
-                    InputConnectorTemplate="{StaticResource InputConnectorTemplate}"
-                    Output="{Binding Outputs}"
-                    OutputConnectorTemplate="{StaticResource OutputConnectorTemplate}" />
+            <Grid Width="210" Height="62">
+                <Border Style="{StaticResource StepCardStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!--  图标  -->
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="14,0,0,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="20"
+                            Foreground="{StaticResource FlowCanvasNodeIconBrush}"
+                            Text="{Binding IconGlyph}" />
+
+                        <!--  名称 + 插件名  -->
+                        <StackPanel
+                            Grid.Column="1"
+                            Margin="10,0,4,0"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource FlowCanvasNodeTextBrush}"
+                                Text="{Binding Header}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding Header}" />
+                            <TextBlock
+                                FontSize="10.5"
+                                Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
+                                Text="{Binding SubTitle}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding SubTitle}" />
+                        </StackPanel>
+
+                        <!--  外链角标：全局变量/常量绑定数（悬停看明细）  -->
+                        <Border
+                            Grid.Column="2"
+                            Margin="0,0,12,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource FlowCanvasExtBadgeBrush}"
+                            BorderBrush="{StaticResource FlowCanvasExtBadgeBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="5,1"
+                            ToolTip="{Binding ExternalLinkTooltip}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ExternalLinkCount}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock
+                                FontSize="10.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource FlowCanvasExtBadgeTextBrush}"
+                                Text="{Binding ExternalLinkCount}" />
+                        </Border>
+                    </Grid>
+                </Border>
 
                 <!--  执行序号角标：贴在节点左上角，越界压住标题栏是可接受的（它就是要显眼）  -->
                 <Border
                     Padding="6,1"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    Background="#FF409EFF"
+                    Background="{StaticResource FlowCanvasOrderBadgeBrush}"
                     CornerRadius="0,0,7,0">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Style.Triggers>
-                                <!--  装饰节点与拓扑查不到的步骤序号为 0，此时不画角标  -->
                                 <DataTrigger Binding="{Binding OrderLabel}" Value="">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
@@ -100,50 +148,193 @@
                     <TextBlock
                         FontSize="10"
                         FontWeight="Bold"
-                        Foreground="White"
+                        Foreground="{StaticResource FlowCanvasOnOrderBadgeTextBrush}"
                         Text="{Binding OrderLabel}" />
                 </Border>
+
+                <!--  连接点：左入右出（DataContext 切到连接器 VM）  -->
+                <nodify:NodeInput
+                    Margin="-7,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    DataContext="{Binding Inputs[0]}"
+                    IsConnected="{Binding IsConnected}"
+                    Style="{StaticResource FlowConnectorStyle}"
+                    ToolTip="目标脚：从其它模块的圆点拖到这里建立连线" />
+                <nodify:NodeOutput
+                    Margin="0,0,-7,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    DataContext="{Binding Outputs[0]}"
+                    IsConnected="{Binding IsConnected}"
+                    Style="{StaticResource FlowConnectorStyle}"
+                    ToolTip="源脚：按住拖到目标模块建立连线" />
             </Grid>
         </DataTemplate>
 
-        <!--  ====================  层根锚点（祖先容器的只读投影）  ====================  -->
-        <!--  只对外提供产出端口，不可拖不可删；它是本层步骤取 For.Index 这类值的唯一合法上游  -->
-        <DataTemplate x:Key="LayerRootNodeTemplate" DataType="{x:Type vm:CanvasNodeViewModel}">
-            <nodify:Node
-                MinWidth="160"
-                Background="#FFF0F4FF"
-                BorderBrush="#FFA0B4E6"
-                BorderThickness="1"
-                Foreground="#FF4A5C8A"
-                Header="{Binding Header}"
-                Input="{Binding Inputs}"
-                InputConnectorTemplate="{StaticResource InputConnectorTemplate}"
-                Output="{Binding Outputs}"
-                OutputConnectorTemplate="{StaticResource OutputConnectorTemplate}" />
+        <!--  ====================  容器框（If / While / For，可折叠）  ====================  -->
+        <DataTemplate x:Key="ContainerNodeTemplate" DataType="{x:Type vm:CanvasNodeViewModel}">
+            <Grid Width="{Binding LaneWidth}" Height="{Binding LaneHeight}">
+                <Border
+                    Background="{StaticResource FlowCanvasFrameTintBrush}"
+                    BorderBrush="{StaticResource FlowCanvasFrameBorderBrush}"
+                    BorderThickness="1.5"
+                    CornerRadius="10">
+                    <!--  头带：折叠钮 + 类型徽标 + 名称 + 折叠角标  -->
+                    <Border VerticalAlignment="Top" Background="Transparent">
+                        <Border
+                            Margin="6,6,6,0"
+                            Padding="8,4"
+                            Background="{StaticResource FlowCanvasFrameHeaderBrush}"
+                            BorderBrush="{StaticResource FlowCanvasFrameBorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            CornerRadius="7">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--  折叠 / 展开  -->
+                                <Border
+                                    Grid.Column="0"
+                                    Margin="0,0,6,0"
+                                    Background="{StaticResource FlowCanvasCollapseBrush}"
+                                    BorderBrush="{StaticResource FlowCanvasCollapseBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Cursor="Hand"
+                                    ToolTip="点击折叠 / 展开该容器">
+                                    <Border.InputBindings>
+                                        <MouseBinding
+                                            Command="{Binding DataContext.ToggleCollapseCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                            CommandParameter="{Binding}"
+                                            Gesture="LeftClick" />
+                                    </Border.InputBindings>
+                                    <TextBlock
+                                        MinWidth="16"
+                                        TextAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="11"
+                                        Foreground="{StaticResource FlowCanvasCollapseTextBrush}"
+                                        Text="{Binding CollapseGlyph}" />
+                                </Border>
+
+                                <!--  类型徽标  -->
+                                <Border
+                                    Grid.Column="1"
+                                    Margin="0,0,6,0"
+                                    Padding="6,1"
+                                    VerticalAlignment="Center"
+                                    Background="{StaticResource FlowCanvasTypeBadgeBrush}"
+                                    CornerRadius="4"
+                                    Visibility="{Binding TypeBadgeVisibility}">
+                                    <TextBlock
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{StaticResource FlowCanvasOnTypeBadgeTextBrush}"
+                                        Text="{Binding TypeBadge}" />
+                                </Border>
+
+                                <TextBlock
+                                    Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource FlowCanvasFrameHeaderTextBrush}"
+                                    Text="{Binding Header}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding Header}" />
+
+                                <TextBlock
+                                    Grid.Column="3"
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="10.5"
+                                    Foreground="{StaticResource FlowCanvasFrameHeaderTextBrush}"
+                                    Text="{Binding CollapsedBadgeText}" />
+                            </Grid>
+                        </Border>
+                    </Border>
+                </Border>
+
+                <!--  执行序号角标：容器也参与执行序（折叠时同样可见）  -->
+                <Border
+                    Padding="6,1"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Background="{StaticResource FlowCanvasOrderBadgeBrush}"
+                    CornerRadius="0,0,7,0">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding OrderLabel}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock
+                        FontSize="10"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource FlowCanvasOnOrderBadgeTextBrush}"
+                        Text="{Binding OrderLabel}" />
+                </Border>
+
+                <!--  连接点：容器框左右缘中点（For.Index 这类产出从这里连出）  -->
+                <nodify:NodeInput
+                    Margin="-7,0,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    DataContext="{Binding Inputs[0]}"
+                    IsConnected="{Binding IsConnected}"
+                    Style="{StaticResource FlowConnectorStyle}"
+                    ToolTip="目标脚：从其它模块的圆点拖到这里建立连线" />
+                <nodify:NodeOutput
+                    Margin="0,0,-7,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    DataContext="{Binding Outputs[0]}"
+                    IsConnected="{Binding IsConnected}"
+                    Style="{StaticResource FlowConnectorStyle}"
+                    ToolTip="源脚：按住拖到目标模块建立连线" />
+            </Grid>
         </DataTemplate>
 
-        <!--  ====================  分支泳道（纯背景装饰）  ====================  -->
-        <!--  尺寸由本分支所有节点的外接框算出（LaneWidth/LaneHeight），不进 FlowLayoutStore  -->
+        <!--  ====================  分支泳道（容器框内的列背景装饰）  ====================  -->
         <DataTemplate x:Key="LaneNodeTemplate" DataType="{x:Type vm:CanvasNodeViewModel}">
             <Border
                 Width="{Binding LaneWidth}"
                 Height="{Binding LaneHeight}"
-                Background="#14409EFF"
-                BorderBrush="#66409EFF"
+                Background="{StaticResource FlowCanvasLaneTintBrush}"
+                BorderBrush="{StaticResource FlowCanvasLaneBorderBrush}"
                 BorderThickness="1"
-                CornerRadius="6">
+                CornerRadius="7">
                 <Grid VerticalAlignment="Top">
                     <TextBlock
                         Margin="10,6"
                         FontSize="11"
                         FontWeight="SemiBold"
-                        Foreground="#FF5A6C99"
-                        Text="{Binding Header}" />
+                        Foreground="{StaticResource FlowCanvasLaneTextBrush}"
+                        Text="{Binding Header}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding Header}" />
                     <TextBlock
-                        Margin="10,26"
+                        Margin="10,26,10,0"
                         FontSize="10"
-                        Foreground="#FFB0B4BB"
-                        Text="（空分支，可从流程栏拖入步骤）">
+                        Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
+                        Text="（空分支，可从流程栏添加步骤）"
+                        TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -159,56 +350,103 @@
             </Border>
         </DataTemplate>
 
-        <!--  ====================  面包屑项  ====================  -->
-        <ControlTemplate x:Key="CrumbTemplate" TargetType="Button">
-            <TextBlock
-                x:Name="Label"
-                Cursor="Hand"
-                FontSize="12"
-                Foreground="#FF409EFF"
-                Text="{TemplateBinding Content}"
-                TextDecorations="Underline" />
-            <ControlTemplate.Triggers>
-                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                    <Setter TargetName="Label" Property="TextDecorations" Value="{x:Null}" />
-                    <Setter TargetName="Label" Property="Foreground" Value="#FF909399" />
-                    <Setter TargetName="Label" Property="Cursor" Value="Arrow" />
-                </DataTrigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter TargetName="Label" Property="Foreground" Value="#FFC0C4CC" />
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
+        <!--  数据线的右键菜单（顺序链没有绑定语义，不挂菜单）  -->
+        <ContextMenu x:Key="DataLinkMenu">
+            <MenuItem
+                Command="{Binding DataContext.OpenBindingCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
+                CommandParameter="{Binding Target.Model}"
+                Header="编辑绑定…（打开变量绑定）" />
+            <Separator />
+            <ItemsControl ItemsSource="{Binding Bindings}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <MenuItem
+                            Command="{Binding DataContext.UnbindCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
+                            CommandParameter="{Binding}"
+                            Header="{Binding MenuHeader}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ContextMenu>
 
-        <DataTemplate x:Key="CrumbItemTemplate" DataType="{x:Type vm:CanvasCrumbViewModel}">
-            <StackPanel Orientation="Horizontal">
-                <!--  根级（PathKey 为空）前面不放分隔符，省掉一个「取当前项下标」的转换器  -->
-                <TextBlock
-                    Margin="4,0"
-                    FontSize="12"
-                    Foreground="#FFC0C4CC"
-                    Text="›">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding PathKey}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-                <Button
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Command="{Binding DataContext.NavigateCrumbCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                    CommandParameter="{Binding}"
-                    Content="{Binding Label}"
-                    Focusable="False"
-                    Template="{StaticResource CrumbTemplate}"
-                    ToolTip="{Binding Label}" />
-            </StackPanel>
+        <!--  ====================  模块级聚合连线（端点 = 主 VM 算好的盒子边缘中点）  ====================  -->
+        <!--  数据线：横向（右缘出 → 左缘入）；执行顺序链：纵向（底缘出 → 顶缘入），细虚线、无菜单  -->
+        <DataTemplate x:Key="ModuleLinkTemplate" DataType="{x:Type vm:CanvasLinkViewModel}">
+            <nodify:LineConnection
+                Source="{Binding SourceAnchor}"
+                Target="{Binding TargetAnchor}"
+                ToolTip="{Binding Tooltip}">
+                <nodify:LineConnection.ContextMenu>
+                    <ContextMenu
+                        ItemsSource="{Binding Bindings}"
+                        Visibility="{Binding ContextMenuVisibility, Converter={x:Null}}" />
+                </nodify:LineConnection.ContextMenu>
+                <nodify:LineConnection.Style>
+                    <Style TargetType="{x:Type nodify:LineConnection}">
+                        <Setter Property="ContextMenu" Value="{StaticResource DataLinkMenu}" />
+                        <Setter Property="Stroke" Value="{StaticResource FlowCanvasLinkBrush}" />
+                        <Setter Property="StrokeThickness" Value="2" />
+                        <Style.Triggers>
+                            <!--  执行顺序链：细灰虚线自上而下（与数据线区分）  -->
+                            <DataTrigger Binding="{Binding IsOrderLink}" Value="True">
+                                <Setter Property="ContextMenu" Value="{x:Null}" />
+                                <Setter Property="Stroke" Value="{StaticResource FlowCanvasOrderLinkBrush}" />
+                                <Setter Property="StrokeDashArray" Value="3,3" />
+                                <Setter Property="StrokeThickness" Value="1.5" />
+                            </DataTrigger>
+                            <!--  结构非法的线：红色虚线，编译会报致命错  -->
+                            <DataTrigger Binding="{Binding IsIllegal}" Value="True">
+                                <Setter Property="Stroke" Value="{StaticResource FlowCanvasLinkIllegalBrush}" />
+                                <Setter Property="StrokeDashArray" Value="4,3" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </nodify:LineConnection.Style>
+            </nodify:LineConnection>
         </DataTemplate>
+
+        <!--  小地图项：一个点代表一个模块  -->
+        <DataTemplate x:Key="MinimapItemTemplate" DataType="{x:Type vm:CanvasNodeViewModel}">
+            <nodify:MinimapItem Location="{Binding Location}">
+                <Rectangle
+                    Width="9"
+                    Height="6"
+                    Fill="{StaticResource FlowCanvasLinkBrush}"
+                    RadiusX="1.5"
+                    RadiusY="1.5" />
+            </nodify:MinimapItem>
+        </DataTemplate>
+
+        <!--  缩放工具条按钮  -->
+        <Style x:Key="ZoomToolButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource FlowCanvasNodeTextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="7,3" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource FlowCanvasCollapseHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -219,48 +457,81 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  面包屑：流程名 › 容器 › 分支，点任一级回跳该层  -->
+        <!--  顶部工具条：左 = 流程名与操作提示；右 = 缩放工具  -->
         <Border
             Grid.Row="0"
-            Padding="8,5"
-            Background="White"
-            BorderBrush="#FFDFE2E7"
+            Padding="10,6"
+            Background="{StaticResource FlowCanvasToolbarBrush}"
+            BorderBrush="{StaticResource FlowCanvasToolbarBorderBrush}"
             BorderThickness="0,0,0,1">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <ItemsControl
-                    VerticalAlignment="Center"
-                    ItemTemplate="{StaticResource CrumbItemTemplate}"
-                    ItemsSource="{Binding Breadcrumb}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
-                <TextBlock
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource FlowCanvasNodeTextBrush}"
+                        Text="{Binding FlowTitle}" />
+                    <TextBlock
+                        Margin="14,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
+                        Text="拖动节点改布局 · 从模块圆点拖线连接 · 右键连线编辑绑定 · 点框头折叠容器" />
+                </StackPanel>
+
+                <StackPanel
                     Grid.Column="1"
-                    VerticalAlignment="Center"
-                    FontSize="11"
-                    Foreground="#FF909399"
-                    Text="双击容器节点进入子层 · 拖动节点只改布局不触发重编译" />
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+                    <Button
+                        Command="{Binding ZoomCommand}"
+                        CommandParameter="{x:Static vm:FlowCanvasZoomCommand.ZoomIn}"
+                        Content="＋"
+                        Style="{StaticResource ZoomToolButtonStyle}"
+                        ToolTip="放大" />
+                    <Button
+                        Command="{Binding ZoomCommand}"
+                        CommandParameter="{x:Static vm:FlowCanvasZoomCommand.ZoomOut}"
+                        Content="－"
+                        Style="{StaticResource ZoomToolButtonStyle}"
+                        ToolTip="缩小" />
+                    <Button
+                        Command="{Binding ZoomCommand}"
+                        CommandParameter="{x:Static vm:FlowCanvasZoomCommand.ActualSize}"
+                        Content="1:1"
+                        Style="{StaticResource ZoomToolButtonStyle}"
+                        ToolTip="恢复 100%" />
+                    <Button
+                        Command="{Binding ZoomCommand}"
+                        CommandParameter="{x:Static vm:FlowCanvasZoomCommand.Fit}"
+                        Content="适应"
+                        Style="{StaticResource ZoomToolButtonStyle}"
+                        ToolTip="适应画布" />
+                    <Button
+                        Command="{Binding TidyLayoutCommand}"
+                        Content="整理"
+                        Style="{StaticResource ZoomToolButtonStyle}"
+                        ToolTip="清空散乱坐标，按执行顺序重新正交排布" />
+                </StackPanel>
             </Grid>
         </Border>
 
-        <!--  结构告警条：只有非法连线才出现（降级连线是常态，不报警）  -->
+        <!--  结构告警条：只有非法连线才出现（全局变量/常量折成角标是常态，不报警）  -->
         <Border
             Grid.Row="1"
-            Padding="8,4"
-            Background="#FFFDECEE"
-            BorderBrush="#FFF56C6C"
-            BorderThickness="0,0,0,1"
+            Padding="10,4"
+            Background="{StaticResource ScadaInvalidBackgroundBrush}"
+            BorderThickness="0"
             Visibility="{Binding WarningVisibility}">
             <TextBlock
                 FontSize="11"
-                Foreground="#FFB24049"
+                Foreground="{StaticResource FlowCanvasFailedBrush}"
                 Text="{Binding WarningText}"
                 TextWrapping="Wrap" />
         </Border>
@@ -268,14 +539,16 @@
         <nodify:NodifyEditor
             x:Name="Editor"
             Grid.Row="2"
-            Background="#FFF7F8FA"
-            Connections="{Binding Connections}"
+            Background="{StaticResource FlowCanvasBackgroundBrush}"
+            Connections="{Binding Links}"
+            ConnectionTemplate="{StaticResource ModuleLinkTemplate}"
+            GridCellSize="24"
             ItemsSource="{Binding Nodes}"
             ItemsDragStartedCommand="{Binding ItemsDragStartedCommand}"
             ItemsDragCompletedCommand="{Binding ItemsDragCompletedCommand}"
             PendingConnection="{Binding PendingConnection}">
 
-            <!--  段3：撤销 / 重做 快捷键（栈空时 CanExecute=false 自动屏蔽）  -->
+            <!--  撤销 / 重做 快捷键（栈空时 CanExecute=false 自动屏蔽）  -->
             <nodify:NodifyEditor.InputBindings>
                 <KeyBinding
                     Key="Z"
@@ -292,15 +565,16 @@
                     <!--  Location 双向：拖动即回写视图模型，视图模型再写入 FlowLayoutStore  -->
                     <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
                     <Setter Property="Location" Value="{Binding Location, Mode=TwoWay}" />
-                    <!--  层根与泳道钉死：坐标每次进层重算，拖了没地方存，也不能被框选走  -->
+                    <!--  泳道与容器框钉死：框体坐标每次渲染由内容算出，拖了没地方存 -->
                     <Setter Property="IsDraggable" Value="{Binding IsDraggable}" />
                     <Setter Property="IsSelectable" Value="{Binding IsSelectable}" />
+                    <Setter Property="SelectedBrush" Value="{StaticResource FlowCanvasNodeSelectedGlowBrush}" />
+                    <Setter Property="SelectedBorderThickness" Value="1.5" />
                 </Style>
             </nodify:NodifyEditor.ItemContainerStyle>
 
             <nodify:NodifyEditor.ItemTemplate>
-                <!--  同一 ItemsSource 混放三类身份，按 Kind 切模板：NodifyEditor 只有一个 ItemTemplate，  -->
-                <!--  而 ItemContainer 的 ContentTemplate 又被编辑器占死，所以在模板里套一层 ContentControl 分流  -->
+                <!--  同一 ItemsSource 混放三种身份，按 Kind 切模板  -->
                 <DataTemplate DataType="{x:Type vm:CanvasNodeViewModel}">
                     <ContentControl Content="{Binding}">
                         <ContentControl.Style>
@@ -310,8 +584,8 @@
                                     <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:CanvasNodeKind.Lane}">
                                         <Setter Property="ContentTemplate" Value="{StaticResource LaneNodeTemplate}" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:CanvasNodeKind.LayerRoot}">
-                                        <Setter Property="ContentTemplate" Value="{StaticResource LayerRootNodeTemplate}" />
+                                    <DataTrigger Binding="{Binding Kind}" Value="{x:Static vm:CanvasNodeKind.Container}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource ContainerNodeTemplate}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -320,30 +594,7 @@
                 </DataTemplate>
             </nodify:NodifyEditor.ItemTemplate>
 
-            <!--  连线：视图模型用 Input/Output 表达方向，故必须自写模板，不能用控件默认模板  -->
-            <nodify:NodifyEditor.ConnectionTemplate>
-                <DataTemplate DataType="{x:Type vm:CanvasConnectionViewModel}">
-                    <nodify:LineConnection
-                        Source="{Binding Output.Anchor}"
-                        Stroke="#FF409EFF"
-                        StrokeThickness="2"
-                        Target="{Binding Input.Anchor}">
-                        <nodify:LineConnection.Style>
-                            <Style TargetType="{x:Type nodify:LineConnection}">
-                                <Style.Triggers>
-                                    <!--  结构非法的旧线：灰色虚线保留原样，让人看清「它还在图纸里，但编译会致命错」  -->
-                                    <DataTrigger Binding="{Binding IsIllegal}" Value="True">
-                                        <Setter Property="Stroke" Value="#FFF56C6C" />
-                                        <Setter Property="StrokeDashArray" Value="4,3" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </nodify:LineConnection.Style>
-                    </nodify:LineConnection>
-                </DataTemplate>
-            </nodify:NodifyEditor.ConnectionTemplate>
-
-            <!--  拖线中的临时连线：Source/Target 回写视图模型，由 CompletedCommand 落地为 SetLink  -->
+            <!--  拖线中的临时连线：Source/Target 回写视图模型，由 CompletedCommand 落地为建线请求  -->
             <nodify:NodifyEditor.PendingConnectionTemplate>
                 <DataTemplate>
                     <nodify:PendingConnection
@@ -360,45 +611,31 @@
             </nodify:NodifyEditor.PendingConnectionTemplate>
         </nodify:NodifyEditor>
 
-        <!--  段3：插入指示线（水平线 + 端点三角）。
-                叠在 NodifyEditor 同 Grid 单元上，IsHitTestVisible=False 让鼠标事件穿透。
-                已知边界：当前直接用画布坐标系（DropIndicatorY）绑 Line.Y1/Y2，
-                未做视口缩放/平移转换，所以只在视口原点(0,0)、Scale=1 时与画布对齐；
-                用户拖动画布后指示线会错位。后续段可由 view 后置代码订阅
-                NodifyEditor 视口变化做坐标转换，本期不展开。  -->
-        <Canvas
+        <!--  小地图：右下角浮层，点住可平移视口  -->
+        <Border
             Grid.Row="2"
-            IsHitTestVisible="False"
-            ClipToBounds="False">
-            <Canvas.Style>
-                <Style TargetType="Canvas">
-                    <!--  默认显示；DropIndicatorY=-1 时收起  -->
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding DropIndicatorY}" Value="-1">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Canvas.Style>
-            <Line
-                X1="-4000"
-                X2="4000"
-                Y1="{Binding DropIndicatorY}"
-                Y2="{Binding DropIndicatorY}"
-                Stroke="#FF409EFF"
-                StrokeDashArray="4,3"
-                StrokeThickness="2" />
-            <Polygon
-                Canvas.Left="-6"
-                Fill="#FF409EFF"
-                Points="-6,-6 6,0 -6,6"
-                RenderTransformOrigin="0.5,0.5">
-                <Polygon.RenderTransform>
-                    <TranslateTransform Y="{Binding DropIndicatorY}" />
-                </Polygon.RenderTransform>
-            </Polygon>
-        </Canvas>
+            Width="216"
+            Height="146"
+            Margin="0,0,10,10"
+            Padding="6"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Background="{StaticResource FlowCanvasToolbarBrush}"
+            BorderBrush="{StaticResource FlowCanvasToolbarBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="10"
+                    Opacity="0.15"
+                    ShadowDepth="1" />
+            </Border.Effect>
+            <nodify:Minimap
+                ItemsSource="{Binding Nodes}"
+                ItemTemplate="{StaticResource MinimapItemTemplate}"
+                ViewportLocation="{Binding ViewportLocation, ElementName=Editor, Mode=TwoWay}"
+                ViewportSize="{Binding ViewportSize, ElementName=Editor, Mode=TwoWay}" />
+        </Border>
 
         <!--  空状态：未选流程时给出明确指引，而不是留一片空白画布  -->
         <TextBlock
@@ -406,16 +643,16 @@
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             FontSize="13"
-            Foreground="#FF909399"
+            Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
             Text="请先在「程序」栏中选择一个流程"
             Visibility="{Binding EmptyHintVisibility}" />
 
-        <!--  状态提示：连线被拒的原因等一次性文案。StatusHint 为 null 时整行收起，不留空隙  -->
+        <!--  状态提示：连线被拒 / 解绑回执等一次性文案。StatusHint 为 null 时整行收起  -->
         <Border
             Grid.Row="3"
-            Padding="8,3"
-            Background="#FFF4F6FA"
-            BorderBrush="#FFDFE2E7"
+            Padding="10,4"
+            Background="{StaticResource FlowCanvasToolbarBrush}"
+            BorderBrush="{StaticResource FlowCanvasToolbarBorderBrush}"
             BorderThickness="0,1,0,0">
             <Border.Style>
                 <Style TargetType="Border">
@@ -428,7 +665,7 @@
             </Border.Style>
             <TextBlock
                 FontSize="11"
-                Foreground="#FF8B5E1F"
+                Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
                 Text="{Binding StatusHint}"
                 TextWrapping="Wrap" />
         </Border>

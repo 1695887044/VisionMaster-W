@@ -159,7 +159,8 @@ namespace VisionMaster.Models
         /// </summary>
         public int AutoLayout(IEnumerable<StepModel> steps, double originX = 0, double originY = 0)
         {
-            int added = LayoutLevel(steps.ToList(), originX, originY);
+            int added = 0;
+            LayoutLevel(steps.ToList(), originX, originY, ref added);
             if (added > 0)
             {
                 LayoutChanged?.Invoke(this, new FlowLayoutChangedEventArgs
@@ -171,17 +172,21 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
-        /// 单层布局：本层内纵向堆叠，遇到容器则递归排布其分支并为本层预留高度。
-        /// 返回本层新增（含递归）的项数。
+        /// 单层布局：本层内纵向堆叠，遇到容器则递归排布其分支。
+        ///
+        /// 关键约束：容器分支排布完后，游标必须推进到分支内容底部——
+        /// 否则后续兄弟会直接叠进容器框里（旧实现正是这个 bug：
+        /// "展开逻辑分支后层级顺序乱了"的元凶）。
+        /// 返回本层内容（含递归分支）消耗掉的底部 Y 坐标。
         /// </summary>
-        private int LayoutLevel(List<StepModel> level, double x, double y)
+        private double LayoutLevel(List<StepModel> level, double x, double y, ref int added)
         {
             const double RowHeight = 90;
             const double ColumnGap = 260;
             const double BranchIndent = 220;
 
-            int added = 0;
             double cursor = y;
+            double bottom = y;
 
             foreach (var step in level.OrderBy(s => s.SortId))
             {
@@ -198,20 +203,28 @@ namespace VisionMaster.Models
                 }
 
                 cursor += RowHeight;
+                bottom = Math.Max(bottom, cursor);
 
-                if (step is IContainerStep container)
+                if (step is IContainerStep container && container.Children != null)
                 {
-                    // 分支横向错开排布，避免不同分支的节点重叠
+                    // 分支横向错开排布，避免不同分支的节点重叠；
+                    // 游标推进到所有分支内容的最大底部，后续兄弟不再压进容器框
                     double branchX = x + BranchIndent;
+                    double branchMaxBottom = cursor;
                     foreach (var branch in container.Children)
                     {
-                        added += LayoutLevel(branch.Steps.ToList(), branchX, cursor);
+                        if (branch?.Steps == null) continue;
+                        var branchBottom = LayoutLevel(branch.Steps.ToList(), branchX, cursor, ref added);
+                        branchMaxBottom = Math.Max(branchMaxBottom, branchBottom);
                         branchX += ColumnGap;
                     }
+
+                    cursor = branchMaxBottom;
+                    bottom = Math.Max(bottom, cursor);
                 }
             }
 
-            return added;
+            return bottom;
         }
 
         /// <summary>

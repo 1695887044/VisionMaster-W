@@ -130,4 +130,67 @@
 
     <!--  投影：卡片投影色（配合 DropShadowEffect 使用，仅取色不带透明度）  -->
     <Color x:Key="DialogShadowColor">#0F172A</Color>
+
+    <!--  ====================  流程画布令牌  ====================  -->
+
+    <!--
+        与 SCADA 节同理由：流程画布的节点/容器/连线原先把十六进制写死在 FlowCanvasView.xaml，
+        统一收口到这里。键带 FlowCanvas 前缀防撞名；命名按"用在哪"而不是"是什么颜色"。
+    -->
+
+    <!--  画布：底 / 网格点 / 顶部工具条底  -->
+    <SolidColorBrush x:Key="FlowCanvasBackgroundBrush" Color="#F7F8FA" />
+    <SolidColorBrush x:Key="FlowCanvasGridDotBrush" Color="#C9D2DE" />
+    <SolidColorBrush x:Key="FlowCanvasToolbarBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="FlowCanvasToolbarBorderBrush" Color="#E2E8F0" />
+
+    <!--  模块盒：底 / 描边 / 悬停描边 / 选中描边与光晕 / 标题字 / 副标题字 / 图标字 / 禁用  -->
+    <SolidColorBrush x:Key="FlowCanvasNodeBackgroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="FlowCanvasNodeBorderBrush" Color="#C9D2DE" />
+    <SolidColorBrush x:Key="FlowCanvasNodeHoverBorderBrush" Color="#3B82F6" />
+    <SolidColorBrush x:Key="FlowCanvasNodeSelectedBorderBrush" Color="#2563EB" />
+    <SolidColorBrush x:Key="FlowCanvasNodeSelectedGlowBrush" Color="#333B82F6" />
+    <SolidColorBrush x:Key="FlowCanvasNodeTextBrush" Color="#1E293B" />
+    <SolidColorBrush x:Key="FlowCanvasNodeSubTextBrush" Color="#94A3B8" />
+    <SolidColorBrush x:Key="FlowCanvasNodeIconBrush" Color="#3B82F6" />
+    <SolidColorBrush x:Key="FlowCanvasNodeDisabledBrush" Color="#B8BFC9" />
+
+    <!--  序号角标：底 / 字  -->
+    <SolidColorBrush x:Key="FlowCanvasOrderBadgeBrush" Color="#3B82F6" />
+    <SolidColorBrush x:Key="FlowCanvasOnOrderBadgeTextBrush" Color="#FFFFFF" />
+
+    <!--  运行态描边：运行中 / 成功 / 失败 / 跳过；Idle 不特殊描边（回落默认描边）  -->
+    <SolidColorBrush x:Key="FlowCanvasRunningBrush" Color="#3B82F6" />
+    <SolidColorBrush x:Key="FlowCanvasSuccessBrush" Color="#22C55E" />
+    <SolidColorBrush x:Key="FlowCanvasFailedBrush" Color="#EF4444" />
+    <SolidColorBrush x:Key="FlowCanvasSkippedBrush" Color="#CBD5E1" />
+
+    <!--  连线：数据依赖 / 非法（虚线）/ 执行顺序链（细虚线，与数据线视觉区分）  -->
+    <SolidColorBrush x:Key="FlowCanvasLinkBrush" Color="#64748B" />
+    <SolidColorBrush x:Key="FlowCanvasLinkIllegalBrush" Color="#EF4444" />
+    <SolidColorBrush x:Key="FlowCanvasOrderLinkBrush" Color="#A8B3C2" />
+
+    <!--  容器框：头带底 / 框体描边 / 框体 tint 底 / 头带字；分支泳道：tint 底 / 描边 / 标题字  -->
+    <SolidColorBrush x:Key="FlowCanvasFrameHeaderBrush" Color="#EEF4FF" />
+    <SolidColorBrush x:Key="FlowCanvasFrameBorderBrush" Color="#A5C0E8" />
+    <SolidColorBrush x:Key="FlowCanvasFrameTintBrush" Color="#0DA5B4FC" />
+    <SolidColorBrush x:Key="FlowCanvasFrameHeaderTextBrush" Color="#3B5B8C" />
+    <SolidColorBrush x:Key="FlowCanvasLaneTintBrush" Color="#0F3B82F6" />
+    <SolidColorBrush x:Key="FlowCanvasLaneBorderBrush" Color="#264B82F6" />
+    <SolidColorBrush x:Key="FlowCanvasLaneTextBrush" Color="#5A6C99" />
+
+    <!--  类型徽标（If/While/For）：底 / 字  -->
+    <SolidColorBrush x:Key="FlowCanvasTypeBadgeBrush" Color="#3B5B8C" />
+    <SolidColorBrush x:Key="FlowCanvasOnTypeBadgeTextBrush" Color="#FFFFFF" />
+
+    <!--  外链徽标（全局变量/常量绑定数）：底 / 描边 / 字  -->
+    <SolidColorBrush x:Key="FlowCanvasExtBadgeBrush" Color="#FFF7E6" />
+    <SolidColorBrush x:Key="FlowCanvasExtBadgeBorderBrush" Color="#E6C98A" />
+    <SolidColorBrush x:Key="FlowCanvasExtBadgeTextBrush" Color="#9A6B0F" />
+
+    <!--  折叠按钮：底 / 描边 / 字 / 悬停底  -->
+    <SolidColorBrush x:Key="FlowCanvasCollapseBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="FlowCanvasCollapseBorderBrush" Color="#C9D2DE" />
+    <SolidColorBrush x:Key="FlowCanvasCollapseTextBrush" Color="#475569" />
+    <SolidColorBrush x:Key="FlowCanvasCollapseHoverBrush" Color="#E3EEF9" />
 </ResourceDictionary>

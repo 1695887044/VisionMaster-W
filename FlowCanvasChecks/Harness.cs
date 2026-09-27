@@ -179,47 +179,37 @@ namespace FlowCanvasChecks
         }
 
         // ------------------------------------------------------------------
-        //  画布节点查询
+        //  画布节点查询（扁平画布：全深度一图）
         // ------------------------------------------------------------------
 
-        /// <summary>本层全部节点（含层根、泳道两类装饰节点），顺序 = 层根 → 泳道 → 主列 → 各泳道内步骤</summary>
+        /// <summary>画布上全部节点，顺序 = Z 序（容器框/泳道垫底，步骤置顶）</summary>
         public IReadOnlyList<CanvasNodeViewModel> AllNodes => Canvas.Nodes;
 
-        /// <summary>本层所有 Kind==Step 的节点。注意：泳道里的步骤同样是 Step 节点！</summary>
+        /// <summary>所有 Kind==Step 的节点（全深度，不含容器框与泳道）</summary>
         public List<CanvasNodeViewModel> Steps() =>
             Canvas.Nodes.Where(n => n.Kind == CanvasNodeKind.Step).ToList();
 
-        /// <summary>
-        /// 本层「主列」步骤（= _layerList 的直接成员）。
-        /// 判据：拓扑里 Owner 引用等于任一泳道的 Branch.Steps → 归泳道，否则归主列。
-        /// </summary>
+        /// <summary>所有容器框节点（If/While/For）</summary>
+        public List<CanvasNodeViewModel> Containers() =>
+            Canvas.Nodes.Where(n => n.Kind == CanvasNodeKind.Container).ToList();
+
+        /// <summary>顶层步骤（拓扑 Owner == Flow.Steps 的直接成员）</summary>
         public List<CanvasNodeViewModel> MainSteps()
         {
-            var branchOwners = new HashSet<ObservableCollection<StepModel>>(
-                Canvas.Nodes
-                    .Where(n => n.Kind == CanvasNodeKind.Lane && n.Branch != null)
-                    .Select(n => n.Branch!.Steps));
-
-            var topo = Topology();
+            var rootList = Flow.Steps;
             var result = new List<CanvasNodeViewModel>();
             foreach (var node in Steps())
             {
-                if (topo.TryGet(node.StepId, out var pos)
+                if (Topology().TryGet(node.StepId, out var pos)
                     && pos!.Owner != null
-                    && branchOwners.Contains(pos.Owner))
-                    continue;
-
-                result.Add(node);
+                    && ReferenceEquals(pos.Owner, rootList))
+                    result.Add(node);
             }
-
             return result;
         }
 
         public List<CanvasNodeViewModel> Lanes() =>
             Canvas.Nodes.Where(n => n.Kind == CanvasNodeKind.Lane).ToList();
-
-        public List<CanvasNodeViewModel> Roots() =>
-            Canvas.Nodes.Where(n => n.Kind == CanvasNodeKind.LayerRoot).ToList();
 
         /// <summary>按分支集合实例取泳道节点（找不到返回 null，断言里显式判空）</summary>
         public CanvasNodeViewModel? Lane(StepCollection branch) =>
@@ -227,23 +217,29 @@ namespace FlowCanvasChecks
                 n.Kind == CanvasNodeKind.Lane && ReferenceEquals(n.Branch, branch));
 
         /// <summary>
-        /// 按步骤实例取节点。查的是 Canvas.Nodes（本层可见集合），
-        /// 刻意不查内部节点池——否则「删除步骤后画布是否摘掉节点」会被池复用掩盖成假绿。
+        /// 按步骤实例取节点（步骤与容器都算）。查的是 Canvas.Nodes（渲染中的可见集合），
+        /// 刻意不查内部节点池——否则「删除/折叠后画布是否摘掉节点」会被池复用掩盖成假绿。
         /// </summary>
         public CanvasNodeViewModel? Node(StepModel step) =>
-            Canvas.Nodes.FirstOrDefault(n =>
-                n.Kind == CanvasNodeKind.Step && n.Model == step);
+            Canvas.Nodes.FirstOrDefault(n => n.Model == step);
 
         public CanvasNodeViewModel? Node(Guid stepId) =>
-            Canvas.Nodes.FirstOrDefault(n => n.Kind == CanvasNodeKind.Step && n.StepId == stepId);
+            Canvas.Nodes.FirstOrDefault(n => n.StepId == stepId);
 
-        /// <summary>取输出端口（按 PortName 匹配，找不到返回 null 让断言显式失败）</summary>
-        public CanvasConnectorViewModel? Out(CanvasNodeViewModel? node, string port)
-            => node?.Outputs.FirstOrDefault(p => p.PortName == port);
+        /// <summary>按（生产方, 消费方）取模块级数据连线（不含顺序链）；没有则返回 null</summary>
+        public CanvasLinkViewModel? Link(StepModel producer, StepModel consumer) =>
+            Canvas.Links.FirstOrDefault(l =>
+                !l.IsOrderLink
+                && l.Source.StepId == producer.StepID && l.Target.StepId == consumer.StepID);
 
-        /// <summary>取输入端口</summary>
-        public CanvasConnectorViewModel? In(CanvasNodeViewModel? node, string port)
-            => node?.Inputs.FirstOrDefault(p => p.PortName == port);
+        /// <summary>取两模块之间的执行顺序链</summary>
+        public CanvasLinkViewModel? OrderLink(StepModel producer, StepModel consumer) =>
+            Canvas.Links.FirstOrDefault(l =>
+                l.IsOrderLink
+                && l.Source.StepId == producer.StepID && l.Target.StepId == consumer.StepID);
+
+        /// <summary>数据连线根数（排除顺序链）</summary>
+        public int DataLinkCount => Canvas.Links.Count(l => !l.IsOrderLink);
 
         // ------------------------------------------------------------------
         //  拓扑
@@ -318,13 +314,48 @@ namespace FlowCanvasChecks
     /// </summary>
     internal static class FlowCanvasExtensions
     {
-        public static void Connect(
+        /// <summary>通过拖线命令请求建线（画布只发 ModuleLinkRequested 事件，不直接写连线）</summary>
+        public static StepModel? RequestLink(
             this FlowCanvasViewModel canvas,
-            CanvasConnectorViewModel? output,
-            CanvasConnectorViewModel? input)
+            CanvasNodeViewModel producer,
+            CanvasNodeViewModel consumer)
         {
-            canvas.CompleteConnectionCommand.Execute(
-                new Tuple<object, object>(output!, input!));
+            StepModel? requested = null;
+            void Handler(StepModel c) => requested = c;
+
+            canvas.ModuleLinkRequested += Handler;
+            try
+            {
+                canvas.CompleteConnectionCommand.Execute(
+                    new Tuple<object, object>(producer.Outputs[0], consumer.Inputs[0]));
+            }
+            finally
+            {
+                canvas.ModuleLinkRequested -= Handler;
+            }
+            return requested;
+        }
+
+        /// <summary>反向起拖：从消费方的输入脚拖到生产方的输出脚（方向归一后的同一条请求）</summary>
+        public static StepModel? RequestLinkReverse(
+            this FlowCanvasViewModel canvas,
+            CanvasNodeViewModel producer,
+            CanvasNodeViewModel consumer)
+        {
+            StepModel? requested = null;
+            void Handler(StepModel c) => requested = c;
+
+            canvas.ModuleLinkRequested += Handler;
+            try
+            {
+                canvas.CompleteConnectionCommand.Execute(
+                    new Tuple<object, object>(consumer.Inputs[0], producer.Outputs[0]));
+            }
+            finally
+            {
+                canvas.ModuleLinkRequested -= Handler;
+            }
+            return requested;
         }
 
         /// <summary>

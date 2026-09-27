@@ -26,7 +26,7 @@
       "FlowID": "7ef4e7adc09448a8ae8b19d83980d2c8",
       "FlowName": "MainTask",
       "Description": "主任务",
-      "Version": 433,
+      "Version": 432,
       "IsEnabled": true,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
@@ -117,38 +117,6 @@
               "DisplayAddress": "图像采集_0.Image"
             }
           },
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ConditionStep, VM.Core",
-          "LocalVariables": [],
-          "RuntimeVariableRefs": [],
-          "Children": [
-            {
-              "Steps": [],
-              "BranchType": 1,
-              "StepName": "If",
-              "Expression": "1 > 0",
-              "DisplayName": "If [ 1 > 0 ]"
-            },
-            {
-              "Steps": [],
-              "BranchType": 2,
-              "StepName": "Else",
-              "DisplayName": "Else"
-            }
-          ],
-          "StepID": "c65100d4-6cb4-4d84-99dc-9cc690b9d59f",
-          "Icon": "",
-          "PluginName": "If",
-          "PluginTypeName": "BuiltIn_If",
-          "StepName": "If_自动化测试",
-          "Description": "If",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {},
-          "LinkedSources": {},
           "OutputPortDefinitions": []
         }
       ]

@@ -1,11 +1,3 @@
-using Core.Events;
-using Core.Halcon;
-using Core.Halcon.Color;
-using Core.Halcon.Controls;
-using Core.Halcon.Models;
-using Core.Interfaces;
-using HalconDotNet;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -14,6 +6,14 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
+using Core.Events;
+using Core.Halcon;
+using Core.Halcon.Color;
+using Core.Halcon.Controls;
+using Core.Halcon.Models;
+using Core.Interfaces;
+using HalconDotNet;
+using Newtonsoft.Json;
 
 namespace Plugin.Matching
 {
@@ -86,12 +86,17 @@ namespace Plugin.Matching
         public int PolarityIndex
         {
             get => EditingEntry?.UsePolarity == false ? 1 : 0;
-            set { if (EditingEntry != null) EditingEntry.UsePolarity = value == 0; }
+            set
+            {
+                if (EditingEntry != null)
+                    EditingEntry.UsePolarity = value == 0;
+            }
         }
 
         private bool _seedingCanvas; // 播种画布期间为真：CanvasRois 的变更来自"回填"，不回写参数
 
         private double _minScore = DefaultMinScore;
+
         /// <summary>匹配参数：分数下限，低于它的命中不算找到（运行期，全局）</summary>
         [StepConfig]
         public double MinScore
@@ -101,6 +106,7 @@ namespace Plugin.Matching
         }
 
         private int _maxMatches = DefaultMaxMatches;
+
         /// <summary>匹配参数：最多输出几个命中实例（1 = 单目标）</summary>
         [StepConfig]
         public int MaxMatches
@@ -110,6 +116,7 @@ namespace Plugin.Matching
         }
 
         private double _maxOverlap = DefaultMaxOverlap;
+
         /// <summary>匹配参数：两个命中区域允许的最大重叠比例（去重用，0~1）</summary>
         [StepConfig]
         public double MaxOverlap
@@ -119,6 +126,7 @@ namespace Plugin.Matching
         }
 
         private double _greediness = DefaultGreediness;
+
         /// <summary>匹配参数：搜索激进程度（0.1~0.9）：越大越快、越容易漏</summary>
         [StepConfig]
         public double Greediness
@@ -128,6 +136,7 @@ namespace Plugin.Matching
         }
 
         private int _displayViewIndex = DefaultDisplayViewIndex;
+
         /// <summary>运行显示窗口：正式运行时把标注图发布到主界面几号视图窗口（1~9），0 = 不发布</summary>
         [StepConfig]
         public int DisplayViewIndex
@@ -137,6 +146,7 @@ namespace Plugin.Matching
         }
 
         private bool _outputAlignedImage = DefaultOutputAlignedImage;
+
         /// <summary>是否输出位姿归一化图像（AlignedImage 端口）</summary>
         [StepConfig]
         public bool OutputAlignedImage
@@ -147,26 +157,28 @@ namespace Plugin.Matching
 
         // ── 出厂默认值 ──
 
-        private const double DefaultMinScore = 0.5;      // shape matching 的工业常用起点
-        private const int DefaultMaxMatches = 1;         // 单目标是绝对多数场景
-        private const double DefaultMaxOverlap = 0.3;    // 同一目标别报两次
-        private const double DefaultGreediness = 0.8;    // HALCON 常用折中：比 0.9 稳、比 0.7 快
+        private const double DefaultMinScore = 0.5; // shape matching 的工业常用起点
+        private const int DefaultMaxMatches = 1; // 单目标是绝对多数场景
+        private const double DefaultMaxOverlap = 0.3; // 同一目标别报两次
+        private const double DefaultGreediness = 0.8; // HALCON 常用折中：比 0.9 稳、比 0.7 快
         private const int DefaultDisplayViewIndex = 1;
         private const bool DefaultOutputAlignedImage = true;
-        private const int MaxLibraryCount = 20;          // 模板库条目上限（.vms 体积防护）
+        private const int MaxLibraryCount = 20; // 模板库条目上限（.vms 体积防护）
 
         // ==================================================================
         //  端口（标量端口 = 最高分实例，数组端口 = 全部实例，逐项对齐）
         // ==================================================================
 
         /// <summary>待定位的图像（运行期由上游连入）</summary>
-        public InputPort<HImage> Image { get; } = new("Image", description: "待定位的图像") { IsRequired = false };
+        public InputPort<HImage> Image { get; } =
+            new("Image", description: "待定位的图像") { IsRequired = false };
 
         /// <summary>
         /// 配方名/产品型号（可链接上游变量）：按名字选模板库里的条目；
         /// 为空时用「默认模板」；名字不在库里 → 步骤失败并列出库里现有的名字。
         /// </summary>
-        public InputPort<string> RecipeName { get; } = new("RecipeName", description: "配方名/产品型号") { IsRequired = false };
+        public InputPort<string> RecipeName { get; } =
+            new("RecipeName", description: "配方名/产品型号") { IsRequired = false };
 
         /// <summary>最高分实例的匹配分数（0~1）</summary>
         public OutputPort<double> Score { get; } = new("Score", "最高分实例的匹配分数（0~1）");
@@ -184,7 +196,8 @@ namespace Plugin.Matching
         public OutputPort<int> MatchCount { get; } = new("MatchCount", "命中实例数");
 
         /// <summary>本帧使用的模板名（配方追溯用）</summary>
-        public OutputPort<string> MatchedTemplate { get; } = new("MatchedTemplate", "本帧使用的模板名");
+        public OutputPort<string> MatchedTemplate { get; } =
+            new("MatchedTemplate", "本帧使用的模板名");
 
         /// <summary>各实例中心行数组（亚像素，按分数从高到低，与 Columns/Angles/Scores/Scales 逐项对齐）</summary>
         public OutputPort<HTuple> Rows { get; } = new("Rows", "各实例中心行数组（亚像素）");
@@ -202,10 +215,12 @@ namespace Plugin.Matching
         public OutputPort<HTuple> Scales { get; } = new("Scales", "各实例缩放倍率数组");
 
         /// <summary>标注图：原图 + 命中实例的模板轮廓 + 判定文字</summary>
-        public OutputPort<HImage> MeasureImage { get; } = new("MeasureImage", "标注图（模板轮廓 + 位姿 + 判定文字）");
+        public OutputPort<HImage> MeasureImage { get; } =
+            new("MeasureImage", "标注图（模板轮廓 + 位姿 + 判定文字）");
 
         /// <summary>位姿归一化图像：目标被刚性变换到标准位置与 0°</summary>
-        public OutputPort<HImage> AlignedImage { get; } = new("AlignedImage", "位姿归一化图像（目标在标准位姿）");
+        public OutputPort<HImage> AlignedImage { get; } =
+            new("AlignedImage", "位姿归一化图像（目标在标准位姿）");
 
         // ==================================================================
         //  模板库（运行时状态；落盘经 TemplateLibraryJson）
@@ -226,7 +241,8 @@ namespace Plugin.Matching
             get => _editingEntry;
             set
             {
-                if (ReferenceEquals(_editingEntry, value)) return;
+                if (ReferenceEquals(_editingEntry, value))
+                    return;
 
                 // 旧条目收掩膜：当前涂抹写回（要有序列化坐标系，所以要求显示图在）
                 WriteBackSmearToEntry(_editingEntry);
@@ -304,7 +320,8 @@ namespace Plugin.Matching
         {
             get
             {
-                if (CanvasRect == null || CanvasRect.Length != 5) return false;
+                if (CanvasRect == null || CanvasRect.Length != 5)
+                    return false;
                 return CanvasShape == RoiShapeNames.Circle ? CanvasRect[2] > 0 : CanvasRect[3] > 0;
             }
         }
@@ -314,7 +331,8 @@ namespace Plugin.Matching
         {
             get
             {
-                if (!HasTemplateRegion) return "尚未框选模板区域";
+                if (!HasTemplateRegion)
+                    return "尚未框选模板区域";
 
                 return CanvasShape switch
                 {
@@ -322,10 +340,10 @@ namespace Plugin.Matching
                         $"圆形  中心 ({CanvasRect[0]:0}, {CanvasRect[1]:0})  半径 {CanvasRect[2]:0}",
                     RoiShapeNames.Ellipse =>
                         $"椭圆  中心 ({CanvasRect[0]:0}, {CanvasRect[1]:0})  角度 {CanvasRect[2] * 180 / Math.PI:0.#} 度  "
-                        + $"半径 {CanvasRect[3]:0} × {CanvasRect[4]:0}",
+                            + $"半径 {CanvasRect[3]:0} × {CanvasRect[4]:0}",
                     _ =>
                         $"矩形  中心 ({CanvasRect[0]:0}, {CanvasRect[1]:0})  角度 {CanvasRect[2] * 180 / Math.PI:0.#} 度  "
-                        + $"半长 {CanvasRect[3]:0}  半宽 {CanvasRect[4]:0}",
+                            + $"半长 {CanvasRect[3]:0}  半宽 {CanvasRect[4]:0}",
                 };
             }
         }
@@ -333,6 +351,7 @@ namespace Plugin.Matching
         // ── 涂抹编辑（画笔基建在 HalconBase：控件负责笔画，VM 持有区域并负责释放） ──
 
         private SmearModeType _canvasSmearMode = SmearModeType.None;
+
         /// <summary>画布涂擦模式（None=正常显示可画 ROI / Draw=绘制涂抹 / Erase=擦除涂抹）</summary>
         public SmearModeType CanvasSmearMode
         {
@@ -351,6 +370,7 @@ namespace Plugin.Matching
         }
 
         private double _brushSize = 10;
+
         /// <summary>涂抹笔刷半径（像素）</summary>
         public double BrushSize
         {
@@ -359,6 +379,7 @@ namespace Plugin.Matching
         }
 
         private HRegion? _smearMask;
+
         /// <summary>
         /// 累计"绘制涂抹"区域（橙色显示；笔画结束由控件以新实例覆盖，旧实例回到 VM 这里释放）。
         /// 换编辑条目时从该条目的掩膜恢复。
@@ -369,16 +390,22 @@ namespace Plugin.Matching
             set
             {
                 var old = _smearMask;
-                if (ReferenceEquals(old, value)) return;
+                if (ReferenceEquals(old, value))
+                    return;
                 if (SetProperty(ref _smearMask, value))
                 {
-                    try { old?.Dispose(); } catch { }
-                    TouchModelStaleness();   // 掩膜变了 = 模型该重学
+                    try
+                    {
+                        old?.Dispose();
+                    }
+                    catch { }
+                    TouchModelStaleness(); // 掩膜变了 = 模型该重学
                 }
             }
         }
 
         private HRegion? _smearEraseRegion;
+
         /// <summary>累计"擦除涂抹"区域（红色显示；从排除域里减掉）。所有权约定同 SmearMask。</summary>
         public HRegion? SmearEraseRegion
         {
@@ -386,10 +413,15 @@ namespace Plugin.Matching
             set
             {
                 var old = _smearEraseRegion;
-                if (ReferenceEquals(old, value)) return;
+                if (ReferenceEquals(old, value))
+                    return;
                 if (SetProperty(ref _smearEraseRegion, value))
                 {
-                    try { old?.Dispose(); } catch { }
+                    try
+                    {
+                        old?.Dispose();
+                    }
+                    catch { }
                     TouchModelStaleness();
                 }
             }
@@ -402,7 +434,8 @@ namespace Plugin.Matching
         private HRegion? BuildSmearExclusion(HObject templateRegion)
         {
             using var raw = BuildRawSmearRegion();
-            if (raw == null) return null;
+            if (raw == null)
+                return null;
 
             HOperatorSet.Intersection(raw, templateRegion, out HObject clipped);
             var result = new HRegion(clipped);
@@ -421,7 +454,8 @@ namespace Plugin.Matching
         private HRegion? BuildRawSmearRegion()
         {
             var draw = SmearMask;
-            if (draw == null || !draw.IsInitialized()) return null;
+            if (draw == null || !draw.IsInitialized())
+                return null;
 
             var erase = SmearEraseRegion;
             if (erase != null && erase.IsInitialized())
@@ -448,24 +482,26 @@ namespace Plugin.Matching
         // ── 状态徽标与信息栏 ──
 
         /// <summary>当前编辑条目是否已学习</summary>
-        public bool IsTemplateCreated => EditingEntry != null && !string.IsNullOrEmpty(EditingEntry.Model);
+        public bool IsTemplateCreated =>
+            EditingEntry != null && !string.IsNullOrEmpty(EditingEntry.Model);
 
         /// <summary>
         /// 已学习的编辑条目与当前提取参数是否不一致（区域/角度/缩放/步长/梯度阈值/极性/掩膜任一改动）。
         /// 条目还没学习过（指纹为空）不判过期——方案里存盘的参数与模型天然同源。
         /// </summary>
-        public bool IsModelStale
-            => EditingEntry != null
-               && !string.IsNullOrEmpty(EditingEntry.Model)
-               && !string.IsNullOrEmpty(EditingEntry.LearnedSignature)
-               && EditingEntry.LearnedSignature != EntrySignature(EditingEntry);
+        public bool IsModelStale =>
+            EditingEntry != null
+            && !string.IsNullOrEmpty(EditingEntry.Model)
+            && !string.IsNullOrEmpty(EditingEntry.LearnedSignature)
+            && EditingEntry.LearnedSignature != EntrySignature(EditingEntry);
 
         /// <summary>状态徽标文字（三态）</summary>
         public string TemplateStatusText
         {
             get
             {
-                if (!IsTemplateCreated) return "未学习";
+                if (!IsTemplateCreated)
+                    return "未学习";
                 return IsModelStale ? "参数已改·需重新学习" : "已学习";
             }
         }
@@ -514,7 +550,8 @@ namespace Plugin.Matching
             set
             {
                 var old = _templatePreviewImage;
-                if (ReferenceEquals(old, value)) return;
+                if (ReferenceEquals(old, value))
+                    return;
                 if (SetProperty(ref _templatePreviewImage, value))
                 {
                     old?.Dispose();
@@ -537,7 +574,8 @@ namespace Plugin.Matching
 
         private void OnImagePortChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName != nameof(IInputPort.Value)) return;
+            if (e.PropertyName != nameof(IInputPort.Value))
+                return;
             ShowUpstreamImage();
         }
 
@@ -548,13 +586,16 @@ namespace Plugin.Matching
         public bool ShowUpstreamImage()
         {
             var upstream = Image.GetTypedValue();
-            if (upstream == null || !upstream.IsInitialized()) return false;
+            if (upstream == null || !upstream.IsInitialized())
+                return false;
 
             try
             {
                 DisplayImage?.Dispose();
                 DisplayImage = new HImage(upstream);
-                SetStatus("已显示上游图像（试运行带进来的）：右键 → 新建矩形/圆形/椭圆，框住模板特征");
+                SetStatus(
+                    "已显示上游图像（试运行带进来的）：右键 → 新建矩形/圆形/椭圆，框住模板特征"
+                );
                 return true;
             }
             catch (Exception ex)
@@ -593,7 +634,9 @@ namespace Plugin.Matching
                     raw?.Dispose();
                 }
 
-                SetStatus($"已载入参考图 {Path.GetFileName(path)}：右键 → 新建矩形/圆形/椭圆，框住模板特征");
+                SetStatus(
+                    $"已载入参考图 {Path.GetFileName(path)}：右键 → 新建矩形/圆形/椭圆，框住模板特征"
+                );
             }
             catch (Exception ex)
             {
@@ -614,7 +657,9 @@ namespace Plugin.Matching
             Library.Clear();
             try
             {
-                var list = JsonConvert.DeserializeObject<List<MatchingTemplateEntry>>(TemplateLibraryJson ?? "[]");
+                var list = JsonConvert.DeserializeObject<List<MatchingTemplateEntry>>(
+                    TemplateLibraryJson ?? "[]"
+                );
                 if (list != null)
                     foreach (var e in list)
                         Library.Add(e);
@@ -624,18 +669,25 @@ namespace Plugin.Matching
                 // 库 JSON 损坏：按空库处理（用户重学），不要让整个方案加载失败
             }
 
-            if (Library.Count == 0 && !string.IsNullOrEmpty(TemplateModel)
-                && TemplateRect is { Length: 5 })
+            if (
+                Library.Count == 0
+                && !string.IsNullOrEmpty(TemplateModel)
+                && TemplateRect is { Length: 5 }
+            )
             {
-                Library.Add(new MatchingTemplateEntry
-                {
-                    Name = string.IsNullOrEmpty(DefaultTemplateName) ? "模板1" : DefaultTemplateName,
-                    Shape = TemplateShape,
-                    Rect = (double[])TemplateRect.Clone(),
-                    Mask = TemplateMask,
-                    Model = TemplateModel,
-                    RefImagePath = PreviewImagePath,
-                });
+                Library.Add(
+                    new MatchingTemplateEntry
+                    {
+                        Name = string.IsNullOrEmpty(DefaultTemplateName)
+                            ? "模板1"
+                            : DefaultTemplateName,
+                        Shape = TemplateShape,
+                        Rect = (double[])TemplateRect.Clone(),
+                        Mask = TemplateMask,
+                        Model = TemplateModel,
+                        RefImagePath = PreviewImagePath,
+                    }
+                );
                 TemplateModel = string.Empty;
                 TemplateMask = string.Empty;
                 TemplateRect = Array.Empty<double>();
@@ -647,7 +699,8 @@ namespace Plugin.Matching
         public void AddTemplateEntry()
         {
             int i = 1;
-            while (Library.Any(e => e.Name == $"模板{i}")) i++;
+            while (Library.Any(e => e.Name == $"模板{i}"))
+                i++;
             AddTemplateEntry($"模板{i}");
         }
 
@@ -656,7 +709,10 @@ namespace Plugin.Matching
         {
             if (Library.Count >= MaxLibraryCount)
             {
-                SetStatus($"模板库已满（上限 {MaxLibraryCount} 个）——多产品大批量建议拆流程", StatusLevel.Warning);
+                SetStatus(
+                    $"模板库已满（上限 {MaxLibraryCount} 个）——多产品大批量建议拆流程",
+                    StatusLevel.Warning
+                );
                 return;
             }
 
@@ -709,15 +765,19 @@ namespace Plugin.Matching
                 CanvasRois.Clear();
 
                 CanvasShape = entry?.Shape ?? RoiShapeNames.Rectangle;
-                CanvasRect = entry?.Rect is { Length: 5 } r ? (double[])r.Clone() : Array.Empty<double>();
+                CanvasRect = entry?.Rect is { Length: 5 } r
+                    ? (double[])r.Clone()
+                    : Array.Empty<double>();
 
                 if (HasTemplateRegion)
                 {
                     bool isCircle = CanvasShape == RoiShapeNames.Circle;
                     int count = isCircle ? 3 : 5;
                     var tuples = new HTuple[count];
-                    for (int i = 0; i < count; i++) tuples[i] = new HTuple(CanvasRect[i]);
-                    var shape = isCircle ? DrawShapeType.Circle
+                    for (int i = 0; i < count; i++)
+                        tuples[i] = new HTuple(CanvasRect[i]);
+                    var shape =
+                        isCircle ? DrawShapeType.Circle
                         : CanvasShape == RoiShapeNames.Ellipse ? DrawShapeType.Ellipse
                         : DrawShapeType.Rectangle;
                     CanvasRois.Add(new DrawingObjectInfo(shape, tuples, "模板区域"));
@@ -737,11 +797,14 @@ namespace Plugin.Matching
         /// <summary>把当前涂抹写回条目（换条目/换图时保存现场；要求显示图在，才有序列化坐标系）</summary>
         private void WriteBackSmearToEntry(MatchingTemplateEntry? entry)
         {
-            if (entry == null) return;
-            if (DisplayImage == null || !DisplayImage.IsInitialized()) return;
+            if (entry == null)
+                return;
+            if (DisplayImage == null || !DisplayImage.IsInitialized())
+                return;
 
             using var raw = BuildRawSmearRegion();
-            if (raw == null) return;
+            if (raw == null)
+                return;
 
             HOperatorSet.GetImageSize(DisplayImage, out HTuple w, out HTuple h);
             entry.Mask = MaskRegionToBase64(raw, w.I, h.I) ?? string.Empty;
@@ -767,13 +830,19 @@ namespace Plugin.Matching
 
             if (!HasTemplateRegion)
             {
-                SetStatus("请先在右侧图上右键 → 新建矩形/圆形/椭圆，框住模板特征，再创建模板", StatusLevel.Warning);
+                SetStatus(
+                    "请先在右侧图上右键 → 新建矩形/圆形/椭圆，框住模板特征，再创建模板",
+                    StatusLevel.Warning
+                );
                 return;
             }
 
             if (DisplayImage == null || !DisplayImage.IsInitialized())
             {
-                SetStatus("请先载入参考图像（或试运行把上游图带进来），再创建模板", StatusLevel.Warning);
+                SetStatus(
+                    "请先载入参考图像（或试运行把上游图带进来），再创建模板",
+                    StatusLevel.Warning
+                );
                 return;
             }
 
@@ -816,35 +885,54 @@ namespace Plugin.Matching
                     (minAngleRad, maxAngleRad) = (maxAngleRad, minAngleRad);
                 double angleExtent = Math.Min(maxAngleRad - minAngleRad, 2 * Math.PI);
 
-                HTuple angleStep = entry.AngleStepDeg > 0
-                    ? Math.Clamp(entry.AngleStepDeg, 0.1, 30) * Math.PI / 180.0
-                    : (HTuple)"auto";
-                HTuple contrast = entry.GradientThreshold > 0
-                    ? Math.Clamp(entry.GradientThreshold, 1, 255)
-                    : (HTuple)"auto";
+                HTuple angleStep =
+                    entry.AngleStepDeg > 0
+                        ? Math.Clamp(entry.AngleStepDeg, 0.1, 30) * Math.PI / 180.0
+                        : (HTuple)"auto";
+                HTuple contrast =
+                    entry.GradientThreshold > 0
+                        ? Math.Clamp(entry.GradientThreshold, 1, 255)
+                        : (HTuple)"auto";
                 string metric = entry.UsePolarity ? "use_polarity" : "ignore_polarity";
                 int numLevels = Math.Clamp(entry.NumLevels, 1, 10);
 
-                double scaleLo = 0, scaleHi = 0;
+                double scaleLo = 0,
+                    scaleHi = 0;
                 if (entry.ScaleEnabled)
                 {
                     scaleLo = Math.Clamp(Math.Min(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     scaleHi = Math.Clamp(Math.Max(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     HOperatorSet.CreateScaledShapeModel(
-                        gray, numLevels,
-                        minAngleRad, angleExtent, angleStep,
-                        scaleLo, scaleHi, "auto",
-                        "auto", metric, contrast, "auto",
-                        out HTuple scaledModelId);
+                        gray,
+                        numLevels,
+                        minAngleRad,
+                        angleExtent,
+                        angleStep,
+                        scaleLo,
+                        scaleHi,
+                        "auto",
+                        "auto",
+                        metric,
+                        contrast,
+                        "auto",
+                        out HTuple scaledModelId
+                    );
                     entry.RuntimeModelId = scaledModelId;
                 }
                 else
                 {
                     HOperatorSet.CreateShapeModel(
-                        gray, numLevels,
-                        minAngleRad, angleExtent, angleStep,
-                        "auto", metric, contrast, "auto",
-                        out HTuple modelId);
+                        gray,
+                        numLevels,
+                        minAngleRad,
+                        angleExtent,
+                        angleStep,
+                        "auto",
+                        metric,
+                        contrast,
+                        "auto",
+                        out HTuple modelId
+                    );
                     entry.RuntimeModelId = modelId;
                 }
 
@@ -861,28 +949,66 @@ namespace Plugin.Matching
                     if (entry.ScaleEnabled)
                     {
                         HOperatorSet.FindScaledShapeModel(
-                            gray, entry.RuntimeModelId, minAngleRad, angleExtent, scaleLo, scaleHi,
-                            0.8, 1, 0.5, "least_squares", numLevels, 0.9,
-                            out HTuple sr, out HTuple sc, out _, out _, out _);
+                            gray,
+                            entry.RuntimeModelId,
+                            minAngleRad,
+                            angleExtent,
+                            scaleLo,
+                            scaleHi,
+                            0.8,
+                            1,
+                            0.5,
+                            "least_squares",
+                            numLevels,
+                            0.9,
+                            out HTuple sr,
+                            out HTuple sc,
+                            out _,
+                            out _,
+                            out _
+                        );
                         if (sr.Length > 0)
-                            HOperatorSet.SetShapeModelOrigin(entry.RuntimeModelId,
-                                sr[0].D - CanvasRect[0], sc[0].D - CanvasRect[1]);
+                            HOperatorSet.SetShapeModelOrigin(
+                                entry.RuntimeModelId,
+                                sr[0].D - CanvasRect[0],
+                                sc[0].D - CanvasRect[1]
+                            );
                     }
                     else
                     {
                         HOperatorSet.FindShapeModel(
-                            gray, entry.RuntimeModelId, minAngleRad, angleExtent,
-                            0.8, 1, 0.5, "least_squares", numLevels, 0.9,
-                            out HTuple sr, out HTuple sc, out _, out _);
+                            gray,
+                            entry.RuntimeModelId,
+                            minAngleRad,
+                            angleExtent,
+                            0.8,
+                            1,
+                            0.5,
+                            "least_squares",
+                            numLevels,
+                            0.9,
+                            out HTuple sr,
+                            out HTuple sc,
+                            out _,
+                            out _
+                        );
                         if (sr.Length > 0)
-                            HOperatorSet.SetShapeModelOrigin(entry.RuntimeModelId,
-                                sr[0].D - CanvasRect[0], sc[0].D - CanvasRect[1]);
+                            HOperatorSet.SetShapeModelOrigin(
+                                entry.RuntimeModelId,
+                                sr[0].D - CanvasRect[0],
+                                sc[0].D - CanvasRect[1]
+                            );
                     }
                 }
-                catch { /* 原点补偿失败退回 HALCON 默认原点，只是位置有 1~2px 系统偏差 */ }
+                catch
+                { /* 原点补偿失败退回 HALCON 默认原点，只是位置有 1~2px 系统偏差 */
+                }
 
                 // 序列化成 base64 存进条目（临时文件只存在一次读写之间）
-                string tempFile = Path.Combine(Path.GetTempPath(), $"vm_matching_{Guid.NewGuid():N}.shm");
+                string tempFile = Path.Combine(
+                    Path.GetTempPath(),
+                    $"vm_matching_{Guid.NewGuid():N}.shm"
+                );
                 try
                 {
                     HOperatorSet.WriteShapeModel(entry.RuntimeModelId, tempFile);
@@ -894,7 +1020,13 @@ namespace Plugin.Matching
                 }
                 finally
                 {
-                    try { File.Delete(tempFile); } catch { /* 临时文件清理失败不影响 */ }
+                    try
+                    {
+                        File.Delete(tempFile);
+                    }
+                    catch
+                    { /* 临时文件清理失败不影响 */
+                    }
                 }
 
                 // 以画布为准写回条目区域
@@ -902,14 +1034,26 @@ namespace Plugin.Matching
                 entry.Rect = (double[])CanvasRect.Clone();
                 entry.LearnedSignature = EntrySignature(entry);
 
-                HOperatorSet.GetShapeModelParams(entry.RuntimeModelId,
-                    out HTuple levels, out _, out _, out _, out _, out _, out _, out _, out _);
+                HOperatorSet.GetShapeModelParams(
+                    entry.RuntimeModelId,
+                    out HTuple levels,
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out _,
+                    out _
+                );
                 string scaleNote = entry.ScaleEnabled
                     ? $"，缩放 {Math.Min(entry.ScaleMin, entry.ScaleMax):0.##}~{Math.Max(entry.ScaleMin, entry.ScaleMax):0.##}×"
                     : string.Empty;
-                SetStatus($"模板「{entry.Name}」已学习：金字塔 {levels.I} 层，角度 {Math.Min(entry.MinAngleDeg, entry.MaxAngleDeg):0}~{Math.Max(entry.MinAngleDeg, entry.MaxAngleDeg):0}°{scaleNote}，"
-                          + $"特征区域 {TemplateRect[3] * 2:0}×{TemplateRect[4] * 2:0} px，"
-                          + $"载荷 {entry.Model.Length * 3 / 4 / 1024} KB。左下角为模板预览");
+                SetStatus(
+                    $"模板「{entry.Name}」已学习：金字塔 {levels.I} 层，角度 {Math.Min(entry.MinAngleDeg, entry.MaxAngleDeg):0}~{Math.Max(entry.MinAngleDeg, entry.MaxAngleDeg):0}°{scaleNote}，"
+                        + $"特征区域 {TemplateRect[3] * 2:0}×{TemplateRect[4] * 2:0} px，"
+                        + $"载荷 {entry.Model.Length * 3 / 4 / 1024} KB。左下角为模板预览"
+                );
                 TouchModelStaleness();
 
                 // 预览放最后：它失败时用警告覆盖成功消息，用户能看到"为什么没预览"
@@ -917,13 +1061,22 @@ namespace Plugin.Matching
             }
             catch (Exception ex)
             {
-                SetStatus($"创建模板失败：{ex.Message}（区域里特征太少？换一块纹理更丰富的区域试试）", StatusLevel.Error);
+                SetStatus(
+                    $"创建模板失败：{ex.Message}（区域里特征太少？换一块纹理更丰富的区域试试）",
+                    StatusLevel.Error
+                );
             }
             finally
             {
                 foreach (var o in temp)
                 {
-                    try { o?.Dispose(); } catch { /* 中间对象释放失败不阻断 */ }
+                    try
+                    {
+                        o?.Dispose();
+                    }
+                    catch
+                    { /* 中间对象释放失败不阻断 */
+                    }
                 }
             }
         }
@@ -932,12 +1085,12 @@ namespace Plugin.Matching
         public void ClearTemplate() => CanvasRois.Clear();
 
         /// <summary>条目参数指纹：区域 + 掩膜 + 全部提取参数（学习时记下，之后不一致 = 需重新学习）</summary>
-        private static string EntrySignature(MatchingTemplateEntry e)
-            => $"{e.Shape}|{RectKeyOf(e.Rect)}|{e.NumLevels}|{e.GradientThreshold}|{e.MinAngleDeg}|{e.MaxAngleDeg}"
-             + $"|{e.AngleStepDeg}|{e.UsePolarity}|{e.ScaleEnabled}|{e.ScaleMin:0.###}|{e.ScaleMax:0.###}|{e.Mask.Length}";
+        private static string EntrySignature(MatchingTemplateEntry e) =>
+            $"{e.Shape}|{RectKeyOf(e.Rect)}|{e.NumLevels}|{e.GradientThreshold}|{e.MinAngleDeg}|{e.MaxAngleDeg}"
+            + $"|{e.AngleStepDeg}|{e.UsePolarity}|{e.ScaleEnabled}|{e.ScaleMin:0.###}|{e.ScaleMax:0.###}|{e.Mask.Length}";
 
-        private static string RectKeyOf(double[]? rect)
-            => rect == null || rect.Length != 5
+        private static string RectKeyOf(double[]? rect) =>
+            rect == null || rect.Length != 5
                 ? string.Empty
                 : string.Join(",", rect.Select(v => Math.Round(v, 3)));
 
@@ -948,7 +1101,8 @@ namespace Plugin.Matching
         /// <summary>画布变更（控件新建/删除/清空）→ 回写画布区域状态 + 编辑条目</summary>
         private void OnCanvasRoisChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
-            if (_seedingCanvas) return;
+            if (_seedingCanvas)
+                return;
 
             if (e.NewItems != null)
                 foreach (var info in e.NewItems.OfType<DrawingObjectInfo>())
@@ -964,11 +1118,14 @@ namespace Plugin.Matching
         /// <summary>拖拽句柄后控件回写 HTuples（INPC）→ 同步参数</summary>
         private void OnRoiTuplesChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName != nameof(DrawingObjectInfo.HTuples)) return;
-            if (sender is not DrawingObjectInfo info) return;
+            if (e.PropertyName != nameof(DrawingObjectInfo.HTuples))
+                return;
+            if (sender is not DrawingObjectInfo info)
+                return;
 
             // 只认最后一个：模板只需要一个区域，用户重画时以最新的为准
-            if (!ReferenceEquals(info, CanvasRois.LastOrDefault())) return;
+            if (!ReferenceEquals(info, CanvasRois.LastOrDefault()))
+                return;
 
             WriteBackTemplate();
         }
@@ -1017,12 +1174,13 @@ namespace Plugin.Matching
         }
 
         /// <summary>画布形状 → 存储名</summary>
-        private static string ShapeNameOf(DrawShapeType shape) => shape switch
-        {
-            DrawShapeType.Circle => RoiShapeNames.Circle,
-            DrawShapeType.Ellipse => RoiShapeNames.Ellipse,
-            _ => RoiShapeNames.Rectangle,
-        };
+        private static string ShapeNameOf(DrawShapeType shape) =>
+            shape switch
+            {
+                DrawShapeType.Circle => RoiShapeNames.Circle,
+                DrawShapeType.Ellipse => RoiShapeNames.Ellipse,
+                _ => RoiShapeNames.Rectangle,
+            };
 
         /// <summary>画布对象 → 统一 5 参数（圆取前 3 个，其余位置补 0，存取只有一条路径）</summary>
         private static double[] PadParams(DrawingObjectInfo info)
@@ -1030,7 +1188,8 @@ namespace Plugin.Matching
             var tuples = info.HTuples ?? Array.Empty<HTuple>();
             var pars = new double[5];
             int take = info.ShapeType == DrawShapeType.Circle ? 3 : 5;
-            for (int i = 0; i < Math.Min(take, tuples.Length); i++) pars[i] = tuples[i].D;
+            for (int i = 0; i < Math.Min(take, tuples.Length); i++)
+                pars[i] = tuples[i].D;
             return pars;
         }
 
@@ -1045,12 +1204,14 @@ namespace Plugin.Matching
         /// </summary>
         public override void ApplyConfigValues(IStepConfigData stepData)
         {
-            base.ApplyConfigValues(stepData);   // 先灌 [StepConfig]（库 JSON / 默认名 / 匹配参数等）
+            base.ApplyConfigValues(stepData); // 先灌 [StepConfig]（库 JSON / 默认名 / 匹配参数等）
 
             ParseLibraryAndMigrate();
 
             // 编辑条目：默认名优先 → 第一条；空库建一条默认（配置态可直接编辑）
-            var selected = Library.FirstOrDefault(e => e.Name == DefaultTemplateName) ?? Library.FirstOrDefault();
+            var selected =
+                Library.FirstOrDefault(e => e.Name == DefaultTemplateName)
+                ?? Library.FirstOrDefault();
             EditingEntry = selected;
             if (EditingEntry == null)
             {
@@ -1082,7 +1243,8 @@ namespace Plugin.Matching
         /// <summary>视图就绪回调：先把图弄上屏（没图没法画模板）</summary>
         public void OnViewLoaded()
         {
-            if (!ShowUpstreamImage()) LoadPreviewImage();
+            if (!ShowUpstreamImage())
+                LoadPreviewImage();
         }
 
         // ==================================================================
@@ -1091,8 +1253,10 @@ namespace Plugin.Matching
 
         private static bool EnsureModelLoaded(MatchingTemplateEntry entry)
         {
-            if (string.IsNullOrEmpty(entry.Model)) return false;
-            if (entry.RuntimeModelId != null && entry.RuntimeModelSource == entry.Model) return true;
+            if (string.IsNullOrEmpty(entry.Model))
+                return false;
+            if (entry.RuntimeModelId != null && entry.RuntimeModelSource == entry.Model)
+                return true;
 
             ReleaseEntryModel(entry);
             string temp = Path.Combine(Path.GetTempPath(), $"vm_matching_{Guid.NewGuid():N}.shm");
@@ -1111,7 +1275,11 @@ namespace Plugin.Matching
             }
             finally
             {
-                try { File.Delete(temp); } catch { }
+                try
+                {
+                    File.Delete(temp);
+                }
+                catch { }
             }
         }
 
@@ -1119,7 +1287,8 @@ namespace Plugin.Matching
         {
             entry.RuntimeContours?.Dispose();
             entry.RuntimeContours = null;
-            if (entry.RuntimeModelId == null) return;
+            if (entry.RuntimeModelId == null)
+                return;
             try
             {
                 HOperatorSet.GetShapeModelContours(out HObject contours, entry.RuntimeModelId, 1);
@@ -1132,8 +1301,13 @@ namespace Plugin.Matching
         {
             if (entry.RuntimeModelId != null)
             {
-                try { HOperatorSet.ClearShapeModel(entry.RuntimeModelId); }
-                catch { /* 释放失败不打断（句柄可能已被 Clear） */ }
+                try
+                {
+                    HOperatorSet.ClearShapeModel(entry.RuntimeModelId);
+                }
+                catch
+                { /* 释放失败不打断（句柄可能已被 Clear） */
+                }
                 entry.RuntimeModelId = null;
                 entry.RuntimeModelSource = null;
             }
@@ -1160,9 +1334,10 @@ namespace Plugin.Matching
                 var hit = Library.FirstOrDefault(e => e.Name == wanted);
                 if (hit == null)
                 {
-                    error = Library.Count > 0
-                        ? $"未知产品：{wanted} 没有对应模板（库里有：{string.Join("，", Library.Select(e => e.Name))}）"
-                        : $"未知产品：{wanted} 没有对应模板（模板库为空，请先学习模板）";
+                    error =
+                        Library.Count > 0
+                            ? $"未知产品：{wanted} 没有对应模板（库里有：{string.Join("，", Library.Select(e => e.Name))}）"
+                            : $"未知产品：{wanted} 没有对应模板（模板库为空，请先学习模板）";
                     return null;
                 }
                 return hit;
@@ -1171,7 +1346,8 @@ namespace Plugin.Matching
             if (!string.IsNullOrWhiteSpace(DefaultTemplateName))
             {
                 var hit = Library.FirstOrDefault(e => e.Name == DefaultTemplateName);
-                if (hit != null) return hit;
+                if (hit != null)
+                    return hit;
             }
 
             return Library.FirstOrDefault();
@@ -1254,24 +1430,53 @@ namespace Plugin.Matching
                 double greediness = Math.Clamp(Greediness, 0.1, 0.9);
                 int numLevels = Math.Clamp(entry.NumLevels, 1, 10);
 
-                HTuple rows, cols, angles, scores, scales;
+                HTuple rows,
+                    cols,
+                    angles,
+                    scores,
+                    scales;
                 if (entry.ScaleEnabled)
                 {
                     double scaleLo = Math.Clamp(Math.Min(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     double scaleHi = Math.Clamp(Math.Max(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     HOperatorSet.FindScaledShapeModel(
-                        gray, entry.RuntimeModelId,
-                        minAngleRad, angleExtent, scaleLo, scaleHi,
-                        minScore, numMatches, maxOverlap, "least_squares", numLevels, greediness,
-                        out rows, out cols, out angles, out scales, out scores);
+                        gray,
+                        entry.RuntimeModelId,
+                        minAngleRad,
+                        angleExtent,
+                        scaleLo,
+                        scaleHi,
+                        minScore,
+                        numMatches,
+                        maxOverlap,
+                        "least_squares",
+                        numLevels,
+                        greediness,
+                        out rows,
+                        out cols,
+                        out angles,
+                        out scales,
+                        out scores
+                    );
                 }
                 else
                 {
                     HOperatorSet.FindShapeModel(
-                        gray, entry.RuntimeModelId,
-                        minAngleRad, angleExtent,
-                        minScore, numMatches, maxOverlap, "least_squares", numLevels, greediness,
-                        out rows, out cols, out angles, out scores);
+                        gray,
+                        entry.RuntimeModelId,
+                        minAngleRad,
+                        angleExtent,
+                        minScore,
+                        numMatches,
+                        maxOverlap,
+                        "least_squares",
+                        numLevels,
+                        greediness,
+                        out rows,
+                        out cols,
+                        out angles,
+                        out scores
+                    );
                     scales = Enumerable.Repeat(1.0, rows.Length).ToArray();
                 }
 
@@ -1279,13 +1484,15 @@ namespace Plugin.Matching
                 MatchCount.Value = n;
                 Rows.Value = rows;
                 Columns.Value = cols;
-                Angles.Value = angles * 180.0 / Math.PI;   // 弧度 → 度（平台口径）
+                Angles.Value = angles * 180.0 / Math.PI; // 弧度 → 度（平台口径）
                 Scores.Value = scores;
                 Scales.Value = scales;
 
                 if (n == 0)
                 {
-                    Fail($"未找到目标：模板「{entry.Name}」没有满足分数 ≥ {minScore:0.00} 的匹配（光照/遮挡变化？可降低分数下限重试）");
+                    Fail(
+                        $"未找到目标：模板「{entry.Name}」没有满足分数 ≥ {minScore:0.00} 的匹配（光照/遮挡变化？可降低分数下限重试）"
+                    );
                     context.Logger?.Warn($"{InstanceName} {ErrorMessage.Value}");
                     RenderResultAnnotation(src, entry, null, null, null);
                     PublishIfConfigured();
@@ -1299,7 +1506,8 @@ namespace Plugin.Matching
 
                 context.Logger?.Info(
                     $"{InstanceName} 模板「{entry.Name}」匹配 {n} 个实例，最高分 {Score.Value:0.00}"
-                    + $"，位置 ({Row.Value:0.0},{Column.Value:0.0})，角度 {Angle.Value:0.0}°");
+                        + $"，位置 ({Row.Value:0.0},{Column.Value:0.0})，角度 {Angle.Value:0.0}°"
+                );
 
                 // 位姿归一化图像：刚性变换把目标从"当前位姿"搬回"学习时的位姿"，
                 // 下游固定坐标插件（画框裁剪/Blob/卡尺）零改动直接吃。
@@ -1308,9 +1516,22 @@ namespace Plugin.Matching
                 // "false" = 输出与输入同幅面（目标回标准位姿、画幅不变），出界部分填黑
                 if (OutputAlignedImage)
                 {
-                    HOperatorSet.VectorAngleToRigid(rows[0].D, cols[0].D, angles[0].D,
-                        entry.Rect[0], entry.Rect[1], 0, out HTuple hom);
-                    HOperatorSet.AffineTransImage(src, out HObject aligned, hom, "constant", "false");
+                    HOperatorSet.VectorAngleToRigid(
+                        rows[0].D,
+                        cols[0].D,
+                        angles[0].D,
+                        entry.Rect[0],
+                        entry.Rect[1],
+                        0,
+                        out HTuple hom
+                    );
+                    HOperatorSet.AffineTransImage(
+                        src,
+                        out HObject aligned,
+                        hom,
+                        "constant",
+                        "false"
+                    );
                     temp.Add(aligned);
                     AlignedImage.Value = new HImage(aligned);
                 }
@@ -1327,7 +1548,13 @@ namespace Plugin.Matching
             {
                 foreach (var o in temp)
                 {
-                    try { o?.Dispose(); } catch { /* 中间对象释放失败不阻断 */ }
+                    try
+                    {
+                        o?.Dispose();
+                    }
+                    catch
+                    { /* 中间对象释放失败不阻断 */
+                    }
                 }
             }
         }
@@ -1344,7 +1571,12 @@ namespace Plugin.Matching
         /// 未找到时画原图 + 红字（产线要能当场看到现场）。渲染失败 MeasureImage 保持空，不影响端口数据。
         /// </summary>
         private void RenderResultAnnotation(
-            HObject src, MatchingTemplateEntry entry, HTuple? rows, HTuple? cols, HTuple? angles)
+            HObject src,
+            MatchingTemplateEntry entry,
+            HTuple? rows,
+            HTuple? cols,
+            HTuple? angles
+        )
         {
             try
             {
@@ -1352,14 +1584,29 @@ namespace Plugin.Matching
                 HObject? placed = null;
                 try
                 {
-                    if (found && entry.RuntimeContours != null && entry.RuntimeContours.IsInitialized())
+                    if (
+                        found
+                        && entry.RuntimeContours != null
+                        && entry.RuntimeContours.IsInitialized()
+                    )
                     {
                         // 每个命中实例：模型轮廓从原点平移旋转到命中位姿，再拼接成一个对象集
                         for (int i = 0; i < rows!.Length; i++)
                         {
-                            HOperatorSet.VectorAngleToRigid(0, 0, 0, rows[i].D, cols![i].D,
-                                angles![i].D * Math.PI / 180.0, out HTuple hom);
-                            HOperatorSet.AffineTransContourXld(entry.RuntimeContours, out HObject one, hom);
+                            HOperatorSet.VectorAngleToRigid(
+                                0,
+                                0,
+                                0,
+                                rows[i].D,
+                                cols![i].D,
+                                angles![i].D * Math.PI / 180.0,
+                                out HTuple hom
+                            );
+                            HOperatorSet.AffineTransContourXld(
+                                entry.RuntimeContours,
+                                out HObject one,
+                                hom
+                            );
                             if (placed == null)
                             {
                                 placed = one;
@@ -1378,10 +1625,18 @@ namespace Plugin.Matching
                             $"模板「{entry.Name}」匹配 {rows!.Length} 个实例，最高分 {Score.Value:0.00}",
                             $"位置 ({Row.Value:0.0}, {Column.Value:0.0})  角度 {Angle.Value:0.0}°",
                         }
-                        : new[] { $"未找到目标（要求分数 ≥ {Math.Clamp(MinScore, 0.01, 1):0.00}）" };
+                        : new[]
+                        {
+                            $"未找到目标（要求分数 ≥ {Math.Clamp(MinScore, 0.01, 1):0.00}）",
+                        };
 
                     MeasureImage.Value = RenderAnnotated(
-                        src, placed, "green", lines, found ? "green" : "red");
+                        src,
+                        placed,
+                        "green",
+                        lines,
+                        found ? "green" : "red"
+                    );
                 }
                 finally
                 {
@@ -1421,7 +1676,9 @@ namespace Plugin.Matching
                     DisplayImage = new HImage(raw);
                     raw.Dispose();
                 }
-                catch { /* 参考图读取失败：保留当前画布图继续叠加轮廓 */ }
+                catch
+                { /* 参考图读取失败：保留当前画布图继续叠加轮廓 */
+                }
             }
 
             if (!EnsureModelLoaded(entry))
@@ -1443,14 +1700,20 @@ namespace Plugin.Matching
             HObject? crop = null;
             try
             {
-                if (DisplayImage == null || !DisplayImage.IsInitialized()) return;
-                if (!HasTemplateRegion || entry?.RuntimeContours == null) return;
+                if (DisplayImage == null || !DisplayImage.IsInitialized())
+                    return;
+                if (!HasTemplateRegion || entry?.RuntimeContours == null)
+                    return;
 
                 HOperatorSet.GetImageSize(DisplayImage, out HTuple wT, out HTuple hT);
-                int imgW = wT.I, imgH = hT.I;
+                int imgW = wT.I,
+                    imgH = hT.I;
 
-                double row = CanvasRect[0], col = CanvasRect[1];
-                double phi, halfLen, halfWid;
+                double row = CanvasRect[0],
+                    col = CanvasRect[1];
+                double phi,
+                    halfLen,
+                    halfWid;
                 if (CanvasShape == RoiShapeNames.Circle)
                 {
                     phi = 0;
@@ -1464,13 +1727,16 @@ namespace Plugin.Matching
                 }
 
                 // 旋转区域的轴对齐包围盒（半高/半宽），四周各留 6px 边距，夹进图内
-                double halfH = Math.Abs(Math.Sin(phi)) * halfLen + Math.Abs(Math.Cos(phi)) * halfWid;
-                double halfW = Math.Abs(Math.Cos(phi)) * halfLen + Math.Abs(Math.Sin(phi)) * halfWid;
+                double halfH =
+                    Math.Abs(Math.Sin(phi)) * halfLen + Math.Abs(Math.Cos(phi)) * halfWid;
+                double halfW =
+                    Math.Abs(Math.Cos(phi)) * halfLen + Math.Abs(Math.Sin(phi)) * halfWid;
                 int r1 = Math.Max(0, (int)(row - halfH) - 6);
                 int c1 = Math.Max(0, (int)(col - halfW) - 6);
                 int r2 = Math.Min(imgH - 1, (int)(row + halfH) + 6);
                 int c2 = Math.Min(imgW - 1, (int)(col + halfW) + 6);
-                if (r2 <= r1 || c2 <= c1) return;
+                if (r2 <= r1 || c2 <= c1)
+                    return;
 
                 HOperatorSet.CropRectangle1(DisplayImage, out crop, r1, c1, r2, c2);
 
@@ -1479,11 +1745,17 @@ namespace Plugin.Matching
                 {
                     // 模型中心 → 矩形中心在裁剪图里的位置（纯平移）
                     HOperatorSet.VectorAngleToRigid(0, 0, 0, row - r1, col - c1, 0, out HTuple hom);
-                    HOperatorSet.AffineTransContourXld(entry.RuntimeContours, out HObject placed, hom);
+                    HOperatorSet.AffineTransContourXld(
+                        entry.RuntimeContours,
+                        out HObject placed,
+                        hom
+                    );
                     rendered = RenderAnnotated(crop, placed, "green", null, null);
                     placed.Dispose();
                 }
-                catch { /* 特征叠加失败退回纯裁剪 */ }
+                catch
+                { /* 特征叠加失败退回纯裁剪 */
+                }
 
                 TemplatePreviewImage = rendered ?? new HImage(crop);
             }
@@ -1500,7 +1772,8 @@ namespace Plugin.Matching
 
         private readonly object _previewGate = new();
         private HTuple? _previewWindow;
-        private int _previewW, _previewH;
+        private int _previewW,
+            _previewH;
 
         /// <summary>
         /// 在缓存复用的 buffer 离屏窗口上渲染"底图 + 轮廓叠加 + 判定文字"。
@@ -1508,20 +1781,37 @@ namespace Plugin.Matching
         /// 为什么缓存窗口：HALCON 反复 open/close 窗口会 #9302 死锁（仓库既有结论），
         /// 尺寸不变就复用，变了才关旧开新；Dispose 时统一关闭。
         /// </summary>
-        private HImage? RenderAnnotated(HObject baseImage, HObject? overlay, string overlayColor, string[]? lines, string textColor)
+        private HImage? RenderAnnotated(
+            HObject baseImage,
+            HObject? overlay,
+            string overlayColor,
+            string[]? lines,
+            string textColor
+        )
         {
             lock (_previewGate)
             {
                 try
                 {
                     HOperatorSet.GetImageSize(baseImage, out HTuple wT, out HTuple hT);
-                    int w = wT.I, h = hT.I;
-                    if (w <= 0 || h <= 0) return null;
+                    int w = wT.I,
+                        h = hT.I;
+                    if (w <= 0 || h <= 0)
+                        return null;
 
                     if (_previewWindow == null || w != _previewW || h != _previewH)
                     {
                         ClosePreviewWindow();
-                        HOperatorSet.OpenWindow(0, 0, w, h, "black", "buffer", "local", out HTuple win);
+                        HOperatorSet.OpenWindow(
+                            0,
+                            0,
+                            w,
+                            h,
+                            "black",
+                            "buffer",
+                            "local",
+                            out HTuple win
+                        );
                         _previewWindow = win;
                         _previewW = w;
                         _previewH = h;
@@ -1552,7 +1842,8 @@ namespace Plugin.Matching
                             12,
                             textColor,
                             new HTuple("box_color"),
-                            new HTuple("white"));
+                            new HTuple("white")
+                        );
                     }
 
                     // dump 回读：new HImage(shot) 是独立句柄，shot 本身要立刻释放（引用计数语义，
@@ -1572,14 +1863,26 @@ namespace Plugin.Matching
         /// <summary>设置离屏窗口字号。失败吞掉：字号是锦上添花，不能让渲染失败</summary>
         private static void TrySetFont(HTuple win, int size)
         {
-            try { HOperatorSet.SetFont(win, $"-Consolas-{size}-*-0-*-*-1-"); }
-            catch { /* 用默认字号即可 */ }
+            try
+            {
+                HOperatorSet.SetFont(win, $"-Consolas-{size}-*-0-*-*-1-");
+            }
+            catch
+            { /* 用默认字号即可 */
+            }
         }
 
         private void ClosePreviewWindow()
         {
-            if (_previewWindow == null) return;
-            try { HOperatorSet.CloseWindow(_previewWindow); } catch { /* 关窗失败不阻断回收 */ }
+            if (_previewWindow == null)
+                return;
+            try
+            {
+                HOperatorSet.CloseWindow(_previewWindow);
+            }
+            catch
+            { /* 关窗失败不阻断回收 */
+            }
             _previewWindow = null;
             _previewW = 0;
             _previewH = 0;
@@ -1596,7 +1899,8 @@ namespace Plugin.Matching
         /// </summary>
         private static string? MaskRegionToBase64(HObject? region, int imgW, int imgH)
         {
-            if (region == null || !region.IsInitialized()) return null;
+            if (region == null || !region.IsInitialized())
+                return null;
             try
             {
                 HOperatorSet.GenImageConst(out HObject proto, "byte", imgW, imgH);
@@ -1613,7 +1917,11 @@ namespace Plugin.Matching
                 finally
                 {
                     painted.Dispose();
-                    try { File.Delete(temp); } catch { }
+                    try
+                    {
+                        File.Delete(temp);
+                    }
+                    catch { }
                 }
             }
             catch
@@ -1625,7 +1933,8 @@ namespace Plugin.Matching
         /// <summary>掩膜图 base64 → 排除域（threshold 1~255 取白色部分）；失败返回 null</summary>
         private static HRegion? Base64ToMaskRegion(string? base64)
         {
-            if (string.IsNullOrEmpty(base64)) return null;
+            if (string.IsNullOrEmpty(base64))
+                return null;
             try
             {
                 string temp = Path.Combine(Path.GetTempPath(), $"vm_mask_{Guid.NewGuid():N}.png");
@@ -1645,7 +1954,11 @@ namespace Plugin.Matching
                 }
                 finally
                 {
-                    try { File.Delete(temp); } catch { }
+                    try
+                    {
+                        File.Delete(temp);
+                    }
+                    catch { }
                 }
             }
             catch
@@ -1685,12 +1998,20 @@ namespace Plugin.Matching
                 }
                 finally
                 {
-                    foreach (var c in chans) { try { c.Dispose(); } catch { } }
+                    foreach (var c in chans)
+                    {
+                        try
+                        {
+                            c.Dispose();
+                        }
+                        catch { }
+                    }
                 }
             }
             else
             {
-                error = $"不支持的图像通道数：{channels.I}（仅支持 1 通道灰度、3 通道彩色或 4 通道 RGBA/BGRA）";
+                error =
+                    $"不支持的图像通道数：{channels.I}（仅支持 1 通道灰度、3 通道彩色或 4 通道 RGBA/BGRA）";
                 return false;
             }
             return true;
@@ -1709,7 +2030,7 @@ namespace Plugin.Matching
             SmearMask = null;
             SmearEraseRegion = null;
             ClosePreviewWindow();
-            TemplatePreviewImage = null;   // setter 释放预览图
+            TemplatePreviewImage = null; // setter 释放预览图
             base.Dispose();
         }
     }
