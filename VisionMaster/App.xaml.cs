@@ -138,6 +138,10 @@ namespace VisionMaster
             // 相机模块排在收图服务之后：它初始化时会尝试自动连接相机，
             // 而"连上即开始收帧"这条链路需要收图服务已经就绪
             _modules.Add(new CameraModule());
+            // 运动卡模块排在相机之后：运动常常是"视觉定位 → 运动执行"的后半段，
+            // 让相机先就绪更贴合实际使用顺序；而且运动卡自动连接会**给伺服上电**，
+            // 这类会动的东西排在收图/相机等外围服务之后，出问题时日志里更好定位。
+            _modules.Add(new MotionModule());
             foreach (var module in _modules)
                 module.Register(containerRegistry);
 
@@ -265,6 +269,12 @@ namespace VisionMaster
             // 与通讯设置同一范式，但相机配置不走 Manager——它直接就是 SolutionModel.CameraConfigs，
             // 弹窗从"当前方案"现取，故 ShellViewModel 侧不传任何参数（见 ShowCameraSettings）。
             containerRegistry.RegisterDialog<CameraSettingsView, CameraSettingsViewModel>("CameraSettingsView");
+            // 运动卡设置：方案级运动卡资源（驱动 / 地址 / 轴映射 / 运动参数）。
+            // 与相机设置同一范式 —— VM 只依赖 MotionProvider 与 IWorkspaceManager，两者都由 MotionModule 注册。
+            containerRegistry.RegisterDialog<MotionSettingsView, MotionSettingsViewModel>("MotionSettingsView");
+            // 运动卡调试：手动使能/点动/定位/回零/IO。
+            // 与设置弹窗分开注册（也分开使用）：设置是配置，调试是操作，现场的使用节奏完全不同。
+            containerRegistry.RegisterDialog<MotionDebugView, MotionDebugViewModel>("MotionDebugView");
             // 扫描组编辑器：从连接设置的设备表格操作列进入，编辑的是**连接级**的组表
             // （一条连接一个组表；变量只存组名引用，见 ScanGroupEditorViewModel 注释）
             containerRegistry.RegisterDialog<ScanGroupEditorView, ScanGroupEditorViewModel>(

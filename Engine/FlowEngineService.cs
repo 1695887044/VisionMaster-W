@@ -54,12 +54,13 @@ namespace VisionMaster.Services
         /// <param name="performanceMonitor">性能监控服务</param>
         /// <param name="resourceLocks">资源锁服务</param>
         public FlowEngineService(
-            IRuntimeManager runtimeManager, 
-            ILogService logService, 
-            IWorkspaceManager workspaceManager, 
+            IRuntimeManager runtimeManager,
+            ILogService logService,
+            IWorkspaceManager workspaceManager,
             IPerformanceMonitor performanceMonitor,
             IResourceLockService resourceLocks,
-            ICameraProvider cameras)
+            ICameraProvider cameras,
+            IMotionProvider motions = null)   // 夹具可省略：插件侧拿 NullMotionProvider（取卡即失败并说明原因）
         {
             _runtimeManager = runtimeManager ?? throw new ArgumentNullException(nameof(runtimeManager));
             _logService = logService ?? throw new ArgumentNullException(nameof(logService));
@@ -69,10 +70,16 @@ namespace VisionMaster.Services
             // 允许为 null：检查/测试夹具直接 new 本类时给 null，插件侧会拿到 NullCameraProvider
             //（"取相机即失败并说明原因"），不必在每个夹具里都造一个假的相机仓库。
             _cameras = cameras ?? NullCameraProvider.Instance;
+            // 运动设备同上 —— 这里不给，运动步骤的 context.Motions 永远是 NullMotionProvider，
+            // 现象是"明明选了卡、执行时却报找不到运动卡"（此前正是这个缺口）。
+            _motions = motions ?? NullMotionProvider.Instance;
         }
 
         /// <summary>相机仓库：每次执行都递给 ExecutionContext，插件据此取相机（见 IExecutionContext.Cameras）</summary>
         private readonly ICameraProvider _cameras;
+
+        /// <summary>运动设备仓库：同上（见 IExecutionContext.Motions）。运动步骤按地址从这里取卡</summary>
+        private readonly IMotionProvider _motions;
 
         /// <summary>
         /// 会话启动锁的资源名
@@ -223,7 +230,8 @@ namespace VisionMaster.Services
 
                         var context = new ExecutionContext(_logService, session, _workspaceManager, token)
                         {
-                            Cameras = _cameras
+                            Cameras = _cameras,
+                            Motions = _motions
                         };
                         session.ExecutionEngine.Run(context);
 
@@ -336,7 +344,8 @@ namespace VisionMaster.Services
                 {
                     var context = new ExecutionContext(_logService, session, _workspaceManager, token)
                     {
-                        Cameras = _cameras
+                        Cameras = _cameras,
+                        Motions = _motions
                     };
                     session.ExecutionEngine.Run(context);
                 }, token);

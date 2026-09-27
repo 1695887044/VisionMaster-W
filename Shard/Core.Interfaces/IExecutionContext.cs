@@ -50,6 +50,15 @@ namespace Core.Interfaces
         /// </summary>
         ICameraProvider Cameras { get; }
 
+        /// <summary>
+        /// 运动卡仓库（方案级硬件资源）。
+        ///
+        /// 与 <see cref="Cameras"/> 同一范式：默认值是 <see cref="NullMotionProvider"/> 而不是 null，
+        /// 插件侧只需判 <c>TryGetByKey</c> 的返回值，不必为"运动能力可能不存在"再写一层判空。
+        /// 没有配置任何运动卡时，取不到设备会稳定返回 false，步骤据此给出"未配置运动卡"这种明确失败。
+        /// </summary>
+        IMotionProvider Motions { get; }
+
         IDictionary<string, object> LocalVariables { get; }
     }
 }

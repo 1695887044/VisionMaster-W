@@ -49,7 +49,8 @@ namespace VisionMaster.Services
             FlowCompiler compiler,
             CancellationToken cancellationToken,
             out FlowSession trialSession,
-            ICameraProvider cameras = null)
+            ICameraProvider cameras = null,
+            IMotionProvider motions = null)
         {
             var sw = Stopwatch.StartNew();
             trialSession = null;
@@ -89,7 +90,9 @@ namespace VisionMaster.Services
             //    而非写死 None——否则插件里等图这类阻塞将永远无法被叫停
             var context = new ExecutionContext(logger, session, workspace, cancellationToken)
             {
-                Cameras = cameras ?? NullCameraProvider.Instance
+                Cameras = cameras ?? NullCameraProvider.Instance,
+                // 试运行也要能取到运动设备 —— 否则"选了卡、一执行就报找不到"
+                Motions = motions ?? NullMotionProvider.Instance
             };
 
             try

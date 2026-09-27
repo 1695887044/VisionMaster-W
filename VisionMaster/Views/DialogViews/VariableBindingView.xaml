@@ -35,6 +35,8 @@
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
+            <!--  居中：见 UI.Behaviors.WindowCenteringBehavior（不能在 Loaded 里设 WindowStartupLocation，那时位置早已算完）  -->
+            <Setter Property="ui:WindowCenteringBehavior.IsEnabled" Value="True" />
             <!--  ResizeMode 用 CanResizeWithGrip（与 PluginConfigShellView 同款）：右下角出抓手，
                   用户一眼就知道这窗口能拉 —— CanResize 只能靠把鼠标移到边框碰运气  -->
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
@@ -340,9 +342,7 @@
                                         Text="{Binding ConstantValue}" />
                                     <TextBlock
                                         Margin="0,6,0,0"
-                                        FontSize="11"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        TextWrapping="Wrap"
+                                        Style="{StaticResource DialogHintText}"
                                         Text="若留空，请在下方双击一个上游输出端口来建立连线。" />
                                 </StackPanel>
 
@@ -421,6 +421,7 @@
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
@@ -452,6 +453,29 @@
                                                         Foreground="{StaticResource DialogTextMutedBrush}"
                                                         Text="{Binding Description}"
                                                         TextTrimming="CharacterEllipsis" />
+
+                                                    <!--
+                                                        数据类型。绑定是"类型敏感"的动作：这一项能不能接住当前端口，
+                                                        本来就是靠类型判断的 —— 列表里却不显示类型，用户只能靠名字猜。
+                                                        勾了「显示全部」时更是这样：不兼容项被置灰，而"为什么不行"
+                                                        恰恰要看这里（悬停虽有原因，但一眼扫过去才知道该挑哪个）。
+                                                        类型名走 TypeNameToFriendlyNameConverter：
+                                                        DataTypeName 存的是程序集限定名（System.String, mscorlib, …），
+                                                        转换器把它变成「文本 (String)」这种可直接读的形式，与左栏同一套写法。
+                                                    -->
+                                                    <Border
+                                                        Grid.Row="0"
+                                                        Grid.RowSpan="2"
+                                                        Grid.Column="2"
+                                                        Margin="8,0,0,0"
+                                                        Background="{StaticResource DialogRowHoverBrush}"
+                                                        Style="{StaticResource DialogChip}"
+                                                        ToolTip="{Binding DataTypeName}">
+                                                        <TextBlock
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Style="{StaticResource DialogChipText}"
+                                                            Text="{Binding DataTypeName, Converter={ui:TypeNameToFriendlyNameConverter}}" />
+                                                    </Border>
                                                 </Grid>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
@@ -478,9 +502,7 @@
 
                                     <TextBlock
                                         Margin="0,0,0,12"
-                                        FontSize="11.5"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        TextWrapping="Wrap"
+                                        Style="{StaticResource DialogHintText}"
                                         Text="该端口自带系统内置预设，直接从下面选一项即可，无需连接上游输出。" />
 
                                     <ComboBox
@@ -490,7 +512,8 @@
                                         Style="{StaticResource DialogCombo}">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate>
-                                                <TextBlock Text="{Binding Option}" />
+                                                <!--  显示 Display（如「上料轴卡（192.168.0.11）」），写入的仍是 Option（IP）  -->
+                                                <TextBlock Text="{Binding Display}" />
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>

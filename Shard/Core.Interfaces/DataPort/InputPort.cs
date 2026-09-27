@@ -38,9 +38,24 @@ namespace Core.Interfaces
         /// 预设选项列表（当 IsFunctionalEnum 为 true 时使用）
         /// 当 T 是枚举类型时，自动从枚举成员生成
         /// </summary>
-        public List<string> PresetOptions { get; set; } = typeof(T).IsEnum 
-            ? Enum.GetNames(typeof(T)).ToList() 
+        public List<string> PresetOptions { get; set; } = typeof(T).IsEnum
+            ? Enum.GetNames(typeof(T)).ToList()
             : new List<string>();
+
+        /// <summary>
+        /// 候选项的**类别**（可选）。设置后，绑定界面会在每次打开时**现取**候选，
+        /// 而不是用 <see cref="PresetOptions"/> 里那份快照。
+        ///
+        /// 【为什么必须有它 —— 这是"绑定窗口里轴名/卡地址没有下拉"的根因】
+        /// <see cref="PresetOptions"/> 是**插件实例被创建那一刻**算出来的：
+        /// 宿主扫描全部插件类型时会反射 new 一个实例来读端口
+        /// （见 PluginService 的 LoadPlugins），而那一刻**方案还没打开、卡还没配**，
+        /// 取到的候选必然是空的；这份空值会被复制进 PortDefinition，一路带到绑定界面上。
+        /// 可候选项本就来自"当前方案有哪些卡、哪些轴"，**它注定要随方案变化** ——
+        /// 任何"取一次存下来"的做法都会在"先开程序后配卡"的常规顺序下失效。
+        /// 所以这里只记"要哪一类候选"，取候选的时机交给绑定界面（每次打开都问一次）。
+        /// </summary>
+        public StepConfigOptionKind? OptionKind { get; set; }
 
         /// <summary>
         /// 端口唯一名称

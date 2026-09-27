@@ -861,7 +861,27 @@ namespace VisionMaster.Services
                 {
                     foreach (var input in pNode.ExternalPlugin.Inputs.Values)
                     {
-                        if (input.IsRequired && input.LinkedSource == null)
+                        // 判据要含"界面里填过常量"这一条。
+                        //
+                        // IsRequired 的原意是"这个参数必须有来源"，而来源有两种：
+                        //   ① 上游链接；② 界面手填的常量。
+                        // 只看 LinkedSource 会把"明明在参数面板里填了 500"的步骤判成未配置 ——
+                        // 用户看到的现象就是"输入常量没反应，一执行还是报参数缺失"，
+                        // 而且他会去反复检查自己填得对不对（问题其实在编译器这一侧）。
+                        // 判据要含「界面里填过常量」这一条。
+                        //
+                        // IsRequired 的原意是"这个参数必须有来源"，而来源有两种：
+                        //   ① 上游链接；② 参数面板里手填的常量。
+                        // 只看 LinkedSource 会把"明明填了 500"的步骤判成未配置 ——
+                        // 用户看到的现象就是"输入常量没反应，一执行仍报参数缺失"，
+                        // 然后他会反复检查自己填得对不对（问题其实在编译器这一侧）。
+                        var configured = (model as IStepConfigData)?.InputValues;
+                        bool hasConstant =
+                            configured != null
+                            && configured.TryGetValue(input.Name, out var constantValue)
+                            && constantValue != null;
+
+                        if (input.IsRequired && input.LinkedSource == null && !hasConstant)
                             errors.Add(
                                 Err(model, $"[参数缺失] '{model.StepName}' 的必填参数 '{input.Name}' 未配置！")
                             );

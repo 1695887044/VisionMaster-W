@@ -61,6 +61,9 @@ namespace Core.Interfaces
         /// </summary>
         List<string> PresetOptions { get; set; }
 
+        /// <summary>候选项类别（可选）：设置后由消费方现取候选，见 InputPort.OptionKind 的说明</summary>
+        StepConfigOptionKind? OptionKind { get; set; }
+
         /// <summary>
         /// 链接的上游输出端口
         /// 当设置为非null时，优先使用上游端口的值

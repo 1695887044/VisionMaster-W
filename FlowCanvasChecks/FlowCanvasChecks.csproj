@@ -34,6 +34,20 @@
       断言三形状区域构建 / 掩膜 / 涂擦合并 / 动态端口与重名防御 / 运行端到端契约。
     -->
     <ProjectReference Include="..\Plugins\Plugin.CreateRoi\Plugin.CreateRoi.csproj" />
+    <!--
+      运动控制：直接引用"虚拟运动卡驱动"与"运动步骤插件"两个工程。
+      虚拟卡让运动内核（命令队列 / 异步语义 / 急停打断 / 看门狗 / 报警门禁）
+      在没有硬件的情况下也能被断言 —— 这些恰恰是最容易错、也最难在现场发现的一层。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.Motion.Virtual\Plugin.Motion.Virtual.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.Motion.Steps\Plugin.Motion.Steps.csproj" />
+    <!--
+      正运动驱动：只引用它的**纯逻辑**（回零模式码表 / 机型能力表 / 状态位域解析 / 故障分级）。
+      冒烟里不会调用任何 ZAux_* P/Invoke，所以进程不会去加载 zauxdll.dll ——
+      也就是说"没有真卡也能验"这批断言成立的前提，是它们只碰纯函数。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.Motion.ZMotion\Plugin.Motion.ZMotion.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.Utility\Plugin.Util.csproj" />
   </ItemGroup>
 
   <ItemGroup>

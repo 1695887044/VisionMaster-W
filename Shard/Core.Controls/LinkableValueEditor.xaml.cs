@@ -96,6 +96,41 @@ namespace Core.Controls
         }
 
         /// <summary>
+        /// 端口是否为「只能选」型（只读）：枚举、或声明了 IsFunctionalEnum（候选来自方案）。
+        ///
+        /// 两类端口的共同点是**合法值是一个封闭集合**：
+        ///   · 枚举的候选是成员本身，随时能从类型算出来；
+        ///   · 卡地址 / 轴名的候选来自当前方案（有哪些卡、哪些轴），绑上游等于允许
+        ///     流程去填一个方案里不存在的卡 —— 那是把编译期能发现的问题推到运行期。
+        /// 所以两者都走同一个下拉，且都不提供链接/清除（见 UpdateButtonVisibility）。
+        /// </summary>
+        private static readonly DependencyPropertyKey IsOptionPortPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(IsOptionPort), typeof(bool), typeof(LinkableValueEditor),
+                new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsOptionPortProperty = IsOptionPortPropertyKey.DependencyProperty;
+
+        public bool IsOptionPort
+        {
+            get => (bool)GetValue(IsOptionPortProperty);
+            private set => SetValue(IsOptionPortPropertyKey, value);
+        }
+
+        /// <summary>
+        /// 下拉候选（IsOptionPort 为真时填充）。
+        ///
+        /// 用 ObservableCollection 而不是 List：控件是先绑好 ItemsSource、
+        /// 之后再设置 Port 的，普通 List 清空重填不会通知界面，下拉会是空的。
+        ///
+        /// 元素用 StepConfigOption（值/显示分离）：枚举的显示就是成员名；
+        /// 卡地址的显示是「设备名（IP）」—— 只显示 IP 时几张卡根本认不出谁是谁，
+        /// 而写进流程的必须是稳定的地址键（见 MotionDescriptor 关于显示名的注释）。
+        /// </summary>
+        public System.Collections.ObjectModel.ObservableCollection<StepConfigOption> EnumOptions { get; }
+            = new();
+
+        /// <summary>
         /// 端口当前值的字符串形式（供 XAML 双向绑定；内部桥接到 Port.Value）
         /// </summary>
         public static readonly DependencyProperty PortValueProperty =
@@ -185,6 +220,22 @@ namespace Core.Controls
             // 端口类型驱动可输入性
             editor.IsTextEditable = IsTextEditableType(port.DataType);
 
+            // 「只能选」的端口 → 下拉（候选现场取，不依赖任何快照）
+            editor.IsOptionPort = port.DataType?.IsEnum == true || port.IsFunctionalEnum;
+            editor.EnumOptions.Clear();
+            if (port.DataType?.IsEnum == true)
+            {
+                foreach (var name in Enum.GetNames(port.DataType))
+                    editor.EnumOptions.Add(new StepConfigOption(name));
+            }
+            else if (port.IsFunctionalEnum && port.OptionKind is { } kind)
+            {
+                // 候选来自方案（有哪些卡、哪些轴）—— 绑定窗口同样每次打开都现取，
+                // 这里保持同一份语义：不取快照，取不到就空着退化成可手填。
+                foreach (var option in StepConfigOptionSource.GetOptionItems(kind))
+                    editor.EnumOptions.Add(option);
+            }
+
             // 订阅端口值变化，同步刷新输入框显示
             port.ValueChanged -= editor.OnPortValueChanged;
             port.ValueChanged += editor.OnPortValueChanged;
@@ -270,13 +321,33 @@ namespace Core.Controls
         /// </summary>
         private void UpdateButtonVisibility()
         {
+            // ★ 枚举端口：候选是**封闭集合**，只能选 —— 因此**不给链接、也不给清除**。
+            //
+            // 两条理由都是硬的：
+            //   ① 绑定的语义是"这个值由上游运行时决定"，而上游的值未必是合法枚举 ——
+            //      绑上去等于把非法值塞进一个封闭集合，落盘/取用时都无处安放；
+            //   ② "清除"对枚举没有意义：清掉之后没有一个"空枚举"可以表示。
+            // 这也正是 InputPort.IsFunctionalEnum 的原始语义（"不需要链接上游变量"）。
+            //
+            // 反过来说：需要"由上游决定走哪个分支"的场景，该用普通端口（string/int）而不是枚举 ——
+            // 那是两个不同的表达能力，不该混在一个控件上。
+            // 候选来自**方案**的端口（枚举、运动卡地址、逻辑轴名……）只能选、不能绑。
+            // 它们的合法值由方案决定，绑上游等于允许流程去填一个方案里不存在的卡/轴 ——
+            // 那不是"灵活"，而是把一个编译期就能发现的问题推到运行期（"找不到运动卡"）。
+            // IsFunctionalEnum 的原始语义正是"**不需要**链接上游变量"（见 InputPort 的注释），
+            // 所以这里用它作判据，而不是只认枚举。
+            var enumLocked = IsOptionPort;
+
             // 占位提示：不可文本输入 且 未链接 时显示
             PART_Placeholder.Visibility =
                 (!IsTextEditable && !IsLinked) ? Visibility.Visible : Visibility.Collapsed;
 
-            // ✕ 按钮：不可文本输入 且 未链接 时隐藏（没有值可清空，只能链接）
+            // ✕ 按钮：枚举恒隐藏；其余情况在"不可文本输入 且 未链接"时隐藏（没有值可清空，只能链接）
             PART_UnlinkBtn.Visibility =
-                (!IsTextEditable && !IsLinked) ? Visibility.Collapsed : Visibility.Visible;
+                enumLocked || (!IsTextEditable && !IsLinked) ? Visibility.Collapsed : Visibility.Visible;
+
+            // 🔗 按钮：枚举恒隐藏（理由见上）
+            PART_LinkBtn.Visibility = enumLocked ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private static object GetDefaultValue(Type type)

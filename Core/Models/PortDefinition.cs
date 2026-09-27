@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Core.Interfaces;   // StepConfigOptionKind：端口候选类别（见 IPort.OptionKind）
 
 namespace VisionMaster.Models
 {
@@ -43,6 +44,12 @@ namespace VisionMaster.Models
         /// 标记为 true 时，该端口会在变量绑定界面显示预设选项，不需要链接上游变量
         /// </summary>
         public bool IsFunctionalEnum { get; set; }
+
+        /// <summary>
+        /// 候选项类别：非空时绑定界面会**现取**候选（方案里的卡/轴可能随时在变），
+        /// 而不是用下面那份 <see cref="PresetOptions"/> 快照。
+        /// </summary>
+        public StepConfigOptionKind? OptionKind { get; set; }
 
         /// <summary>
         /// 预设选项列表（当 IsFunctionalEnum 为 true 时使用）

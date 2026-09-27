@@ -233,6 +233,13 @@ namespace VisionMaster.Services
         /// 界面自己不直接调 SyncFromSolution：编辑是连续动作（改个名、调个曝光），
         /// 每次改都对齐一遍会反复销毁重建设备、把连接断掉。标记 + 下一次取用时对齐，代价最小。
         /// </summary>
+        /// <summary>
+        /// 同步重入闸（见 <see cref="EnsureSynced"/>）：1 = 正在对齐设备表。
+        /// 没有它时"同步 → 广播 DevicesChanged → 事件处理里读设备 → 再同步"会无限递归，
+        /// 最终以 StackOverflowException 结束进程（无法捕获、没有堆栈可查）。
+        /// </summary>
+        private int _syncing;
+
         public void MarkConfigDirty() => Volatile.Write(ref _configDirty, 1);
 
         /// <summary>
@@ -250,15 +257,27 @@ namespace VisionMaster.Services
         {
             if (_disposed) return;
 
-            var solution = _workspace?.CurrentSolution;
-            var count = solution?.CameraConfigs?.Count ?? 0;
+            // ★ 重入闸（与 MotionProvider 同款，理由见那边的注释）：
+            //   SyncFromSolution 会广播 DevicesChanged，事件处理里读设备又回到这里；
+            //   同步状态若还没复位，就会再进一次同步 → 再广播 → 栈无限加深 → StackOverflowException。
+            if (Interlocked.CompareExchange(ref _syncing, 1, 0) != 0) return;
 
-            if (Volatile.Read(ref _configDirty) == 0 &&
-                ReferenceEquals(solution, _lastSyncedSolution) &&
-                count == _lastSyncedCount)
-                return;
+            try
+            {
+                var solution = _workspace?.CurrentSolution;
+                var count = solution?.CameraConfigs?.Count ?? 0;
 
-            SyncFromSolution();
+                if (Volatile.Read(ref _configDirty) == 0 &&
+                    ReferenceEquals(solution, _lastSyncedSolution) &&
+                    count == _lastSyncedCount)
+                    return;
+
+                SyncFromSolution();
+            }
+            finally
+            {
+                Volatile.Write(ref _syncing, 0);
+            }
         }
 
         #endregion
@@ -334,8 +353,12 @@ namespace VisionMaster.Services
                 catch (Exception ex) { _log?.Warn($"[CameraProvider] 释放相机「{device.Descriptor?.Caption}」失败：{ex.Message}"); }
             }
 
-            DevicesChanged?.Invoke(this, EventArgs.Empty);
+            // ★ 顺序：**先记状态、再广播事件**（与 MotionProvider 同款）。
+            //   事件处理里通常立刻读设备刷新显示，那次读会回到 EnsureSynced ——
+            //   此时若脏位没清、方案引用没更新，它会认为"仍需同步"而再次进入同步，
+            //   事件再广播…… 栈一路加深到 StackOverflowException。
             RememberSynced(_workspace?.CurrentSolution, configs.Count);
+            DevicesChanged?.Invoke(this, EventArgs.Empty);
             return errors;
         }
 

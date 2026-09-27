@@ -51,6 +51,8 @@ namespace UI.CustomControl
             // 注册默认生成器
             Generators.Add(new NestedPropertyGridGenerator());
             Generators.Add(new EnumGenerator());
+            // 动态候选下拉（轴名 / 卡地址）：候选来自宿主注册的来源，随方案变化
+            Generators.Add(new OptionSourceGenerator());
             Generators.Add(new StructValueGenerator());
             Generators.Add(new BoolStateGenerator());
             Generators.Add(new TypeGenerator());

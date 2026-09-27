@@ -124,6 +124,27 @@
     -->
     <SolidColorBrush x:Key="DialogWarningTextBrush" Color="#B45309" />
 
+    <!--
+        危险类浅底：给"危险动作"的软色块按钮用（表格行内的解密、删除这类）。
+        与 DialogDangerBrush 成对：底色用这支、文字用 DialogDangerBrush。
+        直接用 DialogDangerBrush 当底色不行 —— 饱和红上压白字只适合"主操作按钮"，
+        行内动作要的是"一眼看出是危险的，但不抢主操作的视线"。
+    -->
+    <SolidColorBrush x:Key="DialogDangerSubtleBrush" Color="#FEF2F2" />
+
+    <!--  警示类浅底：给"注意事项"块的软底色（网络相机参数不生效之类），与 DialogWarningTextBrush 成对  -->
+    <SolidColorBrush x:Key="DialogWarningSubtleBrush" Color="#FFF4E5" />
+
+    <!--
+        成功类浅底 + 深字：与 DialogSuccessBrush(#22C55E) 同族，成对使用。
+        补这两支是为了让三个语义色**结构对称**：原先只有警示/危险有"浅底+深字"，
+        成功色只有亮绿（#22C55E 直接写字对比度不够，当底色又太扎眼），
+        于是"到位 / 在线 / 已完成"这类状态在界面上无处可用 —— 只能退回灰字，
+        状态表达就弱了一档（运动调试面板的轴状态点正需要它）。
+    -->
+    <SolidColorBrush x:Key="DialogSuccessSubtleBrush" Color="#F0FDF4" />
+    <SolidColorBrush x:Key="DialogSuccessTextBrush" Color="#15803D" />
+
     <!--  交互底：行悬停 / 行选中（与 DialogAccentLightBrush 同族但更淡）  -->
     <SolidColorBrush x:Key="DialogRowHoverBrush" Color="#F1F5F9" />
     <SolidColorBrush x:Key="DialogRowAlternateBrush" Color="#F8FAFC" />

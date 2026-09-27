@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 纯托管驱动插件：只做"命令队列 → 模拟运动学"，既不需要 WPF，也不需要任何厂商 SDK。
+         刻意停在 net9.0（不带 -windows）：驱动层不碰 Windows 专有 API，
+         与 Plugin.Camera.Network 同一考虑 —— 框架依赖越窄，越容易搬到别的平台。 -->
+    <TargetFrameworks>net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只引用契约层：MotionDeviceBase / IMotionDevice / MotionDescriptor 都在这里。
+         驱动插件不该引用宿主 exe —— 这条与相机驱动一致（见 Plugin.Camera.Network.csproj 的注释）。 -->
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+</Project>

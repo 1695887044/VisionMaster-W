@@ -527,6 +527,12 @@ namespace VisionMaster
                 case SystemAction.CameraSettings:
                     ShowCameraSettings();
                     break;
+                case SystemAction.MotionSettings:
+                    ShowMotionSettings();
+                    break;
+                case SystemAction.MotionDebug:
+                    ShowMotionDebug();
+                    break;
                 case SystemAction.CommSettings:
                     ShowCommunicationSettings();
                     break;
@@ -593,6 +599,43 @@ namespace VisionMaster
             }
 
             dialogService.ShowDialog("CameraSettingsView");
+        }
+
+        /// <summary>
+        /// 打开运动卡设置。
+        ///
+        /// 与 <see cref="ShowCameraSettings"/> 同口径：没有方案就拦下来提示（运动卡是方案级资源，
+        /// 没有方案时无处可存），且**不传任何参数** —— 卡片清单与运行态一律由 MotionProvider
+        /// 从"当前方案"现取；传一份快照反而会出现"界面里那份和方案里那份不是同一个对象"，
+        /// 改一份丢一份。
+        /// </summary>
+        private void ShowMotionSettings()
+        {
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("请先打开一个解决方案");
+                return;
+            }
+
+            dialogService.ShowDialog("MotionSettingsView");
+        }
+
+        /// <summary>
+        /// 打开运动卡调试面板（手动使能/点动/定位/回零/IO）。
+        ///
+        /// 与 <see cref="ShowMotionSettings"/> 同样是方案级资源，所以也要先有方案；
+        /// 但**不要求卡已连接** —— 面板里本来就带"连接/断开"，现场最常见的用法就是
+        /// "打开调试面板 → 连着卡 → 点点动试试"，一上来就拦"未连接"反而多一步。
+        /// </summary>
+        private void ShowMotionDebug()
+        {
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("请先打开一个解决方案");
+                return;
+            }
+
+            dialogService.ShowDialog("MotionDebugView");
         }
 
         private void ShowCommunicationSettings()

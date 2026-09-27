@@ -5,211 +5,233 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
-    Width="800"
-    Height="450"
-    Background="White"
-    mc:Ignorable="d"
-    prism:ViewModelLocator.AutoWireViewModel="True">
+    xmlns:ui="http://schemas.UI.com/ui"
+    MinWidth="820"
+    MinHeight="480"
+    Background="{StaticResource DialogBackgroundBrush}"
+    FontFamily="Microsoft YaHei"
+    mc:Ignorable="d">
 
-    <UserControl.Resources>
-        <!--  按钮样式  -->
-        <Style x:Key="ActionButtonStyle" TargetType="Button">
-            <Setter Property="Padding" Value="12,6" />
-            <Setter Property="Margin" Value="5,0" />
-            <Setter Property="Background" Value="#3498db" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border
-                            Padding="{TemplateBinding Padding}"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2980b9" />
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.5" />
-                </Trigger>
-            </Style.Triggers>
+    <!--
+        窗口尺寸挂在 Window 上，不写在 UserControl 根节点上。
+        写成 UserControl 的 Width/Height 有两个后果：一是默认的 Stretch 退化成"居中"——
+        窗口拉大后内容缩在中间、四周留白；二是内容永远不跟着窗口变宽。
+    -->
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <!--
+                WindowStyle=None：去掉系统原生标题栏，改由视图自绘（见下方标题栏）。
+                与变量管理 / 相机设置 / 通讯设置 / 插件配置壳一致。
+            -->
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <Setter Property="SizeToContent" Value="Manual" />
+            <Setter Property="Width" Value="1000" />
+            <Setter Property="Height" Value="620" />
+            <Setter Property="MinWidth" Value="820" />
+            <Setter Property="MinHeight" Value="480" />
         </Style>
+    </prism:Dialog.WindowStyle>
 
-        <!--  加密按钮样式  -->
-        <Style
-            x:Key="EncryptButtonStyle"
-            BasedOn="{StaticResource ActionButtonStyle}"
-            TargetType="Button">
-            <Setter Property="Background" Value="#27ae60" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#229954" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+    <!--
+        ============================================================================
+        流程管理
+        ============================================================================
 
-        <!--  解密按钮样式  -->
-        <Style
-            x:Key="DecryptButtonStyle"
-            BasedOn="{StaticResource ActionButtonStyle}"
-            TargetType="Button">
-            <Setter Property="Background" Value="#e74c3c" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#c0392b" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        本次是**整体收编**，不是只换皮：
+        改前这张视图自带四支按钮样式（ActionButton / EncryptButton / DecryptButton /
+        DisableButton）与三支**隐式** DataGrid 皮肤，颜色是硬编码的 Bootstrap 老配色
+        （#34495e 深蓝表头 / #3498db / #27ae60 / #e74c3c / #ecf0f1），
+        和这套界面的青蓝令牌（Dialog*）不是一套；隐式样式还会盖掉全局表格皮肤
+        （见 DialogStyles.xaml 开头的说明）。
+        现在：颜色一律走 Colors.xaml 的 Dialog* 令牌，形状一律取 DialogStyles.xaml，
+        本视图不再定义任何样式，也不再出现颜色字面量。
+    -->
 
-        <!--  禁用按钮样式  -->
-        <Style
-            x:Key="DisableButtonStyle"
-            BasedOn="{StaticResource ActionButtonStyle}"
-            TargetType="Button">
-            <Setter Property="Background" Value="#95a5a6" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#7f8c8d" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!--  DataGrid样式  -->
-        <Style TargetType="DataGrid">
-            <Setter Property="AutoGenerateColumns" Value="False" />
-            <Setter Property="CanUserAddRows" Value="False" />
-            <Setter Property="CanUserDeleteRows" Value="False" />
-            <Setter Property="SelectionMode" Value="Single" />
-            <Setter Property="GridLinesVisibility" Value="Horizontal" />
-            <Setter Property="HorizontalGridLinesBrush" Value="#ecf0f1" />
-            <Setter Property="BorderBrush" Value="#bdc3c7" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="White" />
-            <Setter Property="RowBackground" Value="White" />
-            <Setter Property="AlternatingRowBackground" Value="#f8f9fa" />
-        </Style>
-
-        <Style TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="#34495e" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="BorderThickness" Value="0,0,1,0" />
-            <Setter Property="BorderBrush" Value="#2c3e50" />
-        </Style>
-
-        <Style TargetType="DataGridCell">
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#3498db" />
-                    <Setter Property="Foreground" Value="White" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </UserControl.Resources>
-
-    <Grid Margin="15">
+    <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  标题和搜索  -->
-        <Grid Grid.Row="0" Margin="0,0,0,15">
+        <!--
+            标题栏（自绘）。无边框窗口没有系统拖动区与关闭按钮，两者都在这里补齐：
+            整条挂 ui:WindowDragBehavior 负责拖，右侧 × 绑 VM 的 CloseCommand。
+            标题文字绑 VM.Title，不写死 —— 系统标题栏去掉后这里是唯一的标题来源。
+        -->
+        <Border
+            Grid.Row="0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="15"
+                    Foreground="{StaticResource DialogAccentBrush}"
+                    Text="&#xf0e8;" />
+
+                <StackPanel
+                    Grid.Column="1"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="{Binding Title}" />
+                    <TextBlock
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="流程的加密、解密与启停" />
+                </StackPanel>
+
+                <Button
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    Style="{StaticResource DialogIconButton}"
+                    ToolTip="关闭">
+                    <TextBlock
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="&#xf00d;" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!--  工具栏：左标题 + 右搜索（搜索框三段一体：外框 + 放大镜 + 透明输入框）  -->
+        <Grid Grid.Row="1" Margin="20,16,20,12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock
-                Grid.Column="0"
-                VerticalAlignment="Center"
-                FontSize="20"
-                FontWeight="Bold"
-                Foreground="#2c3e50"
-                Text="流程管理" />
-
-            <StackPanel Grid.Column="2" Orientation="Horizontal">
+            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                 <TextBlock
-                    Margin="0,0,10,0"
+                    Style="{StaticResource DialogCardTitleIcon}"
+                    Text="&#xf0ca;" />
+                <TextBlock
                     VerticalAlignment="Center"
-                    Foreground="#34495e"
-                    Text="搜索:" />
-                <TextBox
-                    Width="200"
-                    Padding="8,5"
-                    BorderBrush="#bdc3c7"
-                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    FontSize="13.5"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                    Text="流程列表" />
             </StackPanel>
+
+            <Border
+                Grid.Column="1"
+                Width="240"
+                Style="{StaticResource DialogSearchChrome}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Grid.Column="0"
+                        Style="{StaticResource DialogSearchIcon}"
+                        Text="&#xf002;" />
+                    <TextBox
+                        Grid.Column="1"
+                        Style="{StaticResource DialogSearchInput}"
+                        Tag="搜索流程名 / 描述"
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+            </Border>
         </Grid>
 
-        <!--  流程列表  -->
+        <!--
+            流程列表。
+            表头/行/单元格皮肤统一走 DialogDataGrid（它内部已串好 CellStyle / RowStyle /
+            ColumnHeaderStyle）—— 不再本地写隐式样式：隐式样式一旦进全局字典会波及全应用每个表格，
+            而留在本地又会与本视图其它部分各说各话。
+        -->
         <DataGrid
-            Grid.Row="1"
+            Grid.Row="2"
+            Margin="20,0"
             ItemsSource="{Binding Flows}"
-            SelectedItem="{Binding SelectedFlow}">
+            SelectedItem="{Binding SelectedFlow}"
+            Style="{StaticResource DialogDataGrid}">
             <DataGrid.Columns>
-                <!--  流程名称  -->
                 <DataGridTextColumn
                     Width="*"
                     Binding="{Binding Flow.FlowName}"
                     Header="流程名称"
                     IsReadOnly="True" />
 
-                <!--  调用类型  -->
                 <DataGridTextColumn
                     Width="100"
                     Binding="{Binding InvokeTypeText}"
                     Header="调用类型"
                     IsReadOnly="True" />
 
-                <!--  描述  -->
                 <DataGridTextColumn
                     Width="200"
                     Binding="{Binding Flow.Description}"
                     Header="描述"
                     IsReadOnly="True" />
 
-                <!--  状态  -->
                 <DataGridTextColumn
-                    Width="120"
+                    Width="110"
                     Binding="{Binding StatusText}"
                     Header="状态"
                     IsReadOnly="True" />
 
-                <!--  操作按钮  -->
-                <DataGridTemplateColumn Width="320" Header="操作">
+                <DataGridTemplateColumn Width="230" Header="操作">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                            <!--
+                                行内动作做成胶囊软色块（DialogChipButton）：
+                                文字留着（纯图标分不清加密与解密），但不像普通按钮那样抢视线。
+                                底色与字色按语义成对给 —— 危险动作（解密）走浅红底 + 红字。
+                            -->
+                            <StackPanel
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
                                 <Button
                                     Command="{Binding DataContext.EncryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                     CommandParameter="{Binding}"
                                     Content="加密"
-                                    Style="{StaticResource EncryptButtonStyle}" />
+                                    Style="{StaticResource DialogChipButton}"
+                                    Background="{StaticResource DialogAccentLightBrush}"
+                                    Foreground="{StaticResource DialogAccentTextBrush}"
+                                    ToolTip="加密流程内容，未授权者无法查看" />
 
                                 <Button
+                                    Margin="8,0,0,0"
                                     Command="{Binding DataContext.DecryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                     CommandParameter="{Binding}"
                                     Content="解密"
-                                    Style="{StaticResource DecryptButtonStyle}" />
+                                    Style="{StaticResource DialogChipButton}"
+                                    Background="{StaticResource DialogDangerSubtleBrush}"
+                                    Foreground="{StaticResource DialogDangerBrush}"
+                                    ToolTip="解除加密，恢复为可编辑状态" />
 
                                 <Button
+                                    Margin="8,0,0,0"
                                     Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                     CommandParameter="{Binding}"
                                     Content="{Binding EnabledText}"
-                                    Style="{StaticResource DisableButtonStyle}" />
+                                    Style="{StaticResource DialogChipButton}"
+                                    Background="{StaticResource DialogRowHoverBrush}"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    ToolTip="启用/禁用：控制流程是否参与自动调用" />
                             </StackPanel>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -217,41 +239,31 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!--  底部说明和关闭按钮  -->
-        <Grid Grid.Row="2" Margin="0,15,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <StackPanel Grid.Column="0">
+        <!--  底部说明：三条口径写清楚，省得使用者去翻文档  -->
+        <Border
+            Grid.Row="3"
+            Margin="20,14,20,16"
+            Style="{StaticResource DialogInfoPanel}">
+            <StackPanel>
                 <TextBlock
-                    FontWeight="Bold"
-                    Foreground="#34495e"
-                    Text="说明：" />
+                    FontSize="12"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                    Text="说明" />
                 <TextBlock
-                    Margin="10,5,0,0"
-                    Foreground="#7f8c8d"
-                    Text="• 启用/禁用：控制流程是否参与自动调用" />
+                    Margin="0,6,0,0"
+                    Style="{StaticResource DialogHintText}"
+                    Text="· 启用/禁用：控制流程是否参与自动调用" />
                 <TextBlock
-                    Margin="10,2,0,0"
-                    Foreground="#7f8c8d"
-                    Text="• 加密/解密：保护流程内容不被未授权访问" />
+                    Margin="0,3,0,0"
+                    Style="{StaticResource DialogHintText}"
+                    Text="· 加密/解密：保护流程内容不被未授权访问" />
                 <TextBlock
-                    Margin="10,2,0,0"
-                    Foreground="#7f8c8d"
-                    Text="• 调用类型：定时调用按指定间隔执行，变量调用在变量变化时触发" />
+                    Margin="0,3,0,0"
+                    Style="{StaticResource DialogHintText}"
+                    Text="· 调用类型：定时调用按指定间隔执行，变量调用在变量变化时触发" />
             </StackPanel>
-
-            <Button
-                Grid.Column="1"
-                Padding="20,8"
-                Background="#34495e"
-                BorderThickness="0"
-                Command="{Binding CloseCommand}"
-                Content="关闭"
-                Cursor="Hand"
-                Foreground="White" />
-        </Grid>
+        </Border>
     </Grid>
+
 </UserControl>

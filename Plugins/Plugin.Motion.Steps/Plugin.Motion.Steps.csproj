@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 流程步骤插件（L4 层）：用户在流程里拖的「轴使能 / 轴运动 / 轴回零 / 等待到位 / 读轴状态 / 轴停止 / 轴 IO」。
+         纯托管、net9.0（不带 -windows）：这些步骤只调 Core.Interfaces 里的契约，
+         真正的硬件差异全部留在驱动插件里（Plugin.Motion.*），本工程不该知道任何厂商 SDK。 -->
+    <TargetFrameworks>net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只引用契约层：VisionPluginBase / InputPort / OutputPort / IMotionProvider 都在这里。
+         刻意不引用宿主 exe，也不引用任何驱动工程 —— 步骤要能配任意品牌的卡。 -->
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+</Project>

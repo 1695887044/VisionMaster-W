@@ -20,6 +20,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\VM.Core.csproj" />
+    <!--
+      还要**直接**引用契约层：属性面板的"动态候选下拉"要认 Core.Interfaces 里的
+      StepConfigOptionsAttribute。
+      VM.Core 虽然间接引用 Core.Interfaces，但传递引用不参与编译 ——
+      不显式引一下，UI 库看不到那个特性类型。
+    -->
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>
 
   <ItemGroup>

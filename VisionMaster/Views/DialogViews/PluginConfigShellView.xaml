@@ -11,12 +11,25 @@
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
 
-    <!--  窗口：固定初始尺寸 + 允许调整大小（不用 SizeToContent，否则手动放大后内容不会重新布局填满）。
-        880×600 时代内容区只有 ~490px 高，参数多的插件（创建ROI 等）左列底部会被裁掉 → 放大到 960×680  -->
+    <!--
+        窗口：默认给"插件自带视图"用的固定大画布（创建ROI 这类需要足够大的绘制区，
+        统一成自适应高度的话，用户手动拉大窗口后内容不会重新填满）。
+
+        但"框架自动生成的参数面板"（AutoPortConfigView）只有几行 —— 延时插件甚至只有 1 行 ——
+        套这个尺寸就是"一条输入、一屏空白"。所以由 code-behind 判断内容类型后
+        **只对那一种**切到"按内容定高 + 560 宽"（见 PluginConfigShellView.xaml.cs）。
+    -->
     <prism:Dialog.WindowStyle>
+        <!--
+            注意：WindowStartupLocation **不能**写在这里 ——
+            它不是依赖属性，放进 Style 的 Setter 会在打开弹窗时抛 ArgumentNullException。
+            居中改在 code-behind 的 Loaded 里设（见 PluginConfigShellView.xaml.cs）。
+        -->
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <!--  居中：见 WindowCenteringBehavior 的说明（不能在 Loaded 里设 WindowStartupLocation）  -->
+            <Setter Property="ui:WindowCenteringBehavior.IsEnabled" Value="True" />
             <Setter Property="Width" Value="960" />
             <Setter Property="Height" Value="680" />
             <Setter Property="MinWidth" Value="640" />
@@ -25,48 +38,112 @@
     </prism:Dialog.WindowStyle>
 
     <UserControl.Resources>
+
+        <!--  头部：72px，白底，底边一条浅描边  -->
         <Style x:Key="HeaderBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="#F8F9FA" />
-            <Setter Property="BorderBrush" Value="#EBEEF5" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="CornerRadius" Value="8,8,0,0" />
+            <Setter Property="CornerRadius" Value="16,16,0,0" />
         </Style>
 
+        <!--  底部状态栏：56px，浅灰底（#F6F8FA 用 DialogBackgroundBrush）  -->
         <Style x:Key="FooterBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="#F8F9FA" />
-            <Setter Property="BorderBrush" Value="#EBEEF5" />
+            <Setter Property="Background" Value="{StaticResource DialogBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
             <Setter Property="BorderThickness" Value="0,1,0,0" />
-            <Setter Property="CornerRadius" Value="0,0,8,8" />
+            <Setter Property="CornerRadius" Value="0,0,16,16" />
         </Style>
 
-        <Style x:Key="StatusSuccessStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#67C23A" />
+        <!--  状态胶囊：全圆角的小标签，状态一变一眼能看出颜色不同  -->
+        <Style x:Key="StatusChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="StatusFailStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#F56C6C" />
+        <!--  图标字体：徽章里的节点图标  -->
+        <Style x:Key="HeaderIconStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Icon}" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!--
+            底部按钮：统一高度与圆角。
+
+            圆角**必须走控制模板**：Button 自身没有 CornerRadius 属性，
+            靠 `Button.Resources` 里给 Border 加 CornerRadius 是改不到默认模板的 ——
+            之前那一版看起来是直角，就是这个原因。
+        -->
+        <Style x:Key="FooterButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FooterPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource FooterButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </UserControl.Resources>
 
     <Grid Margin="0">
-        <Border Background="White" CornerRadius="8">
+        <Border
+            Background="{StaticResource DialogSurfaceBrush}"
+            CornerRadius="16">
             <Border.Effect>
                 <DropShadowEffect
-                    BlurRadius="15"
+                    BlurRadius="18"
                     Direction="270"
                     Opacity="0.15"
                     ShadowDepth="3"
-                    Color="Black" />
+                    Color="{StaticResource DialogShadowColor}" />
             </Border.Effect>
 
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="50" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="50" />
+                    <RowDefinition Height="72" />
+                    <!--  参数区按内容撑高：AutoPortConfigView 那类界面靠它才能"行少窗口就矮"  -->
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="56" />
                 </Grid.RowDefinitions>
 
-                <!--  顶部：插件图标 + 名称  -->
+                <!--  头部：徽章 + 标题/类型 + 关闭  -->
                 <Border
                     Grid.Row="0"
                     ui:WindowDragBehavior.IsWindowDraggable="True"
@@ -76,56 +153,78 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!--  插件图标  -->
-                        <TextBlock
+                        <!--  图标徽章：40px 圆角 12，浅主色底 + 主色图标  -->
+                        <Border
                             Grid.Column="0"
+                            Width="40"
+                            Height="40"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="22"
-                            Foreground="#409EFF"
-                            Text="{Binding PluginIcon}" />
+                            Background="{StaticResource DialogAccentLightBrush}"
+                            CornerRadius="12">
+                            <TextBlock Style="{StaticResource HeaderIconStyle}" Text="{Binding PluginIcon}" />
+                        </Border>
 
-                        <!--  插件名称 + 描述  -->
+                        <!--  标题 = 节点名；副标题 = 节点类型  -->
                         <StackPanel
                             Grid.Column="1"
                             Margin="12,0,0,0"
                             VerticalAlignment="Center">
                             <TextBlock
-                                FontSize="15"
-                                FontWeight="Bold"
-                                Foreground="#303133"
-                                Text="{Binding PluginName}" />
+                                FontSize="16"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                Text="{Binding PluginName}"
+                                TextTrimming="CharacterEllipsis" />
                             <TextBlock
                                 Margin="0,2,0,0"
-                                FontSize="11"
-                                Foreground="#909399"
-                                Text="{Binding PluginDescription}" />
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding PluginDescription}"
+                                TextTrimming="CharacterEllipsis" />
                         </StackPanel>
 
                         <!--  执行中指示  -->
-                        <StackPanel
+                        <Border
                             Grid.Column="2"
-                            VerticalAlignment="Center"
-                            Orientation="Horizontal">
+                            Margin="8,0"
+                            Style="{StaticResource StatusChipStyle}"
+                            Visibility="{Binding IsExecuting, Converter={ui:BooleanToVisibilityConverter}}">
                             <TextBlock
-                                Margin="0,0,6,0"
                                 FontSize="12"
-                                Foreground="#E6A23C"
-                                Text="⏳ 执行中"
-                                Visibility="{Binding IsExecuting, Converter={ui:BooleanToVisibilityConverter}}" />
-                        </StackPanel>
+                                Foreground="{StaticResource DialogAccentTextBrush}"
+                                Text="⏳ 执行中" />
+                        </Border>
+
+                        <!--  关闭：等价于取消（取消逻辑里含"正在执行则先停"的处理）  -->
+                        <Button
+                            Grid.Column="3"
+                            Width="30"
+                            Height="30"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Command="{Binding CancelCommand}"
+                            Cursor="Hand"
+                            ToolTip="关闭">
+                            <TextBlock
+                                FontSize="14"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="✕" />
+                        </Button>
                     </Grid>
                 </Border>
 
-                <!--  中间：插件自定义视图注入区  -->
+                <!--  参数区：插件自带视图，或框架生成的参数面板  -->
                 <ContentPresenter
+                    x:Name="UiContentHost"
                     Grid.Row="1"
-                    Margin="8"
+                    Margin="20,16"
                     Content="{Binding PluginViewContent}" />
 
-                <!--  底部：状态 + 耗时 + 按钮  -->
+                <!--  底部：状态胶囊 + 耗时 + 按钮  -->
                 <Border Grid.Row="2" Style="{StaticResource FooterBorderStyle}">
                     <Grid Margin="16,0">
                         <Grid.ColumnDefinitions>
@@ -133,71 +232,64 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!--  左侧状态信息  -->
                         <StackPanel
                             Grid.Column="0"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
+                            <Border Style="{StaticResource StatusChipStyle}">
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="{Binding StatusText}" />
+                            </Border>
                             <TextBlock
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                FontFamily="Consolas, Cascadia Mono, Courier New"
                                 FontSize="12"
-                                Foreground="#606266"
-                                Text="{Binding StatusText}" />
-                            <TextBlock
-                                Margin="16,0,0,0"
-                                FontSize="12"
-                                Foreground="#909399"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
                                 Text="{Binding ElapsedText}" />
                         </StackPanel>
 
-                        <!--  右侧按钮  -->
                         <StackPanel
                             Grid.Column="1"
                             Background="Transparent"
                             Orientation="Horizontal">
+                            <!--  执行：白底描边 + ▶ 图标；执行中由 CanExecute 禁用  -->
                             <Button
-                                Margin="0,0,10,0"
-                                Padding="24,6"
-                                Background="#FFFFFF"
-                                BorderBrush="#DCDFE6"
+                                Margin="0,0,8,0"
+                                Background="{StaticResource DialogSurfaceBrush}"
+                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                BorderThickness="1"
                                 Command="{Binding ExecuteCommand}"
-                                Content="执行"
-                                Cursor="Hand"
-                                IsEnabled="{Binding CanExecute}">
-                                <Button.Resources>
-                                    <Style TargetType="Border">
-                                        <Setter Property="CornerRadius" Value="4" />
-                                    </Style>
-                                </Button.Resources>
+                                IsEnabled="{Binding CanExecute}"
+                                Style="{StaticResource FooterButtonStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Text="▶" />
+                                    <TextBlock VerticalAlignment="Center" Text="执行" />
+                                </StackPanel>
                             </Button>
+
+                            <!--  取消：纯文字按钮  -->
                             <Button
-                                Margin="0,0,10,0"
-                                Padding="24,6"
-                                Background="#FFFFFF"
-                                BorderBrush="#DCDFE6"
-                                Command="{Binding CancelCommand}"
-                                Content="取消"
-                                Cursor="Hand">
-                                <Button.Resources>
-                                    <Style TargetType="Border">
-                                        <Setter Property="CornerRadius" Value="4" />
-                                    </Style>
-                                </Button.Resources>
-                            </Button>
-                            <Button
-                                Padding="24,6"
-                                Background="#409EFF"
+                                Margin="0,0,8,0"
+                                Background="Transparent"
                                 BorderThickness="0"
+                                Command="{Binding CancelCommand}"
+                                Style="{StaticResource FooterButtonStyle}">
+                                <TextBlock
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="取消" />
+                            </Button>
+
+                            <Button
                                 Command="{Binding ConfirmCommand}"
                                 Content="确认"
-                                Cursor="Hand"
-                                FontWeight="SemiBold"
-                                Foreground="White">
-                                <Button.Resources>
-                                    <Style TargetType="Border">
-                                        <Setter Property="CornerRadius" Value="4" />
-                                    </Style>
-                                </Button.Resources>
-                            </Button>
+                                Style="{StaticResource FooterPrimaryButtonStyle}" />
                         </StackPanel>
                     </Grid>
                 </Border>

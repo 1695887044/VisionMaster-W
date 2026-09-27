@@ -36,13 +36,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly FlowCompiler _flowCompiler;
         private readonly HttpImageServer _httpServer;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions)
         {
             _workspace = workspace;
             _logger = logger;
             _flowCompiler = flowCompiler;
             _httpServer = httpServer;
             _cameras = cameras ?? NullCameraProvider.Instance;
+            _motions = motions ?? NullMotionProvider.Instance;
             ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(Cancel);
@@ -53,6 +54,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 二是透传给试运行的执行上下文（否则试运行里取相机会拿到 NullCameraProvider）。
         /// </summary>
         private readonly ICameraProvider _cameras;
+
+        /// <summary>运动设备仓库：试运行时透传给执行上下文（否则运动步骤取不到卡，见 ExecutePlugin）</summary>
+        private readonly IMotionProvider _motions;
 
         #region IDialogAware
 
@@ -117,9 +121,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (parameters.TryGetValue<FrameworkElement>("PluginView", out FrameworkElement viewObj))
             {
-                // 视图由插件DLL返回，同时实现 IPluginConfigView 接口
-
-                _pluginView = viewObj.DataContext as IPluginConfigView;
+                // 视图实现 IPluginConfigView 有两种形态，两种都要认：
+                //   ① 插件自带的视图：控件本身只是"画界面"，接口在它的 DataContext（插件实例）上；
+                //   ② 框架生成的参数面板（AutoPortConfigView）：接口直接实现在控件自身上。
+                // 只认 ① 的话，② 的 Initialize 永远不会被调到 —— 现象是弹窗里一片空白
+                //（面板建出来了，但没有任何参数行）。
+                _pluginView = (viewObj as IPluginConfigView) ?? (viewObj.DataContext as IPluginConfigView);
                 PluginViewContent = viewObj;
             }
 
@@ -305,7 +312,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 try
                 {
-                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras);
+                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras, _motions);
                 }
                 catch (Exception ex)
                 {

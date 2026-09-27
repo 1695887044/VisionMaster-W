@@ -152,7 +152,24 @@ namespace VisionMaster
         /// 之所以也走「系统」菜单，是因为它没有"当前选中的图元"这个落脚点——
         /// 可组态对象直接是变量，属性面板描述不了它。同样加在末尾（理由见 RuntimeWindowSettings）。
         /// </summary>
-        VariableEvents
+        VariableEvents,
+
+        /// <summary>
+        /// 运动卡设置：方案级运动卡资源（驱动类型 / 连接地址 / 轴映射 / 运动参数）。
+        /// 与 <see cref="CameraSettings"/> 平级 —— 两者都是"这台设备上装了哪些硬件"的方案级描述，
+        /// 区别只是相机采图、运动卡驱动执行机构。
+        /// 同样加在末尾（理由见 <see cref="RuntimeWindowSettings"/>）。
+        /// </summary>
+        MotionSettings,
+
+        /// <summary>
+        /// 运动卡调试：手动使能 / 点动 / 定位 / 回零 / IO。
+        /// 与 <see cref="MotionSettings"/> 并列但用途不同 —— 那个是**配置**（低频、改错影响产线），
+        /// 这个是**操作**（高频、现场对位天天用）。分开放在菜单上，
+        /// 出事要急停时不必先在一堆配置项里找按钮。
+        /// 同样加在末尾（理由见 <see cref="RuntimeWindowSettings"/>）。
+        /// </summary>
+        MotionDebug
     }
 
     /// <summary>

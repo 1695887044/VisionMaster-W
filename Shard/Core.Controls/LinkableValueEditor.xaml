@@ -50,12 +50,22 @@
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <!--  左侧标签（Label 为空时隐藏）  -->
+        <!--
+            左侧标签（Label 为空时隐藏）。
+            固定宽 + 右对齐：多行参数时标签要"贴着输入框"排成一列，
+            左对齐 + 宽度随文字伸缩会让每一行的输入框起点各不相同，扫视时很难对齐读数
+            （规格里那 112px 也是为这件事）。
+        -->
         <TextBlock
             x:Name="PART_Label"
             Grid.Column="0"
+            Width="112"
             Margin="0,0,8,0"
             VerticalAlignment="Center"
+            Foreground="#64748B"
+            FontSize="12"
+            TextAlignment="Right"
+            TextTrimming="CharacterEllipsis"
             Visibility="Collapsed" />
 
         <!--  中间输入区：固定值 / 链接地址 / 不可输入占位 三态覆盖  -->
@@ -63,12 +73,36 @@
             <!--  可文本输入：固定值编辑框  -->
             <TextBox
                 x:Name="PART_ValueBox"
-                Padding="2,2"
+                Height="36"
+                Padding="10,0"
                 VerticalContentAlignment="Center"
-                Background="Transparent"
-                BorderBrush="#AAAAAA"
-                BorderThickness="0,0,0,1"
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="1"
+                Foreground="#1E293B"
                 Text="{Binding PortValue, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}">
+                <!--  圆角必须走模板：TextBox 自身没有 CornerRadius 属性  -->
+                <TextBox.Template>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!--  聚焦：描边变主色（#0EA5E9）——鼠标正在编辑哪一行要能一眼看出  -->
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#0EA5E9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </TextBox.Template>
                 <TextBox.Style>
                     <Style TargetType="TextBox">
                         <Setter Property="Visibility" Value="Visible" />
@@ -81,10 +115,134 @@
                             <DataTrigger Binding="{Binding IsTextEditable, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
+                            <!--  「只能选」的端口（枚举/方案候选）：改用下拉，互斥否则会叠在一起  -->
+                            <DataTrigger Binding="{Binding IsOptionPort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBox.Style>
             </TextBox>
+
+            <!--
+                枚举端口：下拉选择，候选即枚举成员。
+
+                模板必须自己写：ComboBox 的默认模板是系统样式（灰色渐变按钮 + 方角），
+                放在这一列圆角输入框中间会显得像"另一个软件里的控件"。
+                这里照输入框的形状来：白底、圆角 8、浅灰描边、聚焦/悬停变主色。
+
+                注意本文件在 Core.Controls 里，**引用不到 UI 库的主题令牌**，
+                所以色值只能内联 —— 与输入框保持同一组字面量即可。
+            -->
+            <ComboBox
+                x:Name="PART_EnumBox"
+                Height="36"
+                HorizontalAlignment="Stretch"
+                VerticalContentAlignment="Center"
+                Background="White"
+                BorderThickness="0"
+                OverridesDefaultStyle="True"
+                DisplayMemberPath="Display"
+                SelectedValuePath="Value"
+                ItemsSource="{Binding EnumOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                SelectedValue="{Binding PortValue, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}">
+                <ComboBox.Template>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <!--  整个控件就是一个按钮：点哪儿都能展开，不用去瞄右边那个小箭头  -->
+                            <!--
+                                Style={x:Null}：主程序主题里有隐式的 ToggleButton 样式，
+                                它会顺着模板树给这里的 ToggleButton 追加属性 —— 这里要的是"完全听我模板的"。
+                                OverridesDefaultStyle 同理，把主题样式也挡在外面。
+                            -->
+                            <ToggleButton
+                                Focusable="False"
+                                ClickMode="Press"
+                                OverridesDefaultStyle="True"
+                                Style="{x:Null}"
+                                IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border
+                                            x:Name="Bd"
+                                            Background="White"
+                                            BorderBrush="#CBD5E1"
+                                            BorderThickness="1"
+                                            CornerRadius="8">
+                                            <Path
+                                                Margin="0,0,12,0"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                Data="M0,0 L4.5,4.5 L9,0"
+                                                Stroke="#94A3B8"
+                                                StrokeThickness="1.6" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#0EA5E9" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <!--
+                                选中项的显示。这里必须用 Binding 而不是 TemplateBinding：
+                                DisplayMemberPath 生成的 SelectionBoxItemTemplate 是在"第一次选中"时才有值的，
+                                TemplateBinding 在模板应用那一刻就取值（当时是 null）且不跟随变化 ——
+                                结果就是收起状态下直接调 StepConfigOption.ToString()，显示成类型全名。
+                            -->
+                            <ContentPresenter
+                                Margin="10,0,28,0"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False"
+                                Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource TemplatedParent}}"
+                                ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                            <Popup
+                                x:Name="PART_Popup"
+                                AllowsTransparency="True"
+                                IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                Placement="Bottom"
+                                PopupAnimation="Fade">
+                                <Border
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="240"
+                                    Background="White"
+                                    BorderBrush="#E2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                    <ScrollViewer Margin="0,4" VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </ComboBox.Template>
+                <ComboBox.ItemContainerStyle>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Padding" Value="10,7" />
+                        <Setter Property="Foreground" Value="#1E293B" />
+                        <Setter Property="FontSize" Value="12" />
+                    </Style>
+                </ComboBox.ItemContainerStyle>
+                <ComboBox.Style>
+                    <Style TargetType="ComboBox">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <!--  仅在"只能选且未链接"时显示：已链接时应显示链接地址，让位给下面的只读框  -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsOptionPort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                    <Condition Binding="{Binding IsLinked, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ComboBox.Style>
+            </ComboBox>
 
             <!--  不可文本输入且未链接：占位提示  -->
             <TextBlock

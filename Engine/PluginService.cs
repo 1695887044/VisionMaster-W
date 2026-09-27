@@ -208,7 +208,11 @@ namespace VisionMaster.Services
                                     Description = p.Description,
                                     DataTypeName = p.DataType.AssemblyQualifiedName,
                                     IsFunctionalEnum = inputPort?.IsFunctionalEnum ?? false,
+                                    // 注意这两份都是**扫描期的快照**（此刻方案多半还没配卡，
+                                    // 所以候选通常是空的）。真正要用的是 OptionKind ——
+                                    // 绑定界面据此在每次打开时现取，见 InputPort.OptionKind 的说明
                                     PresetOptions = inputPort?.PresetOptions ?? new List<string>(),
+                                    OptionKind = inputPort?.OptionKind,
                                 };
                             })
                             .ToList()
@@ -249,6 +253,46 @@ namespace VisionMaster.Services
             }
 
             LoadCameraDrivers(assembly);
+            LoadMotionDrivers(assembly);
+        }
+
+        /// <summary>
+        /// 扫描运动卡驱动插件：实现 <see cref="IMotionDevice"/> 且带 <c>[Display]</c> 的类型。
+        ///
+        /// 与相机驱动完全同构（见下方 LoadCameraDrivers 的说明），单独成一条路径的理由也一样：
+        /// 运动驱动不是流程步骤（不实现 IVisionPlugin），它只会出现在「运动卡设置」的驱动下拉里，
+        /// 不该出现在算子列表中。两类插件共用一条扫描路径，必然要么驱动跑进算子列表、
+        /// 要么算子被当成驱动。
+        ///
+        /// 注册进 MotionPlugins 表（RegisterMotion 真写 _motions），
+        /// 消费方是宿主 MotionProvider.AvailableDrivers。
+        /// </summary>
+        private void LoadMotionDrivers(Assembly assembly)
+        {
+            var driverTypes = assembly
+                .GetTypes()
+                .Where(t => !t.IsAbstract && typeof(IMotionDevice).IsAssignableFrom(t));
+
+            foreach (var type in driverTypes)
+            {
+                var att = type.GetCustomAttribute<DisplayAttribute>();
+                if (att == null)
+                {
+                    // 与相机驱动同样的处理：静默跳过会让"我明明写了驱动却选不到"变成无从下手的谜题
+                    _notifier.ShowWarn($"运动卡驱动 {type.FullName} 缺少 [Display] 特性，无法在运动卡设置中显示，已跳过");
+                    continue;
+                }
+
+                _registry.RegisterMotion(new ToolItemModel
+                {
+                    Category = att.GroupName,
+                    Description = att.Description,
+                    Name = att.Name,
+                    Icon = att.ShortName,
+                    ModuleTypeName = type.AssemblyQualifiedName,
+                    IsContainer = false,
+                });
+            }
         }
 
         /// <summary>

@@ -62,6 +62,21 @@ namespace VisionMaster.Helpers
         {
             if (source == null || target == null) return false;
 
+            // ★ object 一律放行（双向）。
+            //
+            // 这一条是实测出来的，不是理论考虑：**全局变量的默认类型就是 object**
+            // （新建变量时不指定类型），而绑定弹窗会按"当前选中的输入端口类型"过滤候选。
+            // 用户选中一个 Double 输入端口后，所有全局变量都因
+            // IsTypeCompatible(object, double) == false 被滤掉 ——
+            // 界面表现是"点了一个上游节点，右边的端口列表空着"，反馈原话是
+            // "点击返回原有内容无响应"。
+            //
+            // 为什么静态这层不该拦：object 的含义是"**运行期**才知道真实类型"（装箱值）。
+            // 真实类型由流程运行时校验，静态这里拦下来只会把
+            // "类型待定"的合法用法全部禁掉，而拦不住真正的错配（真错了运行期会报）。
+            // 两个方向都放行：object → 任意（值可能装得下），任意 → object（装箱永远成立）。
+            if (source == typeof(object) || target == typeof(object)) return true;
+
             // 数组 → 标量：允许"按下标取一个元素"（绑定时会弹索引输入框）
             if (source.IsArray && !target.IsArray)
             {

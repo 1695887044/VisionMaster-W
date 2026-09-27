@@ -129,6 +129,31 @@
         <Setter Property="Margin" Value="0,0,0,6" />
     </Style>
 
+    <!--
+        灰色说明文字（表下注、字段提示、功能说明）。
+        收编自六个弹窗里逐字相同的写法（FontSize 11~11.5 + DialogTextMutedBrush + 换行）。
+        只定字号与灰度，不给 Margin —— 间距是布局的事，各视图自己写（硬塞 Margin 会让
+        "标题下方的提示"和"表格下方的注"必须二选一，那种样式没人愿意用）。
+    -->
+    <Style x:Key="DialogHintText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!--
+        信息块：浅底 + 细描边 + 圆角，用于"底部说明 / 使用提示 / 口径声明"这类成段的辅文。
+        与直接裸放 TextBlock 的区别：它把说明与正文在视觉上分了一层，
+        一眼能看出"这段是注释而不是内容"（Web 里就是 alert / callout 那一类）。
+    -->
+    <Style x:Key="DialogInfoPanel" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="14,12" />
+    </Style>
+
     <!--  ====================  输入框  ====================  -->
 
     <!--
@@ -499,6 +524,55 @@
         </Setter>
     </Style>
 
+    <!--
+        危险类主按钮（急停 / 删除 / 清空 这类"不可逆或不安全"的主操作）。
+
+        为什么必须是实心红而不是软色块：它要在一屏按钮里**第一眼被看到**。
+        软色块（DialogDangerSubtleBrush 底 + DialogDangerBrush 字）是给表格行内的次要动作用的
+        （见 DialogChipButton），两者的可见度差一个量级，不能互换 ——
+        急停按钮藏在一排描边按钮里，等于没有。
+
+        为什么自己写模板、不用 BasedOn：DialogPrimaryButton 的模板把渐变**写死在模板里**
+        （不是 TemplateBinding Background），BasedOn 改 Background 对它无效。
+        所以这里照它的形状重写一份，只换色系。
+        （顺带记一笔：主按钮那两处渐变色值本该取自 Colors.xaml，换主题时要记得一起动。）
+    -->
+    <Style x:Key="DialogDangerButton" TargetType="Button">
+        <Setter Property="Height" Value="44" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="10">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0" Color="#F87171" />
+                                <GradientStop Offset="1" Color="#EF4444" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.92" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.82" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!--  次级按钮（描边式）：与主按钮成对出现时用，如「取消 / 确定」  -->
     <Style x:Key="DialogSecondaryButton" TargetType="Button">
         <Setter Property="Height" Value="44" />
@@ -612,17 +686,22 @@
 
     <!--  ====================  状态指示  ====================  -->
 
-    <!--  在线状态圆点（8×8）  -->
+    <!--
+        状态圆点（8×8）：只定形状与尺寸，**默认绿色**（"在线/正常"最常见），
+        颜色由使用处按语义覆盖 —— 轴状态要按数据实时切（报警红 / 限位橙 / 运动中蓝 / 到位绿），
+        那种切换只能写在使用处的触发器里。
+
+        ⚠ 把原先那条 `IsConnected == False → 红` 的触发器去掉了，原因有两条：
+          ① 公共样式库里**绑一个具体 ViewModel 的属性名**是越界的（库不该知道业务属性叫什么）；
+          ② 它只对"恰好有这个属性"的视图生效，对其余视图**静默失效** ——
+             现象是"状态变了但点不变色"，而查起来完全没有线索。
+    -->
     <Style x:Key="DialogStatusDot" TargetType="Ellipse">
         <Setter Property="Width" Value="8" />
         <Setter Property="Height" Value="8" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding IsConnected}" Value="False">
-                <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
-            </DataTrigger>
-        </Style.Triggers>
     </Style>
 
     <!--
@@ -1001,6 +1080,102 @@
         </Style.Triggers>
     </Style>
 
+    <!--
+        表格行内操作按钮（胶囊/软色块风格）。
+        底色与字色**由使用处成对指定**（浅底 + 同色系深字），本样式只管形状与交互：
+          信息类：Background=DialogAccentLightBrush  Foreground=DialogAccentTextBrush
+          危险类：Background=DialogDangerSubtleBrush Foreground=DialogDangerBrush
+          中性类：Background=DialogRowHoverBrush     Foreground=DialogTextSecondaryBrush
+
+        为什么不做成"带语义色参数的一支样式"：WPF 样式没有参数化颜色这一说，
+        硬要做得开三个键（Info/Danger/Neutral），而使用处照样要选一个 —— 不如直接给形状。
+        为什么用胶囊而不是 DialogIconButton（纯图标）：行内这三个动作（加密/解密/启停）
+        光看图标分不清，文字必须留着；但用普通按钮又太抢眼，胶囊软色块是 Web 表格里最常见的落点。
+    -->
+    <Style x:Key="DialogChipButton" TargetType="Button">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Padding" Value="11,0" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bg"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="12">
+                        <ContentPresenter
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!--  悬停/按下只动透明度：底色与字色是使用处按语义给的，不被模板改掉  -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.82" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.68" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        标签按钮（软色块，"点一下就插进去/切过去"的那类）。
+        收编自条件编辑器的 TagButton：表达式编辑区上方那一大片
+        「引脚变量 / 逻辑比较 / 数学运算 / 字符串函数」快捷插入按钮，以及"重新绑定 / 选择数据源"。
+        与 DialogChipButton 的分工：
+          · DialogChipButton  = 表格行内的动作（高 24，胶囊，底色由语义给）；
+          · DialogTagButton   = 内容区里成片排列的候选/快捷项（高 30，圆角 6，默认强调色浅底）。
+        不设 Margin：它常出现在 WrapPanel 里由使用处控制间距，
+        把间距写进样式会让"紧凑排布"和"宽松排布"必须二选一。
+    -->
+    <Style x:Key="DialogTagButton" TargetType="Button">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bg"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="6">
+                        <ContentPresenter
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                            <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogAccentBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bg" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!--  表格只读数字列（变量数 / 段数 / 目标周期 / 实测周期）：右对齐，数值才好纵向比大小  -->
     <Style x:Key="DialogGridNumber" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,0,12,0" />
@@ -1350,5 +1525,80 @@
         <Setter Property="Height" Value="34" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="MinWidth" Value="88" />
+    </Style>
+
+    <!--
+        ════════════════════════════════════════════════════════════════════════
+        现代（Web）信息层：轻分区头 / 状态点 / 语义 chip / 等宽数值
+        ════════════════════════════════════════════════════════════════════════
+
+        为什么不直接改 DialogColumnHeader 那一批：那批是"卡片式"（灰底 + 圆角），
+        用在大块分区上是对的；但一屏里出现十几个灰底条会显得很重 ——
+        那是"上个时代的表格软件"观感。Web 后台的现代做法是：
+        分区标题**只留一行细字 + 一条分隔线**，把视觉重量让给内容本身。
+        所以这批是并存的一套，按场景选（重卡片 vs 轻分隔）。
+    -->
+
+    <!--  轻分区头：透明底 + 底部 1px 细线；右侧可以放"本分区的操作"  -->
+    <Style x:Key="DialogSectionHeader" TargetType="Border">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+
+    <Style x:Key="DialogSectionTitle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+    </Style>
+
+    <!--
+        等宽数值：位置 / 计数这类"要纵向对齐比较"的数字。
+        比例字体下数字宽度不等，纵列会一跳一跳（25.000 与 8.750 的宽度差肉眼可见）。
+    -->
+    <Style x:Key="DialogMonoText" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, Courier New" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!--
+        语义 chip：**底色连字色一起封好**，使用处只挑一个键。
+        与 DialogChip 的分工：DialogChip 只给形状，色由使用处成对指定（灵活但要自己配）；
+        这五个把最常见的语义配对固化下来，避免每个界面各配一遍、配出不协调的颜色对。
+    -->
+    <Style x:Key="DialogChipNeutral" TargetType="Border" BasedOn="{StaticResource DialogChip}">
+        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+    </Style>
+    <Style x:Key="DialogChipAccent" TargetType="Border" BasedOn="{StaticResource DialogChip}">
+        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+    </Style>
+    <Style x:Key="DialogChipSuccess" TargetType="Border" BasedOn="{StaticResource DialogChip}">
+        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+    </Style>
+    <Style x:Key="DialogChipWarning" TargetType="Border" BasedOn="{StaticResource DialogChip}">
+        <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+    </Style>
+    <Style x:Key="DialogChipDanger" TargetType="Border" BasedOn="{StaticResource DialogChip}">
+        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+    </Style>
+
+    <Style x:Key="DialogChipTextNeutral" TargetType="TextBlock" BasedOn="{StaticResource DialogChipText}">
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    </Style>
+    <Style x:Key="DialogChipTextAccent" TargetType="TextBlock" BasedOn="{StaticResource DialogChipText}">
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+    </Style>
+    <Style x:Key="DialogChipTextSuccess" TargetType="TextBlock" BasedOn="{StaticResource DialogChipText}">
+        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+    </Style>
+    <Style x:Key="DialogChipTextWarning" TargetType="TextBlock" BasedOn="{StaticResource DialogChipText}">
+        <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+    </Style>
+    <Style x:Key="DialogChipTextDanger" TargetType="TextBlock" BasedOn="{StaticResource DialogChipText}">
+        <Setter Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
     </Style>
 </ResourceDictionary>

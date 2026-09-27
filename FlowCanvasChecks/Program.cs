@@ -87,6 +87,8 @@ namespace FlowCanvasChecks
             BlobDetectChecks.Run();
             PortBindChecks.Run();
             GlobalVariableChecks.Run();
+            MotionChecks.Run();
+            MotionZMotionChecks.Run();
             MatchingChecks.Run();
             CreateRoiChecks.Run();
 

@@ -498,6 +498,24 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.MotionSettings}"
+                                Header="运动卡设置"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf085;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.MotionDebug}"
+                                Header="运动卡调试"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0d1;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.CommSettings}"
                                 Header="通讯设置"
                                  >

@@ -1,0 +1,25 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.AutoPortConfigView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        框架给"没有自定义视图的插件"自动包的一层。
+
+        内容（每行一个可链接参数编辑器）在 code-behind 里按端口动态生成 ——
+        因为"有哪些端口"只有运行期才知道（插件类型是动态加载的），
+        写死 DataTemplate 反而要多绕一层 ViewModel 才能拿到端口实例。
+    -->
+    <!--
+        MaxHeight 是配合"窗口按内容自适应高度"用的：
+        参数少时窗口跟着内容变矮；参数多到超过这个高度，就由这里出滚动条，
+        而不是让窗口一路长到屏幕外面去。
+    -->
+    <ScrollViewer
+        MaxHeight="420"
+        Padding="0"
+        HorizontalScrollBarVisibility="Disabled"
+        VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="PortPanel" />
+    </ScrollViewer>
+</UserControl>

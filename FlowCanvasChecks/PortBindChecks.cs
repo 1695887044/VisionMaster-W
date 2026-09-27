@@ -45,8 +45,16 @@ namespace FlowCanvasChecks
                 !TypeHelper.CanBindTo(typeof(HRegion), typeof(HImage)), "");
             Check("【判据】HImage → 数值端口不可绑",
                 !TypeHelper.CanBindTo(typeof(HImage), typeof(int)), "");
-            Check("【判据】object → 具体类型端口不可绑（不能把未知当已知）",
-                !TypeHelper.CanBindTo(typeof(object), typeof(HImage)), "");
+            // ★ 这条判据在实测后**反转**了（原为"不可绑"）。
+            //   原因：全局变量的默认类型就是 object，而绑定弹窗按"选中输入端口的类型"过滤候选。
+            //   判它不可绑时，用户选中一个 Double 输入端口后所有全局变量都会消失 ——
+            //   界面表现是"点了一个上游节点、右边列表却空着"（用户反馈原话："点击返回原有内容无响应"）。
+            //   object 的语义是"**运行期**才知道真实类型"，静态这层拦不住真错配，只会禁掉合法用法。
+            Check("【判据】object → 具体类型端口**可绑**（类型待定，交给运行期校验）",
+                TypeHelper.CanBindTo(typeof(object), typeof(HImage)),
+                "改回「不可绑」会让全局变量选不中任何强类型端口，表现为绑定弹窗右侧列表空着");
+            Check("【判据】object 作为目标端口同样放行（装箱永远成立）",
+                TypeHelper.CanBindTo(typeof(HImage), typeof(object)), "");
 
             // ---- ④ 防御 ----
             Check("【判据】null 入参不抛、返回 false",

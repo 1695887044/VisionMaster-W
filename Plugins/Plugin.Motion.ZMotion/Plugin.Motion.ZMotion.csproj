@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!--
+      SDK 声明文件（Sdk\Zmcaux.cs）是厂商原始文件，3558 行、含大量 XML 注释但仍有缺注释的成员。
+      不为它关闭全局告警，只把它带入的那几类挡掉 —— 驱动自身的新代码仍应保持零告警。
+    -->
+    <NoWarn>$(NoWarn);CS1591;CS0169;CS0649</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只引用契约层：MotionDeviceBase / IMotionDevice / MotionDescriptor 都在这里。
+         驱动插件不引用宿主 exe（与 Plugin.Camera.Network 同一约束）。 -->
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      native 依赖（正运动官方库）。
+
+      ⚠ 用通配 Sdk\*.dll 而不是逐个列文件名：SDK 不是一个文件，最少要两个 ——
+        zauxdll.dll（辅助层，我们 P/Invoke 的就是它）
+        zmotion.dll（核心层，由 zauxdll.dll 在导入表里静态依赖）
+      少任何一个都表现为 DllNotFoundException「找不到指定的模块」(0x7E)，
+      而这条消息**不会告诉你是缺了哪一个**（实测：只给 zauxdll.dll 时错误消息与
+      "zauxdll.dll 本身没放对位置"一模一样，极易误判）。
+      用通配之后，SDK 升级时往 Sdk\ 里丢文件即可，不必记得改 csproj。
+    -->
+    <None Include="Sdk\*.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    把 native dll 投递到**宿主 exe 所在目录**。
+
+    为什么不能只放插件自己的输出目录：DllImport("zauxdll.dll") 的搜索路径是
+    exe 目录 → 系统目录 → PATH —— **不包括插件 dll 所在的 Modules\**
+    （插件托管 dll 由 Engine.PluginService 用 Assembly.LoadFrom 从 Modules\ 装载，
+      但那与 native 库的查找规则是两码事）。
+    所以 native 依赖必须落在 VisionMaster.exe 旁边，HostBinDir 正是 Plugins\Directory.Build.targets
+    为这类"运行期资源"准备好的属性（先例：ImageScript 的示例脚本 ScriptAssets）。
+  -->
+  <Target Name="CopyZMotionNativeToHost" AfterTargets="Build">
+    <ItemGroup>
+      <ZMotionNative Include="Sdk\*.dll" />
+    </ItemGroup>
+    <Error
+      Condition="'@(ZMotionNative)' == ''"
+      Text="Sdk\ 下没有任何 native 库：正运动 SDK 至少需要 zauxdll.dll 与 zmotion.dll 两个文件。缺失时编译能过，但运行时一连接就会抛 DllNotFoundException。" />
+    <Copy SourceFiles="@(ZMotionNative)" DestinationFolder="$(HostBinDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

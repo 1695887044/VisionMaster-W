@@ -267,6 +267,16 @@ namespace FlowCanvasChecks
                 && xaml.Contains("StaticResource DialogOptionItem")
                 && xaml.Contains("StaticResource DialogFooter"), "");
 
+            // 候选行必须显示数据类型：绑定是类型敏感的动作，"这一项能不能接住当前端口"本来就靠类型判断，
+            // 列表里不显示类型就只能靠名字猜（勾了「显示全部」时更明显：不兼容项被置灰，
+            // 而"为什么不行"恰恰要看类型）。这条是回归防线 —— 整栏重写时最容易把它漏掉。
+            bool showsDataType = xaml.Contains("DataTypeName, Converter={ui:TypeNameToFriendlyNameConverter}");
+            Check("【绑定】候选行显示数据类型（DataTypeName 走友好名转换器）",
+                showsDataType,
+                showsDataType
+                    ? "候选行会在名称右侧显示「文本 (String)」「小数 (Double)」这类类型胶囊"
+                    : "候选行模板里没有绑定 DataTypeName —— 用户将看不到类型信息");
+
             // ---- ② 弹窗尺寸：改前是 900×580 + NoResize（用户拉不大，三栏必然挤） ----
             Check("【尺寸】视图不再写死 900×580（改为下限 + 可缩放，窗口尺寸交给宿主 Window）",
                 !xaml.Contains("Width=\"900\"") && !xaml.Contains("Height=\"580\""), "");
@@ -300,6 +310,92 @@ namespace FlowCanvasChecks
             RunWindowStyleSetterContract();
             RunMissingResourceKeyContract();
             RunDialogChromeContract();
+            RunCollectedViewStyleContract();
+        }
+
+        /// <summary>
+        /// 已收编弹窗的样式纪律：不许再有颜色字面量、不许再本地定义 Style。
+        ///
+        /// 为什么只列这几个而不是全目录：这些是**逐个改造过**的（本次整体收编 2 个 +
+        /// 前几轮收编 4 个），对它们提这个要求是承诺；其余弹窗的收编状态各有历史，
+        /// 一并纳入会变成"改一处报十处"，反而让人不敢碰断言。
+        /// 每收编一个弹窗，就往这个名单里加一个。
+        /// </summary>
+        private static readonly string[] CollectedDialogViews =
+        {
+            "VariableBindingView.xaml", "GlobalVariableView.xaml",
+            "CameraSettingsView.xaml", "CommunicationSettingsView.xaml",
+            "FlowManagerView.xaml", "ConditionEditorView.xaml",
+            "MotionSettingsView.xaml", "MotionDebugView.xaml",
+        };
+
+        /// <summary>
+        /// 允许保留的颜色字面量（是"确定不走令牌"，不是"待修"）。
+        /// 键为文件名，值为允许出现的色值。
+        /// </summary>
+        private static readonly Dictionary<string, string[]> AllowedColorLiterals = new()
+        {
+            // 采集质量色点（绿=采集正常 / 黄=最近一次读取失败 / 灰=断线）：全项目统一约定，
+            // SCADA 图层面板、流程画布、属性面板都用同一组，换肤时应整体一起动，不能只让弹窗变。
+            ["GlobalVariableView.xaml"] = new[] { "#FF67C23A", "#FFE6A23C", "#FFC0C4CC", "#FF909399" },
+        };
+
+        private static void RunCollectedViewStyleContract()
+        {
+            var dir = ResolveRepoDir(@"VisionMaster\Views\DialogViews");
+            if (dir == null)
+            {
+                Check("【收编】弹窗样式纪律", true, "跳过：定位不到 DialogViews");
+                return;
+            }
+
+            var colorOffenders = new List<string>();
+            var styleOffenders = new List<string>();
+            int checkedCount = 0;
+
+            foreach (var name in CollectedDialogViews)
+            {
+                string path = Path.Combine(dir, name);
+                if (!File.Exists(path))
+                {
+                    colorOffenders.Add($"{name}（文件不存在）");
+                    continue;
+                }
+                checkedCount++;
+
+                string raw = File.ReadAllText(path);
+                var allowed = AllowedColorLiterals.TryGetValue(name, out var a) ? a : Array.Empty<string>();
+
+                // 先剥掉 XML 注释再扫。
+                // 注释里写色值是**有价值的文档**（"改前是 #409EFF / #34495e 那套 Bootstrap 配色"
+                // 是后人判断"这处为什么改"的唯一线索），不该被这条纪律连带禁掉 ——
+                // 而这一条断言已经因为这个理由误报过两次（上一轮 VariableBindingView、本轮四个视图）。
+                string text = Regex.Replace(raw, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+                var colors = Regex.Matches(text, @"#[0-9A-Fa-f]{3}\b|#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{8}\b")
+                    .Select(m => m.Value)
+                    .Where(c => !allowed.Contains(c))
+                    .Distinct()
+                    .ToList();
+                if (colors.Count > 0) colorOffenders.Add($"{name} → {string.Join(", ", colors)}");
+
+                // 本地 <Style x:Key=...> ：形状/颜色都该取自 UI 库（DataTemplate 不算，它绑的是本视图的 VM 契约）
+                var localStyles = Regex.Matches(text, @"<Style\b[^>]*x:Key=""([A-Za-z0-9]+)""")
+                    .Select(m => m.Groups[1].Value)
+                    .Distinct()
+                    .ToList();
+                if (localStyles.Count > 0) styleOffenders.Add($"{name} → {string.Join(", ", localStyles)}");
+            }
+
+            Check("【收编】已收编弹窗里不再有硬编码颜色（白名单里的采集质量色点除外）",
+                colorOffenders.Count == 0,
+                colorOffenders.Count == 0
+                    ? $"已扫 {checkedCount} 个弹窗，颜色全部走 Dialog* 令牌"
+                    : string.Join("；", colorOffenders));
+
+            Check("【收编】已收编弹窗不再本地定义 Style（形状与颜色一律取自 UI 库）",
+                styleOffenders.Count == 0,
+                styleOffenders.Count == 0 ? "" : string.Join("；", styleOffenders));
         }
 
         /// <summary>

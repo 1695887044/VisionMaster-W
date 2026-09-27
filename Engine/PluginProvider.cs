@@ -115,9 +115,25 @@ namespace VisionMaster.Services
         public void RegisterLaser(ToolItemModel plugin) => RegisterModule(plugin);
 
         /// <summary>
-        /// 注册运动控制插件（同 <see cref="RegisterCamera"/>：分类未启用，转交模块注册表）
+        /// 注册运动卡驱动插件。
+        ///
+        /// 【本次由"转发模块表"改为真写 _motions】
+        /// 原实现 `=> RegisterModule(plugin)` 是"分类未启用"时的占位。运动驱动**不是流程步骤**
+        /// （实现 IMotionDevice 而不是 IVisionPlugin），转发进模块表有两个后果：
+        ///   ① 它会被当成算子混进左侧工具列表 —— 用户拖出来会发现"这个步骤拖了没反应"；
+        ///   ② MotionPlugins 恒为空 → 运动卡设置里一个驱动都列不出来。
+        /// 与 <see cref="RegisterCamera"/> 同理：设备驱动必须有自己的一张表。
         /// </summary>
-        public void RegisterMotion(ToolItemModel plugin) => RegisterModule(plugin);
+        public void RegisterMotion(ToolItemModel plugin)
+        {
+            lock (_lock)
+            {
+                if (!_motions.TryAdd(plugin.ModuleTypeName, plugin))
+                {
+                    _notifier.ShowError($"{plugin.ModuleTypeName} 运动卡驱动命名重复");
+                }
+            }
+        }
 
         /// <summary>
         /// 获取相机驱动插件。
@@ -137,7 +153,17 @@ namespace VisionMaster.Services
         /// <summary>获取激光插件（同 <see cref="GetCamera"/>：与注册同表查找）</summary>
         public ToolItemModel GetLaser(string name) => GetModule(name);
 
-        /// <summary>获取运动控制插件（同 <see cref="GetCamera"/>：与注册同表查找）</summary>
-        public ToolItemModel GetMotion(string name) => GetModule(name);
+        /// <summary>
+        /// 获取运动卡驱动插件（与 <see cref="RegisterMotion"/> 同表查找：
+        /// 注册写进 _motions，这里就必须查 _motions —— 两边不同表会出现"注册了却查不到"）
+        /// </summary>
+        public ToolItemModel GetMotion(string name)
+        {
+            lock (_lock)
+            {
+                _motions.TryGetValue(name, out var plugin);
+                return plugin;
+            }
+        }
     }
 }

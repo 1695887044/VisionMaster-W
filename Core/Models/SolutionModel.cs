@@ -128,6 +128,25 @@ namespace VisionMaster.Models
         public ObservableCollection<global::Core.Interfaces.CameraDescriptor> CameraConfigs { get; set; } = new();
 
         /// <summary>
+        /// 运动卡配置集合（跟着解决方案走）。
+        ///
+        /// 与 <see cref="CameraConfigs"/> 完全同源的理由：运动卡是"这条产线这台设备上装了哪几张卡、
+        /// 什么型号、什么地址、轴怎么接"的描述，与产品配方一起构成"这一套方案"。
+        /// 现场换方案 = 换产线布局 = 常常同时换卡与轴映射，所以它必须跟 .vms 走。
+        ///
+        /// 存的是 <see cref="global::Core.Interfaces.MotionDescriptor"/>（纯配置：Id / 驱动键 / 地址 /
+        /// 轴映射 / 参数）；运行态设备（句柄 / 命令队列 / 轴状态缓存）由宿主 MotionProvider 另存，
+        /// 从不序列化 —— 否则会把"这一秒卡在什么状态"写进方案文件。
+        ///
+        /// 序列化注意：这里声明的是**具体类型 + 具体集合**，TypeNameHandling.Auto 不会写出 $type，
+        /// 因此不需要在 SafeSerializationBinder 的白名单里登记（相机配置同样是这个情形）。
+        /// <c>global::</c> 前缀不能省 —— 本文件命名空间是 VisionMaster.Models，
+        /// 裸写 Core.Interfaces 会被解析成 VisionMaster.Core.Interfaces（CS0234）。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<global::Core.Interfaces.MotionDescriptor> MotionCards { get; set; } = new();
+
+        /// <summary>
         /// 全局变量集合（跟着解决方案走）
         /// E3：变量持久化已统一走 VariableSnapshots（DTO 多态可控），本属性全库无人写入、
         /// 恒为空却仍参与序列化（且 IVariable 多态 $type 正是数组白名单雷区），

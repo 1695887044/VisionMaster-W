@@ -55,6 +55,14 @@ namespace VisionMaster.Services
         public ICameraProvider Cameras { get; init; } = NullCameraProvider.Instance;
 
         /// <summary>
+        /// 运动卡仓库（方案级硬件资源）。
+        ///
+        /// 默认值同样是空实现（<see cref="NullMotionProvider"/>），口径与 <see cref="Cameras"/> 一致：
+        /// 容器注册的简化构造与单元测试夹具走这条默认路径，插件只需判 TryGet 的返回值。
+        /// </summary>
+        public IMotionProvider Motions { get; init; } = NullMotionProvider.Instance;
+
+        /// <summary>
         /// 当前执行节点的ID（用于调试和追踪）
         /// </summary>
         public Guid? CurrentNodeId { get; set; }

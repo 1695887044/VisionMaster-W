@@ -292,28 +292,64 @@ namespace VisionMaster.ViewModels
 
             var portDef = SelectedInputPort.Definition;
 
-            if (
-                portDef.IsFunctionalEnum
-                && portDef.PresetOptions != null
-                && portDef.PresetOptions.Any()
-            )
+            // 候选**现取**，不能只看 PresetOptions。
+            //
+            // PresetOptions 是**插件实例被创建那一刻**的产物（宿主扫描插件类型时反射 new 的），
+            // 而那一刻方案还没打开、卡还没配 —— 取到的必然是空列表，这份空值被复制进
+            // PortDefinition 后一路带到界面上：现象就是"绑定窗口里轴名/卡地址没有下拉"。
+            // 候选项本就来自"当前方案有哪些卡、哪些轴"，注定随方案变化，
+            // 所以有 OptionKind 就**每次打开都现问一次**，没有才退回那份快照。
+            //
+            // 用 GetOptionItems 而不是 GetOptions：前者带显示文本。
+            // 卡地址的值必须是 IP（流程按地址引用），但只显示 IP 在几张卡时认不出谁是谁，
+            // 所以显示成「上料轴卡（192.168.0.11）」—— 值与显示分离，改名不断流程。
+            var items = portDef.OptionKind is { } kind
+                ? StepConfigOptionSource.GetOptionItems(kind)
+                : BuildFallbackOptions(portDef);
+
+            if (portDef.IsFunctionalEnum && items.Count > 0)
             {
                 // 已有值（上面回显来的）优先，只有在空着的时候才退到第一个预设项 ——
-                // 无条件取 First() 会把刚回显出来的值冲掉，用户看到的就不是实际生效的值了
+                // 无条件取第一个会把刚回显出来的值冲掉，用户看到的就不是实际生效的值了
                 if (string.IsNullOrWhiteSpace(ConstantValue))
-                    ConstantValue = portDef.PresetOptions.First();
+                    ConstantValue = items[0].Value;
                 HasFunctionalEnumPort = true;
-                foreach (var option in portDef.PresetOptions)
+                foreach (var item in items)
                 {
                     PresetOptions.Add(
                         new PresetOptionItem
                         {
-                            Option = option,
-                            IsSelected = option == ConstantValue,
+                            Option = item.Value,
+                            Display = item.Display,
+                            IsSelected = item.Value == ConstantValue,
                         }
                     );
                 }
             }
+        }
+
+        /// <summary>
+        /// 没声明 OptionKind 的端口，候选从哪来。
+        ///
+        /// 【枚举要单独处理，而且必须从"类型"现场推】
+        /// 枚举端口的候选就是它的枚举成员，这件事**不需要任何外部信息**，
+        /// 任何时候都能从端口的数据类型算出来。
+        /// 而 PresetOptions 是**插件扫描期的快照** —— 那份快照在方案加载前就生成好了，
+        /// 枚举候选（尤其运行期才知道的类型）经常是空的，
+        /// 于是界面上只剩一个空白文本框：用户根本不知道能填哪些值（如绝对/相对）。
+        ///
+        /// 这里先看类型是不是枚举：是就现场生成，彻底摆脱快照；
+        /// 不是才退回快照（那种候选来自宿主，本来就只能由 OptionKind 现取）。
+        /// </summary>
+        private static IReadOnlyList<StepConfigOption> BuildFallbackOptions(PortDefinition portDef)
+        {
+            var type = TypeHelper.ResolveType(portDef?.DataTypeName);
+            if (type != null && type.IsEnum)
+                return Enum.GetNames(type).Select(n => new StepConfigOption(n)).ToList();
+
+            return (portDef?.PresetOptions ?? new List<string>())
+                .Select(v => new StepConfigOption(v))
+                .ToList();
         }
 
         private void DoublockClickBind(PortDefinition outputSchema)
@@ -571,6 +607,20 @@ namespace VisionMaster.ViewModels
             {
                 get => _option;
                 set => SetProperty(ref _option, value);
+            }
+
+            /// <summary>
+            /// 界面上显示的文本（默认同 <see cref="Option"/>）。
+            ///
+            /// 为什么值与显示要分开：写进流程的是值（如卡地址 IP），而人能认出来的是显示
+            ///（如「上料轴卡（192.168.0.11）」）。若拿显示文本当值用，
+            /// 用户改一次设备名，已经配好的流程就全断了。
+            /// </summary>
+            private string _display = string.Empty;
+            public string Display
+            {
+                get => _display;
+                set => SetProperty(ref _display, value);
             }
 
             private bool _isSelected;

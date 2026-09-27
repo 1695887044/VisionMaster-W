@@ -15,6 +15,7 @@ using UI.CustomControl;
 using Core.Events;
 using VisionMaster.Models;
 using VisionMaster.Services;
+using VisionMaster.Views.DialogViews;   // AutoPortConfigView：无自定义视图插件的框架参数层
 
 namespace VisionMaster.ViewModels
 {
@@ -233,10 +234,11 @@ namespace VisionMaster.ViewModels
                 if (type == null)
                     return null;
 
-                // 检查类型是否实现 IPluginCustomViewProvider
-                if (!typeof(IPluginCustomViewProvider).IsAssignableFrom(type))
-                    return null;
-
+                // 注意：这里**不再**要求"必须实现 IPluginCustomViewProvider"。
+                // 没有自定义视图的插件同样需要实例 —— 框架要靠它的输入端口来生成参数面板
+                //（AutoPortConfigView）。返回 null 的表现就是：面板弹出来了却一片空白
+                //（没有端口可渲染），而"这个插件有没有自带视图"由调用方用
+                // is IPluginCustomViewProvider 判断即可，不该由本方法替它决定。
                 return Activator.CreateInstance(type);
             }
             catch
@@ -285,25 +287,33 @@ namespace VisionMaster.ViewModels
                 case ModuleCommandAction.ModuleParameters:
                     if(SelectStep is ActionStep stepModel)
                     {
-                        // 尝试获取插件实例，检查是否实现 IPluginCustomViewProvider
+                        // 尝试获取插件实例：两种插件（有视图 / 没视图）都要用到它
                         var pluginInstance = ResolvePluginInstance(stepModel);
-                        if (pluginInstance is IPluginCustomViewProvider viewProvider)
+                        var stepData = (IStepConfigData)stepModel;
+
+                        // 有自定义视图就用插件的；没有则**框架包一层**（AutoPortConfigView）：
+                        // 把输入端口逐个渲染成「标签 + 值 + 🔗 + ✕」的行。
+                        // 这样两种插件对外完全一致 —— 同一个外壳（标题 / 试运行 / 确认取消），
+                        // 插件作者也不必为了"让参数能编辑"去写一遍视图。
+                        FrameworkElement view = pluginInstance is IPluginCustomViewProvider viewProvider
+                            ? viewProvider.GetConfigView(stepData) as FrameworkElement
+                            : null;
+
+                        if (view == null)
                         {
-                            // 有自定义视图：插件直接返回视图对象，注入 PluginConfigShellView  
-                            var stepData = (IStepConfigData)stepModel;
-                            var view = viewProvider.GetConfigView(stepData);
-                            if (view != null)
-                            {
-                                var parameters = new DialogParameters();
-                                parameters.Add("StepData", stepData);
-                                parameters.Add("PluginView", view);
-                                parameters.Add("Plugin", pluginInstance);
-                                dialogService.ShowDialog("PluginConfigShell", parameters);
-                                break;
-                            }
+                            // 灌值这一步**放在分支里**、不能提到分支外面：
+                            // 插件自带的视图在 GetConfigView 里已经自己灌过一次，宿主再灌就是重复；
+                            // 而框架生成的这层没有那一步，只能在这里补。
+                            // 缺了它的表现是界面显示端口声明时的默认值 —— 看着像"上次改的没保存"。
+                            (pluginInstance as VisionPluginBase)?.Initialize(stepData);
+                            view = new AutoPortConfigView(pluginInstance as IVisionPlugin);
                         }
-                        // 回退到通用 DataBindView
-                        dialogService.ShowDialog("DataBindView");
+
+                        var parameters = new DialogParameters();
+                        parameters.Add("StepData", stepData);
+                        parameters.Add("PluginView", view);
+                        parameters.Add("Plugin", pluginInstance);
+                        dialogService.ShowDialog("PluginConfigShell", parameters);
                     }
                     else
                     {
