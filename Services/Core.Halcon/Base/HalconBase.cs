@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Core.Halcon.Extensions;
 using Core.Halcon.Models;
 using HalconDotNet;
@@ -96,6 +97,9 @@ namespace Core.Halcon.Controls
         {
             if (d is HalconBase view && e.NewValue != null)
             {
+                // 引擎不可用（占位提示模式）时 hSmart 未创建，无可缩放
+                if (view.hSmart == null)
+                    return;
                 view.hSmart.HZoomContent = view.IsDrawing
                     ? HSmartWindowControlWPF.ZoomContent.Off
                     : HSmartWindowControlWPF.ZoomContent.WheelForwardZoomsIn;
@@ -239,6 +243,10 @@ namespace Core.Halcon.Controls
         {
             if (d is not HalconBase view)
                 return;
+            // 引擎不可用时不存在任何真实图像（HImage 的创建本身就需要引擎）；
+            // 兜底挡一下，避免下面 GetImageSize/CountChannels 触发原生调用
+            if (!HalconRuntime.IsAvailable)
+                return;
             // 置空/无效图像：清屏，避免上一帧画面残留
             if (e.NewValue is not HImage newImg || !newImg.IsInitialized())
             {
@@ -300,6 +308,19 @@ namespace Core.Halcon.Controls
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
+
+            // 本机没有可用的 HALCON 运行时（未安装/PATH 未配）：把模板里的 HALCON 控件
+            // 摘出视觉树、换上占位提示。必须赶在它第一次 OnRender 之前——HSmartWindowControlWPF
+            // 渲染时创建 HWindow 会因找不到 halcon.dll 抛 DllNotFoundException，且异常发生在
+            // WPF 渲染回调里，就地捕获后下一帧重排还会再炸（表现就是主窗口一出来就崩）。
+            // 摘除后 hSmart/hWindow 保持 null：全部绘制/交互路径经现有 null 守卫自然休眠。
+            if (!HalconRuntime.IsAvailable)
+            {
+                ReplaceTemplateHalconPartWithPlaceholder();
+                RegisterMouseMethods();
+                return;
+            }
+
             if (this.GetTemplateChild("PART_Halcon") is HSmartWindowControlWPF obj1)
             {
                 hSmart = obj1;
@@ -338,6 +359,43 @@ namespace Core.Halcon.Controls
             }
             RegisterMouseMethods();
             // 集合订阅在构造/DP 换绑回调（SwapDrawObjectList）中统一管理，此处不再重复挂接
+        }
+
+        /// <summary>
+        /// 把模板里的 PART_Halcon（HSmartWindowControlWPF）摘出视觉树，换上"引擎不可用"占位提示。
+        /// 在基类统一处理一次：ImageDisplay / ImageEdit / ImageReadOnly 三个主题共用本基类，
+        /// 模板不必各自加触发器，新控件忘了写也一样安全。
+        /// </summary>
+        private void ReplaceTemplateHalconPartWithPlaceholder()
+        {
+            if (GetTemplateChild("PART_Halcon") is not HSmartWindowControlWPF part)
+                return;
+
+            if (VisualTreeHelper.GetParent(part) is Panel panel)
+            {
+                int index = panel.Children.IndexOf(part);
+                panel.Children.Remove(part);
+
+                var tip = new TextBlock
+                {
+                    Text = "视觉引擎（HALCON）不可用\r\n"
+                         + (HalconRuntime.UnavailableReason ?? string.Empty) + "\r\n"
+                         + "图像显示与处理功能停用；方案编辑、流程编排、通讯、组态不受影响。",
+                    Foreground = new SolidColorBrush(global::System.Windows.Media.Color.FromRgb(0x9A, 0x9A, 0x9A)),
+                    TextAlignment = TextAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(16),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                Panel.SetZIndex(tip, 1); // 与模板内顶部/底部文字同级，保证黑底之上可见
+                panel.Children.Insert(index < 0 ? panel.Children.Count : index, tip);
+            }
+            else
+            {
+                // 拿不到模板父级时兜底：折叠起来不参与渲染，同样不会再触发原生初始化
+                part.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void OnDrawObjectListChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -1281,6 +1339,11 @@ namespace Core.Halcon.Controls
 
         protected void SaveWindowDump()
         {
+            if (hWindow == null)
+            {
+                TopText = "视觉引擎不可用，无法保存缩略图像";
+                return;
+            }
             SaveFileDialog sfd = new SaveFileDialog();
             sfd.Filter = "PNG图像|*.png|BMP图像|*.bmp|JPG图像|*.jpg"; //|所有文件|*.*
             sfd.FilterIndex = 1;
@@ -1331,6 +1394,13 @@ namespace Core.Halcon.Controls
         /// </summary>
         public void OpenImage()
         {
+            // 引擎不可用时 ReadImage/构造 HImage 会抛 DllNotFoundException，
+            // 而下面的 catch 只认 HalconException——提前拦下给提示，不让异常逃出右键菜单路径
+            if (!HalconRuntime.IsAvailable)
+            {
+                TopText = "视觉引擎不可用，无法打开图像";
+                return;
+            }
             try
             {
                 OpenFileDialog openFileDialog = new OpenFileDialog();
