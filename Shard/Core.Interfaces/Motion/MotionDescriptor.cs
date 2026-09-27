@@ -47,6 +47,15 @@ namespace Core.Interfaces
         /// <summary>轴映射表（逻辑名 ↔ 卡内物理轴号 + 软限位 + 脉冲当量）</summary>
         public List<AxisMapping> Axes { get; set; } = new();
 
+        /// <summary>
+        /// 轴点位表（扁平存储：每行带所属逻辑轴名；每轴固定 16 行 P0–P15）。
+        ///
+        /// 随方案 JSON 落盘 —— 与 Axes 同一体系，不引入 SQLite（方案已有成熟的 JSON 持久化，
+        /// 点位数据量小（每轴 16 行），单独引库不值得）。
+        /// 行的增删不在这里做：固定 16 行由 EnsureAxisPoints 懒补齐。
+        /// </summary>
+        public List<MotionPoint> Points { get; set; } = new();
+
         /// <summary>卡级运动参数（默认速度/加减速/超时/轮询周期/看门狗）</summary>
         public MotionParams Params { get; set; } = new();
 
@@ -81,8 +90,10 @@ namespace Core.Interfaces
                 if (Axes.Any(a => a.PhysicalIndex == i)) continue;
                 Axes.Add(new AxisMapping
                 {
-                    // 默认逻辑名取 A/B/C…（避开 X/Y/Z：那些是"这台设备的语义"，应由使用者按机构命名）
-                    LogicalName = $"A{(char)('0' + Math.Min(i, 9))}",
+                    // 默认逻辑名取 A0、A1…（避开 X/Y/Z：那些是"这台设备的语义"，应由使用者按机构命名）。
+                    // 直接用十进制序号：A{min(i,9)} 的写法会让 10 号轴与 0~9 撞名（三个轴都叫 A9），
+                    // 而逻辑名是点位表/流程引用的唯一键，重名会让"按逻辑名查"变成随机命中。
+                    LogicalName = $"A{i}",
                     PhysicalIndex = i,
                 });
             }
@@ -131,6 +142,31 @@ namespace Core.Interfaces
         /// <summary>目标位置是否落在软限位内</summary>
         public bool IsWithinSoftLimit(double targetMm)
             => targetMm >= SoftLimitMinMm && targetMm <= SoftLimitMaxMm;
+
+        // —— 以下 7 个字段来自「轴配置」弹窗（轴属性窗）：行内表格只编辑上表 5 个核心字段，
+        //    编码器 / 驱动器 / 跟随误差这类低频属性收进弹窗，避免把轴映射表撑成三十列。
+        //    全部随方案 JSON 落盘（与映射本体同一对象，无额外通道）。 ——
+
+        /// <summary>轴备注（如 "Z 轴升降"），纯给人看</summary>
+        public string AxisRemark { get; set; } = string.Empty;
+
+        /// <summary>编码器类型（无/增量编码器/绝对值编码器/光栅尺；空 = 未配置，界面按"增量编码器"回退展示）</summary>
+        public string EncoderType { get; set; } = string.Empty;
+
+        /// <summary>每毫米脉冲数 ppu（位置反馈换算用；0 = 未配置，界面按 1000 回退展示）</summary>
+        public double EncoderPpu { get; set; }
+
+        /// <summary>驱动器型号（用于示教与报警码解析；空 = 未配置，界面回退候选第一项）</summary>
+        public string MotorDriver { get; set; } = string.Empty;
+
+        /// <summary>额定电流（A，供过载估算；0 = 未配置，界面按 5 回退展示）</summary>
+        public double MotorRatedCurrentA { get; set; }
+
+        /// <summary>跟随误差上限（pulse；0 = 未配置，界面按 +5000 回退展示）</summary>
+        public double FollowErrorUpperPulse { get; set; }
+
+        /// <summary>跟随误差下限（pulse；0 = 未配置，界面按 −5000 回退展示）</summary>
+        public double FollowErrorLowerPulse { get; set; }
     }
 
     /// <summary>卡级运动参数（默认速度、加减速、超时、轮询与看门狗周期）</summary>

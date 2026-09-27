@@ -345,7 +345,12 @@ namespace VisionMaster.ViewModels
         public DelegateCommand ApplyParamsCommand { get; }
         public DelegateCommand CloseCommand { get; }
 
-        private void ReloadRows()
+        /// <summary>
+        /// 重建卡行集合（公开：外壳合并窗口桥接时会先调它 ——
+        /// 本 VM 的行集合只在自身构造时建过一次，外壳打开时方案可能已经变了，
+        /// 不刷的话左栏明明有卡、这里却是空的「未选卡」空态）。
+        /// </summary>
+        public void ReloadRows()
         {
             Cards.Clear();
             foreach (var descriptor in _workspace.CurrentSolution?.MotionCards ?? new ObservableCollection<MotionDescriptor>())

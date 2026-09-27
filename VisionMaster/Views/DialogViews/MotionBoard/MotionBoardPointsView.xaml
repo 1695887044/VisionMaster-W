@@ -1,0 +1,393 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.MotionBoard.MotionBoardPointsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        页签三「点位列表」（规格第 5 章 / S3-1）：
+        [220px 左轴栏 | 1fr 表] —— 左栏每轴行标「16 点位 · P0–P15」+ 实时位置、选中主色描边；
+        表头带轴名大字「轴点位表 · {轴名}」+ 右侧「{轴名} 当前位置 {F3} mm」读数；
+        16 行 P0–P15 行内即改即存，行尾「走此点」；图例两行逐字。
+    -->
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/VisionMaster;component/Views/DialogViews/MotionBoard/MotionBoardTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="14" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!--  左：轴选择栏  -->
+        <Border Grid.Column="0" Style="{StaticResource MbCard}" Padding="10">
+            <StackPanel>
+                <StackPanel Margin="6,4,0,8" Orientation="Horizontal">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="10"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="&#xf02e;" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="轴 · 各持一张点位表" />
+                </StackPanel>
+
+                <ListBox
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ItemsSource="{Binding AxisRows}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    SelectedItem="{Binding SelectedAxisRow}">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Cursor" Value="Hand" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border
+                                            x:Name="Root"
+                                            Margin="1,2"
+                                            Padding="10,8"
+                                            Background="Transparent"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="1"
+                                            CornerRadius="8">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource MbPrimaryBorderBrush}" />
+                                                <Setter TargetName="Root" Property="Background" Value="{StaticResource MbPrimarySoftBrush}" />
+                                            </Trigger>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsMouseOver" Value="True" />
+                                                    <Condition Property="IsSelected" Value="False" />
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="Root" Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+                                            </MultiTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <Grid>
+                                    <TextBlock
+                                        FontFamily="{StaticResource MbMonoFontFamily}"
+                                        FontSize="13"
+                                        FontWeight="Bold"
+                                        Text="{Binding Name}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        FontFamily="{StaticResource MbMonoFontFamily}"
+                                        FontSize="11"
+                                        Text="{Binding PositionText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource MbTextMutedBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <TextBlock
+                                    Margin="0,2,0,0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource MbTextSecondaryBrush}"
+                                    Text="{Binding Subtitle}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <TextBlock
+                    Margin="6,10,0,6"
+                    FontSize="11"
+                    Foreground="{StaticResource MbTextSecondaryBrush}"
+                    Text="无轴映射，请到「卡设置」添加">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AxisRows.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!--  右：选中轴的点位表（标题与左栏选中轴联动）  -->
+        <Border Grid.Column="2" Style="{StaticResource MbCard}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border
+                    Grid.Row="0"
+                    Padding="20,12"
+                    Background="{StaticResource MbSectionBrush}"
+                    BorderBrush="{StaticResource MbBorderLightBrush}"
+                    BorderThickness="0,0,0,1">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal">
+                            <Border
+                                Width="32"
+                                Height="32"
+                                Background="{StaticResource MbPrimarySoftBrush}"
+                                CornerRadius="8">
+                                <TextBlock
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="14"
+                                    Foreground="{StaticResource MbPrimaryBrush}"
+                                    Text="&#xf02e;"
+                                    TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource MbTextBrush}"
+                                        Text="轴点位表 ·" />
+                                    <TextBlock
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource MbMonoFontFamily}"
+                                        FontSize="15"
+                                        FontWeight="Bold"
+                                        Foreground="{StaticResource MbPrimaryBrush}"
+                                        Text="{Binding HeaderAxisName}" />
+                                </StackPanel>
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{StaticResource MbTextSecondaryBrush}"
+                                    Text="本轴专属 16 点位 · 改完自动保存 · 切换左栏轴即换表" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource MbEyebrow}"
+                                Text="{Binding HeaderAxisName, StringFormat={}{0} 当前位置}" />
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                <TextBlock
+                                    FontFamily="{StaticResource MbMonoFontFamily}"
+                                    FontSize="17"
+                                    FontWeight="Bold"
+                                    Foreground="{StaticResource MbTextBrush}"
+                                    Text="{Binding CurrentPositionText}" />
+                                <TextBlock
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Bottom"
+                                    FontSize="11"
+                                    Foreground="{StaticResource MbTextSecondaryBrush}"
+                                    Text="mm" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <!--  表（主色细描边容器）  -->
+                        <Border
+                            Background="{StaticResource MbCardBrush}"
+                            BorderBrush="{StaticResource MbPrimaryBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Grid
+                                    Grid.Row="0"
+                                    Margin="1,1,1,0"
+                                    Background="{StaticResource MbSecondaryBrush}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="52" />
+                                        <ColumnDefinition Width="1.2*" />
+                                        <ColumnDefinition Width="1.0*" />
+                                        <ColumnDefinition Width="1.0*" />
+                                        <ColumnDefinition Width="1.1*" />
+                                        <ColumnDefinition Width="1.0*" />
+                                        <ColumnDefinition Width="0.85*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Margin="12,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="点位" />
+                                    <TextBlock Grid.Column="1" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="名称" />
+                                    <TextBlock Grid.Column="2" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="位置(mm)" />
+                                    <TextBlock Grid.Column="3" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="速度(mm/s)" />
+                                    <TextBlock Grid.Column="4" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="加减速(mm/s²)" />
+                                    <TextBlock Grid.Column="5" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="曲线类型" />
+                                </Grid>
+
+                                <ItemsControl
+                                    Grid.Row="1"
+                                    AlternationCount="2"
+                                    ItemsSource="{Binding Points}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{StaticResource MbBorderLightBrush}" BorderThickness="0,0,0,1">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding AlternationIndex, RelativeSource={RelativeSource TemplatedParent}}" Value="1">
+                                                                <Setter Property="Background" Value="#14F1F5F9" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="52" />
+                                                        <ColumnDefinition Width="1.2*" />
+                                                        <ColumnDefinition Width="1.0*" />
+                                                        <ColumnDefinition Width="1.0*" />
+                                                        <ColumnDefinition Width="1.1*" />
+                                                        <ColumnDefinition Width="1.0*" />
+                                                        <ColumnDefinition Width="0.85*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Margin="12,5" Orientation="Horizontal">
+                                                        <Ellipse
+                                                            Width="6"
+                                                            Height="6"
+                                                            VerticalAlignment="Center"
+                                                            Fill="{StaticResource MbPrimaryBrush}" />
+                                                        <TextBlock
+                                                            Margin="6,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{StaticResource MbMonoFontFamily}"
+                                                            FontSize="12"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                                                            Text="{Binding Index, StringFormat=P{0}}" />
+                                                    </StackPanel>
+                                                    <TextBox
+                                                        Grid.Column="1"
+                                                        Margin="8,4"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox
+                                                        Grid.Column="2"
+                                                        Margin="4,4"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding PositionMm, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox
+                                                        Grid.Column="3"
+                                                        Margin="4,4"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding SpeedMmPerS, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox
+                                                        Grid.Column="4"
+                                                        Margin="4,4"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding AccelMmPerS2, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <ComboBox
+                                                        Grid.Column="5"
+                                                        Height="28"
+                                                        Margin="4,4"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        ItemsSource="{Binding DataContext.CurveOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        SelectedValue="{Binding Curve}"
+                                                        SelectedValuePath="Key"
+                                                        Style="{StaticResource MbComboBox}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding Value}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <Button
+                                                        Grid.Column="6"
+                                                        Margin="4,4"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding DataContext.WalkPointCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource MbOutlineButton}"
+                                                        Padding="9,4"
+                                                        FontSize="12">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock
+                                                                VerticalAlignment="Center"
+                                                                FontFamily="{StaticResource Icon}"
+                                                                FontSize="9"
+                                                                Text="&#xf04b;" />
+                                                            <TextBlock Margin="5,0,0,0" Text="走此点" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                        <!--  图例（逐字两行，规格 S3-3）  -->
+                        <StackPanel Margin="0,12,0,0" Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="12"
+                                Foreground="{StaticResource MbPrimaryBrush}"
+                                Text="&#xf112;" />
+                            <TextBlock
+                                Margin="7,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{StaticResource MbTextSecondaryBrush}"
+                                Text="改完即存，「走此点」按该点位的速度、加减速和曲线类型运动" />
+                            <TextBlock
+                                Margin="20,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{StaticResource MbTextSecondaryBrush}"
+                                Text="梯形=恒速+末端减速 · S曲线=中段快两端缓 · 匀速=全程恒速" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

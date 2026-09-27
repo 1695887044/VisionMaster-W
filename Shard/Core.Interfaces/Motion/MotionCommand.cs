@@ -62,6 +62,12 @@ namespace Core.Interfaces
         /// <summary>点动方向（仅 Jog 有效）：+1 正方向，-1 负方向</summary>
         public int JogDirection { get; init; } = 1;
 
+        /// <summary>
+        /// 运动曲线（仅定位类命令有效）。
+        /// 驱动映射：梯形 → 关闭 S 平滑；S 曲线 → 打开 S 平滑（正运动 SetSramp）。
+        /// </summary>
+        public MotionCurve Curve { get; init; } = MotionCurve.Trapezoid;
+
         /// <summary>本命令的超时（&lt;=0 表示用卡级默认值）</summary>
         public TimeSpan Timeout { get; init; }
 

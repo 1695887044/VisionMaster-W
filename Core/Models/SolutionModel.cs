@@ -147,6 +147,19 @@ namespace VisionMaster.Models
         public ObservableCollection<global::Core.Interfaces.MotionDescriptor> MotionCards { get; set; } = new();
 
         /// <summary>
+        /// 电子凸轮表集合（**全局实体，不挂在任何卡下** —— 删卡不动它）。
+        ///
+        /// 与 <see cref="MotionCards"/> 同一落盘体系（随 .vms 走），但语义独立：
+        /// 凸轮表描述的是"主轴-从轴的位置映射关系"，属于工艺知识而不是某张卡的配置；
+        /// 主/从轴存「卡名 · 轴名」标签，允许跨卡任意组合，启动同步时才解析。
+        /// 拐点存 <see cref="global::Core.Interfaces.MotionCamPoint"/> 列表（插补为字符串"直线/三次曲线"，
+        /// 与规格 points_json 格式逐字一致）。具体类型 + 具体集合，TypeNameHandling.Auto 不产生 $type。
+        /// <c>global::</c> 前缀理由同上（本文件命名空间是 VisionMaster.Models）。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<global::Core.Interfaces.MotionCamTable> CamTables { get; set; } = new();
+
+        /// <summary>
         /// 全局变量集合（跟着解决方案走）
         /// E3：变量持久化已统一走 VariableSnapshots（DTO 多态可控），本属性全库无人写入、
         /// 恒为空却仍参与序列化（且 IVariable 多态 $type 正是数组白名单雷区），

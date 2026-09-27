@@ -315,6 +315,7 @@ namespace Plugin.Motion.ZMotion
                 case MotionCommandKind.MoveAbsolute:
                 {
                     SetSpeedIfNeeded(handle, command);
+              ApplyAccelAndCurve(handle, command);
                     // 位置模式：**下发即返回**，不等到位。
                     // 等到位是上层「等待到位」步骤的职责 —— 这样用户才能让多轴同时起步。
                     var ret = zmcaux.ZAux_Direct_Single_MoveAbs(handle, command.PhysicalAxis, (float)command.TargetMm);
@@ -324,6 +325,7 @@ namespace Plugin.Motion.ZMotion
                 case MotionCommandKind.MoveRelative:
                 {
                     SetSpeedIfNeeded(handle, command);
+              ApplyAccelAndCurve(handle, command);
                     var ret = zmcaux.ZAux_Direct_Single_Move(handle, command.PhysicalAxis, (float)command.TargetMm);
                     return AsOutcome(ret, "相对运动", axisName, out error);
                 }
@@ -334,6 +336,7 @@ namespace Plugin.Motion.ZMotion
                     // 这是**手动对位**用的：调用方（调试面板）必须保证"松手即停"，
                     // 驱动层另有心跳看门狗兜底（见 MotionDebugViewModel）。
                     SetSpeedIfNeeded(handle, command);
+              ApplyAccelAndCurve(handle, command);
                     var direction = command.JogDirection >= 0 ? 1 : -1;
                     var ret = zmcaux.ZAux_Direct_Single_Vmove(handle, command.PhysicalAxis, direction);
                     return AsOutcome(ret, "点动", axisName, out error);
@@ -515,6 +518,42 @@ namespace Plugin.Motion.ZMotion
             {
                 Log?.Warn($"[ZMotion:{Descriptor.Caption}] 轴 {LogicalNameOf(command.PhysicalAxis)} "
                           + $"设置速度失败（码 {ret}），本次将沿用控制器内的既有速度");
+            }
+        }
+
+        /// <summary>
+        /// 应用加减速与曲线类型（定位类命令）。
+        ///
+        /// 正运动卡的曲线由 SetSramp（S 平滑时间，ms）决定：
+        ///   梯形   → Sramp=0：按 Accel/Decel 直角加减（默认形态）；
+        ///   S 曲线 → Sramp&gt;0：两端圆滑、中段保持速度（平滑时长取 200ms 固定值 ——
+        ///            点位表只让用户选"形状"不调平滑时长，参数面越小现场越不容易配坏）。
+        /// Accel/Decel ≤0 时不覆盖：现场在卡内调好的加减速度不该被软件擅自改写。
+        /// 失败只告警不中断 —— 曲线设置失败时运动仍按控制器内既有参数执行，
+        /// 与 SetSpeedIfNeeded 的容错策略一致（宁可慢一点也别把一次定位变成故障停机）。
+        /// </summary>
+        private void ApplyAccelAndCurve(IntPtr handle, MotionCommand command)
+        {
+            var axisName = LogicalNameOf(command.PhysicalAxis);
+
+            if (command.AccelMmPerS2 > 0)
+            {
+                var accelRet = zmcaux.ZAux_Direct_SetAccel(handle, command.PhysicalAxis, (float)command.AccelMmPerS2);
+                var decelRet = zmcaux.ZAux_Direct_SetDecel(handle, command.PhysicalAxis, (float)command.AccelMmPerS2);
+                if (accelRet != 0 || decelRet != 0)
+                {
+                    Log?.Warn($"[ZMotion:{Descriptor.Caption}] 轴 {axisName} "
+                              + $"设置加减速失败（码 {accelRet}/{decelRet}），沿用控制器内既有参数");
+                }
+            }
+
+            // S 平滑：梯形=0（关），S 曲线=200ms（开）。每次定位前都设，避免上一条命令的设置残留。
+            var sramp = command.Curve == MotionCurve.SCurve ? 200f : 0f;
+            var srampRet = zmcaux.ZAux_Direct_SetSramp(handle, command.PhysicalAxis, sramp);
+            if (srampRet != 0)
+            {
+                Log?.Warn($"[ZMotion:{Descriptor.Caption}] 轴 {axisName} "
+                          + $"设置 S 平滑失败（码 {srampRet}），沿用控制器内既有曲线");
             }
         }
 

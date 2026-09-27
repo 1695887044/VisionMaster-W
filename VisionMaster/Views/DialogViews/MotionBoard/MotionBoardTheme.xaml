@@ -1,0 +1,724 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mb="clr-namespace:VisionMaster.Views.DialogViews.MotionBoard">
+
+    <!--
+        运动板卡 · 专属主题（自包含，不依赖应用级字典键）。
+
+        颜色 token 逐字取自《WPF 运动板卡复刻设计文档》第 1.2 章（浅色主题）；
+        全部收敛在这一个字典里 —— 视图里只允许引用 Mb* 令牌，不允许出现裸色值。
+        字体：界面 Microsoft YaHei UI；数值一律等宽（Cascadia Mono → Consolas 回退）。
+    -->
+
+    <Color x:Key="MbPrimaryColor">#0DA2E7</Color>
+    <SolidColorBrush x:Key="MbPrimaryBrush" Color="#0DA2E7" />
+    <SolidColorBrush x:Key="MbPrimaryHoverBrush" Color="#0B90CE" />
+    <SolidColorBrush x:Key="MbPrimarySoftBrush" Color="#1A0DA2E7" />
+    <SolidColorBrush x:Key="MbPrimarySoftBrush15" Color="#260DA2E7" />
+    <SolidColorBrush x:Key="MbPrimaryBorderBrush" Color="#400DA2E7" />
+    <SolidColorBrush x:Key="MbBackgroundBrush" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="MbCardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="MbSecondaryBrush" Color="#F1F5F9" />
+    <SolidColorBrush x:Key="MbSectionBrush" Color="#F8FAFC" />
+    <SolidColorBrush x:Key="MbTextBrush" Color="#0F172A" />
+    <SolidColorBrush x:Key="MbTextSecondaryBrush" Color="#64748B" />
+    <SolidColorBrush x:Key="MbTextMutedBrush" Color="#94A3B8" />
+    <SolidColorBrush x:Key="MbBorderBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="MbBorderLightBrush" Color="#EDF2F7" />
+    <SolidColorBrush x:Key="MbDangerBrush" Color="#EF4444" />
+    <SolidColorBrush x:Key="MbDangerSoftBrush" Color="#1AEF4444" />
+    <SolidColorBrush x:Key="MbWarningBrush" Color="#F59E0B" />
+    <SolidColorBrush x:Key="MbMaskBrush" Color="#4D0F172A" />
+    <SolidColorBrush x:Key="MbOfflineDotBrush" Color="#CBD5E1" />
+
+    <FontFamily x:Key="MbMonoFontFamily">Cascadia Mono, Consolas, Courier New</FontFamily>
+
+    <BooleanToVisibilityConverter x:Key="MbBoolToVis" />
+    <mb:InverseBoolToVisibilityConverter x:Key="MbInverseBoolToVis" />
+
+    <!--  卡片阴影（仅卡片与浮层使用，规格 1.3）  -->
+    <DropShadowEffect
+        x:Key="MbCardShadow"
+        BlurRadius="8"
+        Opacity="0.08"
+        ShadowDepth="2"
+        Color="#0F172A" />
+
+    <DropShadowEffect
+        x:Key="MbFloatShadow"
+        BlurRadius="18"
+        Opacity="0.18"
+        ShadowDepth="3"
+        Color="#0F172A" />
+
+    <!--  ───────────────────────── 按钮（规格 1.4 四态） ─────────────────────────  -->
+
+    <!--  primary：主色底白字（使能/开始回零/走到并等待到位/启动同步/保存）  -->
+    <Style x:Key="MbPrimaryButton" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource MbPrimaryBrush}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Root"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{StaticResource MbPrimaryBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <ContentPresenter
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource MbPrimaryHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource MbPrimaryHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  outline：白底描边（失能/清除报警/连接/走此点），hover 主色描边+主色字  -->
+    <Style x:Key="MbOutlineButton" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource MbCardBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Root"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{StaticResource MbBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <ContentPresenter
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource MbPrimaryBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  danger：危险底白字加粗（急停）  -->
+    <Style x:Key="MbDangerButton" TargetType="Button" BasedOn="{StaticResource MbPrimaryButton}">
+        <Setter Property="Background" Value="{StaticResource MbDangerBrush}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Padding" Value="20,8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Root"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="#59EF4444"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <ContentPresenter
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.9" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  danger-outline：白底描边、hover 变危险色（删除/停止）  -->
+    <Style x:Key="MbDangerOutlineButton" TargetType="Button" BasedOn="{StaticResource MbOutlineButton}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Root"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{StaticResource MbBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <ContentPresenter
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource MbDangerBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource MbDangerBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ghost：灰字小按钮（模态取消）  -->
+    <Style x:Key="MbGhostButton" TargetType="Button" BasedOn="{StaticResource MbOutlineButton}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Root"
+                        Padding="{TemplateBinding Padding}"
+                        Background="Transparent"
+                        CornerRadius="8">
+                        <ContentPresenter
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  整行虚线按钮（添加轴 / 添加拐点）  -->
+    <Style x:Key="MbDashedRowButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Margin" Value="0,12,0,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Rectangle
+                            x:Name="Dash"
+                            RadiusX="8"
+                            RadiusY="8"
+                            Stroke="{StaticResource MbBorderBrush}"
+                            StrokeDashArray="4 3"
+                            StrokeThickness="1" />
+                        <ContentPresenter
+                            Margin="0,8"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Dash" Property="Stroke" Value="{StaticResource MbPrimaryBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Dash" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  行内小图标钮（⚙ / 🗑）：灰字 hover 变主色/危险色  -->
+    <Style x:Key="MbIconMiniButton" TargetType="Button">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextMutedBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontFamily" Value="{StaticResource Icon}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Root"
+                        Background="Transparent"
+                        CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ───────────────────────── 输入控件 ─────────────────────────  -->
+
+    <Style x:Key="MbTextBox" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource MbCardBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource MbBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="CaretBrush" Value="{StaticResource MbPrimaryBrush}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource MbPrimarySoftBrush15}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border
+                        x:Name="Root"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8">
+                        <ScrollViewer
+                            Margin="{TemplateBinding Padding}"
+                            VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                            x:Name="PART_ContentHost" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource MbPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource MbPrimaryBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  等宽小输入框（表格单元格）  -->
+    <Style x:Key="MbCellTextBox" TargetType="TextBox" BasedOn="{StaticResource MbTextBox}">
+        <Setter Property="FontFamily" Value="{StaticResource MbMonoFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="7,4" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="MinWidth" Value="48" />
+    </Style>
+
+    <!--  表格单元格输入框（带描边小盒，规格 S1 轴映射/点位表）  -->
+    <Style x:Key="MbCellInput" TargetType="TextBox" BasedOn="{StaticResource MbTextBox}">
+        <Setter Property="FontFamily" Value="{StaticResource MbMonoFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="7,3" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <!--  字段标签（12px 次要色）  -->
+    <Style x:Key="MbFieldLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,5" />
+    </Style>
+
+    <!--  分节标题行文字  -->
+    <Style x:Key="MbSectionTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!--  分节提示（标题旁小字）  -->
+    <Style x:Key="MbSectionHint" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+    </Style>
+
+    <!--  上眉小标（11px 灰、宽字距）  -->
+    <Style x:Key="MbEyebrow" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+    </Style>
+
+    <!--  复选框（16px 圆角方块，选中主色底白勾）  -->
+    <Style x:Key="MbCheckBox" TargetType="CheckBox">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal">
+                        <Border
+                            x:Name="Box"
+                            Width="16"
+                            Height="16"
+                            Background="{StaticResource MbCardBrush}"
+                            BorderBrush="{StaticResource MbBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <TextBlock
+                                x:Name="Check"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="9"
+                                Foreground="White"
+                                Text="&#xf00c;"
+                                Visibility="Collapsed" />
+                        </Border>
+                        <ContentPresenter
+                            Margin="8,0,0,0"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource MbPrimaryBrush}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource MbPrimaryBrush}" />
+                            <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  下拉（ComboBox 精简模板：白底描边圆角 + 原生弹层）  -->
+    <Style x:Key="MbComboBoxItem" TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border
+                        x:Name="Root"
+                        Padding="{TemplateBinding Padding}"
+                        Background="Transparent"
+                        CornerRadius="6"
+                        Margin="4,1">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource MbPrimarySoftBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="MbComboBox" TargetType="ComboBox">
+        <Setter Property="Background" Value="{StaticResource MbCardBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource MbBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource MbComboBoxItem}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton
+                            x:Name="Toggle"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1"
+                            Focusable="False"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                            ClickMode="Press">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border
+                                        x:Name="Root"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8">
+                                        <Path
+                                            Margin="0,0,10,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Data="M0,0 L4,4 8,0"
+                                            Stroke="{StaticResource MbTextSecondaryBrush}"
+                                            StrokeThickness="1.5" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource MbPrimaryBorderBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter
+                            Margin="12,0,26,0"
+                            VerticalAlignment="Center"
+                            Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource TemplatedParent}}"
+                            ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource TemplatedParent}}"
+                            ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource TemplatedParent}}"
+                            IsHitTestVisible="False" />
+                        <Popup
+                            x:Name="Popup"
+                            AllowsTransparency="True"
+                            Focusable="False"
+                            IsOpen="{TemplateBinding IsDropDownOpen}"
+                            Placement="Bottom"
+                            PopupAnimation="Fade">
+                            <Border
+                                MinWidth="{TemplateBinding ActualWidth}"
+                                MaxHeight="320"
+                                Margin="0,4,0,0"
+                                Background="{StaticResource MbCardBrush}"
+                                BorderBrush="{StaticResource MbBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Effect="{StaticResource MbFloatShadow}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Toggle" Property="BorderBrush" Value="{StaticResource MbPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Toggle" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  开关（36×20 胶囊 + 16px 圆钮，规格 8 章）  -->
+    <Style x:Key="MbSwitch" TargetType="ToggleButton">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid>
+                        <Border
+                            x:Name="Track"
+                            Background="{StaticResource MbBorderBrush}"
+                            CornerRadius="10" />
+                        <Ellipse
+                            x:Name="Thumb"
+                            Width="16"
+                            Height="16"
+                            Margin="2,0,0,0"
+                            HorizontalAlignment="Left"
+                            Fill="{StaticResource MbCardBrush}"
+                            Effect="{StaticResource MbCardShadow}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource MbPrimaryBrush}" />
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ───────────────────────── 容器与徽标 ─────────────────────────  -->
+
+    <!--  白色卡片（圆角 12 + 轻阴影 + 描边）  -->
+    <Style x:Key="MbCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource MbCardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource MbBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Effect" Value="{StaticResource MbCardShadow}" />
+    </Style>
+
+    <!--  分节卡（次级浅底）  -->
+    <Style x:Key="MbSectionCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource MbSectionBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource MbBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+    </Style>
+
+    <!--  分节标题图标底（28×28 主色10%圆角块）  -->
+    <Style x:Key="MbSectionIcon" TargetType="Border">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Background" Value="{StaticResource MbPrimarySoftBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <!--  胶囊徽标（在线/离线、连接状态）  -->
+    <Style x:Key="MbPill" TargetType="Border">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="10,2" />
+    </Style>
+
+    <!--  呼吸圆点动画（在线/运动中/同步中）：透明度循环脉冲  -->
+    <Style x:Key="MbBreathDot" TargetType="Ellipse">
+        <Style.Triggers>
+            <EventTrigger RoutedEvent="Loaded">
+                <BeginStoryboard>
+                    <Storyboard RepeatBehavior="Forever">
+                        <DoubleAnimation
+                            AutoReverse="True"
+                            BeginTime="0:0:0"
+                            From="1"
+                            Storyboard.TargetProperty="Opacity"
+                            To="0.35"
+                            Duration="0:0:1" />
+                    </Storyboard>
+                </BeginStoryboard>
+            </EventTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  统计 chip（命令统计条）  -->
+    <Style x:Key="MbStatChip" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource MbCardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource MbBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="10,4" />
+    </Style>
+
+    <!--  胶囊页签（ListBox 版：卡设置/手动调试/点位列表/电子凸轮）  -->
+    <Style x:Key="MbTabListBox" TargetType="ListBox">
+        <Setter Property="Background" Value="{StaticResource MbCardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource MbBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="6" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBox">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="12"
+                        Effect="{StaticResource MbCardShadow}">
+                        <ItemsPresenter Margin="{TemplateBinding Padding}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="MbTabItem" TargetType="ListBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border
+                        x:Name="Root"
+                        Padding="16,8"
+                        Background="Transparent"
+                        CornerRadius="8">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource MbPrimaryBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsSelected" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  弹窗本体（模态居中卡）  -->
+    <Style x:Key="MbModalCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource MbCardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource MbBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="Effect" Value="{StaticResource MbFloatShadow}" />
+    </Style>
+
+    <!--  信息说明条（次级底圆角，说明文案统一放这里）  -->
+    <Style x:Key="MbHintBar" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+
+</ResourceDictionary>

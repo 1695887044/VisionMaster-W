@@ -169,7 +169,16 @@ namespace VisionMaster
         /// 出事要急停时不必先在一堆配置项里找按钮。
         /// 同样加在末尾（理由见 <see cref="RuntimeWindowSettings"/>）。
         /// </summary>
-        MotionDebug
+        MotionDebug,
+
+        /// <summary>
+        /// 运动板卡（合并窗口）：卡设置 / 手动调试 / 轴点位表 三个页签共用一个弹窗。
+        /// 取代上面两个独立入口（枚举保留，菜单里已不再使用）。
+        /// </summary>
+        MotionBoard,
+
+        /// <summary>轴点位表（每轴 16 点：位置/速度/加减速/曲线 + 走此点）</summary>
+        AxisPoints
     }
 
     /// <summary>

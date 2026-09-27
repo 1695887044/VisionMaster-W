@@ -1,0 +1,542 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.MotionBoard.MotionBoardSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        页签一「卡设置」（规格第 3 章）：
+        ① 卡头部卡（渐变图标 + 卡名 + 连接徽标 + 驱动/机型 pill + 清除报警/连接·断开/删除）
+        ② 设备标识 ③ 运动参数（3 列）④ 轴映射表（行内编辑 + ⚙/🗑 + 添加轴）⑤ 贴底保存条。
+        空态：中央虚线卡「请在左侧选择一张运动卡」。
+    -->
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/VisionMaster;component/Views/DialogViews/MotionBoard/MotionBoardTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <!--  空态  -->
+        <Border
+            Background="{StaticResource MbCardBrush}"
+            BorderBrush="{StaticResource MbBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Padding="40"
+            Visibility="{Binding HasSelection, Converter={StaticResource MbInverseBoolToVis}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border
+                    Width="48"
+                    Height="48"
+                    Background="{StaticResource MbPrimarySoftBrush}"
+                    CornerRadius="12">
+                    <TextBlock
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="20"
+                        Foreground="{StaticResource MbPrimaryBrush}"
+                        Text="&#xf1e6;"
+                        TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                </Border>
+                <TextBlock
+                    Margin="0,12,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="13"
+                    Foreground="{StaticResource MbTextSecondaryBrush}"
+                    Text="请在左侧选择一张运动卡" />
+            </StackPanel>
+        </Border>
+
+        <!--  卡设置主体  -->
+        <ScrollViewer
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto"
+            Visibility="{Binding HasSelection, Converter={StaticResource MbBoolToVis}}">
+            <Grid Margin="0,0,4,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!--  ① 卡头部卡  -->
+                <Border Grid.Row="0" Style="{StaticResource MbCard}" Padding="20,14">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal">
+                            <Border
+                                Width="40"
+                                Height="40"
+                                CornerRadius="10">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Offset="0" Color="#330DA2E7" />
+                                        <GradientStop Offset="1" Color="#0D0DA2E7" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="17"
+                                    Foreground="{StaticResource MbPrimaryBrush}"
+                                    Text="&#xf0e4;"
+                                    TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="15"
+                                        FontWeight="Bold"
+                                        Foreground="{StaticResource MbTextBrush}"
+                                        Text="{Binding HeaderName}" />
+                                    <!--  连接徽标：只读（S1-1：不做开关）  -->
+                                    <Border
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Padding="10,2"
+                                        CornerRadius="999">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource MbPrimarySoftBrush15}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse
+                                                Width="6"
+                                                Height="6"
+                                                VerticalAlignment="Center"
+                                                Fill="{StaticResource MbOfflineDotBrush}"
+                                                Visibility="{Binding IsConnected, Converter={StaticResource MbInverseBoolToVis}}" />
+                                            <Ellipse
+                                                Width="6"
+                                                Height="6"
+                                                VerticalAlignment="Center"
+                                                Fill="{StaticResource MbPrimaryBrush}"
+                                                Style="{StaticResource MbBreathDot}"
+                                                Visibility="{Binding IsConnected, Converter={StaticResource MbBoolToVis}}" />
+                                            <TextBlock
+                                                Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Text="{Binding ConnectionStateText}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border
+                                        Margin="8,0,0,0"
+                                        Padding="8,2"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource MbSecondaryBrush}"
+                                        CornerRadius="6">
+                                        <TextBlock
+                                            FontSize="11"
+                                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                                            Text="{Binding DriverText}" />
+                                    </Border>
+                                    <Border
+                                        Margin="6,0,0,0"
+                                        Padding="8,2"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource MbSecondaryBrush}"
+                                        CornerRadius="6"
+                                        Visibility="{Binding HasModel, Converter={StaticResource MbBoolToVis}}">
+                                        <TextBlock
+                                            FontSize="11"
+                                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                                            Text="{Binding ModelText}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    FontFamily="{StaticResource MbMonoFontFamily}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource MbTextMutedBrush}"
+                                    Text="{Binding HeaderDetail}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
+                            <Button Command="{Binding ClearAlarmCommand}" Style="{StaticResource MbOutlineButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="12"
+                                        Text="&#xf1f6;" />
+                                    <TextBlock Margin="7,0,0,0" Text="清除报警" />
+                                </StackPanel>
+                            </Button>
+                            <Button
+                                Margin="8,0,0,0"
+                                Command="{Binding ToggleConnectCommand}"
+                                Style="{StaticResource MbPrimaryButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="12"
+                                        Text="&#xf1e6;" />
+                                    <TextBlock Margin="7,0,0,0" Text="{Binding ConnectButtonText}" />
+                                </StackPanel>
+                            </Button>
+                            <Button
+                                Margin="8,0,0,0"
+                                Command="{Binding DeleteCardCommand}"
+                                Style="{StaticResource MbDangerOutlineButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="12"
+                                        Text="&#xf014;" />
+                                    <TextBlock Margin="7,0,0,0" Text="删除" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!--  ② 设备标识  -->
+                <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource MbSectionCard}" Padding="16">
+                    <StackPanel>
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <Border Style="{StaticResource MbSectionIcon}">
+                                <TextBlock
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource MbPrimaryBrush}"
+                                    Text="&#xf02c;"
+                                    TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Margin="9,0,0,0" Style="{StaticResource MbSectionTitle}" Text="设备标识" />
+                            <TextBlock Style="{StaticResource MbSectionHint}" Text="设备名可留空：留空则显示地址" />
+                        </StackPanel>
+                        <TextBox
+                            Height="38"
+                            Style="{StaticResource MbTextBox}"
+                            Text="{Binding DeviceName, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ③ 运动参数  -->
+                <Border Grid.Row="2" Margin="0,14,0,0" Style="{StaticResource MbSectionCard}" Padding="16">
+                    <StackPanel>
+                        <StackPanel Margin="0,0,0,12" Orientation="Horizontal">
+                            <Border Style="{StaticResource MbSectionIcon}">
+                                <TextBlock
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource MbPrimaryBrush}"
+                                    Text="&#xf0e4;"
+                                    TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Margin="9,0,0,0" Style="{StaticResource MbSectionTitle}" Text="运动参数" />
+                            <TextBlock Style="{StaticResource MbSectionHint}" Text="影响本卡所有轴" />
+                        </StackPanel>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0">
+                                <TextBlock Style="{StaticResource MbFieldLabel}" Text="默认速度 (mm/s)" />
+                                <TextBox
+                                    Height="38"
+                                    FontFamily="{StaticResource MbMonoFontFamily}"
+                                    Style="{StaticResource MbTextBox}"
+                                    Text="{Binding DefaultVelocity, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="2">
+                                <TextBlock Style="{StaticResource MbFieldLabel}" Text="默认加速度 (mm/s²)" />
+                                <TextBox
+                                    Height="38"
+                                    FontFamily="{StaticResource MbMonoFontFamily}"
+                                    Style="{StaticResource MbTextBox}"
+                                    Text="{Binding DefaultAccel, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="4">
+                                <TextBlock Style="{StaticResource MbFieldLabel}" Text="命令超时 (ms)" />
+                                <TextBox
+                                    Height="38"
+                                    FontFamily="{StaticResource MbMonoFontFamily}"
+                                    Style="{StaticResource MbTextBox}"
+                                    Text="{Binding CommandTimeoutMs, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,12,0,0">
+                                <TextBlock Style="{StaticResource MbFieldLabel}" Text="状态轮询周期 (ms)" />
+                                <TextBox
+                                    Height="38"
+                                    FontFamily="{StaticResource MbMonoFontFamily}"
+                                    Style="{StaticResource MbTextBox}"
+                                    Text="{Binding PollMs, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,12,0,0">
+                                <TextBlock Style="{StaticResource MbFieldLabel}" Text="看门狗超时 (ms)" />
+                                <TextBox
+                                    Height="38"
+                                    FontFamily="{StaticResource MbMonoFontFamily}"
+                                    Style="{StaticResource MbTextBox}"
+                                    Text="{Binding WatchdogMs, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <!--  整行可点的勾选卡  -->
+                            <Border
+                                Grid.Row="1"
+                                Grid.Column="4"
+                                Margin="0,12,0,0"
+                                Padding="12,10"
+                                Background="{StaticResource MbCardBrush}"
+                                BorderBrush="{StaticResource MbBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <CheckBox
+                                    Content="随方案启动自动连接"
+                                    FontSize="13"
+                                    Foreground="{StaticResource MbTextBrush}"
+                                    IsChecked="{Binding AutoConnect}"
+                                    Style="{StaticResource MbCheckBox}" />
+                            </Border>
+                        </Grid>
+
+                        <TextBlock
+                            Margin="0,12,0,0"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            LineHeight="19"
+                            Text="轮询周期决定报警/限位多久被发现（越小越灵敏，但网口卡通信压力越大）；看门狗超时后卡会被判定失联并安全停机。" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ④ 轴映射  -->
+                <Border Grid.Row="3" Margin="0,14,0,0" Style="{StaticResource MbSectionCard}" Padding="16">
+                    <StackPanel>
+                        <StackPanel Margin="0,0,0,12" Orientation="Horizontal">
+                            <Border Style="{StaticResource MbSectionIcon}">
+                                <TextBlock
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource MbPrimaryBrush}"
+                                    Text="&#xf0c9;"
+                                    TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Margin="9,0,0,0" Style="{StaticResource MbSectionTitle}" Text="轴映射" />
+                            <TextBlock Style="{StaticResource MbSectionHint}" Text="流程按「逻辑名」引用轴 · 脉冲当量与软限位按机械标定填写" />
+                        </StackPanel>
+
+                        <!--  主色细描边容器 + 表头  -->
+                        <Border
+                            Background="{StaticResource MbCardBrush}"
+                            BorderBrush="{StaticResource MbPrimaryBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!--  表头  -->
+                                <Grid
+                                    Grid.Row="0"
+                                    Background="{StaticResource MbSecondaryBrush}"
+                                    Margin="1,1,1,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.3*" />
+                                        <ColumnDefinition Width="0.8*" />
+                                        <ColumnDefinition Width="1.0*" />
+                                        <ColumnDefinition Width="1.0*" />
+                                        <ColumnDefinition Width="1.0*" />
+                                        <ColumnDefinition Width="0.5*" />
+                                        <ColumnDefinition Width="0.7*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Margin="12,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="逻辑名" />
+                                    <TextBlock Grid.Column="1" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="物理轴号" />
+                                    <TextBlock Grid.Column="2" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="脉冲当量/毫米" />
+                                    <TextBlock Grid.Column="3" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="软限位下限(mm)" />
+                                    <TextBlock Grid.Column="4" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="软限位上限(mm)" />
+                                    <TextBlock Grid.Column="5" Margin="8,8" FontSize="12" Foreground="{StaticResource MbTextSecondaryBrush}" Text="启用" />
+                                </Grid>
+
+                                <!--  行  -->
+                                <ItemsControl
+                                    Grid.Row="1"
+                                    AlternationCount="2"
+                                    ItemsSource="{Binding AxisRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border
+                                                Padding="0"
+                                                BorderBrush="{StaticResource MbBorderLightBrush}"
+                                                BorderThickness="0,0,0,1">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding AlternationIndex, RelativeSource={RelativeSource TemplatedParent}}" Value="1">
+                                                                <Setter Property="Background" Value="#14F1F5F9" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="1.3*" />
+                                                        <ColumnDefinition Width="0.8*" />
+                                                        <ColumnDefinition Width="1.0*" />
+                                                        <ColumnDefinition Width="1.0*" />
+                                                        <ColumnDefinition Width="1.0*" />
+                                                        <ColumnDefinition Width="0.5*" />
+                                                        <ColumnDefinition Width="0.7*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox
+                                                        Grid.Column="0"
+                                                        Margin="8,5"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding LogicalName, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox
+                                                        Grid.Column="1"
+                                                        Margin="4,5"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding PhysicalIndex, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox
+                                                        Grid.Column="2"
+                                                        Margin="4,5"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding UnitsPerMm, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox
+                                                        Grid.Column="3"
+                                                        Margin="4,5"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding SoftLimitMinMm, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox
+                                                        Grid.Column="4"
+                                                        Margin="4,5"
+                                                        Style="{StaticResource MbCellInput}"
+                                                        Text="{Binding SoftLimitMaxMm, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <ToggleButton
+                                                        Grid.Column="5"
+                                                        HorizontalAlignment="Left"
+                                                        Margin="8,0"
+                                                        IsChecked="{Binding Enabled}"
+                                                        Style="{StaticResource MbSwitch}" />
+                                                    <StackPanel
+                                                        Grid.Column="6"
+                                                        Margin="0,0,8,0"
+                                                        HorizontalAlignment="Right"
+                                                        Orientation="Horizontal">
+                                                        <Button
+                                                            Command="{Binding DeleteCommand}"
+                                                            Content="&#xf014;"
+                                                            Style="{StaticResource MbIconMiniButton}"
+                                                            ToolTip="删除轴" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+
+                        <!--  空表提示 / 添加轴  -->
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            Text="还没有轴映射，点下方「添加轴」">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AxisRows.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Button Command="{Binding AddAxisCommand}" Style="{StaticResource MbDashedRowButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="11"
+                                    Text="&#xf067;" />
+                                <TextBlock Margin="6,0,0,0" Text="添加轴" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!--  ⑤ 贴底保存条  -->
+                <Border
+                    Grid.Row="4"
+                    Margin="0,14,0,0"
+                    Style="{StaticResource MbCard}"
+                    Padding="20,10">
+                    <Grid>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            Text="改完参数或轴映射后，点这里统一保存并生效" />
+                        <Button
+                            HorizontalAlignment="Right"
+                            Command="{Binding ApplyParamsCommand}"
+                            Style="{StaticResource MbPrimaryButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="12"
+                                    Text="&#xf0c7;" />
+                                <TextBlock Margin="7,0,0,0" Text="应用参数与轴映射" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

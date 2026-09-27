@@ -1,0 +1,630 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.MotionBoardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mb="clr-namespace:VisionMaster.Views.DialogViews.MotionBoard"
+    xmlns:local="clr-namespace:VisionMaster.Views.DialogViews"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    FontFamily="Microsoft YaHei UI"
+    TextOptions.TextFormattingMode="Ideal"
+    prism:ViewModelLocator.AutoWireViewModel="True">
+
+    <!--
+        运动板卡（合并窗口）：左栏选卡 + 四页签（卡设置 / 手动调试 / 点位列表 / 电子凸轮）。
+
+        布局逐字对齐《WPF 运动板卡复刻设计文档》第 1 章：
+          页头 = 图标 + 「SCADA CONSOLE」上眉 + 「运动板卡」标题 + 右侧导航胶囊（其余页占位）；
+          主体 = 260px 卡列表 | 1fr 工作区（胶囊页签条 + 页签内容）；
+          浮层 = 添加运动卡模态 / 居中确认 / 轴配置弹窗 / 右下角 toast。
+        页签 VM 由外壳 VM 构造时创建（无 ViewModelLocator 桥接），视图零逻辑。
+    -->
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="CanResize" />
+            <Setter Property="Width" Value="1360" />
+            <Setter Property="Height" Value="840" />
+            <Setter Property="MinWidth" Value="1100" />
+            <Setter Property="MinHeight" Value="680" />
+            <Setter Property="ui:WindowCenteringBehavior.IsEnabled" Value="True" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/VisionMaster;component/Views/DialogViews/MotionBoard/MotionBoardTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource MbBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--  ═══ 页头：可拖动 + 标题区 + 导航胶囊 + 关闭  ═══  -->
+        <Border
+            Grid.Row="0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource MbBackgroundBrush}"
+            BorderBrush="{StaticResource MbBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!--  标题区  -->
+                <StackPanel Orientation="Horizontal">
+                    <Border
+                        Width="36"
+                        Height="36"
+                        Background="{StaticResource MbPrimarySoftBrush}"
+                        CornerRadius="9">
+                        <TextBlock
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="16"
+                            Foreground="{StaticResource MbPrimaryBrush}"
+                            Text="&#xf0e7;"
+                            TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock
+                            FontFamily="{StaticResource MbMonoFontFamily}"
+                            FontSize="11"
+                            Foreground="{StaticResource MbTextMutedBrush}"
+                            Text="SCADA CONSOLE" />
+                        <TextBlock
+                            FontSize="17"
+                            FontWeight="Bold"
+                            Foreground="{StaticResource MbTextBrush}"
+                            Text="运动板卡" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!--  导航胶囊（运动板卡高亮，其余页占位 —— 规格第 1 章：只实现运动板卡页）  -->
+                <Border
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource MbSecondaryBrush}"
+                    BorderBrush="{StaticResource MbBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="3">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            Margin="10,5"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            Text="设备管理" />
+                        <TextBlock
+                            Margin="10,5"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            Text="变量配置" />
+                        <TextBlock
+                            Margin="10,5"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            Text="工具箱" />
+                        <TextBlock
+                            Margin="10,5"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            Text="流程编排" />
+                        <Border
+                            Margin="2,2"
+                            Padding="10,4"
+                            Background="{StaticResource MbPrimaryBrush}"
+                            CornerRadius="6">
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="White"
+                                Text="运动板卡" />
+                        </Border>
+                        <TextBlock
+                            Margin="10,5"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource MbTextSecondaryBrush}"
+                            Text="轴配置" />
+                    </StackPanel>
+                </Border>
+
+                <!--  关闭  -->
+                <Button
+                    Grid.Column="3"
+                    Width="30"
+                    Height="30"
+                    Margin="14,0,0,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{Binding CloseCommand}"
+                    Cursor="Hand"
+                    ToolTip="关闭">
+                    <TextBlock
+                        FontSize="14"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="✕" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!--  ═══ 主体：左栏卡列表(260) | 工作区(页签)  ═══  -->
+        <Grid Grid.Row="1" Margin="16,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--  左栏：卡列表（G4：呼吸圆点 + 在线 pill + 地址|驱动）  -->
+            <Border
+                Grid.Column="0"
+                Background="{StaticResource MbCardBrush}"
+                BorderBrush="{StaticResource MbBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Effect="{StaticResource MbCardShadow}">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border
+                        Grid.Row="0"
+                        Padding="10,8"
+                        BorderBrush="{StaticResource MbBorderLightBrush}"
+                        BorderThickness="0,0,0,1">
+                        <Grid>
+                            <StackPanel Orientation="Horizontal">
+                                <Border
+                                    Width="24"
+                                    Height="24"
+                                    Background="{StaticResource MbPrimarySoftBrush}"
+                                    CornerRadius="6">
+                                    <TextBlock
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="11"
+                                        Foreground="{StaticResource MbPrimaryBrush}"
+                                        Text="&#xf09d;"
+                                        TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource MbTextBrush}"
+                                    Text="运动卡" />
+                                <Border
+                                    Margin="8,0,0,0"
+                                    Padding="7,1"
+                                    VerticalAlignment="Center"
+                                    Background="{StaticResource MbSecondaryBrush}"
+                                    CornerRadius="999">
+                                    <TextBlock
+                                        FontSize="11"
+                                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                                        Text="{Binding Cards.Count, StringFormat={}{0}}" />
+                                </Border>
+                            </StackPanel>
+                            <Button
+                                HorizontalAlignment="Right"
+                                Command="{Binding OpenAddCardCommand}"
+                                Style="{StaticResource MbPrimaryButton}"
+                                Padding="10,4"
+                                FontSize="12">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="10"
+                                        Text="&#xf067;"
+                                        VerticalAlignment="Center" />
+                                    <TextBlock Margin="5,0,0,0" Text="添加" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <ListBox
+                        Grid.Row="1"
+                        Margin="0,6,0,0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        ItemsSource="{Binding Cards}"
+                        SelectedItem="{Binding SelectedCard}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border
+                                                x:Name="Root"
+                                                Margin="2,3"
+                                                Padding="10,8"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="1"
+                                                CornerRadius="8">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource MbPrimaryBorderBrush}" />
+                                                    <Setter TargetName="Root" Property="Background" Value="{StaticResource MbPrimarySoftBrush}" />
+                                                </Trigger>
+                                                <MultiTrigger>
+                                                    <MultiTrigger.Conditions>
+                                                        <Condition Property="IsMouseOver" Value="True" />
+                                                        <Condition Property="IsSelected" Value="False" />
+                                                    </MultiTrigger.Conditions>
+                                                    <Setter TargetName="Root" Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+                                                </MultiTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <!--  呼吸圆点：在线主色闪 / 离线灰  -->
+                                            <Ellipse
+                                                Width="7"
+                                                Height="7"
+                                                VerticalAlignment="Center"
+                                                Fill="{StaticResource MbOfflineDotBrush}"
+                                                Visibility="{Binding IsOnline, Converter={StaticResource MbInverseBoolToVis}}" />
+                                            <Ellipse
+                                                Width="7"
+                                                Height="7"
+                                                VerticalAlignment="Center"
+                                                Fill="{StaticResource MbPrimaryBrush}"
+                                                Style="{StaticResource MbBreathDot}"
+                                                Visibility="{Binding IsOnline, Converter={StaticResource MbBoolToVis}}" />
+                                            <TextBlock
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontSize="13"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource MbTextBrush}"
+                                                Text="{Binding Caption}"
+                                                TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Border
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Background="{StaticResource MbSecondaryBrush}"
+                                            CornerRadius="6"
+                                            Padding="6,1">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="{StaticResource MbSecondaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource MbPrimarySoftBrush15}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock FontSize="10" Text="{Binding OnlineText}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource MbTextSecondaryBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock
+                                        Margin="15,3,0,0"
+                                        FontFamily="{StaticResource MbMonoFontFamily}"
+                                        FontSize="11"
+                                        Foreground="{StaticResource MbTextMutedBrush}"
+                                        TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding Address, Mode=OneWay}" />
+                                        <Run Foreground="{StaticResource MbBorderBrush}" Text=" | " />
+                                        <Run Text="{Binding DriverName, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!--  工作区：胶囊页签 + 四页内容  -->
+            <Grid Grid.Column="1" Margin="14,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <ListBox
+                    Grid.Row="0"
+                    HorizontalAlignment="Left"
+                    ItemsSource="{Binding TabLabels}"
+                    SelectedIndex="{Binding SelectedTabIndex}"
+                    Style="{StaticResource MbTabListBox}"
+                    ItemContainerStyle="{StaticResource MbTabItem}" />
+
+                <Grid Grid.Row="1" Margin="0,14,0,0">
+                    <mb:MotionBoardSettingsView DataContext="{Binding Settings}">
+                        <mb:MotionBoardSettingsView.Style>
+                            <Style TargetType="mb:MotionBoardSettingsView">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.SelectedTabIndex, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </mb:MotionBoardSettingsView.Style>
+                    </mb:MotionBoardSettingsView>
+
+                    <mb:MotionBoardDebugView DataContext="{Binding Debug}">
+                        <mb:MotionBoardDebugView.Style>
+                            <Style TargetType="mb:MotionBoardDebugView">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.SelectedTabIndex, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}" Value="1">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </mb:MotionBoardDebugView.Style>
+                    </mb:MotionBoardDebugView>
+
+                    <mb:MotionBoardPointsView DataContext="{Binding Points}">
+                        <mb:MotionBoardPointsView.Style>
+                            <Style TargetType="mb:MotionBoardPointsView">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.SelectedTabIndex, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}" Value="2">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </mb:MotionBoardPointsView.Style>
+                    </mb:MotionBoardPointsView>
+
+                    <mb:MotionBoardCamView DataContext="{Binding Cam}">
+                        <mb:MotionBoardCamView.Style>
+                            <Style TargetType="mb:MotionBoardCamView">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.SelectedTabIndex, RelativeSource={RelativeSource AncestorType={x:Type local:MotionBoardView}}}" Value="3">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </mb:MotionBoardCamView.Style>
+                    </mb:MotionBoardCamView>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!--  ═══ toast（右下角浮层：ok = 对勾主色 + 深字；err = 警告危险色）  ═══  -->
+        <Border
+            Grid.Row="1"
+            Margin="0,0,24,24"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Background="{StaticResource MbCardBrush}"
+            BorderBrush="{StaticResource MbBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Effect="{StaticResource MbFloatShadow}"
+            Padding="16,11"
+            Visibility="{Binding HasNotice, Converter={StaticResource MbBoolToVis}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="13">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <!--  默认值写在 Setter 里（本地值会压过触发器，写在外面触发器就不生效了）  -->
+                            <Setter Property="Foreground" Value="{StaticResource MbPrimaryBrush}" />
+                            <Setter Property="Text" Value="&#xf058;" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NoticeIsError}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource MbDangerBrush}" />
+                                    <Setter Property="Text" Value="&#xf071;" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock
+                    Margin="9,0,0,0"
+                    VerticalAlignment="Center"
+                    FontSize="13"
+                    Text="{Binding NoticeText}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource MbTextBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NoticeIsError}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource MbDangerBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!--  ═══ 添加运动卡模态（S1-3：中心模态，字段序 驱动→地址→显示名→机型）  ═══  -->
+        <Grid
+            Grid.RowSpan="2"
+            Background="{StaticResource MbMaskBrush}"
+            Visibility="{Binding IsAddCardOpen, Converter={StaticResource MbBoolToVis}}">
+            <Border
+                Width="400"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Style="{StaticResource MbModalCard}"
+                Padding="20">
+                <StackPanel>
+                    <StackPanel Margin="0,0,0,14" Orientation="Horizontal">
+                        <Border
+                            Width="32"
+                            Height="32"
+                            Background="{StaticResource MbPrimarySoftBrush}"
+                            CornerRadius="8">
+                            <TextBlock
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="14"
+                                Foreground="{StaticResource MbPrimaryBrush}"
+                                Text="&#xf09d;"
+                                TextAlignment="Center" 
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="15"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource MbTextBrush}"
+                            Text="添加运动卡" />
+                    </StackPanel>
+
+                    <TextBlock
+                        Margin="0,0,0,5"
+                        FontSize="12"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="驱动类型" />
+                    <ComboBox
+                        Height="38"
+                        Margin="0,0,0,10"
+                        ItemsSource="{Binding AvailableDrivers}"
+                        SelectedItem="{Binding NewDriver}"
+                        Style="{StaticResource MbComboBox}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <TextBlock
+                        Margin="0,0,0,5"
+                        FontSize="12"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="连接地址（必须唯一）" />
+                    <TextBox
+                        Height="38"
+                        Margin="0,0,0,10"
+                        FontFamily="{StaticResource MbMonoFontFamily}"
+                        Style="{StaticResource MbTextBox}"
+                        Text="{Binding NewAddress, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock
+                        Margin="0,0,0,5"
+                        FontSize="12"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="显示名（可留空）" />
+                    <TextBox
+                        Height="38"
+                        Margin="0,0,0,10"
+                        Style="{StaticResource MbTextBox}"
+                        Text="{Binding NewDisplayName, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock
+                        Margin="0,0,0,5"
+                        FontSize="12"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="机型（可留空）" />
+                    <TextBox
+                        Height="38"
+                        Margin="0,0,0,16"
+                        Style="{StaticResource MbTextBox}"
+                        Text="{Binding NewCardModel, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <Grid>
+                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                            <Button
+                                Command="{Binding CancelAddCardCommand}"
+                                Content="取消"
+                                Style="{StaticResource MbGhostButton}" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Command="{Binding ConfirmAddCardCommand}"
+                                Content="确定添加"
+                                Style="{StaticResource MbPrimaryButton}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!--  ═══ 居中确认遮罩（删除卡 / 删除轴）  ═══  -->
+        <Grid
+            Grid.RowSpan="2"
+            Background="{StaticResource MbMaskBrush}"
+            Visibility="{Binding HasConfirm, Converter={StaticResource MbBoolToVis}}">
+            <Border
+                Width="380"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Style="{StaticResource MbModalCard}"
+                Padding="20">
+                <StackPanel>
+                    <TextBlock
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource MbTextBrush}"
+                        Text="{Binding ConfirmTitle}" />
+                    <TextBlock
+                        Margin="0,10,0,18"
+                        FontSize="13"
+                        Foreground="{StaticResource MbTextSecondaryBrush}"
+                        Text="{Binding ConfirmMessage}"
+                        TextWrapping="Wrap" />
+                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                        <Button
+                            Command="{Binding CancelConfirmCommand}"
+                            Content="取消"
+                            Style="{StaticResource MbGhostButton}" />
+                        <Button
+                            Margin="8,0,0,0"
+                            Command="{Binding ConfirmOkCommand}"
+                            Content="删除"
+                            Style="{StaticResource MbDangerOutlineButton}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

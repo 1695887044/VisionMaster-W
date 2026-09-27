@@ -1,0 +1,174 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.AxisPointsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    prism:ViewModelLocator.AutoWireViewModel="True">
+
+    <!--  自绘无边框（仓库规范：所有弹窗统一），尺寸 + 居中走行为  -->
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="Width" Value="900" />
+            <Setter Property="Height" Value="620" />
+            <Setter Property="MinWidth" Value="760" />
+            <Setter Property="MinHeight" Value="500" />
+            <Setter Property="ui:WindowCenteringBehavior.IsEnabled" Value="True" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <!--  轴点位表：每轴固定 16 行（P0–P15），行内编辑即生效，随方案保存  -->
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--  自绘头部：可拖动 + 标题 + 关闭（无边框窗口三件套，仓库断言在盯）  -->
+        <Border
+            Grid.Row="0"
+            Padding="14,8"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    FontSize="15"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                    Text="轴点位表" />
+                <Button
+                    Grid.Column="1"
+                    Width="30"
+                    Height="30"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{Binding CloseCommand}"
+                    Cursor="Hand"
+                    ToolTip="关闭">
+                    <TextBlock
+                        FontSize="14"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="✕" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  选择行：卡 → 轴  -->
+        <StackPanel
+            Grid.Row="0"
+            Orientation="Horizontal"
+            Margin="0,0,0,10">
+            <TextBlock
+                VerticalAlignment="Center"
+                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                Text="运动卡" />
+            <ComboBox
+                Width="220"
+                Margin="8,0,16,0"
+                DisplayMemberPath="Caption"
+                ItemsSource="{Binding Cards}"
+                SelectedItem="{Binding SelectedCard}" />
+            <TextBlock
+                VerticalAlignment="Center"
+                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                Text="轴" />
+            <ComboBox
+                Width="140"
+                Margin="8,0,0,0"
+                DisplayMemberPath="LogicalName"
+                ItemsSource="{Binding Axes}"
+                SelectedItem="{Binding SelectedAxis}" />
+        </StackPanel>
+
+        <!--  点位表：16 行固定；单元格提交即写进方案对象  -->
+        <DataGrid
+            Grid.Row="1"
+            AutoGenerateColumns="False"
+            CanUserAddRows="False"
+            CanUserDeleteRows="False"
+            HeadersVisibility="Column"
+            ItemsSource="{Binding Points}"
+            RowHeight="34">
+            <DataGrid.Columns>
+                <DataGridTextColumn
+                    Width="70"
+                    Binding="{Binding Caption}"
+                    Header="点位"
+                    IsReadOnly="True" />
+                <DataGridTextColumn Width="*" Binding="{Binding Name, UpdateSourceTrigger=LostFocus}" Header="名称" />
+                <DataGridTextColumn
+                    Width="110"
+                    Binding="{Binding PositionMm, UpdateSourceTrigger=LostFocus}"
+                    Header="位置(mm)" />
+                <DataGridTextColumn
+                    Width="100"
+                    Binding="{Binding SpeedMmPerS, UpdateSourceTrigger=LostFocus}"
+                    Header="速度(mm/s)" />
+                <DataGridTextColumn
+                    Width="110"
+                    Binding="{Binding AccelMmPerS2, UpdateSourceTrigger=LostFocus}"
+                    Header="加减速(mm/s²)" />
+                <DataGridTemplateColumn Width="190" Header="曲线类型">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ComboBox
+                                VerticalContentAlignment="Center"
+                                BorderThickness="0"
+                                DisplayMemberPath="Value"
+                                ItemsSource="{Binding DataContext.CurveOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                SelectedValue="{Binding Curve, UpdateSourceTrigger=PropertyChanged}"
+                                SelectedValuePath="Key" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Width="90" Header="走此点">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button
+                                Padding="10,2"
+                                HorizontalAlignment="Center"
+                                Command="{Binding DataContext.WalkPointCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}"
+                                Content="▶ 走此点" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!--  状态条：走此点的结果 / 门禁拒绝原因 + 曲线图例（选项里只放短名，说明放这里）  -->
+        <Border
+            Grid.Row="2"
+            Margin="0,8,0,0"
+            Padding="10,6"
+            Background="{StaticResource DialogAccentLightBrush}"
+            CornerRadius="6">
+            <StackPanel>
+                <TextBlock
+                    Foreground="{StaticResource DialogAccentTextBrush}"
+                    Text="{Binding StatusText}"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    Margin="0,4,0,0"
+                    FontSize="11"
+                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                    Text="曲线说明：梯形 = 恒速 + 末端减速 · S 曲线 = 两端缓、中段快。改完即生效，随方案保存。" />
+            </StackPanel>
+        </Border>
+        </Grid>
+    </Grid>
+</UserControl>

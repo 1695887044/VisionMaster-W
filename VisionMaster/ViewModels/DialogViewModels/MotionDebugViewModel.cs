@@ -442,7 +442,8 @@ namespace VisionMaster.ViewModels
 
         #region 列表装载与刷新
 
-        private void ReloadCards()
+        /// <summary>重建卡下拉集合（公开：外壳合并窗口桥接时先调它，理由见 MotionSettingsViewModel.ReloadRows）</summary>
+        public void ReloadCards()
         {
             var keep = _selectedCard?.Id;
             Cards.Clear();

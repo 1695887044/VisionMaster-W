@@ -533,6 +533,12 @@ namespace VisionMaster
                 case SystemAction.MotionDebug:
                     ShowMotionDebug();
                     break;
+                case SystemAction.MotionBoard:
+                    ShowMotionBoard();
+                    break;
+                case SystemAction.AxisPoints:
+                    ShowAxisPoints();
+                    break;
                 case SystemAction.CommSettings:
                     ShowCommunicationSettings();
                     break;
@@ -636,6 +642,37 @@ namespace VisionMaster
             }
 
             dialogService.ShowDialog("MotionDebugView");
+        }
+
+        /// <summary>
+        /// 打开运动板卡（合并窗口：卡设置 / 手动调试 / 轴点位表）。
+        /// 取代原来两个独立入口 —— 参数、调试、点位在一个窗口里切换，现场不用来回找菜单。
+        /// </summary>
+        private void ShowMotionBoard()
+        {
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("请先打开一个解决方案");
+                return;
+            }
+
+            dialogService.ShowDialog("MotionBoardView");
+        }
+
+        /// <summary>
+        /// 打开轴点位表：落在运动板卡窗口的「点位列表」页签（每轴 16 点：位置/速度/加减速/曲线 + 走此点）。
+        /// 板卡窗口重写后，独立的 AxisPointsView（下拉筛选版布局）不再作为入口 ——
+        /// 规格 S3-1 要求的"左轴栏 + 每轴一表"只在板卡页签里维护一份。
+        /// </summary>
+        private void ShowAxisPoints()
+        {
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("请先打开一个解决方案");
+                return;
+            }
+
+            dialogService.ShowDialog("MotionBoardView", new DialogParameters { { "tab", "points" } });
         }
 
         private void ShowCommunicationSettings()

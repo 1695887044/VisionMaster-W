@@ -479,6 +479,21 @@ namespace FlowCanvasChecks
                 && runnerText.Contains("IMotionProvider motions = null"),
                 testRunner == null ? "定位不到 PluginTestRunner.cs" : "");
 
+            // ★ 轴点位表（每轴 16 点：位置/速度/加减速/曲线 + 走此点）。
+            //   模型随方案 JSON 落盘（与轴映射同一体系，不引入 SQLite）；
+            //   曲线映射到正运动 SetSramp（梯形=0 / S曲线=200ms）；匀速不提供 —— 真卡没有对应物。
+            var pointModel = ResolveRepoFile(@"Shard\Core.Interfaces\Motion\MotionPoint.cs");
+            Check("★每轴 16 点点位模型随方案落盘（固定行数让「点位号」有稳定指代）",
+                pointModel != null && File.ReadAllText(pointModel).Contains("PointsPerAxis = 16"),
+                pointModel == null ? "定位不到 MotionPoint.cs" : "");
+
+            var zmotionCard = ResolveRepoFile(@"Plugins\Plugin.Motion.ZMotion\ZMotionCard.cs");
+            string cardText = zmotionCard != null ? File.ReadAllText(zmotionCard) : string.Empty;
+            Check("★曲线映射到正运动 SetSramp（梯形=0 / S曲线=200ms；Accel/Decel≤0 不覆盖现场参数）",
+                cardText.Contains("ApplyAccelAndCurve") && cardText.Contains("SetSramp")
+                && cardText.Contains("200f : 0f"),
+                zmotionCard == null ? "定位不到 ZMotionCard.cs" : "");
+
             var withAxisPort = files.Where(f => File.ReadAllText(f).Contains("InputPort<string> Axis")).ToList();
             Check("轴端口 IsRequired=false（老流程只填常量，不能因为没链接就判编译失败）",
                 withAxisPort.All(f => File.ReadAllText(f).Contains("IsRequired = false")), "");

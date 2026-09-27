@@ -275,6 +275,12 @@ namespace VisionMaster
             // 运动卡调试：手动使能/点动/定位/回零/IO。
             // 与设置弹窗分开注册（也分开使用）：设置是配置，调试是操作，现场的使用节奏完全不同。
             containerRegistry.RegisterDialog<MotionDebugView, MotionDebugViewModel>("MotionDebugView");
+            // 轴点位表（每轴 16 点：位置/速度/加减速/曲线 + 走此点）。
+            // 注：合并窗口（MotionBoard）经实测不成立 —— 两个子视图是弹窗级布局（各自带头部/关闭/左栏），
+            // 嵌进外壳后层次混乱（见用户截图）。真正的合并需按设计稿重写三个页签，列为二期。
+            containerRegistry.RegisterDialog<AxisPointsView, AxisPointsViewModel>("AxisPointsView");
+            // 运动板卡（一期骨架）：共享左栏选卡 + 页签（卡设置/手动调试暂嵌旧视图，后续轮次重写）
+            containerRegistry.RegisterDialog<MotionBoardView, MotionBoardViewModel>("MotionBoardView");
             // 扫描组编辑器：从连接设置的设备表格操作列进入，编辑的是**连接级**的组表
             // （一条连接一个组表；变量只存组名引用，见 ScanGroupEditorViewModel 注释）
             containerRegistry.RegisterDialog<ScanGroupEditorView, ScanGroupEditorViewModel>(
