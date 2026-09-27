@@ -21,6 +21,13 @@
     -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
+            <!--
+                WindowStyle=None：去掉系统原生标题栏（那条灰蓝渐变的老式窗框）。
+                代价是窗口失去系统提供的拖动区域与关闭按钮，两者都必须在视图里自绘补齐 ——
+                见下方标题栏的 ui:WindowDragBehavior 与 CloseCommand。
+                变量绑定 / 插件配置壳 / 扫描组编辑等弹窗都是这么做的，本视图此前是漏网的一个。
+            -->
+            <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
             <Setter Property="Width" Value="1240" />
@@ -48,7 +55,76 @@
         本视图通过 Style / CellStyle / RowStyle / ColumnHeaderStyle 显式引用。
     -->
 
-    <Grid Margin="14">
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            自绘标题栏（替代原来那条系统窗框）。
+            无边框窗口没有系统标题栏可拖，也没有系统关闭按钮，所以这两件事必须自己提供：
+              · 拖动 → ui:WindowDragBehavior.IsWindowDraggable（整条都可拖）；
+              · 关闭 → 右侧 × → VM 的 CloseCommand。本弹窗改的是活对象（增删改变量即时生效），
+                "关闭"就是完成，不需要二次确认。
+        -->
+        <Border
+            Grid.Row="0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="15"
+                    Foreground="{StaticResource DialogAccentBrush}"
+                    Text="&#xf0ac;" />
+
+                <StackPanel
+                    Grid.Column="1"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <!--  标题走 VM 的 Title（IDialogAware），不写死：系统标题栏没了之后，
+                          这一处就是唯一的标题来源，写死等于把标题抄成两份  -->
+                    <TextBlock
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="{Binding Title}" />
+                    <TextBlock
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="本地变量与设备变量统一维护：新建 / 编辑 / 监视 / 写值" />
+                </StackPanel>
+
+                <Button
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    Style="{StaticResource DialogIconButton}"
+                    ToolTip="关闭">
+                    <TextBlock
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="&#xf00d;" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!--  以下即原三栏内容：外层多了一层"行定义"用于放标题栏，所以 Margin 从根 Grid 挪到这里  -->
+        <Grid Grid.Row="1" Margin="14">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="216" />
             <ColumnDefinition Width="12" />
@@ -574,44 +650,35 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!--  初始值  -->
-                            <DataGridTemplateColumn Width="96" Header="初始值">
+                            <!--
+                                初始值。
+                                三态各有一个控件：标量根节点=可直接改；数组根=进"编辑集合"（能改长度）；
+                                数组元素行=就地改这一项。
+                                原来元素行是只读 TextBlock —— 改一个数字也得打开整个弹窗，
+                                而那个弹窗又因为 PropertyGrid 不渲染集合而根本用不了（见 VM 注释）。
+                            -->
+                            <DataGridTemplateColumn Width="112" Header="初始值">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
-                                            <Border
-                                                Height="26"
-                                                Background="{StaticResource DialogInputBackgroundBrush}"
-                                                BorderBrush="{StaticResource DialogBorderBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="6">
-                                                <!--  Style 置空：只借外层 Border 的框，不让 DialogInput 的高度/内边距压进来  -->
-                                                <TextBox
-                                                    Padding="8,0"
-                                                    HorizontalAlignment="Stretch"
-                                                    VerticalAlignment="Stretch"
-                                                    VerticalContentAlignment="Center"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    FontSize="12"
-                                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
-                                                    Style="{x:Null}"
-                                                    Text="{Binding DefaultValueText, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                                    ToolTip="按变量类型校验：与类型不符的值会被拒绝（红框），不会污染模型"
-                                                    Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
-                                            </Border>
+                                            <TextBox
+                                                Style="{StaticResource DialogCellInput}"
+                                                Text="{Binding DefaultValueText, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                                ToolTip="按变量类型校验：与类型不符的值会被拒绝（红框），不会污染模型"
+                                                Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
+
                                             <Button
                                                 Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 CommandParameter="{Binding}"
                                                 Content="编辑集合..."
                                                 Style="{StaticResource LinkButtonStyle}"
+                                                ToolTip="增删元素、批量修改（元素多时比逐行改方便）"
                                                 Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
-                                            <TextBlock
-                                                Padding="2,0"
-                                                VerticalAlignment="Center"
-                                                FontSize="12"
-                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                                Text="{Binding ChildDefaultValue}"
+
+                                            <TextBox
+                                                Style="{StaticResource DialogCellInput}"
+                                                Text="{Binding ChildDefaultValueText, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                                ToolTip="数组元素：直接改这一项。要增删元素请点父行的「编辑集合...」"
                                                 Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
                                         </Grid>
                                     </DataTemplate>
@@ -804,6 +871,7 @@
                         TextWrapping="Wrap" />
                 </Grid>
             </Border>
+        </Grid>
         </Grid>
     </Grid>
 </UserControl>

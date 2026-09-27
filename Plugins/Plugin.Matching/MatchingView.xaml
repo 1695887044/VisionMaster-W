@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="Plugin.Matching.MatchingView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -266,7 +266,7 @@
                                         <TextBox.Text>
                                             <Binding Path="BrushSize" UpdateSourceTrigger="PropertyChanged">
                                                 <Binding.ValidationRules>
-                                                    <local:NumberValidationRule FieldName="笔刷半径" Max="50" Min="1" />
+                                                    <cv:NumberValidationRule FieldName="笔刷半径" Max="50" Min="1" />
                                                 </Binding.ValidationRules>
                                             </Binding>
                                         </TextBox.Text>
@@ -313,7 +313,7 @@
                                 <TextBox.Text>
                                     <Binding Path="EditingEntry.MinAngleDeg" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="最小角度" Max="180" Min="-180" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="最小角度" Max="180" Min="-180" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -329,7 +329,7 @@
                                 <TextBox.Text>
                                     <Binding Path="EditingEntry.MaxAngleDeg" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="最大角度" Max="180" Min="-180" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="最大角度" Max="180" Min="-180" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -345,7 +345,7 @@
                                 <TextBox.Text>
                                     <Binding Path="EditingEntry.AngleStepDeg" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="角度步长" Max="30" Min="0" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="角度步长" Max="30" Min="0" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -361,7 +361,7 @@
                                 <TextBox.Text>
                                     <Binding Path="EditingEntry.GradientThreshold" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="梯度阈值" Max="255" Min="0" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="梯度阈值" Max="255" Min="0" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -395,7 +395,7 @@
                                 <TextBox.Text>
                                     <Binding Path="EditingEntry.ScaleMin" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="最小比例" Max="2" Min="0.5" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="最小比例" Max="2" Min="0.5" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -411,7 +411,7 @@
                                 <TextBox.Text>
                                     <Binding Path="EditingEntry.ScaleMax" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="最大比例" Max="2" Min="0.5" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="最大比例" Max="2" Min="0.5" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -427,7 +427,7 @@
                                 <TextBox.Text>
                                     <Binding Path="EditingEntry.NumLevels" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="金字塔层数" Max="10" Min="1" IntegerOnly="True" />
+                                            <cv:NumberValidationRule FieldName="金字塔层数" Max="10" Min="1" IntegerOnly="True" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -455,7 +455,7 @@
                                 <TextBox.Text>
                                     <Binding Path="MinScore" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="分数下限" Max="1" Min="0.01" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="分数下限" Max="1" Min="0.01" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -471,7 +471,7 @@
                                 <TextBox.Text>
                                     <Binding Path="MaxMatches" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="匹配数上限" Max="100" Min="1" IntegerOnly="True" />
+                                            <cv:NumberValidationRule FieldName="匹配数上限" Max="100" Min="1" IntegerOnly="True" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -487,7 +487,7 @@
                                 <TextBox.Text>
                                     <Binding Path="MaxOverlap" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="最大重叠" Max="1" Min="0" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="最大重叠" Max="1" Min="0" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>
@@ -503,7 +503,7 @@
                                 <TextBox.Text>
                                     <Binding Path="Greediness" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="搜索激进度" Max="0.9" Min="0.1" IntegerOnly="False" />
+                                            <cv:NumberValidationRule FieldName="搜索激进度" Max="0.9" Min="0.1" IntegerOnly="False" />
                                         </Binding.ValidationRules>
                                     </Binding>
                                 </TextBox.Text>

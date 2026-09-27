@@ -15,6 +15,12 @@
     -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
+            <!--
+                WindowStyle=None：去掉系统原生标题栏，改由视图自绘（见下方标题栏）。
+                与变量管理 / 插件配置壳 / 扫描组编辑一致 —— 同一套界面里窗框长得不一样，
+                同屏切换时像两个软件。
+            -->
+            <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
             <Setter Property="Width" Value="1180" />
@@ -38,6 +44,71 @@
     -->
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            自绘标题栏（替代原来的系统窗框）。无边框窗口没有系统拖动区域与关闭按钮：
+            整条挂 ui:WindowDragBehavior 负责拖，右侧 × 绑 VM 的 CloseCommand。
+            标题文字绑 VM.Title，不写死 —— 系统标题栏去掉后这里是唯一的标题来源。
+        -->
+        <Border
+            Grid.Row="0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="15"
+                    Foreground="{StaticResource DialogAccentBrush}"
+                    Text="&#xf030;" />
+
+                <StackPanel
+                    Grid.Column="1"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="{Binding Title}" />
+                    <TextBlock
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="方案级相机资源：增删相机 / 连接 / 采流 / 溢出统计" />
+                </StackPanel>
+
+                <Button
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    Style="{StaticResource DialogIconButton}"
+                    ToolTip="关闭">
+                    <TextBlock
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="&#xf00d;" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!--  以下即原两段式布局（工具栏/内容 + 底部按钮），原样下移成第 2 行  -->
+        <Grid Grid.Row="1">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -723,5 +794,6 @@
                     Style="{StaticResource DialogPrimaryButton}" />
             </Grid>
         </Border>
+        </Grid>
     </Grid>
 </UserControl>

@@ -1,10 +1,15 @@
 using System.Globalization;
 using System.Windows.Controls;
 
-namespace Plugin.Matching
+namespace Core.Controls
 {
     /// <summary>
-    /// 数值输入校验规则：一次同时管"能不能解析成数字"和"是否落在允许区间"，失败返回中文提示。
+    /// 数值输入校验规则（插件配置界面公共用）：一次同时管"能不能解析成数字"和"是否落在允许区间"，
+    /// 失败返回中文提示。
+    ///
+    /// 为什么从各插件收编到这里：同一个类此前在 Plugin.BlobDetect / Plugin.CaliperMeasure /
+    /// Plugin.Matching 各有一份（逐字相同），再加一个新插件就是第四份。校验文案不统一的后果是
+    /// "同一个非法输入在不同插件里提示不一样"，而这类文案是给操作员看的。
     ///
     /// 为什么用 ValidationRule 而不是在 setter 里 if/else 兜底：
     /// WPF 的校验规则跑在"字符串还没有写回绑定源"之前，校验不通过时源属性根本不会被改写，

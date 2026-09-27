@@ -82,6 +82,9 @@ namespace VisionMaster.ViewModels
                 SetProperty(ref _selectedInputPort, value);
                 LoadExistingConstant();
                 UpdatePresetOptions();
+                // 换端口必须重算候选：右侧列表是按"当前端口的类型"过滤出来的，
+                // 不重算就会把上一个端口的过滤结果带过来（类型不符的项照样能双击）
+                RefreshDisplayPorts();
             }
         }
 
@@ -99,11 +102,95 @@ namespace VisionMaster.ViewModels
             set
             {
                 SetProperty(ref _selectedNode, value);
-                DisplayPorts =
-                    value?.OutputDefinitions != null
-                        ? new ObservableCollection<PortDefinition>(value.OutputDefinitions)
-                        : new ObservableCollection<PortDefinition>();
+                RefreshDisplayPorts();
             }
+        }
+
+        /// <summary>
+        /// 是否"显示全部候选"（不看类型）。默认 false = 只列能绑上的。
+        ///
+        /// 为什么要留这个开关而不是一律隐藏不兼容项：
+        /// ① 目标端口是 object/string 时几乎全都兼容，过滤本来就拦不住；
+        /// ② 用户明明记得上游有某个变量却找不到，会以为是插件没暴露或流程没跑——
+        ///    "看得见但灰着"比"凭空消失"更好排查；
+        /// ③ 故意把任意类型塞进 string 端口（用于上报/显示）是合法用法。
+        /// </summary>
+        private bool _showAllPorts;
+        public bool ShowAllPorts
+        {
+            get => _showAllPorts;
+            set
+            {
+                if (SetProperty(ref _showAllPorts, value)) RefreshDisplayPorts();
+            }
+        }
+
+        /// <summary>
+        /// 按「当前选中的输入端口」的类型重算右侧候选列表。
+        ///
+        /// 触发点有两个：换上游节点、换左侧输入端口——两处都必须重算。
+        /// 早先只在换节点时算，加了类型过滤之后就会把"A 端口的过滤结果"残留到 B 端口上。
+        /// </summary>
+        private void RefreshDisplayPorts()
+        {
+            var source = _selectedNode?.OutputDefinitions;
+            if (source == null || source.Count == 0)
+            {
+                DisplayPorts = new ObservableCollection<PortDefinition>();
+                return;
+            }
+
+            // 目标类型取不到就按 object 处理：此时 CanBindTo 一律放行，
+            // 绝不因为类型名解析失败而把本来能绑的项误杀掉
+            Type targetType = SelectedInputPort?.Definition != null
+                ? TypeHelper.ResolveType(SelectedInputPort.Definition.DataTypeName)
+                : typeof(object);
+
+            var list = new List<PortDefinition>(source.Count);
+            foreach (var schema in source)
+            {
+                // 复制一份再判定：OutputDefinitions 是节点持有的共享对象，
+                // 直接往上面写 IsBindable 会污染节点自身的数据（换端口/换节点后残留上一次的判定）
+                var candidate = CloneForCandidate(schema);
+
+                Type outputType = TypeHelper.ResolveType(candidate.DataTypeName);
+                bool ok = TypeHelper.CanBindTo(outputType, targetType);
+
+                if (!ok)
+                {
+                    candidate.IncompatibleReason =
+                        $"类型不匹配：{Describe(outputType)} 无法绑到 {Describe(targetType)} 端口";
+                    // "显示全部"时才把不兼容项摆出来（置灰），默认直接不进列表
+                    if (_showAllPorts)
+                    {
+                        candidate.IsBindable = false;
+                        list.Add(candidate);
+                    }
+                    continue;
+                }
+
+                list.Add(candidate);
+            }
+
+            DisplayPorts = new ObservableCollection<PortDefinition>(list);
+        }
+
+        private static PortDefinition CloneForCandidate(PortDefinition src) => new()
+        {
+            Name = src.Name,
+            Description = src.Description,
+            DataTypeName = src.DataTypeName,
+            VariableId = src.VariableId,
+            IsFunctionalEnum = src.IsFunctionalEnum,
+            PresetOptions = src.PresetOptions,
+        };
+
+        private static string Describe(Type t)
+        {
+            if (t == null) return "未知";
+            if (!t.IsArray) return t.Name;
+            var elem = t.GetElementType();
+            return elem != null ? $"{elem.Name}[]" : t.Name;
         }
 
         public DialogCloseListener RequestClose { get; set; }
@@ -237,16 +324,19 @@ namespace VisionMaster.ViewModels
                 return;
             }
 
+            // 判据与右侧列表的过滤用的是同一个 TypeHelper.CanBindTo —— 一把尺子量两次，
+            // 否则会出现"列表里放着、双击又说不匹配"这种自相矛盾的行为
             Type targetType =
-                Type.GetType(SelectedInputPort.Definition.DataTypeName) ?? typeof(object);
-            Type outputType = Type.GetType(outputSchema.DataTypeName) ?? typeof(object);
+                TypeHelper.ResolveType(SelectedInputPort.Definition.DataTypeName);
+            Type outputType = TypeHelper.ResolveType(outputSchema.DataTypeName);
 
+            // 数组 → 标量：允许"按下标取一个元素"
             bool isIndexing = outputType.IsArray && !targetType.IsArray;
 
             if (isIndexing)
             {
-                Type elementType = outputType.GetElementType();
-                if (elementType != null && !TypeHelper.IsTypeCompatible(elementType, targetType))
+                Type elementType = TypeHelper.GetBindableElementType(outputType);
+                if (!TypeHelper.CanBindTo(outputType, targetType))
                 {
                     EasyDialog.ShowSync(
                         "类型不匹配",
@@ -269,7 +359,7 @@ namespace VisionMaster.ViewModels
             }
             else
             {
-                if (!TypeHelper.IsTypeCompatible(outputType, targetType))
+                if (!TypeHelper.CanBindTo(outputType, targetType))
                 {
                     EasyDialog.ShowSync(
                         "类型不匹配",
@@ -341,7 +431,11 @@ namespace VisionMaster.ViewModels
         {
             if (!string.IsNullOrWhiteSpace(ConstantValue) && SelectedInputPort != null)
             {
-                string bindKey = SelectedInputPort.Definition.Name;
+                // 键必须走 ResolveBindKey（条件节点用的是端口描述而不是端口名），
+                // 与 LoadExistingConstant / DoFinalBind 同一口径。
+                // 早先这里直接取 Definition.Name，条件节点写常量会落到错误的键上——
+                // 表现为"填了值但读不回来"，且界面上看不出异常。
+                string bindKey = ResolveBindKey(SelectedInputPort.Definition);
                 string displayName = $"{LinkProtocol.ConstantDisplayPrefix}{ConstantValue}";
                 var linkRef = new LinkReference(LinkKind.Constant, Guid.Empty, ConstantValue, displayName);
                 // P0-③：同 DoFinalBind，单绑模式下常量也只回传、不写活模型

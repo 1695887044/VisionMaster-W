@@ -48,5 +48,20 @@ namespace VisionMaster.Models
         /// 预设选项列表（当 IsFunctionalEnum 为 true 时使用）
         /// </summary>
         public List<string> PresetOptions { get; set; } = new List<string>();
+
+        // ── 以下两项是「变量绑定弹窗」的候选列表专用展示字段 ──
+
+        /// <summary>
+        /// 当前选中的输入端口能不能接住这个输出端口。
+        /// 绑定弹窗按类型过滤后置 false（列表里仍然看得见，但置灰、双击不生效）。
+        /// 默认 true —— 未被弹窗评估过的端口（比如插件自己的 InputDefinitions）一律按可绑定处理。
+        /// </summary>
+        public bool IsBindable { get; set; } = true;
+
+        /// <summary>
+        /// 不可绑定时的原因（如"HRegion 无法赋给 HImage 端口"），用作置灰项的 ToolTip。
+        /// 可绑定时为空串（不弹提示）。
+        /// </summary>
+        public string IncompatibleReason { get; set; } = string.Empty;
     }
 }

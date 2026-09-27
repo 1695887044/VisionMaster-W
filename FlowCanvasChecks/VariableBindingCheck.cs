@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Core.Interfaces;
+using HalconDotNet;
 using Prism.Dialogs;
+using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
@@ -45,6 +49,8 @@ namespace FlowCanvasChecks
                     new() { Name = "Name", Description = "目标变量名称", DataTypeName = "System.String" },
                     new() { Name = "Value", Description = "要赋的值", DataTypeName = "System.Object" },
                     new() { Name = "CreateIfNotExists", Description = "变量不存在时是否自动创建", DataTypeName = "System.Boolean" },
+                    // 图像端口：给"候选列表按类型过滤"的断言用（HImage 是强类型，最能看出过滤生效）
+                    new() { Name = "SrcImage", Description = "输入图像", DataTypeName = typeof(HImage).AssemblyQualifiedName },
                 },
             });
 
@@ -94,6 +100,369 @@ namespace FlowCanvasChecks
             vm.SelectedInputPort = vm.DisplayDataPort.FirstOrDefault(p => p.Definition.Name == "Name");
             Check("再换回来值还在（回显可重复，不是一次性）",
                 vm.ConstantValue == "Expected", $"ConstantValue=[{vm.ConstantValue}]");
+
+            RunTypeFilterContract(vm);
+            RunTypeResolveContract();
+            RunViewStyleContract();
+        }
+
+        // ==================================================================
+        //  候选列表按类型过滤 + 绑定判据
+        // ==================================================================
+
+        /// <summary>
+        /// 候选列表的类型过滤。
+        ///
+        /// 为什么值得钉死：过滤的失败方式是**静默**的 ——
+        ///   · 过滤太松：把 HRegion 摆进 HImage 端口的候选里，用户双击才被拦下（回到改前的老样子）；
+        ///   · 过滤太紧：把本来能绑的项藏起来，用户以为"上游没这个变量"，然后去查插件、查流程，
+        ///     永远查不到这张列表框上。
+        /// 两条都只有真跑一遍 VM 才看得出来，所以这里直接驱动 ViewModel。
+        /// </summary>
+        private static void RunTypeFilterContract(VariableBindingViewModel vm)
+        {
+            Section("[V] 候选端口列表：按目标端口类型过滤 / 显示全部 / 换端口重算");
+
+            // 造一个"上游算子"：三个输出端口，只有第一个能被 HImage 端口接住
+            var upstream = new ToolItemModel
+            {
+                Name = "图像采集_0",
+                Id = Guid.NewGuid(),
+                OutputDefinitions = new List<PortDefinition>
+                {
+                    new() { Name = "Image", Description = "采集图像", DataTypeName = typeof(HImage).AssemblyQualifiedName },
+                    new() { Name = "Region", Description = "缺陷区域", DataTypeName = typeof(HRegion).AssemblyQualifiedName },
+                    new() { Name = "Row", Description = "行坐标", DataTypeName = typeof(double).AssemblyQualifiedName },
+                },
+            };
+            vm.SelectedNode = upstream;
+
+            vm.SelectedInputPort = vm.DisplayDataPort.First(p => p.Definition.Name == "SrcImage");
+            var imageCandidates = vm.DisplayPorts.Select(p => p.Name).ToList();
+            Check("选中 HImage 端口：候选里只剩 HImage 输出（HRegion / double 被过滤掉）",
+                imageCandidates.Count == 1 && imageCandidates[0] == "Image",
+                "实际候选：" + string.Join(", ", imageCandidates));
+
+            vm.ShowAllPorts = true;
+            var allCandidates = vm.DisplayPorts.ToList();
+            var disabled = allCandidates.Where(p => !p.IsBindable).Select(p => p.Name).ToList();
+            Check("勾选「显示全部」：三条都列出来，且不兼容的两条被标为不可绑定",
+                allCandidates.Count == 3 && disabled.Count == 2
+                && disabled.Contains("Region") && disabled.Contains("Row"),
+                $"候选 {allCandidates.Count} 条，不可绑定：" + string.Join(", ", disabled));
+            Check("不可绑定项带得出原因（否则置灰了也说不清为什么）",
+                allCandidates.Where(p => !p.IsBindable).All(p => !string.IsNullOrWhiteSpace(p.IncompatibleReason))
+                && allCandidates.Where(p => p.IsBindable).All(p => string.IsNullOrEmpty(p.IncompatibleReason)),
+                string.Join(" | ", allCandidates.Select(p => $"{p.Name}:{p.IncompatibleReason}")));
+
+            vm.ShowAllPorts = false;
+            Check("取消「显示全部」：恢复成只剩能绑的",
+                vm.DisplayPorts.Count == 1 && vm.DisplayPorts[0].Name == "Image",
+                "实际候选：" + string.Join(", ", vm.DisplayPorts.Select(p => p.Name)));
+
+            // 换输入端口必须重算 —— 早先只在换上游节点时算，
+            // 换端口不重算就会把"上一个端口的过滤结果"带过来
+            vm.SelectedInputPort = vm.DisplayDataPort.First(p => p.Definition.Name == "Value");
+            Check("换到 object 端口：三条全部可绑（object 什么都接得住）",
+                vm.DisplayPorts.Count == 3,
+                "实际候选：" + string.Join(", ", vm.DisplayPorts.Select(p => p.Name)));
+
+            vm.SelectedInputPort = vm.DisplayDataPort.First(p => p.Definition.Name == "SrcImage");
+            Check("换回 HImage 端口：过滤结果跟着重算（不是残留上一次的）",
+                vm.DisplayPorts.Count == 1 && vm.DisplayPorts[0].Name == "Image",
+                "实际候选：" + string.Join(", ", vm.DisplayPorts.Select(p => p.Name)));
+
+            // 判据必须是纯函数、可空安全 —— 弹窗在无选中项时也会走这条路
+            Check("判据 null 安全（无选中端口时不抛、按全兼容处理）",
+                TypeHelper.CanBindTo(typeof(HImage), typeof(object)), "");
+        }
+
+        /// <summary>
+        /// 端口类型名解析。
+        ///
+        /// 为什么单列一条：过滤能不能生效**全看这一步**。端口声明的 DataTypeName 是
+        /// AssemblyQualifiedName（PluginService / FlowQueryHelper / 各插件 DynamicPortInfo 都是），
+        /// Type.GetType 直接命中；但插件自己手写的固定端口可能只写短名，
+        /// 那种情况下解析失败就退化成 object ⇒ 过滤静默失效（界面看起来"正常"，只是不筛了）。
+        /// </summary>
+        private static void RunTypeResolveContract()
+        {
+            Section("[V] 端口类型名解析（过滤是否生效的前提）");
+
+            Check("程序集限定名可解析",
+                TypeHelper.ResolveType(typeof(HImage).AssemblyQualifiedName) == typeof(HImage), "");
+
+            Check("只写短名也能解析（逐程序集兜底）",
+                TypeHelper.ResolveType("HalconDotNet.HImage") == typeof(HImage),
+                $"解析结果={TypeHelper.ResolveType("HalconDotNet.HImage").Name}");
+
+            Check("未知类型名退回 object（= 放行，不误杀）",
+                TypeHelper.ResolveType("不存在.这样的.类型") == typeof(object), "");
+
+            Check("空类型名退回 object（不抛异常）",
+                TypeHelper.ResolveType(null) == typeof(object) && TypeHelper.ResolveType("") == typeof(object), "");
+        }
+
+        // ==================================================================
+        //  视图样式收编契约（UI 库 Dialog* 公共令牌）
+        // ==================================================================
+
+        /// <summary>本视图必须能解析到的公共样式键（键名即跨程序集契约）</summary>
+        private static readonly string[] RequiredDialogStyleKeys =
+        {
+            "DialogColumnCard", "DialogColumnHeader", "DialogColumnHeaderAccent",
+            "DialogColumnTitle", "DialogColumnTitleIcon", "DialogOptionItem",
+            "DialogChip", "DialogChipText", "DialogCheckBox", "DialogFooter",
+            "DialogFooterPrimaryButton", "DialogFooterSecondaryButton",
+            "DialogInput", "DialogCombo", "DialogFormLabel",
+        };
+
+        /// <summary>已经收编到 UI 库、不允许视图再本地定义的键</summary>
+        private static readonly string[] ForbiddenLocalDialogKeys =
+        {
+            "NoWarningItemStyle", "InputPortItemStyle",
+            "PresetOptionButtonStyle", "SelectedPresetOptionButtonStyle",
+        };
+
+        /// <summary>
+        /// 静态扫描（不碰 WPF 运行时），理由与 BlobDetectChecks 同：
+        /// 控制台进程里 new Application 会让后续投射类断言失效、且退出时挂住。
+        /// 这里扫"用到但没定义"与"本地又抄了一份"，等价于运行期那句"找不到资源"。
+        /// </summary>
+        private static void RunViewStyleContract()
+        {
+            Section("[V] 视图样式收编契约（UI 库 Dialog* 令牌）");
+
+            string? xamlPath = ResolveRepoFile(@"VisionMaster\Views\DialogViews\VariableBindingView.xaml");
+            string? stylesPath = ResolveRepoFile(@"UI\Controls\Themes\DialogStyles.xaml");
+            string? colorsPath = ResolveRepoFile(@"UI\Controls\Themes\Colors.xaml");
+            string? genericPath = ResolveRepoFile(@"UI\Controls\Themes\Generic.xaml");
+
+            if (xamlPath == null || stylesPath == null || colorsPath == null || genericPath == null)
+            {
+                Check("变量绑定视图样式收编（静态扫描）", true, "跳过：定位不到视图或 UI 库主题文件");
+                return;
+            }
+
+            string xaml = File.ReadAllText(xamlPath);
+            string stylesText = File.ReadAllText(stylesPath);
+            string genericText = File.ReadAllText(genericPath);
+            // 视图用的 Dialog* 键一半是样式（DialogStyles.xaml）、一半是令牌（Colors.xaml），
+            // 只扫样式那一本会把"DialogAccentBrush 等一律报缺失"——那是断言自己漏了，不是视图错了
+            string tokenText = File.ReadAllText(colorsPath);
+
+            // ---- ① 视图侧：颜色不许硬编码、样式不许再抄一遍 ----
+            var colors = Regex.Matches(xaml, @"#[0-9A-Fa-f]{3}\b|#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{8}\b");
+            Check("【收编】视图里已无硬编码颜色（含原来那套 #409EFF / #F5F7FA，一律走令牌）",
+                colors.Count == 0,
+                colors.Count == 0 ? "" : string.Join(", ", colors.Select(m => m.Value).Distinct().Take(10)));
+
+            var localDefs = ForbiddenLocalDialogKeys.Where(k => xaml.Contains($"x:Key=\"{k}\"")).ToList();
+            Check("【收编】视图不再本地定义 NoWarningItemStyle / InputPortItemStyle / PresetOptionButtonStyle",
+                localDefs.Count == 0,
+                localDefs.Count == 0 ? "" : "仍在本地定义：" + string.Join(", ", localDefs));
+
+            Check("【收编】视图改用 Dialog* 公共样式（栏卡片 / 选项行 / 底部栏）",
+                xaml.Contains("StaticResource DialogColumnCard")
+                && xaml.Contains("StaticResource DialogOptionItem")
+                && xaml.Contains("StaticResource DialogFooter"), "");
+
+            // ---- ② 弹窗尺寸：改前是 900×580 + NoResize（用户拉不大，三栏必然挤） ----
+            Check("【尺寸】视图不再写死 900×580（改为下限 + 可缩放，窗口尺寸交给宿主 Window）",
+                !xaml.Contains("Width=\"900\"") && !xaml.Contains("Height=\"580\""), "");
+            Check("【尺寸】允许缩放且不再 SizeToContent（否则拖边框看不到变化）",
+                xaml.Contains("ResizeMode\" Value=\"CanResizeWithGrip\"")
+                && xaml.Contains("SizeToContent\" Value=\"Manual\""), "");
+
+            // ---- ③ UI 库侧：用到的每个键都必须真有定义 ----
+            var definedKeys = Regex.Matches(stylesText + tokenText + genericText, @"x:Key=""([A-Za-z0-9]+)""")
+                .Select(m => m.Groups[1].Value)
+                .ToHashSet();
+
+            var usedKeys = Regex.Matches(xaml, @"StaticResource\s+(Dialog[A-Za-z0-9]+)")
+                .Select(m => m.Groups[1].Value)
+                .Distinct()
+                .ToList();
+
+            var missing = usedKeys.Where(k => !definedKeys.Contains(k)).ToList();
+            Check("【核心】视图用到的每个 Dialog* 键都在 UI 库里有定义（否则运行期抛\"找不到资源\"）",
+                missing.Count == 0,
+                missing.Count == 0 ? $"共 {usedKeys.Count} 个键全部命中" : "缺失：" + string.Join(", ", missing));
+
+            var missingRequired = RequiredDialogStyleKeys.Where(k => !definedKeys.Contains(k)).ToList();
+            Check("【核心】本次收编的公共键全部落在 DialogStyles.xaml（换主题只改 Colors.xaml）",
+                missingRequired.Count == 0,
+                missingRequired.Count == 0 ? "" : "缺失：" + string.Join(", ", missingRequired));
+
+            Check("【核心】DialogStyles.xaml 已在 Generic.xaml 合并链上",
+                genericText.Contains("Themes/DialogStyles.xaml"), "");
+
+            RunWindowStyleSetterContract();
+            RunMissingResourceKeyContract();
+            RunDialogChromeContract();
+        }
+
+        /// <summary>
+        /// 所有弹窗都必须自绘标题栏：去系统边框 + 可拖 + 有关闭绑定。
+        ///
+        /// 为什么值得钉：系统原生窗框与这套青蓝界面格格不入（同屏切换像两个软件），
+        /// 而"漏一个"太容易了 —— 本次就是在变量管理上发现的，随后全仓一扫又找出 4 个
+        /// （相机设置 / 通讯设置 / 条件逻辑配置中心 / 流程管理）。
+        ///
+        /// 只检查**带 prism:Dialog.WindowStyle 的文件**：这个目录里还放着嵌在 Shell 中的普通视图
+        /// （如 SolutionListView），它们没有窗口样式、也不该有标题栏。
+        /// </summary>
+        private static void RunDialogChromeContract()
+        {
+            var dir = ResolveRepoDir(@"VisionMaster\Views\DialogViews");
+            if (dir == null)
+            {
+                Check("【窗框】弹窗目录定位", true, "跳过：定位不到 DialogViews");
+                return;
+            }
+
+            var missingNone = new List<string>();
+            var missingDrag = new List<string>();
+            var missingClose = new List<string>();
+            int dialogCount = 0;
+
+            foreach (var file in Directory.GetFiles(dir, "*.xaml"))
+            {
+                string text = File.ReadAllText(file);
+                if (!text.Contains("prism:Dialog.WindowStyle")) continue;   // 不是弹窗
+                dialogCount++;
+
+                string name = Path.GetFileNameWithoutExtension(file);
+                if (!text.Contains("Property=\"WindowStyle\" Value=\"None\"")) missingNone.Add(name);
+                if (!text.Contains("IsWindowDraggable")) missingDrag.Add(name);
+
+                // "关闭入口"有两种合法形态：标题栏右上角的 ×（CloseCommand），
+                // 或底部的「取消 / 确定」按钮（CancelCommand / ConfirmCommand）。
+                // 去掉系统标题栏时至少要有其中之一，否则这个弹窗关不掉。
+                if (!text.Contains("CloseCommand")
+                    && !text.Contains("CancelCommand")
+                    && !text.Contains("ConfirmCommand"))
+                {
+                    missingClose.Add(name);
+                }
+            }
+
+            Check("【窗框】所有弹窗都已去掉系统标题栏（改自绘，与青蓝界面统一）",
+                missingNone.Count == 0,
+                $"共找到 {dialogCount} 个带窗口样式的弹窗；"
+                + (missingNone.Count == 0 ? "全部自绘" : "仍用系统窗框：" + string.Join(", ", missingNone)));
+
+            Check("【窗框】每个弹窗的自绘标题栏都可拖动（无边框窗口没有系统拖动区）",
+                missingDrag.Count == 0,
+                missingDrag.Count == 0 ? "" : "缺 ui:WindowDragBehavior：" + string.Join(", ", missingDrag));
+
+            Check("【窗框】每个弹窗都有关闭入口（标题栏 × 或底部取消/确定，二选一）",
+                missingClose.Count == 0,
+                missingClose.Count == 0
+                    ? "全部具备（无边框窗口没有系统关闭按钮，这一条是关不关得掉的底线）"
+                    : "两个都没有：" + string.Join(", ", missingClose));
+        }
+
+        /// <summary>
+        /// 视图里不许出现 <c>{StaticResource BooleanToVisibilityConverter}</c>。
+        ///
+        /// 【为什么】这个键在 App.xaml（只有 Icon / ExpandToggleButtonTemplate / LinkButtonStyle）
+        /// 和 UI 库的任何合并字典里都**没有定义**。UI 库里只有
+        /// <c>UI/Controls/Converters/BooleanToVisibilityConverter .cs</c> 这个**类**，
+        /// 通过 ui 命名空间映射使用，正确写法是 <c>{ui:BooleanToVisibilityConverter}</c>。
+        ///
+        /// 写错的后果是运行期抛「无法找到名为"BooleanToVisibilityConverter"的资源」——
+        /// 而它在**模板内部**时更阴：StaticResource 延迟到模板实例化才解析，
+        /// 列表为空就一直不报错，等哪天列表有行了几何级地突然炸（本次实测两处：
+        /// VariableBindingView 的 InputPortTemplate 内、PluginConfigShellView 第 117 行）。
+        /// </summary>
+        private static void RunMissingResourceKeyContract()
+        {
+            var offenders = new List<string>();
+            foreach (var root in new[] { ResolveRepoDir(@"VisionMaster\Views"), ResolveRepoDir(@"Plugins") })
+            {
+                if (root == null) continue;
+                foreach (var file in Directory.GetFiles(root, "*.xaml", SearchOption.AllDirectories))
+                {
+                    if (file.Contains(@"\obj\") || file.Contains(@"\bin\")) continue;
+                    if (File.ReadAllText(file).Contains("{StaticResource BooleanToVisibilityConverter}"))
+                        offenders.Add(Path.GetFileName(file));
+                }
+            }
+
+            Check("【资源】没有视图引用不存在的资源键（{StaticResource BooleanToVisibilityConverter} → 应为 {ui:...}）",
+                offenders.Count == 0,
+                offenders.Count == 0
+                    ? "已扫 VisionMaster\\Views 与 Plugins 全部 xaml"
+                    : "会炸：运行期抛「找不到资源」——" + string.Join(", ", offenders.Distinct()));
+        }
+
+        /// <summary>
+        /// 宿主窗口样式（<c>prism:Dialog.WindowStyle</c>）里只准写依赖属性。
+        ///
+        /// 【为什么单列一条】Style 的 Setter 只能设 DependencyProperty，而
+        /// <c>Window.WindowStartupLocation</c> 是个普通 CLR 属性（没有 WindowStartupLocationProperty）。
+        /// 把它写进 Setter 的后果是**打开弹窗时**抛：
+        ///     XamlParseException「设置属性 System.Windows.Setter.Property 时引发了异常」
+        ///     内层 ArgumentNullException: Value cannot be null. (Parameter 'property')
+        /// 行号指向那一行，看着像"这行写法不对"，其实这个属性压根不能出现在 Style 里。
+        ///
+        /// 而且它**三道关卡都拦不住**：XAML 编译（BAML）能过（BAML 不校验 Setter.Property）、
+        /// 资源字典加载能过（压根不碰视图 BAML）、键名静态扫描也能过 ——
+        /// 只有真的构造视图才会炸（本轮实测：探针 new VariableBindingView() 一步定位）。
+        /// </summary>
+        private static void RunWindowStyleSetterContract()
+        {
+            var dir = ResolveRepoDir(@"VisionMaster\Views\DialogViews");
+            if (dir == null)
+            {
+                Check("【窗口样式】弹窗目录定位", true, "跳过：定位不到 DialogViews");
+                return;
+            }
+
+            // 已知会炸的非依赖属性（实测结论，不是推测）
+            string[] notDependencyProperties = { "WindowStartupLocation" };
+
+            var offenders = new List<string>();
+            foreach (var file in Directory.GetFiles(dir, "*.xaml"))
+            {
+                string text = File.ReadAllText(file);
+                foreach (var prop in notDependencyProperties)
+                {
+                    if (text.Contains($"Property=\"{prop}\""))
+                        offenders.Add($"{Path.GetFileName(file)} → {prop}");
+                }
+            }
+
+            Check("【窗口样式】没有任何弹窗把非依赖属性（WindowStartupLocation）写进 Style 的 Setter",
+                offenders.Count == 0,
+                offenders.Count == 0
+                    ? "已扫全部弹窗：只有 WindowStyle / ResizeMode / SizeToContent / Width / Height / MinWidth / MinHeight 这类 DP"
+                    : "会炸：打开弹窗时抛 ArgumentNullException('property') —— " + string.Join(", ", offenders));
+        }
+
+        /// <summary>从输出目录往上找仓库根，再拼相对路径（定位不到返回 null，由调用方跳过）</summary>
+        private static string? ResolveRepoFile(string relative)
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return null;
+        }
+
+        /// <summary>同 ResolveRepoFile，但定位目录</summary>
+        private static string? ResolveRepoDir(string relative)
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (Directory.Exists(candidate)) return candidate;
+            }
+            return null;
         }
 
         /// <summary>造一个常量连线 —— 与 Confirm 写入时的构造方式保持一致</summary>

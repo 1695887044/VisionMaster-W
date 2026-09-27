@@ -15,10 +15,17 @@
         内容块就居中缩在中间、四周一圈留白，而且永远不跟着窗口变宽。
         搬到 Window 后 UserControl 自然撑满，内部 * 行 / * 列才能吸收多余空间。
         刻意不用 SizeToContent：它会让窗口随内容自己改大小，且手动放大后内容不重排。
-        （与 PluginConfigShellView 同一范式；区别是这里保留系统标题栏，不设 WindowStyle=None）
+        （与 PluginConfigShellView 同一范式。原注释写着"这里保留系统标题栏"，现已改为自绘：
+          系统窗框与其余弹窗差别太大，同屏切换像两个软件。）
     -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
+            <!--
+                WindowStyle=None：去掉系统标题栏，改由视图自绘（见下方标题栏）。
+                代价是窗口失去系统拖动区域与关闭按钮，两者都在视图里补齐：
+                标题栏挂 ui:WindowDragBehavior，右侧 × 绑 VM 的 CloseCommand。
+            -->
+            <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
             <Setter Property="Width" Value="1080" />
@@ -43,6 +50,71 @@
     -->
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            自绘标题栏（替代原来的系统窗框）。无边框窗口没有系统拖动区域与关闭按钮：
+            整条挂 ui:WindowDragBehavior 负责拖，右侧 × 绑 VM 的 CloseCommand。
+            标题文字绑 VM.Title，不写死 —— 系统标题栏去掉后这里是唯一的标题来源。
+        -->
+        <Border
+            Grid.Row="0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="15"
+                    Foreground="{StaticResource DialogAccentBrush}"
+                    Text="&#xf1e6;" />
+
+                <StackPanel
+                    Grid.Column="1"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="{Binding Title}" />
+                    <TextBlock
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="设备连接与扫描组：增删连接 / 测试 / 轮询周期" />
+                </StackPanel>
+
+                <Button
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    Style="{StaticResource DialogIconButton}"
+                    ToolTip="关闭">
+                    <TextBlock
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="&#xf00d;" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!--  以下即原三段式布局（工具栏 + 表格 + 底栏），原样下移成第 2 行  -->
+        <Grid Grid.Row="1">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -529,5 +601,6 @@
                     Style="{StaticResource DialogPrimaryButton}" />
             </Grid>
         </Border>
+        </Grid>
     </Grid>
 </UserControl>

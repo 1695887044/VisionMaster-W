@@ -85,6 +85,8 @@ namespace FlowCanvasChecks
             CodeReaderChecks.Run();
             YoloChecks.Run();
             BlobDetectChecks.Run();
+            PortBindChecks.Run();
+            GlobalVariableChecks.Run();
             MatchingChecks.Run();
             CreateRoiChecks.Run();
 

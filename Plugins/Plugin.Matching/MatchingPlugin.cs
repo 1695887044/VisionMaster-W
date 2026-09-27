@@ -95,6 +95,17 @@ namespace Plugin.Matching
 
         private bool _seedingCanvas; // 播种画布期间为真：CanvasRois 的变更来自"回填"，不回写参数
 
+        /// <summary>
+        /// 是否为"配置态实例"（宿主为打开配置界面而创建的那个）。运行实例一律 false。
+        ///
+        /// 为什么要区分：读参考图 / 反序列化模型 / 渲染预览 / 开离屏窗口这些都是给人看的配置态能力。
+        /// 编译出来的运行实例走的是同一条 ApplyConfigValues，不做隔离就会在编译期把这些全做一遍。
+        /// </summary>
+        private bool _isConfigInstance;
+
+        /// <summary>标记为配置态实例（幂等）</summary>
+        private void MarkAsConfigInstance() => _isConfigInstance = true;
+
         private double _minScore = DefaultMinScore;
 
         /// <summary>匹配参数：分数下限，低于它的命中不算找到（运行期，全局）</summary>
@@ -255,8 +266,15 @@ namespace Plugin.Matching
                 if (_editingEntry != null)
                     _editingEntry.PropertyChanged += OnEditingEntryChanged;
 
-                SeedCanvasFromEntry(_editingEntry);
-                RefreshPreviewForEntry(_editingEntry);
+                // 只有配置态才需要"画布播种 + 参考图/模型预览"：
+                // 运行实例被 FlowCompiler 走 ApplyConfigValues 时也会走到这里，
+                // 不做隔离的话，编译一次流程就要读一次参考图、反序列化一次模型、
+                // 还多开一个 HALCON 离屏 buffer 窗口（与 Blob 那次同类的问题）
+                if (_isConfigInstance)
+                {
+                    SeedCanvasFromEntry(_editingEntry);
+                    RefreshPreviewForEntry(_editingEntry);
+                }
 
                 OnPropertyChanged(nameof(EditingEntry));
                 TouchModelStaleness();
@@ -576,6 +594,9 @@ namespace Plugin.Matching
         {
             if (e.PropertyName != nameof(IInputPort.Value))
                 return;
+            // 运行实例不需要把上游图搬到画布（那只是给操作员看的）
+            if (!_isConfigInstance)
+                return;
             ShowUpstreamImage();
         }
 
@@ -732,7 +753,13 @@ namespace Plugin.Matching
             }
 
             var name = EditingEntry.Name;
-            Library.Remove(EditingEntry);
+            var removed = EditingEntry;
+            Library.Remove(removed);
+
+            // 必须先释放模型句柄：条目已从 Library 摘掉，Dispose 遍历 Library 再也够不着它，
+            // 不在这里释放就是永久泄漏（HALCON shape model 句柄 + 轮廓对象）
+            ReleaseEntryModel(removed);
+
             EditingEntry = Library.FirstOrDefault();
             if (string.Equals(DefaultTemplateName, name))
                 DefaultTemplateName = Library.FirstOrDefault()?.Name ?? string.Empty;
@@ -902,6 +929,13 @@ namespace Plugin.Matching
                 {
                     scaleLo = Math.Clamp(Math.Min(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
                     scaleHi = Math.Clamp(Math.Max(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
+                    // 退化解：上下限相等时 HALCON 会拒绝创建（缩放范围退化），
+                    // 这里撑开一个最小窗口而不是让它变成一条看不懂的算子错误
+                    if (scaleHi - scaleLo < 1e-6)
+                    {
+                        scaleLo = Math.Max(0.5, scaleLo - 0.005);
+                        scaleHi = Math.Min(2.0, scaleHi + 0.005);
+                    }
                     HOperatorSet.CreateScaledShapeModel(
                         gray,
                         numLevels,
@@ -1015,7 +1049,14 @@ namespace Plugin.Matching
                     entry.Model = Convert.ToBase64String(File.ReadAllBytes(tempFile));
                     entry.RuntimeModelSource = entry.Model;
                     HOperatorSet.GetImageSize(DisplayImage, out HTuple refW, out HTuple refH);
-                    entry.Mask = MaskRegionToBase64(exclusion, refW.I, refH.I) ?? string.Empty;
+
+                    // 掩膜统一存"原始涂抹域"（不与模板区域求交）：与 WriteBackSmearToEntry 同口径。
+                    // 早先这里存的是求交后的 exclusion，与换条目时写回的 raw domain 长度不同，
+                    // 而 EntrySignature 含 Mask.Length —— 于是"什么都没改"也会提示需重新学习。
+                    using (var rawSmear = BuildRawSmearRegion())
+                    {
+                        entry.Mask = MaskRegionToBase64(rawSmear, refW.I, refH.I) ?? string.Empty;
+                    }
                     RefreshEntryContours(entry);
                 }
                 finally
@@ -1049,9 +1090,16 @@ namespace Plugin.Matching
                 string scaleNote = entry.ScaleEnabled
                     ? $"，缩放 {Math.Min(entry.ScaleMin, entry.ScaleMax):0.##}~{Math.Max(entry.ScaleMin, entry.ScaleMax):0.##}×"
                     : string.Empty;
+                // 尺寸按形状给：圆只有 3 个参数，直接取 index 3/4 会显示 0×0
+                //（更要命的是早先这里取的是迁移字段 TemplateRect —— 新方案下它恒为空数组，
+                //  每次学习都会 IndexOutOfRange，被外层 catch 吞成"创建模板失败"，
+                //  而模型其实已经学好了。原因见开发记录）
+                string sizeNote = CanvasShape == RoiShapeNames.Circle
+                    ? $"半径 {CanvasRect[2]:0} px"
+                    : $"{CanvasRect[3] * 2:0}×{CanvasRect[4] * 2:0} px";
                 SetStatus(
                     $"模板「{entry.Name}」已学习：金字塔 {levels.I} 层，角度 {Math.Min(entry.MinAngleDeg, entry.MaxAngleDeg):0}~{Math.Max(entry.MinAngleDeg, entry.MaxAngleDeg):0}°{scaleNote}，"
-                        + $"特征区域 {TemplateRect[3] * 2:0}×{TemplateRect[4] * 2:0} px，"
+                        + $"特征区域 {sizeNote}，"
                         + $"载荷 {entry.Model.Length * 3 / 4 / 1024} KB。左下角为模板预览"
                 );
                 TouchModelStaleness();
@@ -1219,6 +1267,21 @@ namespace Plugin.Matching
                 Library.Add(entry);
                 EditingEntry = entry;
             }
+        }
+
+        /// <summary>
+        /// 配置态入口（基类 virtual）：宿主打开配置界面走这里 —— GetConfigView 会调它，
+        /// "重新打开方案恢复画布/预览"也走它。
+        ///
+        /// 关键判据：流程编译器构造运行实例时**只调 ApplyConfigValues、不经过 Initialize**，
+        /// 所以"是否配置态"盖在这里既保住隔离（运行实例不读图/不建模型/不开离屏窗口），
+        /// 又不会把"重开方案要恢复预览与掩膜"一起隔掉。
+        /// </summary>
+        public override void Initialize(IStepConfigData stepData)
+        {
+            // 先盖章再灌值：这样 ApplyConfigValues 里设置 EditingEntry 时才会去播种画布/渲染预览
+            MarkAsConfigInstance();
+            base.Initialize(stepData);
         }
 
         public object GetConfigView(IStepConfigData stepData)
@@ -1516,6 +1579,16 @@ namespace Plugin.Matching
                 // "false" = 输出与输入同幅面（目标回标准位姿、画幅不变），出界部分填黑
                 if (OutputAlignedImage)
                 {
+                    // 位姿归一化的目标位姿取自条目区域中心：条目被手工改坏（Rect 不是 5 个值）时，
+                    // 越界会把整轮匹配变成"模板匹配失败：索引超出界限"这种看不懂的错误，
+                    // 这里提前给一句能照着修的中文提示
+                    if (entry.Rect == null || entry.Rect.Length != 5)
+                    {
+                        Fail($"模板「{entry.Name}」的区域参数损坏（应为 5 个值，实际 {entry.Rect?.Length ?? 0} 个）：请打开配置界面重新框选并学习");
+                        context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                        return;
+                    }
+
                     HOperatorSet.VectorAngleToRigid(
                         rows[0].D,
                         cols[0].D,
@@ -1536,7 +1609,11 @@ namespace Plugin.Matching
                     AlignedImage.Value = new HImage(aligned);
                 }
 
-                RenderResultAnnotation(src, entry, rows, cols, angles);
+                // 角度一律按"度"往下游传（平台口径）：Angles 端口是度，标注渲染也吃度，
+                // 内部再统一转回弧度给 vector_angle_to_rigid。
+                // 早先这里把 find 输出的【弧度】当度又乘了一次 π/180（双重转换），
+                // 导致标注图上轮廓几乎不跟着目标转 —— 端口数值是对的，只有画出来是错的。
+                RenderResultAnnotation(src, entry, rows, cols, angles * 180.0 / Math.PI);
                 PublishIfConfigured();
             }
             catch (Exception ex)
@@ -1567,6 +1644,53 @@ namespace Plugin.Matching
         }
 
         /// <summary>
+        /// 把模型轮廓按各命中位姿放置，并拼接成一个对象集（渲染用）。
+        ///
+        /// 【角度单位一律是度】——与 Row/Column/Angle 端口、Angles 数组端口同一口径，
+        /// 内部再统一转成弧度喂给 vector_angle_to_rigid。
+        ///
+        /// 为什么不写成 private：早期这里拿 find 输出的【弧度】又乘了一次 π/180（双重转换），
+        /// 结果标注图上的轮廓几乎不跟着目标转，而端口数值完全正确 —— 冒烟里 44 条断言全都看不见它。
+        /// 抽成 public 静态以后，冒烟可以直接用一根已知角度的 XLD 断言"度→弧度"这条换算。
+        /// </summary>
+        public static HObject? PlaceContoursAtPoses(
+            HObject contours,
+            HTuple rows,
+            HTuple cols,
+            HTuple anglesDeg
+        )
+        {
+            if (contours == null || !contours.IsInitialized() || rows.Length == 0)
+                return null;
+
+            HObject? placed = null;
+            for (int i = 0; i < rows.Length; i++)
+            {
+                HOperatorSet.VectorAngleToRigid(
+                    0,
+                    0,
+                    0,
+                    rows[i].D,
+                    cols[i].D,
+                    anglesDeg[i].D * Math.PI / 180.0,
+                    out HTuple hom
+                );
+                HOperatorSet.AffineTransContourXld(contours, out HObject one, hom);
+
+                if (placed == null)
+                {
+                    placed = one;
+                    continue;
+                }
+                HOperatorSet.ConcatObj(placed, one, out HObject combined);
+                placed.Dispose();
+                one.Dispose();
+                placed = combined;
+            }
+            return placed;
+        }
+
+        /// <summary>
         /// 渲染运行标注图：原图 + 命中实例的模板轮廓（绿）+ 左上角判定文字；
         /// 未找到时画原图 + 红字（产线要能当场看到现场）。渲染失败 MeasureImage 保持空，不影响端口数据。
         /// </summary>
@@ -1591,32 +1715,12 @@ namespace Plugin.Matching
                     )
                     {
                         // 每个命中实例：模型轮廓从原点平移旋转到命中位姿，再拼接成一个对象集
-                        for (int i = 0; i < rows!.Length; i++)
-                        {
-                            HOperatorSet.VectorAngleToRigid(
-                                0,
-                                0,
-                                0,
-                                rows[i].D,
-                                cols![i].D,
-                                angles![i].D * Math.PI / 180.0,
-                                out HTuple hom
-                            );
-                            HOperatorSet.AffineTransContourXld(
-                                entry.RuntimeContours,
-                                out HObject one,
-                                hom
-                            );
-                            if (placed == null)
-                            {
-                                placed = one;
-                                continue;
-                            }
-                            HOperatorSet.ConcatObj(placed, one, out HObject combined);
-                            placed.Dispose();
-                            one.Dispose();
-                            placed = combined;
-                        }
+                        placed = PlaceContoursAtPoses(
+                            entry.RuntimeContours,
+                            rows!,
+                            cols!,
+                            angles!
+                        );
                     }
 
                     var lines = found
@@ -2031,6 +2135,10 @@ namespace Plugin.Matching
             SmearEraseRegion = null;
             ClosePreviewWindow();
             TemplatePreviewImage = null; // setter 释放预览图
+            // 参考图也要释放：DisplayImage 的 setter 是普通 SetProperty（不释放旧值），
+            // 换图路径靠各调用点手动 Dispose，只有这里能兜住"最后一次"那张
+            DisplayImage?.Dispose();
+            DisplayImage = null;
             base.Dispose();
         }
     }

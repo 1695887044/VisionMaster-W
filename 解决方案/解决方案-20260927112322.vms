@@ -1,0 +1,358 @@
+{
+  "SolutionName": "解决方案-20260927112322",
+  "Version": 1.0,
+  "Config": {
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/27/2026 11:23:24\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"277.79999999999995\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/27/2026 11:10:05\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"09/27/2026 11:09:57\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"2024.4551627754606*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/27/2026 11:22:58\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"09/25/2026 22:56:22\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/25/2026 22:54:08\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/25/2026 01:09:22\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"09/25/2026 01:09:26\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\" />\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"300\">\r\n      <LayoutAnchorable AutoHideWidth=\"260.6857142857143\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/27/2026 11:10:03\" />\r\n      <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"09/25/2026 18:02:27\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"09/27/2026 11:22:58\" PreviousContainerId=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "ImageViewMode": 5
+  },
+  "Flows": [
+    {
+      "FlowID": "5c0896b5062c4620baff89f54effb0e2",
+      "FlowName": "GoHome",
+      "Description": "回原",
+      "Version": 0,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": []
+    },
+    {
+      "FlowID": "837ace351d9044919fe12f056aa514e1",
+      "FlowName": "MainTask",
+      "Description": "主任务",
+      "Version": 0,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": []
+    }
+  ],
+  "CommunicationConfigs": [
+    {
+      "ConnectionName": "Conn_014013",
+      "Protocol": 0,
+      "Config": {
+        "$type": "VisionMaster.Communications.ModbusTcpConfig, VM.Core",
+        "ByteoRDER": 0,
+        "IpAddress": "127.0.0.1",
+        "Port": 502,
+        "EnableKeepAlive": true,
+        "KeepAliveIntervalMs": 30000,
+        "Type": 0,
+        "TimeoutMs": 3000,
+        "RetryCount": 3,
+        "RetryIntervalMs": 1000,
+        "ReadTimeoutMs": 5000
+      },
+      "ReadCycleMs": 1000,
+      "ScanGroups": [
+        {
+          "Name": "100ms",
+          "IntervalMs": 100
+        },
+        {
+          "Name": "500ms",
+          "IntervalMs": 500
+        },
+        {
+          "Name": "5000ms",
+          "IntervalMs": 5000
+        },
+        {
+          "Name": "组1",
+          "IntervalMs": 1000
+        }
+      ],
+      "AutoStart": true,
+      "AutoReconnect": true,
+      "IsEnabled": true,
+      "Description": ""
+    }
+  ],
+  "CameraConfigs": [],
+  "VariableSnapshots": [
+    {
+      "VarType": "Local",
+      "Name": "RecipeName",
+      "VariableId": "5b9d8ff3-e50b-47e7-a253-ffe261be7b68",
+      "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "当前加载的产品模型配方名称",
+      "DefaultValue": "Product_Type_A",
+      "Value": "Product_Type_A",
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "ProductCode",
+      "VariableId": "fbfb00a6-c2ff-4c24-8a17-6eb310bcd0a6",
+      "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "当前识别到的条码或二维码信息",
+      "DefaultValue": "QR202310240001",
+      "Value": "QR202310240001",
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "TotalCount",
+      "VariableId": "17bffd07-1ab7-49fe-9b51-b086522a4bcd",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "设备运行以来的累计生产总数",
+      "DefaultValue": 1500,
+      "Value": 1500,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "OKCount",
+      "VariableId": "b2b32ed5-5729-419f-bf27-f31b50bca7e2",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "累计检测良品总数",
+      "DefaultValue": 1485,
+      "Value": 1485,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "NGCount",
+      "VariableId": "4fc441d2-1986-4814-ab17-ee90e2c7eb6c",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "累计检测不良品总数",
+      "DefaultValue": 15,
+      "Value": 15,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "ScoreThreshold",
+      "VariableId": "b60d1822-6747-4263-ac0f-9186575e4125",
+      "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "模板匹配的最小及格分数 (0-100)",
+      "DefaultValue": 85.5,
+      "Value": 85.5,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "Exposure_Time",
+      "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
+      "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "主相机的曝光时间 (ms)",
+      "DefaultValue": 25.0,
+      "Value": 43.0,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "YieldRate",
+      "VariableId": "cb143be5-5f61-4862-a883-65cf2afe0579",
+      "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "当前的实时良率 (%)",
+      "DefaultValue": 99.0,
+      "Value": 99.0,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "PLC_Ready",
+      "VariableId": "659d0fe1-2133-4ed4-a556-c11d86117669",
+      "DataTypeString": "System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "外部PLC通讯握手信号",
+      "DefaultValue": true,
+      "Value": true,
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "BarcodeResults",
+      "VariableId": "1c5deffe-3672-4977-85aa-538ff176a190",
+      "DataTypeString": "System.String[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "单次触发读取到的所有条码集合",
+      "DefaultValue": {
+        "$type": "System.String[], System.Private.CoreLib",
+        "$values": [
+          "SN2026-A01",
+          "SN2026-A02",
+          "SN2026-B01"
+        ]
+      },
+      "Value": {
+        "$type": "System.String[], System.Private.CoreLib",
+        "$values": [
+          "SN2026-A01",
+          "SN2026-A02",
+          "SN2026-B01"
+        ]
+      },
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "HoleCoordinatesX",
+      "VariableId": "c90136f1-1a66-4827-827c-d27096f4250d",
+      "DataTypeString": "System.Double[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "所有定位孔的 X 坐标集合 (mm)",
+      "DefaultValue": {
+        "$type": "System.Double[], System.Private.CoreLib",
+        "$values": [
+          12.5,
+          45.2,
+          88.9,
+          120.0
+        ]
+      },
+      "Value": {
+        "$type": "System.Double[], System.Private.CoreLib",
+        "$values": [
+          12.5,
+          45.2,
+          88.9,
+          120.0
+        ]
+      },
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Local",
+      "Name": "CameraROI",
+      "VariableId": "d935577b-d176-41d7-a4d0-151736320dda",
+      "DataTypeString": "System.Int32[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "相机的动态检测区域 [X, Y, Width, Height]",
+      "DefaultValue": {
+        "$type": "System.Int32[], System.Private.CoreLib",
+        "$values": [
+          100,
+          100,
+          800,
+          600
+        ]
+      },
+      "Value": {
+        "$type": "System.Int32[], System.Private.CoreLib",
+        "$values": [
+          100,
+          100,
+          800,
+          600
+        ]
+      },
+      "Offset": "0",
+      "BitOffset": -1,
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Network",
+      "Name": "Data1",
+      "VariableId": "34d597e9-5165-4bed-94dd-dd5e1020d32f",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "",
+      "ConnectionName": "PLC1",
+      "Protocol": "ModbusTcp",
+      "Area": "HoldingRegisters",
+      "Offset": "1",
+      "BitOffset": -1,
+      "DataValueType": "Int32",
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Network",
+      "Name": "Data2",
+      "VariableId": "4d1099a9-4b2b-4a02-8f70-fb4d93ea3841",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "",
+      "ConnectionName": "PLC1",
+      "Protocol": "ModbusTcp",
+      "Area": "HoldingRegisters",
+      "Offset": "23",
+      "BitOffset": -1,
+      "DataValueType": "Int32",
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Network",
+      "Name": "Data3",
+      "VariableId": "a6e4b802-a4f6-43c1-9b97-885eb7f7ad3a",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "",
+      "ConnectionName": "PLC1",
+      "Protocol": "ModbusTcp",
+      "Area": "HoldingRegisters",
+      "Offset": "12",
+      "BitOffset": -1,
+      "DataValueType": "Int32",
+      "DbNumber": 1,
+      "ScanGroup": ""
+    },
+    {
+      "VarType": "Network",
+      "Name": "Test",
+      "VariableId": "ac591409-f3f9-4707-b21c-49d31bbcd31d",
+      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+      "Description": "1",
+      "Value": 1507328,
+      "ConnectionName": "Conn_014013",
+      "Protocol": "ModbusTcp",
+      "Area": "HoldingRegisters",
+      "Offset": "0",
+      "BitOffset": -1,
+      "DataValueType": "Int32",
+      "DbNumber": 1,
+      "ScanGroup": ""
+    }
+  ],
+  "WatchItems": [],
+  "Scada": {
+    "SchemaVersion": 1,
+    "Pages": [],
+    "Alarms": [],
+    "VariableEvents": [],
+    "StartupPageId": "00000000-0000-0000-0000-000000000000"
+  }
+}

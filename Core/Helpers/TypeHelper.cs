@@ -48,6 +48,74 @@ namespace VisionMaster.Helpers
         }
 
         /// <summary>
+        /// 判断一个「上游输出端口」能不能绑到「下游输入端口」——端口绑定的**唯一判据**。
+        ///
+        /// 为什么单独抽一个方法而不是各处各写一遍 IsTypeCompatible：
+        /// ① 数组输出 → 标量端口这条"取元素"路径（带索引绑定）是合法的，
+        ///    只按 IsTypeCompatible(double[], double) 判会把 double[]→double 这种合法绑定误杀；
+        /// ② 绑定弹窗的"列表过滤"与"双击时校验"必须是同一把尺子，
+        ///    否则 UI 放过去的、校验又拦下来（或反过来），用户会看到自相矛盾的行为。
+        /// </summary>
+        /// <param name="source">上游输出端口类型</param>
+        /// <param name="target">下游输入端口类型（期望类型）</param>
+        public static bool CanBindTo(Type source, Type target)
+        {
+            if (source == null || target == null) return false;
+
+            // 数组 → 标量：允许"按下标取一个元素"（绑定时会弹索引输入框）
+            if (source.IsArray && !target.IsArray)
+            {
+                var element = source.GetElementType();
+                return element != null && IsTypeCompatible(element, target);
+            }
+
+            return IsTypeCompatible(source, target);
+        }
+
+        /// <summary>
+        /// 数组输出取元素时的元素类型（供"索引绑定"使用）；非数组返回自身
+        /// </summary>
+        public static Type GetBindableElementType(Type source)
+            => source != null && source.IsArray ? (source.GetElementType() ?? source) : source;
+
+        /// <summary>
+        /// 把端口定义里的 DataTypeName 解析成 Type —— 解析不出时返回 typeof(object)。
+        ///
+        /// 为什么不能用 GetActualTypeFromLink：那个方法对**未知**类型名返回 typeof(double)，
+        /// 于是"HRegion 端口撞上 double 期望"会被判成兼容（数值互转），把不能绑的放过去。
+        /// 绑定的判据方向必须相反：认不出来 = 什么都接得住（object），
+        /// 最坏结果是"该过滤的没过滤掉"（用户还能自己看），而不是"能绑的被藏起来"。
+        ///
+        /// 全名优先，再退到"在所有已加载程序集里按名找"：
+        /// 仓库里的端口声明走 AssemblyQualifiedName（PluginService / FlowQueryHelper / 各插件
+        /// DynamicPortInfo 都是这么写的），Type.GetType 直接命中；
+        /// 但插件自己手写的固定端口偶尔只写短名（"HalconDotNet.HImage"），
+        /// 那种情况下 Type.GetType 返回 null，只能靠逐程序集查找兜住。
+        /// </summary>
+        public static Type ResolveType(string? typeName)
+        {
+            if (string.IsNullOrWhiteSpace(typeName)) return typeof(object);
+
+            var resolved = Type.GetType(typeName, throwOnError: false, ignoreCase: true);
+            if (resolved != null) return resolved;
+
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                try
+                {
+                    resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: true);
+                    if (resolved != null) return resolved;
+                }
+                catch
+                {
+                    // 动态程序集 / 反射被拒：跳过，继续找下一个
+                }
+            }
+
+            return typeof(object);
+        }
+
+        /// <summary>
         /// 判断是否为基础数值类型
         /// </summary>
         public static bool IsNumericType(Type type)

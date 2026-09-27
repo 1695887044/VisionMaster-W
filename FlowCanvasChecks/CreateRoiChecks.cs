@@ -36,6 +36,114 @@ namespace FlowCanvasChecks
             RunSelectionContract();
             RunAlgorithmContract();
             RunSerializeRoundTrip();
+            RunOutputForms();
+        }
+
+        // ==================================================================
+        //  ⑦ ROI 的三种输出形态：裁剪图 / 带 domain 的原图 / 裁剪原点
+        //
+        //  这一段回答的是"区域一旦裁剪，后续插件怎么把坐标变回去"：
+        //    · Domain_{名}  —— 坐标系没动，下游零改动、零回变换（首选）
+        //    · OffsetRow/Col_{名} —— 给必须用裁剪图的场景兜底（global = local + offset）
+        //  两条路都必须通向同一个全局真值，所以断言用的是"跨插件端到端"：
+        //  同一个目标，分别喂 domain 图与裁剪图给模板匹配，看结果是否都回到 (150,200)。
+        // ==================================================================
+        /// <summary>
+        /// 每个 ROI 应当长出的输出端口名（排序后）。
+        /// 四种形态：Crop_ 裁剪图 / Domain_ 带 domain 的原图 / OffsetRow_ / OffsetCol_ 裁剪原点。
+        /// 集中在这里，端口形态再增加时只改一处。
+        /// </summary>
+        private static List<string> ExpectedPortNames(params string[] roiNames)
+            => roiNames
+                .SelectMany(n => new[] { $"Crop_{n}", $"Domain_{n}", $"OffsetRow_{n}", $"OffsetCol_{n}" })
+                .OrderBy(x => x)
+                .ToList();
+
+        private static void RunOutputForms()
+        {
+            const double TargetRow = 150, TargetCol = 200;   // 特征图案的真实位置（全局坐标）
+            const double RoiHalf = 80;                        // ROI 半长/半宽
+            // ROI 外接矩形左上角 = (150-80, 200-80) = (70,120)：裁剪图的原点就在这里
+            const double ExpectOffsetRow = TargetRow - RoiHalf;
+            const double ExpectOffsetCol = TargetCol - RoiHalf;
+
+            var stepData = new FakeStepData();
+            var p = new CreateRoiPlugin { InstanceName = "ROI_输出形态" };
+            try
+            {
+                p.Initialize(stepData);
+                AddCanvasRoi(p, "ROI_0", DrawShapeType.Rectangle,
+                    new double[] { TargetRow, TargetCol, 0, RoiHalf, RoiHalf });
+                p.DisplayViewIndex = 0;
+
+                var scene = MatchingChecks.BuildScene(TargetRow, TargetCol);
+                try
+                {
+                    p.SrcImage.Value = scene;
+                    p.Execute(NewContext(new StubLog()));
+
+                    // ---- ① Domain_{名}：带 domain 的原图 ----
+                    var domain = p.Outputs["Domain_ROI_0"].Value as HImage;
+                    int dw = 0, dh = 0;
+                    if (domain != null && domain.IsInitialized())
+                        domain.GetImageSize(out dw, out dh);
+                    double domainArea = domain == null ? -1 : DomainAreaOf(domain);
+                    Check("【输出形态】Domain_{名} 存在且幅面与原图一致（说明没有裁剪、坐标系没动）",
+                        domain != null && domain.IsInitialized() && dw == ImgW && dh == ImgH,
+                        $"{dw}×{dh}（原图 {ImgW}×{ImgH}）");
+                    Check("【输出形态】Domain_{名} 只有 ROI 内有像素（domain 面积 = ROI 面积）",
+                        Math.Abs(domainArea - (2 * RoiHalf + 1) * (2 * RoiHalf + 1)) <= 2,
+                        $"domain={domainArea:0.0}，期望 {(2 * RoiHalf + 1) * (2 * RoiHalf + 1)}");
+
+                    // ---- ② OffsetRow/Col_{名}：裁剪原点 ----
+                    double offRow = Convert.ToDouble(p.Outputs["OffsetRow_ROI_0"].Value);
+                    double offCol = Convert.ToDouble(p.Outputs["OffsetCol_ROI_0"].Value);
+                    Check("【输出形态】OffsetRow/Col = 裁剪图左上角在原图中的位置（70,120）",
+                        Math.Abs(offRow - ExpectOffsetRow) < 0.01 && Math.Abs(offCol - ExpectOffsetCol) < 0.01,
+                        $"Offset=({offRow:0.#},{offCol:0.#})，期望 ({ExpectOffsetRow:0.#},{ExpectOffsetCol:0.#})");
+
+                    // ---- ③ 端到端：domain 图 → 模板匹配，坐标应当是全局的 ----
+                    var (rowGlobal, colGlobal) = Locate(domain!, TargetRow, TargetCol, RoiHalf);
+                    Check("【核心】domain 图上做模板匹配 → 得到的就是全局坐标（下游零回变换）",
+                        Math.Abs(rowGlobal - TargetRow) <= 1 && Math.Abs(colGlobal - TargetCol) <= 1,
+                        $"匹配得 ({rowGlobal:0.#},{colGlobal:0.#})，真值 ({TargetRow:0.#},{TargetCol:0.#})");
+
+                    // ---- ④ 端到端：裁剪图 → 局部坐标 + Offset → 回到同一个全局真值 ----
+                    var crop = p.Outputs["Crop_ROI_0"].Value as HImage;
+                    var (rowLocal, colLocal) = Locate(crop!, RoiHalf, RoiHalf, RoiHalf);
+                    Check("【输出形态】裁剪图上匹配得到的是局部坐标（原点已被搬走）",
+                        Math.Abs(rowLocal - RoiHalf) <= 1 && Math.Abs(colLocal - RoiHalf) <= 1,
+                        $"局部 ({rowLocal:0.#},{colLocal:0.#})，期望 ({RoiHalf:0.#},{RoiHalf:0.#})");
+                    Check("【核心】局部坐标 + Offset 能还原成与 domain 图一致的全局坐标",
+                        Math.Abs((rowLocal + offRow) - TargetRow) <= 1
+                        && Math.Abs((colLocal + offCol) - TargetCol) <= 1,
+                        $"({rowLocal:0.#}+{offRow:0.#}, {colLocal:0.#}+{offCol:0.#}) = "
+                            + $"({rowLocal + offRow:0.#},{colLocal + offCol:0.#})，真值 ({TargetRow:0.#},{TargetCol:0.#})");
+                }
+                finally { scene.Dispose(); }
+            }
+            finally { p.Dispose(); }
+        }
+
+        /// <summary>
+        /// 在给定的图（domain 图或裁剪图）上，以 (row,col) 为中心学一次模板并原地匹配，
+        /// 返回匹配到的位置。坐标语义完全由入图的坐标系决定 —— 这正是本段要验证的东西。
+        /// </summary>
+        private static (double row, double col) Locate(HImage image, double row, double col, double half)
+        {
+            var m = new Plugin.Matching.MatchingPlugin { InstanceName = "匹配_坐标系" };
+            try
+            {
+                m.DisplayImage = image;
+                m.AddTemplateEntry("T");
+                m.CanvasShape = Core.Halcon.Color.RoiShapeNames.Rectangle;
+                m.CanvasRect = new double[] { row, col, 0, half, half };
+                m.CreateTemplate();
+                m.Image.Value = image;
+                m.Execute(NewContext(new StubLog()));
+                return (Convert.ToDouble(m.Row.Value), Convert.ToDouble(m.Column.Value));
+            }
+            finally { m.Dispose(); }
         }
 
         // ==================================================================
@@ -158,9 +266,11 @@ namespace FlowCanvasChecks
                     string.Join(",", cropPorts));
                 Check("【端口】固定端口 MaskRegion/MaskImage 随插件就位",
                     p.Outputs.ContainsKey("MaskRegion") && p.Outputs.ContainsKey("MaskImage"), "");
+                // 每个 ROI 现在长出四种输出：裁剪图 / 带 domain 的原图 / 裁剪原点(行) / 裁剪原点(列)。
+                // 期望按"每个 ROI 四种"生成而不是手写死列表 —— 将来再加形态只需改 ExpectedPortNames。
                 Check("【端口】快照同步到 StepData（编译器据此接线）",
                     stepData.OutputPortDefinitions.Select(x => x.Name).OrderBy(x => x)
-                        .SequenceEqual(new[] { "Crop_ROI_0", "Crop_ROI_1" }),
+                        .SequenceEqual(ExpectedPortNames("ROI_0", "ROI_1")),
                     string.Join(",", stepData.OutputPortDefinitions.Select(x => x.Name)));
 
                 // 模拟"重开配置后控件命名序号归零再画"的撞名场景
@@ -190,7 +300,7 @@ namespace FlowCanvasChecks
                         $"{p2.RoiList[0].Name}/{p2.RoiList[1].Name}");
                     Check("【重名防御】去重后端口与快照同步重建",
                         step2.OutputPortDefinitions.Select(x => x.Name).OrderBy(x => x)
-                            .SequenceEqual(new[] { "Crop_ROI_0", "Crop_ROI_1" }),
+                            .SequenceEqual(ExpectedPortNames("ROI_0", "ROI_1")),
                         string.Join(",", step2.OutputPortDefinitions.Select(x => x.Name)));
                 }
                 finally { p2.Dispose(); }

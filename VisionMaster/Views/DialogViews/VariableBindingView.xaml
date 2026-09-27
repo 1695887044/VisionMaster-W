@@ -8,138 +8,56 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
-    Width="900"
-    Height="580"
+    MinWidth="1000"
+    MinHeight="640"
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
 
+    <!--
+        弹窗尺寸与可缩放性。
+
+        改这里之前是什么样：视图上写死 Width=900 Height=580，宿主窗口又设
+        SizeToContent="WidthAndHeight" + ResizeMode="NoResize" —— 后果是三栏挤在 900 里，
+        右侧候选列表的长描述被截成"ROI 'ROI_0' 的裁剪…"，而且**用户拉不大**（无边可拖）。
+        三栏选择型弹窗天生需要横向空间，所以这里改成：给一个舒适的默认尺寸（1180×760）
+        + 允许缩放（CanResize）+ 下限兜住三栏的最小可用宽度（1000×640）。
+        SizeToContent 必须显式设回 Manual：留着 WidthAndHeight 的话窗口会一直贴着内容，
+        用户拖动边框看不到任何变化（看起来像"不能缩放"，实际是被 SizeToContent 拽回去了）。
+
+        ⚠ 这里只准写「依赖属性」。Style 的 Setter 只能设 DP，而 WindowStartupLocation
+        是个普通 CLR 属性（没有 WindowStartupLocationProperty），写进 Setter 会在
+        加载本视图 BAML 时直接抛 XamlParseException：
+            "设置属性 System.Windows.Setter.Property 时引发了异常"
+            内层 ArgumentNullException('property')
+        而且行号指向那一行，看着像"这行写法不对"，实际是"这个属性压根不能出现在 Style 里"。
+        居中位置由宿主（Prism DialogService）决定，与仓库里其它弹窗保持一致即可。
+    -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
-            <Setter Property="ResizeMode" Value="NoResize" />
-            <Setter Property="SizeToContent" Value="WidthAndHeight" />
+            <!--  ResizeMode 用 CanResizeWithGrip（与 PluginConfigShellView 同款）：右下角出抓手，
+                  用户一眼就知道这窗口能拉 —— CanResize 只能靠把鼠标移到边框碰运气  -->
+            <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <Setter Property="SizeToContent" Value="Manual" />
+            <Setter Property="Width" Value="1180" />
+            <Setter Property="Height" Value="760" />
+            <Setter Property="MinWidth" Value="1000" />
+            <Setter Property="MinHeight" Value="640" />
         </Style>
     </prism:Dialog.WindowStyle>
 
     <UserControl.Resources>
-        <Style x:Key="NoWarningItemStyle" TargetType="ListBoxItem">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Padding" Value="8,6" />
-            <Setter Property="Margin" Value="4,2" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                        <Border
-                            x:Name="Border"
-                            Padding="{TemplateBinding Padding}"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#ECF5FF" />
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#409EFF" />
-                                <Setter TargetName="Border" Property="BorderThickness" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <!--
+            本视图只留"绑定本视图 VM 契约"的数据模板（InputPortTemplate 绑 Definition.*），
+            行容器 / 列卡片 / 标题栏 / 勾选框 / 底部栏一律用 UI 库 Themes/DialogStyles.xaml 的
+            Dialog* 公共键 —— 早先这四个样式（NoWarningItemStyle / InputPortItemStyle /
+            PresetOptionButtonStyle / SelectedPresetOptionButtonStyle）是本视图自己抄的，
+            抄的还是 Element UI 那套蓝灰橙配色，与弹窗族令牌的青蓝体系不是一套；
+            其中后两个从来没有被引用过（死样式）。
 
-        <Style x:Key="PresetOptionButtonStyle" TargetType="Button">
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="Margin" Value="3" />
-            <Setter Property="MinWidth" Value="60" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="#DCDFE6" />
-            <Setter Property="Background" Value="White" />
-            <Setter Property="Foreground" Value="#606266" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border
-                            x:Name="Border"
-                            Padding="{TemplateBinding Padding}"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#ECF5FF" />
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#409EFF" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#409EFF" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style
-            x:Key="SelectedPresetOptionButtonStyle"
-            BasedOn="{StaticResource PresetOptionButtonStyle}"
-            TargetType="Button">
-            <Setter Property="Background" Value="#409EFF" />
-            <Setter Property="BorderBrush" Value="#409EFF" />
-            <Setter Property="Foreground" Value="White" />
-        </Style>
-
-        <Style x:Key="InputPortItemStyle" TargetType="ListBoxItem">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Padding" Value="6" />
-            <Setter Property="Margin" Value="2" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                        <Border
-                            x:Name="Border"
-                            Padding="{TemplateBinding Padding}"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="#E4E7ED"
-                            BorderThickness="0,0,0,1"
-                            CornerRadius="3">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#ECF5FF" />
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#409EFF" />
-                                <Setter TargetName="Border" Property="BorderThickness" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
+            注意：下面这些说明里刻意不写具体色值 —— 样式收编断言会扫本文件全文，
+            注释里出现颜色字面量一样会被判成"硬编码颜色"（本轮就是这么被自己抓了一次）。
+        -->
         <DataTemplate x:Key="InputPortTemplate">
             <Grid>
                 <Grid.RowDefinitions>
@@ -159,53 +77,52 @@
                     Orientation="Horizontal">
                     <TextBlock
                         FontFamily="{StaticResource Icon}"
-                        FontSize="14"
-                        Foreground="#E6A23C"
+                        FontSize="13"
+                        Foreground="{StaticResource DialogAccentBrush}"
                         Text="&#xf090;" />
                     <TextBlock
-                        Margin="4,0,0,0"
+                        Margin="5,0,0,0"
                         FontWeight="SemiBold"
-                        Foreground="#303133"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
                         Text="{Binding Definition.Name}" />
                 </StackPanel>
 
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="1"
+                    VerticalAlignment="Center"
                     FontSize="11"
-                    Foreground="#909399"
-                    Text="{Binding Definition.DataTypeName, Converter={ui:TypeNameToFriendlyNameConverter}}" />
+                    Foreground="{StaticResource DialogTextMutedBrush}"
+                    Text="{Binding Definition.DataTypeName, Converter={ui:TypeNameToFriendlyNameConverter}}"
+                    TextTrimming="CharacterEllipsis" />
 
+                <!--  「枚举」角标：该端口自带功能预设，不需要连上游  -->
                 <Border
                     Grid.Row="0"
                     Grid.Column="2"
                     Margin="8,0,0,0"
-                    Padding="4,2"
-                    Background="#FFFBE6"
-                    BorderBrush="#E6A23C"
-                    BorderThickness="1"
-                    CornerRadius="3"
-                    Visibility="{Binding Definition.IsFunctionalEnum, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Background="{StaticResource DialogAccentSoftBrush}"
+                    BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                    Style="{StaticResource DialogChip}"
+                    Visibility="{Binding Definition.IsFunctionalEnum, Converter={ui:BooleanToVisibilityConverter}}">
                     <TextBlock
-                        FontSize="10"
-                        FontWeight="SemiBold"
-                        Foreground="#E6A23C"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
+                        Style="{StaticResource DialogChipText}"
                         Text="枚举" />
                 </Border>
+
+                <!--  「变量」角标：该端口是一个全局变量身份（VariableId），绑定走变量而不是连线  -->
                 <Border
                     Grid.Row="0"
                     Grid.Column="2"
                     Margin="8,0,0,0"
-                    Padding="4,2"
-                    Background="#ECF5FF"
-                    BorderBrush="#B3D8FF"
-                    BorderThickness="1"
-                    CornerRadius="3"
-                    Visibility="{Binding Definition.IsFunctionalEnum, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=True}">
+                    Background="{StaticResource DialogAccentLightBrush}"
+                    BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                    Style="{StaticResource DialogChip}"
+                    Visibility="{Binding Definition.IsFunctionalEnum, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=True}">
                     <TextBlock
-                        FontSize="10"
-                        FontWeight="SemiBold"
-                        Foreground="#409EFF"
+                        Foreground="{StaticResource DialogAccentTextBrush}"
+                        Style="{StaticResource DialogChipText}"
                         Text="变量" />
                 </Border>
 
@@ -213,160 +130,166 @@
                     Grid.Row="1"
                     Grid.Column="0"
                     Grid.ColumnSpan="2"
-                    Margin="18,2,0,0"
+                    Margin="18,3,0,0"
                     Orientation="Horizontal"
-                    Visibility="{Binding IsBound, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding IsBound, Converter={ui:BooleanToVisibilityConverter}}">
                     <TextBlock
-                        FontSize="10"
-                        Foreground="#67C23A"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogSuccessBrush}"
                         Text="已绑定:" />
                     <TextBlock
                         Margin="4,0,0,0"
-                        FontSize="10"
-                        Foreground="#67C23A"
-                        Text="{Binding LinkedAddress}" />
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogSuccessBrush}"
+                        Text="{Binding LinkedAddress}"
+                        TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="15">
-        <Border Background="White" CornerRadius="8">
+    <Grid Margin="16">
+        <Border Background="{StaticResource DialogSurfaceBrush}" CornerRadius="12">
             <Border.Effect>
                 <DropShadowEffect
-                    BlurRadius="15"
+                    BlurRadius="18"
                     Direction="270"
-                    Opacity="0.15"
+                    Opacity="0.12"
                     ShadowDepth="3"
-                    Color="Black" />
+                    Color="{StaticResource DialogShadowColor}" />
             </Border.Effect>
 
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="45" />
+                    <RowDefinition Height="52" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="50" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
+                <!--  标题栏：整条可拖动（无边框窗口只能靠它移动）  -->
                 <Border
                     Grid.Row="0"
                     ui:WindowDragBehavior.IsWindowDraggable="True"
-                    Background="#F8F9FA"
-                    BorderBrush="#EBEEF5"
+                    Background="{StaticResource DialogRowAlternateBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
                     BorderThickness="0,0,0,1"
-                    CornerRadius="8,8,0,0">
-                    <TextBlock
+                    CornerRadius="12,12,0,0">
+                    <StackPanel
                         Margin="20,0"
                         VerticalAlignment="Center"
-                        FontSize="15"
-                        FontWeight="Bold"
-                        Foreground="#303133"
-                        Text="变量绑定" />
+                        Orientation="Horizontal">
+                        <TextBlock
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="15"
+                            Foreground="{StaticResource DialogAccentBrush}"
+                            Text="&#xf08b;" />
+                        <TextBlock
+                            Margin="9,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="15"
+                            FontWeight="Bold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="变量绑定" />
+                        <TextBlock
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="选中左侧输入端口 → 选中上游算子 → 双击右侧候选端口完成绑定" />
+                    </StackPanel>
                 </Border>
 
+                <!--
+                    三栏等比例自适应（原来是 280 / 280 / *，拉大窗口只有第三栏变宽）。
+                    MinWidth 是"三栏都得能用"的下限：低于它宁可让窗口卡住不缩，
+                    也不要出现挤成一条缝的列表（这正是改前最难看的样子）。
+                -->
                 <Grid Grid.Row="1" Margin="20">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="280" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="280" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="1*" MinWidth="240" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="1*" MinWidth="240" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="1.3*" MinWidth="360" />
                     </Grid.ColumnDefinitions>
 
-                    <Border
-                        Grid.Column="0"
-                        Background="#FFFFFF"
-                        BorderBrush="#E4E7ED"
-                        BorderThickness="1"
-                        CornerRadius="6">
+                    <!--  ① 当前算子输入  -->
+                    <Border Grid.Column="0" Style="{StaticResource DialogColumnCard}">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="36" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <Border
-                                Background="#F5F7FA"
-                                BorderBrush="#E4E7ED"
-                                BorderThickness="0,0,0,1"
-                                CornerRadius="6,6,0,0">
-                                <TextBlock
-                                    Margin="12,0"
-                                    VerticalAlignment="Center"
-                                    FontWeight="SemiBold"
-                                    Foreground="#606266"
-                                    Text="当前算子输入" />
+                            <Border Style="{StaticResource DialogColumnHeader}">
+                                <TextBlock Style="{StaticResource DialogColumnTitle}" Text="① 当前算子输入" />
                             </Border>
                             <ListBox
                                 Grid.Row="1"
                                 Margin="2"
                                 Background="Transparent"
                                 BorderThickness="0"
-                                ItemContainerStyle="{StaticResource InputPortItemStyle}"
+                                ItemContainerStyle="{StaticResource DialogOptionItem}"
                                 ItemTemplate="{StaticResource InputPortTemplate}"
                                 ItemsSource="{Binding DisplayDataPort}"
-                                SelectedItem="{Binding SelectedInputPort}" />
+                                SelectedItem="{Binding SelectedInputPort}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
                         </Grid>
                     </Border>
 
                     <GridSplitter
                         Grid.Column="1"
-                        Width="8"
+                        Width="10"
                         HorizontalAlignment="Center"
-                        Background="Transparent" />
+                        Background="Transparent"
+                        ResizeBehavior="PreviousAndNext" />
 
-                    <Border
-                        Grid.Column="2"
-                        Background="#FFFFFF"
-                        BorderBrush="#E4E7ED"
-                        BorderThickness="1"
-                        CornerRadius="6">
+                    <!--  ② 选择上游算子  -->
+                    <Border Grid.Column="2" Style="{StaticResource DialogColumnCard}">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="36" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <Border
-                                Background="#F5F7FA"
-                                BorderBrush="#E4E7ED"
-                                BorderThickness="0,0,0,1"
-                                CornerRadius="6,6,0,0">
-                                <TextBlock
-                                    Margin="12,0"
-                                    VerticalAlignment="Center"
-                                    FontWeight="SemiBold"
-                                    Foreground="#606266"
-                                    Text="选择上游算子" />
+                            <Border Style="{StaticResource DialogColumnHeader}">
+                                <TextBlock Style="{StaticResource DialogColumnTitle}" Text="② 选择上游算子" />
                             </Border>
                             <ListBox
                                 Grid.Row="1"
                                 Margin="2"
                                 Background="Transparent"
                                 BorderThickness="0"
-                                ItemContainerStyle="{StaticResource NoWarningItemStyle}"
+                                ItemContainerStyle="{StaticResource DialogOptionItem}"
                                 ItemsSource="{Binding TreeNodes}"
-                                SelectedItem="{Binding SelectedNode}">
+                                SelectedItem="{Binding SelectedNode}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Margin="2" Orientation="Horizontal">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
                                             <TextBlock
                                                 Margin="0,0,10,0"
                                                 VerticalAlignment="Center"
                                                 FontFamily="{StaticResource Icon}"
-                                                FontSize="16"
-                                                Foreground="#409EFF"
+                                                FontSize="15"
+                                                Foreground="{StaticResource DialogAccentBrush}"
                                                 Text="{Binding Icon}" />
-                                            <StackPanel VerticalAlignment="Center">
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                 <TextBlock
                                                     FontWeight="SemiBold"
-                                                    Foreground="#303133"
-                                                    Text="{Binding ModuleGroup}" />
+                                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                    Text="{Binding ModuleGroup}"
+                                                    TextTrimming="CharacterEllipsis" />
                                                 <TextBlock
                                                     Margin="0,2,0,0"
-                                                    FontSize="10"
-                                                    Foreground="#C0C4CC"
-                                                    Text="{Binding Description}" />
+                                                    FontSize="10.5"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="{Binding Description}"
+                                                    TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
-                                        </StackPanel>
+                                        </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
@@ -375,34 +298,32 @@
 
                     <GridSplitter
                         Grid.Column="3"
-                        Width="8"
+                        Width="10"
                         HorizontalAlignment="Center"
-                        Background="Transparent" />
-                    <Border
-                        Grid.Column="4"
-                        Background="#FFFFFF"
-                        BorderBrush="#E4E7ED"
-                        BorderThickness="1"
-                        CornerRadius="6">
+                        Background="Transparent"
+                        ResizeBehavior="PreviousAndNext" />
+
+                    <!--  ③ 绑定选项（当前操作区，用强调色标题栏）  -->
+                    <Border Grid.Column="4" Style="{StaticResource DialogColumnCard}">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="36" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <Border
-                                Background="#F0F9EB"
-                                BorderBrush="#E4E7ED"
-                                BorderThickness="0,0,0,1"
-                                CornerRadius="6,6,0,0">
-                                <TextBlock
-                                    Margin="12,0"
-                                    VerticalAlignment="Center"
-                                    FontWeight="SemiBold"
-                                    Foreground="#529B2E"
-                                    Text="绑定选项" />
+                            <Border Style="{StaticResource DialogColumnHeaderAccent}">
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <TextBlock
+                                        Style="{StaticResource DialogColumnTitleIcon}"
+                                        Text="&#xf0c1;" />
+                                    <TextBlock
+                                        Foreground="{StaticResource DialogAccentTextBrush}"
+                                        Style="{StaticResource DialogColumnTitle}"
+                                        Text="③ 绑定选项" />
+                                </StackPanel>
                             </Border>
 
+                            <!--  非枚举端口：常量值 / 上游端口绑定 二选一  -->
                             <Grid Grid.Row="1" Visibility="{Binding HasFunctionalEnumPort, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -410,90 +331,127 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <StackPanel Grid.Row="0" Margin="12,12,12,0">
+                                <StackPanel Grid.Row="0" Margin="14,14,14,0">
+                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="常量值输入" />
+                                    <TextBox
+                                        Height="34"
+                                        Style="{StaticResource DialogInput}"
+                                        Tag="数值 / 字符串 / true|false"
+                                        Text="{Binding ConstantValue}" />
                                     <TextBlock
-                                        Margin="0,0,0,6"
-                                        FontSize="12"
-                                        FontWeight="SemiBold"
-                                        Foreground="#606266"
-                                        Text="常量值输入" />
-                                    <Border
-                                        Height="32"
-                                        Background="#FFFFFF"
-                                        BorderBrush="#DCDFE6"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
-                                        <TextBox
-                                            Padding="8,0"
-                                            VerticalContentAlignment="Center"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            FontSize="13"
-                                            Foreground="#303133"
-                                            Text="{Binding ConstantValue}" />
-                                    </Border>
-                                    <TextBlock
-                                        Margin="0,4,0,0"
+                                        Margin="0,6,0,0"
                                         FontSize="11"
-                                        Foreground="#C0C4CC"
-                                        Text="提示：输入数值、字符串或布尔值(true/false)" />
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        TextWrapping="Wrap"
+                                        Text="若留空，请在下方双击一个上游输出端口来建立连线。" />
                                 </StackPanel>
 
-                                <StackPanel
-                                    Grid.Row="1"
-                                    Margin="12,15,12,8"
-                                    Orientation="Horizontal">
+                                <!--
+                                    "显示全部"必须有自己的位置。
+                                    早先它被塞进标题那一行的横向 StackPanel，这一栏只有 400 出头宽，
+                                    结果文案被截成"显示全部（不看"——看不出这是个开关，也点不到。
+                                    改成两列栅格：标题占 *、开关靠右 Auto，两边都不再抢宽度。
+                                -->
+                                <Grid Grid.Row="1" Margin="14,16,14,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock
-                                        FontSize="12"
-                                        FontWeight="SemiBold"
-                                        Foreground="#606266"
+                                        Grid.Column="0"
+                                        Margin="0"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogFormLabel}"
                                         Text="或 绑定上游输出端口" />
-                                </StackPanel>
-
-
+                                    <CheckBox
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Content="显示全部"
+                                        IsChecked="{Binding ShowAllPorts, Mode=TwoWay}"
+                                        Style="{StaticResource DialogCheckBox}"
+                                        ToolTip="默认只列出类型能接住当前输入端口的候选项。勾选后把不兼容的也列出来（置灰、双击不生效，悬停看原因）"
+                                        ToolTipService.ShowDuration="20000" />
+                                </Grid>
 
                                 <Border
                                     Grid.Row="2"
-                                    Margin="12,0,12,12"
-                                    Background="#FAFAFA"
-                                    BorderBrush="#EBEEF5"
+                                    Margin="14,0,14,14"
+                                    Background="{StaticResource DialogInputBackgroundBrush}"
+                                    BorderBrush="{StaticResource DialogBorderLightBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="4">
+                                    CornerRadius="8">
                                     <ListBox
                                         Margin="2"
                                         Background="Transparent"
                                         BorderThickness="0"
-                                        ItemContainerStyle="{StaticResource NoWarningItemStyle}"
-                                        ItemsSource="{Binding DisplayPorts}">
+                                        ItemContainerStyle="{StaticResource DialogOptionItem}"
+                                        ItemsSource="{Binding DisplayPorts}"
+                                        ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Grid Background="Transparent">
+                                                <!--
+                                                    类型不兼容的项：置灰 + 双击不生效 + 悬停看原因。
+                                                    IsEnabled=false 会连带禁掉 InputBindings（双击自然失效），
+                                                    但也会让 ToolTip 不显示 —— 所以必须再开 ShowOnDisabled。
+
+                                                    名称与描述改成上下两行：原来是同行横排，
+                                                    名称长的项把描述挤到只剩几个字（"ROI 'ROI_0' 的裁剪…"），
+                                                    而描述恰恰是"这个端口是什么"的唯一线索。
+                                                -->
+                                                <Grid
+                                                    Background="Transparent"
+                                                    IsEnabled="{Binding IsBindable}"
+                                                    ToolTipService.ShowOnDisabled="True"
+                                                    ToolTipService.ToolTip="{Binding IncompatibleReason}">
+                                                    <Grid.Style>
+                                                        <Style TargetType="Grid">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsBindable}" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.45" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Grid.Style>
                                                     <Grid.InputBindings>
                                                         <MouseBinding
                                                             Command="{Binding DataContext.DoublockClickBindCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                             CommandParameter="{Binding}"
                                                             MouseAction="LeftDoubleClick" />
                                                     </Grid.InputBindings>
-                                                    <StackPanel Margin="4,5" Orientation="Horizontal">
-                                                        <TextBlock
-                                                            Margin="0,0,8,0"
-                                                            VerticalAlignment="Center"
-                                                            FontFamily="{StaticResource Icon}"
-                                                            FontSize="14"
-                                                            Foreground="#67C23A"
-                                                            Text="&#xf08b;" />
-                                                        <TextBlock
-                                                            VerticalAlignment="Center"
-                                                            FontWeight="SemiBold"
-                                                            Foreground="#303133"
-                                                            Text="{Binding Name}" />
-                                                        <TextBlock
-                                                            Margin="6,0,0,0"
-                                                            VerticalAlignment="Center"
-                                                            FontSize="11"
-                                                            Foreground="#909399"
-                                                            Text="{Binding Description, StringFormat='- {0}'}" />
-                                                    </StackPanel>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <TextBlock
+                                                        Grid.Row="0"
+                                                        Grid.RowSpan="2"
+                                                        Grid.Column="0"
+                                                        Margin="0,0,9,0"
+                                                        VerticalAlignment="Center"
+                                                        FontFamily="{StaticResource Icon}"
+                                                        FontSize="13"
+                                                        Foreground="{StaticResource DialogSuccessBrush}"
+                                                        Text="&#xf08b;" />
+                                                    <TextBlock
+                                                        Grid.Row="0"
+                                                        Grid.Column="1"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                        Text="{Binding Name}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock
+                                                        Grid.Row="1"
+                                                        Grid.Column="1"
+                                                        Margin="0,2,0,0"
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text="{Binding Description}"
+                                                        TextTrimming="CharacterEllipsis" />
                                                 </Grid>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
@@ -501,104 +459,65 @@
                                 </Border>
                             </Grid>
 
+                            <!--  枚举端口：功能预设选项（不需要连上游）  -->
                             <Grid Grid.Row="1" Visibility="{Binding HasFunctionalEnumPort, Converter={ui:BooleanToVisibilityConverter}}">
-                                <StackPanel Margin="12,15,12,0" Orientation="Vertical">
-                                    <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                <StackPanel Margin="14,14,14,0">
+                                    <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
                                         <TextBlock
-                                            Margin="0,0,6,0"
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource Icon}"
-                                            FontSize="13"
-                                            Foreground="#E6A23C"
+                                            Foreground="{StaticResource DialogWarningBrush}"
+                                            Style="{StaticResource DialogColumnTitleIcon}"
                                             Text="&#xf0ca;" />
                                         <TextBlock
+                                            Margin="0"
                                             VerticalAlignment="Center"
-                                            FontSize="12"
+                                            FontSize="12.5"
                                             FontWeight="SemiBold"
-                                            Foreground="#E6A23C"
+                                            Foreground="{StaticResource DialogWarningTextBrush}"
                                             Text="功能预设选项" />
                                     </StackPanel>
 
                                     <TextBlock
                                         Margin="0,0,0,12"
-                                        FontSize="11"
-                                        Foreground="#909399"
-                                        Text="请在下方列表中选择要应用的系统内置参数：" />
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        TextWrapping="Wrap"
+                                        Text="该端口自带系统内置预设，直接从下面选一项即可，无需连接上游输出。" />
 
-                                    <Border
-                                        Height="36"
-                                        Background="#FFFFFF"
-                                        BorderBrush="#DCDFE6"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
-                                        <ComboBox
-                                            Padding="10,0"
-                                            VerticalContentAlignment="Center"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            FontSize="13"
-                                            Foreground="#303133"
-                                            ItemsSource="{Binding PresetOptions}"
-                                            SelectedValue="{Binding ConstantValue, UpdateSourceTrigger=PropertyChanged}"
-                                            SelectedValuePath="Option">
-                                            <ComboBox.Resources>
-                                                <Style TargetType="ComboBox">
-                                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                                </Style>
-                                            </ComboBox.Resources>
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock
-                                                        Padding="4,2"
-                                                        FontSize="13"
-                                                        Text="{Binding Option}" />
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                    </Border>
+                                    <ComboBox
+                                        ItemsSource="{Binding PresetOptions}"
+                                        SelectedValue="{Binding ConstantValue, UpdateSourceTrigger=PropertyChanged}"
+                                        SelectedValuePath="Option"
+                                        Style="{StaticResource DialogCombo}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Option}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
                                 </StackPanel>
                             </Grid>
-
                         </Grid>
                     </Border>
                 </Grid>
 
-                <StackPanel
-                    Grid.Row="2"
-                    Margin="20,10"
-                    HorizontalAlignment="Right"
-                    Orientation="Horizontal">
-                    <Button
-                        Margin="0,0,12,0"
-                        Padding="28,8"
-                        Background="#FFFFFF"
-                        BorderBrush="#DCDFE6"
-                        Command="{Binding CancelCommand}"
-                        Content="取消"
-                        Cursor="Hand">
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <Setter Property="CornerRadius" Value="4" />
-                            </Style>
-                        </Button.Resources>
-                    </Button>
-                    <Button
-                        Padding="28,8"
-                        Background="#409EFF"
-                        BorderThickness="0"
-                        Command="{Binding ConfirmCommand}"
-                        Content="确定"
-                        Cursor="Hand"
-                        FontWeight="SemiBold"
-                        Foreground="White">
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <Setter Property="CornerRadius" Value="4" />
-                            </Style>
-                        </Button.Resources>
-                    </Button>
-                </StackPanel>
+                <Border Grid.Row="2" Style="{StaticResource DialogFooter}">
+                    <StackPanel
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            Command="{Binding CancelCommand}"
+                            Content="取消"
+                            Style="{StaticResource DialogFooterSecondaryButton}" />
+                        <Button
+                            Margin="10,0,0,0"
+                            Command="{Binding ConfirmCommand}"
+                            Content="确定"
+                            Style="{StaticResource DialogFooterPrimaryButton}" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
     </Grid>
+
 </UserControl>

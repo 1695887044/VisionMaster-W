@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
@@ -165,31 +166,56 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void UpdateFilteredList()
         {
             FilteredDisplayNodes.Clear();
-            var sourceKey = SelectedSource?.Key ?? "Local";
-            var query = SearchText?.Trim() ?? "";
+            foreach (var node in FilterDisplayNodes(DisplayNodes, SelectedSource?.Key ?? "Local", SearchText?.Trim() ?? ""))
+                FilteredDisplayNodes.Add(node);
+        }
 
-            foreach (var node in DisplayNodes)
+        /// <summary>
+        /// 明细表的筛选：来源（本地 / 某条连接）+ 搜索。
+        ///
+        /// 抽成**纯函数**是为了能直接被断言（VM 的构造函数要通信管理器、桥接器、弹窗服务，
+        /// 在冒烟里凑齐这些依赖不划算；而这段逻辑恰恰是最容易出错、也最该守住的一段）。
+        ///
+        /// ★ 子节点必须跟随父级 —— 这条是本次修复的核心：
+        /// 旧实现只对"根节点"判来源、判搜索，子节点（数组元素行）无条件加进列表。
+        /// 后果是切到"网络变量"时，本地数组变量的 [0]/[1] 会以
+        /// "没有变量名、没有来源、类型还被列宽截断"的残行留在表里，既看不懂也不能操作。
+        /// DisplayNodes 是"根 + 它的子节点紧随其后"的扁平表（见基类 UpdateFlatList），
+        /// 所以一个游标量就足以表达"跟随父级"。
+        /// </summary>
+        public static List<VariableNode> FilterDisplayNodes(
+            IEnumerable<VariableNode> displayNodes, string sourceKey, string query)
+        {
+            var result = new List<VariableNode>();
+            bool rootAccepted = false;
+
+            foreach (var node in displayNodes)
             {
-                // 来源筛选：根节点判定来源（本地节点只显本地，连接节点只显该连接），子节点跟随父级
                 if (node.IsRootNode)
                 {
+                    // 来源：本地分组只显本地变量，连接分组只显该连接的变量
                     bool matchSource = sourceKey == "Local"
                         ? !node.IsNetwork
                         : (node.IsNetwork && node.SourceLabel == sourceKey);
-                    if (!matchSource) continue;
-                }
 
-                // 搜索筛选
-                if (query.Length > 0 && node.IsRootNode
-                    && node.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0
-                    && (node.Description?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) < 0
-                    && (node.Address?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) < 0)
+                    // 搜索：名称 / 描述 / 地址，任一命中即可
+                    bool matchSearch = string.IsNullOrEmpty(query)
+                        || node.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
+                        || (node.Description?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
+                        || (node.Address?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0;
+
+                    rootAccepted = matchSource && matchSearch;
+                    if (!rootAccepted) continue;
+                }
+                else if (!rootAccepted)
                 {
-                    continue;
+                    continue;   // 数组元素行跟随父级
                 }
 
-                FilteredDisplayNodes.Add(node);
+                result.Add(node);
             }
+
+            return result;
         }
 
         #endregion
@@ -490,6 +516,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public DelegateCommand ManageScanGroupsCommand { get; }
 
+        /// <summary>
+        /// 关闭弹窗（自绘标题栏右上角的 × 用它）。
+        /// 本弹窗改的是活对象：变量的增删改一直即时生效，没有"取消回滚"语义，所以关闭即完成。
+        ///
+        /// 注意命令体用 lambda 延迟读 <see cref="RequestClose"/> —— 它由 Prism 在**构造之后**注入，
+        /// 在构造函数里直接捕获会拿到 null（VariableBindingViewModel 同款写法）。
+        /// </summary>
+        public DelegateCommand CloseCommand { get; }
+
         public GlobalVariableManagerViewModel(
             IWorkspaceManager workspace,
             AdvancedCommunicationManager communicationManager,
@@ -504,6 +539,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             SelectedType = AvailableTypes.First();
 
             AddCommand = new DelegateCommand(AddVariable);
+            CloseCommand = new DelegateCommand(() => RequestClose.Invoke(new DialogResult(ButtonResult.OK)));
             DeleteCommand = new DelegateCommand<VariableNode>(DeleteVariable);
             ResetCommand = new DelegateCommand<VariableNode>(ResetVariable);
             EditArrayCommand = new DelegateCommand<VariableNode>(ExecuteEditArray);
@@ -638,6 +674,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                             defArray != null && i < defArray.Length ? defArray.GetValue(i) : null,
                         ChildValue =
                             valArray != null && i < valArray.Length ? valArray.GetValue(i) : null,
+                        // 子行要能就地改元素值：得知道"我属于哪个变量、是第几项"
+                        // （写回逻辑见 VariableNode.ChildDefaultValueText）
+                        OriginalModel = parentNode.OriginalModel,
+                        ElementIndex = i,
                         Level = 1,
                         SourceLabel = parentNode.SourceLabel,
                         IsNetwork = parentNode.IsNetwork,
@@ -896,54 +936,103 @@ namespace VisionMaster.ViewModels.DialogViewModels
             ExecuteEditArrayCore(gv);
         }
 
-        /// <summary>数组元素编辑对话框（编辑默认值并同步当前值）</summary>
+        /// <summary>
+        /// 数组元素编辑对话框（编辑默认值并同步当前值）。
+        ///
+        /// 改前走的是 EasyDialog.ShowPropertyGridSync —— 而 UI 库的 PropertyGrid 是**反射式生成器**体系，
+        /// 它的五个生成器只有 Bool / Enum / 基础类型 / 嵌套对象 / [PropertyItem] 兜底，**没有集合这一类**。
+        /// 于是挂在承载对象上的 ObservableCollection 根本不会被渲染：弹窗里只有一行只读的"元素数"，
+        /// 新建数组（长度为 0）之后既看不到元素、也没地方加，等于死路。
+        ///
+        /// 现改用 UI 库的 DialogArrayEditor（显式列表 + 增删改 + 上下移），不再赌反射能猜对集合。
+        /// </summary>
         private async void ExecuteEditArrayCore(LocalVariableModel gv)
         {
-            Type elementType = gv.DataType.GetElementType();
-            var editList = new ObservableCollection<ArrayItemWrapper>();
-
-            if (gv.DefaultValue is Array arr)
+            Type? elementType = gv.DataType.GetElementType();
+            if (elementType == null)
             {
-                foreach (var item in arr)
-                {
-                    var wrapper = new ArrayItemWrapper { StringValue = item?.ToString() ?? "" };
-                    wrapper.RemoveCommand = new DelegateCommand(() => editList.Remove(wrapper));
-                    editList.Add(wrapper);
-                }
+                // 走到这里说明类型声明本身就是坏的（如 object[] 之外的异常形态）。
+                // 必须明确告知，不能像旧版那样弹一个空面板让用户自己猜为什么改不了。
+                EasyDialog.ShowSync($"变量 [{gv.Name}] 的数组元素类型无法确定，请删除后重新创建。", "无法编辑");
+                return;
             }
 
-            string elementTypeName = elementType?.Name ?? "元素";
-            var editor = new VariableArrayEditor { Elements = editList };
-            var ok = EasyDialog.ShowPropertyGridSync($"编辑数组 [{gv.Name}]", editor);
-            if (!ok) return;
+            var editor = new DialogArrayEditor
+            {
+                ElementTypeName = DescribeElementType(elementType),
+                Hint = "每行一个元素；留空的元素按该类型的默认值写入（数值 0 / 文本空串 / 布尔 false）。",
+            };
+            editor.Load((gv.DefaultValue as Array)?.Cast<object?>().Select(o => o?.ToString()));
 
-            try
+            if (!EasyDialog.ShowSync($"编辑数组 [{gv.Name}]", editor)) return;
+
+            var newArray = TryBuildArray(elementType, editor.Values, out string error);
+            if (newArray == null)
             {
-                var newArray = Array.CreateInstance(elementType, editList.Count);
-                for (int i = 0; i < editList.Count; i++)
-                {
-                    var converted = Convert.ChangeType(
-                        editList[i].StringValue,
-                        Nullable.GetUnderlyingType(elementType) ?? elementType);
-                    newArray.SetValue(converted, i);
-                }
-                gv.DefaultValue = newArray;
-                gv.Value = newArray.Clone();
-                RefreshTree();
+                // 任何一个元素填错就整体不落地（模型保持干净），并把原因说清楚
+                EasyDialog.ShowSync($"数组转换失败：{error}\n本次修改未保存。", "错误");
+                return;
             }
-            catch (Exception ex)
-            {
-                EasyDialog.ShowSync($"数组转换失败：{ex.Message}", "错误");
-            }
+
+            gv.DefaultValue = newArray;
+            gv.Value = newArray.Clone();
+            RefreshTree();   // 长度可能变了，树必须重建（子行是按长度生成的）
+
             await System.Threading.Tasks.Task.CompletedTask;
         }
 
-        /// <summary>数组编辑对话框承载对象（PropertyGrid 用）</summary>
-        public class VariableArrayEditor
+        /// <summary>
+        /// 把编辑器回读的文本转成目标类型的数组（纯函数，便于断言）。
+        /// 失败返回 null 并把原因写进 <paramref name="error"/>。
+        ///
+        /// 规则：留空的元素按该类型的默认值写入（数值 0 / 文本空串 / 布尔 false）——
+        /// 空串直接 Convert.ChangeType 会抛，而"留空 = 用默认值"才是操作员的本意。
+        /// </summary>
+        public static Array? TryBuildArray(Type elementType, IReadOnlyList<string> texts, out string error)
         {
-            [System.ComponentModel.DisplayName("元素数")]
-            public int Count => Elements?.Count ?? 0;
-            public ObservableCollection<ArrayItemWrapper> Elements { get; set; } = new();
+            error = string.Empty;
+            if (elementType == null) { error = "元素类型为空"; return null; }
+            if (texts == null) { error = "元素集合为空"; return null; }
+
+            // 防御：这里要的是**元素类型**（int），不是数组类型（int[]）。
+            // 传错时 Array.CreateInstance(typeof(int[]), n) 会造出 int[][]，
+            // 然后 SetValue 抛 InvalidCastException —— 报错信息（"Invalid cast from 'System.String'
+            // to 'System.Int32[]'"）完全指不到"参数传错了"这件事上，所以这里明说。
+            if (elementType.IsArray)
+            {
+                error = $"元素类型不能是数组（收到 {elementType.Name}，应传元素类型本身）";
+                return null;
+            }
+
+            try
+            {
+                Type target = Nullable.GetUnderlyingType(elementType) ?? elementType;
+                var array = Array.CreateInstance(elementType, texts.Count);
+
+                for (int i = 0; i < texts.Count; i++)
+                {
+                    string text = texts[i] ?? string.Empty;
+                    object? converted = string.IsNullOrWhiteSpace(text)
+                        ? (target.IsValueType ? Activator.CreateInstance(target) : null)
+                        : Convert.ChangeType(text, target);
+
+                    array.SetValue(converted, i);
+                }
+
+                return array;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return null;
+            }
+        }
+
+        /// <summary>元素类型的界面文案（"Int32" / "String"；可空类型标出来）</summary>
+        private static string DescribeElementType(Type elementType)
+        {
+            var underlying = Nullable.GetUnderlyingType(elementType);
+            return underlying != null ? $"{underlying.Name}?" : elementType.Name;
         }
 
         /// <summary>网络变量写值：弹出单值输入 → 显式下发并按真实结果反馈（禁止无条件报成功）</summary>
@@ -1007,18 +1096,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
         #endregion
 
-        #region 内部类与UI构建
-        public class ArrayItemWrapper : BindableBase
-        {
-            private string _stringValue;
-            public string StringValue
-            {
-                get => _stringValue;
-                set => SetProperty(ref _stringValue, value);
-            }
-            public DelegateCommand RemoveCommand { get; set; }
-        }
-        #endregion
+
 
         protected override void Dispose(bool disposing)
         {

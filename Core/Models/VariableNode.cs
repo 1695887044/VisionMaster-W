@@ -226,5 +226,60 @@ namespace VisionMaster.Models
             get => _isExpanded;
             set => SetProperty(ref _isExpanded, value);
         }
+
+        /// <summary>
+        /// 本节点是父数组里的第几个元素（非数组元素节点为 -1）。
+        ///
+        /// 为什么由上层显式赋值而不是自己算：节点是"每次 RefreshTree 重建"的展示对象，
+        /// 它与父数组的对应关系只有创建它的那一处（AddArrayChildren 的循环变量）知道，
+        /// 在这里靠 Name（"[3]"）反解字符串是把展示格式当数据用，改名格式就崩。
+        /// </summary>
+        public int ElementIndex { get; set; } = -1;
+
+        /// <summary>
+        /// 数组元素初始值的可编辑代理（A2）：让"初始值"列能在表格里直接改单个元素，
+        /// 不必为了改一个数字打开整个"编辑集合"弹窗。
+        ///
+        /// 写回路径与 DefaultValueText 同一套类型安全转换（合法才落地，非法抛异常给绑定引擎标红），
+        /// 区别只在落点是父数组的第 <see cref="ElementIndex"/> 项 —— 数组是引用类型，
+        /// SetValue 就地改的就是模型里那一份，不需要再给 Variable.DefaultValue 重新赋值。
+        ///
+        /// DefaultValue（初始值）与 Value（当前值）一起改：这与"编辑集合"弹窗
+        /// （它整体 gv.Value = newArray.Clone()）保持同一语义，免得出现
+        /// "表格里改了初始值、当前值还是旧的"这种两处不一致。
+        /// </summary>
+        public string ChildDefaultValueText
+        {
+            get => ChildDefaultValue?.ToString() ?? "";
+            set
+            {
+                var model = OriginalModel;
+                if (model == null || ElementIndex < 0 || DataType == null) return;
+
+                Type t = Nullable.GetUnderlyingType(DataType) ?? DataType;
+
+                object? converted;
+                if (string.IsNullOrWhiteSpace(value))
+                    converted = t.IsValueType ? Activator.CreateInstance(t) : null;
+                else
+                {
+                    try { converted = Convert.ChangeType(value, t); }
+                    catch (Exception ex)
+                    {
+                        throw new ArgumentException($"'{value}' 不是有效的 {t.Name} 值：{ex.Message}");
+                    }
+                }
+
+                if (model.DefaultValue is Array def && ElementIndex < def.Length)
+                    def.SetValue(converted, ElementIndex);
+                if (model.Value is Array cur && ElementIndex < cur.Length)
+                    cur.SetValue(converted, ElementIndex);
+
+                ChildDefaultValue = converted;
+                ChildValue = converted;
+                RaisePropertyChanged(nameof(ChildDefaultValue));
+                RaisePropertyChanged(nameof(ChildValue));
+            }
+        }
     }
 }

@@ -928,6 +928,79 @@
         </Setter>
     </Style>
 
+    <!--
+        带框的单元格输入框（表格里"这一格就是可以直接改的"那种）。
+        与 DialogGridInput 的分工：
+          · DialogGridInput  = 平时完全透明、划过才浮出描边，用于"整表到处都是输入框、
+            但多数时候不显眼"的表格（连接管理的组名/周期列）；
+          · DialogCellInput  = 常驻白底 + 1px 描边，用于"这一列本来就是个输入区"的表格
+            （变量管理的初始值列）。区别是"用户要不要一眼看出这里能输入"。
+        为什么要做成样式而不是让各视图自己拼 Border + 透明 TextBox：
+        变量管理那张表原来就是这么拼的（外层 Border 配 <TextBox Style="{x:Null}">），
+        结果聚焦高亮、悬停、错误红框、内边距全都要在视图里再写一遍 ——
+        而且每写一处都会漏掉一两项（原来就没有聚焦态）。
+    -->
+    <Style x:Key="DialogCellInput" TargetType="TextBox">
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource DialogAccentBrush}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Validation.ErrorTemplate">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border
+                        BorderBrush="{StaticResource DialogDangerBrush}"
+                        BorderThickness="1.5"
+                        CornerRadius="6">
+                        <AdornedElementPlaceholder />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border
+                        x:Name="border"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="6">
+                        <ScrollViewer
+                            x:Name="PART_ContentHost"
+                            Focusable="False"
+                            HorizontalScrollBarVisibility="Hidden"
+                            VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="Validation.HasError" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <!--  校验失败时悬停看原因：错误文案由绑定的 ValidationRule 抛出的异常消息提供  -->
+        <Style.Triggers>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=(Validation.Errors)[0].ErrorContent}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!--  表格只读数字列（变量数 / 段数 / 目标周期 / 实测周期）：右对齐，数值才好纵向比大小  -->
     <Style x:Key="DialogGridNumber" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,0,12,0" />
@@ -1045,4 +1118,237 @@
             </Trigger>
         </DataTemplate.Triggers>
     </DataTemplate>
+
+    <!--
+        ============================================================================
+        多栏选择型弹窗族（变量绑定 / 端口连接）
+        ============================================================================
+
+        收编自 VariableBindingView：那张弹窗是三栏并排（左"当前算子输入" / 中"选择上游算子" /
+        右"绑定选项"），每一栏都是"标题栏 + 列表"的同一个结构，却各自抄了一遍配色与圆角 ——
+        而且抄的是 Element UI 那套蓝灰橙，与本项目 Dialog* 令牌的青蓝设计系统根本不是一套。
+        于是"同一个变量绑定弹窗里，卡片描边一个色、输入框描边另一个色"这种自相矛盾，
+        就藏在肉眼不容易发现的地方。
+
+        这里按"三栏 + 列表 + 底部操作栏"的最小可用集收编，键名同样带 Dialog 前缀。
+        注意 DataTemplate 一律留在视图：它绑定的是各视图自己的 VM 契约
+        （如 PortDefinition 的 Name/Description/IsBindable），库不该知道这些字段。
+    -->
+
+    <!--
+        栏卡片：白底 + 圆角 10 + 细描边。
+        不在这里加 DropShadowEffect：Effect 会把整棵子树渲染到离屏表面，
+        卡片内所有文字会失去 ClearType（变糊）—— 与 DialogCardShadow 分成两层是同一个理由。
+        弹窗整体投影由最外层那支 Border 承担，栏卡片不再各投一次。
+    -->
+    <Style x:Key="DialogColumnCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!--  栏标题栏：三栏并排时基线必须一致，所以高度写死（改这里等于改所有栏的视觉节奏）  -->
+    <Style x:Key="DialogColumnHeader" TargetType="Border">
+        <Setter Property="Height" Value="42" />
+        <Setter Property="Padding" Value="14,0" />
+        <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="CornerRadius" Value="9,9,0,0" />
+    </Style>
+
+    <!--
+        强调栏标题栏：给"这一步要你做决定"的那一栏用（变量绑定里是右侧"绑定选项"）。
+        为什么要单独一支而不是直接改色：语义色里绿=成功、红=危险，
+        原来那栏用浅绿底属于语义挪用；改用品牌强调色的浅底（DialogAccentSoftBrush）表达"当前操作区"。
+    -->
+    <Style
+        x:Key="DialogColumnHeaderAccent"
+        BasedOn="{StaticResource DialogColumnHeader}"
+        TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+    </Style>
+
+    <Style x:Key="DialogColumnTitle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="DialogColumnTitleIcon" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+    </Style>
+
+    <!--
+        候选项行（三栏里的所有列表统一用它）。
+        选中态 = 浅蓝底 + 左侧 3px 强调色指示条：只靠底色的话，三栏并排时"哪一栏选中了"
+        扫视起来很吃力（原实现只有底色，且和 hover 的灰度很接近）。
+        指示条画在 Grid 里而不是用 BorderThickness：后者会挤压内容、
+        让选中行的文字比未选中行往右缩 3px，整列看起来在抖。
+    -->
+    <Style x:Key="DialogOptionItem" TargetType="ListBoxItem">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Margin" Value="4,1" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Grid>
+                        <Border
+                            x:Name="Bd"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="8">
+                            <ContentPresenter
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <Border
+                            x:Name="Indicator"
+                            Width="3"
+                            Margin="2,7,0,7"
+                            HorizontalAlignment="Left"
+                            Background="{StaticResource DialogAccentBrush}"
+                            CornerRadius="2"
+                            Visibility="Collapsed" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                            <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <!--  禁用（如类型不匹配被置灰的候选）不显示指示条，免得看成"已选中"  -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        小角标（"枚举 / 变量 / 已绑定"这类）。底色与文字色由使用处按语义成对指定：
+        DialogAccentLightBrush+DialogAccentTextBrush（信息）、
+        DialogAccentSoftBrush+DialogWarningTextBrush（变量）等。
+    -->
+    <Style x:Key="DialogChip" TargetType="Border">
+        <Setter Property="Padding" Value="7,2" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="DialogChipText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!--
+        勾选框：自绘圆角方框 + 白勾。
+        为什么必须自绘：系统默认的方形勾选框在这套圆角卡片里像上个时代的控件，
+        而且它的选中色跟着系统主题走（深色主题下会变成一片白，在浅底卡片上几乎看不见）。
+        命中区包含整行（模板是 StackPanel）—— 只点方框那 15px 很容易点空。
+    -->
+    <Style x:Key="DialogCheckBox" TargetType="CheckBox">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Background="Transparent" Orientation="Horizontal">
+                        <Border
+                            x:Name="Box"
+                            Width="15"
+                            Height="15"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogSurfaceBrush}"
+                            BorderBrush="{StaticResource DialogBorderBrush}"
+                            BorderThickness="1.5"
+                            CornerRadius="4"
+                            SnapsToDevicePixels="True">
+                            <Path
+                                x:Name="Check"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Data="M0,3.5 L3,6.5 L9,0.5"
+                                Stroke="White"
+                                StrokeEndLineCap="Round"
+                                StrokeLineJoin="Round"
+                                StrokeStartLineCap="Round"
+                                StrokeThickness="1.8"
+                                Visibility="Collapsed" />
+                        </Border>
+                        <ContentPresenter
+                            Margin="7,0,0,0"
+                            VerticalAlignment="Center"
+                            RecognizesAccessKey="True" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource DialogAccentBrush}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                            <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        底部操作栏：顶部细分割线 + 右对齐按钮组。
+        线用 BorderThickness 而不是给按钮区加 Margin —— 分割线要横贯整个弹窗宽度，
+        写在按钮容器上就只能画到内容宽度。
+    -->
+    <Style x:Key="DialogFooter" TargetType="Border">
+        <Setter Property="Height" Value="64" />
+        <Setter Property="Padding" Value="20,0" />
+        <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="CornerRadius" Value="0,0,10,10" />
+    </Style>
+
+    <!--  底部栏里的小号按钮：与 DialogPrimaryButton 同款，只把高度压到 34（底栏只有 64 高）  -->
+    <Style
+        x:Key="DialogFooterSecondaryButton"
+        BasedOn="{StaticResource DialogSecondaryButton}"
+        TargetType="Button">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="20,0" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style
+        x:Key="DialogFooterPrimaryButton"
+        BasedOn="{StaticResource DialogPrimaryButton}"
+        TargetType="Button">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="MinWidth" Value="88" />
+    </Style>
 </ResourceDictionary>

@@ -431,6 +431,11 @@ namespace Plugin.CreateRoi
                 if (!written.Add(portName)) continue; // 重名防御：只输出第一个（正常路径已被唯一名校验拦截）
                 if (!Outputs.TryGetValue(portName, out var port)) continue;
 
+                // 先清零本轮的偏移端口：下面任一失败分支都要让下游读到 0，
+                // 而不是上一轮残留的值（double 端口基类不回收，脏值会一直挂着）
+                SetValuePort($"OffsetRow_{roi.Name}", 0d);
+                SetValuePort($"OffsetCol_{roi.Name}", 0d);
+
                 HRegion? region = BuildRegion(roi);
                 if (region == null)
                 {
@@ -439,6 +444,7 @@ namespace Plugin.CreateRoi
                 }
 
                 HImage? crop = null;
+                HImage? domain = null;
                 try
                 {
                     // 擦除涂抹同样作用于每个 ROI 的有效域（否则"擦掉的地方"仍原样出现在裁剪图里）
@@ -455,7 +461,25 @@ namespace Plugin.CreateRoi
                         continue;
                     }
 
+                    // 裁剪原点 = 有效域外接矩形的左上角（crop_domain 裁的就是它）。
+                    // 不旋转图像，所以下游回变换只需平移：global = local + (row1, col1)
+                    HOperatorSet.SmallestRectangle1(
+                        region, out HTuple r1, out HTuple c1, out HTuple _, out HTuple _);
+                    double originRow = r1.Length > 0 ? r1.D : 0;
+                    double originCol = c1.Length > 0 ? c1.D : 0;
+
                     HOperatorSet.ReduceDomain(src, region, out HObject reduced);
+
+                    // ② 带 domain 的原图：new HImage 生成独立句柄，之后释放 reduced 不影响它
+                    domain = new HImage(reduced);
+                    HImage? handedDomain = domain;
+                    if (SetImagePort($"Domain_{roi.Name}", handedDomain))
+                        domain = null;  // 所有权已移交端口（基类轮首统一回收）
+
+                    // ③ 裁剪原点
+                    SetValuePort($"OffsetRow_{roi.Name}", originRow);
+                    SetValuePort($"OffsetCol_{roi.Name}", originCol);
+
                     HOperatorSet.CropDomain(reduced, out HObject croppedImg);
                     reduced.Dispose();
                     crop = new HImage(croppedImg);
@@ -472,6 +496,7 @@ namespace Plugin.CreateRoi
                 {
                     region.Dispose();
                     if (crop != null) crop.Dispose(); // 端口写入前抛异常时不泄漏
+                    if (domain != null) domain.Dispose(); // 同上：移交失败时不泄漏
                 }
             }
 
@@ -500,12 +525,58 @@ namespace Plugin.CreateRoi
             {
                 string portName = $"Crop_{roi.Name}";
                 if (!seen.Add(portName)) continue;
+
+                // ① 裁剪图（既有端口，行为不变）
                 AddDynamicOutput(new OutputPort<HImage>(portName, $"ROI '{roi.Name}' 的裁剪图"));
                 snapshot.Add(new DynamicPortInfo
                 {
                     Name = portName,
                     DataTypeName = typeof(HImage).AssemblyQualifiedName,
                     Description = $"ROI '{roi.Name}' 的裁剪图"
+                });
+
+                // ② 带 domain 的原图（新增）
+                //
+                // 为什么要有它：裁剪图把原点搬走了，下游所有坐标都变成本地坐标，
+                // 每个插件都得自己把偏移加回来（漏一个就是静默偏移一个 ROI 左上角）。
+                // 而"带 domain 的原图"坐标系没动 —— HALCON 的算子只在 domain 内干活，
+                // 坐标仍然是全局的。实测：find_shape_model 在 domain 图上搜索，
+                // 命中返回的仍是全局坐标，domain 外的目标直接不命中。
+                // 于是**下游插件一个都不用改**就能吃到 ROI。
+                string domainName = $"Domain_{roi.Name}";
+                AddDynamicOutput(new OutputPort<HImage>(domainName,
+                    $"ROI '{roi.Name}' 带 domain 的原图（全局坐标，下游零回变换）"));
+                snapshot.Add(new DynamicPortInfo
+                {
+                    Name = domainName,
+                    DataTypeName = typeof(HImage).AssemblyQualifiedName,
+                    Description = $"ROI '{roi.Name}' 带 domain 的原图（只在 ROI 内有像素，坐标仍为全局坐标）"
+                });
+
+                // ③ 裁剪原点（新增）：给"必须用裁剪图"的场景兜底。
+                // crop_domain 裁的是外接矩形、不旋转图像，所以回变换永远只是平移：
+                //     global_row = local_row + OffsetRow_xxx
+                //     global_col = local_col + OffsetCol_xxx
+                // 拆成两个 double 而不是一个 HTuple：下游（脚本/变量/计算）可直接当标量连线，
+                // 也保住端口的编译期类型检查（不引入 object 多态端口）。
+                string rowName = $"OffsetRow_{roi.Name}";
+                AddDynamicOutput(new OutputPort<double>(rowName,
+                    $"ROI '{roi.Name}' 裁剪图原点在原图中的行（global_row = local_row + 本值）"));
+                snapshot.Add(new DynamicPortInfo
+                {
+                    Name = rowName,
+                    DataTypeName = typeof(double).AssemblyQualifiedName,
+                    Description = $"ROI '{roi.Name}' 裁剪图左上角在原图中的行坐标"
+                });
+
+                string colName = $"OffsetCol_{roi.Name}";
+                AddDynamicOutput(new OutputPort<double>(colName,
+                    $"ROI '{roi.Name}' 裁剪图原点在原图中的列（global_col = local_col + 本值）"));
+                snapshot.Add(new DynamicPortInfo
+                {
+                    Name = colName,
+                    DataTypeName = typeof(double).AssemblyQualifiedName,
+                    Description = $"ROI '{roi.Name}' 裁剪图左上角在原图中的列坐标"
                 });
             }
 
@@ -514,6 +585,27 @@ namespace Plugin.CreateRoi
             {
                 StepData.OutputPortDefinitions = snapshot;
             }
+        }
+
+        /// <summary>
+        /// 写动态 HImage 端口。端口不存在 / 类型不符时返回 false（调用方据此决定是否自行释放）。
+        ///
+        /// 为什么不一律用 port.Set()：那是给"免强转"准备的扩展，命中不了时行为不直观；
+        /// 这里要明确的"到底有没有接管所有权"的返回值，否则 domain 图不是泄漏就是被提前释放。
+        /// </summary>
+        private bool SetImagePort(string portName, HImage? image)
+        {
+            if (!Outputs.TryGetValue(portName, out var port)) return false;
+            if (port is not OutputPort<HImage> typed) return false;
+            typed.Value = image;
+            return true;
+        }
+
+        /// <summary>写动态 double 端口（OffsetRow/OffsetCol）</summary>
+        private void SetValuePort(string portName, double value)
+        {
+            if (!Outputs.TryGetValue(portName, out var port)) return;
+            if (port is OutputPort<double> typed) typed.Value = value;
         }
 
         /// <summary>

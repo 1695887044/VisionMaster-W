@@ -41,6 +41,189 @@ namespace FlowCanvasChecks
             RunSmearMask();
             RunRecipeContract();
             RunMigration();
+            RunRegressionFixes();
+        }
+
+        // ==================================================================
+        //  ⑨ 回归：本轮修掉的缺陷（每条都对应当时"为什么冒烟看不见它"）
+        // ==================================================================
+        private static void RunRegressionFixes()
+        {
+            Section("[Matching] 回归：本轮修复的缺陷");
+
+            // ---- ① P0：学习成功后状态栏不得报失败 ----
+            // 病根：成功文案里取了迁移字段 TemplateRect[3]/[4]，新方案下它恒为空数组 →
+            // IndexOutOfRangeException → 被 CreateTemplate 的 catch 吞成"创建模板失败"，
+            // 而模型其实已经学好了。断言只看 Model.Length 是看不见的，所以必须看状态栏。
+            {
+                var (creator, runtime, scene) = BuildTemplate();
+                try
+                {
+                    Check("【回归·P0】学习成功后状态栏不是失败（早先每次学习都报创建模板失败）",
+                        creator.StatusLevel != StatusLevel.Error,
+                        $"StatusLevel={creator.StatusLevel} 文案='{creator.StatusMessage}'");
+                    Check("【回归·P0】成功文案给出特征区域尺寸（不是 0×0、也不是空）",
+                        creator.StatusMessage.Contains("特征区域")
+                        && !creator.StatusMessage.Contains("0×0"),
+                        creator.StatusMessage);
+                }
+                finally
+                {
+                    creator.Dispose(); runtime.Dispose(); scene.Dispose();
+                }
+            }
+
+            // ---- ② P1：轮廓放置的"度 → 弧度"换算 ----
+            // 直接用一根已知角度的细长矩形 XLD 验证：给 30° 就应当真的转 30°。
+            // 早先双重转换时，30° 会被转成 0.5° 左右（肉眼只看到"轮廓不跟着转"）。
+            {
+                HOperatorSet.GenRectangle2ContourXld(out HObject bar, 0, 0, 0, 60, 4);
+                try
+                {
+                    using var p0 = MatchingPlugin.PlaceContoursAtPoses(
+                        bar, new HTuple(100.0), new HTuple(100.0), new HTuple(0.0));
+                    using var p30 = MatchingPlugin.PlaceContoursAtPoses(
+                        bar, new HTuple(100.0), new HTuple(100.0), new HTuple(30.0));
+
+                    double phi0 = PhiOf(p0), phi30 = PhiOf(p30);
+                    Check("【回归·P1】轮廓放置按【度】换算：给 0° 就是 0°", Math.Abs(phi0) <= 1.0,
+                        $"Phi={phi0:0.###}°");
+                    Check("【回归·P1】轮廓放置按【度】换算：给 30° 就转 30°（早先被双重转成 ≈0.5°）",
+                        Math.Abs(phi30 - 30.0) <= 1.0, $"Phi={phi30:0.###}°");
+                }
+                finally
+                {
+                    bar.Dispose();
+                }
+            }
+
+            // ---- ③ P2：删除条目必须释放模型句柄 ----
+            {
+                var (creator, runtime, scene) = BuildTemplate();
+                try
+                {
+                    var doomed = creator.Library[0];
+                    creator.EditingEntry = doomed;
+                    creator.DeleteSelectedEntry();
+                    Check("【回归·P2】删除条目时释放了模型句柄（条目已从库里摘掉，Dispose 够不着它）",
+                        doomed.RuntimeModelId == null && doomed.RuntimeContours == null,
+                        $"RuntimeModelId={(doomed.RuntimeModelId == null ? "已释放" : "仍持有")}");
+                }
+                finally
+                {
+                    creator.Dispose(); runtime.Dispose(); scene.Dispose();
+                }
+            }
+
+            // ---- ④ P2：掩膜口径一致 → 换条目来回切不应凭空提示"需重新学习" ----
+            {
+                var (creator, runtime, scene) = BuildTemplate();
+                try
+                {
+                    creator.AddTemplateEntry("模板2");
+                    creator.EditingEntry = creator.Library[1];
+                    creator.EditingEntry = creator.Library[0];   // 切回已学习的第一条
+
+                    Check("【回归·P2】换条目再切回，不误报需重新学习",
+                        !creator.IsModelStale,
+                        $"徽标='{creator.TemplateStatusText}'");
+                }
+                finally
+                {
+                    creator.Dispose(); runtime.Dispose(); scene.Dispose();
+                }
+            }
+
+            // ---- ⑤ P2：运行实例不做配置态工作（不把参考图搬进画布） ----
+            // 这里刻意用 ApplyConfigValues 而不是 Initialize：流程编译器构造运行实例走的就是前者，
+            // 只有"打开配置界面"才走 Initialize。用错入口这个断言就失去意义了。
+            {
+                var (creator, runtime, scene) = BuildTemplate();
+                try
+                {
+                    var compiled = new MatchingPlugin { InstanceName = "匹配_编译实例" };
+                    compiled.ApplyConfigValues(ConfirmToStepData(creator));
+
+                    Check("【回归·P2】编译实例不持有显示用参考图（只读该读的，不渲染预览）",
+                        compiled.DisplayImage == null,
+                        $"DisplayImage={(compiled.DisplayImage == null ? "null" : "非 null")}");
+                    Check("【回归·P2】编译实例仍然拿得到模板库（隔离不能把功能也隔掉）",
+                        compiled.Library.Count >= 1, $"库 {compiled.Library.Count} 条");
+                    compiled.Dispose();
+
+                    // 对照：走 Initialize（= 打开配置界面）时必须恢复画布与预览
+                    var reopened = new MatchingPlugin { InstanceName = "匹配_重开" };
+                    reopened.Initialize(ConfirmToStepData(creator));
+                    Check("【回归·P2】对照：配置态走 Initialize 时预览照常恢复（隔离没矫枉过正）",
+                        reopened.Library.Count >= 1 && reopened.EditingEntry != null,
+                        $"库 {reopened.Library.Count} 条，EditingEntry={(reopened.EditingEntry?.Name ?? "null")}");
+                    reopened.Dispose();
+                }
+                finally
+                {
+                    creator.Dispose(); runtime.Dispose(); scene.Dispose();
+                }
+            }
+
+            // ---- ⑥ P3：条目区域损坏 → 给能照着修的中文提示，而不是索引越界 ----
+            {
+                var (creator, runtime, scene) = BuildTemplate();
+                try
+                {
+                    creator.EditingEntry!.Rect = Array.Empty<double>();   // 模拟方案被手工改坏
+                    var stepData = ConfirmToStepData(creator);
+                    var broken = new MatchingPlugin { InstanceName = "匹配_坏条目" };
+                    broken.Initialize(stepData);
+                    broken.Image.Value = scene;
+                    broken.Execute(MakeContext(new StubLog()));
+
+                    Check("【回归·P3】条目区域参数损坏 → 失败原因写明区域参数损坏",
+                        broken.Success.Value is false
+                        && (broken.ErrorMessage.Value as string ?? "").Contains("区域参数损坏"),
+                        $"Success={broken.Success.Value} Err='{broken.ErrorMessage.Value}'");
+                    broken.Dispose();
+                }
+                finally
+                {
+                    creator.Dispose(); runtime.Dispose(); scene.Dispose();
+                }
+            }
+
+            // ---- ⑦ P3：缩放上下限相等（退化解）不再让学习失败 ----
+            {
+                var scene = BuildScene(PatternRow, PatternCol);
+                var creator = new MatchingPlugin { InstanceName = "匹配_退化缩放" };
+                try
+                {
+                    creator.DisplayImage = scene;
+                    creator.AddTemplateEntry("退化");
+                    creator.CanvasShape = RoiShapeNames.Rectangle;
+                    creator.CanvasRect = new double[] { PatternRow, PatternCol, 0, 80, 80 };
+                    creator.EditingEntry!.ScaleEnabled = true;
+                    creator.EditingEntry!.ScaleMin = 1.0;
+                    creator.EditingEntry!.ScaleMax = 1.0;   // 完全退化
+                    creator.CreateTemplate();
+
+                    Check("【回归·P3】缩放上下限相等时仍能学习（撑开最小窗口而不是报错）",
+                        creator.StatusLevel != StatusLevel.Error
+                        && creator.Library[0].Model.Length > 0,
+                        $"StatusLevel={creator.StatusLevel} 文案='{creator.StatusMessage}'");
+                }
+                finally
+                {
+                    creator.Dispose();
+                    scene.Dispose();
+                }
+            }
+        }
+
+        /// <summary>取一组 XLD 的最小外接矩形角度（度）。用于验证轮廓放置的换算</summary>
+        private static double PhiOf(HObject? xld)
+        {
+            if (xld == null || !xld.IsInitialized())
+                return double.NaN;
+            HOperatorSet.SmallestRectangle2Xld(xld, out _, out _, out HTuple phi, out _, out _);
+            return phi.D * 180.0 / Math.PI;
         }
 
         // ==================================================================
@@ -520,8 +703,10 @@ namespace FlowCanvasChecks
 
         /// <summary>
         /// 测试图案：暗圆盘 + 亮十字。位置参数化（平移测试用），梯度特征丰富。
+        /// internal：CreateRoiChecks 验证"裁剪图/domain 图的坐标系"时复用同一张图，
+        /// 保证两个插件断言里的"目标真实位置"是同一个真值。
         /// </summary>
-        private static HImage BuildScene(double row, double col)
+        internal static HImage BuildScene(double row, double col)
         {
             HOperatorSet.GenImageConst(out HObject proto, "byte", ImgW, ImgH);
             HOperatorSet.GenImageProto(proto, out HObject img, 180);

@@ -114,7 +114,7 @@
                                 FontSize="12"
                                 Foreground="#E6A23C"
                                 Text="⏳ 执行中"
-                                Visibility="{Binding IsExecuting, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                Visibility="{Binding IsExecuting, Converter={ui:BooleanToVisibilityConverter}}" />
                         </StackPanel>
                     </Grid>
                 </Border>
