@@ -36,9 +36,17 @@ namespace Plugin.Motion.Steps
         [StepConfig]
         public MotionIoDirection Direction { get; set; } = MotionIoDirection.WriteOutput;
 
-        /// <summary>点号（0 基，与卡接线对应）</summary>
-        [StepConfig]
-        public int IoPort { get; set; }
+        /// <summary>
+        /// 点号（0 基，与卡接线对应）。
+        ///
+        /// 必须是输入端口而不是 [StepConfig]：本插件没有自定义配置视图，
+        /// 属性面板统一走「变量绑定」窗口而它只列输入端口 ——
+        /// 做成 [StepConfig] 在界面上没有任何入口（见 MotionMovePlugin 同款说明）。
+        /// </summary>
+        public InputPort<int> IoPort { get; } = new InputPort<int>("IoPort", 0, "点号（0 基，与卡接线对应）")
+        {
+            IsRequired = false,   // 有默认值 0，不因"没连上游"被判编译失败
+        };
 
         /// <summary>
         /// 写入的值（仅"写输出"用；用输入端口便于被变量驱动，如"夹紧=真"）。
@@ -65,23 +73,25 @@ namespace Plugin.Motion.Steps
                 return;
             }
 
+            var ioPort = IoPort.GetTypedValue();
+
             if (Direction == MotionIoDirection.ReadInput)
             {
-                if (!device.Capabilities.IsInputValid(IoPort))
+                if (!device.Capabilities.IsInputValid(ioPort))
                 {
                     var hint = device.Capabilities.DigitalInputCount <= 0
                         ? "（该卡尚未上报能力，请确认已连接）"
                         : $"（本卡输入点范围 0~{device.Capabilities.DigitalInputCount - 1}）";
-                    Fail($"输入点 {IoPort} 无效{hint}");
+                    Fail($"输入点 {ioPort} 无效{hint}");
                     return;
                 }
 
                 // 注意：OutputPort<T>.Value 是 object（弱类型入口），不能直接参与判断 ——
                 // 取值先落局部变量，再用它做日志与后续判断，语义也更清楚
-                var readValue = device.ReadInput(IoPort);
+                var readValue = device.ReadInput(ioPort);
                 InputValue.Value = readValue;
                 Success.Value = true;
-                context.Logger.Info($"{InstanceName} 读输入 {IoPort} = {(readValue ? "ON" : "OFF")}");
+                context.Logger.Info($"{InstanceName} 读输入 {ioPort} = {(readValue ? "ON" : "OFF")}");
                 return;
             }
 
@@ -95,7 +105,7 @@ namespace Plugin.Motion.Steps
             using var command = new MotionCommand
             {
                 Kind = MotionCommandKind.SetOutput,
-                IoPort = IoPort,
+                IoPort = ioPort,
                 IoValue = WriteValue.GetTypedValue(),
                 WaitsForCompletion = false,
                 Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),

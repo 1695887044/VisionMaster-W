@@ -46,7 +46,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public bool IsOnline
         {
             get => _isOnline;
-            private set => SetProperty(ref _isOnline, value);
+            private set
+            {
+                if (SetProperty(ref _isOnline, value))
+                    RaisePropertyChanged(nameof(OnlineText));
+            }
         }
 
         public string OnlineText => IsOnline ? "在线" : "离线";
@@ -240,6 +244,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>页签标题（顺序即规格 1.1：卡设置 / 手动调试 / 点位列表 / 电子凸轮）</summary>
         public string[] TabLabels { get; } = { "卡设置", "手动调试", "点位列表", "电子凸轮" };
+
+        /// <summary>
+        /// 「卡设置」里行内改了轴名 —— 三个消费方跟一步：
+        /// 调试/点位页签的轴行是 Mapping 的包装（行本身已持有同一引用），只需补一次属性通知；
+        /// 凸轮页签的下拉候选直接重建。
+        /// </summary>
+        public void OnAxisLogicalNameChanged()
+        {
+            Debug.NotifyAxisNamesChanged();
+            Points.NotifyAxisNamesChanged();
+            Cam.RefreshAxisOptions();
+        }
 
         private int _selectedTabIndex;
         public int SelectedTabIndex

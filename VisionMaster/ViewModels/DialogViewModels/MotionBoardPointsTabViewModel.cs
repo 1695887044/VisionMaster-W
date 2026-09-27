@@ -19,12 +19,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public MotionPointsAxisRow(AxisMapping mapping)
         {
             Mapping = mapping;
-            Name = string.IsNullOrWhiteSpace(mapping.LogicalName) ? $"轴{mapping.PhysicalIndex}" : mapping.LogicalName;
         }
 
         public AxisMapping Mapping { get; }
 
-        public string Name { get; }
+        /// <summary>轴名（读 Mapping，改名方在「卡设置」页签 —— 数据源变了由页签 VM 补通知）</summary>
+        public string Name =>
+            string.IsNullOrWhiteSpace(Mapping.LogicalName) ? $"轴{Mapping.PhysicalIndex}" : Mapping.LogicalName;
+
+        /// <summary>轴名数据源被外部改了，由页签 VM 调用补通知</summary>
+        public void RaiseNameChanged() => RaisePropertyChanged(nameof(Name));
 
         public string Subtitle => "16 点位 · P0–P15";
 
@@ -143,6 +147,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _selectedDescriptor != null && _provider.TryGetDevice(_selectedDescriptor.Id, out var device)
                 ? device
                 : null;
+
+        /// <summary>「卡设置」里行内改了轴名：左栏行与表头大字补一次通知</summary>
+        public void NotifyAxisNamesChanged()
+        {
+            foreach (var row in AxisRows)
+                row.RaiseNameChanged();
+
+            RaisePropertyChanged(nameof(HeaderAxisName));
+        }
 
         #endregion
 

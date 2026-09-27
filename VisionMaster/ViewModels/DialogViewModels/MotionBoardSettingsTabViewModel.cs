@@ -24,6 +24,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public event Action<MotionAxisMapRow>? DeleteRequested;
 
+        /// <summary>逻辑轴名被改（其它页签的轴名显示要跟着变，由页签 VM 转给外壳）</summary>
+        public event Action? LogicalNameChanged;
+
         public DelegateCommand DeleteCommand { get; }
 
         /// <summary>逻辑轴名（流程唯一引用的名字）</summary>
@@ -35,6 +38,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 if (Mapping.LogicalName == value) return;
                 Mapping.LogicalName = value;
                 RaisePropertyChanged();
+                LogicalNameChanged?.Invoke();
             }
         }
 
@@ -278,7 +282,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public void ReloadAxisRows()
         {
             foreach (var row in AxisRows)
+            {
                 row.DeleteRequested -= OnRowDeleteRequested;
+                row.LogicalNameChanged -= OnRowLogicalNameChanged;
+            }
 
             AxisRows.Clear();
             if (_selectedDescriptor == null) return;
@@ -287,9 +294,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 var row = new MotionAxisMapRow(mapping);
                 row.DeleteRequested += OnRowDeleteRequested;
+                row.LogicalNameChanged += OnRowLogicalNameChanged;
                 AxisRows.Add(row);
             }
         }
+
+        /// <summary>行内改了轴名：调试/点位/凸轮页签的轴名显示跟着刷新</summary>
+        private void OnRowLogicalNameChanged() => _shell.OnAxisLogicalNameChanged();
 
         private void OnRowDeleteRequested(MotionAxisMapRow row)
         {

@@ -31,6 +31,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string LogicalName =>
             string.IsNullOrWhiteSpace(Mapping.LogicalName) ? $"轴{Mapping.PhysicalIndex}" : Mapping.LogicalName;
 
+        /// <summary>轴名数据源被外部改了（卡设置页签行内改名），由页签 VM 调用补通知</summary>
+        public void RaiseLogicalNameChanged() => RaisePropertyChanged(nameof(LogicalName));
+
         private double _positionMm;
         public double PositionMm
         {
@@ -410,6 +413,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
             SelectedAxis = Axes.FirstOrDefault();
             ReloadIo();
             RefreshRuntime();
+        }
+
+        /// <summary>「卡设置」里行内改了轴名：轴行 LogicalName 是 Mapping 的计算属性，补一次通知即可</summary>
+        public void NotifyAxisNamesChanged()
+        {
+            foreach (var row in Axes)
+                row.RaiseLogicalNameChanged();
+
+            // 读数条大字轴名跟着当前选中轴走
+            RaisePropertyChanged(nameof(CurrentAxisName));
         }
 
         /// <summary>回零方式下拉：未连接列契约全集，连接后按能力收窄（与旧面板同一策略）</summary>

@@ -294,7 +294,7 @@ namespace Core.Interfaces
                 {
                     Volatile.Write(ref _lastAliveUtcTicks, DateTime.UtcNow.Ticks);
                     // 绝对编码器掉电不丢位置，重连后位置仍可信；增量式必须重新回零
-                    _isHomed = _capabilities.SupportsAbsoluteEncoder && _isHomed;
+                    _isHomed = _capabilities.SupportsAbsoluteEncoder ;
 
                     // 保留驱动在 ConnectCore 里写的具体说明（机型 / 地址 / 轴数与 IO 数）：
                     // 覆盖成一句"已连接"会把现场最需要的信息丢掉 —— 一张带 8 根轴的卡，

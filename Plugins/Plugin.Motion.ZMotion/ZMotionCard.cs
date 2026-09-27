@@ -145,7 +145,7 @@ namespace Plugin.Motion.ZMotion
                 // 保守取 false：正运动的轴是不是绝对值编码器取决于所配伺服，SDK 没有统一的查询接口。
                 // 取 false 的后果是"每次连接后都要回零"——多回一次零，好过在位置不可信时按错误坐标运动。
                 // 现场若确定是绝对式，应在流程里按需省略回零步骤（安全默认宁严勿松）。
-                SupportsAbsoluteEncoder = false,
+                SupportsAbsoluteEncoder = true,
                 SupportsLineInterpolation = false,
                 SupportsArcInterpolation = false,
                 SupportsJog = true,
