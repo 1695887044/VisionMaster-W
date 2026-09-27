@@ -361,3 +361,11 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+## ===== 本项目补充规则 =====
+# 插件产物投递目录：编译时由 Plugins/Directory.Build.targets 自动生成，不入库（防止换机加载旧插件）
+/Modules/
+# 发布成品目录：属于构建/发布产物，不入库
+/dist/
+# 旧参考项目（WPF-Halcon-流程拖拉）的成品目录：源码保留作参考，成品不入库
+/WPF-Halcon-流程拖拉/00Exe/
