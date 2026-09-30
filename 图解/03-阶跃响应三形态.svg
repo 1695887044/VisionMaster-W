@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 430" font-family="Microsoft YaHei,PingFang SC,sans-serif">
+  <defs>
+    <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="880" height="430" fill="#ffffff"/>
+  <text x="440" y="32" text-anchor="middle" font-size="19" font-weight="bold" fill="#0f172a">阶跃响应三形态:增益手感的试金石</text>
+  <line x1="80" y1="370" x2="840" y2="370" stroke="#334155" stroke-width="2" marker-end="url(#d)"/>
+  <text x="840" y="392" text-anchor="end" font-size="13" fill="#334155">时间 →</text>
+  <line x1="80" y1="370" x2="80" y2="60" stroke="#334155" stroke-width="2" marker-end="url(#d)"/>
+  <text x="70" y="70" text-anchor="middle" font-size="13" fill="#334155" transform="rotate(-90 70 100)">位置 →</text>
+  <line x1="80" y1="130" x2="840" y2="130" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <text x="148" y="122" text-anchor="middle" font-size="13" fill="#64748b">目标位置</text>
+  <path d="M 80 370 C 200 366 250 88 330 82 C 375 80 385 178 425 181 C 460 184 470 106 510 106 C 545 106 555 148 595 148 C 630 148 650 122 840 130" fill="none" stroke="#dc2626" stroke-width="3"/>
+  <text x="470" y="60" text-anchor="middle" font-size="14" font-weight="bold" fill="#dc2626">① 欠阻尼:冲过头来回晃(增益偏高/积分偏强/前馈偏大)</text>
+  <line x1="330" y1="82" x2="330" y2="130" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 320 86 L 320 128" stroke="#dc2626" stroke-width="1.8" marker-end="url(#d)"/>
+  <rect x="334" y="112" width="54" height="15" fill="#ffffff" opacity="0.9"/>
+  <text x="338" y="124" text-anchor="start" font-size="12" fill="#dc2626">超调量</text>
+  <path d="M 80 370 C 200 366 255 122 350 122 C 390 122 410 128 450 130 C 520 132 650 130 840 130" fill="none" stroke="#16a34a" stroke-width="3"/>
+  <text x="600" y="200" text-anchor="middle" font-size="14" font-weight="bold" fill="#16a34a">② 良好:快,几乎不冲(目标状态)</text>
+  <path d="M 80 370 C 320 366 520 210 620 165 C 700 130 780 130 840 130" fill="none" stroke="#2563eb" stroke-width="3"/>
+  <text x="612" y="288" text-anchor="middle" font-size="14" font-weight="bold" fill="#2563eb">③ 过阻尼:慢吞吞爬到位(增益偏低)</text>
+  <line x1="450" y1="330" x2="640" y2="330" stroke="#475569" stroke-width="1.5" marker-end="url(#d)"/>
+  <text x="545" y="322" text-anchor="middle" font-size="12" fill="#475569">整定时间 ts ≈ 3~4 / Kp</text>
+  <text x="440" y="416" text-anchor="middle" font-size="13" fill="#94a3b8">读图口诀:超调 = (最高点 − 目标) ÷ 移动距离 × 100%;普通点位设备 &lt;5% 可接受</text>
+</svg>

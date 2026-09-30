@@ -431,12 +431,12 @@
                                                         Grid.Column="0"
                                                         Margin="8,5"
                                                         Style="{StaticResource MbCellInput}"
-                                                        Text="{Binding LogicalName, UpdateSourceTrigger=PropertyChanged}" />
+                                                        Text="{Binding LogicalName, UpdateSourceTrigger=LostFocus}" />
                                                     <TextBox
                                                         Grid.Column="1"
                                                         Margin="4,5"
                                                         Style="{StaticResource MbCellInput}"
-                                                        Text="{Binding PhysicalIndex, UpdateSourceTrigger=PropertyChanged}" />
+                                                        Text="{Binding PhysicalIndex, UpdateSourceTrigger=LostFocus}" />
                                                     <TextBox
                                                         Grid.Column="2"
                                                         Margin="4,5"

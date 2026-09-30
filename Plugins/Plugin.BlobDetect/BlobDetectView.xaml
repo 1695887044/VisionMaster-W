@@ -87,10 +87,22 @@
                             Label="输入图像"
                             Port="{Binding SrcImage}"
                             StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="检测区域"
+                            Port="{Binding MaskRegion}"
+                            StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="排除区域"
+                            Port="{Binding ExcludeRegion}"
+                            StepData="{Binding StepData}" />
 
                         <!--  手动自适应：任何时候都能按当前图像重算阈值/面积  -->
                         <Button
-                            Margin="{StaticResource PluginFirstRowMargin}"
+                            Margin="{StaticResource PluginFieldRowMargin}"
                             Padding="0,4"
                             HorizontalAlignment="Stretch"
                             Command="{Binding AdaptToImageCommand}"
@@ -99,7 +111,7 @@
                         <TextBlock
                             Margin="{StaticResource PluginFieldRowMargin}"
                             Style="{StaticResource PluginHintText}"
-                            Text="首次加载图像时，若参数仍是出厂默认值会自动适配一次；一旦改过参数就不再自动覆盖（避免软件静默改掉你调好的值）。" />
+                            Text="首次加载图像时，若参数仍是出厂默认值会自动适配一次；一旦改过参数就不再自动覆盖（避免软件静默改掉你调好的值）。检测/排除区域可不接：接了就只在区域内检测/把区域内的一律丢弃。" />
                     </StackPanel>
                 </Border>
 
@@ -273,6 +285,15 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
+
+                        <!--  亮暗同检：仅自动/动态阈值下出现（固定阈值的灰度区间自己表达"要什么"）  -->
+                        <CheckBox
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Content="亮暗同检（同时检出比背景亮与暗的缺陷）"
+                            FontSize="12"
+                            IsChecked="{Binding DetectBrightAndDark, Mode=TwoWay}"
+                            Visibility="{Binding ShowDualPolarity, Converter={StaticResource BoolToVis}}"
+                            ToolTip="一块板面上「暗划痕 + 亮亮点」要一次检完时勾选：两种极性各做一次二值化再取并集。需要额外跑一遍分割，速度略慢；固定阈值方式下不需要也无法勾选" />
                     </StackPanel>
                 </Border>
 
@@ -485,7 +506,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="单个缺陷面积上限" ToolTip="最大单缺陷面积超过它即判 NG（单位：像素）" />
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="单个缺陷面积上限" ToolTip="最大单缺陷面积超过它即判 NG（单位：像素）。填 0 = 不做这项判定（与总面积上限同口径）" />
                             <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="MaxSingleArea" UpdateSourceTrigger="PropertyChanged">
@@ -592,7 +613,7 @@
                         <TextBlock
                             Margin="{StaticResource PluginFieldRowMargin}"
                             Style="{StaticResource PluginHintText}"
-                            Text="新增端口：DefectAreas / DefectWidths / DefectHeights / TotalArea / MaxAreaMm2 / TotalAreaMm2。" />
+                            Text="数组端口（CenterRows / CenterCols / DefectAreas / DefectWidths / DefectHeights / DefectCircularities / DefectAspectRatios / DefectPhis）按同一顺序逐项对齐，下游按同一索引取即可对上号。" />
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -677,6 +698,47 @@
                                 Style="{StaticResource PluginHintText}"
                                 Text="{Binding HistogramTypeText}" />
                         </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!--  缺陷清单：逐缺陷数值与标注图编号对照（只读快照，顺序 = 输出端口顺序）；
+                      检出的每个缺陷长什么样不用再对着预览图数，调筛选/判定参数时一眼对上号  -->
+                <Border
+                    DockPanel.Dock="Bottom"
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="缺陷清单" />
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource PluginHintText}"
+                                Text="{Binding DefectCountText}" />
+                        </Grid>
+                        <DataGrid
+                            MaxHeight="150"
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            AutoGenerateColumns="False"
+                            CanUserAddRows="False"
+                            CanUserDeleteRows="False"
+                            CanUserResizeRows="False"
+                            FontSize="12"
+                            HeadersVisibility="Column"
+                            IsReadOnly="True"
+                            ItemsSource="{Binding DefectRows}"
+                            SelectionChanged="DefectList_SelectionChanged"
+                            SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Width="36" Binding="{Binding Index}" Header="#" />
+                                <DataGridTextColumn Width="70" Binding="{Binding Area, StringFormat=0.#}" Header="面积(px)" />
+                                <DataGridTextColumn Width="60" Binding="{Binding Circularity, StringFormat=0.###}" Header="圆度" />
+                                <DataGridTextColumn Width="66" Binding="{Binding AspectRatio, StringFormat=0.#}" Header="长宽比" />
+                                <DataGridTextColumn Width="56" Binding="{Binding Width, StringFormat=0.#}" Header="宽" />
+                                <DataGridTextColumn Width="56" Binding="{Binding Height, StringFormat=0.#}" Header="高" />
+                                <DataGridTextColumn Width="64" Binding="{Binding Row, StringFormat=0.#}" Header="行" />
+                                <DataGridTextColumn Width="64" Binding="{Binding Col, StringFormat=0.#}" Header="列" />
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </StackPanel>
                 </Border>
 

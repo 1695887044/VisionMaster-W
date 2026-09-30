@@ -12,12 +12,13 @@
     mc:Ignorable="d">
 
     <!--
-        窗口：默认给"插件自带视图"用的固定大画布（创建ROI 这类需要足够大的绘制区，
-        统一成自适应高度的话，用户手动拉大窗口后内容不会重新填满）。
+        窗口：默认给"插件自带视图"用的固定大画布（创建ROI 这类需要足够大的绘制区），
+        参数区用 * 行把固定窗口填满 —— 用户拉大窗口后内容跟着重新填满。
 
-        但"框架自动生成的参数面板"（AutoPortConfigView）只有几行 —— 延时插件甚至只有 1 行 ——
-        套这个尺寸就是"一条输入、一屏空白"。所以由 code-behind 判断内容类型后
-        **只对那一种**切到"按内容定高 + 560 宽"（见 PluginConfigShellView.xaml.cs）。
+        框架自动生成的参数面板（AutoPortConfigView）只有几行，套固定高度就是"一条输入、一屏空白"；
+        那种窗口由面板**自己**在 Loaded 里切成"按内容定高 + 560 宽"
+        （见 AutoPortConfigView.xaml.cs 的 OnLoaded —— 外壳不去猜内容类型，
+        之前在外壳判断因为 Content 绑定时序踩过空）。
     -->
     <prism:Dialog.WindowStyle>
         <!--
@@ -138,8 +139,14 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="72" />
-                    <!--  参数区按内容撑高：AutoPortConfigView 那类界面靠它才能"行少窗口就矮"  -->
-                    <RowDefinition Height="Auto" />
+                    <!--
+                        参数区必须是 * 行：外壳窗口是固定高度（680），行给 Auto 的话
+                        插件自带视图只画自己的"自然高"，底下的按钮条跟着内容走、
+                        窗口下半截全空（实际窗口只占容器一半就是它）。
+                        框架自动面板（AutoPortConfigView）不受影响 —— 它把自己那个窗口
+                        切成了 SizeToContent=Height，* 行在按内容定高时照样缩到内容高。
+                    -->
+                    <RowDefinition Height="*" />
                     <RowDefinition Height="56" />
                 </Grid.RowDefinitions>
 

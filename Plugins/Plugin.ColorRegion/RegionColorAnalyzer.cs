@@ -115,6 +115,10 @@ namespace Plugin.ColorRegion
         {
             error = string.Empty;
 
+            // 占比阈值夹进 0~1：方案文件被填成 1.5 / -0.2 这类越界值时，
+            // 前者"永远不纯"、后者"永远合格"—— 都是配置错误在悄悄改判定，夹回合法区间
+            minShare = Math.Clamp(minShare, 0.0, 1.0);
+
             if (expected == null || expected.Length == 0)
             {
                 error = "尚未配置期望颜色：请在节点配置里填「期望颜色」（多个用逗号分隔，写 * 表示只报颜色不判定）";

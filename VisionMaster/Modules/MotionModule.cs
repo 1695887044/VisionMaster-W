@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using VisionMaster.Lifetime;
 using VisionMaster.Services;
+using VisionMaster.Services.Motion;
 
 namespace VisionMaster
 {
@@ -35,11 +36,35 @@ namespace VisionMaster
             registry.RegisterSingleton<MotionProvider>();
             // 接口与具体类型指向同一单例（与相机/通讯模块同口径）
             registry.RegisterSingleton<IMotionProvider>(c => c.Resolve<MotionProvider>());
+
+            // 轴注册表：全局唯一轴名 →（卡 Id + 轴号）的唯一权威。
+            // 必须是单例 —— 两份实例各自维护一份索引，表现就是"界面改了轴名，流程解析到的还是旧的"。
+            // 它不认识 IMotionDevice：正视这可能让 UI 线程与流程线程同时读写，内部自带锁与自刷新。
+            registry.RegisterSingleton<MotionAxisRegistry>(c => new MotionAxisRegistry(
+                cardsProvider: () => c.Resolve<IWorkspaceManager>().CurrentSolution?.MotionCards,
+                camProvider: () => c.Resolve<IWorkspaceManager>().CurrentSolution?.CamTables));
+
+            // 轴定位器：把注册表与 IMotionProvider 缝起来，给出插件唯一需要的那次调用
+            //（按轴名直取"设备 + 轴号"）。注册表保持纯数据、可被无设备测试直接断言，
+            // "按卡取设备"这一步只在这里出现一次。
+            registry.RegisterSingleton<MotionAxisLocator>(c => new MotionAxisLocator(
+                c.Resolve<MotionAxisRegistry>(), c.Resolve<IMotionProvider>()));
         }
 
         public void Initialize(IContainerProvider container, AppLifetimeService lifetime)
         {
             var provider = container.Resolve<MotionProvider>();
+
+            // 把注册表与设备仓库递给插件侧的取轴入口（静态注入，与 StepConfigOptionSource 同一手法）。
+            // 插件是运行期加载进来的独立程序集，拿不到 DI 容器；有了它，
+            // 插件里就只剩"给轴名 → 拿设备+轴号"这一次调用，不再出现"选哪张卡"。
+            MotionAxisResolution.Attach(
+                container.Resolve<MotionAxisRegistry>(), container.Resolve<IMotionProvider>());
+
+            // 启动体检：把历史方案里的轴名重复 / 轴号冲突报到日志。
+            // 这件事必须在启动阶段做一次 —— 这类问题不会报错，只会表现为
+            // "某根轴怎么都动不了"，而现场没人会往"轴名撞了"上想。
+            ReportAxisRegistryProblems(container);
 
             // 步骤参数候选项来源（轴名 / 卡地址）：属性面板据此把这两类参数渲染成下拉，
             // 用户不必再手打逻辑名（打错要到运行期才报"没有名为 X 的轴"）。
@@ -65,6 +90,33 @@ namespace VisionMaster
             // 这一步不只是"礼貌地关闭"——运动卡的 Disconnect 会先**安全停止所有轴**，
             // 少了它，关软件时正在运动的轴会按最后一条命令继续走完（真机上很危险）。
             lifetime.RegisterExitTask(ExitTask.Of("断开全部运动卡", () => provider.Dispose()));
+        }
+
+        /// <summary>
+        /// 把轴注册表发现的历史问题写进日志。
+        ///
+        /// 只记录、不自动修正：自动改用户的配置等于悄悄动了他没让动的东西
+        /// （"谁把我的轴名改了"比"这根轴不动"更难解释）。日志给出**具体是谁和谁冲突**，
+        /// 让人自己去「运动卡设置」改，改完即时生效。
+        /// </summary>
+        private static void ReportAxisRegistryProblems(IContainerProvider container)
+        {
+            try
+            {
+                var problems = container.Resolve<MotionAxisRegistry>().Reload();
+                if (problems.Count == 0) return;
+
+                var log = container.Resolve<ILogService>();
+                log.Warn($"[MotionAxisRegistry] 当前方案的轴映射有 {problems.Count} 处问题"
+                         + "（重名的轴只有前者能被解析，未修前请不要依赖同名轴）：");
+
+                foreach (var problem in problems) log.Warn($"[MotionAxisRegistry] · {problem.Message}");
+            }
+            catch (Exception ex)
+            {
+                // 体检失败不该挡住启动：它只是诊断，不是运行前提
+                container.Resolve<ILogService>().Warn($"[MotionAxisRegistry] 轴映射体检未完成：{ex.Message}");
+            }
         }
 
         /// <summary>
@@ -100,13 +152,23 @@ namespace VisionMaster
                                 : $"{c.DisplayName}（{c.Address}）"))
                         .ToList() ?? new List<StepConfigOption>(),
 
-                    StepConfigOptionKind.MotionAxisName => solution?.MotionCards
-                        .SelectMany(c => c.Axes)
-                        .Where(a => a.Enabled && !string.IsNullOrWhiteSpace(a.LogicalName))
-                        .Select(a => a.LogicalName)
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .Select(name => new StepConfigOption(name))
-                        .ToList() ?? new List<StepConfigOption>(),
+                    // 轴名候选来自**全局轴注册表**，而不是各卡映射表的并集。
+                    // 差别有两处，都是真机上会出事的地方：
+                    //   ① 旧写法是 SelectMany + Distinct —— 跨卡重名会坍缩成一个下拉项，
+                    //      选中后解析到谁全看遍历顺序，表现是"同一条流程换个方案就动错轴"；
+                    //   ② 注册表里**解析不到的名字一律不列**（重名时被影子化的那些）。
+                    //      把它列出来等于递给用户一个"选了必然失败"的选项 ——
+                    //      他会以为配置里明明有这根轴，却永远动不了，这类问题极难定位。
+                    //
+                    // 值 = 轴名本体（注册表按它解析），刻意不挂"卡名/轴名"做显示文本：
+                    // 一旦显示文本被回填成值，解析就断了（卡地址那条敢带显示名，
+                    // 是因为它的值本身就是给人读的地址）。
+                    StepConfigOptionKind.MotionAxisName => container.Resolve<MotionAxisRegistry>()
+                        .Snapshot()
+                        .Where(b => b.Enabled)
+                        .OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(b => new StepConfigOption(b.Name))
+                        .ToList(),
 
                     _ => new List<StepConfigOption>(),
                 };

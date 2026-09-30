@@ -66,9 +66,20 @@ namespace Core.Interfaces
             : "(未命名运动卡)";
 
         /// <summary>
-        /// 按逻辑轴名找物理轴号；找不到返回 -1。
-        /// 流程步骤引用的是逻辑名（"X"），这一层是"换卡/改接线只改映射表"的落点。
+        /// 【已退役】按逻辑轴名找物理轴号；找不到返回 -1。
+        ///
+        /// 退役理由：轴名现在是**全局唯一**的对外标识，而"轴名 → 物理轴号"的解析
+        /// 必须连同"是哪张卡"一起给出。只给轴号等于让调用方回去猜卡，
+        /// 猜错的表现就是"命令发给 A 卡、动的是 B 卡"；
+        /// 而且它只在**单卡**范围内查，跨卡重名时 FirstOrDefault 命中哪根全看列表顺序 ——
+        /// 同一份配置换个打开顺序就动到不同的轴。
+        ///
+        /// 请改用 <see cref="MotionAxisRegistry.TryResolve"/>（给出 卡Id + 轴号 + 完整配置）；
+        /// 插件侧用宿主注入的 MotionAxisLocator.TryLocate，一次拿到"设备 + 轴号"。
         /// </summary>
+        [Obsolete("轴名已全局唯一：请改用 MotionAxisRegistry.TryResolve（解析到 卡Id + 轴号）；"
+                  + "插件侧用 MotionAxisLocator.TryLocate 一次拿到 设备 + 轴号。"
+                  + "本方法只在单卡范围内查找，跨卡重名时会命中错误的轴。")]
         public int ResolveAxisIndex(string logicalName)
         {
             if (string.IsNullOrWhiteSpace(logicalName)) return -1;
@@ -81,22 +92,108 @@ namespace Core.Interfaces
         public AxisMapping? FindAxis(int physicalIndex)
             => Axes.FirstOrDefault(a => a.PhysicalIndex == physicalIndex);
 
-        /// <summary>由驱动在连接成功后回填默认轴映射（配置界面"一键铺满轴"用）</summary>
-        public void EnsureAxes(int axisCount)
+        /// <summary>
+        /// 改逻辑轴名，并**级联**把该轴已教好的点位一起改过去。返回被改名的点位数。
+        ///
+        /// 为什么必须有它：点位以 <c>AxisLogical</c> 字符串为外键（<see cref="MotionPoint"/>）。
+        /// 改名但不动点位，结果是 —— 旧名字下教好的 16 个点位变成谁也读不到的孤儿，
+        /// 新名字下又 seed 出 16 行空表。用户看到的就是"我改了个名字，点位全没了"。
+        /// 这是**静默**的数据丢失，所以改名必须经过这一个入口，不能在外面直接改
+        /// <c>AxisMapping.LogicalName</c>。
+        ///
+        /// 调用方还要负责把凸轮表里引用该轴的标签一起改（<c>MotionCamTable.RenameAxisLabels</c>）。
+        /// </summary>
+        public int RenameAxis(string oldLogical, string newLogical)
+        {
+            if (string.IsNullOrWhiteSpace(oldLogical) || string.IsNullOrWhiteSpace(newLogical)) return 0;
+
+            return RenameAxis(
+                Axes.FirstOrDefault(a =>
+                    string.Equals((a.LogicalName ?? string.Empty).Trim(), oldLogical.Trim(), StringComparison.OrdinalIgnoreCase)),
+                oldLogical,
+                newLogical);
+        }
+
+        /// <summary>
+        /// 同上，但直接给出要改名的轴。
+        ///
+        /// 为什么需要这个重载：界面是"先写回 Mapping、再发改名事件"的顺序，
+        /// 等事件到达时轴的 <c>LogicalName</c> 已经是新值了 —— 按旧名查会查不到，
+        /// 级联就静默不生效（这是"改了名点位还是没了"最容易踩的坑）。
+        /// </summary>
+        public int RenameAxis(AxisMapping? axis, string oldLogical, string newLogical)
+        {
+            if (axis == null) return 0;
+            if (string.IsNullOrWhiteSpace(oldLogical) || string.IsNullOrWhiteSpace(newLogical)) return 0;
+            if (string.Equals(oldLogical.Trim(), newLogical.Trim(), StringComparison.OrdinalIgnoreCase)) return 0;
+
+            axis.LogicalName = newLogical.Trim();
+
+            var renamed = 0;
+            foreach (var point in Points)
+            {
+                if (!string.Equals(point.AxisLogical, oldLogical.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                point.AxisLogical = newLogical.Trim();
+                renamed++;
+            }
+
+            return renamed;
+        }
+
+        /// <summary>
+        /// 由驱动在连接成功后回填默认轴映射（配置界面"轴映射自动铺开"用）。
+        /// </summary>
+        /// <param name="axisCount">要铺到的物理轴数（已有行不会被重建，值也不会被清掉）</param>
+        /// <param name="isNameTaken">
+        /// 判断某个逻辑名是否**已被别处占用**的回调。传入它时，自动生成的名字保证全局不撞车；
+        /// 不传则只保证本卡内不重复（历史行为）。
+        ///
+        /// 为什么必须能传进来：轴名是**全局唯一**的对外标识（见 <see cref="MotionAxisRegistry"/>），
+        /// 而这里一直按"卡内序号"生成 <c>A{i}</c> —— 两张卡会各自生成一套 A0/A1/A2，
+        /// 在全局注册表里全部重名。少了这个回调，多卡方案里就会有"几根轴永远解析不到"。
+        /// </param>
+        public void EnsureAxes(int axisCount, Func<string, bool>? isNameTaken = null)
         {
             if (axisCount <= 0) return;
+
             for (int i = 0; i < axisCount; i++)
             {
                 if (Axes.Any(a => a.PhysicalIndex == i)) continue;
+
                 Axes.Add(new AxisMapping
                 {
-                    // 默认逻辑名取 A0、A1…（避开 X/Y/Z：那些是"这台设备的语义"，应由使用者按机构命名）。
-                    // 直接用十进制序号：A{min(i,9)} 的写法会让 10 号轴与 0~9 撞名（三个轴都叫 A9），
-                    // 而逻辑名是点位表/流程引用的唯一键，重名会让"按逻辑名查"变成随机命中。
-                    LogicalName = $"A{i}",
+                    LogicalName = PickUnusedLogicalName(i, isNameTaken),
                     PhysicalIndex = i,
                 });
             }
+        }
+
+        /// <summary>
+        /// 挑一个没人用的默认逻辑名（A{序号} 起点，往后找）。
+        ///
+        /// 【为什么不直接用 A{i}】EnsureAxes 是按物理轴号补齐的，删过轴/改过名之后
+        /// 序号与占用情况就脱钩了，照序号取名会直接撞车。
+        /// 【为什么从期望值往后找而不是从 0 找】名字越小越好认，铺第 0 根轴时期望的就是 A0；
+        /// 只有当它被占时才往后顺延。
+        /// </summary>
+        private string PickUnusedLogicalName(int preferredIndex, Func<string, bool>? isNameTaken)
+        {
+            const int MaxAttempts = 8192;
+
+            for (var n = preferredIndex; n < MaxAttempts; n++)
+            {
+                var candidate = $"A{n}";
+
+                var usedHere = Axes.Any(a =>
+                    string.Equals((a.LogicalName ?? string.Empty).Trim(), candidate, StringComparison.OrdinalIgnoreCase));
+
+                if (usedHere) continue;
+                if (isNameTaken != null && isNameTaken(candidate)) continue;
+
+                return candidate;
+            }
+
+            return $"A{preferredIndex}";
         }
     }
 

@@ -116,6 +116,12 @@ namespace FlowCanvasChecks
             // 线序检测·插件版方案端到端（真加载 .vms + 真编译 + 真执行 + 断言结果与投射）
             WireSequencePluginCheck.Run();
 
+            // 合成复杂颜色图生成器 + 流程式验证（采集 → 序列 → 区域×2，含 16 位高位深归一链路）
+            ColorSyntheticChecks.Run();
+
+            // 海康相机驱动：Modules 发现契约 + 缺 SDK 优雅降级 + 像素格式分类
+            HikvisionChecks.Run();
+
             Finish();
             return Environment.ExitCode;
         }

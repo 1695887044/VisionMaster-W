@@ -67,9 +67,10 @@ namespace Plugin.Motion.Steps
             Accepted.Value = false;
             InputValue.Value = false;
 
-            if (!context.Motions.TryGetByKey(cardKey, out var device))
+            // IO 是卡级操作（读写的是卡上的端子，不属于任何一根轴），必须指定卡
+            if (!MotionAxisResolution.TryResolveDevice(cardKey, out var device, out var resolveError))
             {
-                Fail($"找不到运动卡「{cardKey}」：请确认该卡已在「运动卡设置」里配置并连接");
+                Fail(resolveError);
                 return;
             }
 

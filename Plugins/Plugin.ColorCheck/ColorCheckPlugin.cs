@@ -364,6 +364,28 @@ namespace Plugin.ColorCheck
             return new ColorCheckView { DataContext = this };
         }
 
+        /// <summary>
+        /// 释放本实例持有的资源。
+        ///
+        /// 为什么必须重写：DisplayImage 是"上游图/示意图"的**自己拷的一份**（见 ShowUpstreamImage），
+        /// 归本实例所有，基类的 Dispose 只回收输出端口，管不到它；
+        /// 不释放的话每关一次配置界面就欠一张图的句柄，等 GC 兜底才收得回来。
+        /// 画布 ROI 清空时压着播种位 —— 清空动作若走回写，会把已保存的采样区参数抹掉。
+        /// </summary>
+        public override void Dispose()
+        {
+            Image.PropertyChanged -= OnImagePortChanged;
+
+            _seedingCanvas = true;
+            try { CanvasRois.Clear(); }
+            finally { _seedingCanvas = false; }
+
+            DisplayImage?.Dispose();
+            DisplayImage = null;
+
+            base.Dispose();   // 输出端口交给基类统一回收
+        }
+
         /// <summary>视图就绪回调（视图 code-behind 只留这一个信号）：先把图弄上屏</summary>
         public void OnViewLoaded()
         {
@@ -697,6 +719,10 @@ namespace Plugin.ColorCheck
             analyzed.ColsOfProfile = profile.Cols;
             result = analyzed;
 
+            // 高位深归一发生过就把说明带进 warnings：日志里能查到"数值为什么变小了"
+            if (!string.IsNullOrEmpty(profile!.DepthNote))
+                analyzed.Warnings.Insert(0, profile.DepthNote);
+
             return TryJudge(analyzed, out judgement, out error);
         }
 
@@ -790,6 +816,22 @@ namespace Plugin.ColorCheck
                 recipeName = recipe.Name;
             }
 
+            // 期望词先过一遍词表再比对：比对是按字面做的，词表外的词（"深红"这种）
+            // 永远匹配不上，只会默默地把那一位判 NG —— 现场看到的结论是"应为 深红、实测 红"，
+            // 根本想不到是配方写错了。配置问题就该按配置问题报（与"配方缺失"同口径），
+            // 也与「区域颜色检查」的期望词校验对齐。
+            var unknownWords = expected
+                .Where(w => !ColorVocabulary.IsKnown(w))
+                .Distinct()
+                .ToArray();
+            if (unknownWords.Length > 0)
+            {
+                error = $"期望序列里有认不出的颜色词：{string.Join("、", unknownWords)}；"
+                      + $"颜色词只有 {string.Join("、", ColorVocabulary.AllNames)}"
+                      + $"（或写 {ColorVocabulary.Any} 表示这一位不检）。来源：{recipeName}";
+                return false;
+            }
+
             var verdict = new Judgement
             {
                 RecipeName = recipeName,
@@ -825,6 +867,9 @@ namespace Plugin.ColorCheck
             internal ColorProfile Profile { get; set; } = null!;
             internal double[] Rows { get; set; } = System.Array.Empty<double>();
             internal double[] Cols { get; set; } = System.Array.Empty<double>();
+
+            /// <summary>非空 = 本次采样做过高位深归一（说明文案，交给 warnings 展示）</summary>
+            internal string DepthNote { get; set; } = string.Empty;
         }
 
         /// <summary>
@@ -909,6 +954,13 @@ namespace Plugin.ColorCheck
                 return false;
             }
 
+            // 高位深归一：判据（暗线判据的众数/百分位、大津法直方图、明度阈值黑80/白195）
+            // 全是按 8 位标定的；12/16 位相机图不压回去的话暗线判据整段失效、黑白灰棕全错。
+            // 等比缩放不动色相与饱和度（它们是比值），颜色词的答案不变。
+            string depthNote = string.Empty;
+            if (NormalizeTo8BitIfHighBitDepth(channel, out string note))
+                depthNote = note;
+
             // 同一短轴位置上的 5 个像素取中位 —— 单点取值容易被反光/脏点骗
             var r2 = new int[sampleCount];
             var g2 = new int[sampleCount];
@@ -935,7 +987,35 @@ namespace Plugin.ColorCheck
                 Profile = new ColorProfile(r2, g2, b2),
                 Rows = profileRows,
                 Cols = profileCols,
+                DepthNote = depthNote,
             };
+            return true;
+        }
+
+        /// <summary>
+        /// 高位深图像归一化：相机出 12/16 位图（uint2）时灰阶远超 255，而颜色判据的
+        /// 明度类阈值（黑 80 / 白 195 / 棕 175）与序列分析的直方图（众数 / 大津，256 桶）
+        /// 全都按 8 位标定 —— 不归一的话"黑"永远判不出、"白"满天飞、暗线判据整段失效。
+        /// 按实测最大通道值等比压回 0~255：色相与饱和度是比值，等比缩放不动它们，
+        /// 颜色词的答案不变。返回 true 表示发生过缩放（调用方把 note 交去日志/界面）。
+        /// </summary>
+        private static bool NormalizeTo8BitIfHighBitDepth(int[][] channels, out string note)
+        {
+            note = string.Empty;
+
+            int max = 0;
+            for (int ci = 0; ci < channels.Length; ci++)
+                foreach (var v in channels[ci])
+                    if (v > max) max = v;
+
+            if (max <= 255) return false;
+
+            double k = 255.0 / max;
+            for (int ci = 0; ci < channels.Length; ci++)
+                for (int i = 0; i < channels[ci].Length; i++)
+                    channels[ci][i] = (int)System.Math.Round(channels[ci][i] * k);
+
+            note = $"图像是高位深（实测最大灰度 {max}），已等比压到 8 位再判色；颜色词不受影响";
             return true;
         }
 

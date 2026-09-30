@@ -2,7 +2,6 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Threading;
 using Core.Interfaces;
 using Prism.Commands;
@@ -85,15 +84,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly MotionProvider _provider;
         private readonly IWorkspaceManager _workspace;
 
+        /// <summary>全局轴名注册表（轴名 → 卡+轴号 的唯一权威）</summary>
+        private readonly MotionAxisRegistry _axes;
+
         private DispatcherTimer? _refreshTimer;
         private DispatcherTimer? _noticeTimer;
 
-        public MotionBoardViewModel(MotionProvider provider, IWorkspaceManager workspace)
+        public MotionBoardViewModel(MotionProvider provider, IWorkspaceManager workspace, MotionAxisRegistry axes)
         {
             _provider = provider;
             _workspace = workspace;
+            _axes = axes;
 
-            Settings = new MotionBoardSettingsTabViewModel(provider, workspace, this);
+            Settings = new MotionBoardSettingsTabViewModel(provider, workspace, this, axes);
             Debug = new MotionBoardDebugTabViewModel(provider, workspace, this);
             Points = new MotionBoardPointsTabViewModel(provider, workspace, this);
             Cam = new MotionBoardCamTabViewModel(provider, workspace, this);
@@ -132,17 +135,27 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             Reload();
 
-            // 空方案给一张默认卡，让首次打开不是一片空白（规格 2.1 空库 seed）
+            // 空方案给一张默认卡，让首次打开不是一片空白（规格 2.1 空库 seed）。
+            //
+            // ★ 默认卡**只能落在真实驱动上**，并且不能占 127.0.0.1：
+            //   ① 早期版本直接取 AvailableDrivers.FirstOrDefault()，而插件扫描序里
+            //      Virtual 排在 ZMotion 前面（字母序），于是"默认就给一张虚拟卡" ——
+            //      用户第一眼看到的永远是不能上产的仿真卡；
+            //   ② 仿真卡的天然地址是本机回环 127.0.0.1，而现场也常把控制器（或它的仿真器）
+            //      放在本机，seed 一旦占住，用户再添加 127.0.0.1 的真卡会被"地址已被占用"挡下，
+            //      现象就是"我明明选了正运动，结果还是那张虚拟卡"。
+            //   没有真实驱动（例如正运动插件没加载）时**宁可不 seed**：
+            //   左栏空态会提示"请在左侧选择一张运动卡"，比塞一张用不了的仿真卡诚实。
             var solution = _workspace.CurrentSolution;
             if (solution?.MotionCards != null && solution.MotionCards.Count == 0)
             {
-                var driver = _provider.AvailableDrivers.FirstOrDefault();
+                var driver = DefaultDriver;
                 if (driver != null)
                 {
                     var descriptor = new MotionDescriptor
                     {
                         DriverTypeKey = driver.TypeKey,
-                        Address = "127.0.0.1",
+                        Address = "192.168.0.11",
                         DisplayName = driver.DisplayName,
                     };
                     solution.MotionCards.Add(descriptor);
@@ -150,6 +163,22 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     _provider.EnsureSynced();
                     Reload();
                 }
+            }
+
+            // 历史方案里可能还留着上一次"默认 seed"出来的仿真卡（已随 .vms 落盘）。
+            //
+            // 为什么必须处理掉它：它占着 127.0.0.1，而现场常把控制器（或它的仿真器）放本机 ——
+            // 用户再添加 127.0.0.1 的真卡会被"地址已被占用"挡下，只剩这张虚拟卡，
+            // 现象就是"我明明选了正运动，添加完还是虚拟卡"。
+            // 不擅自删（它可能正被用来做无硬件联调），弹一次确认由用户定夺；删掉之后不再出现。
+            var leftoverSim = solution?.MotionCards?.FirstOrDefault(IsFactoryDefaultSimCard);
+            if (leftoverSim != null)
+            {
+                RequestConfirm(
+                    "清理默认虚拟卡",
+                    $"检测到默认创建的虚拟仿真卡「{leftoverSim.Caption}」（127.0.0.1）。\n"
+                    + "它占着 127.0.0.1，会让同地址的真实卡加不进来。是否删除？",
+                    () => RemoveCard(leftoverSim));
             }
 
             // 电子凸轮表空库 seed（规格 6.4：一张五拐点默认表）
@@ -230,9 +259,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void OnDevicesChanged(object? sender, EventArgs e)
         {
             // 设备事件在非 UI 线程触发（命令/轮询线程），必须调度回 UI 线程再碰集合
-            var dispatcher = Application.Current?.Dispatcher;
-            if (dispatcher == null) return;
-            dispatcher.BeginInvoke(() =>
+            UiDispatcher.Post(() =>
             {
                 foreach (var row in Cards) row.RefreshRuntime();
             });
@@ -246,22 +273,43 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string[] TabLabels { get; } = { "卡设置", "手动调试", "点位列表", "电子凸轮" };
 
         /// <summary>
-        /// 「卡设置」里行内改了轴名 —— 三个消费方跟一步：
-        /// 调试/点位页签的轴行是 Mapping 的包装（行本身已持有同一引用），只需补一次属性通知；
-        /// 凸轮页签的下拉候选直接重建。
+        /// 「卡设置」里行内改了轴名 —— 先做**级联**，再让三个消费方跟一步：
+        ///   ① 点位表以轴名为外键，改名必须带着点位一起走（<see cref="MotionDescriptor.RenameAxis"/>）；
+        ///   ② 凸轮表的主/从轴是「卡名 · 轴名」标签，改名即失效，必须同步改过去；
+        ///   ③ 调试/点位页签的轴行是 Mapping 的包装（同一引用），只需补一次属性通知；
+        ///   ④ 凸轮页签的下拉候选直接重建。
+        ///
+        /// 顺序不能颠倒：① ② 都按**旧名**定位，等名字改完了就找不到了 ——
+        /// 那正是"改个轴名，教好的点位全没了"的根因。
         /// </summary>
-        public void OnAxisLogicalNameChanged()
+        public void OnAxisLogicalNameChanged(string oldName, string newName, string detail)
         {
+            // ★ 级联（点位外键 / 凸轮标签 / 索引重排）已经在
+            //   MotionAxisRegistry.Rename 里一次性做完了。
+            //   这里只负责"让跟着显示的界面跟上"——级联逻辑必须只有一份，
+            //   否则迟早出现"这条路径忘了级联"的第三种写法。
             Debug.NotifyAxisNamesChanged();
             Points.NotifyAxisNamesChanged();
             Cam.RefreshAxisOptions();
+
+            if (!string.IsNullOrWhiteSpace(detail))
+                NotifyOk(detail);
         }
 
         private int _selectedTabIndex;
         public int SelectedTabIndex
         {
             get => _selectedTabIndex;
-            set => SetProperty(ref _selectedTabIndex, value);
+            set
+            {
+                if (!SetProperty(ref _selectedTabIndex, value))
+                    return;
+
+                // 切入手动调试页签时重扫轴列表：轴映射可能在「卡设置」里刚被
+                // 连接后的能力铺齐（32 轴）或改名过，不重扫就会显示旧快照/空列表
+                if (value == 1)
+                    Debug.ReloadAxesAndIo();
+            }
         }
 
         #endregion
@@ -302,6 +350,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>凸轮这类不经过设备的成功动作也计入"已执行"（与 Web 版口径一致）</summary>
         public void CountExecuted() => _sessionExecuted++;
+
+        /// <summary>
+        /// 连接成功的统一出口（「卡设置」与「手动调试」两个页签的连接按钮都走这里）：
+        /// ① toast 报告扫描到的轴数（连上 32 轴卡必须让用户第一眼知道，而不是静默铺表）；
+        /// ② 立即重建手动调试页签的轴列表 —— 连接后轴映射可能刚按能力补齐，
+        ///    不重建的话调试页签还停在连接前的旧快照。
+        /// </summary>
+        public void NotifyCardConnected(string caption, int axisCount)
+        {
+            NotifyOk(axisCount > 0
+                ? $"「{caption}」已连接，扫描到 {axisCount} 个轴"
+                : $"「{caption}」已连接");
+
+            Debug.ReloadAxesAndIo();
+        }
 
         private void ShowNotice(string text, bool isError)
         {
@@ -410,6 +473,67 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         #endregion
 
+        #region 删卡（唯一一份级联）与出厂默认仿真卡识别
+
+        /// <summary>
+        /// 删卡。**级联只有这一份**（凸轮表的「卡名 · 轴名」标签必须跟着清，
+        /// 否则留下一批指向不存在轴的悬垂引用），「卡设置」页签的删除按钮也走这里。
+        /// </summary>
+        public void RemoveCard(MotionDescriptor descriptor)
+        {
+            var solution = _workspace.CurrentSolution;
+            var target = solution?.MotionCards?.FirstOrDefault(c => c.Id == descriptor.Id);
+            if (solution == null || target == null) return;
+
+            // 注册表是派生索引，先刷新一次再取快照，否则可能按旧索引清错标签
+            _axes.Reload();
+            foreach (var binding in _axes.Snapshot().Where(b => b.CardId == descriptor.Id))
+            {
+                MotionCamAxisRefs.ClearAxisLabels(
+                    solution.CamTables, MotionCamAxisRefs.Label(descriptor.Caption, binding.Name));
+            }
+
+            solution.MotionCards.Remove(target);
+            _provider.MarkConfigDirty();
+            _provider.EnsureSynced();   // 删卡必须立刻断开物理连接
+
+            NotifyOk($"运动卡「{descriptor.Caption}」已删除");
+            Reload();
+        }
+
+        /// <summary>
+        /// 是不是"出厂默认那张虚拟仿真卡"（早期版本的空库 seed 生成的，已随 .vms 落盘）。
+        ///
+        /// 判定刻意从严：**任何一处被人动过**就不再是默认卡，一律不动它 ——
+        /// 有人拿它做无硬件联调时改过名/填过参数，这条判据必须让那种卡留在原处。
+        /// </summary>
+        private bool IsFactoryDefaultSimCard(MotionDescriptor card)
+        {
+            var driver = AvailableDrivers.FirstOrDefault(d => d.TypeKey == card.DriverTypeKey);
+            if (driver == null || !driver.IsSimulated) return false;
+
+            // 地址与显示名都还是 seed 时的原值
+            if (!string.Equals((card.Address ?? string.Empty).Trim(), "127.0.0.1", StringComparison.Ordinal)) return false;
+            if (!string.Equals((card.DisplayName ?? string.Empty).Trim(), driver.DisplayName, StringComparison.Ordinal)) return false;
+
+            // 没被设成自动连接、也没填过型号/备注
+            if (card.AutoConnect || card.CardModel.Length > 0 || card.Remarks.Length > 0) return false;
+
+            // 轴表保持出厂值（改过脉冲当量 / 软限位 / 驱动器型号 / 备注 = 有人用过）
+            foreach (var axis in card.Axes)
+            {
+                if (!axis.Enabled) return false;
+                if (Math.Abs(axis.UnitsPerMm - 1000) > 1e-9) return false;
+                if (axis.EncoderPpu != 0) return false;
+                if (axis.MotorDriver.Length > 0 || axis.AxisRemark.Length > 0) return false;
+                if (!axis.IsSoftLimitDisabled) return false;
+            }
+
+            return true;
+        }
+
+        #endregion
+
         #region 运行态刷新
 
         private void RefreshRuntime()
@@ -437,6 +561,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         public IReadOnlyList<MotionDriverInfo> AvailableDrivers =>
             _availableDrivers ??= _provider.AvailableDrivers;
+
+        /// <summary>
+        /// 默认驱动：**第一个真实驱动**（仿真驱动排在最后，见 MotionProvider.AvailableDrivers 的排序）。
+        /// 一个真实驱动都没有时返回 null —— 此时"添加卡"要求用户显式选驱动，
+        /// 空方案也不再 seed（不给默认虚拟卡）。
+        ///
+        /// ★ 必须是 AvailableDrivers **列表里的那个实例**：下拉的 ItemsSource 与 SelectedItem
+        ///   若取自两次不同的枚举（MotionDriverInfo 每次都新建），ComboBox 认为选中项不在列表里，
+        ///   显示框会空掉，用户"以为选好了"的驱动和实际提交的可能不是同一个。
+        /// </summary>
+        private MotionDriverInfo? DefaultDriver =>
+            AvailableDrivers.FirstOrDefault(d => !d.IsSimulated);
 
         private bool _isAddCardOpen;
         public bool IsAddCardOpen
@@ -480,7 +616,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>打开添加模态（表单重置为默认草稿，规格 3.2）</summary>
         public void OpenAddCard()
         {
-            NewDriver = _provider.AvailableDrivers.FirstOrDefault();
+            // 默认驱动取真实驱动（仿真驱动要用户显式选择），
+            // 且必须取列表里那个实例（否则下拉显示为空，见 DefaultDriver 的说明）
+            NewDriver = DefaultDriver;
             NewAddress = "192.168.0.11";
             NewDisplayName = string.Empty;
             NewCardModel = string.Empty;
@@ -510,7 +648,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (!_provider.IsAddressAvailable(address, Guid.Empty))
             {
-                NotifyError($"地址「{address}」已被另一张卡占用，请换一个（流程按地址寻址，必须唯一）");
+                // 把"被谁占了"说出来：只说"已被占用"时，用户不知道该去左栏删哪一张
+                var owner = _workspace.CurrentSolution?.MotionCards?.FirstOrDefault(c =>
+                    string.Equals((c.Address ?? string.Empty).Trim(), address, StringComparison.OrdinalIgnoreCase));
+
+                NotifyError(owner == null
+                    ? $"地址「{address}」已被另一张卡占用，请换一个（流程按地址寻址，必须唯一）"
+                    : $"地址「{address}」已被运动卡「{owner.Caption}」占用：请换一个地址，或先在左栏删除那张卡");
                 return;
             }
 
@@ -533,7 +677,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _provider.EnsureSynced();
 
             IsAddCardOpen = false;
-            NotifyOk($"运动卡「{descriptor.Caption}」已添加");
+            // toast 里带上驱动名：选了什么驱动必须让用户当场能核对，
+            // 否则"我选的是正运动，怎么加出来是虚拟卡"只能靠猜
+            NotifyOk($"运动卡「{descriptor.Caption}」（{NewDriver!.DisplayName}）已添加");
             Reload();
             SelectedCard = Cards.FirstOrDefault(c => c.Id == descriptor.Id);
         }

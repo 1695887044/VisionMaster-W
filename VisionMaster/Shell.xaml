@@ -501,19 +501,10 @@
                                 CommandParameter="{x:Static local:SystemAction.MotionBoard}"
                                 Header="运动板卡"
                                  >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf085;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                Command="{Binding SystemCommand}"
-                                CommandParameter="{x:Static local:SystemAction.AxisPoints}"
-                                Header="轴点位表"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf0d1;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
+                                <MenuItem.Icon>
+                                    <TextBlock Text="&#xf085;" FontFamily="{StaticResource Icon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.CommSettings}"

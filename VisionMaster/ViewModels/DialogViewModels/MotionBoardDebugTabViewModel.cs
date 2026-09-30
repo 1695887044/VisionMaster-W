@@ -12,6 +12,33 @@ using VisionMaster.Services;
 namespace VisionMaster.ViewModels.DialogViewModels
 {
     /// <summary>
+    /// 回零模式下拉的一项。
+    ///
+    /// 为什么包一层而不直接绑 HomeMode 枚举：
+    ///   ① 枚举的 <c>ToString()</c> 出来的是成员名（<c>NegativeLimitIndex</c>），
+    ///      操作员看不懂 —— 包装一层才能挂中文名与一句话说明；
+    ///   ② 下拉的选中项绑到**引用类型**比绑到值类型稳：
+    ///      列表被清空/重填时，值类型可能出现"选中项落不到列表上"的边界情况
+    ///      （现场那张"下拉空白 + 红框"的截图就是从这个方向查起的）。
+    /// 历史：原先定义在 MotionDebugViewModel 里，旧调试弹窗退役后随用途迁到本文件。
+    /// </summary>
+    public sealed class HomeModeOption
+    {
+        public HomeModeOption(HomeMode mode) => Mode = mode;
+
+        /// <summary>对应的契约枚举值（下发命令时用这个）</summary>
+        public HomeMode Mode { get; }
+
+        /// <summary>下拉里显示的文本</summary>
+        public string DisplayName => MotionEnumDisplay.Text(Mode);
+
+        /// <summary>一句话说明（悬停提示）</summary>
+        public string Hint => MotionEnumDisplay.Hint(Mode);
+
+        public override string ToString() => DisplayName;
+    }
+
+    /// <summary>
     /// 手动调试页签里的一根轴（左栏列表行）。
     ///
     /// 数据源 = 当前卡的**启用**轴映射（差异清单 S2-1 的修复点：上一版列表绑了
@@ -38,7 +65,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public double PositionMm
         {
             get => _positionMm;
-            private set => SetProperty(ref _positionMm, value);
+            private set
+            {
+                // ★ PositionText（列表"位置"列绑的就是它）是 PositionMm 的计算属性：
+                //   只通知 PositionMm 的话，绑定 PositionText 的 TextBlock 永远停在旧值 ——
+                //   这正是"点动时读数条在跳、轴列表的位置列不动"的根因。
+                if (SetProperty(ref _positionMm, value))
+                    RaisePropertyChanged(nameof(PositionText));
+            }
         }
 
         public string PositionText => $"{PositionMm:F3}";
@@ -142,8 +176,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
     /// 与旧「运动卡调试」弹窗的分工不变：这里是**操作**（使能/点动/定位/回零/IO），
     /// 配置在卡设置页签。三条安全设计与旧面板一脉相承：
     ///   ① 点动"按住才动松手即停"（视图层 HoldCommandBehavior：按下/松开/失焦四条路径）；
-    ///   ② 点动心跳兜底（500ms 没有界面脉冲就自动停 —— 判断复用 MotionDebugViewModel
-    ///      的静态纯函数，安全判断只有一份）；
+    ///   ② 点动心跳兜底（500ms 没有界面脉冲就自动停 —— 判断复用
+    ///      <see cref="MotionJogGuard"/> 的静态纯函数，安全判断只有一份）；
     ///   ③ 关窗必停点动（外壳 OnDialogClosed 调 OnShellClosed）。
     ///
     /// 【闸门】未连接/未使能/未回零/忙 四道闸全部在本层先判（文案逐字按规格 4.2），
@@ -161,6 +195,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>每根轴"正在做什么"（发起动作时记录，到位后清除）——用于"正在{模式}"文案</summary>
         private readonly Dictionary<string, string> _modeByAxis = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 正在等待落定的输出点号（挡住对同一点的连点）。
+        /// 不挡的话，连点两次会基于同一个旧值算出同一个目标值，白写两遍。
+        /// </summary>
+        private readonly HashSet<int> _pendingIoPorts = new();
 
         public MotionBoardDebugTabViewModel(
             MotionProvider provider, IWorkspaceManager workspace, MotionBoardViewModel shell)
@@ -182,7 +222,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 () => !AnyMoving);
             TakeCurrentPositionCommand = new DelegateCommand(TakeCurrentPosition);
             HomeCommand = new DelegateCommand(() => _ = RunGuardedAsync(HomeAsync, "回零"));
-            ToggleOutputCommand = new DelegateCommand<MotionDebugIoRow>(ToggleOutput);
+            ToggleOutputCommand = new DelegateCommand<MotionDebugIoRow>(
+                row => { if (row != null) _ = RunGuardedAsync(() => ToggleOutputAsync(row), "写输出"); });
         }
 
         private MotionDescriptor? _selectedDescriptor;
@@ -260,7 +301,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 RaisePropertyChanged(nameof(HasAxis));
                 RaisePropertyChanged(nameof(CurrentAxisName));
                 ReloadHomeModes();
-                TakeCurrentPosition();
+                ResetTargetForAxis();
             }
         }
 
@@ -393,9 +434,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         #region 列表装载与刷新
 
-        /// <summary>重建轴列表（选卡变化 / 连接断开后）。数据源=启用的轴映射（S2-1 修复）</summary>
+        /// <summary>重建轴列表（选卡变化 / 连接后 / 从其它页签切回来）。数据源=启用的轴映射（S2-1 修复）
+        ///
+        /// ★ 必须在"切入本页签"时重扫：连接成功后「卡设置」会按机型能力把
+        ///   <see cref="MotionDescriptor.Axes"/> 补齐到 32 行（EnsureAxes 只增不删），
+        ///   而本页签的 Axes 是启动时的快照 —— 不重扫就会"明明连上了 32 轴，列表还是旧的/空的"。
+        /// 重扫按轴名保持当前选中，不让用户选中的轴跳回第一个。</summary>
         public void ReloadAxesAndIo()
         {
+            var keepName = SelectedAxis?.LogicalName;
+
             Axes.Clear();
             _modeByAxis.Clear();
             SelectedAxis = null;
@@ -410,7 +458,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             foreach (var mapping in descriptor.Axes.Where(a => a.Enabled))
                 Axes.Add(new MotionDebugAxisRow(mapping));
 
-            SelectedAxis = Axes.FirstOrDefault();
+            SelectedAxis = Axes.FirstOrDefault(a => a.LogicalName == keepName)
+                           ?? Axes.FirstOrDefault();
             ReloadIo();
             RefreshRuntime();
         }
@@ -463,6 +512,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 foreach (var row in Inputs)
                     row.IsOn = device.ReadInput(row.Port);
+
+                // 输出**故意不从设备刷新**：契约里没有 ReadOutput，刷也刷不出真值。
+                // 输出行的值只由 ToggleOutputAsync 在"命令确认执行成功"后置位，
+                // 所以它是"我方确认写入的值"，而不是对端子电平的断言。
             }
 
             RaisePropertyChanged(nameof(CurrentPositionText));
@@ -490,12 +543,40 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _jogWatchdog.Start();
         }
 
-        /// <summary>外壳关闭：停看门狗 + 停点动（点动的终点是"松手"，关窗后不会有松手事件）</summary>
+        /// <summary>
+        /// 外壳关闭：停看门狗 + 停点动 + 撤掉本面板自己发起、还没结束的命令。
+        ///
+        /// 点动必须停（它的终点是"松手"，关窗后不会有松手事件了）。
+        /// 回零/等到位也必须撤：回零最长 120 秒，窗口关了命令还在队列里执行，
+        /// 界面却已经没有地方显示它 —— 轴在没人看着的情况下走，比报错危险得多。
+        ///
+        /// 【为什么不是无条件 CancelAll】这张卡同时也在跑流程里的运动步骤；
+        /// 无条件清空队列会把产线上正在执行的命令一起砍掉 —— 那才是真正的生产事故。
+        /// 所以只撤"本面板发起且尚未结束"的那些。
+        /// </summary>
         public void OnShellClosed()
         {
             _jogWatchdog?.Stop();
             _jogWatchdog = null;
             StopJog("调试面板已关闭");
+
+            if (!IsWaitingHome && !IsWaitingArrival) return;
+
+            var device = CurrentDevice;
+            _modeByAxis.Clear();
+            IsWaitingHome = false;
+            IsWaitingArrival = false;
+            MoveAbsoluteAndWaitCommand.RaiseCanExecuteChanged();
+
+            try
+            {
+                device?.CancelAll("手动调试面板已关闭");
+            }
+            catch (Exception ex)
+            {
+                // 关窗路径上不再抛：这里唯一的后果是"没能撤掉"，日志留痕即可
+                System.Diagnostics.Debug.WriteLine($"[MotionDebug] 关闭时取消命令失败：{ex.Message}");
+            }
         }
 
         #endregion
@@ -536,9 +617,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 }
                 else
                 {
-                    _shell.NotifyOk(device.Connect()
-                        ? $"「{device.Descriptor.Caption}」已连接"
-                        : $"连接失败：{device.StateDetail}");
+                    var ok = device.Connect();
+                    if (ok)
+                    {
+                        // 弹"扫描到 N 个轴"（统一出口会顺带重建轴列表，下面的 ReloadAxesAndIo 幂等）
+                        _shell.NotifyCardConnected(device.Descriptor.Caption, device.Capabilities.AxisCount);
+                    }
+                    else
+                        _shell.NotifyError($"连接失败：{device.StateDetail}");
                 }
             }
             catch (Exception ex)
@@ -580,6 +666,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (!TryGetOperatingAxis(out var device, out var axis)) return;
 
+            var deviceGate = MotionCommandGate.CheckDevice(device);
+            if (!deviceGate.Passed)
+            {
+                _shell.Reject(deviceGate.Reason);
+                return;
+            }
+
             var operation = enable ? "使能" : "失能";
             using var command = new MotionCommand
             {
@@ -609,14 +702,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var device = CurrentDevice;
             if (device == null) return;
 
-            device.Enqueue(new MotionCommand
+            using var command = new MotionCommand
             {
                 Kind = MotionCommandKind.Stop,
                 PhysicalAxis = -1,
                 StopMode = 2,   // 手动停止用减速停
                 Retryable = false,
                 Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),
-            });
+            };
+
+            device.Enqueue(command);
             _modeByAxis.Clear();
         }
 
@@ -647,22 +742,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (!TryGetOperatingAxis(out var device, out var axis)) return;
 
             var status = device.GetAxisStatus(axis.Mapping.PhysicalIndex);
-            if (status == null) return;
-            if (!status.Enabled)
-            {
-                _shell.Reject($"{axis.LogicalName} 未使能，请先伺服使能");
-                return;
-            }
 
-            if (status.Moving)
-            {
-                // 规格闸门表：非空闲 → 静默忽略
-                return;
-            }
+            // 点动与定位同一套闸门（含此前漏掉的"未回零"）；忙时按规格静默忽略
+            var gate = MotionCommandGate.CheckJog(
+                device, axis.Mapping, status, device.Capabilities.SupportsJog);
 
-            if (!device.Capabilities.SupportsJog)
+            if (!gate.Passed)
             {
-                _shell.NotifyError("该卡未上报点动能力，请改用「定位」逐点对位");
+                if (!gate.Silent) _shell.Reject(gate.Reason);
                 return;
             }
 
@@ -676,7 +763,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _jogDirection = dir;
             _modeByAxis[axis.LogicalName] = "点动";
 
-            device.Enqueue(new MotionCommand
+            using var command = new MotionCommand
             {
                 Kind = MotionCommandKind.Jog,
                 PhysicalAxis = axis.Mapping.PhysicalIndex,
@@ -685,7 +772,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 VelocityMmPerS = speed,
                 Retryable = false,
                 Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),
-            });
+            };
+
+            device.Enqueue(command);
         }
 
         private void StopJogFromUi() => StopJog("松开");
@@ -700,14 +789,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (device == null) return;
 
-            device.Enqueue(new MotionCommand
+            using var command = new MotionCommand
             {
                 Kind = MotionCommandKind.Stop,
                 PhysicalAxis = -1,
                 StopMode = 3,   // 立即停：点动速度低，立即停才停得准
                 Retryable = false,
                 Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),
-            });
+            };
+
+            device.Enqueue(command);
 
             if (_selectedAxis != null) _modeByAxis.Remove(_selectedAxis.LogicalName);
         }
@@ -720,8 +811,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (_jogDevice == null) return;
 
-            var timeoutMs = MotionDebugViewModel.JogPulseTimeoutMs;
-            if (!MotionDebugViewModel.IsJogPulseTimedOut(DateTime.UtcNow, _lastJogPulseUtc, timeoutMs)) return;
+            var timeoutMs = MotionJogGuard.PulseTimeoutMs;
+            if (!MotionJogGuard.IsPulseTimedOut(DateTime.UtcNow, _lastJogPulseUtc, timeoutMs)) return;
 
             StopJog($"点动心跳超时（>{timeoutMs}ms 未收到界面脉冲）");
         }
@@ -731,36 +822,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (!TryGetOperatingAxis(out var device, out var axis)) return;
 
-            // 闸门顺序逐字按规格 4.2：未连接 → 目标非法 → 未使能 → 未回零 → 忙
-            if (!double.TryParse(TargetText, out var target) || !IsFinite(target))
+            if (!double.TryParse(TargetText, out var target))
             {
-                _shell.Reject("目标坐标不是有效数字");
+                _shell.Reject(MotionCommandGate.InvalidTarget);
                 return;
             }
 
+            _modeByAxis.TryGetValue(axis.LogicalName, out var mode);
             var status = device.GetAxisStatus(axis.Mapping.PhysicalIndex);
-            if (status == null)
-            {
-                _shell.Reject("运动卡未连接");
-                return;
-            }
 
-            if (!status.Enabled)
+            // 六道闸（未连接 → 目标非法 → 超软限位 → 未使能 → 未回零 → 忙）全部走同一实现。
+            // 此前这里漏了软限位：配置界面能填软限位，运动路径却不校验，等于这道防线不存在。
+            var gate = MotionCommandGate.CheckMove(device, axis.Mapping, status, target, mode);
+            if (!gate.Passed)
             {
-                _shell.Reject($"{axis.LogicalName} 未使能，请先伺服使能");
-                return;
-            }
-
-            if (!device.IsHomed)
-            {
-                _shell.Reject($"{axis.LogicalName} 需要回零后才能运动");
-                return;
-            }
-
-            if (status.Moving)
-            {
-                _modeByAxis.TryGetValue(axis.LogicalName, out var mode);
-                _shell.Reject($"{axis.LogicalName} 正在{(string.IsNullOrWhiteSpace(mode) ? "运动" : mode)}，请等待完成");
+                _shell.Reject(gate.Reason);
                 return;
             }
 
@@ -769,7 +845,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 : device.Descriptor.Params.DefaultVelocityMmPerS;
 
             _modeByAxis[axis.LogicalName] = "定位";
-            var result = device.Enqueue(new MotionCommand
+
+            // MotionCommand 内部带 ManualResetEventSlim，必须 Dispose（下发即返回型的命令也要）
+            using var command = new MotionCommand
             {
                 Kind = MotionCommandKind.MoveAbsolute,
                 PhysicalAxis = axis.Mapping.PhysicalIndex,
@@ -778,7 +856,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 VelocityMmPerS = speed,
                 Curve = MotionCurve.Trapezoid,
                 Timeout = TimeSpan.FromMilliseconds(Math.Max(1000, device.Descriptor.Params.CommandTimeoutMs)),
-            });
+            };
+
+            var result = device.Enqueue(command);
 
             if (result != MotionCommandResult.Accepted)
             {
@@ -835,8 +915,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
-
+        /// <summary>把目标位置写成当前选中轴的实际位置（读不到时清空，见 <see cref="ResetTargetForAxis"/>）</summary>
         private void TakeCurrentPosition()
         {
             var status = CurrentDevice?.GetAxisStatus(_selectedAxis?.Mapping.PhysicalIndex ?? -1);
@@ -844,15 +923,30 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 TargetText = status.PositionMm.ToString("F3");
         }
 
+        /// <summary>
+        /// 切轴后的目标位置处理：读到就把当前位置填进去，读不到**必须清空**。
+        ///
+        /// 为什么不能沿用上一次的值：目标位置是"这根轴要去哪"，
+        /// 沿用上一根轴的目标意味着 —— 未连接时切个轴再点「定位」，
+        /// 这根轴会走向上一根轴的目标坐标。一旦连上就是一次误动作。
+        /// </summary>
+        private void ResetTargetForAxis()
+        {
+            var status = CurrentDevice?.GetAxisStatus(_selectedAxis?.Mapping.PhysicalIndex ?? -1);
+            TargetText = status != null ? status.PositionMm.ToString("F3") : string.Empty;
+        }
+
         private async Task HomeAsync()
         {
             if (!TryGetOperatingAxis(out var device, out var axis)) return;
 
+            _modeByAxis.TryGetValue(axis.LogicalName, out var mode);
             var status = device.GetAxisStatus(axis.Mapping.PhysicalIndex);
-            if (status is { Moving: true })
+
+            var gate = MotionCommandGate.CheckHome(device, axis.Mapping, status, mode);
+            if (!gate.Passed)
             {
-                _modeByAxis.TryGetValue(axis.LogicalName, out var mode);
-                _shell.Reject($"{axis.LogicalName} 正在{(string.IsNullOrWhiteSpace(mode) ? "运动" : mode)}，请等待完成");
+                _shell.Reject(gate.Reason);
                 return;
             }
 
@@ -908,30 +1002,71 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 StatusText = $"回零失败（{command.State}）：{command.Error}";
         }
 
-        private void ToggleOutput(MotionDebugIoRow? row)
+        /// <summary>
+        /// 写输出。**灯只在确认写成功之后才亮**。
+        ///
+        /// 以前是"下发即点亮"（乐观置位），而刷新只刷输入、不刷输出，
+        /// 于是那盏灯显示的永远是"我点过什么"而不是"写成功了没有" ——
+        /// 端口越界、命令被拒、卡侧写失败，灯都照样亮着，而且永远不会自愈。
+        /// 现在改成等命令真正执行完再按结果决定是否置位：
+        /// 灯的含义从"我点过"变成"我方确认已写入"。
+        ///
+        /// 【它保证不了什么】外部（PLC / HMI / 卡上别的程序）改了这个输出我们不知道 ——
+        /// 要知道那个必须让驱动每轮回读（<c>IMotionDevice</c> 目前只有 <c>ReadInput</c>）。
+        /// 所以这盏灯表示的是"我方确认写入的值"，不是"端子的实时电平"。
+        /// </summary>
+        private async Task ToggleOutputAsync(MotionDebugIoRow row)
         {
-            if (row == null || !row.IsOutput) return;
-
             var device = CurrentDevice;
             if (device == null) return;
 
+            if (!_pendingIoPorts.Add(row.Port)) return;   // 上一次还没落定，忽略连点
+
             var next = !row.IsOn;
-            var result = device.Enqueue(new MotionCommand
-            {
-                Kind = MotionCommandKind.SetOutput,
-                IoPort = row.Port,
-                IoValue = next,
-                Retryable = false,
-                Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),
-            });
 
-            if (result != MotionCommandResult.Accepted)
+            try
             {
-                _shell.NotifyError($"写输出 {row.Port} 被拒绝：{device.LastFault?.Suggestion ?? device.StateDetail}");
-                return;
+                using var command = new MotionCommand
+                {
+                    Kind = MotionCommandKind.SetOutput,
+                    IoPort = row.Port,
+                    IoValue = next,
+                    // 刻意**不**设 WaitsForCompletion：那会让卡的**命令队列**停下来等这条写完，
+                    // 把界面上的一次点击变成对流程命令的拖累。我们自己在线程池上等就够了 ——
+                    // 基类对任何命令都会 Set 完成信号（与是否 WaitsForCompletion 无关）。
+                    Retryable = false,
+                    Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),
+                };
+
+                var result = device.Enqueue(command);
+                if (result != MotionCommandResult.Accepted)
+                {
+                    _shell.NotifyError($"写输出 {row.Port} 被拒绝：{device.LastFault?.Suggestion ?? device.StateDetail}");
+                    return;
+                }
+
+                // 在线程池上等它真正执行完（几十毫秒）；UI 线程不等 —— 等会把界面冻住
+                var completed = await Task.Run(() => command.Completion.Wait(command.Timeout));
+
+                if (!completed)
+                {
+                    _shell.NotifyError($"写输出 {row.Port} 超时（>{command.Timeout.TotalSeconds:F0}s），状态未改变");
+                    return;
+                }
+
+                if (command.State != MotionCommandState.Done)
+                {
+                    _shell.NotifyError($"写输出 {row.Port} 失败（{command.State}）：{command.Error}");
+                    return;
+                }
+
+                row.IsOn = next;
+                StatusText = $"输出 {row.Port} 已写入 {(next ? "ON" : "OFF")}";
             }
-
-            row.IsOn = next;   // 乐观置位，随后由刷新收敛
+            finally
+            {
+                _pendingIoPorts.Remove(row.Port);
+            }
         }
 
         /// <summary>操作前提：选了轴且卡在线（不满足时给出规格文案的拒绝）</summary>
@@ -942,19 +1077,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (device == null)
             {
-                _shell.Reject("运动卡未连接");
+                _shell.Reject(MotionCommandGate.NotConnected);
                 return false;
             }
 
             if (axis == null)
             {
-                _shell.NotifyError("请先在左侧选择一根轴");
+                _shell.NotifyError(MotionCommandGate.NoAxis);
                 return false;
             }
 
             if (device.State != MotionCardState.Online)
             {
-                _shell.Reject("运动卡未连接");
+                _shell.Reject(MotionCommandGate.NotConnected);
                 return false;
             }
 

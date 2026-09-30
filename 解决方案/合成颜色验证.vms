@@ -1,0 +1,166 @@
+{
+  "SolutionName": "解决方案-20261001045840",
+  "Version": 1.0,
+  "Config": {
+    "ImageViewMode": 0
+  },
+  "Flows": [
+    {
+      "FlowID": "8ae59d75254c421ab868bd68950f91fc",
+      "FlowName": "合成颜色验证",
+      "Version": 4,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": [
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "3415f66d-068b-4499-846c-36d7d9de184f",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_0",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "FilePath": "D:\\C#\\VM\\Image\\颜色\\合成颜色_8bit.png"
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "0a3600e7-4171-4e6e-b6d9-bd0e4d4ef890",
+          "Icon": "",
+          "PluginName": "颜色序列检查",
+          "PluginTypeName": "Plugin.ColorCheck.ColorCheckPlugin, Plugin.ColorCheck, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "颜色序列_0",
+          "Description": "颜色序列检查",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "RoiParams": {
+              "$type": "System.Double[], System.Private.CoreLib",
+              "$values": [
+                400.0,
+                276.0,
+                1.5707963267948966,
+                320.0,
+                210.0
+              ]
+            },
+            "RecipeText": "12 芯 = *,*,*,*,*,*,*,*,*,*,*,*\r\n",
+            "DisplayViewIndex": 1
+          },
+          "LinkedSources": {
+            "Image": {
+              "Kind": 1,
+              "TargetStepId": "3415f66d-068b-4499-846c-36d7d9de184f",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "64af12d7-962f-407b-9875-f73120623feb",
+          "Icon": "",
+          "PluginName": "区域颜色检查",
+          "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "区域红灯_0",
+          "Description": "区域颜色检查",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "RoiShape": "Circle",
+            "RoiParams": {
+              "$type": "System.Double[], System.Private.CoreLib",
+              "$values": [
+                250.0,
+                830.0,
+                55.0,
+                0.0,
+                0.0
+              ]
+            },
+            "ExpectedColors": "红",
+            "MinShare": 0.6,
+            "DisplayViewIndex": 1
+          },
+          "LinkedSources": {
+            "Image": {
+              "Kind": 1,
+              "TargetStepId": "3415f66d-068b-4499-846c-36d7d9de184f",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "4cf4307d-1a8b-4c05-a62b-d37e16f29a85",
+          "Icon": "",
+          "PluginName": "区域颜色检查",
+          "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "区域紫块_0",
+          "Description": "区域颜色检查",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "RoiShape": "Rectangle",
+            "RoiParams": {
+              "$type": "System.Double[], System.Private.CoreLib",
+              "$values": [
+                505.0,
+                790.0,
+                0.0,
+                45.0,
+                45.0
+              ]
+            },
+            "ExpectedColors": "紫",
+            "DisplayViewIndex": 1
+          },
+          "LinkedSources": {
+            "Image": {
+              "Kind": 1,
+              "TargetStepId": "3415f66d-068b-4499-846c-36d7d9de184f",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        }
+      ]
+    }
+  ],
+  "CommunicationConfigs": [],
+  "CameraConfigs": [],
+  "MotionCards": [],
+  "CamTables": [],
+  "VariableSnapshots": [],
+  "WatchItems": [],
+  "Scada": {
+    "SchemaVersion": 1,
+    "Pages": [],
+    "Alarms": [],
+    "VariableEvents": [],
+    "StartupPageId": "00000000-0000-0000-0000-000000000000"
+  }
+}

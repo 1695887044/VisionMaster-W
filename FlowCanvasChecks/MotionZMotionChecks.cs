@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -135,10 +135,10 @@ namespace FlowCanvasChecks
             Check("★两个属性面板都注册了动态候选生成器（漏一个就有一半场景仍是文本框）",
                 registered, "");
 
-            var settings = ResolveRepoFile(@"VisionMaster\Views\DialogViews\MotionSettingsView.xaml");
-            Check("轴映射表有 MinHeight（否则默认尺寸下只剩表头，必须手动拉大窗口才看得到轴）",
-                settings != null && File.ReadAllText(settings).Contains("MinHeight=\"180\""),
-                "用户反馈：轴映射区域在默认尺寸下无法显示");
+            var boardView = ResolveRepoFile(@"VisionMaster\Views\DialogViews\MotionBoardView.xaml");
+            Check("板卡窗口最小高 680（否则默认尺寸下页签内容显示不全）",
+                boardView != null && File.ReadAllText(boardView).Contains("Value=\"680\""),
+                "用户反馈：旧版轴映射区域在默认尺寸下无法显示 —— 合并窗口用最小高度保底");
 
             // ★ 下面一组是用户指出"标注了特性也没法被赋值"之后补的。
             //   [StepConfig] 按框架设计**不暴露为端口、不可变量链接**（见 StepConfigAttribute 的注释），
@@ -179,13 +179,13 @@ namespace FlowCanvasChecks
             //   所以显示带设备名；但**写进流程的值必须仍是地址** ——
             //   否则用户改一次设备名，已经配好的流程就全断了（与 MotionDescriptor 那句
             //   "引用一律用 Id，不要用显示名"是同一个坑）。
-            var settingsView = ResolveRepoFile(@"VisionMaster\Views\DialogViews\MotionSettingsView.xaml");
-            string settingsText = settingsView != null ? File.ReadAllText(settingsView) : string.Empty;
+            var boardSettings = ResolveRepoFile(@"VisionMaster\Views\DialogViews\MotionBoard\MotionBoardSettingsView.xaml");
+            string boardSettingsText = boardSettings != null ? File.ReadAllText(boardSettings) : string.Empty;
             Check("★已添加的卡可以改设备名（新增对话框里能填、加完就没入口了，而现场往往接线后才想起改名）",
-                settingsText.Contains("SelectedCard.DisplayName"),
-                settingsView == null ? "定位不到 MotionSettingsView.xaml" : "");
+                boardSettingsText.Contains("Binding DeviceName"),
+                boardSettings == null ? "定位不到 MotionBoardSettingsView.xaml" : "");
 
-            var motionModule = ResolveRepoFile(@"VisionMaster\MotionModule.cs");
+            var motionModule = ResolveRepoFile(@"VisionMaster\Modules\MotionModule.cs");
             string moduleText = motionModule != null ? File.ReadAllText(motionModule) : string.Empty;
             Check("★卡候选的**值**仍是地址（显示可以带设备名，但写进流程的必须是稳定的地址键）",
                 moduleText.Contains("new StepConfigOption(") && moduleText.Contains("c.Address"),
@@ -309,8 +309,8 @@ namespace FlowCanvasChecks
             var shellCs = ResolveRepoFile(@"VisionMaster\Views\DialogViews\PluginConfigShellView.xaml.cs");
             string shellCsText = shellCs != null ? File.ReadAllText(shellCs) : string.Empty;
 
-            Check("★参数区行高为 Auto（否则窗口按内容自适应时，参数区不会跟着缩）",
-                shellXaml.Contains("Height=\"Auto\""), "");
+            Check("★参数区行高为 *（外壳窗口固定高，行给 Auto 时插件自带视图只画自然高、窗口下半截全空；自动面板靠 SizeToContent=Height 时 * 行照样缩到内容高）",
+                shellXaml.Contains("Height=\"*\""), "");
 
             // 自适应由**参数面板自己**做：外壳去猜内容类型会踩时序
             // （它的 Loaded 触发时那段 Content 绑定可能还没把内容挂上，判断落空 → 尺寸没改 →
@@ -576,16 +576,15 @@ namespace FlowCanvasChecks
                     ? "方法体内没找到关键代码"
                     : $"取消@{cancelAt} / 锁外拒绝处理@{gateAfterLock}");
 
-            var debugVm = ResolveRepoFile(@"VisionMaster\ViewModels\DialogViewModels\MotionDebugViewModel.cs");
-            string vmText = debugVm != null ? File.ReadAllText(debugVm) : string.Empty;
+            var debugTab = ResolveRepoFile(@"VisionMaster\ViewModels\DialogViewModels\MotionBoardDebugTabViewModel.cs");
+            string debugTabText = debugTab != null ? File.ReadAllText(debugTab) : string.Empty;
 
             Check("调试面板不在 UI 线程上同步等命令（否则队列里有回零时界面会冻住）",
-                vmText.Contains("await Task.Run(() => SendAndWait(device, command,")
-                && !vmText.Contains("StatusHint = SendAndWait(device, command,"),
-                "同步 Wait 会把 UI 线程冻住最长 CommandTimeoutMs（实测反馈的「点一下卡死」）");
+                debugTabText.Contains("await Task.Run(() => command.Completion.Wait("),
+                "同步 Wait 会把 UI 线程冻住最长 CommandTimeoutMs（实测反馈的「点一下卡死」）——新版页签用 Task.Run 异步等命令完成");
 
             Check("命令处理器有异常兜底（async void 的异常没有接收者，会直接崩进程）",
-                vmText.Contains("RunGuardedAsync"), "");
+                debugTabText.Contains("RunGuardedAsync"), "");
         }
 
         // ==================================================================
@@ -1002,22 +1001,22 @@ namespace FlowCanvasChecks
             Section("[Z] 点动心跳兜底（界面事件失效时的最后一道闸）");
 
             var now = DateTime.UtcNow;
-            int timeout = MotionDebugViewModel.JogPulseTimeoutMs;
+            int timeout = MotionJogGuard.PulseTimeoutMs;
 
             Check("阈值取 500ms：按住期间 UI 每 150ms 一次脉冲，留 3 倍余量",
                 timeout >= 300 && timeout <= 1000, $"实际 {timeout}ms");
 
             Check("心跳新鲜（100ms 前刚按过）→ 不干预点动",
-                !MotionDebugViewModel.IsJogPulseTimedOut(now, now.AddMilliseconds(-100), timeout), "");
+                !MotionJogGuard.IsPulseTimedOut(now, now.AddMilliseconds(-100), timeout), "");
 
             Check("★心跳超时（900ms 没脉冲）→ 判定必须停",
-                MotionDebugViewModel.IsJogPulseTimedOut(now, now.AddMilliseconds(-900), timeout), "");
+                MotionJogGuard.IsPulseTimedOut(now, now.AddMilliseconds(-900), timeout), "");
 
             Check("从未点动过（MinValue）不触发停止（否则一开面板就会去停设备）",
-                !MotionDebugViewModel.IsJogPulseTimedOut(now, DateTime.MinValue, timeout), "");
+                !MotionJogGuard.IsPulseTimedOut(now, DateTime.MinValue, timeout), "");
 
             Check("刚好等于阈值时不判超时（避免临界抖动导致按住时反复起停）",
-                !MotionDebugViewModel.IsJogPulseTimedOut(now, now.AddMilliseconds(-timeout), timeout), "");
+                !MotionJogGuard.IsPulseTimedOut(now, now.AddMilliseconds(-timeout), timeout), "");
         }
 
         // ==================================================================

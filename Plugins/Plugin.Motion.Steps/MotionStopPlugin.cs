@@ -65,10 +65,28 @@ namespace Plugin.Motion.Steps
 
             Accepted.Value = false;
 
-            if (!context.Motions.TryGetByKey(cardKey, out var device))
+            IMotionDevice device;
+            AxisMapping? mapping = null;
+
+            if (string.IsNullOrWhiteSpace(axisName))
             {
-                Fail($"找不到运动卡「{cardKey}」：请确认该卡已在「运动卡设置」里配置并连接");
-                return;
+                // 停全部轴是**卡级**操作，没有轴名可借，必须指定卡 —— 这里不去猜"第一张卡"
+                if (!MotionAxisResolution.TryResolveDevice(cardKey, out device, out var cardError))
+                {
+                    Fail(cardError);
+                    return;
+                }
+            }
+            else
+            {
+                AxisMapping resolved;
+                if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out device, out resolved, out var axisError))
+                {
+                    Fail(axisError + "（若要停全部轴，请把轴名留空）");
+                    return;
+                }
+
+                mapping = resolved;
             }
 
             if (UseEmergencyStop)
@@ -86,20 +104,7 @@ namespace Plugin.Motion.Steps
                 return;
             }
 
-            var physicalAxis = -1;   // -1 = 全部轴（契约约定）
-            if (!string.IsNullOrWhiteSpace(axisName))
-            {
-                var mapping = device.Descriptor.Axes.FirstOrDefault(a =>
-                    a.Enabled && string.Equals(a.LogicalName, axisName, StringComparison.OrdinalIgnoreCase));
-
-                if (mapping == null)
-                {
-                    Fail($"运动卡「{device.Descriptor.Caption}」上没有启用名为「{axisName}」的轴"
-                         + "（若要停全部轴，请把轴名留空）");
-                    return;
-                }
-                physicalAxis = mapping.PhysicalIndex;
-            }
+            var physicalAxis = mapping?.PhysicalIndex ?? -1;   // -1 = 全部轴（契约约定）
 
             using var command = new MotionCommand
             {

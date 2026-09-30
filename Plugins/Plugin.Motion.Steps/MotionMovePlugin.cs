@@ -93,26 +93,17 @@ namespace Plugin.Motion.Steps
 
             AxisUsed.Value = axisName;
 
-            if (!context.Motions.TryGetByKey(cardKey, out var device))
+            // 一次调用拿到"设备 + 轴配置"：Card 端口留空即按轴名全局解析（新流程推荐）；
+            // 填了地址则按老规则走，保证已保存流程的行为一个字节都不变。
+            if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out var device, out var mapping, out var resolveError))
             {
-                Fail($"找不到运动卡「{cardKey}」：请确认该卡已在「运动卡设置」里配置并连接（流程按地址寻址）");
+                Fail(resolveError);
                 return;
             }
 
             if (device.State != MotionCardState.Online)
             {
                 Fail($"运动卡「{device.Descriptor.Caption}」当前不可运动：{device.StateDetail}");
-                return;
-            }
-
-            var mapping = device.Descriptor.Axes.FirstOrDefault(a =>
-                a.Enabled && string.Equals(a.LogicalName, axisName, StringComparison.OrdinalIgnoreCase));
-
-            if (mapping == null)
-            {
-                var available = string.Join("、", device.Descriptor.Axes.Where(a => a.Enabled).Select(a => a.LogicalName));
-                Fail($"运动卡「{device.Descriptor.Caption}」上没有启用名为「{axisName}」的轴"
-                     + (string.IsNullOrEmpty(available) ? "（该卡还没有配置任何轴）" : $"（现有：{available}）"));
                 return;
             }
 

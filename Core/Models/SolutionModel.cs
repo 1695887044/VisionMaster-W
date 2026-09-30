@@ -39,8 +39,12 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 版本号
+        ///
+        /// IsReadOnly：新建方案弹窗里它只是"顺带展示"，让用户手填版本号没有意义
+        /// （且填错会让后续按版本做兼容判断的逻辑凭空多一个分支）。
+        /// 保留可见是为了让用户知道自己在建哪个版本，只是不给改。
         /// </summary>
-        [SuperDisplay(Name = "版本号")]
+        [SuperDisplay(Name = "版本号", IsReadOnly = true)]
         public Double Version
         {
             get { return version; }

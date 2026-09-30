@@ -327,15 +327,48 @@ namespace VisionMaster
             switch (action)
             {
                 case SolutionAction.Create:
+                    // 传进去的是**草稿**：PropertyGrid 是就地编辑（取消不回滚），
+                    // 所以必须"先 new 一份、确认后才落库"，不能直接把当前方案交出去改。
                     var newSolution = new SolutionModel();
                     var isConfirmed = await EasyDialog.ShowPropertyGridAsync(
                         "创建新解决方案",
                         newSolution
                     );
-                    if (isConfirmed)
+                    if (!isConfirmed) break;
+
+                    // 弹窗本身不做校验（[Required] 只是数据注解，PropertyGrid 不读它），
+                    // 所以"空名 / 重名"必须在这里拦：确认即创建，拦不住就会建出一个没有名字的方案。
+                    newSolution.SolutionName = (newSolution.SolutionName ?? string.Empty).Trim();
+                    if (newSolution.SolutionName.Length == 0)
                     {
-                        solutionService.Create(newSolution);
+                        Notifier.ShowWarning("方案名称不能为空，请重新创建");
+                        break;
+                    }
+
+                    if (solutionService.SolutionModels.Any(s =>
+                            s != newSolution &&
+                            string.Equals(s.SolutionName, newSolution.SolutionName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        Notifier.ShowWarning($"已存在同名方案「{newSolution.SolutionName}」，请换一个名称");
+                        break;
+                    }
+
+                    try
+                    {
+                        var createResult = solutionService.Create(newSolution);
+                        if (!createResult.Success)
+                        {
+                            Notifier.ShowError($"创建方案失败：{createResult.Message}");
+                            break;
+                        }
+
                         Workspace.SwitchSolution(newSolution);
+                        Notifier.ShowSuccess($"方案 [{newSolution.SolutionName}] 已创建");
+                    }
+                    catch (Exception ex)
+                    {
+                        // AsyncDelegateCommand 会吞掉异常：不接住的话失败在界面上完全无声
+                        Notifier.ShowError($"创建方案异常：{ex.Message}");
                     }
                     break;
                 case SolutionAction.Open:
@@ -527,17 +560,8 @@ namespace VisionMaster
                 case SystemAction.CameraSettings:
                     ShowCameraSettings();
                     break;
-                case SystemAction.MotionSettings:
-                    ShowMotionSettings();
-                    break;
-                case SystemAction.MotionDebug:
-                    ShowMotionDebug();
-                    break;
                 case SystemAction.MotionBoard:
                     ShowMotionBoard();
-                    break;
-                case SystemAction.AxisPoints:
-                    ShowAxisPoints();
                     break;
                 case SystemAction.CommSettings:
                     ShowCommunicationSettings();
@@ -608,45 +632,13 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 打开运动卡设置。
-        ///
+        /// 打开运动板卡（合并窗口：卡设置 / 手动调试 / 点位列表 / 电子凸轮）。
+        /// 取代原来两个独立入口（运动设置 / 手动调试弹窗已退役）——
+        /// 参数、调试、点位在一个窗口里切换，现场不用来回找菜单。
         /// 与 <see cref="ShowCameraSettings"/> 同口径：没有方案就拦下来提示（运动卡是方案级资源，
         /// 没有方案时无处可存），且**不传任何参数** —— 卡片清单与运行态一律由 MotionProvider
         /// 从"当前方案"现取；传一份快照反而会出现"界面里那份和方案里那份不是同一个对象"，
         /// 改一份丢一份。
-        /// </summary>
-        private void ShowMotionSettings()
-        {
-            if (Workspace.CurrentSolution == null)
-            {
-                Notifier.ShowWarning("请先打开一个解决方案");
-                return;
-            }
-
-            dialogService.ShowDialog("MotionSettingsView");
-        }
-
-        /// <summary>
-        /// 打开运动卡调试面板（手动使能/点动/定位/回零/IO）。
-        ///
-        /// 与 <see cref="ShowMotionSettings"/> 同样是方案级资源，所以也要先有方案；
-        /// 但**不要求卡已连接** —— 面板里本来就带"连接/断开"，现场最常见的用法就是
-        /// "打开调试面板 → 连着卡 → 点点动试试"，一上来就拦"未连接"反而多一步。
-        /// </summary>
-        private void ShowMotionDebug()
-        {
-            if (Workspace.CurrentSolution == null)
-            {
-                Notifier.ShowWarning("请先打开一个解决方案");
-                return;
-            }
-
-            dialogService.ShowDialog("MotionDebugView");
-        }
-
-        /// <summary>
-        /// 打开运动板卡（合并窗口：卡设置 / 手动调试 / 轴点位表）。
-        /// 取代原来两个独立入口 —— 参数、调试、点位在一个窗口里切换，现场不用来回找菜单。
         /// </summary>
         private void ShowMotionBoard()
         {
@@ -659,21 +651,6 @@ namespace VisionMaster
             dialogService.ShowDialog("MotionBoardView");
         }
 
-        /// <summary>
-        /// 打开轴点位表：落在运动板卡窗口的「点位列表」页签（每轴 16 点：位置/速度/加减速/曲线 + 走此点）。
-        /// 板卡窗口重写后，独立的 AxisPointsView（下拉筛选版布局）不再作为入口 ——
-        /// 规格 S3-1 要求的"左轴栏 + 每轴一表"只在板卡页签里维护一份。
-        /// </summary>
-        private void ShowAxisPoints()
-        {
-            if (Workspace.CurrentSolution == null)
-            {
-                Notifier.ShowWarning("请先打开一个解决方案");
-                return;
-            }
-
-            dialogService.ShowDialog("MotionBoardView", new DialogParameters { { "tab", "points" } });
-        }
 
         private void ShowCommunicationSettings()
         {

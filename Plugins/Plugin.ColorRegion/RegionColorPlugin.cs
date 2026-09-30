@@ -317,6 +317,28 @@ namespace Plugin.ColorRegion
             return new RegionColorView { DataContext = this };
         }
 
+        /// <summary>
+        /// 释放本实例持有的资源。
+        ///
+        /// 为什么必须重写：DisplayImage 是"上游图/示意图"的**自己拷的一份**（见 ShowUpstreamImage），
+        /// 归本实例所有，基类的 Dispose 只回收输出端口，管不到它；
+        /// 不释放的话每关一次配置界面就欠一张图的句柄，等 GC 兜底才收得回来。
+        /// 画布 ROI 清空时压着播种位 —— 清空动作若走回写，会把已保存的采样区参数抹掉。
+        /// </summary>
+        public override void Dispose()
+        {
+            Image.PropertyChanged -= OnImagePortChanged;
+
+            _seedingCanvas = true;
+            try { CanvasRois.Clear(); }
+            finally { _seedingCanvas = false; }
+
+            DisplayImage?.Dispose();
+            DisplayImage = null;
+
+            base.Dispose();   // 输出端口交给基类统一回收
+        }
+
         /// <summary>视图就绪回调：先把图弄上屏（没图没法框 ROI）</summary>
         public void OnViewLoaded()
         {
@@ -635,11 +657,46 @@ namespace Plugin.ColorRegion
             if (!ColorSampler.TryReadPixels(image, rows, cols, out int[][] pixelChannels, out error))
                 return false;
 
+            // ②.5 高位深归一：颜色判据的明度阈值（黑 80 / 白 195 / 棕 175）按 8 位标定，
+            // 12/16 位相机图不压回去的话"黑"永远判不出、"白"满天飞、灰/棕大面积误判。
+            // 等比缩放不动色相与饱和度（比值量），颜色词的答案不变。
+            // 归一发生过就把说明带进 warnings（日志里能查到 R,G,B 为什么变小了）。
+            string depthNote = string.Empty;
+            if (NormalizeTo8BitIfHighBitDepth(pixelChannels, out string note))
+                depthNote = note;
+
             // ③ 逐点分类 → 投票 → 主色与占比（判定不在这里：试算也要能只报颜色）
             if (!RegionColorAnalyzer.Analyze(pixelChannels, BuildThresholds(), out var analyzed, out error))
                 return false;
 
+            if (depthNote.Length > 0)
+                analyzed.Warnings.Add(depthNote);
+
             result = analyzed;
+            return true;
+        }
+
+        /// <summary>
+        /// 高位深图像归一化：按实测最大通道值等比压回 0~255。
+        /// 返回 true 表示发生过缩放（调用方把 note 交去日志）。详见「颜色序列检查」的同名说明。
+        /// </summary>
+        private static bool NormalizeTo8BitIfHighBitDepth(int[][] channels, out string note)
+        {
+            note = string.Empty;
+
+            int max = 0;
+            for (int ci = 0; ci < channels.Length; ci++)
+                foreach (var v in channels[ci])
+                    if (v > max) max = v;
+
+            if (max <= 255) return false;
+
+            double k = 255.0 / max;
+            for (int ci = 0; ci < channels.Length; ci++)
+                for (int i = 0; i < channels[ci].Length; i++)
+                    channels[ci][i] = (int)Math.Round(channels[ci][i] * k);
+
+            note = $"图像是高位深（实测最大灰度 {max}），已等比压到 8 位再判色；颜色词不受影响，中位色 R,G,B 为归一后的值";
             return true;
         }
 

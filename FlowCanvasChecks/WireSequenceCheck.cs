@@ -152,7 +152,9 @@ namespace FlowCanvasChecks
             var r5 = RunOnce(solution, flow, cable1);
             Check("【5 芯】编译并执行完成", r5.Compiled && r5.Threw.Length == 0, r5.FailureDiary);
             Check($"【5 芯】扫出 5 根（实测 {r5.Var("WireCount")}）",
-                Convert.ToInt32(r5.Var("WireCount") ?? -1) == 5, $"WireCount={r5.Var("WireCount")}");
+                Convert.ToInt32(r5.Var("WireCount") ?? -1) == 5,
+                $"WireCount={r5.Var("WireCount")} 步骤状态={string.Join(" ", r5.StepStates)}"
+                + $" Err={string.Join(" | ", r5.Errors)} Warn={string.Join(" | ", r5.Warns)}");
             Check($"【5 芯】走 If 分支取到配方 A = {Golden5}",
                 (r5.Var("Expected") as string) == Golden5, $"Expected=[{r5.Var("Expected")}]");
             Check("【5 芯】线序与黄金参照一致",

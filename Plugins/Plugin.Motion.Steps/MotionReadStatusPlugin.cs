@@ -76,18 +76,9 @@ namespace Plugin.Motion.Steps
             NegativeLimit.Value = false;
             StatusText.Value = string.Empty;
 
-            if (!context.Motions.TryGetByKey(cardKey, out var device))
+            if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out var device, out var mapping, out var resolveError))
             {
-                Fail($"找不到运动卡「{cardKey}」：请确认该卡已在「运动卡设置」里配置并连接");
-                return;
-            }
-
-            var mapping = device.Descriptor.Axes.FirstOrDefault(a =>
-                a.Enabled && string.Equals(a.LogicalName, axisName, StringComparison.OrdinalIgnoreCase));
-
-            if (mapping == null)
-            {
-                Fail($"运动卡「{device.Descriptor.Caption}」上没有启用名为「{axisName}」的轴");
+                Fail(resolveError);
                 return;
             }
 

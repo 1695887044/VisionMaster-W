@@ -69,6 +69,83 @@ namespace Core.Interfaces
     }
 
     /// <summary>
+    /// 凸轮表引用的辅助改写。
+    ///
+    /// 主轴/从轴存的是「卡名 · 轴名」标签字符串，于是改卡名、改轴名都会让引用失效。
+    /// 改名方必须走这里把引用一起改过去，否则表会悄悄指向一个不存在的轴。
+    /// </summary>
+    public static class MotionCamAxisRefs
+    {
+        /// <summary>拼轴标签（**唯一**拼接规则；解析与拼接必须同源，否则对不上）</summary>
+        public static string Label(string cardCaption, string axisLogical)
+            => $"{cardCaption} · {axisLogical}";
+
+        /// <summary>
+        /// 把表里所有等于 <paramref name="oldLabel"/> 的主/从轴引用改成 <paramref name="newLabel"/>。
+        /// 返回被改动的引用条数（0 = 没有任何表引用这根轴）。
+        /// </summary>
+        public static int RenameAxisLabels(
+            IEnumerable<MotionCamTable>? tables, string oldLabel, string newLabel)
+        {
+            if (tables == null || string.IsNullOrWhiteSpace(oldLabel) || string.IsNullOrWhiteSpace(newLabel)) return 0;
+            if (string.Equals(oldLabel, newLabel, StringComparison.Ordinal)) return 0;
+
+            var changed = 0;
+            foreach (var table in tables)
+            {
+                if (table == null) continue;
+
+                if (string.Equals(table.MasterAxis, oldLabel, StringComparison.Ordinal))
+                {
+                    table.MasterAxis = newLabel;
+                    changed++;
+                }
+
+                if (string.Equals(table.SlaveAxis, oldLabel, StringComparison.Ordinal))
+                {
+                    table.SlaveAxis = newLabel;
+                    changed++;
+                }
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// 摘掉表里所有等于 <paramref name="label"/> 的主/从轴引用（置空 = "未选择"）。
+        /// 返回被清掉的引用条数。
+        ///
+        /// 为什么置空而不是留着：留着就是一条指向不存在轴的悬垂引用，
+        /// 启动同步时要么静默失效、要么报一句对不上的错。置空之后，
+        /// 启动闸门会用「请先选择主轴与从轴」明确指向这里 —— 让用户自己重新选，而不是替他猜。
+        /// </summary>
+        public static int ClearAxisLabels(IEnumerable<MotionCamTable>? tables, string label)
+        {
+            if (tables == null || string.IsNullOrWhiteSpace(label)) return 0;
+
+            var changed = 0;
+            foreach (var table in tables)
+            {
+                if (table == null) continue;
+
+                if (string.Equals(table.MasterAxis, label, StringComparison.Ordinal))
+                {
+                    table.MasterAxis = string.Empty;
+                    changed++;
+                }
+
+                if (string.Equals(table.SlaveAxis, label, StringComparison.Ordinal))
+                {
+                    table.SlaveAxis = string.Empty;
+                    changed++;
+                }
+            }
+
+            return changed;
+        }
+    }
+
+    /// <summary>
     /// 凸轮表的纯数学部分（周期 / 插值 / 增点）。
     ///
     /// 抽成静态纯函数只有一个理由：<b>这些公式必须能被无 WPF、无设备的测试直接断言</b>

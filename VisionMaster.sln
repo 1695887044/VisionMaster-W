@@ -1,4 +1,4 @@
-﻿﻿
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.37027.9
@@ -86,6 +86,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Motion.Steps", "Plugins\Plugin.Motion.Steps\Plugin.Motion.Steps.csproj", "{4B2738EF-C024-44C6-B69A-D6D71455DF2B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Motion.ZMotion", "Plugins\Plugin.Motion.ZMotion\Plugin.Motion.ZMotion.csproj", "{2208DD58-80EC-4C54-8A62-9A8585FC4249}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugin.Camera.Hikvision", "Plugins\Plugin.Camera.Hikvision\Plugin.Camera.Hikvision.csproj", "{429D75B8-992C-4689-BC00-01B30D90919C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -517,6 +519,18 @@ Global
 		{2208DD58-80EC-4C54-8A62-9A8585FC4249}.Release|x64.Build.0 = Release|Any CPU
 		{2208DD58-80EC-4C54-8A62-9A8585FC4249}.Release|x86.ActiveCfg = Release|Any CPU
 		{2208DD58-80EC-4C54-8A62-9A8585FC4249}.Release|x86.Build.0 = Release|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Debug|x64.Build.0 = Debug|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Debug|x86.Build.0 = Debug|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Release|x64.ActiveCfg = Release|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Release|x64.Build.0 = Release|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Release|x86.ActiveCfg = Release|Any CPU
+		{429D75B8-992C-4689-BC00-01B30D90919C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -552,6 +566,7 @@ Global
 		{48836E54-503E-4FF8-94EC-63F351094BD2} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 		{4B2738EF-C024-44C6-B69A-D6D71455DF2B} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 		{2208DD58-80EC-4C54-8A62-9A8585FC4249} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
+		{429D75B8-992C-4689-BC00-01B30D90919C} = {256A5736-FBE4-45B4-B16A-CE75EB3F1B6C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {B65F7027-912C-4508-AF09-E1435EEC2173}

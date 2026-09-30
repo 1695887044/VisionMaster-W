@@ -28,15 +28,24 @@ namespace UI.CustomControl
         /// </summary>
         private static async Task<bool> InternalExecuteAsync(string title, string message, FrameworkElement? customContent, bool isModal)
         {
+            // 没有 WPF 应用上下文（设计器 / 单元测试 / 已关机）就没有可承载的窗口：
+            // 这里返回 false（= 用户取消），而不是让下面的 Dispatcher 访问抛 NRE。
+            if (Application.Current == null) return false;
+
             await _dialogLock.WaitAsync();
             Window? overlayWindow = null;
             Window? owner = null;
             EventHandler? generalHandler = null;
             SizeChangedEventHandler? sizeHandler = null;
 
+            // ★ tcs 同时以局部变量和静态字段存在：
+            //   局部变量给本窗口的按钮/关闭事件用（闭包捕获，永不串台）；
+            //   静态字段只为了让 EasyDialog.SetResult（OverlayHost 等外部承载控件）也能收口到"当前"这一个。
+            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
             try
             {
-                _tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _tcs = tcs;
 
                 // 🚨 终极防爆 1：DispatcherPriority.Background 降维打击！
                 // 强行把弹窗的创建和渲染排到 WPF 消息队列的最末尾。
@@ -81,33 +90,58 @@ namespace UI.CustomControl
                         owner.SizeChanged += sizeHandler;
                     }
 
-                    overlayWindow.Content = BuildDialogUI(title, message, customContent, isModal);
+                    // ★ 窗口被"非按钮方式"关掉时必须收口成取消：
+                    //   Owner 关闭 / 系统菜单 / 任何外部 Close 都会走到这里。
+                    //   没有它，_tcs 永远不完成 → await 永久挂起 → finally 不执行 →
+                    //   _dialogLock 不释放 → 之后**所有**弹窗永久失效（整个 EasyDialog 一次性死掉）。
+                    overlayWindow.Closed += (s, e) => tcs.TrySetResult(false);
+
+                    // Esc = 取消（PreviewKeyDown：先于内部控件处理，属性框里的键盘操作不受影响）
+                    overlayWindow.PreviewKeyDown += (s, e) =>
+                    {
+                        if (e.Key == System.Windows.Input.Key.Escape)
+                        {
+                            tcs.TrySetResult(false);
+                            e.Handled = true;
+                        }
+                    };
+
+                    overlayWindow.Content = BuildDialogUI(title, message, customContent, isModal, tcs);
                     overlayWindow.Show();
 
                 }, DispatcherPriority.Background); // 👈 救命的优先级降级
 
-                // 异步等待用户点击“确定”或“取消”
-                return await _tcs.Task;
+                // 异步等待用户点击“确定”或“取消”（或 Esc / 窗口被关闭）
+                return await tcs.Task;
             }
             finally
             {
-                // 清理战场
-                await Application.Current.Dispatcher.InvokeAsync(() =>
+                // 清理战场：这里**任何一步抛异常都会导致锁不释放**（弹窗系统整体卡死），
+                // 所以整段包 try/catch —— 应用正在关闭时 Dispatcher 回调本身就可能抛。
+                try
                 {
-                    if (owner != null)
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
                     {
-                        if (generalHandler != null)
+                        if (owner != null)
                         {
-                            owner.LocationChanged -= generalHandler;
-                            owner.StateChanged -= generalHandler;
+                            if (generalHandler != null)
+                            {
+                                owner.LocationChanged -= generalHandler;
+                                owner.StateChanged -= generalHandler;
+                            }
+                            if (sizeHandler != null)
+                            {
+                                owner.SizeChanged -= sizeHandler;
+                            }
                         }
-                        if (sizeHandler != null)
-                        {
-                            owner.SizeChanged -= sizeHandler;
-                        }
-                    }
-                    overlayWindow?.Close();
-                });
+                        overlayWindow?.Close();
+                    });
+                }
+                catch
+                {
+                    // 清理失败也要把锁放掉，不能让一次异常锁死后续所有弹窗
+                }
+
                 _tcs = null;
                 _dialogLock.Release();
             }
@@ -122,7 +156,8 @@ namespace UI.CustomControl
 
         #region ====== UI 动态构建引擎 (纯 C# 零 XAML，使用主题 Style) ======
 
-        private static Border BuildDialogUI(string title, string message, FrameworkElement? customContent, bool isModal)
+        private static Border BuildDialogUI(
+            string title, string message, FrameworkElement? customContent, bool isModal, TaskCompletionSource<bool> tcs)
         {
             // 主卡片背景 (带弥散阴影)
             var card = new Border
@@ -218,7 +253,7 @@ namespace UI.CustomControl
             });
             cancelContent.Children.Add(new TextBlock { Text = "取 消" });
             btnCancel.Content = cancelContent;
-            btnCancel.Click += (s, e) => SetResult(false);
+            btnCancel.Click += (s, e) => tcs.TrySetResult(false);
             btnPanel.Children.Add(btnCancel);
 
 
@@ -239,8 +274,16 @@ namespace UI.CustomControl
             });
             confirmContent.Children.Add(new TextBlock { Text = "确 定" });
             btnConfirm.Content = confirmContent;
-            btnConfirm.Click += (s, e) => SetResult(true);
+            btnConfirm.Click += (s, e) => tcs.TrySetResult(true);
             btnPanel.Children.Add(btnConfirm);
+
+            // 默认焦点给「确定」：键盘用户打开即可回车，不必先 Tab 过去
+            // （只在没有可输入控件时才抢焦点，否则会打断输入框的光标）
+            btnConfirm.Loaded += (s, e) =>
+            {
+                if (customContent == null)
+                    btnConfirm.Focus();
+            };
 
             grid.Children.Add(btnPanel);
 

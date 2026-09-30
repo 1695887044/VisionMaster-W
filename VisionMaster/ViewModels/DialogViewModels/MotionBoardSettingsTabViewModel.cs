@@ -14,20 +14,61 @@ namespace VisionMaster.ViewModels.DialogViewModels
     /// </summary>
     public sealed class MotionAxisMapRow : BindableBase
     {
-        public MotionAxisMapRow(AxisMapping mapping)
+        /// <summary>
+        /// <paramref name="owner"/> 是这一行所属的卡；<paramref name="registry"/> 是全局轴名注册表。
+        /// 两个都必须传：本地合法性（名字是否为空、本卡轴号是否撞）只需 owner，
+        /// 而**全局唯一性**与"改名要级联哪些东西"只有注册表知道。
+        /// </summary>
+        public MotionAxisMapRow(AxisMapping mapping, MotionDescriptor owner, MotionAxisRegistry registry)
         {
             Mapping = mapping;
+            Owner = owner;
+            _registry = registry;
             DeleteCommand = new DelegateCommand(() => DeleteRequested?.Invoke(this));
         }
 
+        private readonly MotionAxisRegistry _registry;
+
         public AxisMapping Mapping { get; }
+
+        /// <summary>本行所属的卡（本地校验、以及改轴号时要告诉注册表"改的是哪张卡"）</summary>
+        public MotionDescriptor Owner { get; }
 
         public event Action<MotionAxisMapRow>? DeleteRequested;
 
-        /// <summary>逻辑轴名被改（其它页签的轴名显示要跟着变，由页签 VM 转给外壳）</summary>
-        public event Action? LogicalNameChanged;
+        /// <summary>
+        /// 逻辑轴名改成功了，携带 (旧名, 新名, 注册表给的说明)。
+        ///
+        /// 说明由注册表生成（它才知道级联了多少点位与凸轮引用），这里不重编措辞 ——
+        /// 两处各写一遍必然某一处先失真。
+        /// </summary>
+        public event Action<string, string, string>? LogicalNameChanged;
+
+        /// <summary>编辑被校验拦下（参数是可直接上 toast 的中文原因）</summary>
+        public event Action<string>? InvalidInput;
 
         public DelegateCommand DeleteCommand { get; }
+
+        /// <summary>校验不通过时回滚本次编辑：不改任何数据，补一次通知让界面回到原值</summary>
+        private void Reject(string reason)
+        {
+            InvalidInput?.Invoke(reason);
+            RaisePropertyChanged();
+        }
+
+        /// <summary>
+        /// 确认注册表里"这个名字"解析到的确实是本行。
+        ///
+        /// 历史方案里可能存在跨卡重名（注册表按先到者解析，后来的被影子化）。
+        /// 少了这道核对，编辑"被影子的那一行"改到的会是**先到那根轴** ——
+        /// 现场现象是"我改的是这根，怎么动的是那根"。
+        /// </summary>
+        private bool IsRegistryOwner()
+            => !_registry.TryResolve(Mapping.LogicalName, out var binding)
+               || ReferenceEquals(binding.Mapping, Mapping);
+
+        private static readonly string DuplicatedNameHint =
+            "：它与其它卡上的轴重名，注册表按先到的那根解析 —— 请先把重名解开，再改这一行";
 
         /// <summary>逻辑轴名（流程唯一引用的名字）</summary>
         public string LogicalName
@@ -35,10 +76,35 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => Mapping.LogicalName;
             set
             {
-                if (Mapping.LogicalName == value) return;
-                Mapping.LogicalName = value;
+                var next = value ?? string.Empty;
+                if (Mapping.LogicalName == next) return;
+
+                var localError = MotionAxisValidator.ValidateLogicalName(Owner, Mapping, next);
+                if (localError != null)
+                {
+                    Reject(localError);
+                    return;
+                }
+
+                if (!IsRegistryOwner())
+                {
+                    Reject($"轴名「{Mapping.LogicalName}」{DuplicatedNameHint}");
+                    return;
+                }
+
+                // ★ 改名必须走注册表：全局唯一性判断 + 点位外键级联 + 凸轮标签级联都在那里。
+                //   若像以前那样直接写 Mapping.LogicalName，这三件事会一次性全漏掉。
+                var trimmed = next.Trim();
+                var result = _registry.Rename(Mapping.LogicalName, trimmed);
+                if (!result.Success)
+                {
+                    Reject(result.Message);
+                    return;
+                }
+
+                var old = Mapping.LogicalName;
                 RaisePropertyChanged();
-                LogicalNameChanged?.Invoke();
+                LogicalNameChanged?.Invoke(old, trimmed, result.Message);
             }
         }
 
@@ -48,7 +114,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set
             {
                 if (Mapping.PhysicalIndex == value) return;
-                Mapping.PhysicalIndex = value;
+
+                var localError = MotionAxisValidator.ValidatePhysicalIndex(Owner, Mapping, value);
+                if (localError != null)
+                {
+                    Reject(localError);
+                    return;
+                }
+
+                if (!IsRegistryOwner())
+                {
+                    Reject($"轴名「{Mapping.LogicalName}」{DuplicatedNameHint}");
+                    return;
+                }
+
+                // 换物理轴号同样走注册表：它会重排 (卡, 轴号) 槽位索引，
+                // 否则两根逻辑轴会指向同一个物理轴（运动时互抢）
+                var result = _registry.Update(Mapping.LogicalName, Owner.Id, value);
+                if (!result.Success)
+                {
+                    Reject(result.Message);
+                    return;
+                }
+
                 RaisePropertyChanged();
             }
         }
@@ -113,13 +201,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly MotionProvider _provider;
         private readonly IWorkspaceManager _workspace;
         private readonly MotionBoardViewModel _shell;
+        private readonly MotionAxisRegistry _axes;
 
         public MotionBoardSettingsTabViewModel(
-            MotionProvider provider, IWorkspaceManager workspace, MotionBoardViewModel shell)
+            MotionProvider provider, IWorkspaceManager workspace, MotionBoardViewModel shell,
+            MotionAxisRegistry axes)
         {
             _provider = provider;
             _workspace = workspace;
             _shell = shell;
+            _axes = axes;
 
             ApplyParamsCommand = new DelegateCommand(ApplyParams);
             ToggleConnectCommand = new DelegateCommand(ToggleConnect);
@@ -281,26 +372,67 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>重建轴映射行（选卡变化 / 连接后轴数变多）</summary>
         public void ReloadAxisRows()
         {
+            EnsureAxisRowCoverage();
+
             foreach (var row in AxisRows)
             {
                 row.DeleteRequested -= OnRowDeleteRequested;
                 row.LogicalNameChanged -= OnRowLogicalNameChanged;
+                row.InvalidInput -= OnRowInvalidInput;
             }
 
             AxisRows.Clear();
             if (_selectedDescriptor == null) return;
 
+            // 行要以"注册表已就位"为前提构造：它们改名/改轴号会立刻回调注册表，
+            // 若拿到的还是旧索引，就会用过期数据判全局唯一性 —— 明明能放行的名字被拒。
+            _axes.Reload();
+
             foreach (var mapping in _selectedDescriptor.Axes)
             {
-                var row = new MotionAxisMapRow(mapping);
+                var row = new MotionAxisMapRow(mapping, _selectedDescriptor, _axes);
                 row.DeleteRequested += OnRowDeleteRequested;
                 row.LogicalNameChanged += OnRowLogicalNameChanged;
+                row.InvalidInput += OnRowInvalidInput;
                 AxisRows.Add(row);
             }
         }
 
-        /// <summary>行内改了轴名：调试/点位/凸轮页签的轴名显示跟着刷新</summary>
-        private void OnRowLogicalNameChanged() => _shell.OnAxisLogicalNameChanged();
+        /// <summary>
+        /// 铺够轴行：连上卡按机型能力补齐，没连卡也至少给出 <see cref="MotionAxisValidator.MinimumAxisRows"/> 行。
+        ///
+        /// 少了它就会出现两个"表是空的"现场事故（两个都是实测反馈过的问题）：
+        ///   ① 未连接时按能力铺不出轴，表格一片空白，用户连"脉冲当量填在哪儿"都不知道；
+        ///   ② 连上 32 轴卡之后不补齐，表格永远停在配置里的那几行。
+        /// <c>EnsureAxes</c> 只增不删，已填的值不会被清掉。
+        /// </summary>
+        private void EnsureAxisRowCoverage()
+        {
+            var descriptor = _selectedDescriptor;
+            if (descriptor == null) return;
+
+            var device = CurrentDevice;
+            var byCapability = device is { State: MotionCardState.Online or MotionCardState.Alarm }
+                ? device.Capabilities.AxisCount
+                : 0;
+
+            // 生成默认名时必须避开**全局**已占用的名字：两张卡各自铺一遍 A0/A1/A2，
+            // 在注册表里就是三对重名，其中一半的轴永远解析不到。
+            descriptor.EnsureAxes(
+                Math.Max(Math.Max(byCapability, descriptor.Axes.Count),
+                         MotionAxisValidator.MinimumAxisRows),
+                isNameTaken: name => !_axes.IsNameAvailable(name));
+        }
+
+        /// <summary>行内编辑被校验拦下：给一条红色 toast（编辑已被回滚）</summary>
+        private void OnRowInvalidInput(string reason) => _shell.NotifyError(reason);
+
+        /// <summary>
+        /// 行内改了轴名：先做级联（点位表外键 + 凸轮表引用），再让其它页签跟着刷新。
+        /// 顺序不能反 —— 点位与凸轮都按**旧名**找，改完名就找不到了。
+        /// </summary>
+        private void OnRowLogicalNameChanged(string oldName, string newName, string detail)
+            => _shell.OnAxisLogicalNameChanged(oldName, newName, detail);
 
         private void OnRowDeleteRequested(MotionAxisMapRow row)
         {
@@ -310,25 +442,41 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 () =>
                 {
                     if (_selectedDescriptor == null) return;
-                    _selectedDescriptor.Axes.Remove(row.Mapping);
-                    _selectedDescriptor.RemoveAxisPoints(row.LogicalName);
+
+                    // 删轴走注册表：它负责摘映射 + 清该轴 16 行点位 + 摘掉凸轮表对它的引用。
+                    // 少做后面两步的结果是：下次再建一根同名轴，老点位会"复活"到新轴上。
+                    var name = row.LogicalName;
+                    var result = _axes.Remove(name);
+
                     ReloadAxisRows();
-                    _shell.NotifyOk($"轴「{row.LogicalName}」已删除");
+                    _shell.NotifyOk(result.Success
+                        ? $"轴「{name}」已删除（点位与凸轮引用已清理）"
+                        : $"轴「{name}」已从映射表移除，但清理时提示：{result.Message}");
                 });
         }
 
-        /// <summary>添加轴：逻辑名 A{序号}、物理轴号取当前行数（与 Web 版同规则）</summary>
+        /// <summary>
+        /// 添加轴。逻辑名/物理轴号都取"下一个可用"的值而不是"当前行数" ——
+        /// 用户改过名或删过轴之后，行数与占用情况不再对应，按行数取名会直接撞名。
+        /// </summary>
         private void AddAxis()
         {
-            if (_selectedDescriptor == null) return;
+            var descriptor = _selectedDescriptor;
+            if (descriptor == null) return;
 
-            var index = _selectedDescriptor.Axes.Count;
-            _selectedDescriptor.Axes.Add(new AxisMapping
+            // 走注册表注册：名字与轴号都由它给"下一个可用的"，并且一次判完全局唯一性。
+            // 自己算"下一个"等于绕开了唯一的裁决者 —— 撞名时不会有人拦。
+            var result = _axes.Register(
+                _axes.NextAvailableName(), descriptor.Id, _axes.NextAvailableAxisIndex(descriptor.Id));
+
+            if (!result.Success)
             {
-                LogicalName = $"A{index}",
-                PhysicalIndex = index,
-            });
+                _shell.NotifyError(result.Message);
+                return;
+            }
+
             ReloadAxisRows();
+            _shell.NotifyOk(result.Message);
         }
 
         #endregion
@@ -389,7 +537,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     var ok = device.Connect();
                     IsConnecting = false;
                     if (ok)
-                        _shell.NotifyOk($"「{descriptor.Caption}」已连接");
+                    {
+                        // 弹"扫描到 N 个轴" + 同步重建手动调试页签的轴列表（统一出口）
+                        _shell.NotifyCardConnected(descriptor.Caption, device.Capabilities.AxisCount);
+                    }
                     else
                         _shell.NotifyError($"连接「{descriptor.Caption}」失败：{device.StateDetail}");
                 }
@@ -424,19 +575,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _shell.RequestConfirm(
                 "删除运动卡",
                 $"确定删除「{descriptor.Caption}」及其全部轴映射吗？",
-                () =>
-                {
-                    var solution = _workspace.CurrentSolution;
-                    var target = solution?.MotionCards?.FirstOrDefault(c => c.Id == descriptor.Id);
-                    if (target == null) return;
-
-                    solution.MotionCards.Remove(target);
-                    _provider.MarkConfigDirty();
-                    _provider.EnsureSynced();   // 删卡必须立刻断开物理连接
-
-                    _shell.NotifyOk("运动卡及其轴映射已删除");
-                    _shell.Reload();
-                });
+                // 级联（凸轮轴标签清理 + 断开物理连接 + 重载）只有外壳里那一份，
+                // 这里不再抄一遍 —— 抄一份迟早少清一样东西
+                () => _shell.RemoveCard(descriptor));
         }
 
         #endregion

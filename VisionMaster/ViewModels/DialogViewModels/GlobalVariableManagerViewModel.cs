@@ -721,7 +721,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (string.IsNullOrWhiteSpace(NewVarName))
             {
-                EasyDialog.ShowSync("变量名不能为空！", "提示");
+                // 签名是 ShowSync(title, message)：早期这里写反了，标题栏显示的是报错句、正文显示"提示"
+                EasyDialog.ShowSync(title: "提示", message: "变量名不能为空！");
                 return;
             }
 
@@ -729,7 +730,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 旧口径(Ordinal)允许 Var 与 var 共存，两套匹配规则互相矛盾
             if (_workspace.GlobalVariables.Any(s => s.Name.Equals(NewVarName, StringComparison.OrdinalIgnoreCase)))
             {
-                EasyDialog.ShowSync("底层引擎已存在同名变量，请更换名称！", "提示");
+                EasyDialog.ShowSync(title: "提示", message: "底层引擎已存在同名变量，请更换名称！");
                 return;
             }
 

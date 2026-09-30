@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -34,6 +34,11 @@
       断言三形状区域构建 / 掩膜 / 涂擦合并 / 动态端口与重名防御 / 运行端到端契约。
     -->
     <ProjectReference Include="..\Plugins\Plugin.CreateRoi\Plugin.CreateRoi.csproj" />
+    <!--
+      海康相机驱动：直接引用（不走 Modules\ 反射加载），
+      断言 Modules 发现契约 / (CameraDescriptor) 构造 / 缺 SDK 时的优雅降级 / 像素格式分类。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.Camera.Hikvision\Plugin.Camera.Hikvision.csproj" />
     <!--
       运动控制：直接引用"虚拟运动卡驱动"与"运动步骤插件"两个工程。
       虚拟卡让运动内核（命令队列 / 异步语义 / 急停打断 / 看门狗 / 报警门禁）

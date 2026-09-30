@@ -26,6 +26,14 @@ namespace VisionMaster.Services
 
         /// <summary>驱动类型（创建实例用）</summary>
         public Type DriverType { get; init; } = null!;
+
+        /// <summary>
+        /// 是否**仿真驱动**（如「虚拟运动卡（仿真）」）。
+        /// 有它，界面才敢把默认项定在真实驱动上：没有硬件时默认给一张虚拟卡，
+        /// 用户现场添加真卡时会被"地址已被占用"挡住（虚拟卡默认占着 127.0.0.1），
+        /// 看起来就是"我明明选了正运动，加出来的却是虚拟卡"。
+        /// </summary>
+        public bool IsSimulated { get; init; }
     }
 
     /// <summary>
@@ -145,17 +153,42 @@ namespace VisionMaster.Services
                     }
 
                     var att = type.GetCustomAttribute<DisplayAttribute>();
+                    var displayName = att?.Name ?? kv.Key;
                     result.Add(new MotionDriverInfo
                     {
                         TypeKey = typeKey,
-                        DisplayName = att?.Name ?? kv.Key,
+                        DisplayName = displayName,
                         Description = att?.Description ?? string.Empty,
                         DriverType = type,
+                        IsSimulated = IsSimulatedDriver(type, displayName),
                     });
                 }
 
-                return result;
+                // 真实驱动排在仿真驱动之前（OrderBy 稳定，同类内部保持扫描顺序）：
+                // 界面的"默认驱动"一律取第一个，排序决定了用户拿到的是真卡还是虚拟卡。
+                return result.OrderBy(d => d.IsSimulated ? 1 : 0).ToList();
             }
+        }
+
+        /// <summary>
+        /// 判定一个驱动是不是仿真驱动。
+        ///
+        /// 为什么靠**名字特征**而不是给插件加接口：仿真驱动是"没有硬件时的替身"，
+        /// 它必须与真实驱动实现同一套 IMotionDevice，加一个 IsSimulated 成员会污染驱动契约，
+        /// 而判定只服务于界面排序/默认值这类弱需求。名字特征（类型名 / 显示名含
+        /// Virtual・Simulate・虚拟・仿真）已足够，且对第三方驱动同样有效。
+        /// </summary>
+        private static bool IsSimulatedDriver(Type type, string displayName)
+        {
+            const StringComparison cmp = StringComparison.OrdinalIgnoreCase;
+
+            var typeName = type.FullName ?? type.Name;
+            return typeName.Contains("Virtual", cmp)
+                   || typeName.Contains("Simulat", cmp)
+                   || displayName.Contains("Virtual", cmp)
+                   || displayName.Contains("Simulat", cmp)
+                   || displayName.Contains("虚拟")
+                   || displayName.Contains("仿真");
         }
 
         /// <summary>

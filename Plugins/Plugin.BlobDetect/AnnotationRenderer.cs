@@ -35,7 +35,8 @@ namespace Plugin.BlobDetect
         /// <param name="defects">缺陷区域（可为 null 或空集，空集不画）</param>
         /// <param name="lines">左上角多行文字</param>
         /// <param name="textColor">文字颜色（HALCON 颜色名，如 "green"/"red"）</param>
-        public HImage? Render(HObject baseImage, HObject? defects, string[] lines, string textColor)
+        /// <param name="highlight">清单联动高亮：被选中缺陷的外扩包围盒（黄粗框），null = 不画</param>
+        public HImage? Render(HObject baseImage, HObject? defects, string[] lines, string textColor, HObject? highlight = null)
         {
             lock (_gate)
             {
@@ -66,6 +67,17 @@ namespace Plugin.BlobDetect
                     // 编号与描边同色同字级：先把字号定下来（窗口状态跨渲染保留，不定就是上一次的残留）
                     TrySetFont(win, 20);
                     DrawDefectNumbers(win, defects!, w, h);
+                }
+
+                // 2.5 清单联动高亮：黄粗框套在被选中的那根缺陷上（外扩包围盒，随框走）。
+                // 画在缺陷描边之后、文字之前：压得住描边，又不遮挡编号与判定文字
+                if (HasContent(highlight))
+                {
+                    HOperatorSet.SetDraw(win, "margin");
+                    HOperatorSet.SetLineWidth(win, 3);
+                    HOperatorSet.SetColor(win, "yellow");
+                    HOperatorSet.DispObj(highlight!, win);
+                    HOperatorSet.SetLineWidth(win, 1);   // 还原，别把线宽状态带去下一张
                 }
 
                 // 3. 左上角文字：加白底框，保证在任何背景上都读得清

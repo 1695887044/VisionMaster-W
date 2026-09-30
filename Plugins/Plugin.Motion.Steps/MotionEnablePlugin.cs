@@ -72,9 +72,9 @@ namespace Plugin.Motion.Steps
 
             Enabled.Value = false;
 
-            if (!context.Motions.TryGetByKey(cardKey, out var device))
+            if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out var device, out var mapping, out var resolveError))
             {
-                Fail($"找不到运动卡「{cardKey}」：请确认该卡已在「运动卡设置」里配置并连接");
+                Fail(resolveError);
                 return;
             }
 
@@ -82,15 +82,6 @@ namespace Plugin.Motion.Steps
             if (device.State == MotionCardState.Closed || device.State == MotionCardState.SafeStopped)
             {
                 Fail($"运动卡「{device.Descriptor.Caption}」当前不可操作：{device.StateDetail}");
-                return;
-            }
-
-            var mapping = device.Descriptor.Axes.FirstOrDefault(a =>
-                a.Enabled && string.Equals(a.LogicalName, axisName, StringComparison.OrdinalIgnoreCase));
-
-            if (mapping == null)
-            {
-                Fail($"运动卡「{device.Descriptor.Caption}」上没有启用名为「{axisName}」的轴");
                 return;
             }
 

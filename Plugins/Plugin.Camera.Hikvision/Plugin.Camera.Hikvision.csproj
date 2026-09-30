@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Plugin.Camera.Hikvision</RootNamespace>
+    <AssemblyName>Plugin.Camera.Hikvision</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+  <!-- 像素格式分类等 internal 成员对断言工程开放（与 VisionMaster 对 ScadaChecks 同一口径） -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlowCanvasChecks" />
+  </ItemGroup>
+
+  <!-- 相机驱动以 Modules 目录为发现路径：宿主（DEBUG 直接扫仓库根 Modules）与断言工程都从这里找驱动 -->
+  <Target Name="CopyToModules" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(MSBuildThisFileDirectory)..\..\Modules\" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

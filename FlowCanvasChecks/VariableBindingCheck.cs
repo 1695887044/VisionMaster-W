@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -326,7 +326,7 @@ namespace FlowCanvasChecks
             "VariableBindingView.xaml", "GlobalVariableView.xaml",
             "CameraSettingsView.xaml", "CommunicationSettingsView.xaml",
             "FlowManagerView.xaml", "ConditionEditorView.xaml",
-            "MotionSettingsView.xaml", "MotionDebugView.xaml",
+            
         };
 
         /// <summary>

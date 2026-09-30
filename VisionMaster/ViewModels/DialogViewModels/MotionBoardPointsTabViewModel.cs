@@ -194,39 +194,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var axisRow = SelectedAxisRow;
             if (descriptor == null || axisRow == null || point == null) return;
 
-            if (!_provider.TryGetByKey(descriptor.Address, out var device)
-                || device.State != MotionCardState.Online)
+            // ★ 按内部 Id 寻址，不再按地址：
+            //   地址是"对外寻址键"（流程步骤按它引用设备），但它在方案里并不保证唯一 ——
+            //   MotionProvider 明确写了"地址重复时按地址取设备只命中先注册的那一张"。
+            //   界面已经握着 Id 了，再走地址就是自找"命令发给 A 卡、动的是 B 卡"。
+            _provider.TryGetDevice(descriptor.Id, out var device);
+
+            var status = device?.GetAxisStatus(axisRow.Mapping.PhysicalIndex);
+
+            // 六道闸与「定位」同一实现（此前这里漏了软限位）
+            var gate = MotionCommandGate.CheckMove(device, axisRow.Mapping, status, point.PositionMm);
+            if (!gate.Passed)
             {
-                _shell.Reject("运动卡未连接");
+                _shell.Reject(gate.Reason);
                 return;
             }
 
-            var status = device.GetAxisStatus(axisRow.Mapping.PhysicalIndex);
-            if (status == null)
-            {
-                _shell.Reject("运动卡未连接");
-                return;
-            }
-
-            if (!status.Enabled)
-            {
-                _shell.Reject($"{axisRow.Name} 未使能，请先伺服使能");
-                return;
-            }
-
-            if (!device.IsHomed)
-            {
-                _shell.Reject($"{axisRow.Name} 需要回零后才能运动");
-                return;
-            }
-
-            if (status.Moving)
-            {
-                _shell.Reject($"{axisRow.Name} 正在运动，请等待完成");
-                return;
-            }
-
-            var result = device.Enqueue(new MotionCommand
+            using var command = new MotionCommand
             {
                 Kind = MotionCommandKind.MoveAbsolute,
                 PhysicalAxis = axisRow.Mapping.PhysicalIndex,
@@ -238,8 +222,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 AccelMmPerS2 = point.AccelMmPerS2,
                 Curve = point.Curve,
                 Timeout = TimeSpan.FromMilliseconds(Math.Max(3000, descriptor.Params.CommandTimeoutMs)),
-            });
+            };
 
+            var result = device!.Enqueue(command);
             if (result != MotionCommandResult.Accepted)
                 _shell.NotifyError($"走此点被拒绝：{device.LastFault?.Suggestion ?? device.StateDetail}");
         }

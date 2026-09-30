@@ -53,6 +53,7 @@
         </Border>
 
         <ScrollViewer
+            x:Name="PageScroll"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto"
             Visibility="{Binding HasCard, Converter={StaticResource MbBoolToVis}}">
@@ -349,10 +350,24 @@
                         <ColumnDefinition Width="270" />
                     </Grid.ColumnDefinitions>
 
-                    <!--  左：轴列表（S2-1：数据源=启用轴映射，显示逻辑名）  -->
-                    <Border Grid.Column="0" Style="{StaticResource MbCard}" Padding="10">
-                        <StackPanel>
-                            <StackPanel Margin="6,4,0,8" Orientation="Horizontal">
+                    <!--  左：轴列表（S2-1：数据源=启用轴映射，显示逻辑名）
+                          卡片高度钳到页面视口，ListBox 占满剩余空间 → 32 轴时列表自己出滚动条，
+                          而不是把整页撑到几十屏高（StackPanel 会给 ListBox 无限高度，内部滚动永不激活）。
+                          ★ VerticalAlignment=Top 必须显式给：高度被 MaxHeight 钳住后
+                          默认的 Stretch 会在单元格里退化成"垂直居中"，卡片头顶就会空出一块  -->
+                    <Border
+                        Grid.Column="0"
+                        Style="{StaticResource MbCard}"
+                        Padding="10"
+                        VerticalAlignment="Top"
+                        MaxHeight="{Binding ElementName=PageScroll, Path=ViewportHeight, FallbackValue=640}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Margin="6,4,0,8" Orientation="Horizontal">
                                 <TextBlock
                                     VerticalAlignment="Center"
                                     FontFamily="{StaticResource Icon}"
@@ -367,10 +382,12 @@
                             </StackPanel>
 
                             <ListBox
+                                Grid.Row="1"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 ItemsSource="{Binding Axes}"
                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto"
                                 SelectedItem="{Binding SelectedAxis}">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
@@ -492,6 +509,7 @@
                             </ListBox>
 
                             <TextBlock
+                                Grid.Row="2"
                                 Margin="6,10,0,6"
                                 FontSize="11"
                                 Foreground="{StaticResource MbTextSecondaryBrush}"
@@ -507,7 +525,7 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                        </StackPanel>
+                        </Grid>
                     </Border>
 
                     <!--  中：操作面板  -->

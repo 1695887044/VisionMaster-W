@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Plugin.BlobDetect
@@ -14,8 +15,13 @@ namespace Plugin.BlobDetect
     /// 直接画矢量几何（等价于 XAML 里的 Path/Polyline，但缩放时能在 OnRender 里按实际尺寸重算坐标），
     /// 窗口拉大拉小都清晰，阈值标记也永远对齐。
     ///
-    /// 只做绘制、不持任何业务状态：数据来自绑定（<see cref="GrayHistogram"/>），
-    /// 标记位置来自绑定（当前固定阈值），本控件不认识插件。
+    /// 【标记可以直接拖】
+    /// 鼠标按住阈值标记线左右拖动，直接改 ThresholdLow / ThresholdHigh（双向绑定回写参数）——
+    /// "阈值该切在哪"从看着调变成拖着调。拖动只改这两个绑定值，控件不认识插件；
+    /// 改完的预览刷新由插件的防抖调度接管（200ms）。
+    ///
+    /// 只做绘制与阈值拖动、不持任何业务状态：数据来自绑定（<see cref="GrayHistogram"/>），
+    /// 本控件不认识插件。
     /// </summary>
     public sealed class HistogramPlot : FrameworkElement
     {
@@ -31,15 +37,17 @@ namespace Plugin.BlobDetect
             nameof(ShowThresholdMarkers), typeof(bool), typeof(HistogramPlot),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
-        /// <summary>固定阈值下限（灰度值）</summary>
+        /// <summary>固定阈值下限（灰度值）。双向：直方图上拖动标记线会写回</summary>
         public static readonly DependencyProperty ThresholdLowProperty = DependencyProperty.Register(
             nameof(ThresholdLow), typeof(double), typeof(HistogramPlot),
-            new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0d,
+                FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
-        /// <summary>固定阈值上限（灰度值）</summary>
+        /// <summary>固定阈值上限（灰度值）。双向：直方图上拖动标记线会写回</summary>
         public static readonly DependencyProperty ThresholdHighProperty = DependencyProperty.Register(
             nameof(ThresholdHigh), typeof(double), typeof(HistogramPlot),
-            new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(0d,
+                FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
         public GrayHistogram? Data
         {
@@ -66,6 +74,129 @@ namespace Plugin.BlobDetect
         }
 
         #endregion
+
+        /// <summary>标记线的命中半径（像素）：按住处离标记竖线这么近就算抓到</summary>
+        private const double HitTolerancePx = 7;
+
+        private bool _draggingLow;
+        private bool _draggingHigh;
+
+        public HistogramPlot()
+        {
+            MouseLeftButtonDown += OnMouseLeftButtonDown;
+            MouseMove += OnMouseMove;
+            MouseLeftButtonUp += OnMouseLeftButtonUp;
+            LostMouseCapture += (_, _) => ClearDrag();
+        }
+
+        private void ClearDrag()
+        {
+            _draggingLow = _draggingHigh = false;
+            Cursor = null;
+        }
+
+        // ==================================================================
+        //  阈值拖动
+        // ==================================================================
+
+        private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!CanInteract) return;
+
+            var pos = e.GetPosition(this);
+
+            // 命中判定：谁离鼠标近抓谁（两条线贴得很近时先抓上/下限里更近的那条）
+            double xLow = GrayToX(ThresholdLow);
+            double xHigh = GrayToX(ThresholdHigh);
+            double dLow = Math.Abs(pos.X - xLow);
+            double dHigh = Math.Abs(pos.X - xHigh);
+
+            if (dLow <= HitTolerancePx && dLow <= dHigh)
+            {
+                _draggingLow = true;
+            }
+            else if (dHigh <= HitTolerancePx)
+            {
+                _draggingHigh = true;
+            }
+            else
+            {
+                return;   // 没抓到标记：走基类行为（可能被外层拿去当普通点击）
+            }
+
+            CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void OnMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!CanInteract)
+            {
+                if (!_draggingLow && !_draggingHigh) Cursor = null;
+                return;
+            }
+
+            var pos = e.GetPosition(this);
+            double xLow = GrayToX(ThresholdLow);
+            double xHigh = GrayToX(ThresholdHigh);
+
+            if (_draggingLow)
+            {
+                ThresholdLow = XToGray(pos.X);
+                // 拖过上限就顶在上限上（不交换两条线，避免"角色对调"的跳变）；实时重渲染
+                ThresholdLow = Math.Min(ThresholdLow, ThresholdHigh);
+                e.Handled = true;
+            }
+            else if (_draggingHigh)
+            {
+                ThresholdHigh = XToGray(pos.X);
+                ThresholdHigh = Math.Max(ThresholdHigh, ThresholdLow);
+                e.Handled = true;
+            }
+            else
+            {
+                // 悬停反馈：靠近标记线给横向调整光标，提示"这里可以拖"
+                bool hover = Math.Abs(pos.X - xLow) <= HitTolerancePx
+                          || Math.Abs(pos.X - xHigh) <= HitTolerancePx;
+                Cursor = hover ? Cursors.SizeWE : null;
+            }
+        }
+
+        private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e) => ClearDrag();
+
+        /// <summary>标记线可拖的前提：有数据、显示标记、上下限确实分开（单点范围拖不出意义）</summary>
+        private bool CanInteract
+            => ShowThresholdMarkers
+               && Data != null
+               && Data.BinMax - Data.BinMin > 0;
+
+        /// <summary>控件横坐标 → 灰度值（已按横轴范围夹取并取整；灰度本身是整数刻度）</summary>
+        private double XToGray(double x)
+        {
+            var data = Data!;
+            double pad = 1;
+            double plotW = Math.Max(1, ActualWidth - 2 * pad);
+
+            double t = Math.Clamp((x - pad) / plotW, 0, 1);
+            return Math.Round(data.BinMin + t * (data.BinMax - data.BinMin));
+        }
+
+        /// <summary>灰度值 → 控件横坐标。灰度范围就是横轴范围，超出范围的阈值夹到两端
+        /// （用户把阈值设在图像灰度范围之外时，标记停在边界上比画到控件外面强）。</summary>
+        private double GrayToX(double gray)
+        {
+            var data = Data!;
+            double pad = 1;
+            double plotW = Math.Max(1, ActualWidth - 2 * pad);
+
+            double span = data.BinMax - data.BinMin;
+            // 单一灰度图（span == 0）时不能做除法：阈值等于该灰度就画在中间，否则按大小落在两端
+            if (span <= 0)
+                return Math.Abs(gray - data.BinMin) < 1e-9 ? pad + plotW / 2 : (gray < data.BinMin ? pad : pad + plotW);
+
+            double t = (gray - data.BinMin) / span;
+            return Math.Clamp(pad + t * plotW, pad, pad + plotW);
+        }
 
         #region 画笔（主题令牌优先，取不到再退回内置值）
 
@@ -170,8 +301,8 @@ namespace Plugin.BlobDetect
             // 只有"固定阈值"方式下才画（自动/动态阈值没有固定阈值参数，画了会误导）
             if (ShowThresholdMarkers)
             {
-                double xLow = GrayToX(ThresholdLow, data, pad, plotW);
-                double xHigh = GrayToX(ThresholdHigh, data, pad, plotW);
+                double xLow = GrayToX(ThresholdLow);
+                double xHigh = GrayToX(ThresholdHigh);
                 double left = Math.Min(xLow, xHigh);
                 double right = Math.Max(xLow, xHigh);
 
@@ -184,21 +315,6 @@ namespace Plugin.BlobDetect
 
             // ── 3. 外框 ──
             dc.DrawRectangle(null, _borderPen, new Rect(pad + 0.5, pad + 0.5, plotW - 1, plotH - 1));
-        }
-
-        /// <summary>
-        /// 灰度值 → 控件横坐标。灰度范围就是横轴范围，超出范围的阈值夹到两端
-        /// （用户把阈值设在图像灰度范围之外时，标记停在边界上比画到控件外面强）。
-        /// </summary>
-        private static double GrayToX(double gray, GrayHistogram data, double pad, double plotW)
-        {
-            double span = data.BinMax - data.BinMin;
-            // 单一灰度图（span == 0）时不能做除法：阈值等于该灰度就画在中间，否则按大小落在两端
-            if (span <= 0)
-                return Math.Abs(gray - data.BinMin) < 1e-9 ? pad + plotW / 2 : (gray < data.BinMin ? pad : pad + plotW);
-
-            double t = (gray - data.BinMin) / span;
-            return Math.Clamp(pad + t * plotW, pad, pad + plotW);
         }
 
         private void DrawPlaceholder(DrawingContext dc, string text, double height)

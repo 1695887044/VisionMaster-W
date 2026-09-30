@@ -23,7 +23,7 @@ namespace Plugin.BlobDetect
     [Display(
         Name = "Blob 缺陷检测",
         GroupName = "缺陷检测",
-        Description = "阈值分割 + 连通域分析，检出划痕/暗斑等缺陷并按个数与单缺陷面积判定 OK/NG；支持固定阈值、自动阈值(max_separability)、动态阈值(var_threshold)",
+        Description = "阈值分割 + 连通域分析，检出划痕/暗斑等缺陷并按个数与面积判定 OK/NG；支持固定/自动/动态阈值与亮暗同检，支持检测/排除区域，输出逐缺陷面积、圆度、长宽比、方向等特征",
         ShortName = "\uf002"
     )]
     public class BlobDetectPlugin : VisionPluginBase, IPluginCustomViewProvider
@@ -32,6 +32,22 @@ namespace Plugin.BlobDetect
 
         /// <summary>待检测的输入图像（可链接上游；未连线时按既有插件的惯例给中文提示后判失败）</summary>
         public InputPort<HImage> SrcImage { get; } = new("SrcImage", description: "待检测的输入图像");
+
+        /// <summary>
+        /// 检测区域（可选，IsRequired=false）：只在该区域内找缺陷，接 Plugin.CreateRoi 的 MaskRegion 即可；
+        /// 未连线时整图检测（老方案行为不变）。
+        /// 语义与 reduce_domain 一致：候选区先与它取交集再做后续处理，压在区域边界上的缺陷按裁剪后的面积计。
+        /// </summary>
+        public InputPort<HRegion> MaskRegion { get; } = new("MaskRegion", description: "检测区域（可选）：只在该区域内检测；未连线=整图")
+        { IsRequired = false };
+
+        /// <summary>
+        /// 排除区域（可选，IsRequired=false）：该区域内的候选一律丢弃。
+        /// 用在哪：螺丝孔、二维码、标记载体这类"位置固定、永远不该报"的误检源，
+        /// 触边排除只能处理图像边缘，处理不了画面中间的固定干扰。
+        /// </summary>
+        public InputPort<HRegion> ExcludeRegion { get; } = new("ExcludeRegion", description: "排除区域（可选）：区域内的候选一律丢弃")
+        { IsRequired = false };
 
         /// <summary>标注图：原图上把缺陷圈红 + 左上角写判定结果与个数</summary>
         public OutputPort<HImage> DefectImage { get; } = new("DefectImage", "标注图（原图 + 缺陷红圈 + 判定文字）");
@@ -74,6 +90,19 @@ namespace Plugin.BlobDetect
         /// <summary>缺陷总面积（mm²）= TotalArea(px) × 像素当量²</summary>
         public OutputPort<double> TotalAreaMm2 { get; } = new("TotalAreaMm2", "缺陷总面积（mm²）");
 
+        // ── 逐缺陷形状特征补全（只增不改：上面所有端口的名字/类型/顺序一律不动）──
+        // 分拣场景要在下游把"圆斑=气泡 / 长条=划痕"分流，光靠筛选参数把特征"筛掉"不够，
+        // 得把每个缺陷的特征值作为数组输出，与 CenterRows 等端口同一顺序逐项对齐。
+
+        /// <summary>各缺陷圆度数组（0~1，1=正圆，细长划痕接近 0；顺序同上）。与「圆度下限」筛选用的同一特征</summary>
+        public OutputPort<HTuple> DefectCircularities { get; } = new("DefectCircularities", "各缺陷圆度数组（0~1，1=正圆）");
+
+        /// <summary>各缺陷长宽比数组（外接矩形 长边/短边，正方形=1；顺序同上）。与「长宽比上限」筛选同一口径</summary>
+        public OutputPort<HTuple> DefectAspectRatios { get; } = new("DefectAspectRatios", "各缺陷长宽比数组（长边/短边）");
+
+        /// <summary>各缺陷方向角数组（度，-90~90，主轴与水平方向夹角；顺序同上）。圆形缺陷方向无意义，仅对细长缺陷有参考价值</summary>
+        public OutputPort<HTuple> DefectPhis { get; } = new("DefectPhis", "各缺陷方向角数组（度）");
+
         #endregion
 
         #region 配置参数（[StepConfig] 由基类随 InputValues 一并存盘/灌值）
@@ -105,6 +134,7 @@ namespace Plugin.BlobDetect
         private const int DefaultExcludeBorderPx = 0;     // 0 = 不排除触边
         private const bool DefaultFillHoles = false;      // 默认不填孔（保持既有语义）
         private const double DefaultMergeRadius = 0;      // 0 = 不合并相邻缺陷
+        private const bool DefaultDetectBrightAndDark = false; // 默认单极性（保持既有语义）
         private const int DefaultMinDefectCount = 0;      // 0 = 不做存在性判定
         private const double DefaultMaxTotalArea = 0;     // 0 = 不限总面积
         private const double DefaultPixelSizeMm = 1.0;    // 1.0 = 输出即像素值，不假设标定（与卡尺插件同口径）
@@ -149,6 +179,7 @@ namespace Plugin.BlobDetect
                 OnPropertyChanged(nameof(IsAutoThreshold));
                 OnPropertyChanged(nameof(IsDynamicThreshold));
                 OnPropertyChanged(nameof(ShowDetectTarget));
+                OnPropertyChanged(nameof(ShowDualPolarity));
                 SchedulePreview();
             }
         }
@@ -170,6 +201,28 @@ namespace Plugin.BlobDetect
                 if (old != value && _hasAdapted && IsThresholdAtLastAdaptedValue())
                     _pendingAdaptOnTargetChange = true;
 
+                SchedulePreview();
+            }
+        }
+
+        private bool _detectBrightAndDark = DefaultDetectBrightAndDark;
+        /// <summary>
+        /// 亮暗同检：同一张图上同时检出比背景亮与比背景暗的缺陷（仅自动/动态阈值下生效）。
+        ///
+        /// 用在哪：一块板面上"暗划痕 + 亮亮点"要一次检完——单极性只能各摆一个节点跑两遍。
+        /// 做法：两种极性各做一次二值化，两张候选区取并集再走后续流程。
+        /// 固定阈值不提供这一项：它的灰度区间 [MinGray, MaxGray] 本身就是"区间内全要"，
+        /// 想双向就切成自动/动态阈值再勾选，参数区不摆一个不生效的开关。
+        /// </summary>
+        [StepConfig]
+        public bool DetectBrightAndDark
+        {
+            get => _detectBrightAndDark;
+            set
+            {
+                if (!SetProperty(ref _detectBrightAndDark, value)) return;
+                // 同检一开，"检测目标"就失效了（两种极性都要）——跟着隐藏，别留一个不生效的开关
+                OnPropertyChanged(nameof(ShowDetectTarget));
                 SchedulePreview();
             }
         }
@@ -388,7 +441,11 @@ namespace Plugin.BlobDetect
         }
 
         private double _maxSingleArea = DefaultMaxSingleArea;
-        /// <summary>单个缺陷面积上限（超过即 NG）</summary>
+        /// <summary>
+        /// 单个缺陷面积上限（超过即 NG）。填 0 = 不做这项判定（与总面积上限同一口径）。
+        /// 历史版本里 0 的语义是"任何缺陷都 NG"，与本插件其余规格参数"0 = 不启用"相反而易踩坑，已对齐；
+        /// 依赖旧行为的方案请把「缺陷个数上限」设为 0（零容忍）来表达同样的判定。
+        /// </summary>
         [StepConfig]
         public double MaxSingleArea
         {
@@ -476,9 +533,17 @@ namespace Plugin.BlobDetect
         /// <summary>
         /// 是否显示"检测目标"。
         /// 固定阈值下灰度区间本身已经把极性表达清楚（区间取哪一段就是找什么），
-        /// 再摆一个不生效的开关只会让人困惑，所以这一项固定阈值时隐藏。
+        /// 再摆一个不生效的开关只会让人困惑，所以这一项固定阈值时隐藏；
+        /// 勾了"亮暗同检"后两种极性都要、这一项同样失效，一并隐藏。
         /// </summary>
-        public bool ShowDetectTarget => ThresholdMode != ThresholdMode.Fixed;
+        public bool ShowDetectTarget => ThresholdMode != ThresholdMode.Fixed && !DetectBrightAndDark;
+
+        /// <summary>
+        /// 是否显示「亮暗同检」开关。
+        /// 与 ShowDetectTarget 同一逻辑：固定阈值下灰度区间自己表达"要什么"，
+        /// 摆一个不生效的开关只会让人困惑，所以只在自动/动态阈值下出现。
+        /// </summary>
+        public bool ShowDualPolarity => !IsFixedThreshold;
 
         /// <summary>
         /// 「按当前图像重新适配」命令。
@@ -591,7 +656,6 @@ namespace Plugin.BlobDetect
         /// 两种情况都把它并进那一次信息栏输出，用户才看得到"软件到底做了什么"。
         /// </summary>
         private string? _adaptNote;
-
         /// <summary>自适应写参数期间置 true：屏蔽这些赋值触发的预览排队（避免多算一遍全图）</summary>
         private bool _suppressPreviewSchedule;
 
@@ -612,6 +676,49 @@ namespace Plugin.BlobDetect
 
         #endregion
 
+        #region 缺陷清单（配置态展示：逐缺陷数值与标注图编号对照，调筛选参数不用再对着图数）
+
+        /// <summary>缺陷清单的最大行数：预览是给人调参的，噪声图上几百个缺陷全列出来只会把 UI 拖垮；
+        /// 超出部分截断，行数说明写在表头（端口输出不受影响，永远全量）</summary>
+        private const int MaxDefectRows = 200;
+
+        /// <summary>缺陷清单行集合（只读快照，顺序/语义与输出端口逐项一致；仅配置态刷新）</summary>
+        public System.Collections.ObjectModel.ObservableCollection<DefectRow> DefectRows { get; } = new();
+
+        private string _defectCountText = string.Empty;
+        /// <summary>表头右侧的行数说明（"共 N 个" / "共 N 个（仅列前 M 行）"）</summary>
+        public string DefectCountText
+        {
+            get => _defectCountText;
+            private set => SetProperty(ref _defectCountText, value);
+        }
+
+        /// <summary>用一次检测结果填充缺陷清单（任何失败/空结果都清成空表）</summary>
+        private void FillDefectRows(BlobResult result)
+        {
+            DefectRows.Clear();
+            int n = Math.Min(result.DefectCount, MaxDefectRows);
+            for (int i = 0; i < n; i++)
+            {
+                DefectRows.Add(new DefectRow
+                {
+                    Index = i + 1,   // 与标注图上写的编号一致（1 基）
+                    Area = result.Areas.Length > i ? result.Areas[i].D : 0,
+                    Circularity = result.Circularities.Length > i ? result.Circularities[i].D : 0,
+                    AspectRatio = result.AspectRatios.Length > i ? result.AspectRatios[i].D : 0,
+                    Width = result.Widths.Length > i ? result.Widths[i].D : 0,
+                    Height = result.Heights.Length > i ? result.Heights[i].D : 0,
+                    Row = result.CenterRows.Length > i ? result.CenterRows[i].D : 0,
+                    Col = result.CenterCols.Length > i ? result.CenterCols[i].D : 0,
+                });
+            }
+            DefectCountText = result.DefectCount > MaxDefectRows
+                ? $"共 {result.DefectCount} 个（仅列前 {MaxDefectRows} 行）"
+                : $"共 {result.DefectCount} 个";
+        }
+
+        #endregion
+
         /// <summary>
         /// 预览防抖定时器（惰性创建）。
         ///
@@ -621,6 +728,15 @@ namespace Plugin.BlobDetect
         /// 表现为"预览静默失效"，且不留日志、不报错、无法归因。故改为首次使用时显式绑定到 UI 线程 Dispatcher。
         /// </summary>
         private DispatcherTimer? _previewDebounce;
+
+        // ---- 预览后台化与检测结果缓存（大图调参的界面冻结根治 + 判定参数即时反馈）----
+        private int _previewRound;              // 预览轮次号：后台结果回来时对不上号 = 过期，只释放不回填
+        private bool _previewInFlight;          // 一轮预览正在后台跑（跑的时候新请求记入待刷新）
+        private bool _previewRefreshPending;    // 在跑时又来过刷新请求（跑完拿最新图与参数再来一遍）
+        private DetectPack? _detectPack;        // 阶段一检测结果缓存（检测组参数没变就复用，跳过全图算法）
+        private string? _detectPackKey;         // 阶段一缓存对应的检测组参数指纹
+        private HImage? _detectSource;          // 阶段一缓存对应的源图私有副本（重渲染底图）
+        private int _highlightIndex;            // 缺陷清单联动高亮的缺陷编号（0 = 无）
 
         /// <summary>
         /// 是否为"配置态实例"（宿主为打开配置界面而创建的那个）。运行实例一律 false。
@@ -654,6 +770,10 @@ namespace Plugin.BlobDetect
             _isConfigInstance = true;
             // 输入图像变了（换图/接上上游变量）也刷新预览，否则选了图还得再动一下参数才看得到
             SrcImage.ValueChanged += OnSrcImageValueChanged;
+            // 检测/排除区域同理：链接动作本身不改任何参数，不订阅的话接上区域后预览纹丝不动，
+            // 用户会以为区域没生效
+            MaskRegion.ValueChanged += OnSrcImageValueChanged;
+            ExcludeRegion.ValueChanged += OnSrcImageValueChanged;
         }
 
         private void OnSrcImageValueChanged(object? sender, EventArgs e) => SchedulePreview();
@@ -694,8 +814,38 @@ namespace Plugin.BlobDetect
         private static Dispatcher? UiDispatcher => System.Windows.Application.Current?.Dispatcher;
 
         /// <summary>
-        /// 重算预览：UI 线程同步执行，因此不存在"图被流程线程释放掉"的竞态。
-        /// 顺序：自动适配（仅默认值时）→ 直方图 → 检测 → 信息栏。
+        /// 把动作切回 UI 线程执行（预览后台化的回填通道）。
+        /// 配置实例由对话框持有，Application.Current.Dispatcher 就是 UI 线程；
+        /// 没有 Application（设计态/单元测试）或本来就在 UI 线程时直接执行，避免无谓调度与死锁。
+        /// </summary>
+        private static void PostToUI(Action action)
+        {
+            var dispatcher = UiDispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+                action();
+            else
+                dispatcher.Invoke(action);
+        }
+
+        /// <summary>配置实例是否已释放：关闭对话框后在途的后台预览回来时，靠它拒绝往已释放的绑定上写</summary>
+        private volatile bool _disposed;
+
+        /// <summary>
+        /// 重算预览（入口在 UI 线程）。
+        ///
+        /// 分工（这一版把全图算法挪出了 UI 线程，根治大图调参的界面冻结）：
+        ///   UI 线程只做三件便宜的事——取源图引用、CopyImage 出一份预览私有副本（毫秒级）、
+        ///   自动适配（只读写参数，读的是私有副本）；全图检测、直方图、标注渲染都在后台线程跑，
+        ///   完成后回 UI 线程回填绑定。
+        ///
+        /// 竞态防护
+        /// ---------
+        ///   · 轮次号：后台结果回来时对不上号 = 过期，只释放不回填（连点刷新不会旧图盖新图）；
+        ///   · 在跑标志：跑的时候又来刷新请求，记一笔"待刷新"，跑完拿**最新**的图与参数再来一遍
+        ///     （中间态直接跳过，最后一把总是最新）；
+        ///   · 已释放守卫：配置窗口关闭后回来的一切只释放。
+        ///
+        /// 无 Dispatcher 的环境（离线跑流程 / 单元测试）保持旧的同步行为。
         /// </summary>
         public void RefreshPreview()
         {
@@ -703,60 +853,126 @@ namespace Plugin.BlobDetect
             if (!_isConfigInstance) return;
 
             var src = SrcImage.ActualValue;
-
             if (src == null || !src.IsInitialized())
             {
+                _previewRound++;
+                DisposeDetectCache();
                 PreviewImage = null;
                 ClearHistogram();
+                DefectRows.Clear();
+                DefectCountText = "共 0 个";
                 SetStatusWithAdaptNote("输入图像为空：请为上方“输入图像”指定图片，或连接上游图像端口", StatusLevel.Warning);
                 return;
             }
 
-            // 自动适配：仅当参数仍等于出厂默认值时才执行。
-            // 这是工业软件的硬要求——用户调过的值一旦被静默改掉，会被当成软件故障；
-            // 所以判据就是"全部参数 == 出厂默认值"，只要有一项被改过就完全跳过、一个字节都不动。
-            if (AreAllParametersAtFactoryDefault() && TryAdaptCore(src, out string adaptNote))
+            // 在跑就别并发（并发会把缓存替换与渲染缠在一起）：记一笔待刷新，跑完拿最新状态再来
+            if (_previewInFlight)
+            {
+                _previewRefreshPending = true;
+                return;
+            }
+
+            var round = ++_previewRound;
+            HImage snapshot;
+            try
+            {
+                snapshot = src.CopyImage();   // UI 线程上的最后一笔像素访问：拷一份预览私有副本
+            }
+            catch (Exception ex)
+            {
+                SetStatusWithAdaptNote($"输入图像取副本失败：{ex.Message}", StatusLevel.Error);
+                return;
+            }
+
+            // 自动适配：仅当参数仍等于出厂默认值时才执行（工业软件硬要求，理由同前）。
+            // 读的是私有副本（无竞态）；写参数期间屏蔽 setter 触发的排队，改完统一走后台刷新。
+            if (AreAllParametersAtFactoryDefault() && TryAdaptCore(snapshot, out string adaptNote))
                 _adaptNote = adaptNote;
 
             // 切换"检测目标"后的补适配：仅在阈值仍停留在上次适配值时才做，绝不覆盖用户手调的阈值
             if (_pendingAdaptOnTargetChange)
             {
                 _pendingAdaptOnTargetChange = false;
-                if (IsThresholdAtLastAdaptedValue() && TryAdaptCore(src, out string reAdaptNote))
+                if (IsThresholdAtLastAdaptedValue() && TryAdaptCore(snapshot, out string reAdaptNote))
                     _adaptNote = reAdaptNote;
             }
 
-            // 直方图：跟随本次预览刷新计算（不另起一套），失败只降级、不影响下面的检测
-            ComputeHistogram(src);
-
-            BlobResult result;
-            try
+            if (UiDispatcher == null)
             {
-                result = ExecuteBlobCore(src, null);
-            }
-            catch (Exception ex)
-            {
-                // 预览不弹框、不抛：把原因写在信息栏，用户改参数重试即可。
-                // 旧图必须清掉——否则信息栏报红、右边却摆着上一张看着正常的标注图，用户会以为报错是假的
-                PreviewImage = null;
-                SetStatusWithAdaptNote($"预览失败：{ex.Message}", StatusLevel.Error);
+                // 离线环境（无消息泵）：保持旧的同步行为。
+                // 注意 snapshot 的所有权已按缓存命中与否移交（命中=已回收 / 未命中=归检测缓存），这里不再释放
+                PreviewRunCore(snapshot, round);
                 return;
             }
 
-            if (result.Failed)
+            _previewInFlight = true;
+            SetStatus("正在分析…", StatusLevel.Info);
+
+            Task.Run(() =>
             {
-                result.AnnotatedImage?.Dispose();
-                result.Defects?.Dispose();
-                PreviewImage = null;   // 同上：失败就别留旧图误导
-                SetStatusWithAdaptNote(result.FailMessage, StatusLevel.Error);
-                return;
+                try
+                {
+                    PreviewRunCore(snapshot, round);
+                }
+                catch (Exception ex)
+                {
+                    // snapshot 的所有权在 PreviewRunCore 内部已交接（命中=已回收 / 未命中=归缓存），
+                    // 异常路径同样不能在这里补刀 —— 缓存底图被提前释放会让下一轮预览直接崩
+                    PostToUI(() =>
+                    {
+                        if (round != _previewRound || _disposed) return;
+                        PreviewImage = null;
+                        DefectRows.Clear();
+                        DefectCountText = "共 0 个";
+                        SetStatusWithAdaptNote($"预览失败：{ex.Message}", StatusLevel.Error);
+                    });
+                }
+                finally
+                {
+                    _previewInFlight = false;
+                }
+
+                // 跑的时候来过刷新请求 → 按最新的图与参数再来一遍（自适应/快照重新在 UI 线程走）
+                PostToUI(() =>
+                {
+                    if (_previewRefreshPending && !_disposed)
+                    {
+                        _previewRefreshPending = false;
+                        RefreshPreview();
+                    }
+                });
+            });
+        }
+
+        /// <summary>
+        /// 预览执行核心（后台线程）：阶段一检测（缓存复用）→ 排序判定渲染 → 回 UI 回填。
+        /// snapshot 的所有权归本方法：命中缓存时立即回收，未命中时移交检测缓存当渲染底图。
+        /// </summary>
+        private void PreviewRunCore(HImage snapshot, int round)
+        {
+            var p = NormalizedParameters();
+
+            // ── 阶段一：检测（检测组参数与源图都没变时直接复用缓存，毫秒级跳过全图算法）──
+            var detKey = BuildDetectKey(snapshot);
+            if (_detectPack == null || _detectPackKey != detKey)
+            {
+                DisposeDetectCache();
+                _detectPack = DetectBlob(snapshot, p, null);
+                _detectPackKey = detKey;
+                _detectSource = snapshot;          // 所有权移交：缓存的渲染底图就是它
+                snapshot = _detectSource;
+            }
+            else
+            {
+                snapshot.Dispose();                // 命中缓存：本轮副本立即回收（缓存里另有底图）
+                snapshot = _detectSource!;
             }
 
-            // 预览只关心"看着对不对"，缺陷区域对象没处放，用完即弃
-            result.Defects?.Dispose();
-            result.Defects = null;
+            // ── 直方图（后台算，INPC 标量属性 WPF 会自动调度回 UI 线程）──
+            ComputeHistogram(snapshot);
 
-            PreviewImage = result.AnnotatedImage;   // setter 负责释放上一张预览图
+            // ── 阶段二：排序 + 逐项特征 + 判定 + 标注渲染 ──
+            var result = ArrangeJudgeRender(_detectPack, snapshot, p, null);
 
             var message = result.IsOk
                 ? $"OK：缺陷数 {result.DefectCount}，最大缺陷面积 {result.MaxArea:0.#} px（在规格内）"
@@ -764,7 +980,80 @@ namespace Plugin.BlobDetect
             if (HistogramErrorVisible)
                 message += $"（{HistogramError}）";
 
-            SetStatusWithAdaptNote(message, result.IsOk ? StatusLevel.Info : StatusLevel.Error);
+            // ── 回 UI 线程回填（过期/已释放的结果在这里只释放不回填）──
+            PostToUI(() =>
+            {
+                if (round != _previewRound || _disposed)
+                {
+                    result.AnnotatedImage?.Dispose();
+                    result.Defects?.Dispose();
+                    return;
+                }
+
+                result.Defects?.Dispose();
+                result.Defects = null;                 // 预览用不上区域对象
+
+                PreviewImage = result.AnnotatedImage;   // setter 负责释放上一张预览图
+                FillDefectRows(result);                 // 缺陷清单与标注图同源，逐项对得上编号
+
+                SetStatusWithAdaptNote(message, result.IsOk ? StatusLevel.Info : StatusLevel.Error);
+            });
+        }
+
+        /// <summary>阶段一缓存的检测组参数指纹：这些参数与源图/掩膜都没变时，检测结果直接复用。
+        /// 长宽比/触边/排序不进来 —— 它们由阶段二承担，变化时只重排不重检</summary>
+        private string BuildDetectKey(HImage source)
+        {
+            return string.Join("|",
+                ThresholdMode, DetectTarget, DetectBrightAndDark,
+                MinGray, MaxGray, VarMaskWidth, VarMaskHeight,
+                VarStdDevScale, VarAbsThreshold,
+                MinArea, MaxBlobArea, MinCircularity,
+                FillHoles, OpenRadius, CloseRadius, MergeRadius,
+                System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(source),
+                System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(MaskRegion.ActualValue),
+                System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(ExcludeRegion.ActualValue));
+        }
+
+        /// <summary>释放阶段一缓存（候选区域 + 源图副本）</summary>
+        private void DisposeDetectCache()
+        {
+            try { _detectPack?.Dispose(); } catch { /* 释放失败不阻断 */ }
+            _detectPack = null;
+            _detectPackKey = null;
+            try { _detectSource?.Dispose(); } catch { }
+            _detectSource = null;
+        }
+
+        /// <summary>
+        /// 缺陷清单行选中 → 在预览图上给那根缺陷套黄色高亮框（1 基编号；0 = 清除高亮）。
+        /// 复用阶段一缓存的检测产物重渲染（不重跑检测）；缓存不在或正在跑预览时静默跳过。
+        /// </summary>
+        public void HighlightDefect(int index)
+        {
+            if (!_isConfigInstance || _disposed || _previewInFlight) return;
+
+            var pack = _detectPack;
+            var source = _detectSource;
+            if (pack == null || source == null || pack.Areas.Length == 0 || index > pack.Areas.Length) return;
+
+            try
+            {
+                var p = NormalizedParameters();
+                var result = ArrangeJudgeRender(pack, source, p, null, highlightIndex: index);
+                if (result.AnnotatedImage == null) return;
+
+                var annotated = result.AnnotatedImage;
+                PostToUI(() =>
+                {
+                    if (_disposed || _highlightIndex != index) { annotated.Dispose(); return; }
+                    PreviewImage = annotated;   // setter 负责释放上一张预览图
+                });
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"高亮失败：{ex.Message}", StatusLevel.Warning);
+            }
         }
 
         /// <summary>信息栏写入口（带自适应说明）：把本次"适配过"的说明并进这一条，显示一次后清空</summary>
@@ -867,6 +1156,7 @@ namespace Plugin.BlobDetect
                 && VarMaskHeight == DefaultVarMaskHeight
                 && NearlyEqual(VarStdDevScale, DefaultVarStdDevScale)
                 && NearlyEqual(VarAbsThreshold, DefaultVarAbsThreshold)
+                && DetectBrightAndDark == DefaultDetectBrightAndDark
                 && NearlyEqual(MinArea, DefaultMinArea)
                 && NearlyEqual(MaxBlobArea, DefaultMaxBlobArea)
                 && NearlyEqual(MinCircularity, DefaultMinCircularity)
@@ -1002,6 +1292,12 @@ namespace Plugin.BlobDetect
 
         public override void Dispose()
         {
+            // 预览后台链全部作废：轮次号推进 + 在跑标志清掉 + 阶段一缓存释放
+            _previewRound++;
+            _previewRefreshPending = false;
+            DisposeDetectCache();
+            _highlightIndex = 0;
+
             if (_previewDebounce != null)
             {
                 _previewDebounce.Stop();
@@ -1010,6 +1306,8 @@ namespace Plugin.BlobDetect
             }
             PreviewImage = null;   // setter 释放预览图
             ClearHistogram();      // 直方图是纯托管数据，清引用即可
+            DefectRows.Clear();    // 缺陷清单是纯托管快照，清引用即可
+            DefectCountText = string.Empty;
             _adaptNote = null;
             _renderer.Dispose();   // 关闭离屏渲染窗口
             base.Dispose();        // 输出端口里的 HImage / HRegion 交给基类统一回收
@@ -1040,6 +1338,9 @@ namespace Plugin.BlobDetect
             DefectAreas.Value = new HTuple();
             DefectWidths.Value = new HTuple();
             DefectHeights.Value = new HTuple();
+            DefectCircularities.Value = new HTuple();
+            DefectAspectRatios.Value = new HTuple();
+            DefectPhis.Value = new HTuple();
 
             var src = SrcImage.ActualValue;
             if (src == null || !src.IsInitialized())
@@ -1048,23 +1349,18 @@ namespace Plugin.BlobDetect
                 return;
             }
 
+            var p = NormalizedParameters();
             BlobResult result;
             try
             {
-                result = ExecuteBlobCore(src, context.Logger);
+                using var pack = DetectBlob(src, p, context.Logger);
+                result = ArrangeJudgeRender(pack, src, p, context.Logger);
             }
             catch (Exception ex)
             {
                 // 带上"哪一步在干嘛"的上下文前缀，比基类兜底的"异常类型: 消息"更好排查
                 Fail($"Blob 缺陷检测失败：{ex.Message}");
-                context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
-                return;
-            }
-
-            if (result.Failed)
-            {
-                Fail(result.FailMessage);
-                context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                context.Logger.Error($"{InstanceName} {ErrorMessage.Value}");
                 return;
             }
 
@@ -1083,6 +1379,9 @@ namespace Plugin.BlobDetect
             DefectAreas.Value = result.Areas;
             DefectWidths.Value = result.Widths;
             DefectHeights.Value = result.Heights;
+            DefectCircularities.Value = result.Circularities;
+            DefectAspectRatios.Value = result.AspectRatios;
+            DefectPhis.Value = result.Phis;
 
             // 发布到主程序视图窗口（DisplayViewIndex 已是真实窗口号 1~9；0 = 不发布则跳过）。
             // NG 也要发——恰恰是判 NG 时操作员最需要立刻看到缺陷在哪。
@@ -1116,13 +1415,9 @@ namespace Plugin.BlobDetect
         /// <summary>灰度上限常量：兼容 byte(255) 与 16 位(65535) 图像</summary>
         private const double GrayUpperBound = 65535;
 
-        /// <summary>执行结果（算法核心的输出载体；AnnotatedImage / Defects 的所有权交给调用方）</summary>
+        /// <summary>执行结果（判定与渲染的输出载体；AnnotatedImage / Defects 的所有权交给调用方）</summary>
         private sealed class BlobResult
         {
-            /// <summary>是否为"输入不合法"这类前置失败（区别于异常）</summary>
-            public bool Failed;
-            public string FailMessage = string.Empty;
-
             public HImage? AnnotatedImage;
             public HRegion? Defects;
             public int DefectCount;
@@ -1136,6 +1431,9 @@ namespace Plugin.BlobDetect
             public HTuple Areas = new();
             public HTuple Widths = new();
             public HTuple Heights = new();
+            public HTuple Circularities = new();
+            public HTuple AspectRatios = new();
+            public HTuple Phis = new();
             public string NgReason = string.Empty;
         }
 
@@ -1143,6 +1441,7 @@ namespace Plugin.BlobDetect
         private sealed class BlobParams
         {
             public ThresholdMode Mode;
+            public bool DetectBrightAndDark;
             public string Polarity = "light";
             public double MinGray;
             public double MaxGray;
@@ -1165,6 +1464,13 @@ namespace Plugin.BlobDetect
             public double MaxTotalArea;
             public double PixelSizeMm;
             public DefectSortMode SortMode;
+
+            // 检测/排除区域：借用的端口值（所有权在端口，算法里绝不 Dispose）；
+            // null = 未连线或上游没给值，区域逻辑整段跳过
+            public HRegion? Mask;
+            public HRegion? Exclude;
+            public bool HasMask => Mask != null && Mask.IsInitialized();
+            public bool HasExclude => Exclude != null && Exclude.IsInitialized();
         }
 
         /// <summary>
@@ -1213,32 +1519,42 @@ namespace Plugin.BlobDetect
         }
 
         /// <summary>
-        /// 算法核心：参数进 → 结果出，不含端口 / 界面逻辑。
+        /// 检测阶段：阈值 → 排除 → 形态学 → 连通域 → 合并 → 填孔 → 特征筛选 → 候选特征一次算完。
+        /// 硬失败（通道不支持 / 图像非法）抛异常，由调用方按失败契约收口；
+        /// 正常路径返回候选包（候选区域与特征的所有权随包转移）。
+        /// 产物与判定 / 渲染解耦：检测组参数没变时，预览直接复用这份结果（见预览缓存）。
         /// </summary>
         /// <param name="src">输入图像（不拥有，绝不释放）</param>
-        /// <param name="logger">日志通道，可为 null（配置预览路径）</param>
-        private BlobResult ExecuteBlobCore(HImage src, ILogService? logger)
+        private DetectPack DetectBlob(HImage src, BlobParams p, ILogService? logger)
         {
-            var p = NormalizedParameters();
-            var result = new BlobResult();
+            var pack = new DetectPack();
 
             // 本方法自建的中间 HALCON 对象统一登记，finally 一次性释放。
-            // 只登记"临时对象"；要交出去的 AnnotatedImage / Defects 是另外 new 出来的独立句柄，不受影响
+            // 例外：Candidates 是要交出去的产物，返回前会从 temp 摘除（所有权随包转移）
             var temp = new List<HObject>();
             try
             {
                 // ── 1. 拿一张可安全处理的灰度图 ──
                 if (!TryToGrayImage(src, temp, out HObject gray, out string grayError))
-                {
-                    result.Failed = true;
-                    result.FailMessage = grayError;
-                    return result;
-                }
+                    throw new InvalidOperationException(grayError);
 
                 // 图像尺寸：既用于"面积上限取像素总数"，也用于触边判定
                 HOperatorSet.GetImageSize(gray, out HTuple sizeW, out HTuple sizeH);
                 int imgW = sizeW.Length > 0 ? sizeW[0].I : 0;
                 int imgH = sizeH.Length > 0 ? sizeH[0].I : 0;
+                pack.ImgW = imgW;
+                pack.ImgH = imgH;
+
+                // ── 1.5 检测区域推域：有掩膜时把后续算子的计算范围缩到 ROI 内，
+                // 小 ROI 大图可省掉绝大部分落在掩膜外的无效计算。语义与"先整图再交集"
+                // 只差 ROI 边缘 1~2 像素的形态学行为，而边缘本来就是缝/背景。
+                HObject workingGray = gray;
+                if (p.HasMask)
+                {
+                    HOperatorSet.ReduceDomain(gray, p.Mask!, out HObject reduced);
+                    temp.Add(reduced);
+                    workingGray = reduced;
+                }
 
                 // ── 2. 二值化（三种方式各自的极性参数在此统一由 DetectTarget 映射） ──
                 HObject region;
@@ -1246,24 +1562,61 @@ namespace Plugin.BlobDetect
                 {
                     case ThresholdMode.Fixed:
                         // 固定阈值：区间本身表达极性，MinGray/MaxGray 已在归一化时排好序
-                        HOperatorSet.Threshold(gray, out region, p.MinGray, p.MaxGray);
+                        HOperatorSet.Threshold(workingGray, out region, p.MinGray, p.MaxGray);
                         break;
 
                     case ThresholdMode.Auto:
-                        // 自动阈值：最大类间方差法，自动求分割点；极性决定取亮侧还是暗侧
-                        HOperatorSet.BinaryThreshold(gray, out region, "max_separability", p.Polarity, out _);
+                        if (p.DetectBrightAndDark)
+                        {
+                            // 亮暗同检：两种极性各分一次，候选区取并集（Otsu 的分割点对亮/暗各算各的，
+                            // 直接拿一个分割点反向取区间是错的，所以这里必须跑两次）
+                            HOperatorSet.BinaryThreshold(workingGray, out HObject lightPart, "max_separability", "light", out _);
+                            temp.Add(lightPart);
+                            HOperatorSet.BinaryThreshold(workingGray, out HObject darkPart, "max_separability", "dark", out _);
+                            temp.Add(darkPart);
+                            HOperatorSet.Union2(lightPart, darkPart, out region);
+                        }
+                        else
+                        {
+                            // 自动阈值：最大类间方差法，自动求分割点；极性决定取亮侧还是暗侧
+                            HOperatorSet.BinaryThreshold(workingGray, out region, "max_separability", p.Polarity, out _);
+                        }
                         break;
 
                     default: // Dynamic
-                        // 动态阈值：局部窗口统计背景，能吃掉光照不均
-                        HOperatorSet.VarThreshold(gray, out region, p.VarMaskWidth, p.VarMaskHeight,
-                            p.VarStdDevScale, p.VarAbsThreshold, p.Polarity);
+                        if (p.DetectBrightAndDark)
+                        {
+                            // 亮暗同检：同上，两种极性各跑一次动态阈值再取并集
+                            HOperatorSet.VarThreshold(workingGray, out HObject lightPart, p.VarMaskWidth, p.VarMaskHeight,
+                                p.VarStdDevScale, p.VarAbsThreshold, "light");
+                            temp.Add(lightPart);
+                            HOperatorSet.VarThreshold(workingGray, out HObject darkPart, p.VarMaskWidth, p.VarMaskHeight,
+                                p.VarStdDevScale, p.VarAbsThreshold, "dark");
+                            temp.Add(darkPart);
+                            HOperatorSet.Union2(lightPart, darkPart, out region);
+                        }
+                        else
+                        {
+                            // 动态阈值：局部窗口统计背景，能吃掉光照不均
+                            HOperatorSet.VarThreshold(workingGray, out region, p.VarMaskWidth, p.VarMaskHeight,
+                                p.VarStdDevScale, p.VarAbsThreshold, p.Polarity);
+                        }
                         break;
                 }
                 temp.Add(region);
 
+                // ── 2.5 排除区域（可选，未连线整段跳过）：从候选区挖掉固定误检源。
+                // 检测区域已由 1.5 的推域消化，这里不再重复交集。
+                HObject scoped = region;
+                if (p.HasExclude)
+                {
+                    HOperatorSet.Difference(scoped, p.Exclude!, out HObject excluded);
+                    temp.Add(excluded);
+                    scoped = excluded;
+                }
+
                 // ── 3. 形态学（填 0 表示不做该步） ──
-                HObject shaped = region;
+                HObject shaped = scoped;
                 if (p.OpenRadius > 0)
                 {
                     HOperatorSet.OpeningCircle(shaped, out HObject opened, p.OpenRadius);
@@ -1328,53 +1681,119 @@ namespace Plugin.BlobDetect
                     new HTuple(featureMins.ToArray()), new HTuple(featureMaxs.ToArray()));
                 temp.Add(shapeSelected);
 
-                // ── 8. 长宽比 / 触边筛选 + 排序（select_shape 表达不了或本版本特征名不支持，自实现） ──
-                HObject defectsObj;
-                if (p.MaxAspectRatio > 0 || p.ExcludeBorderPx > 0 || p.SortMode != DefectSortMode.None)
-                {
-                    var order = BuildKeepOrder(shapeSelected, p, imgW, imgH);
-                    defectsObj = RebuildRegion(shapeSelected, order);
-                    temp.Add(defectsObj);
-                }
-                else
-                {
-                    defectsObj = shapeSelected;
-                }
+                // ── 8. 候选区特征一次算完：筛选 / 排序 / 输出三处共用同一份，不再重复调算子 ──
+                HOperatorSet.AreaCenter(shapeSelected, out HTuple candArea, out HTuple candRow, out HTuple candCol);
+                HOperatorSet.SmallestRectangle1(shapeSelected,
+                    out HTuple candR1, out HTuple candC1, out HTuple candR2, out HTuple candC2);
 
-                // ── 9. 计数 ──
+                // ── 9. 长宽比 / 触边筛选 + 排序：决定"保留哪些、按什么顺序" ──
+                var keep = BuildKeepOrder(candArea, candRow, candCol, candR1, candC1, candR2, candC2, p, imgW, imgH);
+                bool identityOrder = keep.Count == candArea.Length
+                                     && keep.SequenceEqual(Enumerable.Range(0, keep.Count));
+                HObject defectsObj = identityOrder ? shapeSelected : RebuildRegion(shapeSelected, keep);
+                if (!identityOrder) temp.Add(defectsObj);
+
+                // 产物从登记表摘除：所有权随包转移（temp 收尾不再释放它）
+                pack.Candidates = defectsObj;
+                temp.Remove(defectsObj);
+
+                // ── 10. 逐项特征：按 keep 顺序从候选特征里挑（不再对缺陷集重复调算子）──
+                pack.Areas = PickTuple(candArea, keep);
+                pack.Rows = PickTuple(candRow, keep);
+                pack.Cols = PickTuple(candCol, keep);
+                pack.C1 = PickTuple(candC1, keep);
+                pack.C2 = PickTuple(candC2, keep);
+                pack.R1 = PickTuple(candR1, keep);
+                pack.R2 = PickTuple(candR2, keep);
+
+                return pack;
+            }
+            finally
+            {
+                foreach (var o in temp)
+                {
+                    try { o.Dispose(); } catch { /* 中间对象释放失败不阻断 */ }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 排序 + 逐项特征 + 判定 + 标注渲染：基于检测产物跑。
+        /// 检测参数没变时（预览缓存命中）本方法只有排序与渲染，毫秒级。
+        /// src 用作标注底图（预览缓存传"预览私有副本"，运行期传当轮源图）。
+        /// highlightIndex 大于 0 时（1 基，对应缺陷清单/端口顺序）在标注图上额外套黄色高亮框。
+        /// </summary>
+        private BlobResult ArrangeJudgeRender(DetectPack pack, HImage src, BlobParams p, ILogService? logger, int highlightIndex = 0)
+        {
+            var result = new BlobResult();
+            var temp = new List<HObject>();
+            try
+            {
+                // ── 1. 长宽比 / 触边筛选 + 排序 + 重建有序缺陷集 ──
+                // 全保留且顺序没变时直接用候选集（省一次重建）；
+                // 需要重排时 RebuildRegion 的中间对象登记进 temp，随 finally 释放
+                var keep = BuildKeepOrder(pack.Areas, pack.Rows, pack.Cols, pack.R1, pack.C1, pack.R2, pack.C2, p, pack.ImgW, pack.ImgH);
+                bool identityOrder = keep.Count == pack.Areas.Length
+                                     && keep.SequenceEqual(Enumerable.Range(0, keep.Count));
+                HObject defectsObj = identityOrder ? pack.Candidates : RebuildRegion(pack.Candidates, keep);
+                if (!identityOrder) temp.Add(defectsObj);
+
+                // ── 2. 计数与逐项特征（按输出顺序从候选特征里挑）──
                 HOperatorSet.CountObj(defectsObj, out HTuple number);
                 result.DefectCount = number.Length > 0 ? number[0].I : 0;
 
-                // ── 10. 逐项特征（面积 / 中心 / 外接矩形宽高） ──
-                // 坑：23.05 没有 area 算子，取面积统一用 area_center，行/列用 _ 丢弃
-                HOperatorSet.AreaCenter(defectsObj, out HTuple area, out HTuple rows, out HTuple cols);
-                HOperatorSet.SmallestRectangle1(defectsObj, out HTuple rect1, out HTuple col1, out HTuple rect2, out HTuple col2);
-                // 空元组不能直接 tuple_max / tuple_sum，先判个数
-                result.MaxArea = (result.DefectCount > 0 && area.Length > 0) ? area.TupleMax().D : 0;
-                result.TotalArea = (result.DefectCount > 0 && area.Length > 0) ? area.TupleSum().D : 0;
-                result.CenterRows = rows;
-                result.CenterCols = cols;
-                result.Areas = area;
-                result.Widths = BuildSizeTuple(col1, col2);
-                result.Heights = BuildSizeTuple(rect1, rect2);
+                result.Areas = PickTuple(pack.Areas, keep);
+                result.CenterRows = PickTuple(pack.Rows, keep);
+                result.CenterCols = PickTuple(pack.Cols, keep);
+                result.Widths = BuildSizeTuple(PickTuple(pack.C1, keep), PickTuple(pack.C2, keep));
+                result.Heights = BuildSizeTuple(PickTuple(pack.R1, keep), PickTuple(pack.R2, keep));
+
+                // ── 3. 逐缺陷形状特征（圆度/方向角对最终缺陷集取，长宽比由宽高自算）──
+                // phi 是等效椭圆主轴角（弧度 -π/2~π/2，逆时针为正），转成度输出；
+                // 圆形缺陷的 phi 无意义（任意值）。整段 try/catch：特征是"锦上添花"的输出，
+                // 算不出来只丢这三列，绝不能把一次成功的检测判成失败。
+                try
+                {
+                    if (result.DefectCount > 0)
+                    {
+                        HOperatorSet.RegionFeatures(defectsObj, "circularity", out HTuple circularities);
+                        HOperatorSet.RegionFeatures(defectsObj, "phi", out HTuple phisRad);
+                        result.Circularities = circularities;
+
+                        var phisDeg = new double[phisRad.Length];
+                        for (int i = 0; i < phisRad.Length; i++)
+                            phisDeg[i] = phisRad[i].D * 180.0 / Math.PI;
+                        result.Phis = new HTuple(phisDeg);
+                    }
+                    result.AspectRatios = BuildAspectTuple(result.Widths, result.Heights);
+                }
+                catch (Exception fex)
+                {
+                    logger?.Warn($"{InstanceName} 逐缺陷特征计算失败（圆度/长宽比/方向角输出为空）：{fex.Message}");
+                    result.Circularities = new HTuple();
+                    result.AspectRatios = new HTuple();
+                    result.Phis = new HTuple();
+                }
+
+                result.MaxArea = (result.DefectCount > 0 && result.Areas.Length > 0) ? result.Areas.TupleMax().D : 0;
+                result.TotalArea = (result.DefectCount > 0 && result.Areas.Length > 0) ? result.Areas.TupleSum().D : 0;
 
                 // 像素当量只影响 mm² 输出，不参与判定——避免"改了当量就改判定结果"这种隐式耦合
                 double mmPerPx2 = p.PixelSizeMm * p.PixelSizeMm;
                 result.MaxAreaMm2 = result.MaxArea * mmPerPx2;
                 result.TotalAreaMm2 = result.TotalArea * mmPerPx2;
 
-                // ── 11. 判定 ──
-                result.IsOk = !(result.DefectCount > p.MaxDefectCount
-                                || result.DefectCount < p.MinDefectCount
-                                || result.MaxArea > p.MaxSingleArea
-                                || (p.MaxTotalArea > 0 && result.TotalArea > p.MaxTotalArea));
-                result.NgReason = BuildNgReason(result.DefectCount, result.MaxArea, result.TotalArea, p);
+                // 回填给渲染文案用（标注图左上角那几行）
+                pack.MaxArea = result.MaxArea;
+                pack.TotalArea = result.TotalArea;
 
-                // ── 12. 缺陷区域移交（new 一份独立句柄交给端口；temp 里的原对象照常在 finally 释放） ──
+                // ── 4. 判定（纯函数；MaxSingleArea 与其余规格对齐为"0 = 不判定"）──
+                (result.IsOk, result.NgReason) = JudgeCore(result.DefectCount, result.MaxArea, result.TotalArea, p);
+
+                // ── 5. 缺陷区域移交（new 一份独立句柄交给端口；检测包里的候选集照常归包管）──
                 result.Defects = new HRegion(defectsObj);
 
-                // ── 13. 标注图 ──
-                // 渲染只是"给人看"，失败最多丢 DefectImage，绝不能把一次成功的检测判成失败
+                // ── 6. 标注图（渲染只是"给人看"，失败最多丢 DefectImage，绝不能把成功判成失败）──
                 try
                 {
                     // 只在相关参数生效时才补行，避免默认配置下文字刷满整张图
@@ -1388,11 +1807,24 @@ namespace Plugin.BlobDetect
                     if (Math.Abs(p.PixelSizeMm - 1.0) > 1e-9) lines.Add($"最大面积：{result.MaxAreaMm2:0.###} mm²");
 
                     HObject displayBase = BuildDisplayBase(src, temp);
+
+                    // 渲染防护：噪声图上几千个 blob 时逐个画圈+编号会把渲染拖垮。
+                    // 按**输出顺序**取前 N 个 —— 编号 1..N 与端口/缺陷清单仍然一一对应；
+                    // 输出端口不受影响，永远全量
+                    HObject renderTargets = defectsObj;
+                    if (result.DefectCount > MaxRenderMarkers)
+                    {
+                        renderTargets = RebuildRegion(defectsObj, Enumerable.Range(0, MaxRenderMarkers).ToList());
+                        temp.Add(renderTargets);
+                        lines.Add($"（仅绘制前 {MaxRenderMarkers} 个缺陷）");
+                    }
+
                     result.AnnotatedImage = _renderer.Render(
                         displayBase,
-                        defectsObj,
+                        renderTargets,
                         lines.ToArray(),
-                        result.IsOk ? "green" : "red");
+                        result.IsOk ? "green" : "red",
+                        highlightIndex > 0 ? BuildHighlightBox(pack, highlightIndex, temp) : null);
                 }
                 catch (Exception rex)
                 {
@@ -1409,6 +1841,64 @@ namespace Plugin.BlobDetect
                     try { o.Dispose(); } catch { /* 中间对象释放失败不阻断 */ }
                 }
             }
+        }
+
+        /// <summary>渲染标注的最大缺陷数：噪声图上几千个 blob 时逐个画圈+编号会把渲染拖垮。
+        /// 只限"画面"；输出端口与缺陷清单仍全量</summary>
+        private const int MaxRenderMarkers = 300;
+
+        /// <summary>判定核心（纯函数）：个数/面积与规格比对。MaxSingleArea 与其余规格对齐为"0 = 不判定"。</summary>
+        private static (bool IsOk, string NgReason) JudgeCore(int count, double maxArea, double totalArea, BlobParams p)
+        {
+            bool isOk = !(count > p.MaxDefectCount
+                          || count < p.MinDefectCount
+                          || (p.MaxSingleArea > 0 && maxArea > p.MaxSingleArea)
+                          || (p.MaxTotalArea > 0 && totalArea > p.MaxTotalArea));
+            return (isOk, BuildNgReason(count, maxArea, totalArea, p));
+        }
+
+        /// <summary>按保留顺序从候选特征里挑出输出特征（keep 为空 = 空元组）</summary>
+        private static HTuple PickTuple(HTuple all, List<int> keep)
+        {
+            if (keep.Count == 0) return new HTuple();
+
+            var values = new double[keep.Count];
+            for (int i = 0; i < keep.Count; i++) values[i] = all[keep[i]].D;
+            return new HTuple(values);
+        }
+
+        /// <summary>清单联动高亮：给第 index 个缺陷（1 基）生成外扩 5px 的包围盒（黄框）</summary>
+        private HObject? BuildHighlightBox(DetectPack pack, int index, List<HObject> temp)
+        {
+            if (index <= 0 || index > pack.Areas.Length) return null;
+
+            HOperatorSet.GenRectangle1(out HObject box,
+                Math.Max(0, pack.R1[index - 1].D - 5), Math.Max(0, pack.C1[index - 1].D - 5),
+                Math.Min(pack.ImgH - 1.0, pack.R2[index - 1].D + 5), Math.Min(pack.ImgW - 1.0, pack.C2[index - 1].D + 5));
+            temp.Add(box);
+            return box;
+        }
+
+        /// <summary>检测结果包：select_shape 之后的候选区域 + 候选特征。
+        /// 所有权随包（Dispose 释放候选区域）；配置预览会把它跨轮缓存复用</summary>
+        private sealed class DetectPack : IDisposable
+        {
+            public HObject Candidates = null!;
+            public int ImgW;
+            public int ImgH;
+            public HTuple Areas = new();
+            public HTuple Rows = new();
+            public HTuple Cols = new();
+            public HTuple R1 = new();
+            public HTuple C1 = new();
+            public HTuple R2 = new();
+            public HTuple C2 = new();
+
+            /// <summary>排序后的最大/总面积（由排序+判定阶段回填，供渲染文案使用）</summary>
+            public double MaxArea;
+            public double TotalArea;
+
+            public void Dispose() => Candidates?.Dispose();
         }
 
         /// <summary>
@@ -1500,8 +1990,15 @@ namespace Plugin.BlobDetect
             var p = new BlobParams
             {
                 Mode = ThresholdMode,
+                DetectBrightAndDark = DetectBrightAndDark,
                 Polarity = DetectTarget == DetectTarget.Bright ? "light" : "dark",
             };
+
+            // 区域端口只在归一化时取一次：本轮运行内固定不变（避免流程跑到一半上游换图造成半新半旧）
+            var mask = MaskRegion.ActualValue;
+            p.Mask = mask != null && mask.IsInitialized() ? mask : null;
+            var exclude = ExcludeRegion.ActualValue;
+            p.Exclude = exclude != null && exclude.IsInitialized() ? exclude : null;
 
             // 固定阈值：上下限填反了也不抛，按"区间"语义自动排好序
             double lo = ClampFinite(MinGray, 0, GrayUpperBound);
@@ -1552,7 +2049,7 @@ namespace Plugin.BlobDetect
                 return $"缺陷个数 {count} 超过上限 {p.MaxDefectCount}";
             if (count < p.MinDefectCount)
                 return $"缺陷个数 {count} 少于下限 {p.MinDefectCount}（目标特征未检到）";
-            if (maxArea > p.MaxSingleArea)
+            if (p.MaxSingleArea > 0 && maxArea > p.MaxSingleArea)
                 return $"最大缺陷面积 {maxArea:0.#} 超过上限 {p.MaxSingleArea:0.#}";
             if (p.MaxTotalArea > 0 && totalArea > p.MaxTotalArea)
                 return $"缺陷总面积 {totalArea:0.#} 超过上限 {p.MaxTotalArea:0.#}";
@@ -1570,6 +2067,21 @@ namespace Plugin.BlobDetect
             return new HTuple(values);
         }
 
+        /// <summary>由宽/高元组算长宽比（长边/短边；短边夹到 ≥1 防除零）</summary>
+        private static HTuple BuildAspectTuple(HTuple widths, HTuple heights)
+        {
+            int n = Math.Min(widths.Length, heights.Length);
+            if (n <= 0) return new HTuple();
+
+            var values = new double[n];
+            for (int i = 0; i < n; i++)
+            {
+                double w = widths[i].D, h = heights[i].D;
+                values[i] = Math.Max(w, h) / Math.Max(Math.Min(w, h), 1);
+            }
+            return new HTuple(values);
+        }
+
         /// <summary>
         /// 决定"保留哪些缺陷、按什么顺序输出"。
         ///
@@ -1578,13 +2090,16 @@ namespace Plugin.BlobDetect
         ///    （实测 #3101 Unknown feature），只能拿 smallest_rectangle1 自己算；
         ///  · 触边 —— select_shape 能筛 row/col，但"是否压到边界带宽"要用外接矩形判断；
         ///  · 排序 —— 区域数组本身没有顺序约定，必须由插件定死语义，否则下游按索引取是不可预期的。
+        ///
+        /// 特征由调用方一次算好传入（候选区的 area/中心/外接矩形），
+        /// 这里不再对同一批区域重复调算子。
         /// </summary>
         /// <returns>保留下来的缺陷在源区域数组中的索引（0 基），顺序即输出顺序</returns>
-        private static List<int> BuildKeepOrder(HObject regions, BlobParams p, int imgW, int imgH)
+        private static List<int> BuildKeepOrder(
+            HTuple areas, HTuple rows, HTuple cols,
+            HTuple r1, HTuple c1, HTuple r2, HTuple c2,
+            BlobParams p, int imgW, int imgH)
         {
-            HOperatorSet.AreaCenter(regions, out HTuple areas, out HTuple rows, out HTuple cols);
-            HOperatorSet.SmallestRectangle1(regions, out HTuple r1, out HTuple c1, out HTuple r2, out HTuple c2);
-
             int n = areas.Length;
             var areaArr = new double[n];
             var rowArr = new double[n];
@@ -1672,5 +2187,30 @@ namespace Plugin.BlobDetect
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// 配置界面「缺陷清单」的一行（只读快照）。
+    /// 字段语义与同名输出端口一致，顺序即输出端口顺序（Index 与标注图上写的编号一致，1 基）。
+    /// 属性全部 get; init; —— 行是刷新时的不可变快照，不存在"表格里的值被改了"这种事。
+    /// </summary>
+    public sealed class DefectRow
+    {
+        /// <summary>1 基编号（与标注图编号一致）</summary>
+        public int Index { get; init; }
+        /// <summary>面积（像素）</summary>
+        public double Area { get; init; }
+        /// <summary>圆度（0~1，1=正圆）</summary>
+        public double Circularity { get; init; }
+        /// <summary>长宽比（外接矩形 长边/短边）</summary>
+        public double AspectRatio { get; init; }
+        /// <summary>外接矩形宽（像素）</summary>
+        public double Width { get; init; }
+        /// <summary>外接矩形高（像素）</summary>
+        public double Height { get; init; }
+        /// <summary>中心行坐标（像素）</summary>
+        public double Row { get; init; }
+        /// <summary>中心列坐标（像素）</summary>
+        public double Col { get; init; }
     }
 }

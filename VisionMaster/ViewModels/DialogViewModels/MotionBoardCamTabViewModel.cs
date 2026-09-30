@@ -215,7 +215,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 foreach (var axis in card.Axes.Where(a => a.Enabled))
                 {
-                    var label = $"{card.Caption} · {axis.LogicalName}";
+                    // 标签拼接与解析必须同源（都在 MotionCamAxisRefs），否则改名时对不上
+                    var label = MotionCamAxisRefs.Label(card.Caption, axis.LogicalName);
                     if (seen.Add(label)) options.Add(label);
                 }
             }

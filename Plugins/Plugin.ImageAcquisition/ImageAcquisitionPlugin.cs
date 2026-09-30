@@ -440,10 +440,6 @@ namespace Plugin.ImageAcquisition
         /// </summary>
         private const string ImageExtensions = ".bmp,.jpg,.jpeg,.png,.tif,.tiff";
 
-        private List<string> _cachedFiles = new();
-        private string _cachedFolderPath = string.Empty;
-        private string _cachedExtensions = string.Empty;
-
         /// <summary>
         /// 预览载入轮次号：每次发起载图 +1，后台读完回来时对不上号说明已是"过期结果"，直接丢弃。
         /// 用户连点刷新、或翻页很快时会同时存在多个在途读图，没有它就会"后完成的旧图覆盖新图"。
@@ -544,10 +540,13 @@ namespace Plugin.ImageAcquisition
             public int TotalFiles;
 
             /// <summary>
-            /// 等图被"停止流程"打断（仅网络推送模式会置位）。
+            /// 等图被"停止流程"打断（相机 / 网络推送模式会置位）。
             /// 既不是成功也不是失败：流程去向由引擎的取消语义决定，插件不参与。
             /// </summary>
             public bool Cancelled;
+
+            /// <summary>取消时的人话说明（相机 / 网络两种模式的文案在这里区分）</summary>
+            public string CancelMessage;
         }
 
         /// <summary>
@@ -621,7 +620,7 @@ namespace Plugin.ImageAcquisition
             {
                 // 取消优先判定：令牌已取消时超时是"被取消顺带产生的"，报超时会把用户自己的操作说成故障
                 if (context.CancellationToken.IsCancellationRequested)
-                    return new CoreResult { Cancelled = true };
+                    return new CoreResult { Cancelled = true, CancelMessage = "已停止等待相机图像" };
 
                 return new CoreResult
                 {
@@ -642,7 +641,7 @@ namespace Plugin.ImageAcquisition
                 CurrentPath = string.IsNullOrEmpty(frame.SourceName) ? $"camera://{serial}" : frame.SourceName,
                 // 相机模式下"索引/总数"沿用输出口的既有含义，改为表达"第几帧 / 累计收到多少帧"：
                 // 加一对新输出口会让下游接线全要重连，而这两个数在位图溯源上表达力足够
-                CurrentIndex = unchecked((int)frame.FrameId),
+                CurrentIndex = frame.FrameId > int.MaxValue ? int.MaxValue : (int)frame.FrameId,
                 TotalFiles = device.ReceivedFrameCount > int.MaxValue ? int.MaxValue : (int)device.ReceivedFrameCount,
                 Error = $"已从相机取图: {frame.Width}x{frame.Height}x{frame.Channels}"
                       + $"（第 {frame.FrameId} 帧，来源 {frame.SourceName}）"
@@ -682,7 +681,7 @@ namespace Plugin.ImageAcquisition
                 if (!ImageHub.WaitPop(flowName, token, out item))
                 {
                     context.Logger?.Warn($"{InstanceName} 已停止等待网络图像（流程「{flowName}」）");
-                    return new CoreResult { Cancelled = true };
+                    return new CoreResult { Cancelled = true, CancelMessage = "已停止等待网络图像" };
                 }
             }
 
@@ -717,6 +716,14 @@ namespace Plugin.ImageAcquisition
         /// 各写一份的话，早晚出现"相机采的彩色图颜色是反的、网络推送的却是对的"——
         /// 而灰度图上完全看不出来，只表现为彩色判别类算子结果莫名不对。
         ///
+        /// 入参校验（这一版补上的两处）
+        /// ---------
+        ///   · 数据长度必须 ≥ 宽×高×通道数：不足时 HALCON 会越界读 HGlobal 缓冲，
+        ///     轻则图像错乱、重则进程崩掉 —— 必须在进非托管世界之前拦下；
+        ///   · 4 通道（BGRA，很多相机 SDK 的默认输出）不能直接交给 GenImageInterleaved：
+        ///     它按 3 字节/像素读 4 字节/像素的缓冲，不报错但图像整体错位花屏
+        ///    （灰度图上同样看不出来）。先抽成紧凑 BGR 再走同一条路。
+        ///
         /// 为什么走非托管中转
         /// ---------
         /// HALCON 的 gen_image1 / gen_image_interleaved 只认裸指针，没有 byte[] 重载。
@@ -727,8 +734,34 @@ namespace Plugin.ImageAcquisition
         /// </summary>
         private static HImage ToHImage(byte[] pixelData, int width, int height, int channels)
         {
+            if (width <= 0 || height <= 0)
+                throw new ArgumentException($"图像尺寸非法: {width}x{height}");
+            if (channels < 1)
+                throw new ArgumentException($"图像通道数非法: {channels}");
+
+            var expected = width * height * channels;
+            if (pixelData.Length < expected)
+                throw new ArgumentException(
+                    $"像素数据不足: {pixelData.Length} 字节，{width}x{height}x{channels} 应为 {expected} 字节"
+                    + "（图像的宽高与像素字节数不自洽）");
+
+            // 4 通道及以上（BGRA/RGBA）：抽掉 alpha 通道，压成紧凑的 BGR 三通道
+            if (channels > 3)
+            {
+                var pixelCount = width * height;
+                var compact = new byte[pixelCount * 3];
+                for (int p = 0; p < pixelCount; p++)
+                {
+                    compact[p * 3] = pixelData[p * channels];
+                    compact[p * 3 + 1] = pixelData[p * channels + 1];
+                    compact[p * 3 + 2] = pixelData[p * channels + 2];
+                }
+                pixelData = compact;
+                channels = 3;
+            }
+
             var image = new HImage();
-            var length = pixelData.Length;
+            var length = width * height * channels;   // 只把"恰好够用"的部分交给 HALCON
             var pointer = Marshal.AllocHGlobal(length);
 
             try
@@ -804,29 +837,20 @@ namespace Plugin.ImageAcquisition
             if (!Directory.Exists(folderPath))
                 return new CoreResult { Error = $"文件夹不存在: {folderPath}" };
 
-            var extSet = new HashSet<string>(
-                (extensions ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(e => e.Trim().ToLower()),
-                StringComparer.Ordinal
-            );
+            // 每轮重新枚举（与预览的 ListFolderImages 共用同一份过滤+排序）。
+            // 早期版本在这里做过目录缓存且永不失效："拍图落盘"式工作目录里新增的文件永远读不到、
+            // 被删的文件还占着索引，ReadImage 直接抛"文件不存在"变整步失败 —— 得不偿失，
+            // 本地目录的一次 GetFiles 也就几毫秒。
+            var files = ListFolderImages(folderPath, extensions);
 
-            if (_cachedFolderPath != folderPath || _cachedExtensions != extensions)
-            {
-                _cachedFiles = Directory.GetFiles(folderPath)
-                    .Where(f => extSet.Contains(Path.GetExtension(f).ToLower()))
-                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                _cachedFolderPath = folderPath;
-                _cachedExtensions = extensions;
-            }
-
-            if (_cachedFiles.Count == 0)
+            if (files.Count == 0)
                 return new CoreResult { Error = $"文件夹内未找到符合条件的图像文件: {folderPath}", TotalFiles = 0 };
 
+            int requested = fileIndex;
             if (fileIndex < 0) fileIndex = 0;
-            if (fileIndex >= _cachedFiles.Count) fileIndex = _cachedFiles.Count - 1;
+            if (fileIndex >= files.Count) fileIndex = files.Count - 1;
 
-            var path = _cachedFiles[fileIndex];
+            var path = files[fileIndex];
             HImage image = new HImage();
             try
             {
@@ -838,8 +862,11 @@ namespace Plugin.ImageAcquisition
                     Image = image,
                     CurrentPath = path,
                     CurrentIndex = fileIndex,
-                    TotalFiles = _cachedFiles.Count,
-                    Error = $"已加载图像 [{fileIndex + 1}/{_cachedFiles.Count}]: {path}"
+                    TotalFiles = files.Count,
+                    Error = $"已加载图像 [{fileIndex + 1}/{files.Count}]: {path}"
+                          // 越界夹取必须留痕：批处理场景里上游算错的索引不该被静默吞掉，
+                          // 否则表现为"同一张产品被反复检测"，现场极难归因
+                          + (requested == fileIndex ? "" : $"（索引 {requested} 超出 0~{files.Count - 1}，已夹取）")
                 };
             }
             catch
@@ -880,7 +907,9 @@ namespace Plugin.ImageAcquisition
                     // 引擎的序列执行器检测到取消令牌后自会结束当轮。
                     // 结果按"未成功"收尾（Success 保持 RunAlgorithm 开头的 false）：
                     // 本步确实没产出图像，标成成功会在运行记录里误导排查。
-                    ErrorMessage.Value = "已停止等待网络图像";
+                    ErrorMessage.Value = string.IsNullOrEmpty(result.CancelMessage)
+                        ? "已停止等待图像"
+                        : result.CancelMessage;
                     return;
                 }
 
@@ -1442,13 +1471,6 @@ namespace Plugin.ImageAcquisition
 
         #region 生命周期
 
-        public override void Initialize()
-        {
-            _cachedFiles.Clear();
-            _cachedFolderPath = string.Empty;
-            _cachedExtensions = string.Empty;
-        }
-
         public override void Dispose()
         {
             // 先立标记再释放：在途的读图任务回来时会被守卫拦下（只释放不赋值），
@@ -1456,14 +1478,12 @@ namespace Plugin.ImageAcquisition
             _disposed = true;
             _previewLoadId++;
 
-            if (OutputImage.Value is HImage bmp)
-            {
-                bmp.Dispose();
-                OutputImage.Value = null;
-            }
-
-            // 配置实例关闭时释放预览图：置 null 由 setter 统一释放旧实例，避免重复 Dispose
+            // 配置实例关闭时释放预览图：置 null 由 setter 统一释放旧实例，避免重复 Dispose。
+            // 输出口（OutputImage 等）的非托管值交给基类统一回收 —— 这里不再手动挑着释放，
+            // 否则以后新增的图像类输出口会漏掉这一份
             PreviewImage = null;
+
+            base.Dispose();
         }
 
         #endregion
