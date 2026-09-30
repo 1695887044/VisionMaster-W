@@ -359,6 +359,28 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <!--  删光卡之后左栏就是空的：给一句"从哪加回来"，
+                          否则用户看到的是一片空白 + 一个不知道在哪的添加按钮  -->
+                    <TextBlock
+                        Grid.Row="1"
+                        Margin="0,18,0,0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top"
+                        FontSize="12"
+                        Foreground="{StaticResource MbTextMutedBrush}"
+                        Text="还没有运动卡，点右上角「添加」">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Cards.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
             </Border>
 

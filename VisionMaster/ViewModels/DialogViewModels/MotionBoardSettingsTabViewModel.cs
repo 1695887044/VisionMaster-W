@@ -217,6 +217,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             ClearAlarmCommand = new DelegateCommand(ClearAlarm);
             DeleteCardCommand = new DelegateCommand(DeleteCard);
             AddAxisCommand = new DelegateCommand(AddAxis);
+            EditIdentityCommand = new DelegateCommand(() => _ = EditIdentityAsync());
         }
 
         private MotionDescriptor? _selectedDescriptor;
@@ -449,7 +450,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     var result = _axes.Remove(name);
 
                     ReloadAxisRows();
-                    _shell.NotifyOk(result.Success
+
+                    // 轴的行数变了：点位列表 / 手动调试 / 凸轮候选都必须整表重建，
+                    // 只刷本页签的轴表，那边就还留着已经删掉的那根轴。
+                    _shell.NotifyAxisSetChanged(result.Success
                         ? $"轴「{name}」已删除（点位与凸轮引用已清理）"
                         : $"轴「{name}」已从映射表移除，但清理时提示：{result.Message}");
                 });
@@ -476,7 +480,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             ReloadAxisRows();
-            _shell.NotifyOk(result.Message);
+
+            // 同上：新增轴后点位列表等页签必须整表重建，否则新轴在那些页签里不存在
+            _shell.NotifyAxisSetChanged(result.Message);
         }
 
         #endregion
@@ -488,6 +494,90 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public DelegateCommand ClearAlarmCommand { get; }
         public DelegateCommand DeleteCardCommand { get; }
         public DelegateCommand AddAxisCommand { get; }
+        /// <summary>卡属性弹窗（名称 / 地址 / 机型 / 备注 / 自动连接）</summary>
+        public DelegateCommand EditIdentityCommand { get; }
+
+        /// <summary>
+        /// 用 EasyDialog 的属性表格改卡身份。
+        ///
+        /// 三步一条都不能少：
+        ///   ① **编辑副本**：PropertyGrid 就地编辑且取消不回滚，真身不能直接交出去；
+        ///   ② **确认后校验**：名称非空、地址非空且全表唯一（地址是流程寻址键，
+        ///      重复会造成"命令发给 A 卡、动的是 B 卡"）；
+        ///   ③ **改卡名要级联**：凸轮表的轴引用是「卡名 · 轴名」标签，
+        ///      卡名一改，这张卡所有轴的标签全部失效，必须一起改过去。
+        /// </summary>
+        private async Task EditIdentityAsync()
+        {
+            var descriptor = _selectedDescriptor;
+            if (descriptor == null) return;
+
+            var draft = new MotionCardIdentityEdit
+            {
+                DisplayName = descriptor.DisplayName,
+                Address = descriptor.Address,
+                CardModel = descriptor.CardModel,
+                Remarks = descriptor.Remarks,
+                AutoConnect = descriptor.AutoConnect,
+            };
+
+            var confirmed = await UI.CustomControl.EasyDialog.ShowPropertyGridAsync(
+                $"运动卡属性 · {descriptor.Caption}", draft);
+
+            if (!confirmed) return;     // 取消：草稿丢弃，真身没被碰过
+
+            var name = (draft.DisplayName ?? string.Empty).Trim();
+            var address = (draft.Address ?? string.Empty).Trim();
+
+            if (name.Length == 0)
+            {
+                _shell.NotifyError("卡名称不能为空");
+                return;
+            }
+            if (address.Length == 0)
+            {
+                _shell.NotifyError("连接地址不能为空（正运动为卡 IP，如 192.168.0.11）");
+                return;
+            }
+            if (!_provider.IsAddressAvailable(address, descriptor.Id))
+            {
+                _shell.NotifyError($"地址「{address}」已被另一张卡占用，请换一个（流程按地址寻址，必须唯一）");
+                return;
+            }
+
+            var oldCaption = descriptor.Caption;
+            var addressChanged = !string.Equals(descriptor.Address, address, StringComparison.Ordinal);
+
+            descriptor.DisplayName = name;
+            descriptor.Address = address;
+            descriptor.CardModel = (draft.CardModel ?? string.Empty).Trim();
+            descriptor.Remarks = (draft.Remarks ?? string.Empty).Trim();
+            descriptor.AutoConnect = draft.AutoConnect;
+
+            // 卡名改了 → 该卡所有轴的凸轮标签必须跟着改（「旧卡名 · 轴名」→「新卡名 · 轴名」）
+            _axes.Reload();
+            var solution = _workspace.CurrentSolution;
+            if (solution != null && !string.Equals(oldCaption, descriptor.Caption, StringComparison.Ordinal))
+            {
+                foreach (var binding in _axes.Snapshot().Where(b => b.CardId == descriptor.Id))
+                {
+                    MotionCamAxisRefs.RenameAxisLabels(
+                        solution.CamTables,
+                        MotionCamAxisRefs.Label(oldCaption, binding.Name),
+                        MotionCamAxisRefs.Label(descriptor.Caption, binding.Name));
+                }
+            }
+
+            _provider.MarkConfigDirty();
+            _provider.EnsureSynced();   // 地址变了 → 运行态设备按新地址重建
+
+            RefreshRuntime();
+            _shell.Reload();            // 左栏行的卡名/地址跟着变
+
+            _shell.NotifyOk(addressChanged
+                ? $"运动卡属性已更新；地址已改为「{address}」，需要重新连接"
+                : "运动卡属性已更新");
+        }
 
         private void ApplyParams()
         {

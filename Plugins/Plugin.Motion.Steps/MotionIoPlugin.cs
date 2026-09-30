@@ -23,13 +23,19 @@ namespace Plugin.Motion.Steps
     {
 
 
-        /// <summary>（端口）运动卡地址：可被上游链接；不链接用手填值；都为空则回落到上面的常量</summary>
-        public InputPort<string> Card { get; } = new InputPort<string>("Card", string.Empty, "运动卡地址（可链接；不链接则用卡地址常量）")
+        /// <summary>
+        /// （端口）运动卡：**按卡名**选择（不是地址）。
+        ///
+        /// IO 读写的是卡上的端子，不属于任何一根轴，没有轴名可借，所以这里必须给卡。
+        /// 给的是**卡名**而不是 IP：地址是物理接线（换网段/换卡就失效），
+        /// 卡名是用户在「运动卡设置」里给的身份，与接线无关。
+        /// </summary>
+        public InputPort<string> Card { get; } = new InputPort<string>("Card", string.Empty, "运动卡（IO 是卡级操作，必须指定）")
         {
             IsRequired = false,
             IsFunctionalEnum = true,
-            OptionKind = StepConfigOptionKind.MotionCardAddress,
-            PresetOptions = StepConfigOptionSource.GetOptions(StepConfigOptionKind.MotionCardAddress).ToList(),
+            OptionKind = StepConfigOptionKind.MotionCardName,
+            PresetOptions = StepConfigOptionSource.GetOptions(StepConfigOptionKind.MotionCardName).ToList(),
         };
 
         /// <summary>操作方向：写输出 / 读输入</summary>
@@ -62,13 +68,13 @@ namespace Plugin.Motion.Steps
 
         public override void RunAlgorithm(IExecutionContext context)
         {
-            var cardKey = Card.ActualValue ?? string.Empty;
+            var cardName = Card.ActualValue ?? string.Empty;
 
             Accepted.Value = false;
             InputValue.Value = false;
 
-            // IO 是卡级操作（读写的是卡上的端子，不属于任何一根轴），必须指定卡
-            if (!MotionAxisResolution.TryResolveDevice(cardKey, out var device, out var resolveError))
+            // IO 是卡级操作（读写的是卡上的端子，不属于任何一根轴），必须指定卡（按卡名）
+            if (!MotionAxisResolution.TryResolveDevice(cardName, out var device, out var resolveError))
             {
                 Fail(resolveError);
                 return;

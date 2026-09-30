@@ -27,6 +27,9 @@ namespace Core.Interfaces
         /// </summary>
         public bool IsRequired { get; set; } = true;
 
+        /// <inheritdoc cref="IInputPort.IsHidden" />
+        public bool IsHidden { get; set; }
+
         /// <summary>
         /// 是否为功能性枚举端口
         /// 标记为 true 时，该端口会在变量绑定界面显示预设选项，不需要链接上游变量

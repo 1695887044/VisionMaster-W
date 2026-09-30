@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Core.Interfaces
@@ -11,13 +12,12 @@ namespace Core.Interfaces
     /// 只能走静态 —— 这与既有的 <see cref="StepConfigOptionSource"/>（下拉候选）
     /// 是同一个手法，插件侧不必知道宿主是怎么装配的。
     ///
-    /// 【兼容规则（关键，不能改）】
-    ///   · <paramref name="cardKey"/> **非空** → 走老路径（按地址取卡 → 卡内找轴名），
-    ///     行为与改造前逐字一致。已保存的流程里存着卡地址，
-    ///     而且历史方案可能存在跨卡重名 —— 那时"按名字全局解析"会命中错误的那根轴。
-    ///     老流程必须按老规则跑，一个字节都不能变。
-    ///   · <paramref name="cardKey"/> **为空** → 走全局路径（注册表按轴名解析 → 按卡 Id 取设备）。
-    ///     新流程只填轴名即可，插件与流程里彻底不再出现"选哪张卡"这件事。
+    /// 【寻址口径（项目上线前已定死，不要再往回加地址）】
+    ///   · 轴级操作 → **只给轴名**。轴名全局唯一，注册表按它一次解出"哪张卡 + 哪个轴号"，
+    ///     插件与流程里彻底不存在"选哪张卡""填什么 IP"这件事。
+    ///   · 卡级操作（IO 读写端子、停某张卡的全部轴）→ **给卡名**。卡名同样是用户给的身份，
+    ///     与 IP/槽位这些物理接线无关。
+    ///   地址（IP/槽位）只活在「运动卡设置」里，是驱动连接用的，不进流程。
     /// </summary>
     public static class MotionAxisResolution
     {
@@ -31,20 +31,23 @@ namespace Core.Interfaces
             _motions = motions ?? throw new ArgumentNullException(nameof(motions));
         }
 
-        /// <summary>是否已注入（未注入时全局路径不可用，但老路径仍可跑）</summary>
+        /// <summary>是否已注入</summary>
         public static bool IsAttached => _registry != null && _motions != null;
 
         /// <summary>
-        /// 卡级操作的取设备入口（IO / 急停这类没有"轴"概念的命令）。
-        /// IO 天然是卡级的，所以这里**必须**给卡 —— 没有轴名可借，也不该去猜。
+        /// 卡级操作的取设备入口（IO / 急停这类没有"轴"概念的命令）：**按卡名**取。
+        ///
+        /// 用卡名而不是地址：地址是物理接线，换网段/换卡就失效；
+        /// 卡名是用户在「运动卡设置」里给出的身份，与接线无关。
         /// </summary>
-        public static bool TryResolveDevice(string? cardKey, out IMotionDevice device, out string error)
+        public static bool TryResolveDevice(string? cardName, out IMotionDevice device, out string error)
         {
             device = null!;
 
-            if (string.IsNullOrWhiteSpace(cardKey))
+            var name = (cardName ?? string.Empty).Trim();
+            if (name.Length == 0)
             {
-                error = "这是卡级操作（IO / 急停），请指定运动卡地址";
+                error = "这是卡级操作（IO / 急停），请在「运动卡」端口选择一张运动卡";
                 return false;
             }
 
@@ -54,9 +57,9 @@ namespace Core.Interfaces
                 return false;
             }
 
-            if (!_motions.TryGetByKey(cardKey.Trim(), out device!))
+            if (!_motions.TryGetByName(name, out device!))
             {
-                error = $"找不到运动卡「{cardKey}」：请确认该卡已在「运动卡设置」里配置并连接";
+                error = $"找不到名为「{name}」的运动卡：请到「运动卡设置」确认卡名，或换一张卡";
                 return false;
             }
 
@@ -67,10 +70,9 @@ namespace Core.Interfaces
         /// <summary>
         /// 轴级操作的取轴入口：返回"设备 + 轴配置"，调用方不需要知道卡地址与物理轴号。
         /// </summary>
-        /// <param name="cardKey">运动卡地址。**留空**即走全局按名解析（推荐）；填了则按老规则走（兼容旧流程）</param>
         /// <param name="axisName">轴名（全局唯一，对外唯一标识）</param>
         public static bool TryResolveAxis(
-            string? cardKey, string? axisName,
+            string? axisName,
             out IMotionDevice device, out AxisMapping mapping, out string error)
         {
             device = null!;
@@ -83,18 +85,6 @@ namespace Core.Interfaces
                 return false;
             }
 
-            return string.IsNullOrWhiteSpace(cardKey)
-                ? ResolveByGlobalName(name, out device, out mapping, out error)
-                : ResolveByLegacyCard(cardKey.Trim(), name, out device, out mapping, out error);
-        }
-
-        /// <summary>全局路径：轴名 →（卡 Id + 轴号）→ 设备</summary>
-        private static bool ResolveByGlobalName(
-            string name, out IMotionDevice device, out AxisMapping mapping, out string error)
-        {
-            device = null!;
-            mapping = null!;
-
             if (_motions == null)
             {
                 error = "运动卡服务尚未就绪：请在主程序内运行流程";
@@ -103,10 +93,7 @@ namespace Core.Interfaces
 
             if (_registry == null)
             {
-                // 注册表没注入时**不**退回老路径：老路径需要卡地址，而这里没有 ——
-                // 退回只会变成一句"找不到运动卡「」"，比直说原因更难查。
-                error = "轴注册表尚未注入（宿主未完成初始化）：请重启主程序；"
-                        + "若必须兼容旧流程，请在「Card」端口填上卡地址";
+                error = "轴注册表尚未注入（宿主未完成初始化）：请重启主程序";
                 return false;
             }
 
@@ -118,7 +105,6 @@ namespace Core.Interfaces
             }
 
             var binding = resolved.Binding;
-
             if (!binding.Enabled)
             {
                 error = $"轴「{name}」在卡「{binding.CardCaption}」上处于停用状态："
@@ -139,44 +125,40 @@ namespace Core.Interfaces
         }
 
         /// <summary>
-        /// 老路径：卡地址 → 卡内按名找轴。
-        /// 行为与改造前逐字一致（包括错误文案），只为兼容已保存的流程。
+        /// 取**全部**运行态运动卡（供"停所有卡的全部轴"这类全局命令）。
+        ///
+        /// 设备集合从注册表里出现过的卡 Id 推出，而不是遍历方案配置：
+        /// 注册表里的卡 Id 是"确实解析出轴、能被流程引用"的那些，
+        /// 与运行态设备表一一对应，不会出现"配置里有、设备没建起来"的空引用。
         /// </summary>
-        private static bool ResolveByLegacyCard(
-            string cardKey, string name,
-            out IMotionDevice device, out AxisMapping mapping, out string error)
+        public static bool TryGetAllDevices(out IReadOnlyList<IMotionDevice> devices, out string error)
         {
-            device = null!;
-            mapping = null!;
+            devices = Array.Empty<IMotionDevice>();
 
-            if (_motions == null)
+            if (_motions == null || _registry == null)
             {
                 error = "运动卡服务尚未就绪：请在主程序内运行流程";
                 return false;
             }
 
-            if (!_motions.TryGetByKey(cardKey, out device!))
+            var result = new List<IMotionDevice>();
+            var seen = new HashSet<Guid>();
+
+            foreach (var binding in _registry.Snapshot())
             {
-                error = $"找不到运动卡「{cardKey}」：请确认该卡已在「运动卡设置」里配置并连接";
+                if (!seen.Add(binding.CardId)) continue;
+
+                if (_motions.TryGetDevice(binding.CardId, out var device) && device != null)
+                    result.Add(device);
+            }
+
+            if (result.Count == 0)
+            {
+                error = "当前没有任何可用的运动卡：请到「运动卡设置」配置并连接至少一张卡";
                 return false;
             }
 
-            var hit = device.Descriptor.Axes.FirstOrDefault(a =>
-                a.Enabled && string.Equals(a.LogicalName, name, StringComparison.OrdinalIgnoreCase));
-
-            if (hit == null)
-            {
-                // 顺手把"这卡上有哪些轴"列出来 —— 现场最常见的原因就是名字抄错，
-                // 只说"没有这个轴"会让人以为配置丢了。
-                var available = string.Join("、",
-                    device.Descriptor.Axes.Where(a => a.Enabled).Select(a => a.LogicalName));
-
-                error = $"运动卡「{device.Descriptor.Caption}」上没有启用名为「{name}」的轴"
-                        + (string.IsNullOrEmpty(available) ? "（该卡还没有配置任何轴）" : $"（现有：{available}）");
-                return false;
-            }
-
-            mapping = hit;
+            devices = result;
             error = string.Empty;
             return true;
         }

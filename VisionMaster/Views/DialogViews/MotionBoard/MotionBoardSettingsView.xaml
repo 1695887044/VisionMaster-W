@@ -181,7 +181,25 @@
                         </StackPanel>
 
                         <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
-                            <Button Command="{Binding ClearAlarmCommand}" Style="{StaticResource MbOutlineButton}">
+                            <!--  卡属性：名称 / 地址 / 机型 / 备注走 EasyDialog 属性表格弹窗
+                                  （就地编辑 + 确认后校验 + 改卡名级联凸轮标签，见 EditIdentityAsync）  -->
+                            <Button
+                                Command="{Binding EditIdentityCommand}"
+                                Style="{StaticResource MbOutlineButton}"
+                                ToolTip="修改卡名称 / 连接地址 / 机型 / 备注">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="12"
+                                        Text="&#xf013;" />
+                                    <TextBlock Margin="7,0,0,0" Text="属性" />
+                                </StackPanel>
+                            </Button>
+                            <Button
+                                Margin="8,0,0,0"
+                                Command="{Binding ClearAlarmCommand}"
+                                Style="{StaticResource MbOutlineButton}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
                                         VerticalAlignment="Center"

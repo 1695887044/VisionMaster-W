@@ -25,18 +25,9 @@ namespace Plugin.Motion.Steps
     {
 
 
-        /// <summary>（端口）运动卡地址：可被上游链接；不链接用手填值；都为空则回落到上面的常量</summary>
-        public InputPort<string> Card { get; } = new InputPort<string>("Card", string.Empty, "运动卡地址（可链接；不链接则用卡地址常量）")
-        {
-            IsRequired = false,
-            IsFunctionalEnum = true,
-            OptionKind = StepConfigOptionKind.MotionCardAddress,
-            PresetOptions = StepConfigOptionSource.GetOptions(StepConfigOptionKind.MotionCardAddress).ToList(),
-        };
 
-
-        /// <summary>（端口）逻辑轴名：可被上游链接；不链接用手填值；都为空则回落到上面的常量</summary>
-        public InputPort<string> Axis { get; } = new InputPort<string>("Axis", "X", "逻辑轴名（可链接；不链接则用轴名常量）")
+        /// <summary>（端口）逻辑轴名：可被上游链接。**留空 = 停所有卡的全部轴**</summary>
+        public InputPort<string> Axis { get; } = new InputPort<string>("Axis", string.Empty, "逻辑轴名（留空 = 停全部轴）")
         {
             IsRequired = false,
             IsFunctionalEnum = true,
@@ -60,74 +51,86 @@ namespace Plugin.Motion.Steps
 
         public override void RunAlgorithm(IExecutionContext context)
         {
-            var cardKey = Card.ActualValue ?? string.Empty;
-            var axisName = Axis.ActualValue ?? string.Empty;
+            var axisName = (Axis.ActualValue ?? string.Empty).Trim();
 
             Accepted.Value = false;
 
-            IMotionDevice device;
+            // 两种形态，判据就是"轴名留不留空"：
+            //   填了轴名 → 停这一根轴（按名解析出卡 + 轴号）；
+            //   轴名留空 → 停**所有卡的全部轴**（PhysicalAxis = -1），
+            //              这是产线急停/换型时真正要的那个动作，不需要指定卡。
+            var stopAll = axisName.Length == 0;
+
+            IReadOnlyList<IMotionDevice> targets;
             AxisMapping? mapping = null;
 
-            if (string.IsNullOrWhiteSpace(axisName))
+            if (stopAll)
             {
-                // 停全部轴是**卡级**操作，没有轴名可借，必须指定卡 —— 这里不去猜"第一张卡"
-                if (!MotionAxisResolution.TryResolveDevice(cardKey, out device, out var cardError))
+                if (!MotionAxisResolution.TryGetAllDevices(out targets, out var allError))
                 {
-                    Fail(cardError);
+                    Fail(allError);
                     return;
                 }
             }
             else
             {
-                AxisMapping resolved;
-                if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out device, out resolved, out var axisError))
+                if (!MotionAxisResolution.TryResolveAxis(axisName, out var device, out var resolved, out var axisError))
                 {
                     Fail(axisError + "（若要停全部轴，请把轴名留空）");
                     return;
                 }
 
                 mapping = resolved;
+                targets = new[] { device };
             }
 
             if (UseEmergencyStop)
             {
-                var emergencyResult = device.EmergencyStop();
-                if (emergencyResult != MotionCommandResult.Accepted)
+                foreach (var device in targets)
                 {
-                    Fail($"急停命令被拒绝（{emergencyResult}）：{device.StateDetail}");
-                    return;
+                    var emergencyResult = device.EmergencyStop();
+                    if (emergencyResult != MotionCommandResult.Accepted)
+                    {
+                        Fail($"对运动卡「{device.Descriptor.Caption}」的急停命令被拒绝（{emergencyResult}）：{device.StateDetail}");
+                        return;
+                    }
+
+                    context.Logger.Warn($"{InstanceName} 已对运动卡「{device.Descriptor.Caption}」下发急停（清空待执行命令 + 立即停全部轴）");
                 }
 
                 Accepted.Value = true;
                 Success.Value = true;
-                context.Logger.Warn($"{InstanceName} 已对运动卡「{device.Descriptor.Caption}」下发急停（清空待执行命令 + 立即停全部轴）");
                 return;
             }
 
             var physicalAxis = mapping?.PhysicalIndex ?? -1;   // -1 = 全部轴（契约约定）
 
-            using var command = new MotionCommand
+            foreach (var device in targets)
             {
-                Kind = MotionCommandKind.Stop,
-                PhysicalAxis = physicalAxis,
-                LogicalAxis = string.IsNullOrWhiteSpace(axisName) ? "全部轴" : axisName,
-                StopMode = (int)Mode,
-                // 停止不等到位：等它停稳是后续步骤的事（这里等会把"停止"变成阻塞操作）
-                WaitsForCompletion = false,
-                Retryable = false,
-                Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),
-            };
+                using var command = new MotionCommand
+                {
+                    Kind = MotionCommandKind.Stop,
+                    PhysicalAxis = physicalAxis,
+                    LogicalAxis = stopAll ? "全部轴" : axisName,
+                    StopMode = (int)Mode,
+                    // 停止不等到位：等它停稳是后续步骤的事（这里等会把"停止"变成阻塞操作）
+                    WaitsForCompletion = false,
+                    Retryable = false,
+                    Timeout = TimeSpan.FromMilliseconds(device.Descriptor.Params.CommandTimeoutMs),
+                };
 
-            var result = device.Enqueue(command);
-            if (result != MotionCommandResult.Accepted)
-            {
-                Fail($"停止命令被拒绝（{result}）：{device.LastFault?.Suggestion ?? device.StateDetail}");
-                return;
+                var result = device.Enqueue(command);
+                if (result != MotionCommandResult.Accepted)
+                {
+                    Fail($"停止命令被拒绝（{result}）：{device.LastFault?.Suggestion ?? device.StateDetail}");
+                    return;
+                }
+
+                context.Logger.Info($"{InstanceName} 已下发：{command.Describe()}");
             }
 
             Accepted.Value = true;
             Success.Value = true;
-            context.Logger.Info($"{InstanceName} 已下发：{command.Describe()}");
         }
 
         public override void Initialize() { }

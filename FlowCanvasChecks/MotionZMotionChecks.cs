@@ -91,25 +91,26 @@ namespace FlowCanvasChecks
 
             var files = Directory.GetFiles(dir, "Motion*Plugin.cs");
             var missingAxis = new List<string>();
-            var missingCard = new List<string>();
+
+            // ★ 卡地址已彻底废弃：流程里寻址只认轴名（轴级）与卡名（IO 等卡级操作）。
+            //   任何"按地址寻址"的痕迹回到代码里，都会把物理接线重新写进工艺 ——
+            //   换网段/换卡就要改流程，这正是当初要消灭的东西。这里做反向断言守住它。
+            var addressLeftovers = new List<string>();
 
             foreach (var file in files)
             {
                 string text = File.ReadAllText(file);
                 string name = Path.GetFileName(file);
 
-                // IO 插件没有轴概念（它只有卡地址），所以按"是否有该参数"判断，不是按文件
-                if (text.Contains("public string AxisName")
+                // IO 插件没有轴概念（它是卡级操作，按卡名选卡），所以按"是否有该参数"判断，不是按文件
+                if (text.Contains("InputPort<string> Axis")
                     && !text.Contains("StepConfigOptionKind.MotionAxisName"))
                 {
                     missingAxis.Add(name);
                 }
 
-                if (text.Contains("public string CardKey")
-                    && !text.Contains("StepConfigOptionKind.MotionCardAddress"))
-                {
-                    missingCard.Add(name);
-                }
+                if (text.Contains("MotionCardAddress") || text.Contains("CardKey"))
+                    addressLeftovers.Add(name);
             }
 
             Check($"★全部 {files.Length} 个运动插件的「轴」参数都标了动态候选",
@@ -118,9 +119,9 @@ namespace FlowCanvasChecks
                     ? ""
                     : "漏标：" + string.Join("、", missingAxis) + "（漏了不会报错，只会静默退回成手打文本框）");
 
-            Check($"★全部 {files.Length} 个运动插件的「卡地址」参数都标了动态候选",
-                missingCard.Count == 0,
-                missingCard.Count == 0 ? "" : "漏标：" + string.Join("、", missingCard));
+            Check("★运动插件里不再出现「卡地址」寻址（MotionCardAddress / CardKey 已删除）",
+                addressLeftovers.Count == 0,
+                addressLeftovers.Count == 0 ? "" : "仍有残留：" + string.Join("、", addressLeftovers));
 
             var panelPaths = new[]
             {
@@ -153,9 +154,10 @@ namespace FlowCanvasChecks
                 string text = File.ReadAllText(file);
                 string name = Path.GetFileName(file);
 
-                if (text.Contains("public string CardKey") && !text.Contains("InputPort<string> Card"))
+                // IO 插件是卡级操作：它必须有"运动卡"端口（按卡名），否则无法配置
+                if (text.Contains("MotionIoPlugin") && !text.Contains("InputPort<string> Card"))
                     missingPort.Add(name + "（Card）");
-                if (text.Contains("public string AxisName") && !text.Contains("InputPort<string> Axis"))
+                if (text.Contains("InputPort<string> Axis") == false && name != "MotionIoPlugin.cs")
                     missingPort.Add(name + "（Axis）");
 
                 // 有端口却从不读 ActualValue = 摆设：链接上去也不生效
@@ -348,22 +350,25 @@ namespace FlowCanvasChecks
             Check("参数面板里的提示条是浅主色圆角条（不是一段裸文字，否则像界面出故障）",
                 autoText.Contains("BuildHintBar") && autoText.Contains("DialogAccentLightBrush"), "");
 
-            // ★ "方案提供的常量值不能被绑定"：逻辑卡地址 / 轴名 的合法值由方案决定，
-            //   绑上游等于允许流程填一个方案里不存在的卡/轴 —— 那不是灵活，是把编译期能发现的问题
-            //   推到运行期（"找不到运动卡"）。判据用 IsFunctionalEnum（其原意即"不需要链接上游变量"）。
-            // ★ 实测「只能选」端口：运动卡的地址端口（IsFunctionalEnum=true）必须被识别为只能选，
-            //   且候选按 OptionKind 现取、显示带设备名 —— 这是"两张卡认不出谁是谁"的直接验证。
+            // ★ "方案提供的常量值不能被绑定"：轴名（以及卡名）的合法值由方案决定，
+            //   绑上游等于允许流程填一个方案里不存在的轴 —— 那不是灵活，是把编译期能发现的问题
+            //   推到运行期（"找不到轴"）。判据用 IsFunctionalEnum（其原意即"不需要链接上游变量"）。
+            // ★ 实测「只能选」端口：轴名端口（IsFunctionalEnum=true）必须被识别为只能选，
+            //   且候选按 OptionKind 现取 —— 这是"几根轴认不出谁是谁"的直接验证。
             //   这里注册一个模拟宿主的提供器（真宿主在 MotionModule 里注册的是方案实时查询）。
+            //
+            // 注意：这里用**轴名**做探针而不是卡地址 —— 运动卡地址已在上线前彻底废弃，
+            // 流程里寻址只认轴名（轴级）与卡名（IO 等卡级操作），地址只活在「运动卡设置」里。
             Core.Interfaces.StepConfigOptionSource.Register(kind =>
-                kind == Core.Interfaces.StepConfigOptionKind.MotionCardAddress
-                    ? new[] { new Core.Interfaces.StepConfigOption("192.168.0.11", "运动卡2（192.168.0.11）") }
+                kind == Core.Interfaces.StepConfigOptionKind.MotionAxisName
+                    ? new[] { new Core.Interfaces.StepConfigOption("X", "X") }
                     : Array.Empty<Core.Interfaces.StepConfigOption>());
 
             string optionProbe = "未执行";
             var optionThread = new System.Threading.Thread(() =>
             {
                 var plugin = new Plugin.Motion.Steps.MotionMovePlugin();
-                var editor = new Core.Controls.LinkableValueEditor { Port = plugin.Card };
+                var editor = new Core.Controls.LinkableValueEditor { Port = plugin.Axis };
                 editor.Measure(new System.Windows.Size(520, 40));
                 editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
                 editor.UpdateLayout();
@@ -376,9 +381,9 @@ namespace FlowCanvasChecks
             optionThread.Start();
             optionThread.Join(8000);
 
-            Check("★卡地址端口被识别为「只能选」且候选来自方案（显示设备名、写进流程的仍是地址）",
+            Check("★轴名端口被识别为「只能选」且候选来自方案（写进流程的就是轴名本身）",
                 optionProbe.Contains("只能选=True") && optionProbe.Contains("候选数=1")
-                && optionProbe.Contains("运动卡2") && optionProbe.Contains("192.168.0.11"),
+                && optionProbe.Contains("X"),
                 optionProbe);
 
             Check("★下拉候选与枚举共用一套机制（IsOptionPort = 枚举 ∪ 方案候选），不再只认枚举",

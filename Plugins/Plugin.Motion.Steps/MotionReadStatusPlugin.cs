@@ -24,17 +24,7 @@ namespace Plugin.Motion.Steps
     {
 
 
-        /// <summary>（端口）运动卡地址：可被上游链接；不链接用手填值；都为空则回落到上面的常量</summary>
-        public InputPort<string> Card { get; } = new InputPort<string>("Card", string.Empty, "运动卡地址（可链接；不链接则用卡地址常量）")
-        {
-            IsRequired = false,
-            IsFunctionalEnum = true,
-            OptionKind = StepConfigOptionKind.MotionCardAddress,
-            PresetOptions = StepConfigOptionSource.GetOptions(StepConfigOptionKind.MotionCardAddress).ToList(),
-        };
-
-
-        /// <summary>（端口）逻辑轴名：可被上游链接；不链接用手填值；都为空则回落到上面的常量</summary>
+        /// <summary>（端口）逻辑轴名：可被上游链接；不链接用手填值</summary>
         public InputPort<string> Axis { get; } = new InputPort<string>("Axis", "X", "逻辑轴名（可链接；不链接则用轴名常量）")
         {
             IsRequired = false,
@@ -63,7 +53,6 @@ namespace Plugin.Motion.Steps
 
         public override void RunAlgorithm(IExecutionContext context)
         {
-            var cardKey = Card.ActualValue ?? string.Empty;
             var axisName = Axis.ActualValue ?? string.Empty;
 
             Position.Value = 0;
@@ -76,7 +65,7 @@ namespace Plugin.Motion.Steps
             NegativeLimit.Value = false;
             StatusText.Value = string.Empty;
 
-            if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out var device, out var mapping, out var resolveError))
+            if (!MotionAxisResolution.TryResolveAxis(axisName, out var device, out var mapping, out var resolveError))
             {
                 Fail(resolveError);
                 return;

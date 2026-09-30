@@ -199,7 +199,12 @@ namespace VisionMaster.Services
                     IsContainer = false,
                     InputDefinitions =
                         plugin
-                            .Inputs?.Values.Select(p =>
+                            .Inputs?.Values
+                            // ★ 隐藏端口不进端口定义表：界面（变量绑定窗口）按这张表列端口，
+                            //   不在这里过滤，"只暴露轴名"就只是口号 —— 用户照样看得见"选卡"那一行。
+                            //   端口本身仍然存在、运行期照旧取值，所以已保存流程一个字节都不变。
+                            .Where(p => !(p is IInputPort ip && ip.IsHidden))
+                            .Select(p =>
                             {
                                 var inputPort = p as IInputPort;
                                 return new PortDefinition

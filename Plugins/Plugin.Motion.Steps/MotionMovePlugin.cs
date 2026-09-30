@@ -25,24 +25,6 @@ namespace Plugin.Motion.Steps
     public class MotionMovePlugin : VisionPluginBase
     {
         /// <summary>
-        /// 目标运动卡（按地址寻址，如 192.168.0.11）。
-        ///
-        /// 【为什么是输入端口，而不是 [StepConfig] 常量】
-        /// 本插件**没有自定义配置视图**。宿主对这类插件统一打开「变量绑定」窗口
-        ///（ProcessViewModel 里"回退到通用 DataBindView"那条路径），
-        /// 而那个窗口**只列输入端口** —— 做成 [StepConfig] 的参数在界面上**没有任何入口**。
-        /// 端口一个入口办两件事：左列填常量、右列连上游变量；常量的灵活性一分不少，还多了可链接。
-        /// 这也是其它无自定义视图插件的既有做法（延时 / 比较 / 换算 / 运算 …）。
-        /// </summary>
-        public InputPort<string> Card { get; } = new InputPort<string>("Card", string.Empty, "运动卡地址（可链接；也可直接填）")
-        {
-            IsRequired = false,        // 有默认值即可运行，不因为"没连上游"被判编译失败
-            IsFunctionalEnum = true,   // 绑定界面显示为下拉（候选来自当前方案）
-            OptionKind = StepConfigOptionKind.MotionCardAddress,
-            PresetOptions = StepConfigOptionSource.GetOptions(StepConfigOptionKind.MotionCardAddress).ToList(),
-        };
-
-        /// <summary>
         /// 逻辑轴名（在运动卡设置里配置，如 "X"）。换卡/改接线只需改映射表，流程不动。
         /// 同样必须是端口，理由见 <see cref="Card"/>。
         /// </summary>
@@ -88,14 +70,13 @@ namespace Plugin.Motion.Steps
             // 空合并只为挡住 null：手填框被清空时 ActualValue 可能是 null，
             // 与其在这里编一个默认值，不如让它空着走到下面的校验，由那里给出
             // "没有启用名为「」的轴" —— 现场据此就能反推是卡地址/轴名没填。
-            var cardKey = Card.ActualValue ?? string.Empty;
             var axisName = Axis.ActualValue ?? string.Empty;
 
             AxisUsed.Value = axisName;
 
-            // 一次调用拿到"设备 + 轴配置"：Card 端口留空即按轴名全局解析（新流程推荐）；
-            // 填了地址则按老规则走，保证已保存流程的行为一个字节都不变。
-            if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out var device, out var mapping, out var resolveError))
+            // 一次调用拿到"设备 + 轴配置"：轴名全局唯一，它自带"哪张卡 + 哪个轴号"。
+            // 流程里不存在"选卡/填 IP"这件事 —— 换卡、改接线只动映射表，流程不动。
+            if (!MotionAxisResolution.TryResolveAxis(axisName, out var device, out var mapping, out var resolveError))
             {
                 Fail(resolveError);
                 return;

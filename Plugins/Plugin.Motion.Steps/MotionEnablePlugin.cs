@@ -24,16 +24,6 @@ namespace Plugin.Motion.Steps
     {
 
 
-        /// <summary>（端口）运动卡地址：可被上游链接；不链接用手填值；都为空则回落到上面的常量</summary>
-        public InputPort<string> Card { get; } = new InputPort<string>("Card", string.Empty, "运动卡地址（可链接；不链接则用卡地址常量）")
-        {
-            IsRequired = false,        // 有默认值即可运行，不因为"没连上游"被判编译失败
-            IsFunctionalEnum = true,
-            OptionKind = StepConfigOptionKind.MotionCardAddress,
-            PresetOptions = StepConfigOptionSource.GetOptions(StepConfigOptionKind.MotionCardAddress).ToList(),
-        };
-
-
         /// <summary>（端口）逻辑轴名：可被上游链接；不链接用手填值；都为空则回落到上面的常量</summary>
         public InputPort<string> Axis { get; } = new InputPort<string>("Axis", "X", "逻辑轴名（可链接；不链接则用轴名常量）")
         {
@@ -61,7 +51,6 @@ namespace Plugin.Motion.Steps
 
         public override void RunAlgorithm(IExecutionContext context)
         {
-            var cardKey = Card.ActualValue ?? string.Empty;
             var axisName = Axis.ActualValue ?? string.Empty;
 
             // 端口的实际生效值在"读的这一刻"确定（上游链接值 > 界面手填值）。
@@ -72,7 +61,7 @@ namespace Plugin.Motion.Steps
 
             Enabled.Value = false;
 
-            if (!MotionAxisResolution.TryResolveAxis(cardKey, axisName, out var device, out var mapping, out var resolveError))
+            if (!MotionAxisResolution.TryResolveAxis(axisName, out var device, out var mapping, out var resolveError))
             {
                 Fail(resolveError);
                 return;

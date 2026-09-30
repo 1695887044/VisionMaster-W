@@ -11,10 +11,16 @@ namespace Core.Interfaces
     /// </summary>
     public enum StepConfigOptionKind
     {
-        /// <summary>运动卡地址（来自当前方案的运动卡列表）</summary>
-        MotionCardAddress,
+        /// <summary>
+        /// 运动卡**名称**（来自当前方案的运动卡列表；值 = 卡名，不是地址）。
+        ///
+        /// 【为什么是卡名而不是地址】地址（IP/槽位）是"机器怎么连上这块板"的物理事实，
+        /// 它会随现场布线、换卡、改网段而变；流程里存着它，等于把物理接线写进了工艺。
+        /// 卡名是用户给的身份，与接线无关 —— 换卡改地址，流程一个字都不用动。
+        /// </summary>
+        MotionCardName,
 
-        /// <summary>运动卡上的逻辑轴名（来自当前方案里"已启用"的轴映射）</summary>
+        /// <summary>运动卡上的逻辑轴名（来自当前方案里"已启用"的轴映射；轴名全局唯一）</summary>
         MotionAxisName,
     }
 

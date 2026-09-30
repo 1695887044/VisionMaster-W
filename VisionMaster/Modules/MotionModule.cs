@@ -66,7 +66,7 @@ namespace VisionMaster
             // "某根轴怎么都动不了"，而现场没人会往"轴名撞了"上想。
             ReportAxisRegistryProblems(container);
 
-            // 步骤参数候选项来源（轴名 / 卡地址）：属性面板据此把这两类参数渲染成下拉，
+            // 步骤参数候选项来源（轴名 / 卡名）：属性面板据此把这两类参数渲染成下拉，
             // 用户不必再手打逻辑名（打错要到运行期才报"没有名为 X 的轴"）。
             // 放在 Initialize 而不是 Register：候选项要读**当前方案**，
             // 而 Register 阶段容器还没建好实例、方案也还没加载。
@@ -111,6 +111,25 @@ namespace VisionMaster
                          + "（重名的轴只有前者能被解析，未修前请不要依赖同名轴）：");
 
                 foreach (var problem in problems) log.Warn($"[MotionAxisRegistry] · {problem.Message}");
+
+                // 卡名唯一性：IO 这类卡级步骤现在**按卡名**寻址，
+                // 两张卡同名时"选到谁"取决于遍历顺序 —— 与轴名重名是同一类静默错误，
+                // 必须在启动阶段就点名，而不是等现场发现"IO 写到了另一张卡上"。
+                var solution = container.Resolve<IWorkspaceManager>().CurrentSolution;
+                var duplicateCardNames = solution?.MotionCards
+                    .Where(c => !string.IsNullOrWhiteSpace(c.DisplayName))
+                    .GroupBy(c => c.DisplayName.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1)
+                    .ToList();
+
+                if (duplicateCardNames is { Count: > 0 })
+                {
+                    foreach (var group in duplicateCardNames)
+                    {
+                        log.Warn($"[MotionAxisRegistry] 卡名「{group.Key}」重复（{group.Count()} 张卡同名）："
+                                 + "IO 等卡级步骤按卡名寻址会只命中其中一张，请到「运动卡设置」改名");
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -131,25 +150,23 @@ namespace VisionMaster
         private static void RegisterStepConfigOptions(IContainerProvider container)
         {
             // 提供器在契约层：属性面板用它渲染常量下拉，
-            // 而**插件的输入端口**（Axis / CardKey 端口）也用它填 PresetOptions —— 两者共用一份。
+            // 而**插件的输入端口**（Axis / Card 端口）也用它填 PresetOptions —— 两者共用一份。
             StepConfigOptionSource.Register(kind =>
             {
                 var solution = container.Resolve<IWorkspaceManager>().CurrentSolution;
 
                 return kind switch
                 {
-                    // 卡地址：**值保持 IP**（流程按地址引用，改名不能断流程），
-                    // 显示带设备名 —— 只有 IP 时几张卡根本认不出谁是谁。
-                    // 没填显示名时不加那对空括号：显示成「127.0.0.1（127.0.0.1）」只会更乱。
-                    StepConfigOptionKind.MotionCardAddress => solution?.MotionCards
-                        .Where(c => !string.IsNullOrWhiteSpace(c.Address))
-                        .GroupBy(c => c.Address, StringComparer.OrdinalIgnoreCase)
-                        .Select(g => g.First())
-                        .Select(c => new StepConfigOption(
-                            c.Address,
-                            string.IsNullOrWhiteSpace(c.DisplayName)
-                                ? c.Address
-                                : $"{c.DisplayName}（{c.Address}）"))
+                    // 卡名：**值就是卡名**（解析按卡名找设备，与 IP 无关）。
+                    //
+                    // ★ 同名卡只列一项并置空显示后缀：两张卡同名时"选到谁"取决于遍历顺序，
+                    //   与其给用户两个看起来一样、行为却随机的选项，不如列一个 +
+                    //   让启动体检把"卡名重复"当成问题报出来（见 ReportAxisRegistryProblems）。
+                    StepConfigOptionKind.MotionCardName => solution?.MotionCards
+                        .Where(c => !string.IsNullOrWhiteSpace(c.DisplayName))
+                        .GroupBy(c => c.DisplayName.Trim(), StringComparer.OrdinalIgnoreCase)
+                        .Select(g => new StepConfigOption(g.Key.Trim()))
+                        .OrderBy(o => o.Value, StringComparer.OrdinalIgnoreCase)
                         .ToList() ?? new List<StepConfigOption>(),
 
                     // 轴名候选来自**全局轴注册表**，而不是各卡映射表的并集。

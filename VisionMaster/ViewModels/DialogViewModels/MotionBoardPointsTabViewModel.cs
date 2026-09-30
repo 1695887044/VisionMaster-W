@@ -116,7 +116,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        private void ReloadAxisRows()
+        /// <summary>
+        /// 重建左栏轴行（选卡变化时、以及**轴集合本身变化时**）。
+        ///
+        /// ★ 必须是 public 且能被外部触发：在「卡设置」里新增/删除一根轴之后，
+        ///   本页签握着的 AxisRows 仍是旧快照 —— 用户看到的正是
+        ///   "加了轴，点位列表里却没有这根轴"。改名（NotifyAxisNamesChanged）只补通知，
+        ///   增删轴必须整表重建。
+        /// </summary>
+        public void ReloadAxisRows()
         {
             AxisRows.Clear();
             _selectedAxisRow = null;
