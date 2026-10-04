@@ -106,13 +106,6 @@ namespace Plugin.CodeReader
         };
 
         /// <summary>
-        /// 配置期用的示意图路径。只在打开配置界面时读它 —— 那会儿没有上游图像，
-        /// 不给人看一眼图就没法判断码制选得对不对。运行期一律用上游连进来的图。
-        /// </summary>
-        [StepConfig]
-        public string PreviewImagePath { get; set; } = string.Empty;
-
-        /// <summary>
         /// 搜索超时（毫秒）。0 = 不限。
         /// 默认给 500：图里没有码时 HALCON 会在候选区域上反复尝试，没有超时保护会拖住整条流程。
         /// </summary>
@@ -187,7 +180,7 @@ namespace Plugin.CodeReader
             set => SetProperty(ref _displayImage, value);
         }
 
-        private string _hint = "点「载入」，然后点「试算一下」看这张图能不能读出码";
+        private string _hint = "先在「图像输入」里点 🔗 手动绑定图像来源（选上游端口或变量），然后点「试算一下」看这张图能不能读出码";
 
         public string Hint
         {
@@ -222,11 +215,11 @@ namespace Plugin.CodeReader
             return new CodeReaderView { DataContext = this };
         }
 
-        /// <summary>视图就绪回调：优先显示上游图（试运行桥接进来的），没有才退回示意图路径</summary>
-        public void OnViewLoaded()
-        {
-            if (!ShowUpstreamImage()) LoadPreviewImage();
-        }
+        /// <summary>
+        /// 视图就绪回调：把上游图显示到预览。
+        /// 图只有一个来源 —— 上面的「图像输入」端口（见构造函数里对端口变化的订阅）。
+        /// </summary>
+        public void OnViewLoaded() => ShowUpstreamImage();
 
         /// <summary>
         /// 把上游图显示到预览。有则返回 true。
@@ -251,41 +244,7 @@ namespace Plugin.CodeReader
             }
         }
 
-        /// <summary>读示意图。路径空/不存在/读失败都给中文提示，不抛异常</summary>
-        public void LoadPreviewImage()
-        {
-            if (string.IsNullOrWhiteSpace(PreviewImagePath))
-            {
-                Hint = "还没有示意图路径：填一个图像路径后再点「载入」";
-                return;
-            }
 
-            if (!File.Exists(PreviewImagePath))
-            {
-                Hint = $"示意图不存在：{PreviewImagePath}";
-                return;
-            }
-
-            try
-            {
-                HOperatorSet.ReadImage(out HObject raw, PreviewImagePath);
-                try
-                {
-                    DisplayImage?.Dispose();
-                    DisplayImage = new HImage(raw);
-                }
-                finally
-                {
-                    raw?.Dispose();
-                }
-
-                Hint = $"已载入示意图 {Path.GetFileName(PreviewImagePath)}";
-            }
-            catch (Exception ex)
-            {
-                Hint = "示意图载入失败：" + ex.Message;
-            }
-        }
 
         /// <summary>
         /// 用示意图跑一遍读码，结论写进 <see cref="ResultSummary"/>。

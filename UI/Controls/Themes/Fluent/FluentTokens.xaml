@@ -1,0 +1,208 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        ============================================================
+        Fluent（Windows 11）设计令牌 —— 全库视觉的**唯一事实来源**
+        ============================================================
+
+        为什么要有这一层
+        ============================================================
+        改造前同一件事在库里有四份定义：Colors.xaml 的 AccentBlueBrush(#3182CE)、
+        DefaultStyle.xaml 的 AccentBrush、PropertyGrid.xaml 的 AccentBlue、
+        PluginConfigColors.xaml 的 PluginAccentBrush —— 四个"强调色"互不相干，
+        改一个不会带动另外三个，于是"统一配色"只能靠把全仓 XAML 搜一遍逐处改。
+
+        这一层把**视觉属性**（圆角 / 间距 / 阴影 / 动效 / 字阶 / 材质）收成令牌，
+        上面的域令牌（Dialog* / Plugin* / Scada* / Mb*）只负责"用在哪"，
+        具体长什么样一律引用这里。将来换主题（深色/Mica）只换这一份。
+
+        命名规范（新增资源一律遵守）
+        ============================================================
+        · 前缀 Fluent + 类别 + 语义 + 类型后缀：FluentAccentBrush / FluentRadiusMedium / FluentDurationFast
+        · 类型后缀必须写：Brush / Color / CornerRadius / Thickness / Duration / Style / Effect
+        · 不写缩写：Medium 不写 Md，Secondary 不写 Sec
+        · 按"用在哪"命名而不是"是什么颜色"：FluentTextSecondaryBrush 而不是 FluentGrayBrush
+
+        关于亚克力（Acrylic）
+        ============================================================
+        真正的 Mica/Acrylic 需要 DWM 合成（WindowChrome + 背景采样），纯 WPF 控件库拿不到桌面像素。
+        这里用"半透明色 + 低不透明度"做**视觉近似**（FluentAcrylicBackgroundBrush 等），
+        在窗口背景为纯色时观感一致；不做自绘采样是为了不引入 DwmSetWindowAttribute 的进程级副作用。
+    -->
+
+    <!--  ============ 强调色（Accent）============  -->
+    <Color x:Key="FluentAccentColor">#FF0078D4</Color>
+    <Color x:Key="FluentAccentHoverColor">#FF1A86D9</Color>
+    <Color x:Key="FluentAccentPressedColor">#FF0067BE</Color>
+    <Color x:Key="FluentAccentDisabledColor">#FFB4D6F2</Color>
+
+    <SolidColorBrush x:Key="FluentAccentBrush" Color="{StaticResource FluentAccentColor}" />
+    <SolidColorBrush x:Key="FluentAccentHoverBrush" Color="{StaticResource FluentAccentHoverColor}" />
+    <SolidColorBrush x:Key="FluentAccentPressedBrush" Color="{StaticResource FluentAccentPressedColor}" />
+    <SolidColorBrush x:Key="FluentAccentDisabledBrush" Color="{StaticResource FluentAccentDisabledColor}" />
+    <SolidColorBrush x:Key="FluentAccentSubtleBrush" Color="#FFE8F3FD" />
+    <SolidColorBrush x:Key="FluentOnAccentTextBrush" Color="#FFFFFFFF" />
+
+    <!--  ============ 表面与材质（Surface / Mica / Acrylic）============  -->
+    <SolidColorBrush x:Key="FluentBackgroundBrush" Color="#FFF3F3F3" />
+    <SolidColorBrush x:Key="FluentSurfaceBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="FluentSurfaceSunkenBrush" Color="#FFFAFAFA" />
+    <SolidColorBrush x:Key="FluentCardBackgroundBrush" Color="#FFFFFFFF" />
+
+    <!--  亚克力近似：半透明 + 极浅底，叠在窗口背景上呈"毛玻璃"观感  -->
+    <SolidColorBrush x:Key="FluentAcrylicBackgroundBrush" Color="#F9FBFD" Opacity="0.88" />
+    <SolidColorBrush x:Key="FluentAcrylicBorderBrush" Color="#FFE6EAF0" />
+    <SolidColorBrush x:Key="FluentMicaBackgroundBrush" Color="#FFF7F8FA" />
+
+    <!--  ============ 边框（Stroke）============  -->
+    <SolidColorBrush x:Key="FluentBorderBrush" Color="#FFE5E7EB" />
+    <SolidColorBrush x:Key="FluentBorderStrongBrush" Color="#FFD1D5DB" />
+    <SolidColorBrush x:Key="FluentCardStrokeBrush" Color="#FFEBEEF2" />
+    <SolidColorBrush x:Key="FluentDividerBrush" Color="#FFEDEDED" />
+
+    <!--
+        ============ 开关（ToggleSwitch）关态专用 ============
+        动画目标必须是 Color（ColorAnimation.To 接不了 Brush），所以关态轨道的两档灰
+        以 Color 令牌存在：填充浅一档、描边深一档，保证在纯白卡片上"看得见这是一颗开关"。
+        开态不在此重复 —— 直接用 FluentAccentColor / FluentAccentPressedColor。
+        改这两个值时同步看一眼 FluentBorderBrush / FluentBorderStrongBrush，三者本是一族。
+    -->
+    <Color x:Key="FluentToggleTrackOffColor">#FFE5E7EB</Color>
+    <Color x:Key="FluentToggleTrackOffBorderColor">#FFD1D5DB</Color>
+    <!--
+        开态轨道：深色（近黑，与 FluentTextPrimaryBrush 同值）。
+        定成单色"黑轨道 + 白滑块"而不是系统蓝：蓝色在浅灰界面上太抢，
+        和真正的操作按钮（也是蓝）摆在一起，状态和动作就分不清了。
+    -->
+    <Color x:Key="FluentToggleTrackOnColor">#FF1B1B1F</Color>
+
+    <!--  ============ 文字（Text）============  -->
+    <SolidColorBrush x:Key="FluentTextPrimaryBrush" Color="#FF1B1B1F" />
+    <SolidColorBrush x:Key="FluentTextSecondaryBrush" Color="#FF5B5B63" />
+    <SolidColorBrush x:Key="FluentTextTertiaryBrush" Color="#FF8A8A93" />
+    <SolidColorBrush x:Key="FluentTextDisabledBrush" Color="#FFB0B0B8" />
+
+    <!--  ============ 语义状态色（Status）============  -->
+    <SolidColorBrush x:Key="FluentSuccessBrush" Color="#FF0E7A0D" />
+    <SolidColorBrush x:Key="FluentSuccessSubtleBrush" Color="#FFE7F5E7" />
+    <SolidColorBrush x:Key="FluentWarningBrush" Color="#FF9A6700" />
+    <SolidColorBrush x:Key="FluentWarningSubtleBrush" Color="#FFFDF3E0" />
+    <SolidColorBrush x:Key="FluentDangerBrush" Color="#FFC42B1C" />
+    <SolidColorBrush x:Key="FluentDangerSubtleBrush" Color="#FFFDECEA" />
+    <SolidColorBrush x:Key="FluentInfoBrush" Color="#FF0078D4" />
+    <SolidColorBrush x:Key="FluentInfoSubtleBrush" Color="#FFE8F3FD" />
+
+    <!--  ============ 圆角（Corner Radius）—— Win11 的圆角是识别度最高的一处 ============  -->
+    <CornerRadius x:Key="FluentRadiusSmall">4</CornerRadius>
+    <CornerRadius x:Key="FluentRadiusMedium">8</CornerRadius>
+    <CornerRadius x:Key="FluentRadiusLarge">12</CornerRadius>
+    <CornerRadius x:Key="FluentRadiusExtraLarge">16</CornerRadius>
+    <CornerRadius x:Key="FluentRadiusFull">999</CornerRadius>
+
+    <!--  ============ 间距（Spacing）============  -->
+    <Thickness x:Key="FluentPaddingNone">0</Thickness>
+    <Thickness x:Key="FluentPaddingTight">4</Thickness>
+    <Thickness x:Key="FluentPaddingCompact">6,4,6,4</Thickness>
+    <Thickness x:Key="FluentPaddingControl">12,6,12,6</Thickness>
+    <Thickness x:Key="FluentPaddingRow">10,8,10,8</Thickness>
+    <Thickness x:Key="FluentPaddingCard">16</Thickness>
+    <Thickness x:Key="FluentPaddingDialog">20</Thickness>
+    <Thickness x:Key="FluentBorderThickness">1</Thickness>
+
+    <!--  ============ 阴影（Elevation）============
+         Effect 是可变对象，多个元素共用同一实例会互相干扰，因此 x:Shared="False"。
+         三级足够：卡片 / 浮层 / 弹窗，再多层现场根本分不出来。 -->
+    <DropShadowEffect
+        x:Key="FluentShadowCard"
+        x:Shared="False"
+        BlurRadius="14"
+        Direction="270"
+        Opacity="0.06"
+        ShadowDepth="2"
+        Color="#FF000000" />
+    <DropShadowEffect
+        x:Key="FluentShadowRaised"
+        x:Shared="False"
+        BlurRadius="24"
+        Direction="270"
+        Opacity="0.12"
+        ShadowDepth="6"
+        Color="#FF000000" />
+    <DropShadowEffect
+        x:Key="FluentShadowOverlay"
+        x:Shared="False"
+        BlurRadius="40"
+        Direction="270"
+        Opacity="0.18"
+        ShadowDepth="12"
+        Color="#FF000000" />
+    <!--
+        极小投影：给"白滑块压在彩色轨道上"用（开关）。等价 CSS 的 0 1px 2px rgba(0,0,0,.15)：
+        没有它，白球在浅灰轨道上会像"贴纸"，有了它才像"浮着的一颗珠子"。
+        x:Shared="False" 必须写：Effect 是 Freezable，多个元素共用同一个实例会报"已被使用"。
+    -->
+    <DropShadowEffect
+        x:Key="FluentShadowKnob"
+        x:Shared="False"
+        BlurRadius="2"
+        Direction="270"
+        Opacity="0.15"
+        ShadowDepth="1"
+        Color="#FF000000" />
+
+    <!--  ============ 动效（Motion）============
+         Win11 的动效特征是"快进慢出、短时长"：150~250ms 完成，缓动用三次贝塞尔 EaseOut。
+         这里统一定义时长与缓动，样式里一律引用，不再出现 0:0:0.15 这种散落的字面量。 -->
+    <Duration x:Key="FluentDurationFast">0:0:0.15</Duration>
+    <!--  200ms：控件级交互的标准时长（开关位移、状态反馈），对应 transition: 200ms cubic-bezier(.4,0,.2,1)  -->
+    <Duration x:Key="FluentDurationMedium">0:0:0.2</Duration>
+    <Duration x:Key="FluentDurationNormal">0:0:0.25</Duration>
+    <Duration x:Key="FluentDurationSlow">0:0:0.35</Duration>
+    <CubicEase x:Key="FluentEaseOut" EasingMode="EaseOut" />
+    <CubicEase x:Key="FluentEaseInOut" EasingMode="EaseInOut" />
+    <BackEase x:Key="FluentEaseBack" Amplitude="0.4" EasingMode="EaseOut" />
+
+    <!--  ============ 字体（Typography）============
+         Segoe UI Variable 是 Win11 的系统字体；中文回退到微软雅黑 UI，
+         不指定中文族时中文会掉到宋体，观感立刻"不像 Win11"。 -->
+    <FontFamily x:Key="FluentFontFamily">Segoe UI Variable Text, Segoe UI, Microsoft YaHei UI, SimSun</FontFamily>
+    <FontFamily x:Key="FluentMonoFontFamily">Cascadia Mono, Consolas, Microsoft YaHei UI</FontFamily>
+
+    <!--  ============ 字阶（Type Ramp）============
+         字阶做成 Style 而不是裸 double 令牌：字号通常和字重/颜色一起出现，
+         分开给反而逼着每个调用方各抄一遍组合。 -->
+    <Style x:Key="FluentTextCaptionStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FluentFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource FluentTextSecondaryBrush}" />
+    </Style>
+    <Style x:Key="FluentTextBodyStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FluentFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource FluentTextPrimaryBrush}" />
+    </Style>
+    <Style x:Key="FluentTextBodyStrongStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FluentFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource FluentTextPrimaryBrush}" />
+    </Style>
+    <Style x:Key="FluentTextSubtitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FluentFontFamily}" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource FluentTextPrimaryBrush}" />
+    </Style>
+    <Style x:Key="FluentTextTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FluentFontFamily}" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource FluentTextPrimaryBrush}" />
+    </Style>
+    <Style x:Key="FluentTextMonoStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FluentMonoFontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource FluentTextPrimaryBrush}" />
+    </Style>
+
+</ResourceDictionary>

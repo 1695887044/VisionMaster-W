@@ -1,4 +1,4 @@
-using Core.Interfaces;
+﻿using Core.Interfaces;
 using HalconDotNet;
 using System;
 using System.Collections.Concurrent;
@@ -66,7 +66,7 @@ namespace Plugin.PreProcessing.Models
         /// 原参考实现这里有个坑：算子被禁用时不给输出赋值，下一个算子拿到的是"上上级"的陈旧图像，
         /// 现象就是"勾掉了某个算子但画面没恢复"，非常难查。透传语义在 PreProcessingPlugin 里统一保证。
         /// </summary>
-        [SuperDisplay(Name = "启用", GroupPath = "算子", GroupOrder = "0", Order = 0,
+        [SuperDisplay(Name = "启用", Group = new string[] { "算子" }, GroupOrder = "0", Order = 0,
             Description = "取消勾选后，图像原样流向下一个算子")]
         public bool Enabled
         {
@@ -244,3 +244,4 @@ namespace Plugin.PreProcessing.Models
         #endregion
     }
 }
+

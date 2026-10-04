@@ -286,6 +286,12 @@ namespace VisionMaster
             // 否则会出现"两处都能加载配置"的真相源分裂。
         }
 
+        /// <summary>
+        /// 切换画布布局。
+        ///
+        /// 每一格都是"上行图 + 下行走马灯"的完整画布，格号 ↔ 插件的显示窗口号。
+        /// 参数认不出来（菜单改过、老快捷键）时回落单画面 —— 比"点了没反应"好排查。
+        /// </summary>
         private void SwitchCanvas(string obj)
         {
             eViewMode viewMode = obj switch
@@ -299,7 +305,7 @@ namespace VisionMaster
                 "7" => eViewMode.Seven,
                 "8" => eViewMode.Eight,
                 "9" => eViewMode.Night,
-                _ => eViewMode.Night,
+                _ => eViewMode.One,
             };
 
             GlobalEventBus.Publish<ImageCanvasChangeEvent>(new ImageCanvasChangeEvent { ViewMode = viewMode });

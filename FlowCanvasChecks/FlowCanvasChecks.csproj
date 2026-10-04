@@ -53,6 +53,27 @@
     -->
     <ProjectReference Include="..\Plugins\Plugin.Motion.ZMotion\Plugin.Motion.ZMotion.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.Utility\Plugin.Util.csproj" />
+    <!--
+      图像采集：直接引用（不走 Modules\ 反射加载）。
+      断言端口面（FrameId/ReceivedCount 新口 / 旧口不改名）、原始像素→HImage 的通道顺序与入口守卫、
+      文件夹枚举的自然序——这三类都是"改坏了却很难被发现"的面；
+      引用它也让构建顺带把 Plugin.ImageAcquisition.dll 刷新到 Modules（见 Directory.Build.targets）。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />
+    <!--
+      标定：直接引用（不走 Modules\ 反射加载）。
+      断言两层——纯托管算法（CalibrationMath：合成已知仿射 → 精度/互逆/共线守卫/径向带诊断）
+      与插件级执行语义（真 RunAlgorithm：质量闸门、半填行指名、端口面不改名）。
+      引用它也让构建顺带把 Plugin.Calibration.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.Calibration\Plugin.Calibration.csproj" />
+    <!--
+      坐标变换：直接引用（不走 Modules\ 反射加载）。
+      断言两层——纯托管数学（PoseTransformMath：正反变换/角度映射/三类失配，手算常量钉方向）
+      与 HALCON 真算子（PoseTransformHalcon：位姿跟随/模板态自洽/对齐图方向）。
+      引用它也让构建顺带把 Plugin.PoseTransform.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.PoseTransform\Plugin.PoseTransform.csproj" />
   </ItemGroup>
 
   <ItemGroup>

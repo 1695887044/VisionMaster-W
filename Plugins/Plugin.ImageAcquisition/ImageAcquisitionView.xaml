@@ -222,13 +222,30 @@
                                         ToolTip="Authorization: Bearer {令牌}；填错可验证 401" />
                                 </Grid>
 
-                                <!--  服务端是否在听：打开窗口即告知，省得用户点完按钮再猜原因  -->
+                                <!--
+                                    服务端是否在听：打开窗口即告知，省得用户点完按钮再猜原因。
+                                    颜色由 PushServiceLevel 决定——"正在监听"是正常态（绿），
+                                    没在听才是警告（橙）；固定挂警告色会让服务好好的也像出了问题。
+                                -->
                                 <TextBlock
                                     Margin="0,6,0,0"
                                     FontSize="{StaticResource PluginHintFontSize}"
-                                    Foreground="{StaticResource PluginWarningBrush}"
                                     Text="{Binding PushServiceHint}"
-                                    TextWrapping="Wrap" />
+                                    TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PushServiceLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                                    <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding PushServiceLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                                    <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
                                 <Button
                                     Margin="0,8,0,0"

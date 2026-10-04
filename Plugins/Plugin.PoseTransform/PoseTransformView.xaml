@@ -1,0 +1,314 @@
+<UserControl
+    x:Class="Plugin.PoseTransform.PoseTransformView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:local="clr-namespace:Plugin.PoseTransform"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.UI.com/ui"
+    MinWidth="620"
+    MinHeight="300"
+    d:Background="Gray"
+    mc:Ignorable="d">
+    <!--
+        尺寸只给下限，交给宿主对话框（初始 880×600、最小 640×420）：
+        左列 340 + 右列 240 + 外边距 24 = 604，落在宿主最小内容区 624×304 之内。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1.3*" MinWidth="340" MaxWidth="520" />
+            <ColumnDefinition Width="1*" MinWidth="240" />
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer
+            Grid.Column="0"
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!--  ① 模式与选项  -->
+                <Border Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 模式与选项" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <RadioButton
+                                Content="位姿跟随"
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}" />
+                            <RadioButton
+                                Margin="16,0,0,0"
+                                Content="像素→机械"
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}" />
+                        </WrapPanel>
+
+                        <!--  位姿跟随选项  -->
+                        <StackPanel Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}">
+                            <CheckBox
+                                Margin="0,8,0,0"
+                                Content="输出对齐图（把当前图重采样回模板参考位姿）"
+                                IsChecked="{Binding EmitFollowedImage}"
+                                ToolTip="默认关：少一次重采样、少一次内存拷贝；需要标准位姿的图时才勾" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="与「模板匹配」输出对齐图的分工：那边把目标重采样成标准位姿（适合内部 ROI 固定的算子）；本插件跟随保留原图坐标、只跟随 ROI/点位（MaskRegion、机器人引导用这个）。"
+                                TextWrapping="Wrap" />
+
+                            <CheckBox
+                                Margin="0,8,0,0"
+                                Content="模板参考点由基准 ROI 中心派生"
+                                IsChecked="{Binding TemplateRefFromRegionCenter}"
+                                ToolTip="默认开：避免手填两张数；关掉后用下面两个参考点端口的数值" />
+                            <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                <Button
+                                    Padding="10,2"
+                                    Command="{Binding TakeRefFromRegionCenterCommand}"
+                                    Content="取基准 ROI 中心"
+                                    ToolTip="把基准 ROI 的中心填入模板参考点端口（即使派生开着，也可先填好备用）" />
+                            </StackPanel>
+                            <StackPanel Margin="0,6,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="IsEnabled" Value="True" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding TemplateRefFromRegionCenter}" Value="True">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <cv:LinkableValueEditor
+                                    HorizontalAlignment="Stretch"
+                                    Label="参考点 Row"
+                                    Port="{Binding TemplateRefRow}"
+                                    StepData="{Binding StepData}" />
+                                <cv:LinkableValueEditor
+                                    Margin="{StaticResource PluginFieldRowMargin}"
+                                    HorizontalAlignment="Stretch"
+                                    Label="参考点 Col"
+                                    Port="{Binding TemplateRefCol}"
+                                    StepData="{Binding StepData}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!--  ② 参考图（可选，两种模式都可能用）  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 参考图（可选）" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="参考图"
+                            Port="{Binding SrcImage}"
+                            StepData="{Binding StepData}" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="位姿跟随：勾了「输出对齐图」才用；像素→机械：接了才做图像尺寸失配校验（换分辨率必须失败）。不接也能工作。"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ③ 位姿跟随输入  -->
+                <Border
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginCard}"
+                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.FollowRoi}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 位姿跟随输入" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="基准 ROI*"
+                            Port="{Binding BaseRegion}"
+                            ToolTip="必须画在模板图上（画在别的图会系统性偏移）"
+                            StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="位姿 Row"
+                            Port="{Binding PoseRow}"
+                            StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="位姿 Col"
+                            Port="{Binding PoseCol}"
+                            StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="位姿角度(度)"
+                            Port="{Binding PoseAngle}"
+                            StepData="{Binding StepData}" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="基准 ROI 必须画在模板图上（画在别的图会系统性偏移）；位姿=模板参考点且角度 0 时，跟随 ROI 与基准 ROI 完全重合（验收自检）。"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ④ 像素→机械输入  -->
+                <Border
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginCard}"
+                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="④ 像素→机械输入" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="标定*"
+                            Port="{Binding Transform}"
+                            ToolTip="只接「标定」插件的 Transform 输出（不允许手填矩阵）"
+                            StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="像素点 Row"
+                            Port="{Binding PixelPointRow}"
+                            StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="像素点 Col"
+                            Port="{Binding PixelPointCol}"
+                            StepData="{Binding StepData}" />
+                        <cv:LinkableValueEditor
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="像素角度(度，可选)"
+                            Port="{Binding PixelAngle}"
+                            StepData="{Binding StepData}" />
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="只接「标定」插件的 Transform 输出（不允许手填矩阵——单一事实源）；输出机械坐标的同时给反向回显，偏差 &lt; 1e-6px 才算过。"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ⑤ 标定信息（ToMechanical）  -->
+                <Border
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginCard}"
+                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:TransformMode.ToMechanical}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="⑤ 标定信息" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontSize="{StaticResource PluginLabelFontSize}"
+                            Text="{Binding CalibrationInfoText}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CalibrationInfoLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding CalibrationInfoLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!--  ⑥ 预览图（配置态；不参与运行）  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="⑥ 预览图（配置态叠加用）" />
+                        <StackPanel Margin="{StaticResource PluginFirstRowMargin}" Orientation="Horizontal">
+                            <TextBox
+                                Width="240"
+                                Style="{StaticResource PluginNumericBox}"
+                                Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="配置态叠加预览的底图；不参与运行（运行只用端口）" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                Command="{Binding BrowsePreviewCommand}"
+                                Content="浏览" />
+                        </StackPanel>
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="叠加显示：基准 ROI（绿）、跟随 ROI（橙）、模板参考点十字（黄）。没载预览图时，若已接参考图 SrcImage 且其有值，就直接拿它当底图。"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  右侧：画布 + 信息栏  -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Border
+                Padding="8"
+                Background="{StaticResource PluginSurfaceBrush}"
+                BorderBrush="#E0E0E0"
+                BorderThickness="1"
+                CornerRadius="6">
+                <h:ImageEdit
+                    HImage="{Binding DisplayImage, Mode=OneWay}"
+                    ToolTip="滑轮缩放 / 右键菜单可适应图片；叠加：绿=基准 ROI，橙=跟随 ROI，黄=模板参考点" />
+            </Border>
+            <Border
+                Grid.Row="1"
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource PluginStatusPanel}">
+                <DockPanel>
+                    <TextBlock
+                        DockPanel.Dock="Right"
+                        FontSize="{StaticResource PluginLabelFontSize}"
+                        Text="{Binding StatusMessage}"
+                        TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                        <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                        <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock
+                        MaxWidth="420"
+                        VerticalAlignment="Center"
+                        FontSize="{StaticResource PluginHintFontSize}"
+                        Foreground="{StaticResource PluginLabelTextBrush}"
+                        Text="{Binding FollowedInfoText}"
+                        TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

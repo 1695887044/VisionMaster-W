@@ -1265,20 +1265,26 @@ namespace Core.Halcon.Controls
 
         #endregion
 
-        private List<MeasureAnnotation> annotations = new();
-
         /// <summary>
-        /// 测量标注层（线段/角度/文本）：随 RenderAll 渲染，每帧整体覆盖设置
-        /// 插件把测量结果构造成标注后通过 PublishPreview 事件传入主界面显示控件
+        /// 测量标注层（线段/角度/文本）：随 RenderAll 渲染，每帧整体覆盖设置。
+        ///
+        /// 为什么必须是依赖属性（而不是普通 CLR 属性）
+        /// ---------
+        /// 图集/预览这类 XAML 模板要对它做 <c>{Binding}</c>；普通 CLR 属性上放 Binding 会在模板
+        /// 加载时直接抛 "只能在 DependencyProperty 上设置 Binding"（图集模式一打开就崩）。
+        /// 赋值语义与旧 CLR 属性保持一致：null 视为空标注。
         /// </summary>
+        public static readonly DependencyProperty AnnotationsProperty = DependencyProperty.Register(
+            nameof(Annotations), typeof(List<MeasureAnnotation>), typeof(HalconBase),
+            new PropertyMetadata(null, (d, _) => ((HalconBase)d).RenderAll()));
+
+        /// <summary>空标注占位（只读；调用方请整体赋值，不要就地修改它）</summary>
+        private static readonly List<MeasureAnnotation> EmptyAnnotations = new();
+
         public List<MeasureAnnotation> Annotations
         {
-            get => annotations;
-            set
-            {
-                annotations = value ?? new List<MeasureAnnotation>();
-                RenderAll();
-            }
+            get => (List<MeasureAnnotation>?)GetValue(AnnotationsProperty) ?? EmptyAnnotations;
+            set => SetValue(AnnotationsProperty, value ?? EmptyAnnotations);
         }
 
         /// <summary>
@@ -1286,7 +1292,7 @@ namespace Core.Halcon.Controls
         /// </summary>
         private void RenderAnnotations()
         {
-            foreach (var a in annotations)
+            foreach (var a in Annotations)
             {
                 if (a?.Points == null)
                     continue;
@@ -1336,6 +1342,15 @@ namespace Core.Halcon.Controls
             }
             hSmart.SetFullImagePart();
         }
+
+        /// <summary>
+        /// 外部调用入口：按图片原始尺寸 1:1 显示（供图集双击放大等场景）。
+        /// 与右键菜单"适应图片/窗口"同一实现，不另造一套缩放逻辑。
+        /// </summary>
+        public void FitToImage() => ResetWindow(fitImage: true);
+
+        /// <summary>外部调用入口：按窗口大小铺满显示（与右键菜单"适应窗口"同一实现）</summary>
+        public void FitToWindow() => ResetWindow(fitImage: false);
 
         protected void SaveWindowDump()
         {

@@ -132,11 +132,6 @@ namespace Plugin.Yolo
             set => SetProperty(ref _cropMargin, value);
         }
 
-        /// <summary>配置期的示意图路径。只在打开配置界面时读它（那时没有上游图像）</summary>
-        [StepConfig]
-        [BrowsePath(FileFilter = "图像文件|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|所有文件|*.*")]
-        public string PreviewImagePath { get; set; } = string.Empty;
-
         // ==================================================================
         //  端口
         // ==================================================================
@@ -212,7 +207,7 @@ namespace Plugin.Yolo
             set => SetProperty(ref _displayImage, value);
         }
 
-        private string _hint = "先选模型（.onnx），再点「载入」载入示意图，然后「试算一下」看检测结果";
+        private string _hint = "先选模型（.onnx），再在「图像输入」里点 🔗 手动绑定图像来源（选上游端口或变量），然后「试算一下」看检测结果";
 
         public string Hint
         {
@@ -265,10 +260,13 @@ namespace Plugin.Yolo
             return new YoloView { DataContext = this };
         }
 
-        /// <summary>视图就绪回调：优先显示上游图（试运行桥接进来的），没有才退回示意图路径</summary>
+        /// <summary>
+        /// 视图就绪回调：把上游图显示到预览（图只有一个来源 —— 上面的「图像输入」端口），
+        /// 顺带刷新模型摘要（模型路径可能刚被「浏览」改过）。
+        /// </summary>
         public void OnViewLoaded()
         {
-            if (!ShowUpstreamImage()) LoadPreviewImage();
+            ShowUpstreamImage();
             OnPropertyChanged(nameof(ModelSummary));
         }
 
@@ -292,43 +290,6 @@ namespace Plugin.Yolo
             {
                 Hint = "上游图像显示失败：" + ex.Message;
                 return false;
-            }
-        }
-
-        /// <summary>读示意图。路径空/不存在/读失败都给中文提示，不抛异常</summary>
-        public void LoadPreviewImage()
-        {
-            if (string.IsNullOrWhiteSpace(PreviewImagePath))
-            {
-                Hint = "还没有示意图路径：填一个图像路径后再点「载入」";
-                return;
-            }
-
-            string? resolved = ResolvePath(PreviewImagePath);
-            if (resolved == null)
-            {
-                Hint = $"示意图不存在：{PreviewImagePath}";
-                return;
-            }
-
-            try
-            {
-                HOperatorSet.ReadImage(out HObject raw, resolved);
-                try
-                {
-                    DisplayImage?.Dispose();
-                    DisplayImage = new HImage(raw);
-                }
-                finally
-                {
-                    raw?.Dispose();
-                }
-
-                Hint = $"已载入示意图 {Path.GetFileName(resolved)}";
-            }
-            catch (Exception ex)
-            {
-                Hint = "示意图载入失败：" + ex.Message;
             }
         }
 

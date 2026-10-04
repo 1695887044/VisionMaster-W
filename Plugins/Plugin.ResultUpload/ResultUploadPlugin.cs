@@ -32,7 +32,7 @@ namespace Plugin.ResultUpload
         GroupName = "数据处理",
         Description = "把检测结果 POST 成 JSON 上报：MES 字段表 / 钉钉·企业微信机器人 / 自定义报文，异步队列不占节拍",
         ShortName = "\uf093")]
-    public class ResultUploadPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class ResultUploadPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 端口
 
@@ -62,40 +62,31 @@ namespace Plugin.ResultUpload
 
         #region 内嵌配置（随 .vms 持久化）
 
-        private PayloadKind _payloadKind = PayloadKind.FieldTable;
         /// <summary>报文预设（MES 字段表 / 钉钉文本 / 企业微信文本 / 原始 JSON）。</summary>
-        [StepConfig]
-        public PayloadKind PayloadKind
+        [StepConfig, DefaultValue(PayloadKind.FieldTable)]
+        public partial PayloadKind PayloadKind { get; set; }
+
+        partial void OnPayloadKindChanged(PayloadKind value)
         {
-            get => _payloadKind;
-            set
-            {
-                if (SetProperty(ref _payloadKind, value))
-                {
-                    OnPropertyChanged(nameof(PayloadPreview));
-                    OnPropertyChanged(nameof(IsFieldTable));
-                    OnPropertyChanged(nameof(IsNotify));
-                    OnPropertyChanged(nameof(IsRawJson));
-                }
-            }
+            OnPropertyChanged(nameof(PayloadPreview));
+            OnPropertyChanged(nameof(IsFieldTable));
+            OnPropertyChanged(nameof(IsNotify));
+            OnPropertyChanged(nameof(IsRawJson));
         }
 
-        private string _url = "";
         /// <summary>目标 URL（MES 接口或钉钉/企微 webhook 地址）。</summary>
-        [StepConfig]
-        public string Url
-        {
-            get => _url;
-            set => SetProperty(ref _url, value ?? "");
-        }
+        [StepConfig, DefaultValue("")]
+        public partial string Url { get; set; }
 
-        private int _timeoutMs = 3000;
+        partial void OnUrlChanging(ref string value) => value ??= "";
+
         /// <summary>单次请求超时（毫秒）。</summary>
-        [StepConfig]
-        public int TimeoutMs
+        [StepConfig, DefaultValue(3000)]
+        public partial int TimeoutMs { get; set; }
+
+        partial void OnTimeoutMsChanging(ref int value)
         {
-            get => _timeoutMs;
-            set => SetProperty(ref _timeoutMs, value <= 0 ? 3000 : value);
+            if (value <= 0) value = 3000;
         }
 
         private ObservableCollection<HttpHeaderDef> _headers = new ObservableCollection<HttpHeaderDef>();
@@ -124,147 +115,85 @@ namespace Plugin.ResultUpload
             }
         }
 
-        private string _messageTemplate = "件{sn}判定{result}";
         /// <summary>通知内容模板（钉钉/企微的 text.content；占位符：{字段名} {时间} {日期} {步骤名}）。</summary>
-        [StepConfig]
-        public string MessageTemplate
-        {
-            get => _messageTemplate;
-            set
-            {
-                if (SetProperty(ref _messageTemplate, value ?? ""))
-                    OnPropertyChanged(nameof(PayloadPreview));
-            }
-        }
+        [StepConfig, DefaultValue("件{sn}判定{result}")]
+        public partial string MessageTemplate { get; set; }
 
-        private string _rawJsonTemplate = "{\n  \"sn\": \"{sn}\",\n  \"result\": \"{result}\"\n}";
+        partial void OnMessageTemplateChanging(ref string value) => value ??= "";
+
+        partial void OnMessageTemplateChanged(string value) => OnPropertyChanged(nameof(PayloadPreview));
+
         /// <summary>原始 JSON 模板（{名}=转义字符串注入；{#名}=原样注入（数字/布尔/JSON片段不带引号））。</summary>
-        [StepConfig]
-        public string RawJsonTemplate
-        {
-            get => _rawJsonTemplate;
-            set
-            {
-                if (SetProperty(ref _rawJsonTemplate, value ?? ""))
-                    OnPropertyChanged(nameof(PayloadPreview));
-            }
-        }
+        [StepConfig, DefaultValue("{\n  \"sn\": \"{sn}\",\n  \"result\": \"{result}\"\n}")]
+        public partial string RawJsonTemplate { get; set; }
 
-        private SendTiming _sendTiming = SendTiming.EachRun;
+        partial void OnRawJsonTemplateChanging(ref string value) => value ??= "";
+
+        partial void OnRawJsonTemplateChanged(string value) => OnPropertyChanged(nameof(PayloadPreview));
+
         /// <summary>上报时机（每次执行 / 仅 NG / 触发端口）。</summary>
-        [StepConfig]
-        public SendTiming SendTiming
-        {
-            get => _sendTiming;
-            set => SetProperty(ref _sendTiming, value);
-        }
+        [StepConfig, DefaultValue(SendTiming.EachRun)]
+        public partial SendTiming SendTiming { get; set; }
 
-        private string _judgeFieldName = "result";
         /// <summary>判定字段名（"仅 NG"时机看它的值是否等于 NG 判定值）。</summary>
-        [StepConfig]
-        public string JudgeFieldName
-        {
-            get => _judgeFieldName;
-            set => SetProperty(ref _judgeFieldName, value ?? "");
-        }
+        [StepConfig, DefaultValue("result")]
+        public partial string JudgeFieldName { get; set; }
 
-        private string _ngValue = "NG";
+        partial void OnJudgeFieldNameChanging(ref string value) => value ??= "";
+
         /// <summary>NG 判定值（判定字段的值等于它即视为 NG，不区分大小写）。</summary>
-        [StepConfig]
-        public string NgValue
-        {
-            get => _ngValue;
-            set => SetProperty(ref _ngValue, value ?? "NG");
-        }
+        [StepConfig, DefaultValue("NG")]
+        public partial string NgValue { get; set; }
 
-        private bool _asyncMode = true;
+        partial void OnNgValueChanging(ref string value) => value ??= "NG";
+
         /// <summary>异步队列（推荐，不占节拍）；取消勾选=同步等响应（Response/状态码下游可用，超时会拖节拍）。</summary>
-        [StepConfig]
-        public bool AsyncMode
-        {
-            get => _asyncMode;
-            set => SetProperty(ref _asyncMode, value);
-        }
+        [StepConfig, DefaultValue(true)]
+        public partial bool AsyncMode { get; set; }
 
-        private int _retryCount = 3;
         /// <summary>失败重试次数（退避 0.5s/1s/1.5s… 封顶 3s）。</summary>
-        [StepConfig]
-        public int RetryCount
-        {
-            get => _retryCount;
-            set => SetProperty(ref _retryCount, Math.Clamp(value, 0, 10));
-        }
+        [StepConfig, DefaultValue(3)]
+        public partial int RetryCount { get; set; }
 
-        private bool _blockOnFailure = false;
+        partial void OnRetryCountChanging(ref int value) => value = Math.Clamp(value, 0, 10);
+
         /// <summary>上报失败是否让本步骤失败阻断流程（默认 false：宁漏报不停线）。</summary>
         [StepConfig]
-        public bool BlockOnFailure
-        {
-            get => _blockOnFailure;
-            set => SetProperty(ref _blockOnFailure, value);
-        }
+        public partial bool BlockOnFailure { get; set; }
 
-        private string _successKeyword = "";
         /// <summary>业务成功关键字（非空时：HTTP 2xx 且响应体包含它才算业务成功；如钉钉 {"errcode":0} 里的 errcode）。</summary>
-        [StepConfig]
-        public string SuccessKeyword
-        {
-            get => _successKeyword;
-            set => SetProperty(ref _successKeyword, value ?? "");
-        }
+        [StepConfig, DefaultValue("")]
+        public partial string SuccessKeyword { get; set; }
 
-        private string _signSecret = "";
+        partial void OnSuccessKeywordChanging(ref string value) => value ??= "";
+
         /// <summary>钉钉加签密钥（机器人安全设置选"加签"时的 SEC 开头密钥；非空时自动给 URL 拼 timestamp+sign。MES/其他类型留空）。</summary>
-        [StepConfig]
-        public string SignSecret
-        {
-            get => _signSecret;
-            set => SetProperty(ref _signSecret, value?.Trim() ?? "");
-        }
+        [StepConfig, DefaultValue("")]
+        public partial string SignSecret { get; set; }
 
-        private bool _skipCertValidation = false;
+        partial void OnSignSecretChanging(ref string value) => value = value?.Trim() ?? "";
+
         /// <summary>跳过 HTTPS 证书校验（自签证书内网调试用；有中间人风险，非必要不开）。</summary>
         [StepConfig]
-        public bool SkipCertValidation
-        {
-            get => _skipCertValidation;
-            set => SetProperty(ref _skipCertValidation, value);
-        }
+        public partial bool SkipCertValidation { get; set; }
 
-        private bool _spoolEnabled = true;
         /// <summary>断网续传：重试穷尽仍失败的件落盘，网络恢复后自动补传（幂等 ID 防 MES 记重）。</summary>
-        [StepConfig]
-        public bool SpoolEnabled
-        {
-            get => _spoolEnabled;
-            set => SetProperty(ref _spoolEnabled, value);
-        }
+        [StepConfig, DefaultValue(true)]
+        public partial bool SpoolEnabled { get; set; }
 
-        private string _timestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
         /// <summary>时间戳格式（内置"时间戳"字段与 {时间}/{时间戳} 占位符的输出格式；留空用默认）。</summary>
-        [StepConfig]
-        public string TimestampFormat
-        {
-            get => _timestampFormat;
-            set
-            {
-                if (SetProperty(ref _timestampFormat, value ?? ""))
-                    OnPropertyChanged(nameof(PayloadPreview));
-            }
-        }
+        [StepConfig, DefaultValue("yyyy-MM-dd HH:mm:ss.fff")]
+        public partial string TimestampFormat { get; set; }
 
-        private bool _timestampUtc = false;
+        partial void OnTimestampFormatChanging(ref string value) => value ??= "";
+
+        partial void OnTimestampFormatChanged(string value) => OnPropertyChanged(nameof(PayloadPreview));
+
         /// <summary>时间戳用 UTC（对接跨时区 MES 时勾选；默认本机时间）。</summary>
         [StepConfig]
-        public bool TimestampUtc
-        {
-            get => _timestampUtc;
-            set
-            {
-                if (SetProperty(ref _timestampUtc, value))
-                    OnPropertyChanged(nameof(PayloadPreview));
-            }
-        }
+        public partial bool TimestampUtc { get; set; }
+
+        partial void OnTimestampUtcChanged(bool value) => OnPropertyChanged(nameof(PayloadPreview));
 
         #endregion
 

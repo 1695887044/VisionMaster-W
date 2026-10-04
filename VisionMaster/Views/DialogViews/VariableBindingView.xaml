@@ -461,19 +461,22 @@
                                                         恰恰要看这里（悬停虽有原因，但一眼扫过去才知道该挑哪个）。
                                                         类型名走 TypeNameToFriendlyNameConverter：
                                                         DataTypeName 存的是程序集限定名（System.String, mscorlib, …），
-                                                        转换器把它变成「文本 (String)」这种可直接读的形式，与左栏同一套写法。
+                                                        转换器把它变成「文本 (String)」这种可直接读的形式。
+
+                                                        呈现：**带底色的小方圆角标签**（DialogTag）。
+                                                        不能用 DialogChip —— 那是"胶囊"（Fluent 层圆角是 RadiusFull=999），
+                                                        短角标「枚举」「变量」正合适，而类型名一长，两端各撑成一个半圆，
+                                                        整块就成了横椭圆（本次修的就是它）。完整类型名在 ToolTip 里。
                                                     -->
                                                     <Border
                                                         Grid.Row="0"
                                                         Grid.RowSpan="2"
                                                         Grid.Column="2"
                                                         Margin="8,0,0,0"
-                                                        Background="{StaticResource DialogRowHoverBrush}"
-                                                        Style="{StaticResource DialogChip}"
+                                                        Style="{StaticResource DialogTag}"
                                                         ToolTip="{Binding DataTypeName}">
                                                         <TextBlock
-                                                            Foreground="{StaticResource DialogTextMutedBrush}"
-                                                            Style="{StaticResource DialogChipText}"
+                                                            Style="{StaticResource DialogTagText}"
                                                             Text="{Binding DataTypeName, Converter={ui:TypeNameToFriendlyNameConverter}}" />
                                                     </Border>
                                                 </Grid>

@@ -27,8 +27,10 @@ namespace UI.CustomControl.PropertyGrid
     {
         public int Priority => 100;
 
-        // 🌟 性能优化：全局枚举解析缓存，拒绝重复反射
+        // 🌟 性能优化：全局枚举解析缓存，拒绝重复反射。
+        // 属性网格可能由后台线程生成（基类有线程封送兜底），字典必须加锁防并发损坏。
         private static readonly Dictionary<Type, List<EnumItemCache>> _enumCache = new();
+        private static readonly object _enumCacheLock = new();
 
         public bool CanProcess(PropertyInfo prop, Type targetType, bool isReadOnly) => targetType.IsEnum;
 
@@ -46,17 +48,23 @@ namespace UI.CustomControl.PropertyGrid
             // 查缓存，没有则解析并提取 Description
             if (!_enumCache.TryGetValue(enumType, out var items))
             {
-                items = new List<EnumItemCache>();
-                foreach (var value in Enum.GetValues(enumType))
+                lock (_enumCacheLock)
                 {
-                    // 🌟 方案扩展：优先读取 [Description] 特性用于 UI 展示
-                    var fieldInfo = enumType.GetField(value.ToString()!);
-                    var descAttr = fieldInfo?.GetCustomAttribute<DescriptionAttribute>();
-                    string displayValue = descAttr != null ? descAttr.Description : value.ToString()!;
+                    if (!_enumCache.TryGetValue(enumType, out items))
+                    {
+                        items = new List<EnumItemCache>();
+                        foreach (var value in Enum.GetValues(enumType))
+                        {
+                            // 🌟 方案扩展：优先读取 [Description] 特性用于 UI 展示
+                            var fieldInfo = enumType.GetField(value.ToString()!);
+                            var descAttr = fieldInfo?.GetCustomAttribute<DescriptionAttribute>();
+                            string displayValue = descAttr != null ? descAttr.Description : value.ToString()!;
 
-                    items.Add(new EnumItemCache { Key = value, Value = displayValue });
+                            items.Add(new EnumItemCache { Key = value, Value = displayValue });
+                        }
+                        _enumCache[enumType] = items;
+                    }
                 }
-                _enumCache[enumType] = items;
             }
 
             comboBox.ItemsSource = items;

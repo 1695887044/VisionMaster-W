@@ -1,0 +1,406 @@
+<UserControl
+    x:Class="Plugin.Calibration.CalibrationView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
+    xmlns:local="clr-namespace:Plugin.Calibration"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.UI.com/ui"
+    MinWidth="620"
+    MinHeight="300"
+    d:Background="Gray"
+    mc:Ignorable="d">
+    <!--
+        尺寸只给下限，交给宿主对话框（初始 880×600、最小 640×420）：
+        左列 340 + 右列 240 + 外边距 24 = 604，落在宿主最小内容区 624×304 之内。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1.3*" MinWidth="340" MaxWidth="520" />
+            <ColumnDefinition Width="1*" MinWidth="240" />
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer
+            Grid.Column="0"
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!--  ① 模式与标定图  -->
+                <Border Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 标定模式与标定图" />
+                        <!--  用 WrapPanel：窄窗口下两个单选项不会互相挤掉  -->
+                        <WrapPanel Margin="0,8,0,0">
+                            <RadioButton
+                                Content="像素当量"
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.PixelScale}}" />
+                            <RadioButton
+                                Margin="16,0,0,0"
+                                Content="九点标定（N×N）"
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}" />
+                        </WrapPanel>
+
+                        <cv:LinkableValueEditor
+                            Margin="0,10,0,0"
+                            BrowseCommand="{Binding BrowseImageCommand}"
+                            Label="标定图"
+                            Port="{Binding SourceImagePath}"
+                            StepData="{Binding StepData}" />
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="{Binding SourceImageSizeText}"
+                            TextWrapping="Wrap" />
+
+                        <!--  像素当量：已知长度 + A/B 两点  -->
+                        <StackPanel Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:CalibrationMode.PixelScale}}">
+                            <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource PluginFieldLabel}"
+                                    Text="已知长度(mm)" />
+                                <TextBox
+                                    Width="90"
+                                    Style="{StaticResource PluginNumericBox}"
+                                    Text="{Binding KnownLengthMm}" />
+                            </StackPanel>
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="点「把点画到图上」→ 在画布上把 A / B 两个标记拖到标定物两端；也可在下面直接填坐标。"
+                                TextWrapping="Wrap" />
+                            <UniformGrid Margin="0,6,0,0" Columns="2">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource PluginFieldLabel}"
+                                        Text="A.Row" />
+                                    <TextBox
+                                        Width="66"
+                                        Style="{StaticResource PluginNumericBox}"
+                                        Text="{Binding ScaleARow}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource PluginFieldLabel}"
+                                        Text="A.Col" />
+                                    <TextBox
+                                        Width="66"
+                                        Style="{StaticResource PluginNumericBox}"
+                                        Text="{Binding ScaleACol}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource PluginFieldLabel}"
+                                        Text="B.Row" />
+                                    <TextBox
+                                        Width="66"
+                                        Style="{StaticResource PluginNumericBox}"
+                                        Text="{Binding ScaleBRow}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource PluginFieldLabel}"
+                                        Text="B.Col" />
+                                    <TextBox
+                                        Width="66"
+                                        Style="{StaticResource PluginNumericBox}"
+                                        Text="{Binding ScaleBCol}" />
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+
+                        <!--  九点标定：网格规模  -->
+                        <StackPanel
+                            Margin="0,8,0,0"
+                            Orientation="Horizontal"
+                            Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="网格规模" />
+                            <ComboBox
+                                Width="70"
+                                ItemsSource="{Binding GridSizeOptions}"
+                                SelectedItem="{Binding GridSize}"
+                                ToolTip="点数只是采样密度（仿射 3 点即唯一解）：默认 3×3；覆盖四角+中心后加密到 4×4/5×5 可提高抗噪余量" />
+                            <Button
+                                Margin="10,0,0,0"
+                                Padding="10,2"
+                                Command="{Binding RebuildGridCommand}"
+                                Content="重建网格" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!--  ② 标定表（九点模式；列宽与表头两处保持一致）  -->
+                <Border
+                    Margin="{StaticResource PluginSectionMargin}"
+                    Style="{StaticResource PluginCard}"
+                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 标定表（机械坐标 ↔ 图像点）" />
+
+                        <Grid Margin="0,8,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="30" />
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="点" />
+                            <TextBlock
+                                Grid.Column="1"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="机械X" />
+                            <TextBlock
+                                Grid.Column="2"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="机械Y" />
+                            <TextBlock
+                                Grid.Column="3"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="像Row" />
+                            <TextBlock
+                                Grid.Column="4"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="像Col" />
+                            <TextBlock
+                                Grid.Column="5"
+                                Margin="6,0,0,0"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="残差px" />
+                        </Grid>
+
+                        <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding PointRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="30" />
+                                                <ColumnDefinition Width="60" />
+                                                <ColumnDefinition Width="60" />
+                                                <ColumnDefinition Width="60" />
+                                                <ColumnDefinition Width="60" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <!--  点名的颜色 = 行状态：绿=有效 / 橙=半填 / 灰=空  -->
+                                            <TextBlock
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                FontSize="{StaticResource PluginLabelFontSize}"
+                                                Text="{Binding Name}"
+                                                ToolTip="{Binding StateText}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource PluginLabelTextBrush}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsPartial}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBox
+                                                Grid.Column="1"
+                                                Margin="0,0,4,0"
+                                                Style="{StaticResource PluginNumericBox}"
+                                                Text="{Binding MachineX}" />
+                                            <TextBox
+                                                Grid.Column="2"
+                                                Margin="0,0,4,0"
+                                                Style="{StaticResource PluginNumericBox}"
+                                                Text="{Binding MachineY}" />
+                                            <TextBox
+                                                Grid.Column="3"
+                                                Margin="0,0,4,0"
+                                                Style="{StaticResource PluginNumericBox}"
+                                                Text="{Binding ImageRow}" />
+                                            <TextBox
+                                                Grid.Column="4"
+                                                Margin="0,0,4,0"
+                                                Style="{StaticResource PluginNumericBox}"
+                                                Text="{Binding ImageCol}" />
+                                            <TextBlock
+                                                Grid.Column="5"
+                                                Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontSize="{StaticResource PluginHintFontSize}"
+                                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                                Text="{Binding ResidualPx, StringFormat={}{0:0.##}}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button
+                                Padding="10,2"
+                                Command="{Binding PasteRowsCommand}"
+                                Content="粘贴 N 行"
+                                ToolTip="先在 Excel 里复制若干行（每行 4 列：机械X、机械Y、图像Row、图像Col；带序号 5 列也行）" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                Command="{Binding ClearRowsCommand}"
+                                Content="清空表格" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                Command="{Binding PushMarkersCommand}"
+                                Content="把点画到图上"
+                                ToolTip="按表格生成画布标记（空行会按 N×N 默认铺位先撒上）；点中标记拖动即可取点，拖完自动回写表格" />
+                        </WrapPanel>
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="全 0 行 = 空行（不参与计算）；半填行运行时会直接报错并指到行。典型流程：机械走位 → 相机采图 → 把点拖到特征中心 → 从示教器粘贴机械坐标。"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ③ 质量与标定信息  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 质量与标定信息" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontSize="{StaticResource PluginLabelFontSize}"
+                            Text="{Binding QualityText}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding QualityLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding QualityLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginWarningBrush}"
+                            Text="{Binding QualityHint}"
+                            TextWrapping="Wrap" />
+
+                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="相机序列号" />
+                            <TextBox
+                                Width="150"
+                                Style="{StaticResource PluginNumericBox}"
+                                Text="{Binding CameraSerial, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="填「系统 → 相机设置」里的序列号：多相机下用于核对这份标定属于哪台（下游失配检测会用它）" />
+                        </StackPanel>
+                        <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="残差阈值(px)" />
+                            <TextBox
+                                Width="70"
+                                Style="{StaticResource PluginNumericBox}"
+                                Text="{Binding ResidualThresholdPx}"
+                                ToolTip="残差 RMS 超过它 → 本步骤失败：标定不合格必须是看得见的失败，而不是静默放行" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  右侧：画布 + 信息栏  -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Border
+                Padding="8"
+                Background="{StaticResource PluginSurfaceBrush}"
+                BorderBrush="#E0E0E0"
+                BorderThickness="1"
+                CornerRadius="6">
+                <h:ImageEdit
+                    ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
+                    DrawObjectList="{Binding CanvasMarkers}"
+                    HImage="{Binding DisplayImage, Mode=OneWay}"
+                    ToolTip="滑轮缩放 / 右键菜单可适应图片；点中标记可拖动（拖完自动回写表格）" />
+            </Border>
+            <Border
+                Grid.Row="1"
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource PluginStatusPanel}">
+                <DockPanel>
+                    <TextBlock
+                        DockPanel.Dock="Right"
+                        FontSize="{StaticResource PluginLabelFontSize}"
+                        Text="{Binding StatusMessage}"
+                        TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                        <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                        <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock
+                        MaxWidth="420"
+                        VerticalAlignment="Center"
+                        FontSize="{StaticResource PluginHintFontSize}"
+                        Foreground="{StaticResource PluginLabelTextBrush}"
+                        Text="{Binding PreviewImagePath}"
+                        TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

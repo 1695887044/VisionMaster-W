@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -19,7 +19,7 @@ namespace Plugin.PreProcessing.Operators
         private ColorSpaceMode _mode = ColorSpaceMode.Gray;
         private ChannelIndex _channel = ChannelIndex.First;
 
-        [SuperDisplay(Name = "转换方式", GroupPath = "参数", Order = 1, ColSpan = 12,
+        [SuperDisplay(Name = "转换方式", Group = new string[] { "参数" }, Order = 1, ColSpan = 12,
             Description = "选转灰度时下面的通道号无意义")]
         public ColorSpaceMode Mode
         {
@@ -27,7 +27,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _mode, value);
         }
 
-        [SuperDisplay(Name = "输出通道", GroupPath = "参数", Order = 2, ColSpan = 12,
+        [SuperDisplay(Name = "输出通道", Group = new string[] { "参数" }, Order = 2, ColSpan = 12,
             Description = "转换后取第几个通道（1 基）")]
         public ChannelIndex Channel
         {
@@ -57,3 +57,4 @@ namespace Plugin.PreProcessing.Operators
             : $"{Desc(Mode)} → 第 {(int)Channel} 通道";
     }
 }
+

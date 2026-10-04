@@ -1,19 +1,42 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!--  本文件只做"按域合并"，本身不含任何样式定义  -->
     <ResourceDictionary.MergedDictionaries>
 
+        <!--  ============ 第一层：颜色令牌 ============  -->
         <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
         <!--  插件配置界面令牌：颜色先合并，Styles 只做引用。换主题时替换前者即可  -->
         <ResourceDictionary Source="/UI;component/Themes/PluginConfigColors.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/IconDictionary.xaml" />
-        <ResourceDictionary Source="/UI;component/Themes/DefaultStyle.xaml" />
+
         <!--
-            PluginConfigStyles 必须排在 DefaultStyle 之后：
+            ============ 第二层：控件样式（按域拆分）============
+
+            原来的 DefaultStyle.xaml(146KB) / DialogStyles.xaml(89KB) 已按控件域拆开，
+            找"按钮样式"就去 Controls/Button.xaml，不必在两个巨型文件里翻。
+
+            拆分没动任何键名与值，只改变存放位置：
+            资源字典里键是唯一的（隐式样式按 TargetType 作键，同样唯一），
+            所以"放一个文件里"与"分多个文件按顺序合并"在运行时完全等价。
+        -->
+        <ResourceDictionary Source="/UI;component/Themes/Controls/Window.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/Button.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/Input.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/Selection.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/List.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/DataGrid.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/Navigation.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/Layout.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Controls/Misc.xaml" />
+
+        <!--
+            PluginConfigStyles 必须排在控件样式之后：
             PluginButton 要 BasedOn 隐式 Button 样式（{StaticResource {x:Type Button}}），
-            而该样式定义在 DefaultStyle.xaml —— 隐式样式未合并前解析会当场抛异常。
-            它自身只引用 PluginConfigColors 的令牌（在其之前已合并），其余无顺序依赖。
+            而该样式定义在 Controls/Button.xaml —— 隐式样式未合并前解析会当场抛异常。
         -->
         <ResourceDictionary Source="/UI;component/Themes/PluginConfigStyles.xaml" />
+
+        <!--  ============ 第三层：自定义控件（一个控件一个主题文件）============  -->
         <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Popover.xaml" />
         <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/LogConsole.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/AlarmBar.xaml" />
@@ -21,9 +44,29 @@
         <ResourceDictionary Source="/UI;component/Themes/PropertyGrid.xaml" />
         <ResourceDictionary Source="/UI;component/Extensions/BtnExtension.xaml" />
         <ResourceDictionary Source="/UI;component/Extensions/BorderExtension.xaml" />
-        <ResourceDictionary Source="/UI;component/Themes/PropergridStyle.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/BindableParamBox.xaml" />
-        <ResourceDictionary Source="/UI;component/Themes/DialogStyles.xaml" />
+
+        <!--  ============ 第四层：对话框域样式（按语义拆分）============  -->
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Text.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Container.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Input.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Selection.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Chip.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.List.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.DataGrid.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Misc.xaml" />
+
+        <!--
+            ============ 最后一层：旧键转发 ============
+            FluentAliases 必须**最后**合并：资源字典后合并者优先，
+            同名旧键靠这一条被重定向到 Fluent 样式，
+            从而做到"改一处、上百个引用页面统一换肤"，而不必动任何业务 XAML。
+
+            这里只合并 Aliases 一个文件：它内部已自行合并 FluentControls，
+            后者又自行合并 FluentTokens —— 依赖写在各自文件里，
+            就不会因为"外层合并顺序 / 延迟加载"而出现 BasedOn 解析不到资源。
+        -->
+        <ResourceDictionary Source="/UI;component/Themes/Fluent/FluentAliases.xaml" />
 
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

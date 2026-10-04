@@ -3,5 +3,7 @@
         <ResourceDictionary Source="/Core.Halcon;component/Themes/ImageEdit.xaml" />
         <ResourceDictionary Source="/Core.Halcon;component/Themes/ImageDisplay.xaml" />
         <ResourceDictionary Source="/Core.Halcon;component/Themes/ImageReadOnly.xaml" />
+        <ResourceDictionary Source="/Core.Halcon;component/Themes/ImageGallery.xaml" />
     </ResourceDictionary.MergedDictionaries>
+
 </ResourceDictionary>

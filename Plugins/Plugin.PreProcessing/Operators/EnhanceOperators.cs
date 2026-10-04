@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -14,7 +14,7 @@ namespace Plugin.PreProcessing.Operators
         private int _height = 7;
         private double _factor = 1.0;
 
-        [SuperDisplay(Name = "模板宽度", GroupPath = "参数", Order = 1, ColSpan = 4,
+        [SuperDisplay(Name = "模板宽度", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
             Description = "必须是奇数")]
         [RangeValidation(3, 201, "模板宽度需要在 3~201 之间")]
         public int Width
@@ -23,7 +23,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _width, value);
         }
 
-        [SuperDisplay(Name = "模板高度", GroupPath = "参数", Order = 2, ColSpan = 4,
+        [SuperDisplay(Name = "模板高度", Group = new string[] { "参数" }, Order = 2, ColSpan = 4,
             Description = "必须是奇数")]
         [RangeValidation(3, 201, "模板高度需要在 3~201 之间")]
         public int Height
@@ -32,7 +32,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _height, value);
         }
 
-        [SuperDisplay(Name = "增强因子", GroupPath = "参数", Order = 3, ColSpan = 4,
+        [SuperDisplay(Name = "增强因子", Group = new string[] { "参数" }, Order = 3, ColSpan = 4,
             Description = "越大越锐，参考范围 0.3~20")]
         [RangeValidation(0, 50, "增强因子需要在 0~50 之间")]
         public double Factor
@@ -63,7 +63,7 @@ namespace Plugin.PreProcessing.Operators
         private int _height = 101;
         private double _factor = 0.7;
 
-        [SuperDisplay(Name = "模板宽度", GroupPath = "参数", Order = 1, ColSpan = 4,
+        [SuperDisplay(Name = "模板宽度", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
             Description = "取远大于目标特征的尺寸，必须是奇数")]
         [RangeValidation(3, 999, "模板宽度需要在 3~999 之间")]
         public int Width
@@ -72,7 +72,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _width, value);
         }
 
-        [SuperDisplay(Name = "模板高度", GroupPath = "参数", Order = 2, ColSpan = 4,
+        [SuperDisplay(Name = "模板高度", Group = new string[] { "参数" }, Order = 2, ColSpan = 4,
             Description = "取远大于目标特征的尺寸，必须是奇数")]
         [RangeValidation(3, 999, "模板高度需要在 3~999 之间")]
         public int Height
@@ -81,7 +81,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _height, value);
         }
 
-        [SuperDisplay(Name = "增强因子", GroupPath = "参数", Order = 3, ColSpan = 4,
+        [SuperDisplay(Name = "增强因子", Group = new string[] { "参数" }, Order = 3, ColSpan = 4,
             Description = "Halcon 要求 0~1，界面旧版给到 5 会直接报错，这里自动收敛")]
         [RangeValidation(0, 1, "增强因子需要在 0~1 之间")]
         public double Factor
@@ -112,7 +112,7 @@ namespace Plugin.PreProcessing.Operators
         private double _multiplier = 1.0;
         private double _addend;
 
-        [SuperDisplay(Name = "倍数(Mult)", GroupPath = "参数", Order = 1, ColSpan = 6,
+        [SuperDisplay(Name = "倍数(Mult)", Group = new string[] { "参数" }, Order = 1, ColSpan = 6,
             Description = "灰度线性放大倍数，>1 提对比、<1 压对比")]
         [RangeValidation(0, 100, "倍数需要在 0~100 之间")]
         public double Multiplier
@@ -121,7 +121,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _multiplier, value);
         }
 
-        [SuperDisplay(Name = "偏移(Add)", GroupPath = "参数", Order = 2, ColSpan = 6,
+        [SuperDisplay(Name = "偏移(Add)", Group = new string[] { "参数" }, Order = 2, ColSpan = 6,
             Description = "整体加一个灰度值，正数变亮、负数变暗")]
         [RangeValidation(-255, 255, "偏移需要在 -255~255 之间")]
         public double Addend
@@ -163,3 +163,4 @@ namespace Plugin.PreProcessing.Operators
         public override string Summary => "灰度动态范围拉伸";
     }
 }
+

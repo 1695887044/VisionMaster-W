@@ -24,19 +24,22 @@ namespace Plugin.CSharpScript
         private readonly Action<string, object> _setOutput;
         private readonly Action<HImage, int> _showImage;
         private readonly Action<HImage, int, IEnumerable<MeasureAnnotation>> _showAnnotated;
+        private readonly Action<HImage, int, string, IEnumerable<MeasureAnnotation>, IEnumerable<ImageInfoRow>> _showRich;
 
         internal ScriptContext(
             IExecutionContext exec,
             Func<string, object> getInput,
             Action<string, object> setOutput,
             Action<HImage, int> showImage,
-            Action<HImage, int, IEnumerable<MeasureAnnotation>> showAnnotated = null)
+            Action<HImage, int, IEnumerable<MeasureAnnotation>> showAnnotated = null,
+            Action<HImage, int, string, IEnumerable<MeasureAnnotation>, IEnumerable<ImageInfoRow>> showRich = null)
         {
             _exec = exec;
             _getInput = getInput;
             _setOutput = setOutput;
             _showImage = showImage;
             _showAnnotated = showAnnotated;
+            _showRich = showRich;
         }
 
         /// <summary>自引用：脚本里 <c>Context.xxx</c> 即指向本门面。</summary>
@@ -111,6 +114,46 @@ namespace Plugin.CSharpScript
         /// </summary>
         public void ShowImage(HImage image, int viewIndex, IEnumerable<MeasureAnnotation> annotations)
             => _showAnnotated?.Invoke(image, viewIndex, annotations);
+
+        /// <summary>
+        /// 把图像连同<b>标题 + 键值信息</b>一起发布：画布的图片列表就按这些信息显示这张图
+        /// （标题 / 你给的键值行 / 来源＝流程·步骤·时间·尺寸）。
+        ///
+        /// 用途：让"这张图是什么结果"跟着图走，而不是只留一行日志 ——
+        /// 后面回头看这一轮出过哪些图时，不用再去日志里对号。
+        ///
+        /// 键值对直接写在小括号里，值可以是数字/字符串/布尔：
+        /// <code>
+        /// Context.ShowImage(img, 1, "缺陷检测结果", ("缺陷数", 51), ("判定", "NG"));
+        /// </code>
+        /// </summary>
+        public void ShowImage(HImage image, int viewIndex, string title, params (string Label, object Value)[] info)
+            => _showRich?.Invoke(image, viewIndex, title, null, ToInfoRows(info));
+
+        /// <summary>
+        /// 同上，再挂一层测量标注：既把判定结果画在画面上，图旁边也带上键值信息。
+        /// </summary>
+        public void ShowImage(
+            HImage image,
+            int viewIndex,
+            string title,
+            IEnumerable<MeasureAnnotation> annotations,
+            params (string Label, object Value)[] info)
+            => _showRich?.Invoke(image, viewIndex, title, annotations, ToInfoRows(info));
+
+        /// <summary>把脚本里的 ("键", 值) 转成随图信息行；空键跳过（列表里不出现无名信息）</summary>
+        private static List<ImageInfoRow> ToInfoRows((string Label, object Value)[] info)
+        {
+            var rows = new List<ImageInfoRow>();
+            if (info == null) return rows;
+
+            foreach (var (label, value) in info)
+            {
+                if (string.IsNullOrWhiteSpace(label)) continue;
+                rows.Add(new ImageInfoRow(label, value?.ToString() ?? string.Empty));
+            }
+            return rows;
+        }
 
         // ── 自定义函数：标注构造（让脚本不必认识标注类型，一行一个图元）──────
 

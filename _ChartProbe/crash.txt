@@ -1,0 +1,256 @@
+20:52:54.642 启动
+20:52:54.779 开始采集
+20:52:54.944 JoinSyncGroup: main members=1
+20:52:54.944 JoinSyncGroup: main members=2
+20:52:54.945 窗口已显示
+20:52:57.938 跑完 3 秒
+20:52:57.984 ReceiveCursorX: x=0.50
+20:52:57.992 十字光标已放置, readout=十字光标:  T = 20:52:55.144    Y = 2.800
+20:52:57.992 十字光标已放置, readout=十字光标:  T = 20:52:55.144    Y = 2.800
+20:54:44.466 启动
+20:54:44.611 开始采集
+20:54:44.785 JoinSyncGroup: main members=1
+20:54:44.785 JoinSyncGroup: main members=2
+20:54:44.786 窗口已显示
+20:54:45.858 ReceiveCursorX: x=0.53
+20:54:45.866 ReceiveCursorX: x=0.54
+20:54:45.871 ReceiveCursorX: x=0.54
+20:54:45.879 ReceiveCursorX: x=0.56
+20:54:45.903 ReceiveCursorX: x=0.57
+20:54:45.916 ReceiveCursorX: x=0.57
+20:54:45.922 ReceiveCursorX: x=0.57
+20:54:45.928 ReceiveCursorX: x=0.57
+20:54:45.935 ReceiveCursorX: x=0.58
+20:54:45.942 ReceiveCursorX: x=0.58
+20:54:45.966 ReceiveCursorX: x=0.58
+20:54:45.997 ReceiveCursorX: x=0.60
+20:54:46.005 ReceiveCursorX: x=0.61
+20:54:46.028 ReceiveCursorX: x=0.61
+20:54:46.033 ReceiveCursorX: x=0.61
+20:54:46.038 ReceiveCursorX: x=0.61
+20:54:46.046 ReceiveCursorX: x=0.63
+20:54:46.075 ReceiveCursorX: x=0.63
+20:54:46.083 ReceiveCursorX: x=0.63
+20:54:46.088 ReceiveCursorX: x=0.64
+20:54:46.095 ReceiveCursorX: x=0.65
+20:54:46.123 ReceiveCursorX: x=0.66
+20:54:46.131 ReceiveCursorX: x=0.67
+20:54:46.136 ReceiveCursorX: x=0.67
+20:54:46.154 ReceiveCursorX: x=0.67
+20:54:46.159 ReceiveCursorX: x=0.67
+20:54:46.186 ReceiveCursorX: x=0.68
+20:54:46.217 ReceiveCursorX: x=0.69
+20:54:46.249 ReceiveCursorX: x=0.70
+20:54:46.280 ReceiveCursorX: x=0.71
+20:54:46.289 ReceiveCursorX: x=0.71
+20:54:46.293 ReceiveCursorX: x=0.72
+20:54:46.298 ReceiveCursorX: x=0.72
+20:54:46.306 ReceiveCursorX: x=0.73
+20:54:46.327 ReceiveCursorX: x=0.73
+20:54:46.334 ReceiveCursorX: x=0.74
+20:54:46.339 ReceiveCursorX: x=0.74
+20:54:46.359 ReceiveCursorX: x=0.74
+20:54:46.364 ReceiveCursorX: x=0.74
+20:54:46.369 ReceiveCursorX: x=0.74
+20:54:46.373 ReceiveCursorX: x=0.74
+20:54:46.381 ReceiveCursorX: x=0.75
+20:54:46.403 ReceiveCursorX: x=0.73
+20:54:46.413 ReceiveCursorX: x=0.73
+20:54:46.419 ReceiveCursorX: x=0.73
+20:54:46.425 ReceiveCursorX: x=0.72
+20:54:46.482 ReceiveCursorX: x=5.31
+20:54:46.487 ReceiveCursorX: x=5.29
+20:54:46.512 ReceiveCursorX: x=5.27
+20:54:46.517 ReceiveCursorX: x=5.25
+20:54:46.522 ReceiveCursorX: x=5.25
+20:54:46.545 ReceiveCursorX: x=5.25
+20:54:46.551 ReceiveCursorX: x=5.25
+20:54:46.575 ReceiveCursorX: x=5.26
+20:54:46.579 ReceiveCursorX: x=5.26
+20:54:46.585 ReceiveCursorX: x=5.26
+20:54:46.607 ReceiveCursorX: x=5.27
+20:54:46.638 ReceiveCursorX: x=5.27
+20:54:46.641 ReceiveCursorX: x=5.27
+20:54:46.669 ReceiveCursorX: x=5.27
+20:54:46.675 ReceiveCursorX: x=5.28
+20:54:46.700 ReceiveCursorX: x=5.28
+20:54:46.704 ReceiveCursorX: x=5.28
+20:54:46.710 ReceiveCursorX: x=5.29
+20:54:46.731 ReceiveCursorX: x=5.29
+20:54:46.740 ReceiveCursorX: x=5.30
+20:54:46.763 ReceiveCursorX: x=5.30
+20:54:46.792 ReceiveCursorX: x=5.31
+20:54:47.058 ReceiveCursorX: x=5.31
+20:54:47.151 ReceiveCursorX: x=5.31
+20:54:47.820 跑完 3 秒
+20:54:47.861 ReceiveCursorX: x=0.50
+20:54:47.866 十字光标已放置, readout=十字光标:  T = 20:54:44.968    Y = 2.800
+20:54:47.866 十字光标已放置, readout=十字光标:  T = 20:54:44.968    Y = 2.800
+20:54:48.243 ReceiveCursorX: x=1.31
+20:54:48.248 ReceiveCursorX: x=1.31
+20:54:48.252 ReceiveCursorX: x=1.31
+20:54:48.309 ReceiveCursorX: x=1.31
+21:29:07.464 启动
+21:29:08.844 开始采集
+21:29:09.257 JoinSyncGroup: main members=1
+21:29:09.257 JoinSyncGroup: main members=2
+21:29:09.260 窗口已显示
+21:29:12.260 跑完 3 秒
+21:29:12.305 十字光标已放置, readout=十字光标:  T = 21:29:07.970    Y = 2.800
+21:29:12.305 十字光标已放置, readout=十字光标:  T = 21:29:07.970    Y = 2.800
+21:29:47.844 启动
+21:29:48.030 开始采集
+21:29:48.225 JoinSyncGroup: main members=1
+21:29:48.225 JoinSyncGroup: main members=2
+21:29:48.229 窗口已显示
+21:29:51.218 跑完 3 秒
+21:29:51.263 十字光标已放置, readout=十字光标:  T = 21:29:48.351    Y = 2.800
+21:29:51.263 十字光标已放置, readout=十字光标:  T = 21:29:48.351    Y = 2.800
+21:30:04.878 启动
+21:30:05.066 开始采集
+21:30:05.265 JoinSyncGroup: main members=1
+21:30:05.265 JoinSyncGroup: main members=2
+21:30:05.269 窗口已显示
+21:30:08.276 跑完 3 秒
+21:30:08.319 十字光标已放置, readout=十字光标:  T = 21:30:05.385    Y = 2.800
+21:30:08.319 十字光标已放置, readout=十字光标:  T = 21:30:05.385    Y = 2.800
+21:31:12.721 启动
+21:31:12.903 开始采集
+21:31:13.097 JoinSyncGroup: main members=1
+21:31:13.097 JoinSyncGroup: main members=2
+21:31:13.101 窗口已显示
+21:31:16.096 跑完 3 秒
+21:31:16.139 十字光标已放置, readout=十字光标:  T = 21:31:13.227    Y = 2.800
+21:31:16.140 十字光标已放置, readout=十字光标:  T = 21:31:13.227    Y = 2.800
+21:32:00.865 启动
+21:32:01.052 开始采集
+21:32:01.246 JoinSyncGroup: main members=1
+21:32:01.246 JoinSyncGroup: main members=2
+21:32:01.250 窗口已显示
+21:32:04.257 跑完 3 秒
+21:32:04.301 十字光标已放置, readout=十字光标:  T = 21:32:01.372    Y = 2.800
+21:32:04.301 十字光标已放置, readout=十字光标:  T = 21:32:01.372    Y = 2.800
+21:40:36.372 启动
+21:40:36.554 开始采集
+21:40:36.741 JoinSyncGroup: main members=1
+21:40:36.742 JoinSyncGroup: main members=2
+21:40:36.746 窗口已显示
+21:40:39.743 跑完 3 秒
+21:40:39.788 十字光标已放置, readout=十字光标:  T = 21:40:36.878    Y = 2.800
+21:40:39.788 十字光标已放置, readout=十字光标:  T = 21:40:36.878    Y = 2.800
+21:40:49.214 启动
+21:40:49.379 开始采集
+21:40:49.559 JoinSyncGroup: main members=1
+21:40:49.559 JoinSyncGroup: main members=2
+21:40:49.562 窗口已显示
+21:40:52.569 跑完 3 秒
+21:40:52.612 十字光标已放置, readout=十字光标:  T = 21:40:49.719    Y = 2.800
+21:40:52.612 十字光标已放置, readout=十字光标:  T = 21:40:49.719    Y = 2.800
+07:02:26.445 启动
+07:02:27.855 开始采集
+07:02:28.638 JoinSyncGroup: main members=1
+07:02:28.638 JoinSyncGroup: main members=2
+07:02:28.646 窗口已显示
+07:02:31.649 跑完 3 秒
+07:02:31.769 十字光标已放置, readout=十字光标:  T = 07:02:26.966    Y = 2.800
+07:02:31.770 十字光标已放置, readout=十字光标:  T = 07:02:26.966    Y = 2.800
+07:04:04.972 启动
+07:04:05.392 开始采集
+07:04:05.805 JoinSyncGroup: main members=1
+07:04:05.806 JoinSyncGroup: main members=2
+07:04:05.813 窗口已显示
+07:04:08.834 跑完 3 秒
+07:04:08.924 十字光标已放置, readout=十字光标:  T = 07:04:05.489    Y = 2.800
+07:04:08.925 十字光标已放置, readout=十字光标:  T = 07:04:05.489    Y = 2.800
+07:10:17.068 启动
+07:10:17.545 开始采集
+07:10:18.049 JoinSyncGroup: main members=1
+07:10:18.050 JoinSyncGroup: main members=2
+07:10:18.062 窗口已显示
+07:10:21.063 跑完 3 秒
+07:10:21.192 十字光标已放置, readout=十字光标:  T = 07:10:17.585    Y = 2.800
+07:10:21.192 十字光标已放置, readout=十字光标:  T = 07:10:17.585    Y = 2.800
+08:21:58.574 启动
+08:22:02.651 开始采集
+08:22:04.012 JoinSyncGroup: main members=1
+08:22:04.013 JoinSyncGroup: main members=2
+08:22:04.020 窗口已显示
+08:22:07.011 跑完 3 秒
+08:22:07.184 十字光标已放置, readout=十字光标:  T = 08:21:59.079    Y = 2.800
+08:22:07.185 十字光标已放置, readout=十字光标:  T = 08:21:59.079    Y = 2.800
+08:39:56.955 启动
+08:39:57.333 开始采集
+08:39:57.891 JoinSyncGroup: main members=1
+08:39:57.891 JoinSyncGroup: main members=2
+08:39:57.895 窗口已显示
+08:40:01.414 跑完 3 秒
+08:40:01.566 十字光标已放置, readout=十字光标:  T = 08:39:57.459    Y = 2.800
+08:40:01.567 十字光标已放置, readout=十字光标:  T = 08:39:57.459    Y = 2.800
+09:10:25.560 启动
+09:10:26.970 开始采集
+09:10:27.667 JoinSyncGroup: main members=1
+09:10:27.668 JoinSyncGroup: main members=2
+09:10:27.670 窗口已显示
+09:10:30.686 跑完 3 秒
+09:10:30.771 十字光标已放置, readout=十字光标:  T = 09:10:26.064    Y = 2.800
+09:10:30.771 十字光标已放置, readout=十字光标:  T = 09:10:26.064    Y = 2.800
+09:11:52.029 启动
+09:11:52.347 开始采集
+09:11:53.080 JoinSyncGroup: main members=1
+09:11:53.081 JoinSyncGroup: main members=2
+09:11:53.083 窗口已显示
+09:11:56.069 跑完 3 秒
+09:11:56.185 十字光标已放置, readout=十字光标:  T = 09:11:52.535    Y = 2.800
+09:17:41.285 启动
+09:17:41.591 开始采集
+09:17:42.190 JoinSyncGroup: main members=1
+09:17:42.191 JoinSyncGroup: main members=2
+09:17:42.193 窗口已显示
+09:17:45.190 跑完 3 秒
+09:17:45.287 十字光标已放置, readout=十字光标:  T = 09:17:41.791    Y = 2.800
+09:21:34.440 启动
+09:21:34.757 开始采集
+09:21:35.033 JoinSyncGroup: main members=1
+09:21:35.034 JoinSyncGroup: main members=2
+09:21:35.049 窗口已显示
+09:21:38.458 跑完 3 秒
+09:21:38.563 十字光标已放置, readout=十字光标:  T = 09:21:34.945    Y = 2.800
+09:21:38.563 十字光标已放置, readout=十字光标:  T = 09:21:34.945    Y = 2.800
+09:22:31.419 启动
+09:22:31.614 开始采集
+09:22:31.970 JoinSyncGroup: main members=1
+09:22:31.970 JoinSyncGroup: main members=2
+09:22:31.971 窗口已显示
+09:22:34.976 跑完 3 秒
+09:22:35.090 十字光标已放置, readout=十字光标:  T = 09:22:31.922    Y = 2.800
+09:51:47.595 启动
+09:51:47.907 开始采集
+09:51:48.558 JoinSyncGroup: main members=1
+09:51:48.559 JoinSyncGroup: main members=2
+09:51:48.561 窗口已显示
+09:51:51.574 跑完 3 秒
+09:51:51.684 十字光标已放置, readout=十字光标:  T = 09:51:48.099    Y = 2.800
+10:45:07.371 启动
+10:45:07.580 开始采集
+10:45:07.862 JoinSyncGroup: main members=1
+10:45:07.871 JoinSyncGroup: main members=2
+10:45:07.880 窗口已显示
+10:45:10.907 跑完 3 秒
+10:45:11.019 十字光标已放置, readout=十字光标:  T = 10:45:07.880    Y = 2.800
+10:45:11.020 十字光标已放置, readout=十字光标:  T = 10:45:07.880    Y = 2.800
+11:25:39.231 启动
+11:25:39.413 开始采集
+11:25:39.696 JoinSyncGroup: main members=1
+11:25:39.696 JoinSyncGroup: main members=2
+11:25:39.699 窗口已显示
+11:25:42.755 跑完 3 秒
+11:25:42.859 十字光标已放置, readout=十字光标:  T = 11:25:39.738    Y = 2.800
+11:25:42.859 十字光标已放置, readout=十字光标:  T = 11:25:39.738    Y = 2.800
+11:50:22.590 启动
+11:50:22.774 开始采集
+11:50:23.051 JoinSyncGroup: main members=1
+11:50:23.051 JoinSyncGroup: main members=2
+11:50:23.066 窗口已显示
+11:50:26.061 跑完 3 秒
+11:50:26.169 十字光标已放置, readout=十字光标:  T = 11:50:23.097    Y = 2.800
+11:50:26.169 十字光标已放置, readout=十字光标:  T = 11:50:23.097    Y = 2.800

@@ -1,4 +1,4 @@
-using UI.Attributes;
+﻿using UI.Attributes;
 
 namespace VisionMaster.Communications
 {
@@ -13,7 +13,7 @@ namespace VisionMaster.Communications
         /// <para>范围：0-127</para>
         /// <para>默认值：0</para>
         /// </summary>
-        [SuperDisplay(Name = "PLC 网络号", GroupPath = "FINS专有参数", Order = 5, ColSpan = 4)]
+        [SuperDisplay(Name = "PLC 网络号", Group = new string[] { "FINS专有参数" }, Order = 5, ColSpan = 4)]
         [RangeValidation(0, 127, "网络号范围：0-127")]
         public byte NetworkNumber { get; set; } = 0;
 
@@ -22,7 +22,7 @@ namespace VisionMaster.Communications
         /// <para>范围：0-254</para>
         /// <para>默认值：0</para>
         /// </summary>
-        [SuperDisplay(Name = "PLC 节点号", GroupPath = "FINS专有参数", Order = 6, ColSpan = 4)]
+        [SuperDisplay(Name = "PLC 节点号", Group = new string[] { "FINS专有参数" }, Order = 6, ColSpan = 4)]
         [RangeValidation(0, 254, "节点号范围：0-254")]
         public byte NodeNumber { get; set; } = 0;
 
@@ -31,7 +31,7 @@ namespace VisionMaster.Communications
         /// <para>范围：0-255</para>
         /// <para>默认值：0</para>
         /// </summary>
-        [SuperDisplay(Name = "PLC 单元号", GroupPath = "FINS专有参数", Order = 7, ColSpan = 4)]
+        [SuperDisplay(Name = "PLC 单元号", Group = new string[] { "FINS专有参数" }, Order = 7, ColSpan = 4)]
         [RangeValidation(0, 255, "单元号范围：0-255")]
         public byte UnitNumber { get; set; } = 0;
 
@@ -39,7 +39,7 @@ namespace VisionMaster.Communications
         /// <para>获取或设置响应超时时间（毫秒）。</para>
         /// <para>默认值：5000ms</para>
         /// </summary>
-        [SuperDisplay(Name = "响应超时(ms)", GroupPath = "FINS专有参数", Order = 8, ColSpan = 6)]
+        [SuperDisplay(Name = "响应超时(ms)", Group = new string[] { "FINS专有参数" }, Order = 8, ColSpan = 6)]
         public int ResponseTimeoutMs { get; set; } = 5000;
 
         /// <summary>
@@ -78,3 +78,4 @@ namespace VisionMaster.Communications
         };
     }
 }
+

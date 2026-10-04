@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using UI.Attributes;
 
@@ -18,7 +18,7 @@ namespace Plugin.PreProcessing.Operators
         private int _width = 5;
         private int _height = 5;
 
-        [SuperDisplay(Name = "模板宽度", GroupPath = "参数", Order = 1, ColSpan = 6,
+        [SuperDisplay(Name = "模板宽度", Group = new string[] { "参数" }, Order = 1, ColSpan = 6,
             Description = "矩形模板宽度（像素）")]
         [RangeValidation(1, 999, "模板宽度需要在 1~999 之间")]
         public int Width
@@ -27,7 +27,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _width, value);
         }
 
-        [SuperDisplay(Name = "模板高度", GroupPath = "参数", Order = 2, ColSpan = 6,
+        [SuperDisplay(Name = "模板高度", Group = new string[] { "参数" }, Order = 2, ColSpan = 6,
             Description = "矩形模板高度（像素）")]
         [RangeValidation(1, 999, "模板高度需要在 1~999 之间")]
         public int Height
@@ -51,3 +51,4 @@ namespace Plugin.PreProcessing.Operators
         public override string Summary => $"{Width} × {Height}";
     }
 }
+

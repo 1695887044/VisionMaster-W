@@ -3,6 +3,7 @@ using Core.Events;
 using Core.Interfaces;
 using HalconDotNet;
 using System;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Windows.Threading;
 
@@ -26,7 +27,7 @@ namespace Plugin.BlobDetect
         Description = "阈值分割 + 连通域分析，检出划痕/暗斑等缺陷并按个数与面积判定 OK/NG；支持固定/自动/动态阈值与亮暗同检，支持检测/排除区域，输出逐缺陷面积、圆度、长宽比、方向等特征",
         ShortName = "\uf002"
     )]
-    public class BlobDetectPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class BlobDetectPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 输入 / 输出端口（名字即连线名，编译期就存在，供按名连线）
 
@@ -165,23 +166,19 @@ namespace Plugin.BlobDetect
 
         #region ① 二值化
 
-        private ThresholdMode _thresholdMode = DefaultThresholdMode;
         /// <summary>二值化方式（切换时界面只显示该方式自己的参数）</summary>
-        [StepConfig]
-        public ThresholdMode ThresholdMode
+        [StepConfig, DefaultValue(DefaultThresholdMode)]
+        public partial ThresholdMode ThresholdMode { get; set; }
+
+        partial void OnThresholdModeChanged(ThresholdMode value)
         {
-            get => _thresholdMode;
-            set
-            {
-                if (!SetProperty(ref _thresholdMode, value)) return;
-                // 三个分区 + "检测目标"的显隐都跟着方式走，一次性把相关通知补全
-                OnPropertyChanged(nameof(IsFixedThreshold));
-                OnPropertyChanged(nameof(IsAutoThreshold));
-                OnPropertyChanged(nameof(IsDynamicThreshold));
-                OnPropertyChanged(nameof(ShowDetectTarget));
-                OnPropertyChanged(nameof(ShowDualPolarity));
-                SchedulePreview();
-            }
+            // 三个分区 + "检测目标"的显隐都跟着方式走，一次性把相关通知补全
+            OnPropertyChanged(nameof(IsFixedThreshold));
+            OnPropertyChanged(nameof(IsAutoThreshold));
+            OnPropertyChanged(nameof(IsDynamicThreshold));
+            OnPropertyChanged(nameof(ShowDetectTarget));
+            OnPropertyChanged(nameof(ShowDualPolarity));
+            SchedulePreview();
         }
 
         private DetectTarget _detectTarget = DefaultDetectTarget;
@@ -205,7 +202,6 @@ namespace Plugin.BlobDetect
             }
         }
 
-        private bool _detectBrightAndDark = DefaultDetectBrightAndDark;
         /// <summary>
         /// 亮暗同检：同一张图上同时检出比背景亮与比背景暗的缺陷（仅自动/动态阈值下生效）。
         ///
@@ -214,33 +210,26 @@ namespace Plugin.BlobDetect
         /// 固定阈值不提供这一项：它的灰度区间 [MinGray, MaxGray] 本身就是"区间内全要"，
         /// 想双向就切成自动/动态阈值再勾选，参数区不摆一个不生效的开关。
         /// </summary>
-        [StepConfig]
-        public bool DetectBrightAndDark
+        [StepConfig, DefaultValue(DefaultDetectBrightAndDark)]
+        public partial bool DetectBrightAndDark { get; set; }
+
+        partial void OnDetectBrightAndDarkChanged(bool value)
         {
-            get => _detectBrightAndDark;
-            set
-            {
-                if (!SetProperty(ref _detectBrightAndDark, value)) return;
-                // 同检一开，"检测目标"就失效了（两种极性都要）——跟着隐藏，别留一个不生效的开关
-                OnPropertyChanged(nameof(ShowDetectTarget));
-                SchedulePreview();
-            }
+            // 同检一开，"检测目标"就失效了（两种极性都要）——跟着隐藏，别留一个不生效的开关
+            OnPropertyChanged(nameof(ShowDetectTarget));
+            SchedulePreview();
         }
 
         /// <summary>阈值是否仍停留在上次适配出来的那组值（用于判断"用户有没有手调过"）</summary>
         private bool IsThresholdAtLastAdaptedValue()
             => NearlyEqual(MinGray, _lastAdaptedMinGray) && NearlyEqual(MaxGray, _lastAdaptedMaxGray);
 
-        private double _minGray = DefaultMinGray;
         /// <summary>固定阈值：下限灰度</summary>
-        [StepConfig]
-        public double MinGray
-        {
-            get => _minGray;
-            set { if (SetProperty(ref _minGray, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMinGray)]
+        public partial double MinGray { get; set; }
 
-        private double _maxGray = DefaultMaxGray;
+        partial void OnMinGrayChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 固定阈值：上限灰度。
         ///
@@ -251,63 +240,45 @@ namespace Plugin.BlobDetect
         /// 注意这是绝对灰度值、隐含 8 位图假设：图像若是 uint2（12/16 位，0~4095），
         /// 128 会落在极暗处，需按位深换算（12 位图约取 2048）。
         /// </summary>
-        [StepConfig]
-        public double MaxGray
-        {
-            get => _maxGray;
-            set { if (SetProperty(ref _maxGray, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMaxGray)]
+        public partial double MaxGray { get; set; }
 
-        private int _varMaskWidth = DefaultVarMaskWidth;
+        partial void OnMaxGrayChanged(double value) => SchedulePreview();
+
         /// <summary>动态阈值：局部窗口宽（像素）</summary>
-        [StepConfig]
-        public int VarMaskWidth
-        {
-            get => _varMaskWidth;
-            set { if (SetProperty(ref _varMaskWidth, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultVarMaskWidth)]
+        public partial int VarMaskWidth { get; set; }
 
-        private int _varMaskHeight = DefaultVarMaskHeight;
+        partial void OnVarMaskWidthChanged(int value) => SchedulePreview();
+
         /// <summary>动态阈值：局部窗口高（像素）</summary>
-        [StepConfig]
-        public int VarMaskHeight
-        {
-            get => _varMaskHeight;
-            set { if (SetProperty(ref _varMaskHeight, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultVarMaskHeight)]
+        public partial int VarMaskHeight { get; set; }
 
-        private double _varStdDevScale = DefaultVarStdDevScale;
+        partial void OnVarMaskHeightChanged(int value) => SchedulePreview();
+
         /// <summary>动态阈值：标准差权重</summary>
-        [StepConfig]
-        public double VarStdDevScale
-        {
-            get => _varStdDevScale;
-            set { if (SetProperty(ref _varStdDevScale, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultVarStdDevScale)]
+        public partial double VarStdDevScale { get; set; }
 
-        private double _varAbsThreshold = DefaultVarAbsThreshold;
+        partial void OnVarStdDevScaleChanged(double value) => SchedulePreview();
+
         /// <summary>动态阈值：绝对灰度偏移量</summary>
-        [StepConfig]
-        public double VarAbsThreshold
-        {
-            get => _varAbsThreshold;
-            set { if (SetProperty(ref _varAbsThreshold, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultVarAbsThreshold)]
+        public partial double VarAbsThreshold { get; set; }
+
+        partial void OnVarAbsThresholdChanged(double value) => SchedulePreview();
 
         #endregion
 
         #region ② 特征筛选（噪声清理 + 形状 + 触边）
 
-        private double _minArea = DefaultMinArea;
         /// <summary>面积下限：小于它的连通域当噪点丢弃</summary>
-        [StepConfig]
-        public double MinArea
-        {
-            get => _minArea;
-            set { if (SetProperty(ref _minArea, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMinArea)]
+        public partial double MinArea { get; set; }
 
-        private double _maxBlobArea = DefaultMaxBlobArea;
+        partial void OnMinAreaChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 单缺陷面积上限（筛选用，0 = 不限，此时上限自动取"图像像素总数"）。
         ///
@@ -315,26 +286,20 @@ namespace Plugin.BlobDetect
         /// 一个是"这个缺陷合不合格"（判定，超了判 NG）。早期版本只有后者、且把 select_shape 的筛选上限写死 1e7，
         /// 结果是大画幅（>1000 万像素）上整块背景被 1e7 静默滤掉——既不计数也不 NG，等于漏检还报 OK。
         /// </summary>
-        [StepConfig]
-        public double MaxBlobArea
-        {
-            get => _maxBlobArea;
-            set { if (SetProperty(ref _maxBlobArea, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMaxBlobArea)]
+        public partial double MaxBlobArea { get; set; }
 
-        private double _minCircularity = DefaultMinCircularity;
+        partial void OnMaxBlobAreaChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 圆度下限（0 = 不筛）。取值 0~1：1 = 正圆，细长划痕约 0.02~0.1，方块约 0.67。
         /// 用来把"圆形斑点"与"细长划痕"分开——这是现场最常见的两类缺陷区分需求。
         /// </summary>
-        [StepConfig]
-        public double MinCircularity
-        {
-            get => _minCircularity;
-            set { if (SetProperty(ref _minCircularity, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMinCircularity)]
+        public partial double MinCircularity { get; set; }
 
-        private double _maxAspectRatio = DefaultMaxAspectRatio;
+        partial void OnMinCircularityChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 长宽比上限（0 = 不筛）。长宽比 = 外接矩形 长边/短边，越大越细长（正方形 = 1）。
         ///
@@ -342,14 +307,11 @@ namespace Plugin.BlobDetect
         /// （select_shape / region_features 均报 #3101 Unknown feature；仓库脚本模板里教用户写 'elongation' 是错的）。
         /// 这里改用 smallest_rectangle1 自己算，语义与 elongation 一致且在任何版本都成立。
         /// </summary>
-        [StepConfig]
-        public double MaxAspectRatio
-        {
-            get => _maxAspectRatio;
-            set { if (SetProperty(ref _maxAspectRatio, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMaxAspectRatio)]
+        public partial double MaxAspectRatio { get; set; }
 
-        private int _excludeBorderPx = DefaultExcludeBorderPx;
+        partial void OnMaxAspectRatioChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 排除触边缺陷的边界带宽（像素，0 = 不排除）。
         /// 缺陷外接矩形只要碰到图像（或 ROI 外接矩形）最外 N 像素，就当"打光/裁切边缘效应"丢弃。
@@ -357,48 +319,36 @@ namespace Plugin.BlobDetect
         /// 为什么必须有这一项：打光边缘效应是固定的误检源（自带样图上就有不少缺陷落在右缘/底缘），
         /// 而上游 ROI 只能整体裁形状、没法"往里缩一圈"，所以只能在本插件里按"是否触边"过滤。
         /// </summary>
-        [StepConfig]
-        public int ExcludeBorderPx
-        {
-            get => _excludeBorderPx;
-            set { if (SetProperty(ref _excludeBorderPx, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultExcludeBorderPx)]
+        public partial int ExcludeBorderPx { get; set; }
+
+        partial void OnExcludeBorderPxChanged(int value) => SchedulePreview();
 
         #endregion
 
         #region ③ 形态学
 
-        private double _openRadius = DefaultOpenRadius;
         /// <summary>开运算半径（0 = 不做开运算）</summary>
-        [StepConfig]
-        public double OpenRadius
-        {
-            get => _openRadius;
-            set { if (SetProperty(ref _openRadius, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultOpenRadius)]
+        public partial double OpenRadius { get; set; }
 
-        private double _closeRadius = DefaultCloseRadius;
+        partial void OnOpenRadiusChanged(double value) => SchedulePreview();
+
         /// <summary>闭运算半径（0 = 不做闭运算）</summary>
-        [StepConfig]
-        public double CloseRadius
-        {
-            get => _closeRadius;
-            set { if (SetProperty(ref _closeRadius, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultCloseRadius)]
+        public partial double CloseRadius { get; set; }
 
-        private bool _fillHoles = DefaultFillHoles;
+        partial void OnCloseRadiusChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 是否填孔（fill_up）。缺陷内部若有亮斑/反光会把一个缺陷"挖成环形"：
         /// 面积偏小、甚至被拆成多个区域。勾选后按外轮廓计算面积。
         /// </summary>
-        [StepConfig]
-        public bool FillHoles
-        {
-            get => _fillHoles;
-            set { if (SetProperty(ref _fillHoles, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultFillHoles)]
+        public partial bool FillHoles { get; set; }
 
-        private double _mergeRadius = DefaultMergeRadius;
+        partial void OnFillHolesChanged(bool value) => SchedulePreview();
+
         /// <summary>
         /// 相邻缺陷的合并半径（像素，0 = 不合并）。把间距小于 2×半径 的几段连成一个缺陷。
         ///
@@ -406,96 +356,75 @@ namespace Plugin.BlobDetect
         /// 做法：union1（先合成一个区域集）→ closing_circle → connection。
         /// 注意必须先 union1：直接对区域数组做形态学，HALCON 是逐对象处理、合不到一起。
         /// </summary>
-        [StepConfig]
-        public double MergeRadius
-        {
-            get => _mergeRadius;
-            set { if (SetProperty(ref _mergeRadius, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMergeRadius)]
+        public partial double MergeRadius { get; set; }
+
+        partial void OnMergeRadiusChanged(double value) => SchedulePreview();
 
         #endregion
 
         #region ④ 判定规格
 
-        private int _maxDefectCount = DefaultMaxDefectCount;
         /// <summary>缺陷个数上限（超过即 NG）</summary>
-        [StepConfig]
-        public int MaxDefectCount
-        {
-            get => _maxDefectCount;
-            set { if (SetProperty(ref _maxDefectCount, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMaxDefectCount)]
+        public partial int MaxDefectCount { get; set; }
 
-        private int _minDefectCount = DefaultMinDefectCount;
+        partial void OnMaxDefectCountChanged(int value) => SchedulePreview();
+
         /// <summary>
         /// 缺陷个数下限（少于即 NG，0 = 不做这项判定）。
         ///
         /// 用在哪：Blob 在产线上大量用于"存在性检测"——这个特征/这个标记有没有。
         /// 此时"一个都没检到"恰恰是坏消息，而只靠上限的话 0 个会判 OK。
         /// </summary>
-        [StepConfig]
-        public int MinDefectCount
-        {
-            get => _minDefectCount;
-            set { if (SetProperty(ref _minDefectCount, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMinDefectCount)]
+        public partial int MinDefectCount { get; set; }
 
-        private double _maxSingleArea = DefaultMaxSingleArea;
+        partial void OnMinDefectCountChanged(int value) => SchedulePreview();
+
         /// <summary>
         /// 单个缺陷面积上限（超过即 NG）。填 0 = 不做这项判定（与总面积上限同一口径）。
         /// 历史版本里 0 的语义是"任何缺陷都 NG"，与本插件其余规格参数"0 = 不启用"相反而易踩坑，已对齐；
         /// 依赖旧行为的方案请把「缺陷个数上限」设为 0（零容忍）来表达同样的判定。
         /// </summary>
-        [StepConfig]
-        public double MaxSingleArea
-        {
-            get => _maxSingleArea;
-            set { if (SetProperty(ref _maxSingleArea, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMaxSingleArea)]
+        public partial double MaxSingleArea { get; set; }
 
-        private double _maxTotalArea = DefaultMaxTotalArea;
+        partial void OnMaxSingleAreaChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 缺陷总面积上限（超过即 NG，0 = 不做这项判定）。
         /// 用在哪：每个缺陷单独看都合格、但整片脏污/麻点密布——只有总面积能兜住这种情况。
         /// </summary>
-        [StepConfig]
-        public double MaxTotalArea
-        {
-            get => _maxTotalArea;
-            set { if (SetProperty(ref _maxTotalArea, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultMaxTotalArea)]
+        public partial double MaxTotalArea { get; set; }
+
+        partial void OnMaxTotalAreaChanged(double value) => SchedulePreview();
 
         #endregion
 
         #region ⑤ 输出
 
-        private double _pixelSizeMm = DefaultPixelSizeMm;
         /// <summary>
         /// 像素当量（mm/px）。默认 1.0 = 输出的 mm² 数值等于像素值，不假设任何标定；
         /// 现场做完标定后填真实值，MaxAreaMm2 / TotalAreaMm2 即为物理量。
         /// 与仓库 Plugin.CaliperMeasure 的 PixelSizeMm 同一口径（那边注释写明"项目暂无标定模块"）。
         /// 注意：判定仍按像素做，像素当量只影响 mm² 输出，避免"改了当量就改判定结果"这种隐式耦合。
         /// </summary>
-        [StepConfig]
-        public double PixelSizeMm
-        {
-            get => _pixelSizeMm;
-            set { if (SetProperty(ref _pixelSizeMm, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultPixelSizeMm)]
+        public partial double PixelSizeMm { get; set; }
 
-        private DefectSortMode _sortMode = DefaultSortMode;
+        partial void OnPixelSizeMmChanged(double value) => SchedulePreview();
+
         /// <summary>
         /// 输出排序。CenterRows / CenterCols / DefectAreas / DefectWidths / DefectHeights 与 Defects 端口
         /// 一律按此顺序逐项对齐，下游按同一个索引取即可对上号。
         /// </summary>
-        [StepConfig]
-        public DefectSortMode SortMode
-        {
-            get => _sortMode;
-            set { if (SetProperty(ref _sortMode, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultSortMode)]
+        public partial DefectSortMode SortMode { get; set; }
 
-        private int _displayViewIndex = DefaultDisplayViewIndex;
+        partial void OnSortModeChanged(DefectSortMode value) => SchedulePreview();
+
         /// <summary>
         /// 运行显示窗口索引：正式运行时把标注图发布到主界面几号视图窗口（1~9），0 = 不发布。
         ///
@@ -504,12 +433,8 @@ namespace Plugin.BlobDetect
         /// 0 档留给"标注图由下游专门步骤处理"的方案。
         /// 注意它只影响正式运行，配置态预览（右侧标注图）始终显示。
         /// </summary>
-        [StepConfig]
-        public int DisplayViewIndex
-        {
-            get => _displayViewIndex;
-            set => SetProperty(ref _displayViewIndex, value);
-        }
+        [StepConfig, DefaultValue(DefaultDisplayViewIndex)]
+        public partial int DisplayViewIndex { get; set; }
 
         #endregion
 
@@ -737,6 +662,19 @@ namespace Plugin.BlobDetect
         private string? _detectPackKey;         // 阶段一缓存对应的检测组参数指纹
         private HImage? _detectSource;          // 阶段一缓存对应的源图私有副本（重渲染底图）
         private int _highlightIndex;            // 缺陷清单联动高亮的缺陷编号（0 = 无）
+
+        // ---- 预览区页签导航（右列：页签一"图像视图" / 页签二"数据输出"）----
+        private int _selectedPreviewTab;
+        /// <summary>右侧预览区选中的页签（0 = 图像视图，1 = 数据输出）。
+        /// 缺陷清单点选行时自动切回 0，让黄框高亮看得见</summary>
+        public int SelectedPreviewTab
+        {
+            get => _selectedPreviewTab;
+            set => SetProperty(ref _selectedPreviewTab, value);
+        }
+
+        /// <summary>页签导航的文案（与 SelectedPreviewTab 的下标一一对应）</summary>
+        public IReadOnlyList<string> PreviewTabLabels { get; } = new[] { "图像视图", "数据输出" };
 
         /// <summary>
         /// 是否为"配置态实例"（宿主为打开配置界面而创建的那个）。运行实例一律 false。
@@ -1032,6 +970,9 @@ namespace Plugin.BlobDetect
         public void HighlightDefect(int index)
         {
             if (!_isConfigInstance || _disposed || _previewInFlight) return;
+
+            // 清单的用途就是"在图上找到这根缺陷"：点行自动切到图像视图，黄框才看得见
+            SelectedPreviewTab = 0;
 
             var pack = _detectPack;
             var source = _detectSource;

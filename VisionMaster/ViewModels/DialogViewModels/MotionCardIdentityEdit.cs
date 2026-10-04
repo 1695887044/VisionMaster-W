@@ -1,4 +1,4 @@
-using Prism.Mvvm;
+﻿using Prism.Mvvm;
 using UI.Attributes;
 
 namespace VisionMaster.ViewModels.DialogViewModels
@@ -24,7 +24,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private bool _autoConnect;
 
         /// <summary>卡名称（空则显示地址）</summary>
-        [SuperDisplay(Name = "卡名称", GroupPath = "设备标识", Order = 0)]
+        [SuperDisplay(Name = "卡名称", Group = new string[] { "设备标识" }, Order = 0)]
         public string DisplayName
         {
             get => _displayName;
@@ -32,7 +32,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>连接地址（正运动为卡 IP，如 192.168.0.11；流程按它寻址，全表唯一）</summary>
-        [SuperDisplay(Name = "连接地址（IP / 槽位）", GroupPath = "设备标识", Order = 1)]
+        [SuperDisplay(Name = "连接地址（IP / 槽位）", Group = new string[] { "设备标识" }, Order = 1)]
         public string Address
         {
             get => _address;
@@ -40,7 +40,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>机型（可留空：驱动能自己问到就由它填）</summary>
-        [SuperDisplay(Name = "机型", GroupPath = "设备标识", Order = 2)]
+        [SuperDisplay(Name = "机型", Group = new string[] { "设备标识" }, Order = 2)]
         public string CardModel
         {
             get => _cardModel;
@@ -48,7 +48,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>备注（头部第二行显示它）</summary>
-        [SuperDisplay(Name = "备注", GroupPath = "设备标识", Order = 3)]
+        [SuperDisplay(Name = "备注", Group = new string[] { "设备标识" }, Order = 3)]
         public string Remarks
         {
             get => _remarks;
@@ -56,7 +56,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>随方案启动自动连接</summary>
-        [SuperDisplay(Name = "随方案启动自动连接", GroupPath = "设备标识", Order = 4)]
+        [SuperDisplay(Name = "随方案启动自动连接", Group = new string[] { "设备标识" }, Order = 4)]
         public bool AutoConnect
         {
             get => _autoConnect;
@@ -64,3 +64,4 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
     }
 }
+

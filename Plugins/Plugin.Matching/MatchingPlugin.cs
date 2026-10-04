@@ -39,7 +39,7 @@ namespace Plugin.Matching
         Description = "多模板库 + 配方驱动定位：按产品型号选模板，输出亚像素位姿与归一化图像，支持旋转/缩放搜索与涂抹编辑",
         ShortName = "\uf140"
     )]
-    public class MatchingPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class MatchingPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================
         //  配置项（[StepConfig] 随方案落盘）
@@ -106,65 +106,29 @@ namespace Plugin.Matching
         /// <summary>标记为配置态实例（幂等）</summary>
         private void MarkAsConfigInstance() => _isConfigInstance = true;
 
-        private double _minScore = DefaultMinScore;
-
         /// <summary>匹配参数：分数下限，低于它的命中不算找到（运行期，全局）</summary>
-        [StepConfig]
-        public double MinScore
-        {
-            get => _minScore;
-            set => SetProperty(ref _minScore, value);
-        }
-
-        private int _maxMatches = DefaultMaxMatches;
+        [StepConfig, DefaultValue(DefaultMinScore)]
+        public partial double MinScore { get; set; }
 
         /// <summary>匹配参数：最多输出几个命中实例（1 = 单目标）</summary>
-        [StepConfig]
-        public int MaxMatches
-        {
-            get => _maxMatches;
-            set => SetProperty(ref _maxMatches, value);
-        }
-
-        private double _maxOverlap = DefaultMaxOverlap;
+        [StepConfig, DefaultValue(DefaultMaxMatches)]
+        public partial int MaxMatches { get; set; }
 
         /// <summary>匹配参数：两个命中区域允许的最大重叠比例（去重用，0~1）</summary>
-        [StepConfig]
-        public double MaxOverlap
-        {
-            get => _maxOverlap;
-            set => SetProperty(ref _maxOverlap, value);
-        }
-
-        private double _greediness = DefaultGreediness;
+        [StepConfig, DefaultValue(DefaultMaxOverlap)]
+        public partial double MaxOverlap { get; set; }
 
         /// <summary>匹配参数：搜索激进程度（0.1~0.9）：越大越快、越容易漏</summary>
-        [StepConfig]
-        public double Greediness
-        {
-            get => _greediness;
-            set => SetProperty(ref _greediness, value);
-        }
-
-        private int _displayViewIndex = DefaultDisplayViewIndex;
+        [StepConfig, DefaultValue(DefaultGreediness)]
+        public partial double Greediness { get; set; }
 
         /// <summary>运行显示窗口：正式运行时把标注图发布到主界面几号视图窗口（1~9），0 = 不发布</summary>
-        [StepConfig]
-        public int DisplayViewIndex
-        {
-            get => _displayViewIndex;
-            set => SetProperty(ref _displayViewIndex, value);
-        }
-
-        private bool _outputAlignedImage = DefaultOutputAlignedImage;
+        [StepConfig, DefaultValue(DefaultDisplayViewIndex)]
+        public partial int DisplayViewIndex { get; set; }
 
         /// <summary>是否输出位姿归一化图像（AlignedImage 端口）</summary>
-        [StepConfig]
-        public bool OutputAlignedImage
-        {
-            get => _outputAlignedImage;
-            set => SetProperty(ref _outputAlignedImage, value);
-        }
+        [StepConfig, DefaultValue(DefaultOutputAlignedImage)]
+        public partial bool OutputAlignedImage { get; set; }
 
         // ── 出厂默认值 ──
 

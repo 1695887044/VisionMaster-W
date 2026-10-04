@@ -1,4 +1,4 @@
-using UI.Attributes;
+﻿using UI.Attributes;
 
 namespace VisionMaster.Communications
 {
@@ -13,7 +13,7 @@ namespace VisionMaster.Communications
         /// <para>支持的值：QnA, Q, L, FX, A</para>
         /// <para>默认值：QnA</para>
         /// </summary>
-        [SuperDisplay(Name = "PLC 型号", GroupPath = "MC专有参数", Order = 5, ColSpan = 6)]
+        [SuperDisplay(Name = "PLC 型号", Group = new string[] { "MC专有参数" }, Order = 5, ColSpan = 6)]
         public string PlcModel { get; set; } = "QnA";
 
         /// <summary>
@@ -21,7 +21,7 @@ namespace VisionMaster.Communications
         /// <para>范围：0-255</para>
         /// <para>默认值：0</para>
         /// </summary>
-        [SuperDisplay(Name = "网络号", GroupPath = "MC专有参数", Order = 6, ColSpan = 4)]
+        [SuperDisplay(Name = "网络号", Group = new string[] { "MC专有参数" }, Order = 6, ColSpan = 4)]
         [RangeValidation(0, 255, "网络号范围：0-255")]
         public byte NetworkNumber { get; set; } = 0;
 
@@ -30,7 +30,7 @@ namespace VisionMaster.Communications
         /// <para>范围：0-255</para>
         /// <para>默认值：0</para>
         /// </summary>
-        [SuperDisplay(Name = "站号", GroupPath = "MC专有参数", Order = 7, ColSpan = 4)]
+        [SuperDisplay(Name = "站号", Group = new string[] { "MC专有参数" }, Order = 7, ColSpan = 4)]
         [RangeValidation(0, 255, "站号范围：0-255")]
         public byte StationNumber { get; set; } = 0;
 
@@ -38,14 +38,14 @@ namespace VisionMaster.Communications
         /// <para>获取或设置协议类型。</para>
         /// <para>默认值：Tcp</para>
         /// </summary>
-        [SuperDisplay(Name = "协议类型", GroupPath = "MC专有参数", Order = 8, ColSpan = 6)]
+        [SuperDisplay(Name = "协议类型", Group = new string[] { "MC专有参数" }, Order = 8, ColSpan = 6)]
         public McProtocolType ProtocolType { get; set; } = McProtocolType.Tcp;
 
         /// <summary>
         /// <para>获取或设置帧格式。</para>
         /// <para>默认值：Binary</para>
         /// </summary>
-        [SuperDisplay(Name = "帧格式", GroupPath = "MC专有参数", Order = 9, ColSpan = 6)]
+        [SuperDisplay(Name = "帧格式", Group = new string[] { "MC专有参数" }, Order = 9, ColSpan = 6)]
         public McFrameFormat FrameFormat { get; set; } = McFrameFormat.Binary;
 
         /// <summary>
@@ -85,3 +85,4 @@ namespace VisionMaster.Communications
         };
     }
 }
+

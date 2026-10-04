@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="VisionMaster.Views.DialogViews.MotionBoard.MotionBoardCamView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -166,7 +166,7 @@
                             </Button>
                             <TextBox
                                 Width="140"
-                                Height="32"
+                                Height="38"
                                 Margin="10,0,0,0"
                                 VerticalAlignment="Center"
                                 Style="{StaticResource MbTextBox}"
@@ -221,7 +221,7 @@
                                     <TextBlock Style="{StaticResource MbFieldLabel}" Text="主轴速度 (mm/s)" />
                                     <TextBox
                                         Width="110"
-                                        Height="36"
+                                        Height="38"
                                         FontFamily="{StaticResource MbMonoFontFamily}"
                                         Style="{StaticResource MbTextBox}"
                                         Text="{Binding CamSpeedText, UpdateSourceTrigger=PropertyChanged}" />

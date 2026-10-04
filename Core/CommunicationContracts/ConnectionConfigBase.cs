@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using UI.Attributes;
@@ -27,7 +27,7 @@ namespace VisionMaster.Communications
         /// <para>范围：100-60000ms</para>
         /// <para>去向：TCP 连接下发到 HSL 的 ConnectTimeOut；同时被 Manager 当作等待首次建连的预算。</para>
         /// </summary>
-        [SuperDisplay(Name = "超时时间(ms)", GroupPath = "高级参数", Order = 10, ColSpan = 4)]
+        [SuperDisplay(Name = "超时时间(ms)", Group = new string[] { "高级参数" }, Order = 10, ColSpan = 4)]
         [RangeValidation(100, 60000, "超时必须在 100 - 60000 之间")]
         public virtual int TimeoutMs { get; set; } = 3000;
 
@@ -36,7 +36,7 @@ namespace VisionMaster.Communications
         /// <para>默认值：3次</para>
         /// <para>范围：0-10次</para>
         /// </summary>
-        [SuperDisplay(Name = "重试次数", GroupPath = "高级参数", Order = 11, ColSpan = 4)]
+        [SuperDisplay(Name = "重试次数", Group = new string[] { "高级参数" }, Order = 11, ColSpan = 4)]
         [RangeValidation(0, 10, "重试次数不能小于0")]
         public int RetryCount { get; set; } = 3;
 
@@ -44,7 +44,7 @@ namespace VisionMaster.Communications
         /// <para>获取或设置重试间隔时间（毫秒）。</para>
         /// <para>默认值：1000ms</para>
         /// </summary>
-        [SuperDisplay(Name = "重试间隔(ms)", GroupPath = "高级参数", Order = 12, ColSpan = 4)]
+        [SuperDisplay(Name = "重试间隔(ms)", Group = new string[] { "高级参数" }, Order = 12, ColSpan = 4)]
         public int RetryIntervalMs { get; set; } = 1000;
 
         /// <summary>
@@ -53,7 +53,7 @@ namespace VisionMaster.Communications
         /// <para>范围：100-60000ms</para>
         /// <para>去向：统一下发到 HSL 的 ReceiveTimeOut（TCP / 串口共用同一入口）。</para>
         /// </summary>
-        [SuperDisplay(Name = "读超时(ms)", GroupPath = "高级参数", Order = 13, ColSpan = 4)]
+        [SuperDisplay(Name = "读超时(ms)", Group = new string[] { "高级参数" }, Order = 13, ColSpan = 4)]
         [RangeValidation(100, 60000, "读超时必须在 100 - 60000 之间")]
         public int ReadTimeoutMs { get; set; } = 5000;
 
@@ -91,3 +91,4 @@ namespace VisionMaster.Communications
         protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }
+

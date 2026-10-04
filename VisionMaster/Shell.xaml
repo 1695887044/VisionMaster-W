@@ -344,6 +344,10 @@
                         </MenuItem>
 
                         <MenuItem Header="画布(C)">
+                            <!--
+                                每一格都是**一张完整的画布**（上行当前图 + 下行走马灯），不是老式"一路图钉死一个窗口"：
+                                格号 ↔ 插件的"显示窗口号"，第 N 格只收窗口号 N 的图，各自维护自己的列表。
+                            -->
                             <MenuItem
                                 Command="{Binding SwitchCanvasCommand}"
                                 CommandParameter="1"
@@ -427,6 +431,7 @@
                                 <TextBlock Text="&#xf00a;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
+
                         </MenuItem>
 
                         <MenuItem Header="工具(T)">

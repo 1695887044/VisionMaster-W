@@ -65,14 +65,6 @@ namespace Plugin.ColorCheck
         [StepConfig]
         public double[] RoiParams { get; set; } = System.Array.Empty<double>();
 
-        /// <summary>
-        /// 配置用的示意图路径。
-        /// 只在"打开配置界面"时读它 —— 那会儿还没有上游图像，不给人看一眼图就没法框 ROI。
-        /// 运行期一律用上游连进来的图像，不读这个字段。
-        /// </summary>
-        [StepConfig]
-        public string PreviewImagePath { get; set; } = string.Empty;
-
         /// <summary>序列反向：勾上则把采样剖面的首尾对调（线束摆放方向与上次相反时用）</summary>
         [StepConfig]
         public bool ReverseSequence { get; set; }
@@ -251,7 +243,7 @@ namespace Plugin.ColorCheck
             set => SetProperty(ref _displayImage, value);
         }
 
-        private string _hint = "点「载入示意图」，然后在右侧图上右键 → 新建矩形，框住线束；再点「试算一下」看结果";
+        private string _hint = "先在「图像输入」里点 🔗 手动绑定图像来源（选上游端口或变量），再在右侧图上右键 → 新建矩形，框住线束；然后「试算一下」看结果";
 
         /// <summary>界面提示（载入结果、错误原因都走它）</summary>
         public string Hint
@@ -386,48 +378,11 @@ namespace Plugin.ColorCheck
             base.Dispose();   // 输出端口交给基类统一回收
         }
 
-        /// <summary>视图就绪回调（视图 code-behind 只留这一个信号）：先把图弄上屏</summary>
-        public void OnViewLoaded()
-        {
-            // 优先上游图（试运行桥接进来的）；没有才退回示意图路径
-            if (!ShowUpstreamImage()) LoadPreviewImage();
-        }
-
-        /// <summary>读示意图。路径空/不存在/读失败都给中文提示，不抛异常</summary>
-        public void LoadPreviewImage()
-        {
-            if (string.IsNullOrWhiteSpace(PreviewImagePath))
-            {
-                Hint = "还没有示意图路径：填一个图像路径后再点「载入」";
-                return;
-            }
-
-            if (!File.Exists(PreviewImagePath))
-            {
-                Hint = $"示意图不存在：{PreviewImagePath}";
-                return;
-            }
-
-            try
-            {
-                HOperatorSet.ReadImage(out HObject raw, PreviewImagePath);
-                try
-                {
-                    DisplayImage?.Dispose();
-                    DisplayImage = new HImage(raw);
-                }
-                finally
-                {
-                    raw?.Dispose();
-                }
-
-                Hint = $"已载入示意图 {Path.GetFileName(PreviewImagePath)}";
-            }
-            catch (Exception ex)
-            {
-                Hint = "示意图载入失败：" + ex.Message;
-            }
-        }
+        /// <summary>
+        /// 视图就绪回调（视图 code-behind 只留这一个信号）：把上游图弄上屏。
+        /// 图只有一个来源 —— 上面的「图像输入」端口（见构造函数里对端口变化的订阅）。
+        /// </summary>
+        public void OnViewLoaded() => ShowUpstreamImage();
 
         /// <summary>画布变更（控件新建/删除/清空）→ 回写形状参数</summary>
         private void OnCanvasRoisChanged(object? sender, NotifyCollectionChangedEventArgs e)

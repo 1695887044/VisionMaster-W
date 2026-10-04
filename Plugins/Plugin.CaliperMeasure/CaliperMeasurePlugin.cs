@@ -42,7 +42,7 @@ namespace Plugin.CaliperMeasure
         Description = "阵列式卡尺测量：自动均布 N 把卡尺做亚像素找边，支持宽度/间隙、两点距、点到线距、圆直径与角度；输出物理值、偏差与 OK/NG",
         ShortName = "\uf545"
     )]
-    public class CaliperMeasurePlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class CaliperMeasurePlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 出厂默认值（唯一真相）
 
@@ -185,26 +185,22 @@ namespace Plugin.CaliperMeasure
 
         #region ① 测量类型
 
-        private MeasureKind _measureKind = DefaultMeasureKind;
         /// <summary>测量类型（5 种；切换时界面按类型提示所需搜索区数量/形状，拟合参数区随类型显隐）</summary>
-        [StepConfig]
-        public MeasureKind MeasureKind
+        [StepConfig, DefaultValue(DefaultMeasureKind)]
+        public partial MeasureKind MeasureKind { get; set; }
+
+        partial void OnMeasureKindChanged(MeasureKind value)
         {
-            get => _measureKind;
-            set
-            {
-                if (!SetProperty(ref _measureKind, value)) return;
-                // 类型变了：所需搜索区数量/形状、界面分区显隐都得跟着走
-                OnPropertyChanged(nameof(RequiredRegionCount));
-                OnPropertyChanged(nameof(RegionCountHint));
-                OnPropertyChanged(nameof(IsWidthMeasure));
-                OnPropertyChanged(nameof(IsPointToPointMeasure));
-                OnPropertyChanged(nameof(IsFitMeasure));
-                OnPropertyChanged(nameof(IsCircleMeasure));
-                // 缺搜索区就补足（只增不减，绝不删用户已经摆好的区域）
-                EnsureRequiredRegions();
-                SchedulePreview();
-            }
+            // 类型变了：所需搜索区数量/形状、界面分区显隐都得跟着走
+            OnPropertyChanged(nameof(RequiredRegionCount));
+            OnPropertyChanged(nameof(RegionCountHint));
+            OnPropertyChanged(nameof(IsWidthMeasure));
+            OnPropertyChanged(nameof(IsPointToPointMeasure));
+            OnPropertyChanged(nameof(IsFitMeasure));
+            OnPropertyChanged(nameof(IsCircleMeasure));
+            // 缺搜索区就补足（只增不减，绝不删用户已经摆好的区域）
+            EnsureRequiredRegions();
+            SchedulePreview();
         }
 
         #endregion
@@ -230,63 +226,45 @@ namespace Plugin.CaliperMeasure
             }
         }
 
-        private int _caliperCount = DefaultCaliperCount;
         /// <summary>卡尺数 N：每个搜索区内自动均布的卡尺条数（测量值取各卡尺的平均，多点抗噪）</summary>
-        [StepConfig]
-        public int CaliperCount
-        {
-            get => _caliperCount;
-            set { if (SetProperty(ref _caliperCount, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultCaliperCount)]
+        public partial int CaliperCount { get; set; }
+
+        partial void OnCaliperCountChanged(int value) => SchedulePreview();
 
         #endregion
 
         #region ③ 找边参数
 
-        private double _sigma = DefaultSigma;
         /// <summary>平滑系数 Sigma：越大越平滑、抗噪越强，但边缘定位越"糊"</summary>
-        [StepConfig]
-        public double Sigma
-        {
-            get => _sigma;
-            set { if (SetProperty(ref _sigma, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultSigma)]
+        public partial double Sigma { get; set; }
 
-        private double _edgeThreshold = DefaultEdgeThreshold;
+        partial void OnSigmaChanged(double value) => SchedulePreview();
+
         /// <summary>边缘阈值：相邻像素最小灰度差，低于它的跳变不算边（太大→找不到边，太小→噪声当成边）</summary>
-        [StepConfig]
-        public double EdgeThreshold
-        {
-            get => _edgeThreshold;
-            set { if (SetProperty(ref _edgeThreshold, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultEdgeThreshold)]
+        public partial double EdgeThreshold { get; set; }
 
-        private EdgePolarity _polarity = DefaultPolarity;
+        partial void OnEdgeThresholdChanged(double value) => SchedulePreview();
+
         /// <summary>边缘极性：沿扫描方向允许哪种明暗跳变</summary>
-        [StepConfig]
-        public EdgePolarity Polarity
-        {
-            get => _polarity;
-            set { if (SetProperty(ref _polarity, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultPolarity)]
+        public partial EdgePolarity Polarity { get; set; }
 
-        private EdgeSelect _select = DefaultSelect;
+        partial void OnPolarityChanged(EdgePolarity value) => SchedulePreview();
+
         /// <summary>选择：每条卡尺上多条边缘时取第一条/最后一条/全部</summary>
-        [StepConfig]
-        public EdgeSelect Select
-        {
-            get => _select;
-            set { if (SetProperty(ref _select, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultSelect)]
+        public partial EdgeSelect Select { get; set; }
 
-        private EdgeInterpolation _interpolation = DefaultInterpolation;
+        partial void OnSelectChanged(EdgeSelect value) => SchedulePreview();
+
         /// <summary>插值方式：直接对应 gen_measure_rectangle2 的 Interpolation 参数</summary>
-        [StepConfig]
-        public EdgeInterpolation Interpolation
-        {
-            get => _interpolation;
-            set { if (SetProperty(ref _interpolation, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultInterpolation)]
+        public partial EdgeInterpolation Interpolation { get; set; }
+
+        partial void OnInterpolationChanged(EdgeInterpolation value) => SchedulePreview();
 
         #endregion
 
@@ -295,84 +273,60 @@ namespace Plugin.CaliperMeasure
         // 第一批不涉及拟合，此区为空壳注释；第二批启用。仅当 MeasureKind ∈ {点到线距, 圆直径, 角度} 时
         // 界面才显示本分区（IsFitMeasure 控制显隐），避免"改了不起作用"的死控件。
 
-        private FitAlgorithmKind _fitAlgorithm = DefaultFitAlgorithm;
         /// <summary>拟合方式（鲁棒算法）：直接对应 fit_line/circle_contour_xld 的 Algorithm 参数。默认 Tukey 抗离群点</summary>
-        [StepConfig]
-        public FitAlgorithmKind FitAlgorithm
-        {
-            get => _fitAlgorithm;
-            set { if (SetProperty(ref _fitAlgorithm, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultFitAlgorithm)]
+        public partial FitAlgorithmKind FitAlgorithm { get; set; }
 
-        private double _fitMaxError = DefaultFitMaxError;
+        partial void OnFitAlgorithmChanged(FitAlgorithmKind value) => SchedulePreview();
+
         /// <summary>
         /// 最大残差（px）：边缘点到拟合几何距离的中位数上限，超限判拟合失败（中文说明）。
         /// 用中位数口径容忍少量毛刺离群点，与 Tukey 配套——依据见 DefaultFitMaxError 注释。
         /// </summary>
-        [StepConfig]
-        public double FitMaxError
-        {
-            get => _fitMaxError;
-            set { if (SetProperty(ref _fitMaxError, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultFitMaxError)]
+        public partial double FitMaxError { get; set; }
 
-        private int _fitMinPoints = DefaultFitMinPoints;
+        partial void OnFitMaxErrorChanged(double value) => SchedulePreview();
+
         /// <summary>最少点数：参与拟合的最少边缘点数，不足判失败（直线 2 点定线、圆 3 点定圆）</summary>
-        [StepConfig]
-        public int FitMinPoints
-        {
-            get => _fitMinPoints;
-            set { if (SetProperty(ref _fitMinPoints, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultFitMinPoints)]
+        public partial int FitMinPoints { get; set; }
 
-        private double _annulusWidth = DefaultAnnulusWidth;
+        partial void OnFitMinPointsChanged(int value) => SchedulePreview();
+
         /// <summary>环宽（仅圆直径）：每把卡尺沿半径方向扫描的总宽度(px)，覆盖圆心/半径的摆放误差</summary>
-        [StepConfig]
-        public double AnnulusWidth
-        {
-            get => _annulusWidth;
-            set { if (SetProperty(ref _annulusWidth, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultAnnulusWidth)]
+        public partial double AnnulusWidth { get; set; }
+
+        partial void OnAnnulusWidthChanged(double value) => SchedulePreview();
 
         #endregion
 
         #region ⑤ 判定与标定
 
-        private double _standardValue = DefaultStandardValue;
         /// <summary>标准值（名义尺寸）。默认 0 = 有意的零容忍起点，提示用户去填规格</summary>
-        [StepConfig]
-        public double StandardValue
-        {
-            get => _standardValue;
-            set { if (SetProperty(ref _standardValue, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultStandardValue)]
+        public partial double StandardValue { get; set; }
 
-        private double _upperTolerance = DefaultUpperTolerance;
+        partial void OnStandardValueChanged(double value) => SchedulePreview();
+
         /// <summary>上公差（允许偏差的正向上限，偏差 ≤ 上公差才算 OK）</summary>
-        [StepConfig]
-        public double UpperTolerance
-        {
-            get => _upperTolerance;
-            set { if (SetProperty(ref _upperTolerance, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultUpperTolerance)]
+        public partial double UpperTolerance { get; set; }
 
-        private double _lowerTolerance = DefaultLowerTolerance;
+        partial void OnUpperToleranceChanged(double value) => SchedulePreview();
+
         /// <summary>下公差（允许偏差的负向下限，偏差 ≥ 下公差才算 OK；可填负数实现非对称公差）</summary>
-        [StepConfig]
-        public double LowerTolerance
-        {
-            get => _lowerTolerance;
-            set { if (SetProperty(ref _lowerTolerance, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultLowerTolerance)]
+        public partial double LowerTolerance { get; set; }
 
-        private double _pixelSizeMm = DefaultPixelSizeMm;
+        partial void OnLowerToleranceChanged(double value) => SchedulePreview();
+
         /// <summary>像素当量（mm/pixel）。默认 1.0 = 输出像素值，不假设任何标定；将来有标定模块可改为连线取值</summary>
-        [StepConfig]
-        public double PixelSizeMm
-        {
-            get => _pixelSizeMm;
-            set { if (SetProperty(ref _pixelSizeMm, value)) SchedulePreview(); }
-        }
+        [StepConfig, DefaultValue(DefaultPixelSizeMm)]
+        public partial double PixelSizeMm { get; set; }
+
+        partial void OnPixelSizeMmChanged(double value) => SchedulePreview();
 
         #endregion
 

@@ -619,9 +619,14 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!--  ================= 右：标注图预览 =================  -->
+        <!--  ================= 右：预览与输出（页签导航）  =================
+              带图像处理的算子右侧统一结构：上面页签切"看图 / 看数据"，下面信息栏常显。
+              图像视图独占整块高度（不再与直方图/清单挤在一列里互相抢空间）；
+              数据输出把缺陷清单与灰度直方图收进一个可滚动的页签。
+        -->
         <Border Grid.Column="1" Style="{StaticResource PluginCard}">
             <DockPanel>
+                <!--  顶部：标题 + 自动刷新提示  -->
                 <Border
                     DockPanel.Dock="Top"
                     Padding="0,0,0,8"
@@ -636,7 +641,7 @@
                     </Grid>
                 </Border>
 
-                <!--  信息栏：判定结果 / 失败原因，颜色由 StatusLevel 决定  -->
+                <!--  底部：信息栏（判定结果，两个页签共用常显）  -->
                 <Border
                     DockPanel.Dock="Bottom"
                     Margin="{StaticResource PluginSectionMargin}"
@@ -659,90 +664,168 @@
                     </TextBlock>
                 </Border>
 
-                <!--  灰度直方图：矢量绘制、随窗口缩放；固定阈值方式下叠上下限标记  -->
-                <Border
-                    DockPanel.Dock="Bottom"
-                    Margin="{StaticResource PluginSectionMargin}"
-                    Style="{StaticResource PluginCard}">
-                    <StackPanel>
-                        <Grid>
-                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="灰度直方图" />
-                            <TextBlock
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource PluginHintText}"
-                                Text="标记区间 = 当前固定阈值"
-                                Visibility="{Binding IsFixedThreshold, Converter={StaticResource BoolToVis}}" />
-                        </Grid>
+                <!--  导航（图像视图 / 数据输出）+ 页签内容  -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                        <Grid Height="{StaticResource PluginHistogramHeight}" Margin="{StaticResource PluginSectionMargin}">
-                            <!--  矢量绘制控件：数据与阈值都走绑定，缩放时在 OnRender 里按实际尺寸重算坐标  -->
-                            <local:HistogramPlot
-                                Data="{Binding Histogram}"
-                                ShowThresholdMarkers="{Binding IsFixedThreshold}"
-                                ThresholdLow="{Binding MinGray}"
-                                ThresholdHigh="{Binding MaxGray}"
-                                Visibility="{Binding HistogramVisible, Converter={StaticResource BoolToVis}}" />
-                            <!--  取不到直方图时的降级提示（只影响这张图，不影响检测）  -->
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Style="{StaticResource PluginHintText}"
-                                Text="{Binding HistogramError}"
-                                Visibility="{Binding HistogramErrorVisible, Converter={StaticResource BoolToVis}}" />
-                        </Grid>
+                    <ListBox
+                        Grid.Row="0"
+                        Margin="0,0,0,10"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        ItemsSource="{Binding PreviewTabLabels}"
+                        SelectedIndex="{Binding SelectedPreviewTab, Mode=TwoWay}">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border
+                                                Margin="0,0,8,0"
+                                                Padding="14,6"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="8">
+                                                <TextBlock
+                                                    FontSize="13"
+                                                    FontWeight="Medium"
+                                                    Foreground="{StaticResource PluginTitleTextBrush}"
+                                                    Text="{Binding}" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource PluginChartFillBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
 
-                        <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource PluginHintText}" Text="{Binding HistogramRangeText}" />
-                            <TextBlock
-                                Margin="12,0,0,0"
-                                Style="{StaticResource PluginHintText}"
-                                Text="{Binding HistogramTypeText}" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
+                    <Grid Grid.Row="1">
+                        <!--  页签一：图像视图（独占整块高度，不再与直方图/清单抢空间）  -->
+                        <h:ImageReadOnly HImage="{Binding PreviewImage}">
+                            <h:ImageReadOnly.Style>
+                                <Style TargetType="h:ImageReadOnly">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPreviewTab}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </h:ImageReadOnly.Style>
+                        </h:ImageReadOnly>
 
-                <!--  缺陷清单：逐缺陷数值与标注图编号对照（只读快照，顺序 = 输出端口顺序）；
-                      检出的每个缺陷长什么样不用再对着预览图数，调筛选/判定参数时一眼对上号  -->
-                <Border
-                    DockPanel.Dock="Bottom"
-                    Margin="{StaticResource PluginSectionMargin}"
-                    Style="{StaticResource PluginCard}">
-                    <StackPanel>
-                        <Grid>
-                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="缺陷清单" />
-                            <TextBlock
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource PluginHintText}"
-                                Text="{Binding DefectCountText}" />
-                        </Grid>
-                        <DataGrid
-                            MaxHeight="150"
-                            Margin="{StaticResource PluginFieldRowMargin}"
-                            AutoGenerateColumns="False"
-                            CanUserAddRows="False"
-                            CanUserDeleteRows="False"
-                            CanUserResizeRows="False"
-                            FontSize="12"
-                            HeadersVisibility="Column"
-                            IsReadOnly="True"
-                            ItemsSource="{Binding DefectRows}"
-                            SelectionChanged="DefectList_SelectionChanged"
-                            SelectionMode="Single">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Width="36" Binding="{Binding Index}" Header="#" />
-                                <DataGridTextColumn Width="70" Binding="{Binding Area, StringFormat=0.#}" Header="面积(px)" />
-                                <DataGridTextColumn Width="60" Binding="{Binding Circularity, StringFormat=0.###}" Header="圆度" />
-                                <DataGridTextColumn Width="66" Binding="{Binding AspectRatio, StringFormat=0.#}" Header="长宽比" />
-                                <DataGridTextColumn Width="56" Binding="{Binding Width, StringFormat=0.#}" Header="宽" />
-                                <DataGridTextColumn Width="56" Binding="{Binding Height, StringFormat=0.#}" Header="高" />
-                                <DataGridTextColumn Width="64" Binding="{Binding Row, StringFormat=0.#}" Header="行" />
-                                <DataGridTextColumn Width="64" Binding="{Binding Col, StringFormat=0.#}" Header="列" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </StackPanel>
-                </Border>
+                        <!--  页签二：数据输出（缺陷清单 + 灰度直方图，超出可滚动）  -->
+                        <ScrollViewer
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer.Style>
+                                <Style TargetType="ScrollViewer">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPreviewTab}" Value="1">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ScrollViewer.Style>
+                            <StackPanel>
+                                <!--  缺陷清单：逐缺陷数值与标注图编号对照（只读快照，顺序 = 输出端口顺序）；
+                                      点行会在预览图上套黄框并自动切到本页签的图像视图  -->
+                                <Border
+                                    Margin="{StaticResource PluginSectionMargin}"
+                                    Style="{StaticResource PluginCard}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="缺陷清单" />
+                                            <TextBlock
+                                                HorizontalAlignment="Right"
+                                                Style="{StaticResource PluginHintText}"
+                                                Text="{Binding DefectCountText}" />
+                                        </Grid>
+                                        <DataGrid
+                                            MaxHeight="180"
+                                            Margin="{StaticResource PluginFieldRowMargin}"
+                                            AutoGenerateColumns="False"
+                                            CanUserAddRows="False"
+                                            CanUserDeleteRows="False"
+                                            CanUserResizeRows="False"
+                                            FontSize="12"
+                                            HeadersVisibility="Column"
+                                            IsReadOnly="True"
+                                            ItemsSource="{Binding DefectRows}"
+                                            SelectionChanged="DefectList_SelectionChanged"
+                                            SelectionMode="Single">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Width="36" Binding="{Binding Index}" Header="#" />
+                                                <DataGridTextColumn Width="70" Binding="{Binding Area, StringFormat=0.#}" Header="面积(px)" />
+                                                <DataGridTextColumn Width="60" Binding="{Binding Circularity, StringFormat=0.###}" Header="圆度" />
+                                                <DataGridTextColumn Width="66" Binding="{Binding AspectRatio, StringFormat=0.#}" Header="长宽比" />
+                                                <DataGridTextColumn Width="56" Binding="{Binding Width, StringFormat=0.#}" Header="宽" />
+                                                <DataGridTextColumn Width="56" Binding="{Binding Height, StringFormat=0.#}" Header="高" />
+                                                <DataGridTextColumn Width="64" Binding="{Binding Row, StringFormat=0.#}" Header="行" />
+                                                <DataGridTextColumn Width="64" Binding="{Binding Col, StringFormat=0.#}" Header="列" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </StackPanel>
+                                </Border>
 
-                <h:ImageReadOnly HImage="{Binding PreviewImage}" />
+                                <!--  灰度直方图：矢量绘制、随窗口缩放；固定阈值方式下叠上下限标记  -->
+                                <Border
+                                    Margin="{StaticResource PluginSectionMargin}"
+                                    Style="{StaticResource PluginCard}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Style="{StaticResource PluginCardTitle}" Text="灰度直方图" />
+                                            <TextBlock
+                                                HorizontalAlignment="Right"
+                                                Style="{StaticResource PluginHintText}"
+                                                Text="标记区间 = 当前固定阈值"
+                                                Visibility="{Binding IsFixedThreshold, Converter={StaticResource BoolToVis}}" />
+                                        </Grid>
+
+                                        <Grid Height="{StaticResource PluginHistogramHeight}" Margin="{StaticResource PluginSectionMargin}">
+                                            <!--  矢量绘制控件：数据与阈值都走绑定，缩放时在 OnRender 里按实际尺寸重算坐标  -->
+                                            <local:HistogramPlot
+                                                Data="{Binding Histogram}"
+                                                ShowThresholdMarkers="{Binding IsFixedThreshold}"
+                                                ThresholdLow="{Binding MinGray}"
+                                                ThresholdHigh="{Binding MaxGray}"
+                                                Visibility="{Binding HistogramVisible, Converter={StaticResource BoolToVis}}" />
+                                            <!--  取不到直方图时的降级提示（只影响这张图，不影响检测）  -->
+                                            <TextBlock
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource PluginHintText}"
+                                                Text="{Binding HistogramError}"
+                                                Visibility="{Binding HistogramErrorVisible, Converter={StaticResource BoolToVis}}" />
+                                        </Grid>
+
+                                        <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
+                                            <TextBlock Style="{StaticResource PluginHintText}" Text="{Binding HistogramRangeText}" />
+                                            <TextBlock
+                                                Margin="12,0,0,0"
+                                                Style="{StaticResource PluginHintText}"
+                                                Text="{Binding HistogramTypeText}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
             </DockPanel>
         </Border>
     </Grid>

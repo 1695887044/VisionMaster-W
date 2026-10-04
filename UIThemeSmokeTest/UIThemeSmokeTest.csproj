@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>UIThemeSmokeTest</AssemblyName>
+    <RootNamespace>UIThemeSmokeTest</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 导出断言要造 HImage；Core.Halcon 用的是原始 Reference，不随工程引用传递 -->
+    <Reference Include="halcondotnet">
+      <HintPath>..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

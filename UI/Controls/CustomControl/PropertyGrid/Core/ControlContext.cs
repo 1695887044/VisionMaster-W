@@ -24,6 +24,12 @@ namespace UI.CustomControl.PropertyGrid
         /// 事件清理注册器，防止 UI 刷新引发内存泄漏
         /// </summary>
         public Action<Action> RegisterCleanup { get; set; } = _ => { };
+
+        /// <summary>
+        /// 本网格实例专属的 SharedSizeGroup 名（基于 Guid，避免不同属性网格之间
+        /// 的标签列宽互相牵制）。布局处理器据此设置标签列的 SharedSizeGroup。
+        /// </summary>
+        public string SharedLabelGroup { get; set; } = "PropertyGridLabel";
     }
 
     /// <summary>

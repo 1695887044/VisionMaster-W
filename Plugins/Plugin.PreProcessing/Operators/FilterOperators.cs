@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -23,7 +23,7 @@ namespace Plugin.PreProcessing.Operators
         private int _radius = 5;
         private MaskMarginMode _margin = MaskMarginMode.Mirrored;
 
-        [SuperDisplay(Name = "模板形状", GroupPath = "参数", Order = 1, ColSpan = 4,
+        [SuperDisplay(Name = "模板形状", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
             Description = "Halcon 支持方形 / 圆形 / 菱形")]
         public MedianMaskType MaskType
         {
@@ -31,7 +31,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _maskType, value);
         }
 
-        [SuperDisplay(Name = "模板半径", GroupPath = "参数", Order = 2, ColSpan = 4,
+        [SuperDisplay(Name = "模板半径", Group = new string[] { "参数" }, Order = 2, ColSpan = 4,
             Description = "邻域半径，实际边长约为 2×半径+1")]
         [RangeValidation(1, 50, "模板半径需要在 1~50 之间")]
         public int Radius
@@ -40,7 +40,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _radius, value);
         }
 
-        [SuperDisplay(Name = "边缘扩充", GroupPath = "参数", Order = 3, ColSpan = 4,
+        [SuperDisplay(Name = "边缘扩充", Group = new string[] { "参数" }, Order = 3, ColSpan = 4,
             Description = "图像边界外的像素怎么补：镜像或循环")]
         public MaskMarginMode Margin
         {
@@ -63,7 +63,7 @@ namespace Plugin.PreProcessing.Operators
     {
         private int _size = 5;
 
-        [SuperDisplay(Name = "模板尺寸", GroupPath = "参数", Order = 1, ColSpan = 12,
+        [SuperDisplay(Name = "模板尺寸", Group = new string[] { "参数" }, Order = 1, ColSpan = 12,
             Description = "必须是奇数，填偶数会自动 +1")]
         [RangeValidation(3, 101, "模板尺寸需要在 3~101 之间")]
         public int Size
@@ -79,3 +79,4 @@ namespace Plugin.PreProcessing.Operators
         public override string Summary => Size.ToString();
     }
 }
+

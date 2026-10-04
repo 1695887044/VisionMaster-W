@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -36,7 +36,7 @@ namespace Plugin.PreProcessing.Operators
 
         #region 框参数（属性面板可见、可存盘）
 
-        [SuperDisplay(Name = "中心行", GroupPath = "编辑框", Order = 1, ColSpan = 6,
+        [SuperDisplay(Name = "中心行", Group = new string[] { "编辑框" }, Order = 1, ColSpan = 6,
             Description = "框中心所在的行（像素，0 基）。也可以在画布上直接拖动框")]
         [RangeValidation(0, 1000000, "中心行不合法")]
         public double CenterRow
@@ -45,7 +45,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _centerRow, value);
         }
 
-        [SuperDisplay(Name = "中心列", GroupPath = "编辑框", Order = 2, ColSpan = 6,
+        [SuperDisplay(Name = "中心列", Group = new string[] { "编辑框" }, Order = 2, ColSpan = 6,
             Description = "框中心所在的列（像素，0 基）。也可以在画布上直接拖动框")]
         [RangeValidation(0, 1000000, "中心列不合法")]
         public double CenterCol
@@ -54,7 +54,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _centerCol, value);
         }
 
-        [SuperDisplay(Name = "框宽度", GroupPath = "编辑框", Order = 3, ColSpan = 6,
+        [SuperDisplay(Name = "框宽度", Group = new string[] { "编辑框" }, Order = 3, ColSpan = 6,
             Description = "框的宽度（整宽，不是半宽）。填 0 表示还没框，本算子原样透传")]
         [RangeValidation(0, 1000000, "框宽度不合法")]
         public double BoxWidth
@@ -63,7 +63,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _boxWidth, value);
         }
 
-        [SuperDisplay(Name = "框高度", GroupPath = "编辑框", Order = 4, ColSpan = 6,
+        [SuperDisplay(Name = "框高度", Group = new string[] { "编辑框" }, Order = 4, ColSpan = 6,
             Description = "框的高度（整高，不是半高）。填 0 表示还没框，本算子原样透传")]
         [RangeValidation(0, 1000000, "框高度不合法")]
         public double BoxHeight
@@ -201,3 +201,4 @@ namespace Plugin.PreProcessing.Operators
               + (WasBoxClamped ? "（越界已夹取）" : string.Empty);
     }
 }
+

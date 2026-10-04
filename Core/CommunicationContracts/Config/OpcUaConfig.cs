@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using UI.Attributes;
 
 namespace VisionMaster.Communications
@@ -13,7 +13,7 @@ namespace VisionMaster.Communications
         /// <para>获取或设置端点 URL。</para>
         /// <para>默认值：opc.tcp://localhost:4840</para>
         /// </summary>
-        [SuperDisplay(Name = "端点URL", GroupPath = "OPC UA参数", Order = 5, ColSpan = 12)]
+        [SuperDisplay(Name = "端点URL", Group = new string[] { "OPC UA参数" }, Order = 5, ColSpan = 12)]
         [Required(ErrorMessage = "端点URL不能为空")]
         public string EndpointUrl { get; set; } = "opc.tcp://localhost:4840";
 
@@ -21,42 +21,42 @@ namespace VisionMaster.Communications
         /// <para>获取或设置安全策略。</para>
         /// <para>默认值：None</para>
         /// </summary>
-        [SuperDisplay(Name = "安全策略", GroupPath = "OPC UA参数", Order = 6, ColSpan = 6)]
+        [SuperDisplay(Name = "安全策略", Group = new string[] { "OPC UA参数" }, Order = 6, ColSpan = 6)]
         public OpcUaSecurityPolicy SecurityPolicy { get; set; } = OpcUaSecurityPolicy.None;
 
         /// <summary>
         /// <para>获取或设置消息安全模式。</para>
         /// <para>默认值：None</para>
         /// </summary>
-        [SuperDisplay(Name = "消息安全模式", GroupPath = "OPC UA参数", Order = 7, ColSpan = 6)]
+        [SuperDisplay(Name = "消息安全模式", Group = new string[] { "OPC UA参数" }, Order = 7, ColSpan = 6)]
         public OpcUaMessageSecurityMode MessageSecurityMode { get; set; } = OpcUaMessageSecurityMode.None;
 
         /// <summary>
         /// <para>获取或设置用户名。</para>
         /// <para>默认值：空字符串（匿名访问）</para>
         /// </summary>
-        [SuperDisplay(Name = "用户名", GroupPath = "OPC UA参数", Order = 8, ColSpan = 6)]
+        [SuperDisplay(Name = "用户名", Group = new string[] { "OPC UA参数" }, Order = 8, ColSpan = 6)]
         public string UserName { get; set; } = string.Empty;
 
         /// <summary>
         /// <para>获取或设置密码。</para>
         /// <para>默认值：空字符串</para>
         /// </summary>
-        [SuperDisplay(Name = "密码", GroupPath = "OPC UA参数", Order = 9, ColSpan = 6)]
+        [SuperDisplay(Name = "密码", Group = new string[] { "OPC UA参数" }, Order = 9, ColSpan = 6)]
         public string Password { get; set; } = string.Empty;
 
         /// <summary>
         /// <para>获取或设置会话超时时间（毫秒）。</para>
         /// <para>默认值：30000ms (30秒)</para>
         /// </summary>
-        [SuperDisplay(Name = "会话超时(ms)", GroupPath = "OPC UA参数", Order = 10, ColSpan = 6)]
+        [SuperDisplay(Name = "会话超时(ms)", Group = new string[] { "OPC UA参数" }, Order = 10, ColSpan = 6)]
         public int SessionTimeoutMs { get; set; } = 30000;
 
         /// <summary>
         /// <para>获取或设置订阅发布间隔（毫秒）。</para>
         /// <para>默认值：1000ms (1秒)</para>
         /// </summary>
-        [SuperDisplay(Name = "订阅发布间隔(ms)", GroupPath = "OPC UA参数", Order = 11, ColSpan = 6)]
+        [SuperDisplay(Name = "订阅发布间隔(ms)", Group = new string[] { "OPC UA参数" }, Order = 11, ColSpan = 6)]
         public int PublishingIntervalMs { get; set; } = 1000;
 
         /// <summary>
@@ -98,3 +98,4 @@ namespace VisionMaster.Communications
         };
     }
 }
+

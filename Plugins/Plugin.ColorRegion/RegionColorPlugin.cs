@@ -64,10 +64,6 @@ namespace Plugin.ColorRegion
         [StepConfig]
         public double[] RoiParams { get; set; } = Array.Empty<double>();
 
-        /// <summary>配置用的示意图路径（只在打开配置界面时读它；运行期一律用上游图像）</summary>
-        [StepConfig]
-        public string PreviewImagePath { get; set; } = string.Empty;
-
         /// <summary>期望颜色（多个用逗号分隔，命中任一即可）；写 `*` 表示只报颜色不判定</summary>
         [StepConfig]
         public string ExpectedColors { get; set; } = string.Empty;
@@ -189,7 +185,7 @@ namespace Plugin.ColorRegion
             set => SetProperty(ref _displayImage, value);
         }
 
-        private string _hint = "点「载入示意图」，然后在右侧图上右键 → 新建矩形/圆形/椭圆，框住要检的那块；再点「试算一下」看结果";
+        private string _hint = "先在「图像输入」里点 🔗 手动绑定图像来源（选上游端口或变量），再在右侧图上右键 → 新建矩形/圆形/椭圆，框住要检的那块；然后「试算一下」看结果";
 
         /// <summary>界面提示（载入结果、错误原因都走它）</summary>
         public string Hint
@@ -243,8 +239,8 @@ namespace Plugin.ColorRegion
             CanvasRois.CollectionChanged += OnCanvasRoisChanged;
 
             // 试运行时上游图是**通过给端口赋值**桥接进配置实例的（PluginTestRunner.BridgeInputs），
-            // 所以盯着端口的变化就能把上游图搬到画布上 ——
-            // 否则配置界面里只有"填示意图路径"这一条路，用户会觉得"图像绑不上上游"
+            // 所以盯着端口的变化就能把上游图搬到画布上 —— 这也是配置界面里**唯一**的图片来源：
+            // 空画布时按提示去链接上游并点「执行」，不提供"填路径载入本地图"那条旁路
             Image.PropertyChanged += OnImagePortChanged;
         }
 
@@ -261,7 +257,13 @@ namespace Plugin.ColorRegion
         public bool ShowUpstreamImage()
         {
             var upstream = Image.GetTypedValue();
-            if (upstream == null || !upstream.IsInitialized()) return false;
+            if (upstream == null || !upstream.IsInitialized())
+            {
+                // 图只有一个来源：上游输入端口。这里把"去哪儿弄图"直接写清楚，
+                // 免得用户对着空画布找「载入」按钮（那个入口已经删了）
+                Hint = "还没有图像：在上面的「图像输入」里点 🔗 手动绑定来源（选上游端口或变量），绑定后点「执行」，图会自动带进这个画布";
+                return false;
+            }
 
             try
             {
@@ -320,7 +322,7 @@ namespace Plugin.ColorRegion
         /// <summary>
         /// 释放本实例持有的资源。
         ///
-        /// 为什么必须重写：DisplayImage 是"上游图/示意图"的**自己拷的一份**（见 ShowUpstreamImage），
+        /// 为什么必须重写：DisplayImage 是**上游图自己拷的一份**（见 ShowUpstreamImage），
         /// 归本实例所有，基类的 Dispose 只回收输出端口，管不到它；
         /// 不释放的话每关一次配置界面就欠一张图的句柄，等 GC 兜底才收得回来。
         /// 画布 ROI 清空时压着播种位 —— 清空动作若走回写，会把已保存的采样区参数抹掉。
@@ -339,48 +341,11 @@ namespace Plugin.ColorRegion
             base.Dispose();   // 输出端口交给基类统一回收
         }
 
-        /// <summary>视图就绪回调：先把图弄上屏（没图没法框 ROI）</summary>
-        public void OnViewLoaded()
-        {
-            // 优先上游图（试运行桥接进来的）；没有才退回示意图路径
-            if (!ShowUpstreamImage()) LoadPreviewImage();
-        }
-
-        /// <summary>读示意图。路径空/不存在/读失败都给中文提示，不抛异常</summary>
-        public void LoadPreviewImage()
-        {
-            if (string.IsNullOrWhiteSpace(PreviewImagePath))
-            {
-                Hint = "还没有示意图路径：填一个图像路径后再点「载入」";
-                return;
-            }
-
-            if (!File.Exists(PreviewImagePath))
-            {
-                Hint = $"示意图不存在：{PreviewImagePath}";
-                return;
-            }
-
-            try
-            {
-                HOperatorSet.ReadImage(out HObject raw, PreviewImagePath);
-                try
-                {
-                    DisplayImage?.Dispose();
-                    DisplayImage = new HImage(raw);
-                }
-                finally
-                {
-                    raw?.Dispose();
-                }
-
-                Hint = $"已载入示意图 {Path.GetFileName(PreviewImagePath)}";
-            }
-            catch (Exception ex)
-            {
-                Hint = "示意图载入失败：" + ex.Message;
-            }
-        }
+        /// <summary>
+        /// 视图就绪回调：把上游图弄上屏（没图没法框 ROI）。
+        /// 图片只有一个来源 —— 上游输入端口（见构造函数里对端口变化的订阅）；没有就等用户点「执行」。
+        /// </summary>
+        public void OnViewLoaded() => ShowUpstreamImage();
 
         /// <summary>画布变更（控件新建/删除/清空）→ 回写形状与参数</summary>
         private void OnCanvasRoisChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -521,7 +486,7 @@ namespace Plugin.ColorRegion
         // ==================================================================
 
         /// <summary>
-        /// 用配置界面里的示意图跑一遍，把结论写进 <see cref="ResultSummary"/>。
+        /// 用配置界面里那张上游图跑一遍，把结论写进 <see cref="ResultSummary"/>。
         ///
         /// **试算只做颜色分析、不做判定** —— 现场通常是先试算出主色、再一键把它填成期望颜色；
         /// 若这里就要求"必须先填期望"，那个一手入口就永远用不上（顺序死锁）。
@@ -531,7 +496,7 @@ namespace Plugin.ColorRegion
         {
             if (DisplayImage == null || !DisplayImage.IsInitialized())
             {
-                ResultSummary = "先点「载入」把示意图读进来再试算";
+                ResultSummary = "还没有图像：先链接上游并点「执行」把图带进来，再试算";
                 return;
             }
 

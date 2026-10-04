@@ -152,6 +152,24 @@ namespace UI.CustomControl
             _tcs?.TrySetResult(result);
         }
 
+        /// <summary>
+        /// 取主题资源；宿主没合并 Fluent 主题（或根本不在 WPF 应用里）时返回 null，
+        /// 由调用方回退到旧值 —— 纯 C# 构造的 UI 没有 XAML 的"资源缺失即异常"保护，
+        /// 直接 FindResource 会在没主题的宿主里当场抛。
+        /// </summary>
+        private static T? TryResource<T>(string key)
+        {
+            try
+            {
+                var value = Application.Current?.TryFindResource(key);
+                return value is T typed ? typed : default;
+            }
+            catch
+            {
+                return default;
+            }
+        }
+
         #endregion
 
         #region ====== UI 动态构建引擎 (纯 C# 零 XAML，使用主题 Style) ======
@@ -159,24 +177,36 @@ namespace UI.CustomControl
         private static Border BuildDialogUI(
             string title, string message, FrameworkElement? customContent, bool isModal, TaskCompletionSource<bool> tcs)
         {
+            // ★ 视觉一律取 Fluent 令牌（UI 库的 Themes/Fluent/FluentTokens.xaml），
+            //   不再自己硬编码白底 / 8px 圆角 / 25 模糊的阴影：
+            //   硬编码的一份会让"弹窗"成为唯一不跟随设计系统的角落
+            //   （改了令牌，全项目都变了，只有弹窗没变 —— 这类不一致最难被发现）。
+            //   取不到令牌时回退到旧值：本控件库也可能被没有合并 Fluent 主题的宿主使用。
+            var cardBackground = TryResource<Brush>("FluentCardBackgroundBrush") ?? Brushes.White;
+            var cardRadius = TryResource<CornerRadius>("FluentRadiusLarge");
+            var cardShadow = TryResource<Effect>("FluentShadowOverlay")
+                             ?? new DropShadowEffect
+                             {
+                                 BlurRadius = 25,
+                                 ShadowDepth = 6,
+                                 Opacity = 0.15,
+                                 Direction = 270,
+                                 Color = Colors.Black
+                             };
+            var divider = TryResource<Brush>("FluentDividerBrush")
+                          ?? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EBEEF5"));
+
             // 主卡片背景 (带弥散阴影)
             var card = new Border
             {
-                Background = Brushes.White,
-                CornerRadius = new CornerRadius(8),
+                Background = cardBackground,
+                CornerRadius = cardRadius == default ? new CornerRadius(8) : cardRadius,
                 Padding = new Thickness(24, 20, 24, 20),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 MinWidth = 350,
                 MaxWidth = 700,
-                Effect = new DropShadowEffect
-                {
-                    BlurRadius = 25,
-                    ShadowDepth = 6,
-                    Opacity = 0.15,
-                    Direction = 270,
-                    Color = Colors.Black
-                },
+                Effect = cardShadow,
             };
 
             var grid = new Grid();
@@ -201,7 +231,7 @@ namespace UI.CustomControl
             var line = new Rectangle
             {
                 Height = 1,
-                Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EBEEF5")),
+                Fill = divider,
                 Margin = new Thickness(0, 0, 0, 16),
             };
             Grid.SetRow(line, 1);
@@ -238,7 +268,10 @@ namespace UI.CustomControl
 
             // 🌟 1. “取消”按钮：寻找定义的扁平次要 Style
             var btnCancel = new Button();
-            var cancelStyle = Application.Current.TryFindResource("FlatButtonStyle") as Style;
+            // ★ 一律走 TryResource（带异常兜底）：直接 TryFindResource 时，
+            //   目标样式若因依赖缺失而无法创建（BasedOn 解析失败），异常会一路抛出
+            //   把整个弹窗带崩 —— 而"少一个按钮样式"远没有"弹窗打不开"严重。
+            var cancelStyle = TryResource<Style>("FlatButtonStyle");
             if (cancelStyle != null) btnCancel.Style = cancelStyle;
 
             var cancelContent = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -259,7 +292,7 @@ namespace UI.CustomControl
 
             // 🌟 2. “确定”按钮：寻找定义的高亮蓝 Style
             var btnConfirm = new Button();
-            var confirmStyle = Application.Current.TryFindResource("FlatButtonVariantStyle") as Style;
+            var confirmStyle = TryResource<Style>("FlatButtonVariantStyle");
             if (confirmStyle != null) btnConfirm.Style = confirmStyle;
 
             var confirmContent = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };

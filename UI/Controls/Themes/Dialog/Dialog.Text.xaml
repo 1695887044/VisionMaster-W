@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:att="clr-namespace:UI.AttachedProperties" xmlns:ui="clr-namespace:UI.CustomControl">
+  <ResourceDictionary.MergedDictionaries>
+    <!--  依赖就地合并：本文件的样式 Setter 内含跨字典 StaticResource 引用，
+         若只依赖父级 Generic 的合并顺序，父级在加载完本字典后又被失效（如后合并
+         Fluent 主题包、App 资源写入），跨兄弟字典的引用会重新解析失败并被烘焙成
+
+         UnsetValue，模板应用时抛 "{DependencyProperty.UnsetValue} 不是 Foreground 的有效值"。
+         自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
+    <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+  <FontFamily x:Key="DialogIconFont">pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid</FontFamily>
+  <Style x:Key="DialogCardTitle" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+  </Style>
+  <Style x:Key="DialogFormLabel" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="4" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    <Setter Property="Margin" Value="0,0,0,6" />
+  </Style>
+  <Style x:Key="DialogHintText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style x:Key="DialogEmptyStateIcon" TargetType="TextBlock">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+    <Setter Property="FontSize" Value="40" />
+    <Setter Property="Foreground" Value="#CBD5E1" />
+  </Style>
+  <Style x:Key="DialogEmptyStateTitle" TargetType="TextBlock">
+    <Setter Property="Margin" Value="0,14,0,0" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+  </Style>
+  <Style x:Key="DialogEmptyStateHint" TargetType="TextBlock">
+    <Setter Property="Margin" Value="0,6,0,0" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+    <Setter Property="TextAlignment" Value="Center" />
+  </Style>
+  <Style x:Key="DialogGridNumber" TargetType="TextBlock">
+    <Setter Property="Margin" Value="0,0,12,0" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+  </Style>
+  <Style x:Key="DialogSectionTitle" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+  </Style>
+  <Style x:Key="DialogMonoText" TargetType="TextBlock">
+    <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, Courier New" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+</ResourceDictionary>

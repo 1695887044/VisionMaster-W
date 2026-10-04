@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:att="clr-namespace:UI.AttachedProperties" xmlns:ui="clr-namespace:UI.CustomControl">
+  <ResourceDictionary.MergedDictionaries>
+    <!--  源码串必须与 Generic.xaml 里的写法逐字一致，避免被当成两个不同 URI 反复加载  -->
+    <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+  <Style x:Key="DialogInputInGroup" BasedOn="{StaticResource DialogInput}" TargetType="TextBox">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+  </Style>
+  <DataTemplate x:Key="DialogDisplayNameTemplate">
+    <TextBlock VerticalAlignment="Center" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+  </DataTemplate>
+  <DataTemplate x:Key="DialogConnectionOptionTemplate">
+    <StackPanel Orientation="Horizontal">
+      <TextBlock VerticalAlignment="Center" Text="{Binding ConnectionName}" TextTrimming="CharacterEllipsis" />
+      <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource DialogTextMutedBrush}" Text="{Binding Protocol}" />
+    </StackPanel>
+  </DataTemplate>
+  <Style x:Key="DialogComboInGroup" BasedOn="{StaticResource DialogCombo}" TargetType="ComboBox">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+  </Style>
+  <DataTemplate x:Key="DialogSourceNodeTemplate">
+    <Border x:Name="NodeBorder" Height="38" Margin="6,2" Padding="10,0" Background="Transparent" CornerRadius="8">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Border x:Name="Indicator" Width="3" Margin="-10,6,8,6" Background="{StaticResource DialogAccentBrush}" CornerRadius="2" Visibility="Collapsed" />
+        <TextBlock Grid.Column="0" Width="16" Margin="0,0,8,0" VerticalAlignment="Center" FontFamily="{StaticResource DialogIconFont}" FontSize="13" Text="{Binding Icon}">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsNetwork}" Value="True">
+                  <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+        <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+        <!--  在线圆点（仅网络来源）  -->
+        <Ellipse Grid.Column="2" Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{StaticResource DialogSuccessBrush}">
+          <Ellipse.Style>
+            <Style TargetType="Ellipse">
+              <Setter Property="Visibility" Value="Visible" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsNetwork}" Value="False">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsOnline}" Value="False">
+                  <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Ellipse.Style>
+        </Ellipse>
+        <Border x:Name="CountBadge" Grid.Column="3" MinWidth="20" Padding="6,2" VerticalAlignment="Center" Background="{StaticResource DialogRowHoverBrush}" CornerRadius="10">
+          <TextBlock x:Name="CountText" HorizontalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource DialogTextMutedBrush}" Text="{Binding Count}" />
+        </Border>
+      </Grid>
+    </Border>
+    <DataTemplate.Triggers>
+      <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+        <Setter TargetName="NodeBorder" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+        <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+        <Setter TargetName="CountBadge" Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+        <Setter TargetName="CountText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+      </DataTrigger>
+      <Trigger SourceName="NodeBorder" Property="IsMouseOver" Value="True">
+        <Setter TargetName="NodeBorder" Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+      </Trigger>
+    </DataTemplate.Triggers>
+  </DataTemplate>
+</ResourceDictionary>

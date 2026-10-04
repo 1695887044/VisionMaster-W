@@ -57,6 +57,19 @@
         <!--  左列：参数卡片  -->
         <ScrollViewer Grid.Column="0" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto">
             <StackPanel>
+                <!--  ── 图像输入：在配置窗口里直接链接上游、或手动指定一张图（与其它插件同一张绑定卡）──  -->
+                <Border Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
+                        <cc:LinkableValueEditor
+                            Margin="{StaticResource PluginFirstRowMargin}"
+                            HorizontalAlignment="Stretch"
+                            Label="输入图像"
+                            Port="{Binding Image}"
+                            StepData="{Binding StepData}" />
+                    </StackPanel>
+                </Border>
+
                 <Border Style="{StaticResource PluginCard}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource PluginCardTitle}" Text="采样区" />
@@ -64,26 +77,7 @@
                         <TextBlock
                             Margin="0,10,0,4"
                             Style="{StaticResource PluginHintText}"
-                            Text="有上游图像时会自动显示（点下面的「执行」把它带进来）；也可以填路径手动载入一张示意图" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox
-                                Height="26"
-                                Padding="4,0,0,0"
-                                VerticalContentAlignment="Center"
-                                Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}"
-                                ToolTip="例如 E:\...\Image\颜色\cable2.png" />
-                            <Button
-                                Grid.Column="1"
-                                MinWidth="60"
-                                Style="{StaticResource PluginButton}"
-                                Margin="8,0,0,0"
-                                Click="OnLoadPreviewClick"
-                                Content="载入" />
-                        </Grid>
+                            Text="图像来自上面的「图像输入」：链接上游输出、或手动指定一张图，绑定后会自动带进右边画布（点「执行」跑一遍上游也一样）" />
 
                         <TextBlock
                             Margin="0,12,0,4"
@@ -136,7 +130,7 @@
                             MinWidth="110"
                             Click="OnTryAnalyzeClick"
                             Content="试算一下"
-                            ToolTip="用左侧示意图跑一遍，看这块区域的主色、占比与明细" />
+                            ToolTip="用画布里的上游图跑一遍，看这块区域的主色、占比与明细" />
                         <Button
                             Style="{StaticResource PluginButton}"
                             Margin="0,6,0,0"

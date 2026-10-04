@@ -526,6 +526,13 @@ namespace VisionMaster.Services
                 _log.Error(text);
             else
                 _log.Warn(text);
+
+            // 报警帧留存（默认关，见 ImageGallerySettings.SaveFramesOnAlarm）：
+            // 把当前图集整批落盘到 AlarmFrames，便于事后复盘"报警当时画面是什么样"。
+            // 走单例而不是构造函数注入：本类由容器构造、可选参数不会被注入（见 App.xaml.cs 的注册注释），
+            // 而这是个默认关闭的可选能力，不该为它改动 ScadaRuntimeHost 的构造契约。
+            try { ImageCollectionService.Instance?.SaveSnapshot("报警_" + record.Name); }
+            catch (Exception ex) { _log.Warn($"[报警留存] 图像集留存失败：{ex.Message}"); }
         }
 
         /// <summary>

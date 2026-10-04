@@ -78,12 +78,23 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <!--  字段名（输入框上方那行小字）：与其它插件视图同一份写法，色值取 UI 库令牌  -->
+            <Style x:Key="ParamLabel" TargetType="TextBlock" BasedOn="{StaticResource PluginHintText}">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{StaticResource PluginLabelTextBrush}" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid Margin="{StaticResource PluginViewMargin}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="210" />
+            <!--
+                左列宽度：LinkableValueEditor 内部的标签是**硬编码 112px** + 8 间距 + 两个图标按钮（约 50），
+                原来给 210 时输入框只剩几个像素，现场表现就是"图像绑定显示不全"。
+                这里配合"标签移到输入框上方"（见下面 图像输入 卡）调到 240，输入框能拿到约 160px。
+            -->
+            <ColumnDefinition Width="240" />
             <ColumnDefinition Width="*" MinWidth="300" />
             <ColumnDefinition Width="360" />
         </Grid.ColumnDefinitions>
@@ -98,10 +109,17 @@
             <Border Style="{StaticResource PluginCard}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource PluginCardTitle}" Text="图像输入" />
-                    <cv:LinkableValueEditor
+                    <!--
+                        字段名写在输入框上方，而不是用编辑器自带的 Label：
+                        那个标签是硬编码 112px，在本列（240）里会把输入框挤到只剩几个像素。
+                    -->
+                    <TextBlock
                         Margin="{StaticResource PluginFirstRowMargin}"
+                        Style="{StaticResource ParamLabel}"
+                        Text="图像路径" />
+                    <cv:LinkableValueEditor
+                        Margin="0,4,0,0"
                         HorizontalAlignment="Stretch"
-                        Label="图像路径"
                         Port="{Binding SrcImage}"
                         StepData="{Binding StepData}" />
                     <StackPanel Margin="{StaticResource PluginFirstRowMargin}" Orientation="Horizontal">

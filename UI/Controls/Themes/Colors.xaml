@@ -6,6 +6,24 @@
     <SolidColorBrush x:Key="PrimaryTextBrush" Color="#2D3748" />
     <SolidColorBrush x:Key="AccentBlueBrush" Color="#3182CE" />
 
+    <!--
+        控件基础色令牌（原在 Controls/Misc.xaml —— 已迁移）。
+        为什么必须放在"第一层"：Controls/Window|Button|Input|Selection|List|DataGrid|Navigation|Layout
+        的模板内容大量引用这组键，而 Misc.xaml 在 Controls 域里**最后**合并；
+        先合并的字典在解析期查不到后合并的键，轻则模板实例化时抛
+        "{DependencyProperty.UnsetValue} 不是 Foreground 的有效值"，
+        重则视图解析期直接抛"无法找到名为 AccentBrush 的资源"（OverlayHost 启动崩溃实例）。
+        键名保留原样（引用方按名查找），只挪位置不改值。
+    -->
+    <Color x:Key="AccentColor">#005FB8</Color>
+    <Color x:Key="AccentHoverColor">#0053A0</Color>
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#D1D1D1" />
+    <SolidColorBrush x:Key="ControlHoverBrush" Color="#1A000000" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#202020" />
+    <SolidColorBrush x:Key="ScrollBarThumbBrush" Opacity="0.5" Color="#8D8D8D" />
+    <SolidColorBrush x:Key="ScrollBarThumbHoverBrush" Opacity="0.8" Color="#7A7A7A" />
+
     <!--  ====================  SCADA 组态视图令牌  ====================  -->
 
     <!--

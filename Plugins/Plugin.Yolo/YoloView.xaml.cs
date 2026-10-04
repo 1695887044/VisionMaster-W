@@ -38,21 +38,6 @@ namespace Plugin.Yolo
             }
         }
 
-        private void OnBrowsePreviewClick(object sender, RoutedEventArgs e)
-        {
-            var dialog = new OpenFileDialog
-            {
-                Title = "选择示意图",
-                Filter = "图像文件|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff|所有文件|*.*",
-                CheckFileExists = true,
-            };
-
-            if (dialog.ShowDialog() == true && Plugin != null)
-                Plugin.PreviewImagePath = dialog.FileName;
-        }
-
-        private void OnLoadPreviewClick(object sender, RoutedEventArgs e) => Plugin?.LoadPreviewImage();
-
         private void OnTryDetectClick(object sender, RoutedEventArgs e) => Plugin?.TryPreviewDetect();
     }
 }

@@ -1,5 +1,6 @@
 using Core.Interfaces;
 using System;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
@@ -38,7 +39,7 @@ namespace Plugin.ExcelExport
         GroupName = "数据处理",
         Description = "把 CSV 账本导出成带图片超链接的 Excel 报表：表头冻结可筛选，点文件名看高清原图",
         ShortName = "\uf1c3")]
-    public class ExcelExportPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class ExcelExportPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 端口
 
@@ -56,104 +57,70 @@ namespace Plugin.ExcelExport
 
         #region 内嵌配置（随 .vms 持久化）
 
-        private string _sourcePathTemplate = @"D:\Records\{源步骤}\{yyyy-MM}\{yyyy-MM-dd}.csv";
         /// <summary>源账本路径模板（占位符：{源步骤} {yyyy-MM-dd} {yyyy-MM} {yyyy} …）。</summary>
-        [StepConfig]
-        public string SourcePathTemplate
-        {
-            get => _sourcePathTemplate;
-            set { if (SetProperty(ref _sourcePathTemplate, value ?? "")) OnPropertyChanged(nameof(SourcePathPreview)); }
-        }
+        [StepConfig, DefaultValue(@"D:\Records\{源步骤}\{yyyy-MM}\{yyyy-MM-dd}.csv")]
+        public partial string SourcePathTemplate { get; set; }
 
-        private string _sourceStepName = "";
+        partial void OnSourcePathTemplateChanging(ref string value) => value ??= "";
+
+        partial void OnSourcePathTemplateChanged(string value) => OnPropertyChanged(nameof(SourcePathPreview));
+
         /// <summary>源账本所属的步骤名（即"CSV记录"步骤的实例名，供模板里的 {源步骤} 展开）。</summary>
-        [StepConfig]
-        public string SourceStepName
-        {
-            get => _sourceStepName;
-            set { if (SetProperty(ref _sourceStepName, value ?? "")) OnPropertyChanged(nameof(SourcePathPreview)); }
-        }
+        [StepConfig, DefaultValue("")]
+        public partial string SourceStepName { get; set; }
 
-        private string _outputDirectoryTemplate = @"D:\Records\{StepName}\{yyyy-MM}\报表\";
+        partial void OnSourceStepNameChanging(ref string value) => value ??= "";
+
+        partial void OnSourceStepNameChanged(string value) => OnPropertyChanged(nameof(SourcePathPreview));
+
         /// <summary>报表输出目录模板（{StepName} 是"本步骤"的名字）。</summary>
-        [StepConfig]
-        public string OutputDirectoryTemplate
-        {
-            get => _outputDirectoryTemplate;
-            set { if (SetProperty(ref _outputDirectoryTemplate, value ?? @"D:\Records\")) OnPropertyChanged(nameof(OutputPathPreview)); }
-        }
+        [StepConfig, DefaultValue(@"D:\Records\{StepName}\{yyyy-MM}\报表\")]
+        public partial string OutputDirectoryTemplate { get; set; }
 
-        private string _reportFileNamePattern = "{yyyy-MM-dd}_报表.xlsx";
+        partial void OnOutputDirectoryTemplateChanging(ref string value) => value ??= @"D:\Records\";
+
+        partial void OnOutputDirectoryTemplateChanged(string value) => OnPropertyChanged(nameof(OutputPathPreview));
+
         /// <summary>报表文件名模板（含 .xlsx；不加也行，会自动补）。</summary>
-        [StepConfig]
-        public string ReportFileNamePattern
+        [StepConfig, DefaultValue("{yyyy-MM-dd}_报表.xlsx")]
+        public partial string ReportFileNamePattern { get; set; }
+
+        partial void OnReportFileNamePatternChanging(ref string value)
         {
-            get => _reportFileNamePattern;
-            set { if (SetProperty(ref _reportFileNamePattern, string.IsNullOrWhiteSpace(value) ? "{yyyy-MM-dd}_报表.xlsx" : value)) OnPropertyChanged(nameof(OutputPathPreview)); }
+            if (string.IsNullOrWhiteSpace(value)) value = "{yyyy-MM-dd}_报表.xlsx";
         }
 
-        private string _linkColumn = "图片路径";
+        partial void OnReportFileNamePatternChanged(string value) => OnPropertyChanged(nameof(OutputPathPreview));
+
         /// <summary>要做成超链接的列名（默认"图片路径"，与 CSV 记录插件的内置字段列同名）。</summary>
-        [StepConfig]
-        public string LinkColumn
-        {
-            get => _linkColumn;
-            set => SetProperty(ref _linkColumn, value ?? "");
-        }
+        [StepConfig, DefaultValue("图片路径")]
+        public partial string LinkColumn { get; set; }
 
-        private bool _freezeHeader = true;
+        partial void OnLinkColumnChanging(ref string value) => value ??= "";
+
         /// <summary>冻结首行（滚动时表头不跑）。</summary>
-        [StepConfig]
-        public bool FreezeHeader
-        {
-            get => _freezeHeader;
-            set => SetProperty(ref _freezeHeader, value);
-        }
+        [StepConfig, DefaultValue(true)]
+        public partial bool FreezeHeader { get; set; }
 
-        private bool _autoFilter = true;
         /// <summary>首行自动筛选（可按结果/日期筛）。</summary>
-        [StepConfig]
-        public bool AutoFilter
-        {
-            get => _autoFilter;
-            set => SetProperty(ref _autoFilter, value);
-        }
+        [StepConfig, DefaultValue(true)]
+        public partial bool AutoFilter { get; set; }
 
-        private bool _onlyRowsWithImage = false;
         /// <summary>只导出图片列有有效路径的行（抽检看 NG 图时用）。</summary>
         [StepConfig]
-        public bool OnlyRowsWithImage
-        {
-            get => _onlyRowsWithImage;
-            set => SetProperty(ref _onlyRowsWithImage, value);
-        }
+        public partial bool OnlyRowsWithImage { get; set; }
 
-        private ExportPolicy _exportPolicy = ExportPolicy.Manual;
         /// <summary>导出方式（仅手动 / 触发端口 / 每次执行）。</summary>
-        [StepConfig]
-        public ExportPolicy ExportPolicy
-        {
-            get => _exportPolicy;
-            set => SetProperty(ref _exportPolicy, value);
-        }
+        [StepConfig, DefaultValue(ExportPolicy.Manual)]
+        public partial ExportPolicy ExportPolicy { get; set; }
 
-        private bool _openAfterExport = false;
         /// <summary>导出成功后用系统默认程序打开报表（仅手动导出时建议勾选）。</summary>
         [StepConfig]
-        public bool OpenAfterExport
-        {
-            get => _openAfterExport;
-            set => SetProperty(ref _openAfterExport, value);
-        }
+        public partial bool OpenAfterExport { get; set; }
 
-        private bool _blockOnFailure = false;
         /// <summary>导出失败是否让本步骤失败阻断流程（默认 false：报表不阻断生产）。</summary>
         [StepConfig]
-        public bool BlockOnFailure
-        {
-            get => _blockOnFailure;
-            set => SetProperty(ref _blockOnFailure, value);
-        }
+        public partial bool BlockOnFailure { get; set; }
 
         #endregion
 

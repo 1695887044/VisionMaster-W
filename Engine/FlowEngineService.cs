@@ -46,6 +46,32 @@ namespace VisionMaster.Services
         public event EventHandler<SessionStateChangedEventArgs> SessionStateChanged;
 
         /// <summary>
+        /// 一轮流程执行完成（<c>ExecutionEngine.Run</c> 返回之后触发）。
+        ///
+        /// 连续运行**每轮**触发一次、单次运行触发一次：图像集采集要的正是"每跑完一轮，
+        /// 就把这一轮所有 HImage 输出端口收一遍"，所以语义定在"轮"而不是"会话结束"。
+        ///
+        /// 参数直接给 <see cref="FlowSession"/> 本体（而不像 <see cref="SessionStateChanged"/> 只给 ID）：
+        /// 订阅方要遍历 <c>session.ExecutionEngine.PluginLookup</c> 才能枚举输出端口，
+        /// 只给 ID 还得自己经 <see cref="IRuntimeManager"/> 反查，多一跳且可能查不到。
+        ///
+        /// 触发点包了 try/catch：订阅者（图像采集）出问题绝不能影响流程执行本身。
+        /// </summary>
+        public event Action<FlowSession> FlowRunCompleted;
+
+        /// <summary>
+        /// 即将开始执行一轮流程（<c>ExecutionEngine.Run</c> 之前触发）。
+        ///
+        /// 与 <see cref="FlowRunCompleted"/> 成对：连续运行**每轮**各触发一次、单次运行一次。
+        /// 存在的理由是画布要"每轮开始时按设置决定清空还是覆盖上一轮的图"——必须在这轮出图
+        /// **之前**收到通知，否则新图和旧图会同时挂在列表里。
+        ///
+        /// 同样把 <see cref="FlowSession"/> 本体交给订阅方（订阅方要用 <c>FlowName</c> 定位本轮图），
+        /// 并且订阅者异常就地隔离，绝不影响流程执行。
+        /// </summary>
+        public event Action<FlowSession> FlowRunStarted;
+
+        /// <summary>
         /// 构造函数
         /// </summary>
         /// <param name="runtimeManager">运行时管理器</param>
@@ -176,6 +202,42 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 广播"这一轮跑完了"。订阅者异常就地隔离并记日志：
+        /// 图像采集失败不该让流程执行报错，更不该影响会话锁的归还。
+        /// </summary>
+        private void NotifyFlowRunCompleted(FlowSession session)
+        {
+            try
+            {
+                FlowRunCompleted?.Invoke(session);
+            }
+            catch (Exception ex)
+            {
+                _logService.Error(
+                    $"流程 {session.FlowName} 的运行完成订阅者抛出异常（已隔离，不影响流程执行）: {ex.Message}"
+                );
+            }
+        }
+
+        /// <summary>
+        /// 广播"这一轮要开始了"。与 <see cref="NotifyFlowRunCompleted"/> 同样就地隔离订阅者异常：
+        /// 清图失败不该让流程跑不起来。
+        /// </summary>
+        private void NotifyFlowRunStarted(FlowSession session)
+        {
+            try
+            {
+                FlowRunStarted?.Invoke(session);
+            }
+            catch (Exception ex)
+            {
+                _logService.Error(
+                    $"流程 {session.FlowName} 的运行开始订阅者抛出异常（已隔离，不影响流程执行）: {ex.Message}"
+                );
+            }
+        }
+
+        /// <summary>
         /// 启动会话连续执行
         /// </summary>
         /// <param name="session">要执行的会话</param>
@@ -233,7 +295,13 @@ namespace VisionMaster.Services
                             Cameras = _cameras,
                             Motions = _motions
                         };
+                        // 这一轮开始即广播（画布据此清空/覆盖上一轮的图，见 FlowRunStarted 的注释）
+                        NotifyFlowRunStarted(session);
+
                         session.ExecutionEngine.Run(context);
+
+                        // 这一轮跑完即广播（图像集按"每轮"采集，见 FlowRunCompleted 的注释）
+                        NotifyFlowRunCompleted(session);
 
                         // 用令牌等待替代 Thread.Sleep：空闲节流 10ms，但停止请求会立即唤醒退出
                         token.WaitHandle.WaitOne(10);
@@ -347,7 +415,13 @@ namespace VisionMaster.Services
                         Cameras = _cameras,
                         Motions = _motions
                     };
+                    // 与连续运行同一语义：一轮开始/结束各广播一次
+                    NotifyFlowRunStarted(session);
+
                     session.ExecutionEngine.Run(context);
+
+                    // 单次运行跑完即广播（与连续运行同一语义：一轮结束）
+                    NotifyFlowRunCompleted(session);
                 }, token);
             }
             catch (OperationCanceledException)
@@ -465,21 +539,45 @@ namespace VisionMaster.Services
             }
             catch (ObjectDisposedException)
             {
-                // 循环线程正在收尾（令牌已释放）：它本来就在退出，无需再停
+                // 循环线程已退出并释放了 CTS，取消动作已无意义，忽略即可
             }
         }
 
         /// <summary>
-        /// 停止所有会话
+        /// 紧急停止所有正在运行的会话（急停开关）。
+        ///
+        /// 【为什么遍历必须走快照，而不是直接 foreach ActiveSessions】
+        /// 那是运行期可变集合：HTTP 请求线程可能正在 RegisterSession，而本方法常跑在退出链上。
+        /// 裸枚举撞上增删即抛 "Collection was modified"，而 StopAll 是退出任务的一环 ——
+        /// 抛出去会拖住整条退出链（现场表现：软件关不掉）。SnapshotSessions 在集合锁内复制一份，
+        /// 几微秒且不等待，拿到手以后再逐个停。
+        ///
+        /// 【单个会话停不下来不能影响其余会话】急停要的是"尽可能多停几个"，
+        /// 所以每个 StopSession 各自 try/catch，失败只记日志。
         /// </summary>
         public void StopAll()
         {
-            // 走快照而不是裸枚举 ActiveSessions：本方法是退出任务的一环，
-            // 而 HTTP 请求线程此时仍可能 RegisterSession/UnregisterSession，
-            // 裸枚举撞上增删会抛 "Collection was modified"，把整条退出链拖住。
-            foreach (var session in _runtimeManager.SnapshotSessions())
+            IReadOnlyList<FlowSession> snapshot;
+            try
             {
-                StopSession(session);
+                snapshot = _runtimeManager.SnapshotSessions();
+            }
+            catch (Exception ex)
+            {
+                _logService.Error($"急停：获取活动会话快照失败（已隔离，不拖累退出链）: {ex.Message}");
+                return;
+            }
+
+            foreach (var session in snapshot)
+            {
+                try
+                {
+                    StopSession(session);
+                }
+                catch (Exception ex)
+                {
+                    _logService.Warn($"急停：停止流程 {session?.FlowName} 失败（已隔离，继续停其余会话）: {ex.Message}");
+                }
             }
         }
     }

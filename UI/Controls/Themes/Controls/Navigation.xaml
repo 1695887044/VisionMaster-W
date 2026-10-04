@@ -1,0 +1,363 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:att="clr-namespace:UI.AttachedProperties" xmlns:ui="clr-namespace:UI.CustomControl">
+  <ResourceDictionary.MergedDictionaries>
+    <!--  依赖就地合并：本文件的样式 Setter 内含跨字典 StaticResource 引用，
+         若只依赖父级 Generic 的合并顺序，父级在加载完本字典后又被失效（如后合并
+         Fluent 主题包、App 资源写入），跨兄弟字典的引用会重新解析失败并被烘焙成
+
+         UnsetValue，模板应用时抛 "{DependencyProperty.UnsetValue} 不是 Foreground 的有效值"。
+         自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
+    <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+  <Style TargetType="TabControl">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
+    <Setter Property="Padding" Value="0,12,0,0" />
+  </Style>
+  <Style TargetType="TabItem">
+    <Setter Property="Foreground" Value="#606060" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="16,10" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Grid Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+            <ContentPresenter x:Name="ContentSite" Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" ContentSource="Header" />
+            <Border Margin="12,0,12,0" HorizontalAlignment="Stretch" VerticalAlignment="Bottom">
+              <Border x:Name="ActiveIndicator" Height="3" HorizontalAlignment="Stretch" Background="{StaticResource AccentBrush}" CornerRadius="1.5" RenderTransformOrigin="0.5,1">
+                <Border.RenderTransform>
+                  <ScaleTransform x:Name="IndicatorScale" ScaleX="0" />
+                </Border.RenderTransform>
+              </Border>
+            </Border>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="#202020" />
+              <Setter Property="Background" Value="#08000000" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="IndicatorScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.25">
+                      <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="IndicatorScale" Storyboard.TargetProperty="ScaleX" To="0" Duration="0:0:0.2">
+                      <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style TargetType="ContextMenu">
+    <Setter Property="Background" Value="#FAFAFA" />
+    <Setter Property="BorderBrush" Value="#E5E5E5" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="HasDropShadow" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContextMenu">
+          <Border Margin="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+            <Border.Effect>
+              <DropShadowEffect BlurRadius="16" Direction="270" Opacity="0.15" ShadowDepth="4" Color="Black" />
+            </Border.Effect>
+            <ScrollViewer SnapsToDevicePixels="True" VerticalScrollBarVisibility="Auto">
+              <ItemsPresenter Margin="{TemplateBinding Padding}" />
+            </ScrollViewer>
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style TargetType="MenuItem">
+    <Setter Property="Padding" Value="12,8,24,8" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <!--  叶子项：无可展开子项  -->
+        <ControlTemplate TargetType="MenuItem">
+          <Border x:Name="Border" Margin="2" Background="Transparent" CornerRadius="4" SnapsToDevicePixels="True">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" SharedSizeGroup="Icon" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut" />
+                <ColumnDefinition Width="16" />
+              </Grid.ColumnDefinitions>
+              <ContentPresenter x:Name="Icon" Margin="8,0" VerticalAlignment="Center" ContentSource="Icon" />
+              <ContentPresenter Grid.Column="1" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" ContentSource="Header" />
+              <ContentPresenter Grid.Column="2" Margin="16,0,8,0" VerticalAlignment="Center" ContentSource="InputGestureText" TextElement.Foreground="#888888" />
+              <!--  IsChecked 勾选标记（如“适应图片/窗口”的开关状态）  -->
+              <TextBlock x:Name="CheckMark" Grid.Column="3" Margin="0,0,2,0" VerticalAlignment="Center" Foreground="#409EFF" Text="✓" Visibility="Collapsed" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Foreground" Value="#A0A0A0" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <!--  垂直菜单（如右键菜单）中有子项的顶级项：向下弹出子菜单  -->
+      <Trigger Property="Role" Value="TopLevelHeader">
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="MenuItem">
+              <Border x:Name="Border" Margin="2" Background="Transparent" CornerRadius="4" SnapsToDevicePixels="True">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Icon" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut" />
+                    <ColumnDefinition Width="16" />
+                  </Grid.ColumnDefinitions>
+                  <ContentPresenter Margin="8,0" VerticalAlignment="Center" ContentSource="Icon" />
+                  <ContentPresenter Grid.Column="1" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" ContentSource="Header" />
+                  <ContentPresenter Grid.Column="2" Margin="16,0,8,0" VerticalAlignment="Center" ContentSource="InputGestureText" TextElement.Foreground="#888888" />
+                  <Path Grid.Column="3" HorizontalAlignment="Left" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0" IsHitTestVisible="False" Stroke="#888888" StrokeThickness="1.5" />
+                  <Popup AllowsTransparency="True" Focusable="False" IsOpen="{TemplateBinding IsSubmenuOpen}" Placement="Bottom" PopupAnimation="Fade">
+                    <Border Margin="8" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="1" CornerRadius="6">
+                      <Border.Effect>
+                        <DropShadowEffect BlurRadius="16" Direction="270" Opacity="0.15" ShadowDepth="4" Color="Black" />
+                      </Border.Effect>
+                      <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsPresenter Margin="4" />
+                      </ScrollViewer>
+                    </Border>
+                  </Popup>
+                </Grid>
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                  <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                </Trigger>
+                <Trigger Property="IsSubmenuOpen" Value="True">
+                  <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter Property="Foreground" Value="#A0A0A0" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Trigger>
+      <!--  子菜单中还有子项的项：向右弹出二级子菜单  -->
+      <Trigger Property="Role" Value="SubmenuHeader">
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="MenuItem">
+              <Border x:Name="Border" Margin="2" Background="Transparent" CornerRadius="4" SnapsToDevicePixels="True">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Icon" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Shortcut" />
+                    <ColumnDefinition Width="16" />
+                  </Grid.ColumnDefinitions>
+                  <ContentPresenter Margin="8,0" VerticalAlignment="Center" ContentSource="Icon" />
+                  <ContentPresenter Grid.Column="1" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" ContentSource="Header" />
+                  <ContentPresenter Grid.Column="2" Margin="16,0,8,0" VerticalAlignment="Center" ContentSource="InputGestureText" TextElement.Foreground="#888888" />
+                  <Path Grid.Column="3" HorizontalAlignment="Left" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 0 8" IsHitTestVisible="False" Stroke="#888888" StrokeThickness="1.5" />
+                  <Popup AllowsTransparency="True" Focusable="False" IsOpen="{TemplateBinding IsSubmenuOpen}" Placement="Right" PopupAnimation="Fade">
+                    <Border Margin="8" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="1" CornerRadius="6">
+                      <Border.Effect>
+                        <DropShadowEffect BlurRadius="16" Direction="270" Opacity="0.15" ShadowDepth="4" Color="Black" />
+                      </Border.Effect>
+                      <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsPresenter Margin="4" />
+                      </ScrollViewer>
+                    </Border>
+                  </Popup>
+                </Grid>
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                  <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                </Trigger>
+                <Trigger Property="IsSubmenuOpen" Value="True">
+                  <Setter TargetName="Border" Property="Background" Value="#F0F0F0" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter Property="Foreground" Value="#A0A0A0" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style TargetType="ToolBarTray">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style TargetType="ToolBar">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToolBar">
+          <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+            <ToolBarPanel Margin="0" Background="Transparent" IsItemsHost="True" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="ToolBarButtonStyle" BasedOn="{StaticResource {x:Type Button}}" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Border" Background="{TemplateBinding Background}" CornerRadius="4" RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+              <ScaleTransform x:Name="BtnScale" ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
+            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Border" Property="Background" Value="#15000000" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Border" Property="Background" Value="#25000000" />
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="BtnScale" Storyboard.TargetProperty="ScaleX" To="0.92" Duration="0:0:0.05" />
+                    <DoubleAnimation Storyboard.TargetName="BtnScale" Storyboard.TargetProperty="ScaleY" To="0.92" Duration="0:0:0.05" />
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="BtnScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.2">
+                      <DoubleAnimation.EasingFunction>
+                        <BackEase Amplitude="0.6" EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                    <DoubleAnimation Storyboard.TargetName="BtnScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.2">
+                      <DoubleAnimation.EasingFunction>
+                        <BackEase Amplitude="0.6" EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style TargetType="StatusBar">
+    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Foreground" Value="#FFFFFF" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="StatusBar">
+          <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+            <ItemsPresenter SnapsToDevicePixels="True" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style TargetType="StatusBarItem">
+    <Setter Property="Margin" Value="4,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style x:Key="VerTabControl" TargetType="TabControl">
+    <Setter Property="Padding" Value="2" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="TabStripPlacement" Value="Top" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="{x:Type TabControl}">
+          <Grid x:Name="templateRoot" ClipToBounds="true" KeyboardNavigation.TabNavigation="Local" SnapsToDevicePixels="true">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="30" />
+              <RowDefinition />
+            </Grid.RowDefinitions>
+            <TabPanel x:Name="headerPanel" Grid.Row="0" Panel.ZIndex="1" Background="Transparent" IsItemsHost="true" KeyboardNavigation.TabIndex="1" />
+            <Border x:Name="contentPanel" Grid.Row="1" Background="Transparent" KeyboardNavigation.DirectionalNavigation="Contained" KeyboardNavigation.TabIndex="2" KeyboardNavigation.TabNavigation="Local">
+              <ContentPresenter x:Name="PART_SelectedContentHost" Margin="{TemplateBinding Padding}" ContentSource="SelectedContent" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="VerTabItem" TargetType="TabItem">
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Margin" Value="0,0,6,0" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Border x:Name="BackBorder" Padding="12,0" Background="#2B2D33" BorderBrush="#3D404A" BorderThickness="1" CornerRadius="4">
+            <TextBlock x:Name="TbText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="Normal" Foreground="#909399" Text="{TemplateBinding Header}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <!--  鼠标悬浮  -->
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="BackBorder" Property="Background" Value="#383B43" />
+              <Setter TargetName="TbText" Property="Foreground" Value="#DCDFE6" />
+            </Trigger>
+            <!--  选中态：Element 蓝底胶囊  -->
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="BackBorder" Property="Background" Value="#409EFF" />
+              <Setter TargetName="BackBorder" Property="BorderBrush" Value="#409EFF" />
+              <Setter TargetName="TbText" Property="Foreground" Value="#FFFFFF" />
+              <Setter TargetName="TbText" Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+</ResourceDictionary>

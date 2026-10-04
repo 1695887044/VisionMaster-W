@@ -18,6 +18,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 
@@ -299,40 +300,134 @@ namespace Plugin.PreProcessing
         /// <summary>UI 线程调度器；没有 Application（单元测试/离线跑流程）时为 null，此时按"就在 UI 线程"处理</summary>
         private static Dispatcher? UiDispatcher => System.Windows.Application.Current?.Dispatcher;
 
+        /// <summary>预览是否已有一轮在后台跑（防叠加）</summary>
+        private bool _previewRunning;
+
+        /// <summary>后台跑的同时又来了刷新请求 → 跑完补一轮（既不叠加，也不丢最后一次）</summary>
+        private bool _previewDirty;
+
+        /// <summary>预览轮次号：后台结果回来时对不上号（期间又发起了新一轮）说明结果已过期，丢弃</summary>
+        private int _previewGeneration;
+
         /// <summary>
         /// 重跑整条链，把每一步的输出留一份给界面看。
-        /// 全程在 UI 线程、同步执行 —— 因此不存在"图被流程线程释放掉"的竞态，
-        /// 这也是为什么正式运行路径（RunAlgorithm）不往主界面逐步推图：
-        /// PublishPreview 内部是 Dispatcher.BeginInvoke 异步投递，逐步推图得自己管住生命周期，得不偿失。
+        ///
+        /// 【为什么改成"后台跑 + 回投 UI"，而不是原来的 UI 线程同步跑】
+        /// 原来整条链在 UI 线程同步执行，现场表现是：点一个算子、或改一个参数，整个窗口先僵住
+        /// 一两秒（对比度算子默认 101×101 掩膜，一次 Illuminate 在大图上就是秒级；
+        /// 而参数框是逐字符触发刷新的）。现在拆成三段：
+        ///   ① UI 线程：把原图**拷一份**（副本归后台独占，上游那张仍归流程/端口管，互不干涉）；
+        ///   ② 后台线程：用副本 + 链快照跑完，产出各步的图（全程不碰任何 UI 对象）；
+        ///   ③ 回 UI 线程：换掉旧图（**此刻才释放旧图**——原实现是跑之前就释放，
+        ///      那期间画布手里还攥着已销毁的句柄）、刷画面。
+        /// 正式运行路径（RunAlgorithm）不走这里，它用快照数组在流程线程上跑。
         /// </summary>
-        public void RefreshPreview()
-        {
-            DisposeStepImages();
-            _sourceImage = SrcImage.ActualValue;
+        public void RefreshPreview() => RefreshPreviewCore(waitForResult: false);
 
+        /// <summary>
+        /// 同步版本：导出要的正是"此刻链跑完的中间图"（<see cref="WriteExport"/> 会读 _stepImages），
+        /// 所以那条路径必须等结果，不能走后台。
+        /// </summary>
+        private void RefreshPreviewSync() => RefreshPreviewCore(waitForResult: true);
+
+        private void RefreshPreviewCore(bool waitForResult)
+        {
+            _sourceImage = SrcImage.ActualValue;
             var src = _sourceImage;
-            if (src == null || !src.IsInitialized() || Operators.Count == 0)
+
+            // 链快照：后台跑的同时用户还能继续加算子/改参数，跑到的是发起那一刻的链
+            var steps = Operators.ToArray();
+
+            if (src == null || !src.IsInitialized() || steps.Length == 0)
             {
+                DisposeStepImages();
                 OnPropertyChanged(nameof(DisplayImage));
                 return;
             }
 
-            var results = new HImage?[Operators.Count];
+            // 同步路径：导出，以及没有 UI 线程的场合（离线跑流程 / 单元测试）
+            if (waitForResult || UiDispatcher == null)
+            {
+                ApplyStepResults(ExecuteSteps(src, steps), src);
+                return;
+            }
+
+            if (_previewRunning)
+            {
+                _previewDirty = true;
+                return;
+            }
+
+            HImage working;
             try
             {
-                // 预览全程在 UI 线程，直接跑活链即可（快照只给流程线程用）
-                ExecuteChain(src, Operators, results, logger: null);
+                working = src.CopyImage();   // 副本：后台独占，不与上游/画布争同一个句柄
             }
             catch
             {
-                // 预览路径的异常不弹框：能显示多少步就显示多少步，剩下的步留空
+                // 拷不出来（内存紧张）：退回同步跑。宁可慢一点，也别没有预览
+                ApplyStepResults(ExecuteSteps(src, steps), src);
+                return;
             }
+
+            _previewRunning = true;
+            int generation = ++_previewGeneration;
+
+            Task.Run(() =>
+            {
+                try { return ExecuteSteps(working, steps); }
+                finally { try { working.Dispose(); } catch { /* 副本释放失败不影响结果 */ } }
+            })
+            .ContinueWith(task =>
+            {
+                // 回 UI 线程换图：Dispatcher 可能在关窗时已停，取不到就退回当前线程完成收尾
+                var dispatcher = UiDispatcher;
+                if (dispatcher != null)
+                    dispatcher.BeginInvoke(new Action(() => CompletePreview(task, generation, working)));
+                else
+                    CompletePreview(task, generation, working);
+            });
+        }
+
+        /// <summary>后台结果回投（UI 线程）：换图 + 补跑被合并掉的请求</summary>
+        private void CompletePreview(Task<HImage?[]> task, int generation, HImage passthroughBase)
+        {
+            _previewRunning = false;
+
+            // 轮次对不上 = 期间又发起了新一轮，这份结果对应的链已经变了，直接丢
+            if (task.IsCompletedSuccessfully && generation == _previewGeneration)
+                ApplyStepResults(task.Result, passthroughBase);
+
+            if (_previewDirty)
+            {
+                _previewDirty = false;
+                RefreshPreviewCore(waitForResult: false);
+            }
+        }
+
+        /// <summary>跑一遍链并收下每一步的结果（异常不弹框：能显示多少步就显示多少步）</summary>
+        private HImage?[] ExecuteSteps(HImage src, PreprocessOperator[] steps)
+        {
+            var results = new HImage?[steps.Length];
+            try { ExecuteChain(src, steps, results, logger: null); }
+            catch { /* 预览路径的异常不弹框，剩下的步留空 */ }
+            return results;
+        }
+
+        /// <summary>
+        /// 把一轮链的结果换成界面要显示的那份（只在 UI 线程调用，且此刻才释放旧图）。
+        /// <paramref name="passthroughBase"/> 是这一轮的底图：结果里与它同一引用的帧说明该步
+        /// 透传没产出新图（后台路径里它就是那张副本、马上要被释放），因此不入字典 ——
+        /// 否则 DisposeStepImages 会把别人的图释放掉。
+        /// </summary>
+        private void ApplyStepResults(HImage?[] results, HImage passthroughBase)
+        {
+            DisposeStepImages();
 
             for (int i = 0; i < results.Length; i++)
             {
                 var img = results[i];
-                // 与原图同一引用（透传）时不入字典：否则 DisposeStepImages 会把别人的图释放掉
-                if (img != null && !ReferenceEquals(img, src)) _stepImages[i] = img;
+                if (img != null && !ReferenceEquals(img, passthroughBase)) _stepImages[i] = img;
             }
 
             OnPropertyChanged(nameof(DisplayImage));
@@ -806,8 +901,9 @@ namespace Plugin.PreProcessing
         /// <param name="manifestPath">清单文件全路径；图片与链快照写在同一目录、用同一个文件名前缀</param>
         internal void WriteExport(string manifestPath)
         {
-            // 先按当前参数重跑一遍：导出的必须是"此刻的效果"，顺带把 _sourceImage 刷新到位
-            RefreshPreview();
+            // 先按当前参数重跑一遍：导出的必须是"此刻的效果"，顺带把 _sourceImage 刷新到位。
+            // 这里必须走**同步**版本：下面按步导出靠 _stepImages，异步还没回来就会导出空清单。
+            RefreshPreviewSync();
             var src = _sourceImage;
             if (src == null || !src.IsInitialized())
             {

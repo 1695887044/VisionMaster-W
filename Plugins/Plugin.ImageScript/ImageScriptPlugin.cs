@@ -184,6 +184,36 @@ namespace Plugin.ImageScript
                 }
         }
 
+        /// <summary>
+        /// 把本步骤的<b>数值输出</b>收成"随图信息"（"缺陷数: 51"、"判定: NG"），跟着图一起推给画布。
+        ///
+        /// 为什么由框架自动做：画布列表里那张图旁边最有价值的就是这一步算出来的数，
+        /// 而它们本来就已经在输出端口上了 —— 让脚本作者在 HDevelop 里再拼一遍字符串是重复劳动，
+        /// 而且很容易忘记更新。信息名优先取变量行的"备注"（那本来就是给现场看的说明），没填则用变量名。
+        /// </summary>
+        private List<Core.Halcon.Models.ImageInfoRow> BuildInfoRows()
+        {
+            var rows = new List<Core.Halcon.Models.ImageInfoRow>();
+            if (OutputVars == null || Outputs == null) return rows;
+
+            foreach (var v in OutputVars)
+            {
+                if (v == null || v.IsIconic || string.IsNullOrWhiteSpace(v.Name)) continue;
+                if (!Outputs.TryGetValue(v.Name, out var port)) continue;
+
+                object value;
+                try { value = port.Value; }
+                catch { continue; }                    // 端口取不到值不该影响推图
+                if (value == null) continue;
+
+                rows.Add(new Core.Halcon.Models.ImageInfoRow(
+                    string.IsNullOrWhiteSpace(v.Remark) ? v.Name : v.Remark.Trim(),
+                    value.ToString() ?? string.Empty));
+            }
+
+            return rows;
+        }
+
         #endregion
 
         #region 动态端口重建
@@ -991,6 +1021,10 @@ namespace Plugin.ImageScript
 
                 call.Execute();
 
+                // 待推送的图先攒着：等这一轮输出全部收完，才能把"数值输出"作为随图信息一起推出去
+                // （边收边推的话，排在后面的数值输出此刻还没写进端口，信息会缺一半）
+                var pending = new List<(HImage Image, int View, string Title)>();
+
                 // —— 收取输出 ——
                 if (OutputVars != null)
                 {
@@ -1070,9 +1104,21 @@ namespace Plugin.ImageScript
 
                                 disp = ComposeIconicToImage(iconic, baseImage);
                             if (disp != null)
-                                this.PublishPreview(disp, v.DisplayWindow);
+                            {
+                                // 标题优先用变量行的"备注"——它就是给现场看的那句说明
+                                pending.Add((disp, v.DisplayWindow,
+                                    string.IsNullOrWhiteSpace(v.Remark) ? v.Name : v.Remark.Trim()));
+                            }
                         }
                     }
+                }
+
+                // 统一推送：图 + 本步骤的数值输出当"随图信息"（画布列表里一眼看到结果）
+                if (pending.Count > 0)
+                {
+                    var info = BuildInfoRows();
+                    foreach (var (image, view, title) in pending)
+                        this.PublishPreview(image, view, title, info, null);
                 }
 
                 // 脚本自绘效果图优先：最后覆盖窗口1（输出行的"窗口N"叠加预览先推，脚本图后推）

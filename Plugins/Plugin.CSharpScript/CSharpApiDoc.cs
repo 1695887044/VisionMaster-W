@@ -100,8 +100,15 @@ namespace Plugin.CSharpScript
             {
                 Name = "ShowImage",
                 Signature = "void Context.ShowImage(HImage image, int viewIndex = 1)",
-                Summary = "把图像送到主界面对应视图窗口显示（viewIndex 从 1 起）。",
+                Summary = "把图像送到主界面第 viewIndex 个画布（viewIndex 从 1 起）。",
                 Insert = "ShowImage(\u0001image\u0001, 1)",
+            },
+            new ApiMember
+            {
+                Name = "ShowImage",
+                Signature = "void Context.ShowImage(HImage image, int viewIndex, string title, params (string,object)[] info)",
+                Summary = "推图时带上标题与键值信息（如 (\"缺陷数\", 51)）：画布的图片列表按这些信息显示这张图，回头找图不用翻日志。",
+                Insert = "ShowImage(\u0001image\u0001, 1, \"结果图\", (\"判定\", \"NG\"))",
             },
             new ApiMember
             {

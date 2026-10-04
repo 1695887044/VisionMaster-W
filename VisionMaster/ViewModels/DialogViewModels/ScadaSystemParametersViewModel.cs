@@ -4,6 +4,7 @@ using System.Globalization;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
+using VisionMaster.Models;
 using VisionMaster.Services;
 
 namespace VisionMaster.ViewModels.DialogViewModels
@@ -74,6 +75,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private string _idleTimeoutText = string.Empty;
         private string _auditRetentionText = string.Empty;
         private string _alarmRetentionText = string.Empty;
+        private string _galleryTotalLimitText = string.Empty;
+        private string _galleryPerFlowLimitText = string.Empty;
+        private bool _galleryEnabled = true;
+        private bool _galleryClearOnRun;
+        private bool _galleryCollectAllPorts;
+        private bool _galleryKeepHistory;
+        private bool _galleryIncludeRealtime = true;
+        private bool _gallerySaveOnAlarm;
         private string? _errorMessage;
 
         /// <param name="audit">
@@ -124,6 +133,65 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set { if (SetProperty(ref _alarmRetentionText, value)) ErrorMessage = null; }
         }
 
+        /// <summary>图集总张数上限（跨全部流程）。0 或负数 = 不限制</summary>
+        public string GalleryTotalLimitText
+        {
+            get => _galleryTotalLimitText;
+            set { if (SetProperty(ref _galleryTotalLimitText, value)) ErrorMessage = null; }
+        }
+
+        /// <summary>图集单流程张数上限。0 或负数 = 不限制</summary>
+        public string GalleryPerFlowLimitText
+        {
+            get => _galleryPerFlowLimitText;
+            set { if (SetProperty(ref _galleryPerFlowLimitText, value)) ErrorMessage = null; }
+        }
+
+        /// <summary>是否启用图集采集</summary>
+        public bool GalleryEnabled
+        {
+            get => _galleryEnabled;
+            set => SetProperty(ref _galleryEnabled, value);
+        }
+
+        /// <summary>
+        /// 每轮流程开始时是否清空整张画布。
+        /// 勾选 = 清空全部（含其它流程的图）；不勾选 = 只覆盖"即将运行的这条流程"上一轮的图。
+        /// </summary>
+        public bool GalleryClearOnRun
+        {
+            get => _galleryClearOnRun;
+            set => SetProperty(ref _galleryClearOnRun, value);
+        }
+
+        /// <summary>是否兜底采集所有输出端口（插件没主动注入的 HImage 也收进来，不带说明信息）</summary>
+        public bool GalleryCollectAllPorts
+        {
+            get => _galleryCollectAllPorts;
+            set => SetProperty(ref _galleryCollectAllPorts, value);
+        }
+
+        /// <summary>同一位置是否保留历史帧（否 = 每槽只留最新一张）</summary>
+        public bool GalleryKeepHistory
+        {
+            get => _galleryKeepHistory;
+            set => SetProperty(ref _galleryKeepHistory, value);
+        }
+
+        /// <summary>是否收录插件实时预览发布</summary>
+        public bool GalleryIncludeRealtime
+        {
+            get => _galleryIncludeRealtime;
+            set => SetProperty(ref _galleryIncludeRealtime, value);
+        }
+
+        /// <summary>报警触发时是否把当前图集整批落盘</summary>
+        public bool GallerySaveOnAlarm
+        {
+            get => _gallerySaveOnAlarm;
+            set => SetProperty(ref _gallerySaveOnAlarm, value);
+        }
+
         /// <summary>校验 / 写盘失败的原因（红字）。没有问题时为 <c>null</c></summary>
         public string? ErrorMessage
         {
@@ -153,40 +221,74 @@ namespace VisionMaster.ViewModels.DialogViewModels
             IdleTimeoutText = config.IdleTimeoutMinutes.ToString(CultureInfo.InvariantCulture);
             AuditRetentionText = config.AuditRetentionDays.ToString(CultureInfo.InvariantCulture);
             AlarmRetentionText = config.AlarmHistoryRetentionDays.ToString(CultureInfo.InvariantCulture);
+
+            // 图像集：老配置里没有这个节时，模型初始化器保证非 null（见 AppConfigModel.ImageGallery）
+            var gallery = config.ImageGallery ?? new ImageGallerySettings();
+            GalleryEnabled = gallery.Enabled;
+            GalleryClearOnRun = gallery.RunStartMode == ImageGalleryRunStartMode.ClearAll;
+            GalleryCollectAllPorts = gallery.CollectAllOutputPorts;
+            GalleryKeepHistory = gallery.KeepFrameHistory;
+            GalleryIncludeRealtime = gallery.IncludeRealtimePreviews;
+            GallerySaveOnAlarm = gallery.SaveFramesOnAlarm;
+            GalleryTotalLimitText = gallery.TotalLimit.ToString(CultureInfo.InvariantCulture);
+            GalleryPerFlowLimitText = gallery.PerFlowLimit.ToString(CultureInfo.InvariantCulture);
+
             ErrorMessage = null;
         }
 
         private void OnConfirm()
         {
-            // 三个字段一起校验、一起报错：逐条弹窗式的"错一个改一个"在设置页上很烦人。
+            // 字段一起校验、一起报错：逐条弹窗式的"错一个改一个"在设置页上很烦人。
             // 短路求值顺带保证 error 里留下的是**第一条**出错的原因。
             if (!TryParseField(IdleTimeoutText, "空闲自动登出", out var idleMinutes, out var error)
                 || !TryParseField(AuditRetentionText, "操作审计保留", out var auditDays, out error)
-                || !TryParseField(AlarmRetentionText, "报警历史保留", out var alarmDays, out error))
+                || !TryParseField(AlarmRetentionText, "报警历史保留", out var alarmDays, out error)
+                || !TryParseField(GalleryTotalLimitText, "图集总张数上限", out var galleryTotal, out error)
+                || !TryParseField(GalleryPerFlowLimitText, "图集单流程上限", out var galleryPerFlow, out error))
             {
                 ErrorMessage = error;
                 return;
             }
 
             var config = _settings.Current;
+            var gallery = config.ImageGallery ?? new ImageGallerySettings();
+            var newRunStart = GalleryClearOnRun
+                ? ImageGalleryRunStartMode.ClearAll
+                : ImageGalleryRunStartMode.ReplaceFlow;
 
             // 先留旧值：审计"说明"列要写净效果（旧值 → 新值），落盘之后就读不到了。
             var oldIdle = config.IdleTimeoutMinutes;
             var oldAudit = config.AuditRetentionDays;
             var oldAlarm = config.AlarmHistoryRetentionDays;
+            var oldGalleryTotal = gallery.TotalLimit;
+            var oldGalleryPerFlow = gallery.PerFlowLimit;
+            var oldGalleryEnabled = gallery.Enabled;
+            var oldGalleryRunStart = gallery.RunStartMode;
+            var oldGalleryCollectAll = gallery.CollectAllOutputPorts;
+            var oldGalleryHistory = gallery.KeepFrameHistory;
+            var oldGalleryRealtime = gallery.IncludeRealtimePreviews;
+            var oldGallerySaveOnAlarm = gallery.SaveFramesOnAlarm;
 
-            // 只列**真变了的**项：三项一股脑列出来，事后就分不清"他改了哪一项"和"他只是点了一下确定"。
+            // 只列**真变了的**项：一股脑列出来，事后就分不清"他改了哪一项"和"他只是点了一下确定"。
             var changes = new List<string>();
             if (idleMinutes != oldIdle) changes.Add($"空闲自动登出：{oldIdle} → {idleMinutes} 分钟");
             if (auditDays != oldAudit) changes.Add($"操作审计保留：{oldAudit} → {auditDays} 天");
             if (alarmDays != oldAlarm) changes.Add($"报警历史保留：{oldAlarm} → {alarmDays} 天");
+            if (GalleryEnabled != oldGalleryEnabled) changes.Add($"图集采集：{(oldGalleryEnabled ? "启用" : "关闭")} → {(GalleryEnabled ? "启用" : "关闭")}");
+            if (newRunStart != oldGalleryRunStart) changes.Add($"画布每轮开始：{RunStartText(oldGalleryRunStart)} → {RunStartText(newRunStart)}");
+            if (GalleryCollectAllPorts != oldGalleryCollectAll) changes.Add($"兜底采集所有输出端口：{(oldGalleryCollectAll ? "是" : "否")} → {(GalleryCollectAllPorts ? "是" : "否")}");
+            if (galleryTotal != oldGalleryTotal) changes.Add($"图集总张数上限：{oldGalleryTotal} → {galleryTotal} 张");
+            if (galleryPerFlow != oldGalleryPerFlow) changes.Add($"图集单流程上限：{oldGalleryPerFlow} → {galleryPerFlow} 张");
+            if (GalleryKeepHistory != oldGalleryHistory) changes.Add($"图集保留历史帧：{(oldGalleryHistory ? "是" : "否")} → {(GalleryKeepHistory ? "是" : "否")}");
+            if (GalleryIncludeRealtime != oldGalleryRealtime) changes.Add($"图集收录实时预览：{(oldGalleryRealtime ? "是" : "否")} → {(GalleryIncludeRealtime ? "是" : "否")}");
+            if (GallerySaveOnAlarm != oldGallerySaveOnAlarm) changes.Add($"报警时留存图集：{(oldGallerySaveOnAlarm ? "是" : "否")} → {(GallerySaveOnAlarm ? "是" : "否")}");
 
             if (changes.Count == 0)
             {
                 // 一个值都没动就不写盘：配置内容与盘上那份逐字相同，重写一遍只是白动一次磁盘
                 // （而 AppConfig.json 在程序目录，某些部署下这一步本来就会失败——为一个没改的东西弹失败最没道理）。
                 // 但仍然关窗：用户点的是「确定」，不是「取消」。
-                Audit(ok: true, detail: $"三项参数均未变（{oldIdle} 分钟 / {oldAudit} 天 / {oldAlarm} 天），未写盘", error: null);
+                Audit(ok: true, detail: "各参数均未变，未写盘", error: null);
                 RequestClose.Invoke(new DialogParameters(), ButtonResult.OK);
                 return;
             }
@@ -194,6 +296,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             config.IdleTimeoutMinutes = idleMinutes;
             config.AuditRetentionDays = auditDays;
             config.AlarmHistoryRetentionDays = alarmDays;
+            gallery.Enabled = GalleryEnabled;
+            gallery.RunStartMode = newRunStart;
+            gallery.CollectAllOutputPorts = GalleryCollectAllPorts;
+            gallery.TotalLimit = galleryTotal;
+            gallery.PerFlowLimit = galleryPerFlow;
+            gallery.KeepFrameHistory = GalleryKeepHistory;
+            gallery.IncludeRealtimePreviews = GalleryIncludeRealtime;
+            gallery.SaveFramesOnAlarm = GallerySaveOnAlarm;
 
             try
             {
@@ -211,6 +321,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             Audit(ok: true, detail: string.Join("；", changes), error: null);
+
+            // 张数上限可能被调小：立即按新上限裁剪一次，不必等下次运行才看到效果
+            ImageCollectionService.Instance?.ApplySettingsNow();
+
             RequestClose.Invoke(new DialogParameters(), ButtonResult.OK);
         }
 
@@ -231,6 +345,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 AuditActionText,
                 ok ? ScadaAuditOutcome.Success : ScadaAuditOutcome.Failed,
                 ok ? detail : error));
+
+        /// <summary>图集留存模式的中文名（审计说明列用）</summary>
+        private static string RunStartText(ImageGalleryRunStartMode mode)
+            => mode == ImageGalleryRunStartMode.ClearAll ? "清空整张画布" : "覆盖本流程上一轮的图";
 
         /// <summary>
         /// 解析一个整数字段。空串也走失败分支——"留空"不该被当成 0 悄悄变成"永不清理"，

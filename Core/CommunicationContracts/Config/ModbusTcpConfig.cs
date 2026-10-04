@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
 using UI.Attributes;
 
@@ -15,7 +15,7 @@ namespace VisionMaster.Communications
         /// <para>ABCD = 大端标准；CDAB = 字序交换（多数国产 PLC/仪表默认）；另见 <see cref="ByteOrderFormat"/>。</para>
         /// <para>⚠ 落盘键名刻意保留历史拼写 "ByteoRDER"：改名会让存量 communications.json / 方案文件里的字序丢失并回落默认值。</para>
         /// </summary>
-        [SuperDisplay(Name = "字节排序", GroupPath = "网络参数", Order = 6, ColSpan = 8)]
+        [SuperDisplay(Name = "字节排序", Group = new string[] { "网络参数" }, Order = 6, ColSpan = 8)]
         [JsonProperty("ByteoRDER")]
         public ByteOrderFormat ByteOrder { get; set; } = ByteOrderFormat.CDAB;
 
@@ -37,3 +37,4 @@ namespace VisionMaster.Communications
         };
     }
 }
+

@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -12,7 +12,7 @@ namespace Plugin.PreProcessing.Operators
     {
         private MirrorMode _mode = MirrorMode.Horizontal;
 
-        [SuperDisplay(Name = "镜像方式", GroupPath = "参数", Order = 1, ColSpan = 12,
+        [SuperDisplay(Name = "镜像方式", Group = new string[] { "参数" }, Order = 1, ColSpan = 12,
             Description = "对角镜像会把宽高互换")]
         public MirrorMode Mode
         {
@@ -32,7 +32,7 @@ namespace Plugin.PreProcessing.Operators
     {
         private RotateAngle _angle = RotateAngle.Angle180;
 
-        [SuperDisplay(Name = "旋转角度", GroupPath = "参数", Order = 1, ColSpan = 12,
+        [SuperDisplay(Name = "旋转角度", Group = new string[] { "参数" }, Order = 1, ColSpan = 12,
             Description = "旋转角度；90/270 度需留意图像四角被裁切")]
         public RotateAngle Angle
         {
@@ -53,7 +53,7 @@ namespace Plugin.PreProcessing.Operators
         private int _width;
         private int _height;
 
-        [SuperDisplay(Name = "目标宽度", GroupPath = "参数", Order = 1, ColSpan = 6,
+        [SuperDisplay(Name = "目标宽度", Group = new string[] { "参数" }, Order = 1, ColSpan = 6,
             Description = "0 = 沿用原图宽度")]
         [RangeValidation(0, 100000, "目标宽度不合法")]
         public int Width
@@ -62,7 +62,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _width, value);
         }
 
-        [SuperDisplay(Name = "目标高度", GroupPath = "参数", Order = 2, ColSpan = 6,
+        [SuperDisplay(Name = "目标高度", Group = new string[] { "参数" }, Order = 2, ColSpan = 6,
             Description = "0 = 沿用原图高度")]
         [RangeValidation(0, 100000, "目标高度不合法")]
         public int Height
@@ -109,7 +109,7 @@ namespace Plugin.PreProcessing.Operators
         private double _colFactor = 1.0;
         private ZoomInterpolation _interpolation = ZoomInterpolation.Bilinear;
 
-        [SuperDisplay(Name = "行方向因子", GroupPath = "参数", Order = 1, ColSpan = 4,
+        [SuperDisplay(Name = "行方向因子", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
             Description = "垂直方向（高度）缩放比例，>1 放大、<1 缩小")]
         [RangeValidation(MinFactor, MaxFactor, "行方向因子需要在 0.01~20 之间")]
         public double RowFactor
@@ -118,7 +118,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _rowFactor, value);
         }
 
-        [SuperDisplay(Name = "列方向因子", GroupPath = "参数", Order = 2, ColSpan = 4,
+        [SuperDisplay(Name = "列方向因子", Group = new string[] { "参数" }, Order = 2, ColSpan = 4,
             Description = "水平方向（宽度）缩放比例，>1 放大、<1 缩小")]
         [RangeValidation(MinFactor, MaxFactor, "列方向因子需要在 0.01~20 之间")]
         public double ColFactor
@@ -127,7 +127,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _colFactor, value);
         }
 
-        [SuperDisplay(Name = "插值方式", GroupPath = "参数", Order = 3, ColSpan = 4,
+        [SuperDisplay(Name = "插值方式", Group = new string[] { "参数" }, Order = 3, ColSpan = 4,
             Description = "放大看细节选双三次，纯提速缩小用最近邻即可")]
         public ZoomInterpolation Interpolation
         {
@@ -153,3 +153,4 @@ namespace Plugin.PreProcessing.Operators
         public override string Summary => $"行 ×{RowFactor:0.###}  列 ×{ColFactor:0.###}  {Desc(Interpolation)}";
     }
 }
+

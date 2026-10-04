@@ -164,6 +164,88 @@ namespace VisionMaster.Models
     }
 
     /// <summary>
+    /// 画布在"每轮流程开始"时对上一轮图像的处理口径（见 <see cref="ImageGallerySettings.RunStartMode"/>）。
+    /// 两个成员对应两种现场用法，不是偏好：调机时"清空"只看本轮，多流程并跑时"覆盖本流程"不互相清空。
+    /// </summary>
+    public enum ImageGalleryRunStartMode
+    {
+        /// <summary>清空整张画布：本轮开始前把列表里所有图（含其它流程的）全部释放</summary>
+        ClearAll,
+
+        /// <summary>覆盖本流程：只清掉"即将运行的这条流程"上一轮产生的图，其它流程的图保留</summary>
+        ReplaceFlow
+    }
+
+    /// <summary>
+    /// 图像集（视觉图像页"图集模式"）的配置节（见 <see cref="AppConfigModel.ImageGallery"/>）。
+    ///
+    /// 为什么单独成节
+    /// ---------
+    /// 这几个值共同描述"这台机器怎么留存流程输出图"：每轮开始怎么清（口径）、留多少（两个上限）、
+    /// 同一位置是否保留历史帧、要不要把没主动发布但挂在输出端口上的图也收进来。
+    /// 平铺进 <see cref="AppConfigModel"/> 会让人以为它们彼此独立，实际调其中一个必然牵动其余。
+    ///
+    /// 上限口径与"永不清理"约定
+    /// ---------
+    /// <b>0 或负数 = 不限制</b>（与审计/报警保留天数的口径一致）。默认给有限值：
+    /// 一个 500 万像素的彩图副本约 15MB，不限量等于让长时间循环运行把内存吃干。
+    /// </summary>
+    public class ImageGallerySettings
+    {
+        /// <summary>总张数上限默认值（跨全部流程）</summary>
+        public const int DefaultTotalLimit = 300;
+
+        /// <summary>单流程张数上限默认值</summary>
+        public const int DefaultPerFlowLimit = 50;
+
+        /// <summary>缩略图最长边默认像素（只影响网格渲染，不影响大图清晰度）</summary>
+        public const int DefaultThumbnailMaxSize = 160;
+
+        /// <summary>是否启用图集采集。关掉后流程照跑，只是不再收集图像（省内存）</summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// 每轮流程开始时的处理口径：清空整张画布 / 覆盖本流程上一轮的图。
+        /// 默认 <see cref="ImageGalleryRunStartMode.ReplaceFlow"/>——多流程并跑时不互相清空。
+        /// </summary>
+        public ImageGalleryRunStartMode RunStartMode { get; set; } = ImageGalleryRunStartMode.ReplaceFlow;
+
+        /// <summary>总张数上限（跨全部流程）。<b>0 或负数 = 不限制</b></summary>
+        public int TotalLimit { get; set; } = DefaultTotalLimit;
+
+        /// <summary>单流程张数上限。<b>0 或负数 = 不限制</b></summary>
+        public int PerFlowLimit { get; set; } = DefaultPerFlowLimit;
+
+        /// <summary>
+        /// 同一"流程 + 步骤 + 端口"是否保留历史帧（每轮追加）。
+        /// 默认 <c>false</c> = 覆盖保留最新：图集张数天然被"输出端口数"封顶，
+        /// 循环运行也不会越跑越多。需要看"这一轮和上一轮的差异"时再打开。
+        /// </summary>
+        public bool KeepFrameHistory { get; set; } = false;
+
+        /// <summary>
+        /// 是否把"挂在输出端口上、但插件没有主动发布预览"的 HImage 也收进来（兜底）。
+        /// 默认 <c>false</c>：画布列表以**插件主动注入**为准——注入的图带着插件给的标题与信息，
+        /// 列表才有内容可显示；打开它会把所有输出端口的图也收进来，但那些图没有说明信息，
+        /// 且中间过程图会把列表刷满。需要"什么都不改也能看到图"时再打开。
+        /// </summary>
+        public bool CollectAllOutputPorts { get; set; } = false;
+
+        /// <summary>是否把插件主动发布的实时预览（<c>ImageDisplayEvent</c>）也收进图集</summary>
+        public bool IncludeRealtimePreviews { get; set; } = true;
+
+        /// <summary>缩略图最长边像素（越小内存越省；建议 96~200）</summary>
+        public int ThumbnailMaxSize { get; set; } = DefaultThumbnailMaxSize;
+
+        /// <summary>
+        /// 报警触发时是否把当前图集整批落盘到程序目录的 <c>AlarmFrames</c>（按天 + 报警名分目录）。
+        /// 默认 <c>false</c>：留存要写磁盘、且报警可能密集触发，默认开等于给现场埋一个磁盘增长点；
+        /// 需要复盘"报警当时画面是什么样"的现场，在「系统参数设置」里自行打开。
+        /// </summary>
+        public bool SaveFramesOnAlarm { get; set; } = false;
+    }
+
+    /// <summary>
     /// 软件级配置（AppConfig.json）：方案清单 + 默认启动方案
     /// 注意：这是软件全局配置，不随任何解决方案持久化
     /// </summary>
@@ -290,5 +372,15 @@ namespace VisionMaster.Models
         /// 与"文件里写了默认值"走同一条路。
         /// </summary>
         public NetworkCameraServerSettings NetworkCameraServer { get; set; } = new();
+
+        /// <summary>
+        /// 图像集（视觉图像页"图集模式"）配置，见 <see cref="ImageGallerySettings"/>。
+        ///
+        /// <b>不能为 null</b>：与上面两节同一理由——运行时会被直接点着用
+        /// （<c>Current.ImageGallery.TotalLimit</c>），而老版本 AppConfig.json 里没有这个节，
+        /// Newtonsoft 遇到缺失的引用类型只留 null 不会自动 new。初始化器让"文件里没有"
+        /// 与"文件里写了默认值"走同一条路。
+        /// </summary>
+        public ImageGallerySettings ImageGallery { get; set; } = new();
     }
 }

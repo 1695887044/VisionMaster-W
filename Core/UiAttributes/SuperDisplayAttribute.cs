@@ -8,7 +8,20 @@ namespace UI.Attributes
     public class SuperDisplayAttribute : Attribute
     {
         public bool IsReadOnly { get; set; }
+
+        /// <summary>
+        /// 分组路径（旧写法，形如 "一级/二级"）。新代码请用 <see cref="Group"/>（强类型、可重构）。
+        /// 两者都支持：<see cref="Group"/> 优先，为空时回退到本字段按 '/' 切分。
+        /// </summary>
         public string GroupPath { get; set; } = "默认分组";
+
+        /// <summary>
+        /// 强类型分组层级，例如 <c>[SuperDisplay(Group = new[] { "连接", "网络" })]</c>。
+        /// 比 <see cref="GroupPath"/> 字符串切片更可重构、拼写错误会在编译期暴露，
+        /// 且天然支持任意层级（不只两级）。
+        /// </summary>
+        public string[]? Group { get; set; }
+
         public int Order { get; set; }
         public string GroupOrder { get; set; } = "0";
         public string Name { get; set; } = string.Empty;

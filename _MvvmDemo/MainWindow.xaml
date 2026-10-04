@@ -1,0 +1,112 @@
+﻿<Window
+    x:Class="_MvvmDemo.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:charts="clr-namespace:VM.Charts"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:_MvvmDemo.ViewModels"
+    Title="VM.Charts 纯 MVVM 示例"
+    Width="1220"
+    Height="780"
+    WindowStartupLocation="CenterScreen"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=vm:MainViewModel}">
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+
+    <TabControl Margin="6">
+
+        <!--  ============ 实时曲线:示波器跟随 + 吸附 + 悬浮读数 + 卡尺 + 双轴  ============  -->
+        <TabItem Header="实时曲线">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <charts:ChartView
+                    AutoScroll="True"
+                    AutoScrollSeconds="4"
+                    CrosshairOnY2="True"
+                    Measurable="True"
+                    MeasureCursorAX="{Binding MeasureA, Mode=TwoWay}"
+                    MeasureCursorBX="{Binding MeasureB, Mode=TwoWay}"
+                    SnapToNearest="True"
+                    SeriesSource="{Binding LiveSeries}"
+                    AnnotationsSource="{Binding Annotations}"
+                    MenuItemsSource="{Binding MenuItems}"
+                    CursorMoved="{Binding CursorMovedCommand}"
+                    SyncGroup="main"
+                    Title="实时采集 — 采集线程 200Hz 写 Buffer,控件 30ms 节流渲染"
+                    XLabel="时间"
+                    YLabel="幅值 CH1 (V)"
+                    Y2Label="温度 CH2 (°C)" />
+
+                <TextBlock
+                    Grid.Row="1"
+                    Margin="4,6,0,6"
+                    FontWeight="SemiBold"
+                    Foreground="#0F6CBD"
+                    Text="{Binding Readout}" />
+            </Grid>
+        </TabItem>
+
+        <!--  ============ 静态对比:轴范围双向绑定 + 同组同步  ============  -->
+        <TabItem Header="静态对比">
+            <charts:ChartView
+                ShowLegend="True"
+                SyncGroup="main"
+                ViewLimits="{Binding Limits, Mode=TwoWay}"
+                SeriesSource="{Binding StaticSeries}"
+                Title="静态多系列 — 轴范围与 VM 的 Limits 双向绑定(右键:光标/轴范围同步)"
+                XLabel="时间 (s)"
+                YLabel="幅值" />
+        </TabItem>
+
+        <!--  ============ 统计图形:柱状 / 环形 / 直方图(Measurable=False 无卡尺)  ============  -->
+        <TabItem Header="统计图形">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <charts:ChartView
+                    ExtrasSource="{Binding AlarmBars}"
+                    Measurable="False"
+                    Title="柱状图 — 报警统计"
+                    YLabel="次数" />
+                <charts:ChartView
+                    Grid.Column="1"
+                    ExtrasSource="{Binding TimePie}"
+                    Measurable="False"
+                    Title="环形图 — 工时占比" />
+                <charts:ChartView
+                    Grid.Row="1"
+                    Grid.ColumnSpan="2"
+                    ExtrasSource="{Binding SizeHist}"
+                    Measurable="False"
+                    Title="直方图 — 尺寸分布(自动分箱)"
+                    XLabel="尺寸"
+                    YLabel="数量" />
+            </Grid>
+        </TabItem>
+
+        <!--  ============ 仪表盘 ============  -->
+        <TabItem Header="仪表盘">
+            <charts:ChartView
+                GaugesSource="{Binding Gauges}"
+                Measurable="False"
+                Title="仪表盘 — 采集线程实时驱动" />
+        </TabItem>
+
+    </TabControl>
+</Window>
+

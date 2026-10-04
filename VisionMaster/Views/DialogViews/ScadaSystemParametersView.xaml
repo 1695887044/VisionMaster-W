@@ -234,6 +234,107 @@
                         </StackPanel>
                     </Border>
 
+                    <!--  分组三：图像集（视觉图像页的"图集模式"）  -->
+                    <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                        <Border
+                            Width="3"
+                            Height="13"
+                            VerticalAlignment="Center"
+                            Background="#409EFF"
+                            CornerRadius="2" />
+                        <TextBlock
+                            Margin="7,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="#303133"
+                            Text="画布（视觉图像页 · 图像列表）" />
+                    </StackPanel>
+
+                    <Border Style="{StaticResource GroupCardStyle}">
+                        <StackPanel>
+                            <CheckBox
+                                Content="启用画布采集（关掉后流程照跑，只是不再收集图像）"
+                                FontSize="13"
+                                IsChecked="{Binding GalleryEnabled}" />
+                            <CheckBox
+                                Margin="0,8,0,0"
+                                Content="每轮开始清空整张画布（不勾选 = 只覆盖本流程上一轮的图）"
+                                FontSize="13"
+                                IsChecked="{Binding GalleryClearOnRun}" />
+                            <CheckBox
+                                Margin="0,8,0,0"
+                                Content="同一位置保留历史帧（不勾选 = 每个 步骤.端口 只留最新一张；插件注入的图不受此影响）"
+                                FontSize="13"
+                                IsChecked="{Binding GalleryKeepHistory}" />
+                            <CheckBox
+                                Margin="0,8,0,0"
+                                Content="收录插件注入的图像（插件 PublishPreview 出来的图进入画布列表）"
+                                FontSize="13"
+                                IsChecked="{Binding GalleryIncludeRealtime}" />
+                            <CheckBox
+                                Margin="0,8,0,0"
+                                Content="兜底采集所有输出端口（插件没主动注入的图也收；这些图没有说明信息）"
+                                FontSize="13"
+                                IsChecked="{Binding GalleryCollectAllPorts}" />
+                            <CheckBox
+                                Margin="0,8,0,0"
+                                Content="报警时留存当前图集（落盘到程序目录 AlarmFrames，用于事后复盘）"
+                                FontSize="13"
+                                IsChecked="{Binding GallerySaveOnAlarm}" />
+
+                            <Separator Margin="0,12,0,2" Background="#EBEEF5" />
+
+                            <!--  总张数上限  -->
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Style="{StaticResource FieldLabelStyle}"
+                                    Text="总张数上限" />
+                                <TextBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource NumberBoxStyle}"
+                                    Text="{Binding GalleryTotalLimitText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Style="{StaticResource UnitStyle}"
+                                    Text="张" />
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldHintStyle}">
+                                <Run Text="全部流程加起来最多留多少张，超出按最旧优先覆盖（每张约 15MB 量级，别配太大）。填" /><Run FontWeight="SemiBold" Text=" 0 " /><Run Text="= 不限制（默认 300）。" />
+                            </TextBlock>
+
+                            <!--  单流程张数上限  -->
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Style="{StaticResource FieldLabelStyle}"
+                                    Text="单流程张数上限" />
+                                <TextBox
+                                    Grid.Column="1"
+                                    Style="{StaticResource NumberBoxStyle}"
+                                    Text="{Binding GalleryPerFlowLimitText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Style="{StaticResource UnitStyle}"
+                                    Text="张" />
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldHintStyle}">
+                                <Run Text="图集按流程分组，每个流程一组最多留多少张。填" /><Run FontWeight="SemiBold" Text=" 0 " /><Run Text="= 不限制（默认 50）。" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
                     <!--  校验 / 写盘失败：红底红字，说清是哪个字段、当前填的是什么  -->
                     <Border
                         Margin="0,14,0,0"

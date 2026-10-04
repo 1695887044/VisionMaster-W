@@ -1,327 +1,111 @@
-using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using UI.Attributes; // 确保引用了最新的特性类
 using UI.CustomControl.PropertyGrid;
 
 namespace UI.CustomControl
 {
-    public class CardPropertyGrid : Control
+    /// <summary>
+    /// 卡片式属性网格：**两级分组**（Tab → Expander）+ 12 栅格排版，
+    /// 标签右对齐、无行线，观感更接近设置面板。
+    ///
+    /// 全部公共逻辑（依赖属性、生成/处理管线、事件清理、重绘防抖、跨线程兜底）
+    /// 都在 <see cref="PropertyGridBase"/>；这里只保留"两级分组 + 栅格"这部分差异。
+    /// </summary>
+    public class CardPropertyGrid : PropertyGridBase
     {
-        private const string DefaultName = "默认分组";
-
-        public List<IControlGenerator> Generators { get; } = new();
-        public List<IControlProcessor> Processors { get; } = new();
-
-        #region 🌟 核心优化字段 (防爆、防泄漏、防卡顿)
-        // 用于存储卸载事件的委托，每次重绘前清理僵尸事件
-        private Action _cleanupActions = () => { };
-        // 数据源属性监听器缓存
-        private INotifyPropertyChanged? _currentNotifier;
-        // 重绘防抖节流标志
-        private bool _isRefreshPending = false;
-        #endregion
-
-        public static readonly DependencyProperty BindingObjectProperty =
-            DependencyProperty.Register(
-                nameof(BindingObject),
-                typeof(object),
-                typeof(CardPropertyGrid),
-                new PropertyMetadata(null, OnBindingObjectChanged)
-            );
-
-        public object BindingObject
-        {
-            get => GetValue(BindingObjectProperty);
-            set => SetValue(BindingObjectProperty, value);
-        }
-
         static CardPropertyGrid()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(CardPropertyGrid), new FrameworkPropertyMetadata(typeof(CardPropertyGrid)));
         }
 
-        public CardPropertyGrid()
-        {
-            // 注册默认生成器
-            Generators.Add(new NestedPropertyGridGenerator());
-            Generators.Add(new EnumGenerator());
-            // 动态候选下拉（轴名 / 卡地址）：候选来自宿主注册的来源，随方案变化
-            Generators.Add(new OptionSourceGenerator());
-            Generators.Add(new StructValueGenerator());
-            Generators.Add(new BoolStateGenerator());
-            Generators.Add(new TypeGenerator());
-        }
+        protected override bool UseCardLayout => true;
 
-        #region 尺寸测量与安全拦截
-        protected override Size MeasureOverride(Size constraint)
+        protected override void BuildTabContent(TabItem tabItem, IGrouping<string, PropertyInfo> group)
         {
-            if (double.IsInfinity(constraint.Height))
+            // 二级分组：GroupPath 第二段 → Expander 卡片。
+            // 只有一级分组时（二级段全是默认组名）不套 Expander：
+            // 否则每个 Tab 顶上都是一行无意义的"默认分组"折叠头。
+            var subGroups = group.GroupBy(p => PropertyGridDefaults.GroupSegment(p, 1)).ToList();
+
+            if (subGroups.Count == 1 && subGroups[0].Key == PropertyGridDefaults.DefaultGroupName)
             {
-                double targetHeight = SystemParameters.WorkArea.Height - 300; // 兜底高度
-                var mainWindow = Application.Current?.MainWindow;
-                if (mainWindow != null && mainWindow.ActualHeight > 100)
-                {
-                    targetHeight = mainWindow.ActualHeight - 250;
-                }
-                else
-                {
-                    var window = Window.GetWindow(this);
-                    if (window != null && window.ActualHeight > 100) targetHeight = window.ActualHeight - 250;
-                }
-
-                constraint = new Size(constraint.Width, Math.Max(200, targetHeight));
-                System.Diagnostics.Debug.WriteLine($"⚠️ [CardPropertyGrid 高度防爆] 捕获到无限高度，已动态修正为: {targetHeight}");
-            }
-
-            return base.MeasureOverride(constraint);
-        }
-
-        public override void OnApplyTemplate()
-        {
-            base.OnApplyTemplate();
-            UpdatePropertyGrid();
-        }
-        #endregion
-
-        #region 🌟 动态刷新架构核心逻辑 (INotifyPropertyChanged 拦截)
-        private static void OnBindingObjectChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            if (d is CardPropertyGrid control)
-            {
-                // 彻底断开旧对象的监听，严防内存泄漏
-                if (control._currentNotifier != null)
-                {
-                    control._currentNotifier.PropertyChanged -= control.OnBindingObjectPropertyChanged;
-                }
-
-                // 挂载新对象的监听
-                if (e.NewValue is INotifyPropertyChanged newNotifier)
-                {
-                    newNotifier.PropertyChanged += control.OnBindingObjectPropertyChanged;
-                    control._currentNotifier = newNotifier;
-                }
-                else
-                {
-                    control._currentNotifier = null;
-                }
-
-                control.UpdatePropertyGrid();
-            }
-        }
-
-        // 🌟 注意：方法签名加上了 async 关键字！
-        private async void OnBindingObjectPropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (BindingObject == null || string.IsNullOrEmpty(e.PropertyName)) return;
-
-            var propInfo = BindingObject.GetType().GetProperty(e.PropertyName, BindingFlags.Public | BindingFlags.Instance);
-            var displayAttr = propInfo?.GetCustomAttribute<SuperDisplayAttribute>();
-
-            // 拦截：只有明确标记 RequireRefresh = true 的属性，才触发全体重绘
-            if (displayAttr != null && displayAttr.RequireRefresh)
-            {
-                if (_isRefreshPending) return;
-                _isRefreshPending = true;
-
-                // 强行等待 50 毫秒，让 ComboBox 下拉弹窗完全关闭、WPF 内部测量/排列/动画彻底结束
-                await Task.Delay(50);
-
-                // 50毫秒后，天下太平，再切回 UI 线程重绘。
-                // 用 SafeDispatch 异步投递而非同步 Invoke：关闭软件时 Dispatcher 取消挂起操作，
-                // 同步 Invoke 会把 TaskCanceledException 抛回属性变更源线程（插件/引擎层）
-                VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
-                {
-                    try
-                    {
-                        UpdatePropertyGrid();
-                    }
-                    finally
-                    {
-                        _isRefreshPending = false;
-                    }
-                });
-            }
-        }
-        #endregion
-
-        #region UI 层级构建逻辑 (Tab -> Expander -> 12栅格)
-        private void UpdatePropertyGrid()
-        {
-            if (BindingObject == null || !(GetTemplateChild("PART_TabControl") is TabControl tabControl))
+                tabItem.Content = CreateGridRows(subGroups[0].ToList());
                 return;
-
-            // 🌟 每次重绘前，执行清理操作（解绑丢失焦点的验证等事件），严防内存泄漏
-            _cleanupActions.Invoke();
-            _cleanupActions = () => { };
-
-            tabControl.Items.Clear();
-
-            // Visible 默认 true，老字段行为不变；子类可用 override 重贴 [SuperDisplay(Visible = false)] 摘掉某个字段
-            var properties = BindingObject.GetType()
-                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.GetCustomAttribute<SuperDisplayAttribute>()?.Visible == true)
-                .ToList();
-
-            if (!properties.Any()) return;
-
-            // 一级分组 (解析 GroupPath 的第一段)
-            var groupedProperties = properties
-                .OrderBy(p => p.GetCustomAttribute<SuperDisplayAttribute>()?.Order ?? 0)
-                .GroupBy(p => p.GetCustomAttribute<SuperDisplayAttribute>()?.GroupPath?.Split('/').ElementAtOrDefault(0) ?? DefaultName)
-                .OrderBy(g => g.First().GetCustomAttribute<SuperDisplayAttribute>()?.GroupOrder ?? "0");
-
-            foreach (var group in groupedProperties)
-            {
-                var tabItem = new TabItem { Header = group.Key };
-
-                // 二级分组 (解析 GroupPath 的第二段)
-                var secondLevelGroups = group.GroupBy(p =>
-                    p.GetCustomAttribute<SuperDisplayAttribute>()?.GroupPath?.Split('/').ElementAtOrDefault(1) ?? DefaultName);
-
-                tabItem.Content = CreateGroupContent(secondLevelGroups);
-                tabControl.Items.Add(tabItem);
             }
 
-            if (tabControl.Items.Count > 0 && tabControl.SelectedIndex == -1)
-                tabControl.SelectedIndex = 0;
+            tabItem.Content = CreateExpandersContent(subGroups);
         }
 
-        // 组装二级分组 (生成 Expander 卡片)
-        private UIElement CreateGroupContent(IEnumerable<IGrouping<string, PropertyInfo>> groups)
+        private UIElement CreateExpandersContent(IEnumerable<IGrouping<string, PropertyInfo>> groups)
         {
             var mainPanel = new StackPanel();
+
             foreach (var group in groups)
             {
-                var groupContainer = new StackPanel { Margin = new Thickness(0, 0, 0, 20) };
-
                 var expander = new Expander
                 {
                     IsExpanded = true,
                     HorizontalAlignment = HorizontalAlignment.Stretch,
+                    // Expander 默认模板的内容区不拉伸（按内容期望宽排），
+                    // 值控件会被压成"贴着标签的一小条"——必须显式撑满
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
                     Margin = new Thickness(0, 0, 0, 10),
                     Header = group.Key,
+                    Content = CreateGridRows(group.ToList()),
                 };
 
-                var rowsContent = CreateGroupContent(group.ToList());
-
-                groupContainer.Children.Add(rowsContent);
-                expander.Content = groupContainer;
                 mainPanel.Children.Add(expander);
             }
 
-            // 加入滚动条，适配多 Expander 情况
-            return new ScrollViewer
-            {
-                Content = mainPanel,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Padding = new Thickness(12)
-            };
+            // 滚动交给卡片模板的 ContentTemplate ScrollViewer（Horizontal 已 Disabled）。
+            // 这里不能再包一层 ScrollViewer：内层横向默认 Auto 会以"无限宽"测量内容，
+            // 12 栅格的 Star 列在无限宽下塌缩成内容宽，所有值控件被压成 30px 瘦条；
+            // 外层(infinite height)里再套内层(infinite width)也是双重滚动的根子。
+            return mainPanel;
         }
 
-        // 核心：动态 12 栅格排版
-        private UIElement CreateGroupContent(List<PropertyInfo> properties)
+        /// <summary>12 栅格：按 ColSpan 占列，超过 12 就换行</summary>
+        private UIElement CreateGridRows(List<PropertyInfo> properties)
         {
-            var mainStack = new StackPanel { Margin = new Thickness(16, 12, 16, 12) };
-
+            // 不再加自身 Margin：主题隐式 Expander 样式的 ExpandSite 已带
+            // Margin=4,4,0,0 + Padding=16,12,16,16，再叠 16 就是层层套皮，
+            // 值列会被压到只剩几十像素（右半张卡片全在空转）
+            var mainStack = new StackPanel();
             Grid.SetIsSharedSizeScope(mainStack, true);
 
-            Grid? currentActiveGrid = null;
-            int currentUsedWeight = 0;
+            Grid? currentRow = null;
+            var usedWeight = 0;
 
             foreach (var prop in properties)
             {
-                var display = prop.GetCustomAttribute<SuperDisplayAttribute>();
-                int weight = (display != null && display.ColSpan > 0) ? display.ColSpan : 12;
-                if (weight > 12) weight = 12;
+                var display = PropertyGridDefaults.DisplayOf(prop);
 
-                // 换行逻辑：当前行满载或尚未初始化
-                if (currentActiveGrid == null || currentUsedWeight + weight > 12)
+                var weight = display is { ColSpan: > 0 } ? display.ColSpan : PropertyGridDefaults.GridColumns;
+                if (weight > PropertyGridDefaults.GridColumns) weight = PropertyGridDefaults.GridColumns;
+
+                if (currentRow == null || usedWeight + weight > PropertyGridDefaults.GridColumns)
                 {
-                    currentActiveGrid = new Grid
-                    {
-                        Margin = new Thickness(0, 0, 0, 12),
-                        HorizontalAlignment = HorizontalAlignment.Stretch,
-                    };
+                    currentRow = new Grid { Margin = new Thickness(0, 0, 0, 12), HorizontalAlignment = HorizontalAlignment.Stretch };
+                    for (var i = 0; i < PropertyGridDefaults.GridColumns; i++)
+                        currentRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-                    for (int i = 0; i < 12; i++)
-                    {
-                        currentActiveGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    }
-
-                    mainStack.Children.Add(currentActiveGrid);
-                    currentUsedWeight = 0;
+                    mainStack.Children.Add(currentRow);
+                    usedWeight = 0;
                 }
 
-                // 🌟 将生成单个控件的逻辑抛给流水线
-                var cell = CreateSinglePropertyCell(prop, display!);
+                var isNested = prop.GetCustomAttribute<PropertyItemAttribute>() != null;
+                var cell = BuildPropertyCell(prop, isNested, display);
 
-                Grid.SetColumn(cell, currentUsedWeight);
+                Grid.SetColumn(cell, usedWeight);
                 Grid.SetColumnSpan(cell, weight);
-
-                currentActiveGrid.Children.Add(cell);
-                currentUsedWeight += weight;
+                currentRow.Children.Add(cell);
+                usedWeight += weight;
             }
+
             return mainStack;
         }
-
-        // 单一属性构造流
-        private UIElement CreateSinglePropertyCell(PropertyInfo prop, SuperDisplayAttribute display)
-        {
-            var att = prop.GetCustomAttribute<PropertyItemAttribute>();
-            var control = att == null
-                    ? CreateControl(prop, BindingObject, display.IsReadOnly)
-                    : CreateControl(prop, prop.GetValue(BindingObject)!);
-
-            var context = new ControlContext
-            {
-                Property = prop,
-                BindingSource = BindingObject,
-                Control = control,
-                WrapPanel = new StackPanel(),
-                RootCellGrid = new Grid(),
-                RegisterCleanup = action => _cleanupActions += action // 🌟 暴露给 Processor 的清理注册入口
-            };
-
-            var pipeline = new List<IControlProcessor>
-            {
-                new LayoutProcessor(display), // 这里调用了你原本写的卡片风格 LayoutProcessor
-                new CommandProcessor(),
-                new ValidationProcessor(),
-                new PermissionProcessor(),
-            };
-            pipeline.AddRange(Processors);
-
-            foreach (var processor in pipeline)
-            {
-                processor.Execute(context);
-            }
-
-            return context.RootCellGrid;
-        }
-
-        public FrameworkElement CreateControl(PropertyInfo prop, object bindingSource, bool readOnly = false)
-        {
-            var generator = Generators
-                .OrderBy(g => g.Priority)
-                .FirstOrDefault(g => g.CanProcess(prop, prop.PropertyType, readOnly));
-
-            if (generator != null)
-                return generator.Create(prop, bindingSource, readOnly);
-
-            return new TextBlock
-            {
-                Text = $"Unsupported: {prop.PropertyType.Name}",
-                Foreground = Brushes.Red,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 0, 0),
-            };
-        }
-        #endregion
     }
 }

@@ -8,7 +8,7 @@ namespace Plugin.ColorCheck
     ///
     /// 视图不写业务逻辑：框选由 Core.Halcon 的 ImageEdit 控件负责，画布集合与形状参数的双向同步
     /// 都在 ColorCheckPlugin 里。本文件只留三处 —— 视图就绪信号（回填示意图与采样区），
-    /// 以及三个按钮的转发（载入示意图 / 清空采样区 / 试算）。
+    /// 以及三个按钮的转发（清空采样区 / 试算 / 存成配方）。
     /// </summary>
     public partial class ColorCheckView : UserControl
     {
@@ -19,8 +19,6 @@ namespace Plugin.ColorCheck
         }
 
         private ColorCheckPlugin? Plugin => DataContext as ColorCheckPlugin;
-
-        private void OnLoadPreviewClick(object sender, RoutedEventArgs e) => Plugin?.LoadPreviewImage();
 
         private void OnClearRoiClick(object sender, RoutedEventArgs e) => Plugin?.ClearRoi();
 

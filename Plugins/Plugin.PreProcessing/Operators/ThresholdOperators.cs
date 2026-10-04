@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -14,7 +14,7 @@ namespace Plugin.PreProcessing.Operators
         private double _high = 255;
         private bool _reverse;
 
-        [SuperDisplay(Name = "灰度下限", GroupPath = "参数", Order = 1, ColSpan = 4,
+        [SuperDisplay(Name = "灰度下限", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
             Description = "参与判决的灰度区间起点")]
         [RangeValidation(0, 255, "灰度下限需要在 0~255 之间")]
         public double Low
@@ -23,7 +23,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _low, value);
         }
 
-        [SuperDisplay(Name = "灰度上限", GroupPath = "参数", Order = 2, ColSpan = 4,
+        [SuperDisplay(Name = "灰度上限", Group = new string[] { "参数" }, Order = 2, ColSpan = 4,
             Description = "参与判决的灰度区间终点")]
         [RangeValidation(0, 255, "灰度上限需要在 0~255 之间")]
         public double High
@@ -32,7 +32,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _high, value);
         }
 
-        [SuperDisplay(Name = "反转", GroupPath = "参数", Order = 3, ColSpan = 4,
+        [SuperDisplay(Name = "反转", Group = new string[] { "参数" }, Order = 3, ColSpan = 4,
             Description = "勾选后：命中区间变黑、背景变白")]
         public bool Reverse
         {
@@ -70,7 +70,7 @@ namespace Plugin.PreProcessing.Operators
         private double _absThreshold = 2;
         private VarThresholdMode _mode = VarThresholdMode.Light;
 
-        [SuperDisplay(Name = "模板宽度", GroupPath = "参数", Order = 1, ColSpan = 4,
+        [SuperDisplay(Name = "模板宽度", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
             Description = "计算局部均值的邻域宽度，需大于目标尺寸")]
         [RangeValidation(3, 999, "模板宽度需要在 3~999 之间")]
         public int MaskWidth
@@ -79,7 +79,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _maskWidth, value);
         }
 
-        [SuperDisplay(Name = "模板高度", GroupPath = "参数", Order = 2, ColSpan = 4,
+        [SuperDisplay(Name = "模板高度", Group = new string[] { "参数" }, Order = 2, ColSpan = 4,
             Description = "计算局部均值的邻域高度，需大于目标尺寸")]
         [RangeValidation(3, 999, "模板高度需要在 3~999 之间")]
         public int MaskHeight
@@ -88,7 +88,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _maskHeight, value);
         }
 
-        [SuperDisplay(Name = "标准差倍数", GroupPath = "参数", Order = 3, ColSpan = 4,
+        [SuperDisplay(Name = "标准差倍数", Group = new string[] { "参数" }, Order = 3, ColSpan = 4,
             Description = "判决偏移 = 局部标准度 × 本系数，越大越难被判为前景")]
         [RangeValidation(0, 10, "标准差倍数需要在 0~10 之间")]
         public double StdDevScale
@@ -97,7 +97,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _stdDevScale, value);
         }
 
-        [SuperDisplay(Name = "绝对阈值", GroupPath = "参数", Order = 4, ColSpan = 4,
+        [SuperDisplay(Name = "绝对阈值", Group = new string[] { "参数" }, Order = 4, ColSpan = 4,
             Description = "偏移量下限：局部平坦处至少差这么多才算前景")]
         [RangeValidation(0, 255, "绝对阈值需要在 0~255 之间")]
         public double AbsThreshold
@@ -106,7 +106,7 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _absThreshold, value);
         }
 
-        [SuperDisplay(Name = "比较方式", GroupPath = "参数", Order = 5, ColSpan = 4,
+        [SuperDisplay(Name = "比较方式", Group = new string[] { "参数" }, Order = 5, ColSpan = 4,
             Description = "取比局部均值亮/暗的像素")]
         public VarThresholdMode Mode
         {
@@ -128,3 +128,4 @@ namespace Plugin.PreProcessing.Operators
         public override string Summary => $"{MaskWidth} × {MaskHeight} / {Desc(Mode)}";
     }
 }
+

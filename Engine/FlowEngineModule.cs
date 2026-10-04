@@ -15,7 +15,12 @@ namespace VisionMaster.Engine
             registry.RegisterSingleton<FlowCompiler>();
             registry.RegisterSingleton<PluginProvider>();
             registry.RegisterSingleton<IPluginProvider, PluginProvider>();
-            registry.RegisterSingleton<IFlowEngine, FlowEngineService>();
+            // 具体类型也注册成单例，并把接口映射到同一个实例：
+            // 图像集采集要订阅 FlowEngineService.FlowRunCompleted（该事件不在 IFlowEngine 契约上），
+            // 若仍用 RegisterSingleton<IFlowEngine, FlowEngineService>()，容器会为具体类型另建一份，
+            // 于是"订阅事件的那份"与"真正在跑流程的那份"不是同一个对象，事件永远收不到。
+            registry.RegisterSingleton<FlowEngineService>();
+            registry.RegisterSingleton<IFlowEngine>(c => c.Resolve<FlowEngineService>());
             registry.RegisterSingleton<IRuntimeManager, RuntimeManager>();
             registry.RegisterSingleton<IExecutionContext, VisionMaster.Services.ExecutionContext>();
             registry.RegisterSingleton<IResourceLockService, ResourceLockService>();

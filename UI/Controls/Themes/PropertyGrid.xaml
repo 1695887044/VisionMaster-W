@@ -3,26 +3,44 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:UI.CustomControl">
 
-    <SolidColorBrush x:Key="SidebarBg" Color="#FAFAFA" />
-    <SolidColorBrush x:Key="ContentBg" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="TextMain" Color="#303133" />
-    <SolidColorBrush x:Key="TextRegular" Color="#606266" />
-    <SolidColorBrush x:Key="BorderLight" Color="#EBEEF5" />
+    <!--
+        属性网格的画刷**不再自带色值**，全部指向 FluentTokens。
+        改造前这里是全库第四份强调色（#409EFF），与 Colors.xaml 的 #3182CE、
+        DefaultStyle 的 AccentBrush、PluginConfigColors 的 PluginAccentBrush 互不相干 ——
+        改配色要改四处，漏一处就是"属性面板和其它地方不是一个蓝"。
 
-    <SolidColorBrush x:Key="AccentBlue" Color="#409EFF" />
-    <SolidColorBrush x:Key="AccentBlueHover" Color="#66B1FF" />
-    <SolidColorBrush x:Key="AccentBlueActive" Color="#3A8EE6" />
+        键名保留：LayoutProcessor / EasyDialog 是按名字取这些资源的（含 FindResource），
+        改名会让取不到的一方直接抛异常。
 
-    <Style x:Key="PropertyLabelStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource TextRegular}" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Margin" Value="0,0,16,0" />
-        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-        <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
-        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
-        <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-    </Style>
+        依赖就地合并（同 FluentControls 的理由）：本字典常被单独取用，
+        不能指望外层 Generic 已经把 FluentTokens 合并好。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/UI;component/Themes/Fluent/FluentTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <SolidColorBrush x:Key="SidebarBg" Color="{Binding Color, Source={StaticResource FluentSurfaceSunkenBrush}}" />
+    <SolidColorBrush x:Key="ContentBg" Color="{Binding Color, Source={StaticResource FluentSurfaceBrush}}" />
+    <SolidColorBrush x:Key="TextMain" Color="{Binding Color, Source={StaticResource FluentTextPrimaryBrush}}" />
+    <SolidColorBrush x:Key="TextRegular" Color="{Binding Color, Source={StaticResource FluentTextSecondaryBrush}}" />
+    <SolidColorBrush x:Key="BorderLight" Color="{Binding Color, Source={StaticResource FluentBorderBrush}}" />
+
+    <SolidColorBrush x:Key="AccentBlue" Color="{Binding Color, Source={StaticResource FluentAccentBrush}}" />
+    <SolidColorBrush x:Key="AccentBlueHover" Color="{Binding Color, Source={StaticResource FluentAccentHoverBrush}}" />
+    <SolidColorBrush x:Key="AccentBlueActive" Color="{Binding Color, Source={StaticResource FluentAccentPressedBrush}}" />
+
+    <!--  以下两个键原来在库内从未定义（卡片式模板直接引用 AppBg/CardBg），
+          导致要么靠宿主 App.xaml 偷偷供给、要么潜在 XamlParseException。
+          这里补齐桥接，与上面 SidebarBg/ContentBg 等保持一致，统一指向 Fluent 令牌。  -->
+    <SolidColorBrush x:Key="AppBg" Color="{Binding Color, Source={StaticResource FluentBackgroundBrush}}" />
+    <SolidColorBrush x:Key="CardBg" Color="{Binding Color, Source={StaticResource FluentCardBackgroundBrush}}" />
+
+    <!--
+        PropertyLabelStyle / FlatButtonStyle / FlatButtonVariantStyle 已从本文件移除：
+        它们在 FluentAliases.xaml 里被同名键重定向到 Fluent 样式，Generic 合并顺序
+        决定 Aliases 最后生效，故这里的旧（硬编码色值）版本是死代码，留着只误导人。
+        布局处理器按名取这些键时，解析到的是 FluentAliases 的版本。
+    -->
 
     <Style x:Key="LightFlatTabItemStyle" TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource TextRegular}" />
@@ -49,104 +67,13 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource TextMain}" />
-                            <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource FluentSurfaceSunkenBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource AccentBlue}" />
                             <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
                             <Setter TargetName="Border" Property="Background" Value="Transparent" />
                             <Setter TargetName="ContentSite" Property="TextElement.FontWeight" Value="SemiBold" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <Style x:Key="FlatButtonStyle" TargetType="Button">
-        <Setter Property="Foreground" Value="{StaticResource TextRegular}" />
-        <Setter Property="Background" Value="White" />
-        <Setter Property="BorderBrush" Value="#DCDFE6" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="20,9" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-        <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Border
-                        x:Name="Border"
-                        Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="4">
-                        <ContentPresenter
-                            x:Name="ContentSite"
-                            Margin="{TemplateBinding Padding}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            ContentStringFormat="{TemplateBinding ContentStringFormat}"
-                            ContentTemplate="{TemplateBinding ContentTemplate}" />
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
-                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBlue}" />
-                            <Setter Property="Foreground" Value="{StaticResource AccentBlue}" />
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#E6EAF2" />
-                            <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AccentBlueActive}" />
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="#C0C4CC" />
-                            <Setter TargetName="Border" Property="Background" Value="#F5F7FA" />
-                            <Setter TargetName="Border" Property="BorderBrush" Value="#E4E7ED" />
-                            <Setter Property="Opacity" Value="0.6" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <Style
-        x:Key="FlatButtonVariantStyle"
-        BasedOn="{StaticResource FlatButtonStyle}"
-        TargetType="Button">
-        <Setter Property="Background" Value="{StaticResource AccentBlue}" />
-        <Setter Property="Foreground" Value="White" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Border
-                        x:Name="Border"
-                        Background="{TemplateBinding Background}"
-                        BorderThickness="0"
-                        CornerRadius="4">
-                        <ContentPresenter
-                            x:Name="ContentSite"
-                            Margin="{TemplateBinding Padding}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            ContentStringFormat="{TemplateBinding ContentStringFormat}"
-                            ContentTemplate="{TemplateBinding ContentTemplate}" />
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="{StaticResource AccentBlueHover}" />
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="Transparent" />
-                            <Setter TargetName="Border" Property="Background" Value="{StaticResource AccentBlueActive}" />
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Border" Property="Background" Value="#E4E7ED" />
-                            <Setter Property="Foreground" Value="#C0C4CC" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

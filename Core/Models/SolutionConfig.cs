@@ -18,8 +18,10 @@ namespace VisionMaster.Models
         public string DockLayoutXml { get; set; }
 
         /// <summary>
-        /// 图像视图宫格模式（eViewMode 枚举值）
+        /// 画布布局（eViewMode 枚举值：0~8 = 单画面~九宫格）。缺省单画面。
+        /// 落在枚举定义之外的值（老方案存过已下线的 29）在恢复时回落单画面，
+        /// 见 <c>SolutionConfigApplier.Restore</c>。
         /// </summary>
-        public int ImageViewMode { get; set; } = 0; // eViewMode.One
+        public int ImageViewMode { get; set; } = (int)eViewMode.One;
     }
 }

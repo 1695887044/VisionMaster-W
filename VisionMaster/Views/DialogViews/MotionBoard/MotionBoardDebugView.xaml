@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="VisionMaster.Views.DialogViews.MotionBoard.MotionBoardDebugView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -52,15 +52,18 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer
+        <!--
+            手动调试页不再套外层 ScrollViewer：
+            三栏各自带 ScrollViewer（轴列表 / 操作面板 / 卡上 IO），窗口高度不足时各栏独立滚动；
+            若再套一层外层滚动，内层会因为拿到无限高度而失效，表现为"内容被窗口裁掉且无滚动条"。
+        -->
+        <Grid
             x:Name="PageScroll"
-            HorizontalScrollBarVisibility="Disabled"
-            VerticalScrollBarVisibility="Auto"
+            Margin="0,0,24,0"
             Visibility="{Binding HasCard, Converter={StaticResource MbBoolToVis}}">
-            <Grid Margin="0,0,4,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -590,7 +593,7 @@
                                 </Border>
 
                                 <!--  伺服使能  -->
-                                <Border Margin="0,14,0,0" Style="{StaticResource MbSectionCard}" Padding="14">
+                                <Border Margin="0,10,0,0" Style="{StaticResource MbSectionCard}" Padding="12">
                                     <StackPanel>
                                         <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
                                             <Border Style="{StaticResource MbSectionIcon}">
@@ -653,7 +656,7 @@
                                 </Border>
 
                                 <!--  点动  -->
-                                <Border Margin="0,14,0,0" Style="{StaticResource MbSectionCard}" Padding="14">
+                                <Border Margin="0,10,0,0" Style="{StaticResource MbSectionCard}" Padding="12">
                                     <StackPanel>
                                         <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
                                             <Border Style="{StaticResource MbSectionIcon}">
@@ -717,7 +720,7 @@
                                                 Text="速度 (mm/s)" />
                                             <TextBox
                                                 Width="90"
-                                                Height="34"
+                                                Height="38"
                                                 Margin="10,0,0,0"
                                                 FontFamily="{StaticResource MbMonoFontFamily}"
                                                 Style="{StaticResource MbTextBox}"
@@ -738,7 +741,7 @@
                                 </Border>
 
                                 <!--  定位  -->
-                                <Border Margin="0,14,0,0" Style="{StaticResource MbSectionCard}" Padding="14">
+                                <Border Margin="0,10,0,0" Style="{StaticResource MbSectionCard}" Padding="12">
                                     <StackPanel>
                                         <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
                                             <Border Style="{StaticResource MbSectionIcon}">
@@ -778,7 +781,7 @@
                                                 <TextBlock Style="{StaticResource MbFieldLabel}" Text="速度 (mm/s · 0=卡内默认)" />
                                                 <TextBox
                                                     Width="120"
-                                                    Height="36"
+                                                    Height="38"
                                                     FontFamily="{StaticResource MbMonoFontFamily}"
                                                     Style="{StaticResource MbTextBox}"
                                                     Text="{Binding MoveSpeedText, UpdateSourceTrigger=PropertyChanged}" />
@@ -787,7 +790,7 @@
                                                 <TextBlock Style="{StaticResource MbFieldLabel}" Text="等待超时 (ms)" />
                                                 <TextBox
                                                     Width="100"
-                                                    Height="36"
+                                                    Height="38"
                                                     FontFamily="{StaticResource MbMonoFontFamily}"
                                                     Style="{StaticResource MbTextBox}"
                                                     Text="{Binding WaitTimeoutText, UpdateSourceTrigger=PropertyChanged}" />
@@ -813,7 +816,7 @@
                                 </Border>
 
                                 <!--  回零方式  -->
-                                <Border Margin="0,14,0,0" Style="{StaticResource MbSectionCard}" Padding="14">
+                                <Border Margin="0,10,0,0" Style="{StaticResource MbSectionCard}" Padding="12">
                                     <StackPanel>
                                         <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
                                             <Border Style="{StaticResource MbSectionIcon}">
@@ -831,7 +834,7 @@
                                         <StackPanel Orientation="Horizontal">
                                             <ComboBox
                                                 Width="180"
-                                                Height="36"
+                                                Height="40"
                                                 ItemsSource="{Binding HomeModes}"
                                                 SelectedItem="{Binding SelectedHomeMode}"
                                                 Style="{StaticResource MbComboBox}">
@@ -1087,10 +1090,9 @@
                                     </ItemsControl>
                                 </StackPanel>
                             </StackPanel>
-                        </ScrollViewer>
-                    </Border>
-                </Grid>
-            </Grid>
-        </ScrollViewer>
-    </Grid>
+                         </ScrollViewer>
+                     </Border>
+                 </Grid>
+             </Grid>
+     </Grid>
 </UserControl>

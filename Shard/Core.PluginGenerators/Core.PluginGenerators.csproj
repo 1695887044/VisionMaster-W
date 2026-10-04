@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 源生成器工程（编译期即弃）：只被插件工程以 Analyzer 方式引用（见 Plugins\Directory.Build.props）。
+         注意两条纪律：
+         ① 本工程刻意**不放在 Plugins\ 下** —— 那里是插件目录，工程产物会被构建约定投递到 Modules\；
+         ② 只依赖 Roslyn（PrivateAssets=all），不引用 Core.Interfaces、不进任何运行期输出。 -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- RS2008（分析器发布跟踪）：本生成器只随仓库内构建使用、不对外发版，无需发布跟踪文件 -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

@@ -170,46 +170,19 @@
                 <!--  ── 试算 ──  -->
                 <Border Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="试算（用示意图，不连上游也能看结果）" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="试算" />
 
                         <TextBlock
                             Margin="0,8,0,0"
                             Style="{StaticResource PluginHintText}"
-                            Text="在上方「图像输入」里链接上游后点「执行」，上游图会自动显示进来；不连上游时也可以填路径手动载入一张示意图" />
-                        <TextBlock Margin="0,6,0,0" Style="{StaticResource ParamLabel}" Text="示意图路径" />
-                        <Grid Margin="0,4,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button
-                                Grid.Column="1"
-                                Width="56"
-                                Style="{StaticResource PluginButton}"
-                                Margin="6,0,0,0"
-                                Click="OnBrowsePreviewClick"
-                                Content="浏览" />
-                        </Grid>
+                            Text="图像来自上方「图像输入」：链接上游输出、或手动指定一张图；绑定后点「执行」跑一遍，图会自动显示进来" />
 
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Button
-                                Grid.Column="0"
-                                Style="{StaticResource PluginButton}"
-                                Margin="0,0,4,0"
-                                Click="OnLoadPreviewClick"
-                                Content="载入" />
-                            <Button
-                                Grid.Column="1"
-                                Style="{StaticResource PluginButton}"
-                                Margin="4,0,0,0"
-                                Click="OnTryDetectClick"
-                                Content="试算一下" />
-                        </Grid>
+                        <Button
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Left"
+                            Style="{StaticResource PluginButton}"
+                            Click="OnTryDetectClick"
+                            Content="试算一下" />
 
                         <TextBlock
                             Margin="0,8,0,0"

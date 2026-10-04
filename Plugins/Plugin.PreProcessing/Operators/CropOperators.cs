@@ -1,4 +1,4 @@
-using HalconDotNet;
+﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -41,7 +41,7 @@ namespace Plugin.PreProcessing.Operators
     {
         private double _outsideGray;
 
-        [SuperDisplay(Name = "框外灰度", GroupPath = "参数", Order = 1, ColSpan = 12,
+        [SuperDisplay(Name = "框外灰度", Group = new string[] { "参数" }, Order = 1, ColSpan = 12,
             Description = "框外填充的灰度值。彩色图会把 R/G/B 三个通道都填成这个值，即一种灰色")]
         [RangeValidation(0, 255, "框外灰度需要在 0~255 之间")]
         public double OutsideGray
@@ -69,3 +69,4 @@ namespace Plugin.PreProcessing.Operators
         public override string Summary => IsBoxEmpty ? base.Summary : $"框外 {OutsideGray:0.#}  {base.Summary}";
     }
 }
+

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:att="clr-namespace:UI.AttachedProperties" xmlns:ui="clr-namespace:UI.CustomControl">
+  <ResourceDictionary.MergedDictionaries>
+    <!--  依赖就地合并：本文件的样式 Setter 内含跨字典 StaticResource 引用，
+         若只依赖父级 Generic 的合并顺序，父级在加载完本字典后又被失效（如后合并
+         Fluent 主题包、App 资源写入），跨兄弟字典的引用会重新解析失败并被烘焙成
+
+         UnsetValue，模板应用时抛 "{DependencyProperty.UnsetValue} 不是 Foreground 的有效值"。
+         自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
+    <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+  <Style x:Key="DialogDataGridCell" TargetType="DataGridCell">
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <!--
+            左边距统一交给单元格（而不是让每个 CellTemplate 自己写 Margin）：
+            表头 Padding 是 12，单元格 Padding 也是 12，两行的文字基线才落在同一竖线上。
+            老写法只有"设备名称"那列写了 Margin=14，其余列贴左 0 ⇒ 表头与内容错开一格。
+        -->
+    <Setter Property="Padding" Value="12,0,0,0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="DataGridCell">
+          <Border Background="{TemplateBinding Background}" BorderThickness="0" SnapsToDevicePixels="True">
+            <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style x:Key="DialogDataGridCellFlush" BasedOn="{StaticResource DialogDataGridCell}" TargetType="DataGridCell">
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style x:Key="DialogDataGridRow" TargetType="DataGridRow">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Margin" Value="0,1" />
+    <Style.Triggers>
+      <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+        <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+      </Trigger>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+      </Trigger>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style x:Key="DialogDataGridColumnHeader" TargetType="DataGridColumnHeader">
+    <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Height" Value="42" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+  </Style>
+  <Style x:Key="DialogDataGrid" TargetType="DataGrid">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="RowHeight" Value="46" />
+    <Setter Property="HeadersVisibility" Value="Column" />
+    <Setter Property="GridLinesVisibility" Value="Horizontal" />
+    <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="AutoGenerateColumns" Value="False" />
+    <Setter Property="CanUserAddRows" Value="False" />
+    <!--
+            CanUserDeleteRows 默认是 true：选中一行按 Delete 会直接从数据源里删掉那一行，
+            而且不弹确认框。连接管理 / 变量管理 / 扫描组三张表都不该有这种"误按即丢配置"的入口，
+            所以统一在皮肤层关掉，删除一律走各表自己的「删除」按钮（那里有确认框）。
+        -->
+    <Setter Property="CanUserDeleteRows" Value="False" />
+    <Setter Property="CanUserResizeRows" Value="False" />
+    <Setter Property="SelectionMode" Value="Single" />
+    <Setter Property="SelectionUnit" Value="FullRow" />
+    <Setter Property="RowDetailsVisibilityMode" Value="Collapsed" />
+    <Setter Property="AlternationCount" Value="2" />
+    <Setter Property="CellStyle" Value="{StaticResource DialogDataGridCell}" />
+    <Setter Property="RowStyle" Value="{StaticResource DialogDataGridRow}" />
+    <Setter Property="ColumnHeaderStyle" Value="{StaticResource DialogDataGridColumnHeader}" />
+  </Style>
+</ResourceDictionary>

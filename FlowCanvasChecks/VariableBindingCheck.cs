@@ -215,6 +215,8 @@ namespace FlowCanvasChecks
             "DialogChip", "DialogChipText", "DialogCheckBox", "DialogFooter",
             "DialogFooterPrimaryButton", "DialogFooterSecondaryButton",
             "DialogInput", "DialogCombo", "DialogFormLabel",
+            // 类型标签：带底色的小方圆角（长文本不能用 Chip 胶囊，见下方形状断言）
+            "DialogTag", "DialogTagText",
         };
 
         /// <summary>已经收编到 UI 库、不允许视图再本地定义的键</summary>
@@ -234,22 +236,29 @@ namespace FlowCanvasChecks
             Section("[V] 视图样式收编契约（UI 库 Dialog* 令牌）");
 
             string? xamlPath = ResolveRepoFile(@"VisionMaster\Views\DialogViews\VariableBindingView.xaml");
-            string? stylesPath = ResolveRepoFile(@"UI\Controls\Themes\DialogStyles.xaml");
-            string? colorsPath = ResolveRepoFile(@"UI\Controls\Themes\Colors.xaml");
-            string? genericPath = ResolveRepoFile(@"UI\Controls\Themes\Generic.xaml");
+            string? themesDir = ResolveRepoDir(@"UI\Controls\Themes");
 
-            if (xamlPath == null || stylesPath == null || colorsPath == null || genericPath == null)
+            if (xamlPath == null || themesDir == null)
             {
-                Check("变量绑定视图样式收编（静态扫描）", true, "跳过：定位不到视图或 UI 库主题文件");
+                // 在仓库里跑却定位不到 → 断言过期（文件被移动/改名），必须报失败；
+                // 只有"根本不在仓库内运行"（如打包后的环境）才允许跳过。
+                // 静默跳过还计通过 = 假绿：本断言的上一版就因 DialogStyles.xaml 被拆成 Dialog/ 分册，
+                // 空转了整整一轮（连同它后面 4 组子契约一起，全都没跑）。
+                bool inRepo = ResolveRepoDir(@"VisionMaster") != null;
+                Check("变量绑定视图样式收编（静态扫描）", !inRepo,
+                    inRepo ? "断言过期：定位不到视图或 UI 库主题目录（文件被移动/改名？）" : "跳过：不在仓库内运行");
                 return;
             }
 
             string xaml = File.ReadAllText(xamlPath);
-            string stylesText = File.ReadAllText(stylesPath);
-            string genericText = File.ReadAllText(genericPath);
-            // 视图用的 Dialog* 键一半是样式（DialogStyles.xaml）、一半是令牌（Colors.xaml），
+            // 样式定义扫整个 Themes 目录（含 Dialog/ 分册）：Dialog* 键按领域拆成多本，
+            // 只认单一文件会随拆分悄悄漏检 —— 这正是本次要修的坑
+            string stylesText = string.Join("\n",
+                Directory.GetFiles(themesDir, "*.xaml", SearchOption.AllDirectories).Select(p => File.ReadAllText(p)));
+            // 视图用的 Dialog* 键一半是样式（Dialog/ 分册）、一半是令牌（Colors.xaml），
             // 只扫样式那一本会把"DialogAccentBrush 等一律报缺失"——那是断言自己漏了，不是视图错了
-            string tokenText = File.ReadAllText(colorsPath);
+            string tokenText = File.ReadAllText(Path.Combine(themesDir, "Colors.xaml"));
+            string genericText = File.ReadAllText(Path.Combine(themesDir, "Generic.xaml"));
 
             // ---- ① 视图侧：颜色不许硬编码、样式不许再抄一遍 ----
             var colors = Regex.Matches(xaml, @"#[0-9A-Fa-f]{3}\b|#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{8}\b");
@@ -274,7 +283,7 @@ namespace FlowCanvasChecks
             Check("【绑定】候选行显示数据类型（DataTypeName 走友好名转换器）",
                 showsDataType,
                 showsDataType
-                    ? "候选行会在名称右侧显示「文本 (String)」「小数 (Double)」这类类型胶囊"
+                    ? "候选行会在名称右侧显示「文本 (String)」「小数 (Double)」这类类型文本（带底色的小方圆角标签 DialogTag）"
                     : "候选行模板里没有绑定 DataTypeName —— 用户将看不到类型信息");
 
             // ---- ② 弹窗尺寸：改前是 900×580 + NoResize（用户拉不大，三栏必然挤） ----
@@ -300,12 +309,60 @@ namespace FlowCanvasChecks
                 missing.Count == 0 ? $"共 {usedKeys.Count} 个键全部命中" : "缺失：" + string.Join(", ", missing));
 
             var missingRequired = RequiredDialogStyleKeys.Where(k => !definedKeys.Contains(k)).ToList();
-            Check("【核心】本次收编的公共键全部落在 DialogStyles.xaml（换主题只改 Colors.xaml）",
+            Check("【核心】本次收编的公共键全部落在 UI 库（Dialog/ 分册或 Colors 令牌）",
                 missingRequired.Count == 0,
                 missingRequired.Count == 0 ? "" : "缺失：" + string.Join(", ", missingRequired));
 
-            Check("【核心】DialogStyles.xaml 已在 Generic.xaml 合并链上",
-                genericText.Contains("Themes/DialogStyles.xaml"), "");
+            // 类型名不得塞进 DialogChip 胶囊：Chip 是给「枚举」「变量」这类**短角标**的
+            // （Fluent 层圆角是 FluentRadiusFull=999，短文本是胶囊；长文本两端各撑成半圆 → 横椭圆），
+            // 类型标签要用 DialogTag（带底色的小方圆角）。
+            var chipBlocks = Regex.Matches(xaml, @"Style=""\{StaticResource DialogChip\}""(?<body>[\s\S]{0,600}?)</Border>");
+            bool typeInChip = chipBlocks.Cast<Match>().Any(m => m.Groups["body"].Value.Contains("DataTypeName"));
+            Check("【绑定】类型名不进胶囊（DialogChip 只用于短角标，长文本会撑成横椭圆）",
+                !typeInChip,
+                typeInChip ? "候选行的类型显示又套上了 DialogChip" : $"DialogChip 共 {chipBlocks.Count} 处，均不含类型绑定");
+
+            var tagBlocks = Regex.Matches(xaml, @"Style=""\{StaticResource DialogTag\}""(?<body>[\s\S]{0,600}?)</Border>");
+            bool typeInTag = tagBlocks.Cast<Match>().Any(m => m.Groups["body"].Value.Contains("DataTypeName"));
+            Check("【绑定】类型名用 DialogTag（带底色的小方圆角标签）",
+                typeInTag,
+                typeInTag ? $"DialogTag 共 {tagBlocks.Count} 处，类型绑定在其中" : "候选行没有用 DialogTag 装类型名");
+
+            // DialogTag 的形状契约：小方圆角（≤ 6）或 FluentRadiusSmall；不得继承成胶囊/大圆角。
+            // 两层都要守：默认层（Dialog/ 分册）与 Fluent 转发层（最后合并、实际生效的那份）。
+            // 注意写法：XAML 里圆角是 <Setter Property="CornerRadius" Value="…" />，
+            // 所以取的是 Property="CornerRadius" 后面的 Value，不能写成 CornerRadius="…"。
+            var tagStyleBlocks = Regex.Matches(stylesText, @"x:Key=""DialogTag""(?![A-Za-z])[\s\S]*?</Style>");
+            var badTagRadius = new List<string>();
+            foreach (Match block in tagStyleBlocks)
+            {
+                var radius = Regex.Match(block.Value, @"Property=""CornerRadius""\s+Value=""([^""]+)""");
+                if (!radius.Success) { badTagRadius.Add("未显式设 CornerRadius（会继承成胶囊）"); continue; }
+                var v = radius.Groups[1].Value;
+                if (v.Contains("Full") || v.Contains("Large")) { badTagRadius.Add(v); continue; }
+                if (v.Contains("RadiusSmall")) continue;
+                if (!Regex.IsMatch(v, @"^\s*[0-6]\s*$")) badTagRadius.Add(v);
+            }
+            Check("【形状】DialogTag 是小方圆角（≤6；两层都必须显式给，不得继承成胶囊）",
+                tagStyleBlocks.Count >= 2 && badTagRadius.Count == 0,
+                tagStyleBlocks.Count < 2
+                    ? $"断言过期：DialogTag 只找到 {tagStyleBlocks.Count} 层定义（应 ≥2：默认层 + Fluent 转发层）"
+                    : badTagRadius.Count == 0 ? $"共 {tagStyleBlocks.Count} 层定义，圆角均合规" : "违规：" + string.Join(", ", badTagRadius));
+
+            // Dialog* 键按领域拆成 Dialog/ 分册（Themes/Dialog/Dialog.*.xaml），"在合并链上"的口径随之变为：
+            // 每个分册都必须被 Generic.xaml 引用——漏挂一册，弹窗打开就是"找不到资源"（BAML 编译不报）。
+            var dialogDir = Path.Combine(themesDir, "Dialog");
+            var dialogFiles = Directory.Exists(dialogDir)
+                ? Directory.GetFiles(dialogDir, "Dialog.*.xaml").Select(p => Path.GetFileName(p)).ToList()
+                : new List<string>();
+            var notMerged = dialogFiles
+                .Where(f => !genericText.Contains("Themes/Dialog/" + f, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            Check("【核心】Dialog 分册全部挂进 Generic.xaml 合并链（漏挂一册 = 弹窗找不到资源）",
+                dialogFiles.Count > 0 && notMerged.Count == 0,
+                dialogFiles.Count == 0
+                    ? "断言过期：Themes/Dialog 下没有 Dialog.*.xaml"
+                    : notMerged.Count == 0 ? $"共 {dialogFiles.Count} 册全部在链上" : "未挂：" + string.Join(", ", notMerged));
 
             RunWindowStyleSetterContract();
             RunMissingResourceKeyContract();

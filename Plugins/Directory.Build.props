@@ -1,0 +1,19 @@
+<Project>
+
+  <!--
+    插件工程公共构建配置（MSBuild 会为 Plugins\ 下每个工程自动导入本文件，比 targets 更早生效）。
+
+    作用：统一把 Shard\Core.PluginGenerators 挂成 Analyzer（源生成器），
+          让插件里 [StepConfig] 的 partial 属性得到「后备字段 + SetProperty + On<名>Changing/Changed 钩子」实现。
+    为什么用 Directory.Build.props：24+ 个插件工程一次接线，避免逐个 csproj 改动与遗漏；
+          ReferenceOutputAssembly=false + OutputItemType=Analyzer：生成器不进插件输出、不进 Modules\。
+    注意：生成器工程刻意放在 Shard\ 下（放 Plugins\ 下会被构建约定当作插件工程投递）。
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\Shard\Core.PluginGenerators\Core.PluginGenerators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

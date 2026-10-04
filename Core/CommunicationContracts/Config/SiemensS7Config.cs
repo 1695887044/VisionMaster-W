@@ -1,4 +1,4 @@
-using UI.Attributes;
+﻿using UI.Attributes;
 
 namespace VisionMaster.Communications
 {
@@ -24,16 +24,16 @@ namespace VisionMaster.Communications
     public class SiemensS7Config : EthernetConfigBase
     {
 
-        [SuperDisplay(Name = "CPU 类型", GroupPath = "S7专有参数", Order = 5, ColSpan = 4)]
+        [SuperDisplay(Name = "CPU 类型", Group = new string[] { "S7专有参数" }, Order = 5, ColSpan = 4)]
         public S7CpuType S7CpuType { get; set; } = S7CpuType.S1200;
 
-        [SuperDisplay(Name = "机架号(Rack)", GroupPath = "S7专有参数", Order = 6, ColSpan = 4)]
+        [SuperDisplay(Name = "机架号(Rack)", Group = new string[] { "S7专有参数" }, Order = 6, ColSpan = 4)]
         public byte Rack { get; set; } = 0;
 
 
         public override int Port { get; set; } = 102;
 
-        [SuperDisplay(Name = "插槽号(Slot)", GroupPath = "S7专有参数", Order = 7, ColSpan = 4)]
+        [SuperDisplay(Name = "插槽号(Slot)", Group = new string[] { "S7专有参数" }, Order = 7, ColSpan = 4)]
         public byte Slot { get; set; } = 0;
 
 
@@ -54,3 +54,4 @@ namespace VisionMaster.Communications
         };
     }
 }
+

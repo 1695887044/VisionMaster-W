@@ -101,22 +101,7 @@
                         <TextBlock
                             Margin="0,8,0,0"
                             Style="{StaticResource PluginHintText}"
-                            Text="在上方「图像输入」里链接上游后点「执行」，上游图会自动显示进来；不连上游时也可以填路径手动载入一张示意图" />
-                        <TextBlock Margin="0,6,0,0" Style="{StaticResource ParamLabel}" Text="示意图路径（仅配置期用）" />
-                        <Grid Margin="0,4,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox Style="{StaticResource ParamBox}" Text="{Binding PreviewImagePath, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button
-                                Grid.Column="1"
-                                Width="56"
-                                Style="{StaticResource PluginButton}"
-                                Margin="6,0,0,0"
-                                Click="OnLoadPreviewClick"
-                                Content="载入" />
-                        </Grid>
+                            Text="图像来自上方「图像输入」：链接上游输出、或手动指定一张图；绑定后点「执行」跑一遍，图会自动显示进来" />
 
                         <TextBlock
                             Margin="0,8,0,0"

@@ -122,6 +122,18 @@ namespace FlowCanvasChecks
             // 海康相机驱动：Modules 发现契约 + 缺 SDK 优雅降级 + 像素格式分类
             HikvisionChecks.Run();
 
+            // 图像采集插件：端口面 + 原始像素→HImage（灰度/BGR/BGRA/守卫）+ 文件夹自然序
+            ImageAcquisitionChecks.Run();
+
+            // 预览帧捕获时机：发布线程同步拷贝（循环运行"图不被收纳"的回归）
+            PreviewCaptureChecks.Run();
+
+            // 标定插件：仿射求解/正反变换/质量闸门/端口面（合成数据，不依赖引擎）
+            CalibrationChecks.Run();
+
+            // 坐标变换插件：正反变换/角度/三类失配/位姿跟随（合成标定与合成区域，HALCON 真算子）
+            PoseTransformChecks.Run();
+
             Finish();
             return Environment.ExitCode;
         }

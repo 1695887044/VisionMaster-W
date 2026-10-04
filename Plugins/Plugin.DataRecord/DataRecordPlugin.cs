@@ -43,7 +43,7 @@ namespace Plugin.DataRecord
         GroupName = "数据处理",
         Description = "把每次流程执行的结果按行记录到 CSV 账本，可选同步保存 NG 图片，异步写入不占节拍",
         ShortName = "\uf1c0")]
-    public class DataRecordPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class DataRecordPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         /// <summary>图片专用动态端口的固定名字（ImageSaveMode != Off 时存在）。</summary>
         public const string ImagePortName = "图片";
@@ -59,59 +59,36 @@ namespace Plugin.DataRecord
 
         #region 内嵌配置（随 .vms 持久化）
 
-        private string _directoryTemplate = @"D:\Records\{StepName}\{yyyy-MM}\";
         /// <summary>记录目录模板（可含 {StepName}/{yyyy}/{yyyy-MM}/{yyyy-MM-dd} 占位符；跨月自动建新目录）。</summary>
-        [StepConfig]
-        public string DirectoryTemplate
-        {
-            get => _directoryTemplate;
-            set => SetProperty(ref _directoryTemplate, value ?? @"D:\Records\");
-        }
+        [StepConfig, DefaultValue(@"D:\Records\{StepName}\{yyyy-MM}\")]
+        public partial string DirectoryTemplate { get; set; }
 
-        private string _fileNamePattern = "{yyyy-MM-dd}.csv";
+        partial void OnDirectoryTemplateChanging(ref string value) => value ??= @"D:\Records\";
+
         /// <summary>文件名模板（默认按天滚动：2026-09-16.csv）。</summary>
-        [StepConfig]
-        public string FileNamePattern
-        {
-            get => _fileNamePattern;
-            set => SetProperty(ref _fileNamePattern, string.IsNullOrWhiteSpace(value) ? "{yyyy-MM-dd}.csv" : value);
-        }
+        [StepConfig, DefaultValue("{yyyy-MM-dd}.csv")]
+        public partial string FileNamePattern { get; set; }
 
-        private bool _writeHeader = true;
+        partial void OnFileNamePatternChanging(ref string value)
+            => value = string.IsNullOrWhiteSpace(value) ? "{yyyy-MM-dd}.csv" : value;
+
         /// <summary>新建文件时是否写表头行。</summary>
-        [StepConfig]
-        public bool WriteHeader
-        {
-            get => _writeHeader;
-            set => SetProperty(ref _writeHeader, value);
-        }
+        [StepConfig, DefaultValue(true)]
+        public partial bool WriteHeader { get; set; }
 
-        private int _keepDays = 0;
         /// <summary>保留天数（0=永不清理——追溯数据的删除必须显式决定）。</summary>
         [StepConfig]
-        public int KeepDays
-        {
-            get => _keepDays;
-            set => SetProperty(ref _keepDays, value < 0 ? 0 : value);
-        }
+        public partial int KeepDays { get; set; }
 
-        private bool _blockOnFailure = true;
+        partial void OnKeepDaysChanging(ref int value) => value = value < 0 ? 0 : value;
+
         /// <summary>写入被拒（队列满/关停中）时是否让本步骤失败阻断流程（宁停线不丢账）。</summary>
-        [StepConfig]
-        public bool BlockOnFailure
-        {
-            get => _blockOnFailure;
-            set => SetProperty(ref _blockOnFailure, value);
-        }
+        [StepConfig, DefaultValue(true)]
+        public partial bool BlockOnFailure { get; set; }
 
-        private bool _flushEveryRow = false;
         /// <summary>每行立即落盘（断电保真，牺牲节拍；默认 500ms 批量）。</summary>
         [StepConfig]
-        public bool FlushEveryRow
-        {
-            get => _flushEveryRow;
-            set => SetProperty(ref _flushEveryRow, value);
-        }
+        public partial bool FlushEveryRow { get; set; }
 
         private ObservableCollection<RecordColumnDef> _columns = new ObservableCollection<RecordColumnDef>();
         /// <summary>列定义（顺序即 CSV 列顺序；来源=端口的列同时是动态输入端口）。</summary>
@@ -142,50 +119,38 @@ namespace Plugin.DataRecord
             }
         }
 
-        private string _resultColumn = "结果";
         /// <summary>结果列名（"仅NG存图"据此判断本件是否 NG）。</summary>
-        [StepConfig]
-        public string ResultColumn
-        {
-            get => _resultColumn;
-            set => SetProperty(ref _resultColumn, value ?? "");
-        }
+        [StepConfig, DefaultValue("结果")]
+        public partial string ResultColumn { get; set; }
 
-        private string _ngValue = "NG";
+        partial void OnResultColumnChanging(ref string value) => value ??= "";
+
         /// <summary>NG 判定值（结果列的值等于它即视为 NG）。</summary>
-        [StepConfig]
-        public string NgValue
-        {
-            get => _ngValue;
-            set => SetProperty(ref _ngValue, value ?? "NG");
-        }
+        [StepConfig, DefaultValue("NG")]
+        public partial string NgValue { get; set; }
 
-        private string _imageDirName = "img";
+        partial void OnNgValueChanging(ref string value) => value ??= "NG";
+
         /// <summary>图片子目录名（位于记录目录下，如 D:\Records\步骤名\2026-09\img）。</summary>
-        [StepConfig]
-        public string ImageDirName
-        {
-            get => _imageDirName;
-            set => SetProperty(ref _imageDirName, string.IsNullOrWhiteSpace(value) ? "img" : value);
-        }
+        [StepConfig, DefaultValue("img")]
+        public partial string ImageDirName { get; set; }
 
-        private string _imageNameTemplate = "{序号}_{结果}";
+        partial void OnImageDirNameChanging(ref string value)
+            => value = string.IsNullOrWhiteSpace(value) ? "img" : value;
+
         /// <summary>图片命名模板（可引用 {序号} 与任意列名占位符，如 {序号}_{结果}_{时间}）。</summary>
-        [StepConfig]
-        public string ImageNameTemplate
-        {
-            get => _imageNameTemplate;
-            set => SetProperty(ref _imageNameTemplate, string.IsNullOrWhiteSpace(value) ? "{序号}" : value);
-        }
+        [StepConfig, DefaultValue("{序号}_{结果}")]
+        public partial string ImageNameTemplate { get; set; }
 
-        private string _imageFormat = "png";
+        partial void OnImageNameTemplateChanging(ref string value)
+            => value = string.IsNullOrWhiteSpace(value) ? "{序号}" : value;
+
         /// <summary>图片格式（png / bmp / jpg，对应 HALCON WriteImage）。</summary>
-        [StepConfig]
-        public string ImageFormat
-        {
-            get => _imageFormat;
-            set => SetProperty(ref _imageFormat, string.IsNullOrWhiteSpace(value) ? "png" : value.Trim().ToLowerInvariant());
-        }
+        [StepConfig, DefaultValue("png")]
+        public partial string ImageFormat { get; set; }
+
+        partial void OnImageFormatChanging(ref string value)
+            => value = string.IsNullOrWhiteSpace(value) ? "png" : value.Trim().ToLowerInvariant();
 
         #endregion
 

@@ -1,0 +1,318 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        依赖显式化：本层的每个 BasedOn 都指向 FluentControls，所以在这里就地合并一次。
+        理由同上（MergedDictionaries 延迟加载）：本字典常常是**第一个**被取用的入口
+        （例如 EasyDialog 直接 TryFindResource("FlatButtonStyle")），
+        那一刻外层的 FluentControls 未必已物化，BasedOn 的 StaticResource 就会解析失败。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/UI;component/Themes/Fluent/FluentControls.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        ============================================================
+        旧键兼容转发层 —— "同步更新所有已引用页面"的实现方式
+        ============================================================
+
+        【为什么用转发而不是去改 100+ 个页面】
+        库里旧键（Dialog* / Plugin* / Flat* / Win11*）被上百个 XAML 引用，
+        逐个改文件既改不完也改不准（漏一个就是运行时找不到资源、直接崩）。
+        资源字典**后合并者优先**，所以只要在最后合并这一层、用同名键重新指向
+        Fluent 样式，所有引用旧键的页面下一次加载就自动换成新外观 ——
+        一处生效，全量统一，且不动任何业务页面。
+
+        【覆盖原则（重要）】
+        只转发**结构独立、语义等价**的键：按钮 / 卡片 / 输入框 / 列表项 / 状态标签 / 字阶。
+        凡带复杂模板或强域特征的键一律不碰：
+          · DialogCombo、DialogDataGrid*、DialogSearch*、DialogSegmentRadio、DialogCheckBox
+            （各自有自定义模板与触发器，换掉等于换控件）
+          · Scada*、FlowCanvas*、Mb*（域专属视觉，有意为之，不属于"通用库"）
+        旧键本身不删除：它们是历史页面的合法引用，只是**定义被重定向**到 Fluent。
+
+        【命名约定】旧键一律视为 deprecated：新代码请用 Fluent* 键，不要用这里的旧键。
+    -->
+
+    <!--  ============ 按钮：三套旧体系 → 一套 Fluent 变体 ============  -->
+    <Style
+        x:Key="DialogPrimaryButton"
+        BasedOn="{StaticResource FluentButtonAccentStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="DialogDangerButton"
+        BasedOn="{StaticResource FluentButtonDangerStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="DialogSecondaryButton"
+        BasedOn="{StaticResource FluentButtonOutlineStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="DialogGhostButton"
+        BasedOn="{StaticResource FluentButtonTransparentStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="DialogIconButton"
+        BasedOn="{StaticResource FluentButtonSubtleStyle}"
+        TargetType="Button">
+        <Setter Property="Padding" Value="{StaticResource FluentPaddingCompact}" />
+    </Style>
+    <Style
+        x:Key="DialogChipButton"
+        BasedOn="{StaticResource FluentButtonSmallStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="DialogTagButton"
+        BasedOn="{StaticResource FluentButtonSubtleStyle}"
+        TargetType="Button">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style
+        x:Key="DialogFooterPrimaryButton"
+        BasedOn="{StaticResource FluentButtonAccentStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="DialogFooterSecondaryButton"
+        BasedOn="{StaticResource FluentButtonSubtleStyle}"
+        TargetType="Button" />
+
+    <Style
+        x:Key="PluginPrimaryButton"
+        BasedOn="{StaticResource FluentButtonAccentStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="PluginAccentButton"
+        BasedOn="{StaticResource FluentButtonAccentStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="PluginButton"
+        BasedOn="{StaticResource FluentButtonSubtleStyle}"
+        TargetType="Button" />
+
+    <!--  EasyDialog 依据这两个键找按钮样式（找不到就退回默认按钮外观），必须给  -->
+    <Style
+        x:Key="FlatButtonStyle"
+        BasedOn="{StaticResource FluentButtonSubtleStyle}"
+        TargetType="Button" />
+    <Style
+        x:Key="FlatButtonVariantStyle"
+        BasedOn="{StaticResource FluentButtonAccentStyle}"
+        TargetType="Button" />
+
+    <!--  ============ 容器 ============  -->
+    <Style
+        x:Key="Win11Card"
+        BasedOn="{StaticResource FluentCardStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="DialogCardBorder"
+        BasedOn="{StaticResource FluentCardStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="DialogCardShadow"
+        BasedOn="{StaticResource FluentCardElevatedStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="PluginCard"
+        BasedOn="{StaticResource FluentCardStyle}"
+        TargetType="Border" />
+
+    <!--  ============ 输入 ============  -->
+    <Style
+        x:Key="DialogInput"
+        BasedOn="{StaticResource FluentTextBoxStyle}"
+        TargetType="TextBox" />
+    <Style
+        x:Key="DialogGridInput"
+        BasedOn="{StaticResource FluentTextBoxStyle}"
+        TargetType="TextBox">
+        <Setter Property="Padding" Value="6,3,6,3" />
+        <Setter Property="MinHeight" Value="28" />
+    </Style>
+    <Style
+        x:Key="DialogCellInput"
+        BasedOn="{StaticResource FluentTextBoxStyle}"
+        TargetType="TextBox">
+        <Setter Property="Padding" Value="4,2,4,2" />
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style
+        x:Key="PluginNumericBox"
+        BasedOn="{StaticResource FluentTextBoxStyle}"
+        TargetType="TextBox" />
+    <Style
+        x:Key="PluginFieldBox"
+        BasedOn="{StaticResource FluentTextBoxStyle}"
+        TargetType="TextBox" />
+    <Style
+        x:Key="DialogComboItem"
+        BasedOn="{StaticResource FluentComboBoxItemStyle}"
+        TargetType="ComboBoxItem" />
+    <Style
+        x:Key="PluginModernComboItem"
+        BasedOn="{StaticResource FluentComboBoxItemStyle}"
+        TargetType="ComboBoxItem" />
+    <Style
+        x:Key="DialogOptionItem"
+        BasedOn="{StaticResource FluentNavItemStyle}"
+        TargetType="ListBoxItem" />
+    <Style
+        x:Key="PluginListBoxItem"
+        BasedOn="{StaticResource FluentNavItemStyle}"
+        TargetType="ListBoxItem" />
+    <Style
+        x:Key="Grid_SwitchToggleStyle"
+        BasedOn="{StaticResource FluentToggleSwitchStyle}"
+        TargetType="ToggleButton" />
+
+    <!--  ============ 状态标签（Chip） ============  -->
+    <Style
+        x:Key="DialogChip"
+        BasedOn="{StaticResource FluentChipStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="DialogChipNeutral"
+        BasedOn="{StaticResource FluentChipStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="DialogChipAccent"
+        BasedOn="{StaticResource FluentChipAccentStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="DialogChipSuccess"
+        BasedOn="{StaticResource FluentChipSuccessStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="DialogChipWarning"
+        BasedOn="{StaticResource FluentChipWarningStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="DialogChipDanger"
+        BasedOn="{StaticResource FluentChipDangerStyle}"
+        TargetType="Border" />
+    <Style
+        x:Key="PluginChip"
+        BasedOn="{StaticResource FluentChipStyle}"
+        TargetType="Border" />
+
+    <Style
+        x:Key="DialogChipTextNeutral"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentTextSecondaryBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogChipTextAccent"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentAccentPressedBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogChipTextSuccess"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentSuccessBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogChipTextWarning"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentWarningBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogChipTextDanger"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentDangerBrush}" />
+    </Style>
+
+    <!--
+        带底色的小方圆角标签（端口数据类型这类**长文本**用）。
+        为什么必须在这里再定义一份：本层最后合并、同名键覆盖 Dialog/ 分册 —— 不覆盖的话，
+        DialogTag 会落到默认层（观感与 Fluent 主题不一致）；反之若让它沿用 FluentChipStyle 的
+        FluentRadiusFull(999)，长文本又会变回横椭圆 —— 这正是类型标签原先的毛病。
+    -->
+    <Style
+        x:Key="DialogTag"
+        BasedOn="{StaticResource FluentChipStyle}"
+        TargetType="Border">
+        <Setter Property="Padding" Value="6,1" />
+        <Setter Property="CornerRadius" Value="{StaticResource FluentRadiusSmall}" />
+        <Setter Property="BorderBrush" Value="{StaticResource FluentBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style
+        x:Key="DialogTagText"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentTextSecondaryBrush}" />
+    </Style>
+    <Style
+        x:Key="PluginChipText"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock" />
+
+    <!--  ============ 字阶 ============  -->
+    <Style
+        x:Key="DialogCardTitle"
+        BasedOn="{StaticResource FluentTextSubtitleStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="DialogSectionTitle"
+        BasedOn="{StaticResource FluentTextSubtitleStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="DialogColumnTitle"
+        BasedOn="{StaticResource FluentTextBodyStrongStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="DialogFormLabel"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentTextSecondaryBrush}" />
+    </Style>
+    <Style
+        x:Key="DialogHintText"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="DialogEmptyStateTitle"
+        BasedOn="{StaticResource FluentTextSubtitleStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="DialogEmptyStateHint"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="DialogMonoText"
+        BasedOn="{StaticResource FluentTextMonoStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="DialogGridNumber"
+        BasedOn="{StaticResource FluentTextMonoStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="PluginCardTitle"
+        BasedOn="{StaticResource FluentTextSubtitleStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="PluginFieldLabel"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource FluentTextSecondaryBrush}" />
+    </Style>
+    <Style
+        x:Key="PluginHintText"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="PluginPreviewText"
+        BasedOn="{StaticResource FluentTextCaptionStyle}"
+        TargetType="TextBlock" />
+    <Style
+        x:Key="PropertyLabelStyle"
+        BasedOn="{StaticResource FluentTextBodyStyle}"
+        TargetType="TextBlock" />
+
+</ResourceDictionary>

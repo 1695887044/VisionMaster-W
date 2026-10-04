@@ -48,9 +48,33 @@ namespace UI.CustomControl.PropertyGrid
                 return btn;
             }
 
-            // 开关状态
-            var toggle = new ToggleButton { IsEnabled = !isReadOnly, Style = (Style)Application.Current.TryFindResource("Grid_SwitchToggleStyle") };
+            // 开关状态。
+            // 减动效：系统「辅助功能 → 显示动画」关闭（以及远程桌面/低配虚拟机）时改用
+            // 无 Storyboard 的静态变体 —— 状态直接切换，零位移零过渡。这类设置运行期极少变，
+            // 按"生成时"取一次即可。样式解析失败时 TryFindResource 返回 null，兜底回常规版。
+            var styleKey = SystemParameters.ClientAreaAnimation
+                ? "Grid_SwitchToggleStyle"
+                : "FluentToggleSwitchStyleStatic";
+            var toggle = new ToggleButton
+            {
+                IsEnabled = !isReadOnly,
+                Style = (Style)Application.Current.TryFindResource(styleKey)
+                        ?? (Style)Application.Current.TryFindResource("Grid_SwitchToggleStyle"),
+            };
             ControlBindHelper.SetTwoWayBinding(toggle, ToggleButton.IsCheckedProperty, prop, bindingSource, BindingMode.TwoWay);
+
+            // 焦点环只认键盘来的焦点（:focus-visible）：鼠标点击不亮环，
+            // 否则蓝环叠蓝轨道会被看成"画坏了"。行为直接驱动模板里的 FocusRing。
+            UI.Behaviors.FocusVisibleBehavior.SetEnabled(toggle, true);
+
+            // 键盘可达性：Space 是 ToggleButton 自带的；Enter 在这里补上（规格要求两者都能切换）。
+            // 每次生成都是新实例，事件跟着实例走，不会累积。
+            toggle.KeyDown += (_, e) =>
+            {
+                if (e.Key != System.Windows.Input.Key.Enter) return;
+                toggle.IsChecked = !(toggle.IsChecked ?? false);
+                e.Handled = true;
+            };
             return toggle;
         }
     }

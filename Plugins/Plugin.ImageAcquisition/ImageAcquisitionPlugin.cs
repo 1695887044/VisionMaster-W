@@ -43,7 +43,8 @@ namespace Plugin.ImageAcquisition
 
         private AcquisitionMode _mode;
         /// <summary>
-        /// 采集模式: 0=单图文件, 1=文件夹, 2=网络推送
+        /// 采集模式：指定图像 / 文件目录 / 网络推送 / 相机采集（见 <see cref="AcquisitionMode"/>）。
+        /// 换模式会清空预览与状态：旧模式的数据源在新模式下对不上号。
         /// </summary>
         [StepConfig]
         public AcquisitionMode Mode
@@ -62,13 +63,17 @@ namespace Plugin.ImageAcquisition
 
         private int _displayViewIndex = 1;
         /// <summary>
-        /// 显示窗口索引：采集图像发布到主界面几号视图窗口（1~9），0=不显示
+        /// 显示窗口索引：采集图像发布到主界面几号视图窗口（1~9），0=不显示。
+        ///
+        /// 写入即夹取到 0~9：这是落盘的 [StepConfig]，手改方案文件可以塞进 10/负数，
+        /// 而消费端是按"ViewIndex == 窗口号(1~9)"等值筛选的——越界值不会报错，
+        /// 表现为"配了显示但哪一格都不显示"，属于最难归因的一类。
         /// </summary>
         [StepConfig]
         public int DisplayViewIndex
         {
             get => _displayViewIndex;
-            set => SetProperty(ref _displayViewIndex, value);
+            set => SetProperty(ref _displayViewIndex, Math.Clamp(value, 0, 9));
         }
 
         private string _cameraSerial = string.Empty;
@@ -144,7 +149,7 @@ namespace Plugin.ImageAcquisition
         /// <summary>
         /// 采集到的图像
         /// </summary>
-        public OutputPort<HImage> OutputImage { get; } = new(
+        public OutputPort<HImage?> OutputImage { get; } = new(
             "Image",
             "采集到的图像"
         );
@@ -173,17 +178,44 @@ namespace Plugin.ImageAcquisition
             "文件夹内符合条件的文件总数"
         );
 
+        /// <summary>
+        /// 相机帧序号（从 1 开始）。仅相机模式有效，其余模式为 0。
+        ///
+        /// 为什么与 CurrentIndex 并存：CurrentIndex 在相机模式下被复用为"第几帧"（见 AcquisitionMode.Camera
+        /// 的说明），那是为了不让既有下游接线全部重连的兼容做法；本端口给出**不做任何语义重载**的帧号，
+        /// 帧溯源（日志对账 / 结果归档）一律用它，不必再记住"哪种模式下 CurrentIndex 是什么"。
+        /// </summary>
+        public OutputPort<long> FrameId { get; } = new(
+            "FrameId",
+            "相机帧序号（从 1 开始）；非相机模式为 0"
+        );
+
+        /// <summary>
+        /// 相机累计收到的帧数（含溢出被丢弃的帧）。仅相机模式有效，其余模式为 0。
+        /// 与 TotalFiles 的分工同上：一个是"这台相机一共收了多少帧"，一个是"目录里有多少张图"。
+        /// </summary>
+        public OutputPort<long> ReceivedCount { get; } = new(
+            "ReceivedCount",
+            "相机累计收到帧数；非相机模式为 0"
+        );
+
         #endregion
 
         #region 预览与状态（纯界面属性，不参与流程数据流）
 
-        private HImage _previewImage = new();
+        private HImage? _previewImage;
         /// <summary>
         /// 预览图像（换图即弃旧：SetProperty 成功后释放旧实例，避免非托管内存泄漏）
         /// 安全性：ImageReadOnly 的 HImage 依赖属性持引用不复制，绑定在 UI 线程同步刷新，
         /// SetProperty 已把 DP 切到新值并完成重绘，此处释放的是"已不被 UI 引用"的旧图
+        ///
+        /// 初值是 null 而不是 new HImage()：构造 HImage 本身就要碰 HALCON 原生库，
+        /// 而本类会被 PluginService 在**启动扫描端口**时实例化——无 HALCON 的机器上
+        /// 一个从不使用的空预览图会把整个插件 DLL 判成"加载失败"（见 PluginService 的按 DLL 捕获），
+        /// 与"无 HALCON 时流程编排照常可用、只降级视觉功能"的既定口径冲突。
+        /// 用到时再建（LoadPreview 里建），不用就不碰引擎。
         /// </summary>
-        public HImage PreviewImage
+        public HImage? PreviewImage
         {
             get => _previewImage;
             set
@@ -298,7 +330,7 @@ namespace Plugin.ImageAcquisition
         /// </summary>
         public ObservableCollection<CameraOption> CameraOptions { get; } = new();
 
-        private CameraOption _selectedCameraOption;
+        private CameraOption? _selectedCameraOption;
         /// <summary>
         /// 下拉选中的相机。
         ///
@@ -306,8 +338,9 @@ namespace Plugin.ImageAcquisition
         /// 下拉的候选项是 CameraOption 对象，而落盘的只有序列号。中间隔一层，
         /// 才能做到"序列号在方案里、候选列表在运行期"，并且序列号对应的相机被删掉时
         /// 下拉能诚实显示为"空"而不是停在一个不存在的项上。
+        /// 类型可空是刻意的：没选相机 / 序列号对不上任何候选项时它就是 null。
         /// </summary>
-        public CameraOption SelectedCameraOption
+        public CameraOption? SelectedCameraOption
         {
             get => _selectedCameraOption;
             set
@@ -409,6 +442,26 @@ namespace Plugin.ImageAcquisition
             private set => SetProperty(ref _pushServiceHint, value);
         }
 
+        private StatusLevel _pushServiceLevel = StatusLevel.Info;
+        /// <summary>
+        /// 推送服务状态等级：驱动"网络推送"页状态提示的颜色。
+        /// "正在监听"是正常态，用 Info（绿）；没在监听才是 Warning（橙）——
+        /// 原先这里恒挂警告色，服务好好的也像出了问题。
+        /// </summary>
+        public StatusLevel PushServiceLevel
+        {
+            get => _pushServiceLevel;
+            private set => SetProperty(ref _pushServiceLevel, value);
+        }
+
+        /// <summary>
+        /// 推送服务状态的一句话 + 级别：由 SetConfigContext 写入，
+        /// 是否进信息栏由 <see cref="ValidatePathInputs"/> 按当前采集模式决定——
+        /// 只在"网络推送"模式下显示（其他模式下用户看到的是路径/相机提示，不该被它盖掉）。
+        /// </summary>
+        private string _pushServiceMessage = string.Empty;
+        private StatusLevel _pushServiceMessageLevel = StatusLevel.Info;
+
         private string _pushResultText = string.Empty;
         /// <summary>
         /// 最近一次推送的结果（多行只读文本：状态码 / 耗时 / 图像尺寸 / 输出摘要 / 错误原因）
@@ -502,25 +555,32 @@ namespace Plugin.ImageAcquisition
             PushToken = context.HttpToken ?? string.Empty;
             _pushTimeoutMs = context.RequestTimeoutMs;
 
-            // 相机候选列表随上下文一起下发。放在这里而不是 Initialize：
-            // Initialize 只拿到步骤的已存配置，拿不到"宿主现在有哪些相机"——
-            // 而这一步正是"序列号回显对不对得上"的判定依据。
-            ApplyCameraOptions(context.Cameras);
-
             // 服务有没有在听是"能不能推"的第一现场：没在听时推送必然连接失败，
-            // 与其让用户点完按钮再猜原因，不如打开窗口就说清楚
+            // 与其让用户点完按钮再猜原因，不如打开窗口就说清楚。
+            // 文案与级别一起记下，信息栏是否采纳由 ValidatePathInputs 按模式决定
+            // （只有"网络推送"模式才该在信息栏说这件事）。
             if (context.HttpListening)
             {
                 PushServiceHint = $"宿主收图服务正在监听 {context.HttpHost}:{context.HttpPort}";
-                SetStatus($"推送测试已就绪（目标 {context.HttpHost}:{context.HttpPort}）", StatusLevel.Info);
+                _pushServiceMessage = $"推送测试已就绪（目标 {context.HttpHost}:{context.HttpPort}）";
+                _pushServiceMessageLevel = StatusLevel.Info;
             }
             else
             {
                 PushServiceHint = context.HttpEnabled
                     ? "宿主收图服务配置为启用但未在监听（端口被占用或启动失败），推送会连接失败"
                     : "宿主收图服务未启用（AppConfig.json → HttpImageServer.Enabled=false），推送会连接失败";
-                SetStatus(PushServiceHint, StatusLevel.Warning);
+                _pushServiceMessage = PushServiceHint;
+                _pushServiceMessageLevel = StatusLevel.Warning;
             }
+            PushServiceLevel = _pushServiceMessageLevel;
+
+            // 相机候选列表随上下文一起下发。放在这里而不是 Initialize：
+            // Initialize 只拿到步骤的已存配置，拿不到"宿主现在有哪些相机"——
+            // 而这一步正是"序列号回显对不对得上"的判定依据。
+            // ApplyCameraOptions 内部会调 ValidatePathInputs：Hub 模式下它会把上面的
+            // 推送服务状态写进信息栏，其他模式则保持各自的路径/相机提示不被覆盖。
+            ApplyCameraOptions(context.Cameras);
         }
 
         #endregion
@@ -534,10 +594,16 @@ namespace Plugin.ImageAcquisition
         {
             public bool Success;
             public string Error = "";
-            public HImage Image;
-            public string CurrentPath;
+            public HImage? Image;
+            public string CurrentPath = "";
             public int CurrentIndex;
             public int TotalFiles;
+
+            /// <summary>相机帧序号（仅相机模式写入；见 FrameId 输出口的说明）</summary>
+            public long FrameId;
+
+            /// <summary>相机累计收帧数（仅相机模式写入）</summary>
+            public long ReceivedCount;
 
             /// <summary>
             /// 等图被"停止流程"打断（相机 / 网络推送模式会置位）。
@@ -546,7 +612,7 @@ namespace Plugin.ImageAcquisition
             public bool Cancelled;
 
             /// <summary>取消时的人话说明（相机 / 网络两种模式的文案在这里区分）</summary>
-            public string CancelMessage;
+            public string? CancelMessage;
         }
 
         /// <summary>
@@ -639,10 +705,13 @@ namespace Plugin.ImageAcquisition
                 Image = ToHImage(frame),
                 // 来源名由客户端声明（通常就是文件名），拿不到时回落到伪路径，保证输出口不为空
                 CurrentPath = string.IsNullOrEmpty(frame.SourceName) ? $"camera://{serial}" : frame.SourceName,
-                // 相机模式下"索引/总数"沿用输出口的既有含义，改为表达"第几帧 / 累计收到多少帧"：
-                // 加一对新输出口会让下游接线全要重连，而这两个数在位图溯源上表达力足够
+                // CurrentIndex/TotalFiles 在相机模式下沿用"第几帧 / 累计收到多少帧"的重载语义：
+                // 这套语义 2026-09 就随相机模式上线了，改成 0 会悄悄打断已有接线。
+                // 精确值由 FrameId / ReceivedCount 两个专用输出口给出，新接线一律用那对。
                 CurrentIndex = frame.FrameId > int.MaxValue ? int.MaxValue : (int)frame.FrameId,
                 TotalFiles = device.ReceivedFrameCount > int.MaxValue ? int.MaxValue : (int)device.ReceivedFrameCount,
+                FrameId = frame.FrameId,
+                ReceivedCount = device.ReceivedFrameCount,
                 Error = $"已从相机取图: {frame.Width}x{frame.Height}x{frame.Channels}"
                       + $"（第 {frame.FrameId} 帧，来源 {frame.SourceName}）"
             };
@@ -716,13 +785,18 @@ namespace Plugin.ImageAcquisition
         /// 各写一份的话，早晚出现"相机采的彩色图颜色是反的、网络推送的却是对的"——
         /// 而灰度图上完全看不出来，只表现为彩色判别类算子结果莫名不对。
         ///
-        /// 入参校验（这一版补上的两处）
+        /// 入参校验（这一版补上的三处）
         /// ---------
+        ///   · 尺寸上限与长度：宽高来自外部（相机 SDK / HTTP 客户端），必须用 long 算
+        ///     `宽×高×通道` 再比——int 乘法溢出成负数时，"长度不足"这道校验反而会放行，
+        ///     最后以 AllocHGlobal(负数) 的形式抛一句看不懂的错；
         ///   · 数据长度必须 ≥ 宽×高×通道数：不足时 HALCON 会越界读 HGlobal 缓冲，
         ///     轻则图像错乱、重则进程崩掉 —— 必须在进非托管世界之前拦下；
         ///   · 4 通道（BGRA，很多相机 SDK 的默认输出）不能直接交给 GenImageInterleaved：
         ///     它按 3 字节/像素读 4 字节/像素的缓冲，不报错但图像整体错位花屏
         ///    （灰度图上同样看不出来）。先抽成紧凑 BGR 再走同一条路。
+        ///     但 2 通道没有对应的解释方式：与其让 GenImage1 把前半段数据当灰度图静默显示，
+        ///     不如在入口明确拒绝（契约允许的只有 1=灰度 / 3=BGR / ≥4=BGRA/RGBA）。
         ///
         /// 为什么走非托管中转
         /// ---------
@@ -738,14 +812,23 @@ namespace Plugin.ImageAcquisition
                 throw new ArgumentException($"图像尺寸非法: {width}x{height}");
             if (channels < 1)
                 throw new ArgumentException($"图像通道数非法: {channels}");
+            if (channels == 2)
+                throw new ArgumentException(
+                    "不支持的图像通道数: 2（仅支持 1=灰度 / 3=BGR / 4=BGRA；"
+                    + "2 通道没有约定好的解释方式，直接按灰度读会把图读错半张）");
 
-            var expected = width * height * channels;
+            var expected = (long)width * height * channels;
+            if (expected > int.MaxValue)
+                throw new ArgumentException(
+                    $"图像过大: {width}x{height}x{channels} = {expected} 字节，超过单幅图像上限");
+
             if (pixelData.Length < expected)
                 throw new ArgumentException(
                     $"像素数据不足: {pixelData.Length} 字节，{width}x{height}x{channels} 应为 {expected} 字节"
                     + "（图像的宽高与像素字节数不自洽）");
 
-            // 4 通道及以上（BGRA/RGBA）：抽掉 alpha 通道，压成紧凑的 BGR 三通道
+            // 4 通道及以上（BGRA/RGBA）：抽掉 alpha 通道，压成紧凑的 BGR 三通道。
+            // pixelCount 不会溢出：expected = pixelCount×channels ≤ int.MaxValue，且压缩后更小
             if (channels > 3)
             {
                 var pixelCount = width * height;
@@ -761,40 +844,50 @@ namespace Plugin.ImageAcquisition
             }
 
             var image = new HImage();
-            var length = width * height * channels;   // 只把"恰好够用"的部分交给 HALCON
-            var pointer = Marshal.AllocHGlobal(length);
-
             try
             {
-                Marshal.Copy(pixelData, 0, pointer, length);
+                var length = width * height * channels;   // 只把"恰好够用"的部分交给 HALCON（已保证 ≤ int.MaxValue）
+                var pointer = Marshal.AllocHGlobal(length);
 
-                if (channels >= 3)
+                try
                 {
-                    image.GenImageInterleaved(
-                        pointer,
-                        "bgr",
-                        width,
-                        height,
-                        -1,
-                        "byte",
-                        width,
-                        height,
-                        0,
-                        0,
-                        -1,
-                        0);
+                    Marshal.Copy(pixelData, 0, pointer, length);
+
+                    if (channels >= 3)
+                    {
+                        image.GenImageInterleaved(
+                            pointer,
+                            "bgr",
+                            width,
+                            height,
+                            -1,
+                            "byte",
+                            width,
+                            height,
+                            0,
+                            0,
+                            -1,
+                            0);
+                    }
+                    else
+                    {
+                        image.GenImage1("byte", width, height, pointer);
+                    }
                 }
-                else
+                finally
                 {
-                    image.GenImage1("byte", width, height, pointer);
+                    Marshal.FreeHGlobal(pointer);
                 }
+
+                return image;
             }
-            finally
+            catch
             {
-                Marshal.FreeHGlobal(pointer);
+                // 与 AcquireSingleFile / AcquireFromFolder 同一约定：进过非托管世界的对象，
+                // 失败要自己收拾干净再上抛，否则连续失败会持续吃 HALCON 的非托管内存
+                image.Dispose();
+                throw;
             }
-
-            return image;
         }
 
         private CoreResult AcquireSingleFile(string path)
@@ -885,12 +978,16 @@ namespace Plugin.ImageAcquisition
         {
             Success.Value = false;
             ErrorMessage.Value = string.Empty;
-            OutputImage.Value = null;
+            // 用 TypedValue（强类型口）写：Value 是弱类型 object 口，写 null 会触发可空性告警；
+            // 两者最终落到同一个字段，通知也等价
+            OutputImage.TypedValue = null;
             CurrentFilePath.Value = string.Empty;
-            // 索引与总数必须一起归零：否则本轮失败时它们还停在上轮的值，
+            // 索引/总数/帧号必须一起归零：否则本轮失败时它们还停在上轮的值，
             // 下游按"当前索引/总数"做判断的步骤会读到上一轮的残留数据（基类只清 IDisposable 端口值）
             CurrentFileIndex.Value = 0;
             TotalFiles.Value = 0;
+            FrameId.Value = 0;
+            ReceivedCount.Value = 0;
 
             try
             {
@@ -918,27 +1015,43 @@ namespace Plugin.ImageAcquisition
                 if (result.Success)
                 {
                     ErrorMessage.Value = string.Empty;
-                    OutputImage.Value = result.Image;
+                    OutputImage.TypedValue = result.Image;
                     CurrentFilePath.Value = result.CurrentPath;
                     CurrentFileIndex.Value = result.CurrentIndex;
                     TotalFiles.Value = result.TotalFiles;
-                    context.Logger.Info($"{InstanceName} {result.Error}");
+                    FrameId.Value = result.FrameId;
+                    ReceivedCount.Value = result.ReceivedCount;
+                    context.Logger?.Info($"{InstanceName} {result.Error}");
 
-                    // 发布到主程序视图（DisplayViewIndex 已是真实窗口号 1~9；0=不显示则跳过）
-                    if (DisplayViewIndex > 0)
-                        this.PublishPreview(result.Image, DisplayViewIndex);
+                    // 发布到主程序视图（DisplayViewIndex 已是真实窗口号 1~9；0=不显示则跳过）。
+                    // 推图是"锦上添花"：事件总线在无 UI 环境会就地同步执行订阅者，
+                    // 投递失败只记日志，绝不能把一次成功的采集判成异常
+                    if (DisplayViewIndex > 0 && result.Image != null)
+                        TryPublishPreview(result.Image, DisplayViewIndex, context);
                 }
                 else
                 {
                     ErrorMessage.Value = result.Error ?? string.Empty;
-                    context.Logger.Error($"{InstanceName} {result.Error}");
+                    context.Logger?.Error($"{InstanceName} {result.Error}");
                 }
             }
             catch (Exception ex)
             {
                 ErrorMessage.Value = ex.Message;
-                context.Logger.Error($"{InstanceName} 图像采集异常: {ex.Message}");
+                context.Logger?.Error($"{InstanceName} 图像采集异常: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 推图到主界面。
+        /// 显示层拿到事件后自己 CopyImage 并独占那份副本，所以这里传的仍是端口持有的图；
+        /// 但推图属于"锦上添花"，投递失败绝不能把一次正常的采集判成失败
+        /// （与预处理插件 TryPublishPreview 同一约定）。
+        /// </summary>
+        private void TryPublishPreview(HImage image, int viewIndex, IExecutionContext context)
+        {
+            try { this.PublishPreview(image, viewIndex); }
+            catch (Exception ex) { context.Logger?.Warn($"{InstanceName} 预览推送失败: {ex.Message}"); }
         }
 
         #endregion
@@ -1008,6 +1121,16 @@ namespace Plugin.ImageAcquisition
 
         private void RefreshFolderFiles()
         {
+            // 端口被变量链接时，配置态拿不到"运行期到底是哪个目录"（手动值是空的或过期的），
+            // 预览必然文不对题。这里给中性说明并跳过，与 CheckPath"链接端口直接放行"
+            // 同一口径——绝不能报成"请先选择图像文件夹"，那会让人误以为链接失效了
+            if (FolderPathPort.LinkedSource != null)
+            {
+                ClearPreview();
+                SetStatus("文件夹路径来自变量链接，运行期生效；配置态无法预览", StatusLevel.Info);
+                return;
+            }
+
             var folderPath = FolderPathPort.TypedValue;
             if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
             {
@@ -1080,8 +1203,8 @@ namespace Plugin.ImageAcquisition
 
             Task.Run(() =>
             {
-                HImage loaded = null;
-                string error = null;
+                HImage? loaded = null;
+                string? error = null;
 
                 try
                 {
@@ -1113,10 +1236,19 @@ namespace Plugin.ImageAcquisition
 
                     // PreviewImage 的 setter 负责释放被换下的旧图，这里不用管
                     PreviewImage = loaded;
-                    SetStatus($"预览: {Path.GetFileName(path)}", StatusLevel.Info);
+                    SetStatus($"预览: {Path.GetFileName(path)}{IndexLinkNote()}", StatusLevel.Info);
                 });
             });
         }
+
+        /// <summary>
+        /// 文件索引被变量链接时给预览加一句说明：预览按手动值载图只是"看个大概"，
+        /// 运行期以链接值为准。不加这句，用户翻页翻得热闹、运行起来却不是这张图。
+        /// </summary>
+        private string IndexLinkNote()
+            => FileIndexPort.LinkedSource != null
+                ? "（文件索引来自变量链接，运行期以链接值为准）"
+                : string.Empty;
 
         /// <summary>
         /// 清空预览及其配套的路径/计数/状态（切换采集模式、文件夹失效时调用）。
@@ -1166,8 +1298,14 @@ namespace Plugin.ImageAcquisition
                     ValidateCameraSelection();
                     break;
 
+                case AcquisitionMode.Hub:
+                    // 网络推送模式没有本地路径可校验：信息栏改说"推送服务能不能用"
+                    // （文案/级别由 SetConfigContext 写入；未收到上下文时为空，等同原来的清空）
+                    ClearCameraState();
+                    SetStatus(_pushServiceMessage, _pushServiceMessageLevel);
+                    break;
+
                 default:
-                    // 网络推送模式没有本地路径可校验
                     ClearCameraState();
                     SetStatus(string.Empty);
                     break;
@@ -1419,7 +1557,7 @@ namespace Plugin.ImageAcquisition
         {
             var lines = new List<string> { $"HTTP {(int)statusCode} {statusCode}    客户端耗时 {elapsedMs} ms" };
 
-            JObject json = null;
+            JObject? json = null;
             try
             {
                 json = JObject.Parse(body);
@@ -1436,12 +1574,13 @@ namespace Plugin.ImageAcquisition
                 return string.Join(Environment.NewLine, lines);
             }
 
+            // is { } 模式一次拿到非空 token：JObject 的索引器可空，直接 json["x"].ToString() 会被判空警告
+            if (json["flow"] is { } flow) lines.Add($"流程: {flow}");
             var image = json["image"];
-            if (json["flow"] != null) lines.Add($"流程: {json["flow"]}");
             if (image != null) lines.Add($"图像: {image["width"]}x{image["height"]}x{image["channels"]}");
-            if (json["elapsedMs"] != null) lines.Add($"服务端耗时: {json["elapsedMs"]} ms");
-            if (json["outputs"] != null) lines.Add($"输出: {json["outputs"].ToString(Formatting.None)}");
-            if (json["message"] != null) lines.Add($"错误: {json["message"]}");
+            if (json["elapsedMs"] is { } serverElapsedMs) lines.Add($"服务端耗时: {serverElapsedMs} ms");
+            if (json["outputs"] is { } outputs) lines.Add($"输出: {outputs.ToString(Formatting.None)}");
+            if (json["message"] is { } message) lines.Add($"错误: {message}");
 
             return string.Join(Environment.NewLine, lines);
         }
@@ -1451,7 +1590,9 @@ namespace Plugin.ImageAcquisition
         #region 辅助方法
 
         /// <summary>
-        /// 列出文件夹中符合扩展名的图像文件（预览辅助与执行核心共用同一过滤逻辑）
+        /// 列出文件夹中符合扩展名的图像文件（预览辅助与执行核心共用同一过滤逻辑）。
+        /// 排序用自然序（见 <see cref="NaturalOrderComparer"/>）：产线序列图普遍是 1.bmp…10.bmp，
+        /// 纯字符串序会把 10 排到 2 前面——而"文件索引"是喂给生产用的，顺序错了就是工件顺序错了。
         /// </summary>
         private static List<string> ListFolderImages(string folderPath, string extensions)
         {
@@ -1463,8 +1604,58 @@ namespace Plugin.ImageAcquisition
 
             return Directory.GetFiles(folderPath)
                 .Where(f => extSet.Contains(Path.GetExtension(f).ToLower()))
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(f => f, NaturalOrderComparer.Instance)
                 .ToList();
+        }
+
+        /// <summary>
+        /// 路径自然序比较器：把连续数字段按数值比较（img2 &lt; img10），其余字符忽略大小写按序数比较，
+        /// 与资源管理器对文件名的排序观感一致。
+        /// 实现不做区域/文化敏感比较（不用 CultureInfo）：同一台设备上排序必须永远稳定。
+        /// </summary>
+        private sealed class NaturalOrderComparer : IComparer<string>
+        {
+            public static readonly NaturalOrderComparer Instance = new();
+
+            public int Compare(string? x, string? y)
+            {
+                if (ReferenceEquals(x, y)) return 0;
+                if (x == null) return -1;
+                if (y == null) return 1;
+
+                int i = 0, j = 0;
+                while (i < x.Length && j < y.Length)
+                {
+                    if (char.IsDigit(x[i]) && char.IsDigit(y[j]))
+                    {
+                        int iStart = i, jStart = j;
+                        while (i < x.Length && char.IsDigit(x[i])) i++;
+                        while (j < y.Length && char.IsDigit(y[j])) j++;
+
+                        string nx = x.Substring(iStart, i - iStart);
+                        string ny = y.Substring(jStart, j - jStart);
+
+                        // 去前导零后按"长度 → 字典序"比数值（不解析成整数，避免超长数字溢出）
+                        string tx = nx.TrimStart('0');
+                        string ty = ny.TrimStart('0');
+                        if (tx.Length != ty.Length) return tx.Length - ty.Length;
+                        int c = string.CompareOrdinal(tx, ty);
+                        if (c != 0) return c;
+
+                        // 数值相同（"1" vs "01"）：前导零少的在前，保证排序结果唯一
+                        if (nx.Length != ny.Length) return nx.Length - ny.Length;
+                    }
+                    else
+                    {
+                        int c = char.ToUpperInvariant(x[i]).CompareTo(char.ToUpperInvariant(y[j]));
+                        if (c != 0) return c;
+                        i++;
+                        j++;
+                    }
+                }
+
+                return (x.Length - i) - (y.Length - j);
+            }
         }
 
         #endregion

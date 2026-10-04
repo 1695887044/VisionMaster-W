@@ -8,7 +8,7 @@ namespace Plugin.Ocr
     ///
     /// 视图不写业务逻辑：框选由 Core.Halcon 的 ImageEdit 控件负责，画布集合与形状参数的双向同步
     /// 都在 OcrPlugin 里。本文件只留三处 —— 视图就绪信号（回填示意图与识别区），
-    /// 以及三个按钮的转发（载入示意图 / 清空识别区 / 试算）。
+    /// 以及两个按钮的转发（清空识别区 / 试算）。
     /// </summary>
     public partial class OcrView : UserControl
     {
@@ -19,8 +19,6 @@ namespace Plugin.Ocr
         }
 
         private OcrPlugin? Plugin => DataContext as OcrPlugin;
-
-        private void OnLoadPreviewClick(object sender, RoutedEventArgs e) => Plugin?.LoadPreviewImage();
 
         private void OnClearRoiClick(object sender, RoutedEventArgs e) => Plugin?.ClearRoi();
 

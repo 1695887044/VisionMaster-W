@@ -1,16 +1,32 @@
 {
-  "SolutionName": "解决方案-20260916193845",
+  "SolutionName": "解决方案-20261001122125",
   "Version": 1.0,
   "Config": {
-    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"09/27/2026 22:32:01\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"277.79999999999995\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"09/27/2026 22:33:48\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"09/27/2026 16:42:00\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"2024.4551627754606*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"09/27/2026 22:31:57\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"09/27/2026 16:39:40\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/27/2026 16:11:43\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/25/2026 01:09:22\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"09/25/2026 01:09:26\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\" />\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"300\">\r\n      <LayoutAnchorable AutoHideWidth=\"260.6857142857143\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"09/27/2026 22:33:47\" />\r\n      <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"09/25/2026 18:02:27\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"09/27/2026 22:31:57\" PreviousContainerId=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
-    "ImageViewMode": 5
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"ac339f3c-23d2-4d2c-914e-a409dd2f2fff\" DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"10/03/2026 16:21:08\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"277.79999999999995\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"10/03/2026 16:21:08\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"10/01/2026 22:51:05\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"9477.82767674242*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/03/2026 16:21:05\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"10/01/2026 14:40:15\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/27/2026 16:11:43\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/25/2026 01:09:22\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\" />\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"235.5\">\r\n      <LayoutAnchorable AutoHideWidth=\"260.6857142857143\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"10/02/2026 19:22:15\" />\r\n      <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"10/01/2026 11:55:59\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"10/03/2026 16:21:05\" PreviousContainerId=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" IsSelected=\"True\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"10/03/2026 16:21:05\" PreviousContainerId=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" PreviousContainerIndex=\"2\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "ImageViewMode": 0
   },
   "Flows": [
     {
-      "FlowID": "a71be042facf45a78efe0bfe0b77fb10",
+      "FlowID": "e5266cd0d8ef4a47ad785068c953501b",
       "FlowName": "GoHome",
       "Description": "回原",
-      "Version": 80,
+      "Version": 0,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": []
+    },
+    {
+      "FlowID": "76b3e0c6ccd8495aa3ccd0d1dcaf7af9",
+      "FlowName": "MainTask",
+      "Description": "主任务",
+      "Version": 347,
       "IsEnabled": true,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
@@ -18,1183 +34,108 @@
       "TriggerMode": 1,
       "Layout": {
         "Nodes": {
-          "e00f0cee-7cb0-41e3-a29f-74c73044ffb1": {
-            "X": 0.0,
-            "Y": 0.0,
-            "Collapsed": false
-          },
-          "e694acae-28c1-4940-82c1-b449d3790868": {
-            "X": 0.0,
-            "Y": 360.0,
-            "Collapsed": false
-          },
-          "626ca0db-6d22-47e8-8cc1-4e041b5a5965": {
-            "X": 0.0,
-            "Y": 180.0,
-            "Collapsed": false
-          },
-          "9d818858-0daa-4db7-a0da-9b22b0d96aa3": {
+          "a2140959-9f26-49cf-88c7-2b72c04b9b44": {
             "X": 0.0,
             "Y": 90.0,
             "Collapsed": false
           },
-          "a8abfe66-aff5-4d7f-afd4-7734031ad591": {
+          "2fdeb4b4-78ae-4b15-bb65-ac84eb388b23": {
             "X": 0.0,
-            "Y": 270.0,
-            "Collapsed": false
-          },
-          "f02ac175-a452-48f8-950f-8b1fd9c2a537": {
-            "X": 0.0,
-            "Y": 450.0,
+            "Y": 288.0,
             "Collapsed": false
           }
         },
-        "Count": 6
+        "Count": 2
       },
       "Steps": [
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "e00f0cee-7cb0-41e3-a29f-74c73044ffb1",
-          "Icon": "",
-          "PluginName": "延时",
-          "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "延时_0",
-          "Description": "延时",
+          "StepID": "a2140959-9f26-49cf-88c7-2b72c04b9b44",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_0",
+          "Description": "图像采集",
           "SortId": 0,
           "IsDisEnable": false,
           "State": 2,
           "InputValues": {
-            "Delay": 200
+            "FilePath": "D:\\C#\\VM\\Image\\颜色\\cable2.png",
+            "FolderPath": "",
+            "FileIndex": 0,
+            "FrameTimeoutMs": 0,
+            "Mode": 0,
+            "DisplayViewIndex": 1,
+            "CameraSerial": ""
           },
           "LinkedSources": {},
           "OutputPortDefinitions": []
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "9d818858-0daa-4db7-a0da-9b22b0d96aa3",
-          "Icon": "",
-          "PluginName": "轴运动",
-          "PluginTypeName": "Plugin.Motion.Steps.MotionMovePlugin, Plugin.Motion.Steps, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "轴运动_0",
-          "Description": "轴运动",
+          "StepID": "2fdeb4b4-78ae-4b15-bb65-ac84eb388b23",
+          "Icon": "",
+          "PluginName": "区域颜色检查",
+          "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "区域颜色检查_0",
+          "Description": "区域颜色检查",
           "SortId": 0,
           "IsDisEnable": false,
           "State": 2,
           "InputValues": {
-            "Card": "127.0.0.1",
-            "Axis": "A0",
-            "Mode": 0,
-            "Target": 1000.0,
-            "Velocity": 2000.0
+            "RoiShape": "Rectangle",
+            "RoiParams": {
+              "$type": "System.Double[], System.Private.CoreLib",
+              "$values": [
+                237.0,
+                433.875,
+                0.0,
+                26.25,
+                120.0
+              ]
+            },
+            "PreviewImagePath": "",
+            "ExpectedColors": "灰",
+            "MinShare": 0.6,
+            "SamplePoints": 400,
+            "DisplayViewIndex": 1,
+            "ColorlessSaturation": 0.45,
+            "BlackValue": 80.0,
+            "WhiteSaturation": 0.15,
+            "WhiteValue": 195.0,
+            "BrownWarmth": 12,
+            "BrownValue": 175.0,
+            "RoseHueFrom": 330.0,
+            "RedHueFrom": 350.0,
+            "RedHueTo": 20.0,
+            "OrangeHueTo": 45.0,
+            "YellowHueTo": 70.0,
+            "GreenHueTo": 160.0,
+            "BlueHueTo": 230.0
           },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "626ca0db-6d22-47e8-8cc1-4e041b5a5965",
-          "Icon": "",
-          "PluginName": "延时",
-          "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "延时_2",
-          "Description": "延时",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 4,
-          "InputValues": {
-            "Delay": 1500
+          "LinkedSources": {
+            "Image": {
+              "Kind": 1,
+              "TargetStepId": "a2140959-9f26-49cf-88c7-2b72c04b9b44",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
           },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "a8abfe66-aff5-4d7f-afd4-7734031ad591",
-          "Icon": "",
-          "PluginName": "轴运动",
-          "PluginTypeName": "Plugin.Motion.Steps.MotionMovePlugin, Plugin.Motion.Steps, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "轴运动_1",
-          "Description": "轴运动",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Card": "127.0.0.1",
-            "Axis": "A0",
-            "Mode": 0,
-            "Target": 2000.0,
-            "Velocity": 20.0
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "e694acae-28c1-4940-82c1-b449d3790868",
-          "Icon": "",
-          "PluginName": "延时",
-          "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "延时_1",
-          "Description": "延时",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Delay": 500
-          },
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "f02ac175-a452-48f8-950f-8b1fd9c2a537",
-          "Icon": "",
-          "PluginName": "轴运动",
-          "PluginTypeName": "Plugin.Motion.Steps.MotionMovePlugin, Plugin.Motion.Steps, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "轴运动_2",
-          "Description": "轴运动",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {
-            "Card": "127.0.0.1",
-            "Axis": "A0",
-            "Mode": 0,
-            "Target": 5000.0,
-            "Velocity": 200.0
-          },
-          "LinkedSources": {},
           "OutputPortDefinitions": []
         }
       ]
     }
   ],
-  "CommunicationConfigs": [
-    {
-      "ConnectionName": "Conn_014013",
-      "Protocol": 0,
-      "Config": {
-        "$type": "VisionMaster.Communications.ModbusTcpConfig, VM.Core",
-        "ByteoRDER": 0,
-        "IpAddress": "127.0.0.1",
-        "Port": 502,
-        "EnableKeepAlive": true,
-        "KeepAliveIntervalMs": 30000,
-        "Type": 0,
-        "TimeoutMs": 3000,
-        "RetryCount": 3,
-        "RetryIntervalMs": 1000,
-        "ReadTimeoutMs": 5000
-      },
-      "ReadCycleMs": 1000,
-      "ScanGroups": [
-        {
-          "Name": "100ms",
-          "IntervalMs": 100
-        },
-        {
-          "Name": "500ms",
-          "IntervalMs": 500
-        },
-        {
-          "Name": "5000ms",
-          "IntervalMs": 5000
-        },
-        {
-          "Name": "组1",
-          "IntervalMs": 1000
-        }
-      ],
-      "AutoStart": true,
-      "AutoReconnect": true,
-      "IsEnabled": true,
-      "Description": ""
-    }
-  ],
+  "CommunicationConfigs": [],
   "CameraConfigs": [],
-  "MotionCards": [
-    {
-      "Id": "50d9a4df-9b62-47ed-b2d6-38df894bd634",
-      "DriverTypeKey": "Plugin.Motion.ZMotion.ZMotionCard, Plugin.Motion.ZMotion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-      "DisplayName": "正运动运动控制卡",
-      "Address": "127.0.0.1",
-      "CardModel": "",
-      "AutoConnect": false,
-      "Remarks": "",
-      "Axes": [
-        {
-          "LogicalName": "A0",
-          "PhysicalIndex": 0,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A1",
-          "PhysicalIndex": 1,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A2",
-          "PhysicalIndex": 2,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A3",
-          "PhysicalIndex": 3,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A4",
-          "PhysicalIndex": 4,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A5",
-          "PhysicalIndex": 5,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A6",
-          "PhysicalIndex": 6,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A7",
-          "PhysicalIndex": 7,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A8",
-          "PhysicalIndex": 8,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 9,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 10,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 11,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 12,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 13,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 14,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 15,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 16,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 17,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 18,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 19,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 20,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 21,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 22,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 23,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 24,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 25,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 26,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 27,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 28,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 29,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 30,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A9",
-          "PhysicalIndex": 31,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        }
-      ],
-      "Points": [
-        {
-          "AxisLogical": "A0",
-          "Index": 0,
-          "Name": "点位0",
-          "PositionMm": 0.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P0 · 点位0"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 1,
-          "Name": "点位1",
-          "PositionMm": 100.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P1 · 点位1"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 2,
-          "Name": "点位2",
-          "PositionMm": 20.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P2 · 点位2"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 3,
-          "Name": "点位3",
-          "PositionMm": 30.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P3 · 点位3"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 4,
-          "Name": "点位4",
-          "PositionMm": 40.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P4 · 点位4"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 5,
-          "Name": "点位5",
-          "PositionMm": 50.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P5 · 点位5"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 6,
-          "Name": "点位6",
-          "PositionMm": 60.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P6 · 点位6"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 7,
-          "Name": "点位7",
-          "PositionMm": 70.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P7 · 点位7"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 8,
-          "Name": "点位8",
-          "PositionMm": 80.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P8 · 点位8"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 9,
-          "Name": "点位9",
-          "PositionMm": 90.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P9 · 点位9"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 10,
-          "Name": "点位10",
-          "PositionMm": 100.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P10 · 点位10"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 11,
-          "Name": "点位11",
-          "PositionMm": 110.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P11 · 点位11"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 12,
-          "Name": "点位12",
-          "PositionMm": 120.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P12 · 点位12"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 13,
-          "Name": "点位13",
-          "PositionMm": 130.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P13 · 点位13"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 14,
-          "Name": "点位14",
-          "PositionMm": 140.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P14 · 点位14"
-        },
-        {
-          "AxisLogical": "A0",
-          "Index": 15,
-          "Name": "点位15",
-          "PositionMm": 150.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P15 · 点位15"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 0,
-          "Name": "点位0",
-          "PositionMm": 22.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P0 · 点位0"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 1,
-          "Name": "点位1",
-          "PositionMm": 10.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P1 · 点位1"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 2,
-          "Name": "点位2",
-          "PositionMm": 220.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P2 · 点位2"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 3,
-          "Name": "点位3",
-          "PositionMm": 30.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P3 · 点位3"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 4,
-          "Name": "点位4",
-          "PositionMm": 40.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P4 · 点位4"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 5,
-          "Name": "点位5",
-          "PositionMm": 50.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P5 · 点位5"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 6,
-          "Name": "点位6",
-          "PositionMm": 60.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P6 · 点位6"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 7,
-          "Name": "点位7",
-          "PositionMm": 70.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P7 · 点位7"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 8,
-          "Name": "点位8",
-          "PositionMm": 80.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P8 · 点位8"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 9,
-          "Name": "点位9",
-          "PositionMm": 90.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P9 · 点位9"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 10,
-          "Name": "点位10",
-          "PositionMm": 100.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P10 · 点位10"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 11,
-          "Name": "点位11",
-          "PositionMm": 110.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P11 · 点位11"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 12,
-          "Name": "点位12",
-          "PositionMm": 120.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P12 · 点位12"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 13,
-          "Name": "点位13",
-          "PositionMm": 130.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P13 · 点位13"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 14,
-          "Name": "点位14",
-          "PositionMm": 140.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P14 · 点位14"
-        },
-        {
-          "AxisLogical": "A1",
-          "Index": 15,
-          "Name": "点位15",
-          "PositionMm": 150.0,
-          "SpeedMmPerS": 50.0,
-          "AccelMmPerS2": 500.0,
-          "Curve": 0,
-          "Caption": "P15 · 点位15"
-        }
-      ],
-      "Params": {
-        "DefaultVelocityMmPerS": 50.0,
-        "DefaultAccelMmPerS2": 500.0,
-        "PollIntervalMs": 10,
-        "CommandTimeoutMs": 30000,
-        "WatchdogTimeoutMs": 3000,
-        "AutoReconnect": true,
-        "MaxQueueDepth": 256
-      },
-      "Caption": "正运动运动控制卡"
-    },
-    {
-      "Id": "c35edebb-3a65-453a-aed4-ecc470829926",
-      "DriverTypeKey": "Plugin.Motion.ZMotion.ZMotionCard, Plugin.Motion.ZMotion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-      "DisplayName": "正运动运动控制卡",
-      "Address": "192.168.0.11",
-      "CardModel": "",
-      "AutoConnect": false,
-      "Remarks": "",
-      "Axes": [
-        {
-          "LogicalName": "A0",
-          "PhysicalIndex": 0,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A1",
-          "PhysicalIndex": 1,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A2",
-          "PhysicalIndex": 2,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        },
-        {
-          "LogicalName": "A3",
-          "PhysicalIndex": 3,
-          "Enabled": true,
-          "UnitsPerMm": 1000.0,
-          "SoftLimitMinMm": -1000000.0,
-          "SoftLimitMaxMm": 1000000.0,
-          "IsSoftLimitDisabled": true,
-          "AxisRemark": "",
-          "EncoderType": "",
-          "EncoderPpu": 0.0,
-          "MotorDriver": "",
-          "MotorRatedCurrentA": 0.0,
-          "FollowErrorUpperPulse": 0.0,
-          "FollowErrorLowerPulse": 0.0
-        }
-      ],
-      "Points": [],
-      "Params": {
-        "DefaultVelocityMmPerS": 50.0,
-        "DefaultAccelMmPerS2": 500.0,
-        "PollIntervalMs": 10,
-        "CommandTimeoutMs": 30000,
-        "WatchdogTimeoutMs": 3000,
-        "AutoReconnect": true,
-        "MaxQueueDepth": 256
-      },
-      "Caption": "正运动运动控制卡"
-    }
-  ],
-  "CamTables": [
-    {
-      "Id": "91cbfa8c-2623-4c10-ac19-f2aab71a7f03",
-      "Name": "凸轮表 1",
-      "MasterAxis": "",
-      "SlaveAxis": "",
-      "Points": [
-        {
-          "M": 0.0,
-          "S": 0.0,
-          "Interp": "直线"
-        },
-        {
-          "M": 25.0,
-          "S": 90.0,
-          "Interp": "三次曲线"
-        },
-        {
-          "M": 50.0,
-          "S": 180.0,
-          "Interp": "直线"
-        },
-        {
-          "M": 75.0,
-          "S": 270.0,
-          "Interp": "三次曲线"
-        },
-        {
-          "M": 100.0,
-          "S": 360.0,
-          "Interp": "直线"
-        }
-      ]
-    }
-  ],
+  "MotionCards": [],
+  "CamTables": [],
   "VariableSnapshots": [
     {
       "VarType": "Local",
       "Name": "RecipeName",
-      "VariableId": "5b9d8ff3-e50b-47e7-a253-ffe261be7b68",
+      "VariableId": "2c1bf70d-bba5-4145-ae78-b5866c73cf84",
       "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "当前加载的产品模型配方名称",
       "DefaultValue": "Product_Type_A",
@@ -1207,7 +148,7 @@
     {
       "VarType": "Local",
       "Name": "ProductCode",
-      "VariableId": "fbfb00a6-c2ff-4c24-8a17-6eb310bcd0a6",
+      "VariableId": "b37eebc0-ca5f-4281-b10e-d1cd2b4147a7",
       "DataTypeString": "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "当前识别到的条码或二维码信息",
       "DefaultValue": "QR202310240001",
@@ -1220,7 +161,7 @@
     {
       "VarType": "Local",
       "Name": "TotalCount",
-      "VariableId": "17bffd07-1ab7-49fe-9b51-b086522a4bcd",
+      "VariableId": "81a7fde4-0955-4312-8d32-c977934d78a9",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "设备运行以来的累计生产总数",
       "DefaultValue": 1500,
@@ -1233,7 +174,7 @@
     {
       "VarType": "Local",
       "Name": "OKCount",
-      "VariableId": "b2b32ed5-5729-419f-bf27-f31b50bca7e2",
+      "VariableId": "4aab927d-67db-425a-94a8-490d54a12341",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "累计检测良品总数",
       "DefaultValue": 1485,
@@ -1246,7 +187,7 @@
     {
       "VarType": "Local",
       "Name": "NGCount",
-      "VariableId": "4fc441d2-1986-4814-ab17-ee90e2c7eb6c",
+      "VariableId": "b647c30d-bf42-42ec-af19-698e4880b0f8",
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "累计检测不良品总数",
       "DefaultValue": 15,
@@ -1259,7 +200,7 @@
     {
       "VarType": "Local",
       "Name": "ScoreThreshold",
-      "VariableId": "b60d1822-6747-4263-ac0f-9186575e4125",
+      "VariableId": "d7c296fe-8436-4966-9c3d-e9b62d8432ef",
       "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "模板匹配的最小及格分数 (0-100)",
       "DefaultValue": 85.5,
@@ -1272,11 +213,11 @@
     {
       "VarType": "Local",
       "Name": "Exposure_Time",
-      "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
+      "VariableId": "bda97ff7-abcb-4f07-b488-9052139aebb2",
       "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "主相机的曝光时间 (ms)",
       "DefaultValue": 25.0,
-      "Value": 43.0,
+      "Value": 25.0,
       "Offset": "0",
       "BitOffset": -1,
       "DbNumber": 1,
@@ -1285,7 +226,7 @@
     {
       "VarType": "Local",
       "Name": "YieldRate",
-      "VariableId": "cb143be5-5f61-4862-a883-65cf2afe0579",
+      "VariableId": "074b1548-5833-4e0b-b96f-165b734ee4c0",
       "DataTypeString": "System.Double, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "当前的实时良率 (%)",
       "DefaultValue": 99.0,
@@ -1298,7 +239,7 @@
     {
       "VarType": "Local",
       "Name": "PLC_Ready",
-      "VariableId": "659d0fe1-2133-4ed4-a556-c11d86117669",
+      "VariableId": "e9c0da2f-18a9-47a3-8378-fb211278d8fd",
       "DataTypeString": "System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "外部PLC通讯握手信号",
       "DefaultValue": true,
@@ -1311,7 +252,7 @@
     {
       "VarType": "Local",
       "Name": "BarcodeResults",
-      "VariableId": "1c5deffe-3672-4977-85aa-538ff176a190",
+      "VariableId": "441da189-2f6e-462a-9c69-db66f4d43d32",
       "DataTypeString": "System.String[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "单次触发读取到的所有条码集合",
       "DefaultValue": {
@@ -1338,7 +279,7 @@
     {
       "VarType": "Local",
       "Name": "HoleCoordinatesX",
-      "VariableId": "c90136f1-1a66-4827-827c-d27096f4250d",
+      "VariableId": "fd39d4bb-7c79-4540-b9e8-8bb0547198db",
       "DataTypeString": "System.Double[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "所有定位孔的 X 坐标集合 (mm)",
       "DefaultValue": {
@@ -1367,7 +308,7 @@
     {
       "VarType": "Local",
       "Name": "CameraROI",
-      "VariableId": "d935577b-d176-41d7-a4d0-151736320dda",
+      "VariableId": "256fa426-685c-4973-94da-361d71313bfd",
       "DataTypeString": "System.Int32[], System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "相机的动态检测区域 [X, Y, Width, Height]",
       "DefaultValue": {
@@ -1392,366 +333,14 @@
       "BitOffset": -1,
       "DbNumber": 1,
       "ScanGroup": ""
-    },
-    {
-      "VarType": "Network",
-      "Name": "Data1",
-      "VariableId": "34d597e9-5165-4bed-94dd-dd5e1020d32f",
-      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
-      "Description": "",
-      "ConnectionName": "PLC1",
-      "Protocol": "ModbusTcp",
-      "Area": "HoldingRegisters",
-      "Offset": "1",
-      "BitOffset": -1,
-      "DataValueType": "Int32",
-      "DbNumber": 1,
-      "ScanGroup": ""
-    },
-    {
-      "VarType": "Network",
-      "Name": "Data2",
-      "VariableId": "4d1099a9-4b2b-4a02-8f70-fb4d93ea3841",
-      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
-      "Description": "",
-      "ConnectionName": "PLC1",
-      "Protocol": "ModbusTcp",
-      "Area": "HoldingRegisters",
-      "Offset": "23",
-      "BitOffset": -1,
-      "DataValueType": "Int32",
-      "DbNumber": 1,
-      "ScanGroup": ""
-    },
-    {
-      "VarType": "Network",
-      "Name": "Data3",
-      "VariableId": "a6e4b802-a4f6-43c1-9b97-885eb7f7ad3a",
-      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
-      "Description": "",
-      "ConnectionName": "PLC1",
-      "Protocol": "ModbusTcp",
-      "Area": "HoldingRegisters",
-      "Offset": "12",
-      "BitOffset": -1,
-      "DataValueType": "Int32",
-      "DbNumber": 1,
-      "ScanGroup": ""
-    },
-    {
-      "VarType": "Network",
-      "Name": "Test",
-      "VariableId": "ac591409-f3f9-4707-b21c-49d31bbcd31d",
-      "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
-      "Description": "1",
-      "Value": 0,
-      "ConnectionName": "Conn_014013",
-      "Protocol": "ModbusTcp",
-      "Area": "HoldingRegisters",
-      "Offset": "0",
-      "BitOffset": -1,
-      "DataValueType": "Int32",
-      "DbNumber": 1,
-      "ScanGroup": ""
     }
   ],
   "WatchItems": [],
   "Scada": {
     "SchemaVersion": 1,
-    "Pages": [
-      {
-        "PageId": "80444b77-7455-4e53-b08e-ea3199948a00",
-        "Name": "画面_1",
-        "Description": "",
-        "Width": 1920.0,
-        "Height": 1080.0,
-        "Background": "#FFADB5BD",
-        "ShowGrid": true,
-        "GridSize": 10.0,
-        "SnapToGrid": true,
-        "Elements": [
-          {
-            "ElementId": "1bad11ec-ab96-4df7-818d-537ae9382672",
-            "Name": "椭圆",
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Ellipse",
-            "X": 580.0,
-            "Y": 310.0,
-            "Width": 100.0,
-            "Height": 100.0,
-            "Rotation": 0.0,
-            "ZIndex": 1,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [],
-            "EventHooks": [],
-            "Animations": []
-          },
-          {
-            "ElementId": "2869c96a-48d3-42f6-be0a-667d8d5d3a68",
-            "Name": "文本",
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Text",
-            "X": 570.0,
-            "Y": 550.0,
-            "Width": 120.0,
-            "Height": 24.0,
-            "Rotation": 0.0,
-            "ZIndex": 2,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [],
-            "EventHooks": [],
-            "Animations": []
-          },
-          {
-            "ElementId": "b48d5efb-2ee2-4e4a-a325-532ec2a4f9ce",
-            "Name": "按钮",
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Button",
-            "X": 180.0,
-            "Y": 110.0,
-            "Width": 88.0,
-            "Height": 32.0,
-            "Rotation": 0.0,
-            "ZIndex": 3,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [],
-            "EventHooks": [
-              {
-                "Event": 2,
-                "Actions": [
-                  {
-                    "Type": 2,
-                    "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
-                    "VariableName": "Exposure_Time",
-                    "HasVariable": true,
-                    "Value": "43",
-                    "TargetPageId": "00000000-0000-0000-0000-000000000000",
-                    "HasTargetPage": false,
-                    "Detail": "Exposure_Time := 43"
-                  }
-                ]
-              }
-            ],
-            "Animations": []
-          },
-          {
-            "ElementId": "e6104b63-cdab-4d14-a42a-2b13e897a396",
-            "Name": "矩形",
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Rectangle",
-            "X": 190.0,
-            "Y": 290.0,
-            "Width": 120.0,
-            "Height": 60.0,
-            "Rotation": 0.0,
-            "ZIndex": 4,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [],
-            "EventHooks": [],
-            "Animations": []
-          },
-          {
-            "ElementId": "f33c4f98-8ea2-429b-8e5a-1116056690cd",
-            "Name": "按钮_2",
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Button",
-            "X": 590.0,
-            "Y": 470.0,
-            "Width": 88.0,
-            "Height": 32.0,
-            "Rotation": 0.0,
-            "ZIndex": 5,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [],
-            "EventHooks": [
-              {
-                "Event": 2,
-                "Actions": [
-                  {
-                    "Type": 1,
-                    "VariableId": "00000000-0000-0000-0000-000000000000",
-                    "HasVariable": false,
-                    "TargetPageId": "00000000-0000-0000-0000-000000000000",
-                    "HasTargetPage": false,
-                    "Detail": ""
-                  }
-                ]
-              }
-            ],
-            "Animations": []
-          },
-          {
-            "ElementId": "c06812e3-1b56-4b96-bbf7-0c689c77c220",
-            "Name": "数值域",
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.IOField",
-            "X": 160.0,
-            "Y": 430.0,
-            "Width": 140.0,
-            "Height": 28.0,
-            "Rotation": 0.0,
-            "ZIndex": 6,
-            "IsLocked": false,
-            "Properties": {
-              "Mode": "InputOutput"
-            },
-            "Bindings": [
-              {
-                "TargetProperty": "Value",
-                "VariableId": "ac591409-f3f9-4707-b21c-49d31bbcd31d",
-                "VariableName": "Test",
-                "IsEnabled": true,
-                "IsLegacyByName": false
-              }
-            ],
-            "EventHooks": [],
-            "Animations": []
-          },
-          {
-            "ElementId": "fcad2ac2-e6df-45ae-a10c-ab403df85330",
-            "Name": "表盘",
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Gauge",
-            "X": 20.0,
-            "Y": 150.0,
-            "Width": 140.0,
-            "Height": 140.0,
-            "Rotation": 0.0,
-            "ZIndex": 7,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [
-              {
-                "TargetProperty": "Value",
-                "VariableId": "e4fb4ade-9cb8-4b2d-93f5-646fedce7b12",
-                "VariableName": "Exposure_Time",
-                "IsEnabled": true,
-                "IsLegacyByName": false
-              }
-            ],
-            "EventHooks": [],
-            "Animations": []
-          }
-        ],
-        "Layers": [
-          {
-            "LayerId": "37aec5ba-01ae-4373-8e7a-07742288537f",
-            "Name": "图层_1",
-            "IsVisible": true,
-            "IsLocked": false
-          }
-        ],
-        "EventHooks": [
-          {
-            "Event": 0,
-            "Actions": [
-              {
-                "Type": 1,
-                "VariableId": "00000000-0000-0000-0000-000000000000",
-                "HasVariable": false,
-                "TargetPageId": "00000000-0000-0000-0000-000000000000",
-                "HasTargetPage": false,
-                "Detail": ""
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "PageId": "58d568be-a59e-4924-95d5-fad4b11e1812",
-        "Name": "画面_2",
-        "Description": "",
-        "Width": 1920.0,
-        "Height": 1080.0,
-        "Background": "#FF1E1E1E",
-        "ShowGrid": true,
-        "GridSize": 10.0,
-        "SnapToGrid": true,
-        "Elements": [
-          {
-            "ElementId": "4544dd29-918b-46c9-a864-699348ced2ab",
-            "Name": "指示灯",
-            "LayerId": "f64041f5-7d8e-4103-bb7d-9d97422cf7d7",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Indicator",
-            "X": 130.0,
-            "Y": 50.0,
-            "Width": 40.0,
-            "Height": 56.0,
-            "Rotation": 0.0,
-            "ZIndex": 1,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [],
-            "EventHooks": [],
-            "Animations": []
-          },
-          {
-            "ElementId": "cfcdfd55-67d4-4895-8526-6a7b3633cac8",
-            "Name": "指示灯_2",
-            "LayerId": "f64041f5-7d8e-4103-bb7d-9d97422cf7d7",
-            "GroupId": "00000000-0000-0000-0000-000000000000",
-            "TypeKey": "Hmi.Indicator",
-            "X": 240.0,
-            "Y": 40.0,
-            "Width": 40.0,
-            "Height": 56.0,
-            "Rotation": 0.0,
-            "ZIndex": 2,
-            "IsLocked": false,
-            "Properties": {},
-            "Bindings": [],
-            "EventHooks": [],
-            "Animations": []
-          }
-        ],
-        "Layers": [
-          {
-            "LayerId": "f64041f5-7d8e-4103-bb7d-9d97422cf7d7",
-            "Name": "图层_1",
-            "IsVisible": true,
-            "IsLocked": false
-          }
-        ],
-        "EventHooks": []
-      }
-    ],
+    "Pages": [],
     "Alarms": [],
-    "VariableEvents": [
-      {
-        "VariableId": "ac591409-f3f9-4707-b21c-49d31bbcd31d",
-        "VariableName": "Test",
-        "IsEnabled": true,
-        "EventHooks": [
-          {
-            "Event": 4,
-            "Actions": [
-              {
-                "Type": 1,
-                "Text": "数值变化",
-                "VariableId": "00000000-0000-0000-0000-000000000000",
-                "HasVariable": false,
-                "TargetPageId": "00000000-0000-0000-0000-000000000000",
-                "HasTargetPage": false,
-                "Detail": "数值变化"
-              }
-            ]
-          }
-        ]
-      }
-    ],
+    "VariableEvents": [],
     "StartupPageId": "00000000-0000-0000-0000-000000000000"
   }
 }

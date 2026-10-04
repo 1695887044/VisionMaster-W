@@ -418,9 +418,11 @@ namespace Plugin.CreateRoi
             _runtimeMaskedImg = visual;
 
             // 发布主界面：0 = 不显示（此前选"不显示"仍会发布到窗口1）；发布合并掩膜合成图，
-            // 一帧看清全部 ROI 与涂擦修正——此前逐 ROI 发到同一窗口互相覆盖，只能看到最后一个
+            // 一帧看清全部 ROI 与涂擦修正——此前逐 ROI 发到同一窗口互相覆盖，只能看到最后一个。
+            // 窗口号必须直传：DisplayViewIndex 本身就是 1~9 的窗口号，事件消费端按"ViewIndex == 窗口号"
+            // 等值筛选。此前照抄了扩展方法里的过期示例写成 +1，选"窗口1"会投进第 2 格、选"窗口9"则哪格都不显示
             if (DisplayViewIndex > 0 && visual != null && visual.IsInitialized())
-                this.PublishPreview(visual, DisplayViewIndex + 1);
+                this.PublishPreview(visual, DisplayViewIndex);
 
             // 逐 ROI 裁剪：Crop_{ROI名} 动态端口；单个失败不阻断整体，但必须留痕供现场追查
             var written = new HashSet<string>(StringComparer.Ordinal);

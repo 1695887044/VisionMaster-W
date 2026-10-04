@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
@@ -10,7 +10,7 @@ namespace VisionMaster.Communications
     [Serializable]
     public class CommunicationConfig : BindableBase
     {
-        [SuperDisplay(Name = "连接名称", GroupPath = "1. 基本设置", Order = 1, ColSpan = 12)]
+        [SuperDisplay(Name = "连接名称", Group = new string[] { "1. 基本设置" }, Order = 1, ColSpan = 12)]
         [Required(ErrorMessage = "名称不能为空")]
         public string ConnectionName
         {
@@ -20,7 +20,7 @@ namespace VisionMaster.Communications
 
         [SuperDisplay(
             Name = "协议类型",
-            GroupPath = "1. 基本设置",
+            Group = new string[] { "1. 基本设置" },
             Order = 2,
             ColSpan = 12,
             RequireRefresh = true
@@ -53,7 +53,7 @@ namespace VisionMaster.Communications
             if (TryCreateConfig(communication, out var config))
                 Config = config;
         }
-        [SuperDisplay(Name = "底层链路参数", GroupPath = "2. 链路配置", Order = 1, ColSpan = 12)]
+        [SuperDisplay(Name = "底层链路参数", Group = new string[] { "2. 链路配置" }, Order = 1, ColSpan = 12)]
         [PropertyItem(Type = typeof(System.Windows.Controls.Control))] // 告诉框架这是一个嵌套对象，向下解析
         public ConnectionConfigBase Config
         {
@@ -66,7 +66,7 @@ namespace VisionMaster.Communications
         /// <para>默认组永远存在、不可删除改名；未指定扫描组（或指向已删除的组）的变量一律进默认组。
         /// 故本字段是"默认组周期"的唯一真相源，组表里不重复存一份（见 <see cref="ScanGroups"/>）。</para>
         /// </summary>
-        [SuperDisplay(Name = "默认组周期(ms)", GroupPath = "3. 运行调度", Order = 1, ColSpan = 6)]
+        [SuperDisplay(Name = "默认组周期(ms)", Group = new string[] { "3. 运行调度" }, Order = 1, ColSpan = 6)]
         public int ReadCycleMs { get; set; } = 1000;
 
         /// <summary>
@@ -80,16 +80,16 @@ namespace VisionMaster.Communications
         /// <summary>自定义扫描组数量上限（不含默认组）。每多一组，组内变量变稀疏、段合并率略降，8 组是经验平衡点</summary>
         public const int MaxScanGroups = 8;
 
-        [SuperDisplay(Name = "开机自启", GroupPath = "3. 运行调度", Order = 2, ColSpan = 6)]
+        [SuperDisplay(Name = "开机自启", Group = new string[] { "3. 运行调度" }, Order = 2, ColSpan = 6)]
         public bool AutoStart { get; set; } = true;
 
-        [SuperDisplay(Name = "自动重连", GroupPath = "3. 运行调度", Order = 3, ColSpan = 6)]
+        [SuperDisplay(Name = "自动重连", Group = new string[] { "3. 运行调度" }, Order = 3, ColSpan = 6)]
         public bool AutoReconnect { get; set; } = true;
 
-        [SuperDisplay(Name = "启用该连接", GroupPath = "3. 运行调度", Order = 4, ColSpan = 6)]
+        [SuperDisplay(Name = "启用该连接", Group = new string[] { "3. 运行调度" }, Order = 4, ColSpan = 6)]
         public bool IsEnabled { get; set; } = true;
 
-        [SuperDisplay(Name = "备注说明", GroupPath = "1. 基本设置", Order = 3, ColSpan = 12)]
+        [SuperDisplay(Name = "备注说明", Group = new string[] { "1. 基本设置" }, Order = 3, ColSpan = 12)]
         public string Description { get; set; } = string.Empty;
 
         [JsonIgnore]
@@ -333,3 +333,4 @@ namespace VisionMaster.Communications
         public static string ImplementedText => string.Join(" / ", Implemented);
     }
 }
+

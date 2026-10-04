@@ -18,6 +18,9 @@ namespace UI.CustomControl.PropertyGrid
         // 优先级设为 10，高于普通的 TypeGenerator，确保优先拦截
         public int Priority => 10;
 
+        /// <summary>宿主网格，用于继承其布局形态（卡片/扁平）。由 PropertyGridBase 构造时注入。</summary>
+        public PropertyGridBase? Owner { get; set; }
+
         public bool CanProcess(PropertyInfo prop, Type targetType, bool isReadOnly)
         {
             var att = prop.GetCustomAttribute<PropertyItemAttribute>();
@@ -37,15 +40,16 @@ namespace UI.CustomControl.PropertyGrid
                 };
             }
 
-            // 🌟 核心魔法：直接“套娃”创建一个子属性编辑器！
-            // 这里我们用 FlatPropertyGrid 来无缝嵌入（去掉边框和外部边距，让它看起来像一体的）
-            var childGrid = new FlatPropertyGrid
-            {
-                BindingObject = bindingSource,
-                Background = System.Windows.Media.Brushes.Transparent, // 融入父级背景
-                BorderThickness = new Thickness(0),                   // 扒掉边框
-                Padding = new Thickness(0)                             // 去掉内边距
-            };
+            // 🌟 核心魔法：直接"套娃"创建一个子属性编辑器！
+            // 跟随父级布局形态（卡片式也用卡片式，保证视觉一致），并扒掉边框/边距融入父级。
+            PropertyGridBase childGrid = Owner is { IsCardLayout: true }
+                ? new CardPropertyGrid()
+                : new FlatPropertyGrid();
+
+            childGrid.BindingObject = bindingSource;
+            childGrid.Background = System.Windows.Media.Brushes.Transparent; // 融入父级背景
+            childGrid.BorderThickness = new Thickness(0);                    // 扒掉边框
+            childGrid.Padding = new Thickness(0);                            // 去掉内边距
 
             return childGrid;
         }

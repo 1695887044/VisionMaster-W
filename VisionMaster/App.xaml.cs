@@ -77,6 +77,11 @@ namespace VisionMaster
             foreach (var module in _modules)
                 module.Initialize(Container, _lifetime); // 模块注册自检项/退出任务，须在自检前完成
 
+            // 图像集采集服务：在这里强制构造一次，让它的订阅（FlowRunCompleted / 实时预览）
+            // 先于任何一次流程运行挂上。否则"第一次运行没进图集、第二次才有"这种时序 bug
+            // 会一直等到有人点开图像页时才消失，很难查。
+            Container.Resolve<ImageCollectionService>();
+
             // ===== 启动自检链（按执行顺序注册）=====
             _singleInstance = new SingleInstanceCheck();
             _lifetime.RegisterCheck(_singleInstance);
@@ -149,6 +154,8 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<SolutionDraftService>();
             containerRegistry.RegisterSingleton<WorkspaceContext>();
             containerRegistry.RegisterSingleton<NetworkVariableBridge>();
+            // 图像集：把流程输出的图像按流程收成一个集合，供视觉图像页"图集模式"显示
+            containerRegistry.RegisterSingleton<ImageCollectionService>();
             containerRegistry.Register<IReadOnlyWorkspaceContext>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.Register<IWorkspaceManager>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.RegisterForNavigation<LogView,LogViewModel>();

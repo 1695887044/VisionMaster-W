@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:att="clr-namespace:UI.AttachedProperties" xmlns:ui="clr-namespace:UI.CustomControl">
+  <ResourceDictionary.MergedDictionaries>
+    <!--  依赖就地合并：本文件的样式 Setter 内含跨字典 StaticResource 引用，
+         若只依赖父级 Generic 的合并顺序，父级在加载完本字典后又被失效（如后合并
+         Fluent 主题包、App 资源写入），跨兄弟字典的引用会重新解析失败并被烘焙成
+
+         UnsetValue，模板应用时抛 "{DependencyProperty.UnsetValue} 不是 Foreground 的有效值"。
+         自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
+    <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+  <Style x:Key="DialogCardBorder" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+  </Style>
+  <Style x:Key="DialogCardShadow" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Effect">
+      <Setter.Value>
+        <DropShadowEffect BlurRadius="18" Direction="270" Opacity="0.10" ShadowDepth="3" Color="{StaticResource DialogShadowColor}" />
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="DialogCardHeader" TargetType="Border">
+    <Setter Property="Height" Value="52" />
+    <Setter Property="Padding" Value="16,0" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+  <Style x:Key="DialogCardTitleIcon" TargetType="TextBlock">
+    <Setter Property="Margin" Value="0,0,8,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+  </Style>
+  <Style x:Key="DialogInfoPanel" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="14,12" />
+  </Style>
+  <Style x:Key="DialogSegmentHost" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="3" />
+  </Style>
+  <Style x:Key="DialogColumnCard" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+  <Style x:Key="DialogColumnHeader" TargetType="Border">
+    <Setter Property="Height" Value="42" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="CornerRadius" Value="9,9,0,0" />
+  </Style>
+  <Style x:Key="DialogColumnHeaderAccent" BasedOn="{StaticResource DialogColumnHeader}" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+  </Style>
+  <Style x:Key="DialogColumnTitle" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+  </Style>
+  <Style x:Key="DialogColumnTitleIcon" TargetType="TextBlock">
+    <Setter Property="Margin" Value="0,0,6,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+  </Style>
+  <Style x:Key="DialogFooter" TargetType="Border">
+    <Setter Property="Height" Value="64" />
+    <Setter Property="Padding" Value="20,0" />
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="CornerRadius" Value="0,0,10,10" />
+  </Style>
+  <Style x:Key="DialogSectionHeader" TargetType="Border">
+    <Setter Property="Height" Value="36" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+</ResourceDictionary>

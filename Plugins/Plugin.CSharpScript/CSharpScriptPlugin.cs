@@ -49,6 +49,7 @@ namespace Plugin.CSharpScript
 //   Context.SetVar(""temp"", 3.14);                  // 写运行期变量（下游可读）
 //   double v = Context.GetVar<double>(""temp"");     // 读运行期变量
 //   Context.Info(""完成""); Context.ShowImage(img, 1);
+//   Context.ShowImage(img, 1, ""缺陷检测结果"", (""缺陷数"", 51), (""判定"", ""NG""));  // 带说明推图
 //   Context.Fail(""参数越界"");                        // 主动让本步骤失败
 
 Context.Info(""C# 脚本开始执行"");
@@ -336,6 +337,13 @@ Context.SetOutput(""Result"", ""ok"");
                     // 标注为空时退化成普通显示，避免给画面挂一个空的渲染层
                     if (img != null && img.IsInitialized())
                         this.PublishPreview(img, view, marks);
+                },
+                showRich: (img, view, title, marks, info) =>
+                {
+                    // 带标题 + 键值信息的推送：画布的图片列表按这些信息显示这张图
+                    // （标题 / 键值行 / 来源），脚本作者不必再把结果只写进日志
+                    if (img != null && img.IsInitialized())
+                        this.PublishPreview(img, view, title, info, marks);
                 })
             {
                 Host = InstanceName

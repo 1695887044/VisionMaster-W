@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using UI.Attributes;
 
 namespace VisionMaster.Communications
@@ -14,7 +14,7 @@ namespace VisionMaster.Communications
         /// <para>格式：COM1, COM2, ...</para>
         /// <para>默认值：COM1</para>
         /// </summary>
-        [SuperDisplay(Name = "串口号", GroupPath = "串口参数", Order = 1, ColSpan = 6)]
+        [SuperDisplay(Name = "串口号", Group = new string[] { "串口参数" }, Order = 1, ColSpan = 6)]
         [Icon(IconCode = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z")]
         [Required(ErrorMessage = "串口号不能为空")]
         [RegexValidation(@"^COM\d+$", "格式必须如 COM1, COM2")]
@@ -25,28 +25,28 @@ namespace VisionMaster.Communications
         /// <para>常用值：2400, 4800, 9600, 19200, 38400, 57600, 115200</para>
         /// <para>默认值：9600</para>
         /// </summary>
-        [SuperDisplay(Name = "波特率", GroupPath = "串口参数", Order = 2, ColSpan = 6)]
+        [SuperDisplay(Name = "波特率", Group = new string[] { "串口参数" }, Order = 2, ColSpan = 6)]
         public int BaudRate { get; set; } = 9600;
 
         /// <summary>
         /// <para>获取或设置数据位。</para>
         /// <para>默认值：8</para>
         /// </summary>
-        [SuperDisplay(Name = "数据位", GroupPath = "串口参数", Order = 3, ColSpan = 4)]
+        [SuperDisplay(Name = "数据位", Group = new string[] { "串口参数" }, Order = 3, ColSpan = 4)]
         public int DataBits { get; set; } = 8;
 
         /// <summary>
         /// <para>获取或设置校验位。</para>
         /// <para>默认值：None</para>
         /// </summary>
-        [SuperDisplay(Name = "校验位", GroupPath = "串口参数", Order = 4, ColSpan = 4)]
+        [SuperDisplay(Name = "校验位", Group = new string[] { "串口参数" }, Order = 4, ColSpan = 4)]
         public ParityMode Parity { get; set; } = ParityMode.None;
 
         /// <summary>
         /// <para>获取或设置停止位。</para>
         /// <para>默认值：One</para>
         /// </summary>
-        [SuperDisplay(Name = "停止位", GroupPath = "串口参数", Order = 5, ColSpan = 4)]
+        [SuperDisplay(Name = "停止位", Group = new string[] { "串口参数" }, Order = 5, ColSpan = 4)]
         public StopBitsMode StopBits { get; set; } = StopBitsMode.One;
 
         /// <summary>
@@ -56,7 +56,7 @@ namespace VisionMaster.Communications
         /// 保持它可让软件内可见的读数零变化，只把写侧（HSL 的 ModbusRtu 默认 CDAB）拉齐到同一字序。
         /// 16 位及以下 ABCD 与 CDAB 退化等价，故只有 32/64 位变量才受这个下拉影响。</para>
         /// </summary>
-        [SuperDisplay(Name = "字节排序", GroupPath = "串口参数", Order = 6, ColSpan = 6)]
+        [SuperDisplay(Name = "字节排序", Group = new string[] { "串口参数" }, Order = 6, ColSpan = 6)]
         public ByteOrderFormat ByteOrder { get; set; } = ByteOrderFormat.ABCD;
 
         /// <summary>
@@ -89,3 +89,4 @@ namespace VisionMaster.Communications
         };
     }
 }
+
