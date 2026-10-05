@@ -461,7 +461,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="像素当量(mm/px)" ToolTip="物理值 = 像素测量值 × 像素当量。默认 1.0 = 直接输出像素值（未标定）；将来有标定模块可改为连线取值" />
+                            <TextBlock Style="{StaticResource PluginFieldLabel}" Text="像素当量(mm/px)" ToolTip="物理值 = 像素测量值 × 像素当量。默认 1.0 = 直接输出像素值（未标定）。已连「标定」插件时以标定值为准（见下方说明）" />
                             <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
                                 <TextBox.Text>
                                     <Binding Path="PixelSizeMm" UpdateSourceTrigger="PropertyChanged">
@@ -472,6 +472,11 @@
                                 </TextBox.Text>
                             </TextBox>
                         </Grid>
+
+                        <TextBlock
+                            Margin="{StaticResource PluginFieldRowMargin}"
+                            Style="{StaticResource PluginHintText}"
+                            Text="接线取值：把「标定」插件的 MmPerPixel 输出连到本步骤的输入端口「MmPerPixel」，运行时自动以标定当量为准（本框数值作为未接线时的兜底；上游标定失败会直接判失败，不会拿旧值硬算）。" />
 
                         <TextBlock
                             Margin="{StaticResource PluginFieldRowMargin}"

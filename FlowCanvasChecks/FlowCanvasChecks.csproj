@@ -30,6 +30,13 @@
     <ProjectReference Include="..\Plugins\Plugin.BlobDetect\Plugin.BlobDetect.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.Matching\Plugin.Matching.csproj" />
     <!--
+      胶路检测：直接引用（不走 Modules\ 反射加载）。
+      断言方案说明书 §7.2 本批子集（1~9、13、14、15）：路径生成 / bead 模型 / 7 图真值表（P4）
+      / NG 语义 / 单位换算 / 端口面 / 模型缓存（计数器）/ 树直径合并（P6）/ TargetWidth 下限（P10）
+      / 提取路径贴合度（P11）。真样图在 Image\bead\。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj" />
+    <!--
       创建ROI：直接引用插件工程（同上，不走 Modules\ 反射加载），
       断言三形状区域构建 / 掩膜 / 涂擦合并 / 动态端口与重名防御 / 运行端到端契约。
     -->
@@ -67,6 +74,13 @@
       引用它也让构建顺带把 Plugin.Calibration.dll 刷新到 Modules。
     -->
     <ProjectReference Include="..\Plugins\Plugin.Calibration\Plugin.Calibration.csproj" />
+    <!--
+      卡尺测量：直接引用（不走 Modules\ 反射加载）。
+      断言"像素当量直连"：MmPerPixel 输入端口三态（未接=手填 / 已接=以连线为准 / 失效=明确失败）
+      + 真实链路（合成标定 → 真标定插件 → 真连到卡尺 → 真测合成亮带宽度）。
+      引用它也让构建顺带把 Plugin.CaliperMeasure.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.CaliperMeasure\Plugin.CaliperMeasure.csproj" />
     <!--
       坐标变换：直接引用（不走 Modules\ 反射加载）。
       断言两层——纯托管数学（PoseTransformMath：正反变换/角度映射/三类失配，手算常量钉方向）

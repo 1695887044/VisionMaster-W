@@ -11143,11 +11143,19 @@ namespace ScadaChecks
 
             // ---------------- ③ 值变化 → 图元属性变化 ----------------
 
+            // 读取计数基线：tempVar 挂着两条绑定（textEl / textEl2），一次变化只许读一次值。
+            // 图像变量的每次读取都是一次全尺寸转换（2~30MB 分配），逐目标读会按绑定数翻倍——
+            // 下面那条 == 1 就是它不复发的护栏。
+            var readsBefore = tempVar.ValueReads;
+
             tempVar.Raise(88.888);
             binder.FlushNow();
             Check("变量变值 → 图元属性跟着变（同一个变量的两条绑定一起刷新）",
                 ControlOf(textEl).Text == "88.89" && ControlOf(textEl2).Text == "88.888",
                 $"「{ControlOf(textEl).Text}」/「{ControlOf(textEl2).Text}」");
+            Check("一次变化只读一次值：两条绑定共享同一次读取（修前逐目标读 = 2 次全尺寸转换）",
+                tempVar.ValueReads - readsBefore == 1,
+                $"读取 {tempVar.ValueReads - readsBefore} 次 / 两条绑定");
 
             runVar.Raise(1);
             binder.FlushNow();
@@ -11316,16 +11324,31 @@ namespace ScadaChecks
         /// 假的变量句柄：值由断言手动 <see cref="Raise"/> 推进（真机上这一步在后台轮询线程上）。
         /// 订阅者计数是"退订干不干净"的唯一证据——退不掉时它不会报错，只会在跑了几百个画面后
         /// 让内存悄悄涨上去。
+        /// 读取计数（<see cref="ValueReads"/>）是"一次变化只读一次值"的证据——图像变量的每次
+        /// 读取都是一次全尺寸转换，逐目标读 N 遍就是 N 次转换，靠这个计数钉住。
         /// </summary>
         private sealed class FakeValueHandle : IScadaValueHandle
         {
+            private object? _value;
+
             public Guid VariableId { get; init; }
 
             public string Name { get; init; } = string.Empty;
 
             public Type DataType { get; init; } = typeof(object);
 
-            public object? Value { get; set; }
+            /// <summary>值被读取的次数（"一次变化只读一次值"的回归证据，见运行态数据泵断言）</summary>
+            public int ValueReads { get; private set; }
+
+            public object? Value
+            {
+                get
+                {
+                    ValueReads++;
+                    return _value;
+                }
+                set => _value = value;
+            }
 
             /// <summary>写入失败时回的原因（null = 允许写）。用来演"设备侧写不进"那一档。</summary>
             public string? WriteError { get; init; }

@@ -156,6 +156,9 @@ namespace UIThemeSmokeTest
                 if (args.Contains("--controls"))
                     return RunFluentControlChecks();
 
+                if (args.Contains("--calibration"))
+                    return RunCalibrationViewSmoke();
+
                 // 控件级检查：开关动画不得污染应用级共享画刷。
                 //
                 // 为什么值得单独测：开关模板里的 ColorAnimation 目标是 Background/Fill 的 Color，
@@ -239,6 +242,7 @@ namespace UIThemeSmokeTest
                     else
                     {
                         var offenders = new List<string>();
+                        var inlineHStyles = new List<string>();
                         int scanned = 0;
                         foreach (var file in Directory.GetFiles(repoRoot, "*.xaml", SearchOption.AllDirectories))
                         {
@@ -255,12 +259,24 @@ namespace UIThemeSmokeTest
                             foreach (Match mt in Regex.Matches(text,
                                 @"Property\s*=\s*""(?<p>Foreground|Background|BorderBrush|Fill|Stroke)""[^>]*?Value\s*=\s*""\{StaticResource\s+(?<k>[A-Za-z0-9_]*Color)\}"""))
                                 offenders.Add($"{name}: Setter {mt.Groups["p"].Value}={mt.Groups["k"].Value}");
+
+                            // 内联 <h:*.Style> 会把 Core.Halcon 合并字典里的**隐式样式**顶掉（ControlTemplate 就在那边）：
+                            // 控件没有模板 → 永远不渲染且不报错。2026-10-04 事故（BlobDetect 配置窗口预览区永远空白）
+                            // 就是这条没守住；可见性/触发器一律挂外层容器，别动控件自身的样式。
+                            foreach (Match mt in Regex.Matches(text, @"<h:[A-Za-z0-9_]+\.Style>"))
+                                inlineHStyles.Add($"{name}: {mt.Value}");
                         }
 
                         Check("XAML 里没有把 *Color 令牌用在 Brush 属性上", offenders.Count == 0,
                             offenders.Count == 0
                                 ? $"扫过 {scanned} 个 xaml"
                                 : string.Join(" | ", offenders.Take(5)));
+
+                        Check("XAML 不给 h: 控件挂内联 Style（顶掉隐式样式=控件没模板，界面会永远空白）",
+                            inlineHStyles.Count == 0,
+                            inlineHStyles.Count == 0
+                                ? $"扫过 {scanned} 个 xaml"
+                                : string.Join(" | ", inlineHStyles.Take(5)));
                     }
 
                     // ---- 重复异常日志限流：一次风暴只能留下"个位数行 + 一次自激提示" ----
@@ -1224,6 +1240,135 @@ namespace UIThemeSmokeTest
 
                 foreach (var sub in Descendants<T>(child)) yield return sub;
             }
+        }
+
+        /// <summary>
+        /// 标定配置视图冒烟（--calibration）：真实实例化 <see cref="Plugin.Calibration.CalibrationView"/> 并强制模板实例化，
+        /// 把"交付时人工走查"里**可自动化**的部分钉成回归：
+        /// · XAML 资源键/转换器/模板全部解析（缺键会在测量期抛"找不到资源"——正是最阴的一类）；
+        /// · 关键控件就位：画布 / 逐行「取点」「预填」/ 导入导出按钮 / 锁定开关 / 透视单选；
+        /// · 关键绑定生效：锁定 → 表格禁用；模式切换 → 表格显隐（像素当量隐藏，九点/透视共用显示）。
+        /// 纯 UI 手感（拖动、图上取点点击）仍建议交付时人工过一遍（见主文档 3.3/3.4）。
+        /// </summary>
+        private static int RunCalibrationViewSmoke()
+        {
+            int failures = 0;
+            void Check(string name, bool ok, string detail = "")
+            {
+                Console.WriteLine((ok ? "  [PASS] " : "  [FAIL] ") + name + (detail.Length > 0 ? $"  ({detail})" : ""));
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                var stepData = new StubStepConfigData();
+                var plugin = new Plugin.Calibration.CalibrationPlugin { InstanceName = "标定_冒烟" };
+                var view = new Plugin.Calibration.CalibrationView(stepData, plugin);
+                var host = new Border { Width = 900, Height = 600, Child = view };
+                host.Measure(new Size(900, 600));
+                host.Arrange(new Rect(0, 0, 900, 600));
+                host.UpdateLayout();
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                Check("配置视图可实例化并完成模板实例化（资源键/转换器/控件模板全部解析）", true);
+
+                int canvas = Descendants<Core.Halcon.Controls.ImageEdit>(view).Count();
+                Check("画布控件存在（ImageEdit 恰 1 个）", canvas == 1, $"count={canvas}");
+
+                var buttons = Descendants<System.Windows.Controls.Button>(view).ToList();
+                int pickButtons = buttons.Count(b => (b.Content as string) == "取点");
+                Check("逐行「取点」按钮 = 9（默认 3×3 表格）", pickButtons == 9, $"count={pickButtons}");
+                int prefillButtons = buttons.Count(b => (b.Content as string) == "预填");
+                Check("逐行「预填」按钮 = 9（上游定位点回填）", prefillButtons == 9, $"count={prefillButtons}");
+                bool hasExport = buttons.Any(b => (b.Content as string ?? "").Contains("导出"));
+                bool hasImport = buttons.Any(b => (b.Content as string ?? "").Contains("导入"));
+                Check("导入 / 导出按钮存在（多设备共享标定）", hasExport && hasImport, $"export={hasExport} import={hasImport}");
+
+                var lockBox = Descendants<System.Windows.Controls.CheckBox>(view).FirstOrDefault();
+                Check("锁定复选框存在（防误改）", lockBox != null);
+
+                bool hasPerspectiveRadio = Descendants<System.Windows.Controls.RadioButton>(view)
+                    .Any(r => (r.Content as string ?? "").Contains("透视"));
+                Check("存在「透视标定」模式单选", hasPerspectiveRadio);
+
+                System.Windows.Controls.ItemsControl FindTable()
+                    => Descendants<System.Windows.Controls.ItemsControl>(view)
+                        .FirstOrDefault(ic => ReferenceEquals(ic.ItemsSource, plugin.PointRows));
+                FrameworkElement FindTableHost()
+                {
+                    // 表格卡片的显隐：向上找到承载 ItemsControl 的 Border（Visibility 绑 ShowPointTable）
+                    var t = FindTable();
+                    if (t == null) return null;
+                    DependencyObject cur = t;
+                    while (cur != null && !(cur is Border)) cur = System.Windows.Media.VisualTreeHelper.GetParent(cur);
+                    return cur as FrameworkElement;
+                }
+
+                var table = FindTable();
+                Check("标定表就位（绑定 PointRows）", table != null);
+
+                // 锁定绑定：锁定 → 表格禁用（防误改的底线，在真视图上验证 IsEnabled 绑定）
+                plugin.IsCalibrationLocked = true;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Check("锁定后标定表被禁用（IsEnabled 绑定生效）", table != null && !table.IsEnabled,
+                    $"enabled={table?.IsEnabled}");
+                plugin.IsCalibrationLocked = false;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                // 模式切换：像素当量 → 表格隐藏；九点/透视 → 显示（九点与透视共用同一张表）
+                var tableHost = FindTableHost();
+                plugin.Mode = Plugin.Calibration.CalibrationMode.PixelScale;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                bool hiddenInPixelScale = tableHost != null && tableHost.Visibility != Visibility.Visible;
+                plugin.Mode = Plugin.Calibration.CalibrationMode.NinePoint;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                bool shownInNinePoint = tableHost != null && tableHost.Visibility == Visibility.Visible;
+                plugin.Mode = Plugin.Calibration.CalibrationMode.Perspective;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                bool shownInPerspective = tableHost != null && tableHost.Visibility == Visibility.Visible;
+                Check("模式切换 → 表格显隐跟随（像素当量隐藏 / 九点、透视显示）",
+                    hiddenInPixelScale && shownInNinePoint && shownInPerspective,
+                    $"pixelScale={hiddenInPixelScale} ninePoint={shownInNinePoint} perspective={shownInPerspective}");
+
+                // 取点横幅默认不占位（进入待命需加载图像；默认态与绑定正确性）
+                Check("取点横幅默认不占位（IsPickingPoint=false）", !plugin.IsPickingPoint);
+
+                plugin.Dispose();
+                host.Child = null;
+                view = null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("### 标定视图冒烟抛出异常:");
+                Print(ex);
+                failures++;
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 标定配置视图冒烟：全部通过 ==="
+                : $"### 标定配置视图冒烟：{failures} 项失败");
+            return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>最小步骤配置桩：标定视图初始化只需空 InputValues + 无链接。</summary>
+        private sealed class StubStepConfigData : Core.Interfaces.IStepConfigData
+        {
+            private readonly System.Collections.Generic.Dictionary<string, object> _values = new();
+
+            public Guid StepId { get; } = Guid.NewGuid();
+            public string Icon => "";
+            public string StepName => "标定_冒烟";
+            public string Description => "";
+            public System.Collections.Generic.Dictionary<string, object> InputValues => _values;
+
+            public void SetInputValue(string key, object value) => _values[key] = value;
+            public void RemoveInputValue(string key) => _values.Remove(key);
+            public bool IsLinked(string inputPortName) => false;
+            public string GetLinkedAddress(string inputPortName) => null;
+            public Core.Interfaces.LinkReference GetLink(string inputPortName) => null;
+            public void SetLink(string inputPortName, Core.Interfaces.LinkReference link) { }
+            public void RemoveLink(string inputPortName) { }
+            public System.Collections.Generic.List<Core.Interfaces.DynamicPortInfo> OutputPortDefinitions { get; set; } = new();
         }
 
         private static void Print(Exception ex)

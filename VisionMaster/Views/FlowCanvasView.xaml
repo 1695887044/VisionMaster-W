@@ -41,6 +41,12 @@
                 <DataTrigger Binding="{Binding Model.State}" Value="Skipped">
                     <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasSkippedBrush}" />
                 </DataTrigger>
+                <!--  调试命中（DWV 第 1 期）：停在断点/单步位置 = 橙色描边（评审建议色 #E6A23C）。
+                      停的位置在节点执行前，橙色描边一眼看出"就停在这"。  -->
+                <DataTrigger Binding="{Binding Model.IsDebugStopped}" Value="True">
+                    <Setter Property="BorderBrush" Value="#E6A23C" />
+                    <Setter Property="BorderThickness" Value="2" />
+                </DataTrigger>
                 <DataTrigger Binding="{Binding Model.IsDisEnable}" Value="True">
                     <Setter Property="Opacity" Value="0.55" />
                 </DataTrigger>
@@ -127,6 +133,39 @@
                                 Text="{Binding ExternalLinkCount}" />
                         </Border>
                     </Grid>
+                </Border>
+
+                <!--  断点圆点（DWV 第 1 期）：右上角小圆点 = 断点开关，点击即切换。
+                      平时浅灰空心的克制可见态；IsBreakpoint=true 变实心红（#F56C6C）。
+                      外层 Border 只负责加大命中区 + 手型 + 提示，圆点本体 8px。  -->
+                <Border
+                    Margin="0,4,8,0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Background="Transparent"
+                    Cursor="Hand"
+                    ToolTip="点击设置/取消断点">
+                    <Border.InputBindings>
+                        <MouseBinding
+                            Command="{Binding DataContext.ToggleBreakpointCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                            CommandParameter="{Binding}"
+                            Gesture="LeftClick" />
+                    </Border.InputBindings>
+                    <Ellipse Width="8" Height="8">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="Transparent" />
+                                <Setter Property="Stroke" Value="#C0C4CC" />
+                                <Setter Property="StrokeThickness" Value="1.2" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Model.IsBreakpoint}" Value="True">
+                                        <Setter Property="Fill" Value="#F56C6C" />
+                                        <Setter Property="Stroke" Value="#F56C6C" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
                 </Border>
 
                 <!--  执行序号角标：贴在节点左上角，越界压住标题栏是可接受的（它就是要显眼）  -->

@@ -384,6 +384,68 @@ namespace FlowCanvasChecks
                     && AsDoubles(runtime.Scores.Value).Length == 2
                     && AsDoubles(runtime.Scores.Value).All(v => v >= 0.9),
                     $"scores={string.Join(",", AsDoubles(runtime.Scores.Value).Select(v => v.ToString("0.000")))}");
+
+                // MaxMatches 上限：同一张双图案图，上限 1 → 只报最高分那一个
+                runtime.MaxMatches = 1;
+                runtime.Execute(MakeContext(new StubLog()));
+                Check("【MaxMatches】上限 1 → 只报最高分实例（不越限）",
+                    Convert.ToInt32(runtime.MatchCount.Value) == 1,
+                    $"MatchCount={runtime.MatchCount.Value}");
+                runtime.MaxMatches = 5;
+
+                // ---- MaxOverlap 去重：两个相距 90px 的图案（模型框 160×160，框重叠约 44%）----
+                // 图案本身互不接触（圆盘 r=55、十字臂 ±40 都够不着），只有"模型框"重叠——
+                // 这样测的才是 MaxOverlap 的去重语义，而不是"特征糊在一起找不着"。
+                using var closePair = BuildScene(PatternRow, PatternCol);
+                HOperatorSet.GenCircle(out HObject disk2, PatternRow, PatternCol + 90, DiskRadius);
+                HOperatorSet.OverpaintRegion(closePair, disk2, 60, "fill");
+                HOperatorSet.GenRectangle1(out HObject arm2a, PatternRow - 40, PatternCol + 80, PatternRow + 40, PatternCol + 100);
+                HOperatorSet.GenRectangle1(out HObject arm2b, PatternRow - 10, PatternCol + 50, PatternRow + 10, PatternCol + 130);
+                HOperatorSet.OverpaintRegion(closePair, arm2a, 255, "fill");
+                HOperatorSet.OverpaintRegion(closePair, arm2b, 255, "fill");
+                disk2.Dispose();
+                arm2a.Dispose();
+                arm2b.Dispose();
+
+                runtime.MaxOverlap = 0.9;
+                runtime.Image.Value = closePair;
+                runtime.Execute(MakeContext(new StubLog()));
+                int looseCount = Convert.ToInt32(runtime.MatchCount.Value);
+                Check("【MaxOverlap】阈值放宽（0.9）→ 两个重叠实例都报出",
+                    looseCount == 2,
+                    $"MatchCount={looseCount}（期望 2）");
+
+                runtime.MaxOverlap = 0.05;
+                runtime.Execute(MakeContext(new StubLog()));
+                int strictCount = Convert.ToInt32(runtime.MatchCount.Value);
+                Check("【MaxOverlap】阈值收紧（0.05）→ 重叠实例被去重成一个",
+                    strictCount == 1,
+                    $"MatchCount={strictCount}（期望 1，宽松时 {looseCount}）");
+
+                // 成功匹配时 AlignedImage 必须非空（本轮刚跑完一次成功匹配）
+                Check("【AlignedImage】成功匹配后位姿归一化图非空",
+                    runtime.AlignedImage.Value is HImage aligned && aligned.IsInitialized(),
+                    $"AlignedImage={runtime.AlignedImage.Value}");
+
+                // ---- 涂抹时序（用配置态实例：只有它有 DisplayImage 可作序列化坐标系）----
+                // 注意：必须先把 region 画好再赋给 SmearMask —— setter 一收到值就写回条目，
+                // 赋一个空 region 只会写回空掩膜。
+                var entry0 = creator.EditingEntry!;
+                var stroke1 = new HRegion();
+                stroke1.GenRectangle1(30d, 30d, 40d, 40d);
+                creator.SmearMask = stroke1;   // 所有权转移：setter 负责写回与旧实例释放
+                Check("【涂抹时序·即写即存】涂抹后条目掩膜已写回（点「确定」不会丢）",
+                    entry0.Mask.Length > 0,
+                    $"掩膜长度={entry0.Mask.Length}");
+
+                Check("【涂抹时序·过期及时】涂抹后立即提示需重新学习（不必等换条目）",
+                    creator.IsModelStale,
+                    $"IsModelStale={creator.IsModelStale} 状态='{creator.TemplateStatusText}'");
+
+                creator.ClearSmear();
+                Check("【涂抹时序·清除生效】清空涂抹后条目掩膜真正清空（换条目再切回不会复活）",
+                    entry0.Mask.Length == 0,
+                    $"掩膜长度={entry0.Mask.Length}");
             }
             finally
             {

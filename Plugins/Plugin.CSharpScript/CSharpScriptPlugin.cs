@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
@@ -32,7 +33,7 @@ namespace Plugin.CSharpScript
         GroupName = "逻辑控制",
         Description = "用完整 C# 语法编写脚本，可取模块参数、读写变量、输出日志、显示图像、控制流程",
         ShortName = "\uf0ac")]
-    public class CSharpScriptPlugin : VisionPluginBase, IPluginCustomViewProvider, IDynamicOutputProvider
+    public partial class CSharpScriptPlugin : VisionPluginBase, IPluginCustomViewProvider, IDynamicOutputProvider
     {
         public CSharpScriptPlugin()
         {
@@ -58,14 +59,11 @@ Context.SetOutput(""Result"", ""ok"");
 
         #region 内嵌配置（随 .vms 持久化）
 
-        private string _scriptText = DefaultScript;
         /// <summary>C# 脚本正文（顶层语句）。</summary>
-        [StepConfig]
-        public string ScriptText
-        {
-            get => _scriptText;
-            set { _scriptText = value ?? string.Empty; OnPropertyChanged(); }
-        }
+        [StepConfig, DefaultValue(DefaultScript)]
+        public partial string ScriptText { get; set; }
+
+        partial void OnScriptTextChanging(ref string value) => value ??= "";
 
         private ObservableCollection<ScriptVarDef> _inputVars = new ObservableCollection<ScriptVarDef>();
         /// <summary>输入变量定义（每项映射为一个动态输入端口，可在界面连线或手填）。</summary>

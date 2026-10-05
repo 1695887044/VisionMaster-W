@@ -1,0 +1,20 @@
+===== 胶路检测演示方案 · 生成与全链路验证 =====
+时间: 2026-10-05 20:47:09
+[1] 方案已生成: D:\C#\VM\解决方案\胶路检测演示.vms  (3729 字符)
+[2] 回读成功: 方案「胶路检测演示」 流程「胶路检测」 步骤数=2
+    步骤: PluginName=「图像采集」 StepName=「图像采集_0」 类型=Plugin.ImageAcquisition.ImageAcquisitionPlugin
+    步骤: PluginName=「胶路检测」 StepName=「胶路检测_0」 类型=Plugin.BeadInspect.BeadInspectPlugin
+
+[3] 逐 FileIndex 编译+运行（图像采集.文件夹模式）：
+     索引 | 采集到的文件                                | 判定 | 段数 | NgReason
+        0 | adhesive_bead_01.png                        | OK  |    0 |   ✔ 与真值表一致
+        1 | adhesive_bead_02.png                        | OK  |    0 |   ✔ 与真值表一致
+        2 | adhesive_bead_03.png                        | NG  |    2 | 太细 1 段、位置偏移 1 段  ✔ 与真值表一致
+        3 | adhesive_bead_04.png                        | OK  |    0 |   ✔ 与真值表一致
+        4 | adhesive_bead_05.png                        | NG  |    3 | 缺胶 1 段、太细 1 段、太粗 1 段  ✔ 与真值表一致
+        5 | adhesive_bead_06.png                        | NG  |    1 | 缺胶 1 段  ✔ 与真值表一致
+        6 | adhesive_bead_07.png                        | NG  |    4 | 缺胶 1 段、位置偏移 3 段  ✔ 与真值表一致
+        7 | adhesive_bead_ref.png                       | NG  |    1 | 缺胶 1 段  参考图（无胶，预期 NG 缺胶）
+
+===== 真值对照: 通过 7 / 失败 0 =====
+[OK] 方案文件可被宿主加载、编译、运行，检出与探针真值表一致。

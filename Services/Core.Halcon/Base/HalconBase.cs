@@ -350,6 +350,8 @@ namespace Core.Halcon.Controls
                     }
                 };
                 // 涂擦画笔（优先于 ROI 选中：涂擦模式下不切换编辑对象）
+                // 取点模式注册在最前：待命时左键单击 = 取点，且不触发涂擦/ROI 选中
+                hSmart.HMouseDown += HSmart_MouseDownForPick;
                 hSmart.HMouseDown += HSmart_MouseDownForSmear;
                 hSmart.HMouseDown += HSmart_MouseDownForRoi;
                 hSmart.HMouseMove += HSmart_MouseMoveForSmear;
@@ -918,6 +920,9 @@ namespace Core.Halcon.Controls
             // 涂擦模式下不进行 ROI 选中切换（画笔优先）
             if (SmearMode != SmearModeType.None)
                 return;
+            // 取点模式下不切换编辑对象：点击 = 取点，选中的标记不能被顺手换掉
+            if (IsPickMode)
+                return;
             // 容差命中（屏幕像素换算）：点边缘句柄时 TestRegionPoint 对边界点判定不可靠，
             // 不加容差会误判为点空白 → 摘除句柄 → 矩形/椭圆无法拖拽
             if (ActiveRoi != null && HitTest(ActiveRoi, e.Row, e.Column, ScreenToleranceToImage(8.0)))
@@ -1094,6 +1099,58 @@ namespace Core.Halcon.Controls
             }
         }
 
+        #region 图上取点（opt-in：默认关闭，开启后左键单击抛出图像坐标）
+
+        /// <summary>画布取点事件参数（图像坐标：Row 向下、Col 向右，与 HALCON 一致）</summary>
+        public class ImagePickEventArgs : EventArgs
+        {
+            public ImagePickEventArgs(double row, double column)
+            {
+                Row = row;
+                Column = column;
+            }
+
+            /// <summary>点击位置的图像 Row</summary>
+            public double Row { get; }
+
+            /// <summary>点击位置的图像 Col</summary>
+            public double Column { get; }
+        }
+
+        public static readonly DependencyProperty IsPickModeProperty =
+            DependencyProperty.Register(nameof(IsPickMode), typeof(bool), typeof(HalconBase),
+                new PropertyMetadata(false));
+
+        /// <summary>
+        /// 取点模式：true 时左键单击把图像坐标经 <see cref="ImagePicked"/> 抛出，且**不**触发
+        /// ROI 选中/涂擦逻辑（点击不再抢走编辑对象）。默认 false——不绑定的插件行为与旧版完全一致。
+        /// 约定是"一次性取点"：调用方取到一个点后自行关掉它，避免画布长期吃鼠标事件。
+        /// </summary>
+        public bool IsPickMode
+        {
+            get => (bool)GetValue(IsPickModeProperty);
+            set => SetValue(IsPickModeProperty, value);
+        }
+
+        /// <summary>取点回调（仅 <see cref="IsPickMode"/>=true 的左键单击触发；Row 向下、Col 向右）</summary>
+        public event EventHandler<ImagePickEventArgs>? ImagePicked;
+
+        private void HSmart_MouseDownForPick(object sender, HSmartWindowControlWPF.HMouseEventArgsWPF e)
+        {
+            if (!IsPickMode || e.Button != MouseButton.Left)
+                return;
+            try
+            {
+                ImagePicked?.Invoke(this, new ImagePickEventArgs(e.Row, e.Column));
+            }
+            catch
+            {
+                // 订阅方异常不得打断 HALCON 的鼠标管线（同 RegisterDrawCallback 的纪律）
+            }
+        }
+
+        #endregion
+
         #region 画笔涂擦掩膜
 
         private bool isSmearing;
@@ -1175,6 +1232,8 @@ namespace Core.Halcon.Controls
         {
             if (SmearMode == SmearModeType.None || e.Button != MouseButton.Left)
                 return;
+            if (IsPickMode)
+                return;   // 取点优先：待命时不落笔
             isSmearing = true;
             lastSmearRow = lastSmearCol = null;   // 新笔画从零开始
             ApplySmear(e.Row, e.Column, forceRender: true); // 落笔立即反馈

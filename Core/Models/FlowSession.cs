@@ -115,8 +115,9 @@ namespace VisionMaster.Models
         /// <summary>
         /// 当前这一轮执行是否为"连续执行"（RunSessionAsync），单次执行（RunSessionOnceAsync）为 false。
         ///
-        /// 【为什么需要这个标记】PauseSession 能生效的前提，是执行体在循环里等 PauseLock ——
-        /// 只有连续执行有这个循环。单次执行是一把跑完整图（ExecutionEngine.Run 一次到底），
+        /// 【为什么需要这个标记】PauseSession 能生效的前提，是执行体有等待 PauseLock 的位置 ——
+        /// 连续执行在轮顶等；调试会话（DebugEnabled）的运行另经调试门逐节点等（DWV 第 1 期）。
+        /// 非调试单次执行是一把跑完整图（ExecutionEngine.Run 一次到底），
         /// 中间没有任何可插入等待的位置；对它置 Paused 只会造出
         /// "UI 显示已暂停、流程却照跑到底"的假象（暂停期间结束还会直接落 Stopped）。
         ///
@@ -128,6 +129,123 @@ namespace VisionMaster.Models
         /// 而 PauseSession 的守卫先读 IsRunning —— 能通过守卫的调用，一定看得到正确的值。
         /// </summary>
         public bool IsContinuousRun { get; set; }
+
+        // ================= DWV 第 1 期：调试门（断点 / 单步 / 暂停继续） =================
+        // 设计口径（评审结论 4–6 + 用户决策）：
+        //  · 装门条件 = DebugEnabled（不是 IsContinuousRun）：单次执行也支持调试；
+        //  · 插桩点只有一个——CompiledNode.RunSequence 循环体内、RunAndGetNext 之前（本类只提供门）；
+        //  · 停的位置在"节点执行前"；等待一律 PauseLock.Wait(token)（停止能立即打断）；
+        //  · 断点不落盘（IsBreakpoint / IsDebugStopped 见 StepModel）。
+
+        /// <summary>
+        /// 本会话是否按"调试会话"运行（DWV 第 1 期：断点 / 单步 / 暂停继续的装门条件）。
+        ///
+        /// 【谁置位 / 谁清位】默认 false；只有从界面发起的运行由 Shell 在两处运行入口置 true。
+        /// 引擎在每轮运行收尾统一清回 false（见 FlowEngineService）——保证它精确表达
+        /// "这一轮是不是界面发起的调试运行"，不泄漏给同一会话的下一次非界面触发
+        /// （HTTP 收图会复用界面已编译的会话，残留 true 就会被断点卡住产线链路，硬约束）。
+        /// 试运行（PluginTestRunner）自建新会话、从不置位，天然豁免。
+        ///
+        /// 【为什么不用 IsContinuousRun 分流（推翻评审稿 §3）】单次执行同样要支持断点/单步/暂停继续；
+        /// 装门条件改为本标志后，两个运行入口共用同一套调试门，逻辑只有一处。
+        /// </summary>
+        public bool DebugEnabled { get; set; }
+
+        /// <summary>
+        /// 单步请求位（DWV 第 1 期）：StepSession 置位并放行，调试门在"下一个经过的节点边界"
+        /// 消费它——从停点起恰好放行一个节点后再次停住。
+        /// 跨线程（UI 线程置位 / 执行线程消费）与 IsContinuousRun 同口径：置位后紧跟 PauseLock.Set()，
+        /// 等待侧 ManualResetEventSlim 的等待 / 唤醒提供必要的栅栏。
+        /// </summary>
+        public bool DebugStepPending { get; set; }
+
+        /// <summary>
+        /// 最近一次暂停的原因（UI / 日志据此区分"为什么停住"；恢复 / 单步放行时清回 None）。
+        /// PauseSession 置 User；调试门置 Breakpoint / Step（见 <see cref="DebugGateBeforeNode"/>）。
+        /// 纯运行时显示状态，会话对象本身不落盘。
+        /// </summary>
+        public SessionPauseReason PauseReason { get; set; }
+
+        /// <summary>
+        /// 调试门命中（断点 / 单步）通知：即将停在节点执行前时触发（此时锁已合上）。
+        /// 订阅方（FlowEngineService）负责把会话归到 Paused —— State 的唯一赋值点在引擎侧
+        /// （NotifyStateChanged），Core 层只发通知、不直接抢状态赋值。
+        /// 用户暂停不触发本事件（PauseSession 已自行通知 Paused）。
+        /// </summary>
+        public event Action<FlowSession> DebugStopped;
+
+        /// <summary>
+        /// 节点执行前的调试门（DWV 第 1 期）：RunSequence 在每个节点边界调用一次。
+        ///
+        /// 三条硬规矩（评审结论 5–6）：
+        ///  ① 停的位置在"节点执行前"——命中即等，等不到放行就绝不执行该节点；
+        ///  ② 等待一律 <see cref="PauseLock"/>.Wait(token)：停止 / 会话替换取消令牌后立即打断
+        ///     （无令牌等待打不断——参考工程 AutoResetEvent 的坑不能踩第二次）；
+        ///  ③ 收尾 PauseLock.Set() 兜底：无论正常放行还是被取消，离开门时锁都回到放行态。
+        ///
+        /// 触发停住的三种情况：
+        ///  · 节点是断点（IsBreakpoint；标记常驻，循环每圈回来都断）；
+        ///  · 单步放行（DebugStepPending，一次性，命中即消费）；
+        ///  · 用户暂停（PauseSession 已合锁）：只按住等待，不再补发通知（避免二次 Paused 事件）。
+        ///
+        /// 豁免：非调试会话（DebugEnabled=false）一步不停——HTTP 触发 / 试运行 / 普通运行全走
+        /// 这条早退路径，热路径只多一次 bool 读。
+        /// </summary>
+        /// <param name="node">即将执行的编译节点（取其 Blueprint 查断点）</param>
+        /// <param name="token">执行取消令牌（停止 / 会话替换）</param>
+        public void DebugGateBeforeNode(CompiledNode node, CancellationToken token)
+        {
+            if (!DebugEnabled) return; // 豁免路径（HTTP / 试运行 / 非调试运行）
+
+            var step = node?.Blueprint;
+            bool hitBreakpoint = step?.IsBreakpoint == true;
+            bool stepRequested = DebugStepPending;
+            bool pauseRequested = !PauseLock.IsSet; // PauseSession 已把锁合上
+
+            if (!hitBreakpoint && !stepRequested && !pauseRequested)
+                return; // 调试会话未停：直通（只读几个标志，不等锁）
+
+            if (token.IsCancellationRequested)
+                return; // 停止请求已到：不再摆停点，交外层令牌检查退栈
+
+            if (hitBreakpoint || stepRequested)
+            {
+                // 先落停点信息、再合锁、最后通知：
+                // 合锁必须先于通知——否则"通知送达后、等待开始前"的快速"继续"会被随后到来的
+                // Reset 吞掉，变成一场永远等不到放行的等待（时序钉子，别调换）。
+                DebugStepPending = false; // 单步一次性；断点标记常驻（循环每圈回来都断）
+                PauseReason = stepRequested ? SessionPauseReason.Step : SessionPauseReason.Breakpoint;
+
+                try { PauseLock.Reset(); }
+                catch (ObjectDisposedException) { return; } // 会话收尾窗口：同取消处理
+
+                if (step != null) step.IsDebugStopped = true;
+
+                try { DebugStopped?.Invoke(this); }
+                catch
+                {
+                    // 隔离订阅者异常：通知是附加语义，不该把整轮流程打成 Faulted。
+                    // （引擎侧处理器内部已隔离，这是给未来 UI 订阅者的防线；本类无日志依赖，只静默兜底）
+                }
+            }
+            // else：纯用户暂停——锁已合、Paused 已由 PauseSession 通知，这里只负责按住执行
+
+            try
+            {
+                PauseLock.Wait(token);
+            }
+            catch (ObjectDisposedException)
+            {
+                // 收尾窗口里锁被释放（[E9]② 的既有边界）：按取消退栈
+            }
+            finally
+            {
+                // 收尾兜底：离开门时锁必须回到放行态，不留"等人来放行"的合锁给后续任何等待者；
+                // 会话可能已被 RemoveAndDispose 释放，Set 会抛 ObjectDisposedException
+                try { PauseLock.Set(); } catch (ObjectDisposedException) { }
+                if (step != null) step.IsDebugStopped = false;
+            }
+        }
 
         /// <summary>
         /// 递归把图纸填进 <see cref="Blueprints"/>（含 If/While/For 容器内的嵌套步骤）。

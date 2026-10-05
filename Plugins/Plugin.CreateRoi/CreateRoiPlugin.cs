@@ -27,20 +27,17 @@ namespace Plugin.CreateRoi
         Description = "在图像上创建多个ROI区域,输出裁剪图像",
         ShortName = "\uf1c5"
     )]
-    public class CreateRoiPlugin : VisionPluginBase, IPluginCustomViewProvider, IDynamicOutputProvider
+    public partial class CreateRoiPlugin : VisionPluginBase, IPluginCustomViewProvider, IDynamicOutputProvider
     {
         #region 配置参数
 
         [StepConfig]
         public int DisplayViewIndex { get; set; } = 1;
 
-        private bool _maskInvert;
         [StepConfig]
-        public bool MaskInvert
-        {
-            get => _maskInvert;
-            set { if (SetProperty(ref _maskInvert, value)) ScheduleMaskPreview(); }
-        }
+        public partial bool MaskInvert { get; set; }
+
+        partial void OnMaskInvertChanged(bool value) => ScheduleMaskPreview();
 
         // ObservableCollection：增删触发列表绑定刷新（List<T> 不会通知 UI）
         private ObservableCollection<RoiItem> _roiList = new();

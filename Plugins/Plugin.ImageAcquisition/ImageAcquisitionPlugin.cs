@@ -8,6 +8,7 @@ using Prism.Commands;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
@@ -37,31 +38,31 @@ namespace Plugin.ImageAcquisition
         Description = "从文件或文件夹获取图像，供后续视觉处理使用",
         ShortName = "\uf1c5"
     )]
-    public class ImageAcquisitionPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
+    public partial class ImageAcquisitionPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
     {
         #region 配置属性（纯配置项：持久化到 InputValues、参与灌值，但不进端口/不可变量链接）
 
-        private AcquisitionMode _mode;
         /// <summary>
         /// 采集模式：指定图像 / 文件目录 / 网络推送 / 相机采集（见 <see cref="AcquisitionMode"/>）。
         /// 换模式会清空预览与状态：旧模式的数据源在新模式下对不上号。
         /// </summary>
         [StepConfig]
-        public AcquisitionMode Mode
-        {
-            get => _mode;
-            set
-            {
-                if (!SetProperty(ref _mode, value)) return;
+        public partial AcquisitionMode Mode { get; set; }
 
-                // 换模式等于换数据源：旧模式的预览图/路径/计数在新模式下全对不上号，
-                // 留着只会让界面自相矛盾（比如"文件目录"模式下还挂着上次的单图预览）
-                ClearPreview();
-                ValidatePathInputs();
-            }
-        }
+partial void OnModeChanged(AcquisitionMode value)
+{
+    // 换模式等于换数据源：旧模式的预览图/路径/计数在新模式下全对不上号，
+    // 留着只会让界面自相矛盾（比如"文件目录"模式下还挂着上次的单图预览）
+    ClearPreview();
+    ValidatePathInputs();
+    if (value == AcquisitionMode.Folder)
+    {
+        // 进入文件夹模式后立即刷新目录，防止旧目录列表残留
+        RefreshFolderFiles();
+    }
+}
 
-        private int _displayViewIndex = 1;
+
         /// <summary>
         /// 显示窗口索引：采集图像发布到主界面几号视图窗口（1~9），0=不显示。
         ///
@@ -69,14 +70,11 @@ namespace Plugin.ImageAcquisition
         /// 而消费端是按"ViewIndex == 窗口号(1~9)"等值筛选的——越界值不会报错，
         /// 表现为"配了显示但哪一格都不显示"，属于最难归因的一类。
         /// </summary>
-        [StepConfig]
-        public int DisplayViewIndex
-        {
-            get => _displayViewIndex;
-            set => SetProperty(ref _displayViewIndex, Math.Clamp(value, 0, 9));
-        }
+        [StepConfig, DefaultValue(1)]
+        public partial int DisplayViewIndex { get; set; }
 
-        private string _cameraSerial = string.Empty;
+        partial void OnDisplayViewIndexChanging(ref int value) => value = Math.Clamp(value, 0, 9);
+
         /// <summary>
         /// 相机采集：目标相机的序列号。
         ///
@@ -86,12 +84,8 @@ namespace Plugin.ImageAcquisition
         /// 存 Id 没法在界面上显示也没法人工核对；存显示名则改个名就断链，而且重名无约束。
         /// 宿主侧 CameraProvider.TryGetDeviceBySerial 与它同口径，本步骤不必自己查表。
         /// </summary>
-        [StepConfig]
-        public string CameraSerial
-        {
-            get => _cameraSerial;
-            set => SetProperty(ref _cameraSerial, value);
-        }
+        [StepConfig, DefaultValue("")]
+        public partial string CameraSerial { get; set; }
 
         #endregion
 
@@ -197,6 +191,16 @@ namespace Plugin.ImageAcquisition
         public OutputPort<long> ReceivedCount { get; } = new(
             "ReceivedCount",
             "相机累计收到帧数；非相机模式为 0"
+        );
+
+        /// <summary>
+        /// 相机序列号（多相机身份，供下游自动核对）：相机模式 = 本步骤配置的相机序列号；其余模式为空串。
+        /// 用途：把本输出接到「标定」/「坐标变换」的 SourceSerial 输入——换相机（换镜头/换工位）后，
+        /// "这份标定属于哪台"与"当前图像来自哪台"对不上会**明确失败**，旧标定自证失效。
+        /// </summary>
+        public OutputPort<string> SourceSerial { get; } = new(
+            "SourceSerial",
+            "相机序列号（相机模式=本步骤配置的相机；非相机模式为空）"
         );
 
         #endregion
@@ -778,7 +782,7 @@ namespace Plugin.ImageAcquisition
         private static HImage ToHImage(CameraFrame frame)
             => ToHImage(frame.PixelData, frame.Width, frame.Height, frame.Channels);
 
-        /// <summary>
+/// <summary>
         /// 原始像素字节 → HImage 的**唯一**转换核心（网络推送与相机采集共用）。
         ///
         /// 为什么必须只有一处：两条链路的像素约定必须逐字节一致（灰度单通道、彩色 BGR 交错）。
@@ -789,10 +793,10 @@ namespace Plugin.ImageAcquisition
         /// ---------
         ///   · 尺寸上限与长度：宽高来自外部（相机 SDK / HTTP 客户端），必须用 long 算
         ///     `宽×高×通道` 再比——int 乘法溢出成负数时，"长度不足"这道校验反而会放行，
-        ///     最后以 AllocHGlobal(负数) 的形式抛一句看不懂的错；
-        ///   · 数据长度必须 ≥ 宽×高×通道数：不足时 HALCON 会越界读 HGlobal 缓冲，
+        ///     最后以"分配负数长度"的形式抛一句看不懂的错；
+        ///   · 数据长度必须 ≥ 宽×高×通道数：不足时 HALCON 会越界读那块缓冲，
         ///     轻则图像错乱、重则进程崩掉 —— 必须在进非托管世界之前拦下；
-        ///   · 4 通道（BGRA，很多相机 SDK 的默认输出）不能直接交给 GenImageInterleaved：
+        ///   · 4 通道及以上（BGRA，很多相机 SDK 的默认输出）不能直接交给 GenImageInterleaved：
         ///     它按 3 字节/像素读 4 字节/像素的缓冲，不报错但图像整体错位花屏
         ///    （灰度图上同样看不出来）。先抽成紧凑 BGR 再走同一条路。
         ///     但 2 通道没有对应的解释方式：与其让 GenImage1 把前半段数据当灰度图静默显示，
@@ -802,7 +806,8 @@ namespace Plugin.ImageAcquisition
         /// ---------
         /// HALCON 的 gen_image1 / gen_image_interleaved 只认裸指针，没有 byte[] 重载。
         /// gen_image1 会把指针指向的数据**复制**进新建的图（这正是它与 gen_image1_extern 的区别：
-        /// 后者是"引用 + 归还回调"），所以 Copy 进 HGlobal 后立刻释放是安全的。
+        /// 后者是"引用 + 归还回调"），所以指针只要在调用期间有效即可——
+        /// 用 GCHandle(Pinned) 钉住托管数组就能满足，不需要再 AllocHGlobal + Copy 一次。
         ///
         /// alignment 传 -1 表示"行间无填充"，正好匹配宿主/客户端输出的紧凑 stride。
         /// </summary>
@@ -846,12 +851,22 @@ namespace Plugin.ImageAcquisition
             var image = new HImage();
             try
             {
-                var length = width * height * channels;   // 只把"恰好够用"的部分交给 HALCON（已保证 ≤ int.MaxValue）
-                var pointer = Marshal.AllocHGlobal(length);
-
+                // 用 GCHandle 把托管数组钉住，直接把它首地址交给 HALCON，省掉一次
+                // "AllocHGlobal + 全帧 Copy" 的中转。
+                //
+                // 为什么 pin 到调用返回就可以解：gen_image1 / gen_image_interleaved 是**复制**语义
+                // （与 gen_image1_extern 的"引用 + 归还回调"相对），返回前像素已进 HALCON 自己的内存，
+                // 所以本次转换的生存期模型与原来的 HGlobal 版本完全一致——
+                // byte[] 队列语义、溢出丢弃、基类 AutoDisposeRoundOutputs 都不受影响。
+                //
+                // 注意必须用 AddrOfPinnedObject()：GCHandle.ToIntPtr() 返回的是"句柄令牌"
+                // （供 GCHandle.FromIntPtr 还原用），不是被钉住对象的数据地址。
+                // GCHandle 是结构体、不实现 IDisposable，所以这里用 try/finally 而不是 using，
+                // 保证 HALCON 调用抛异常时也一定 Free 掉（钉住的数组会阻止 GC 压缩堆）。
+                var handle = GCHandle.Alloc(pixelData, GCHandleType.Pinned);
                 try
                 {
-                    Marshal.Copy(pixelData, 0, pointer, length);
+                    var pointer = handle.AddrOfPinnedObject();
 
                     if (channels >= 3)
                     {
@@ -876,7 +891,7 @@ namespace Plugin.ImageAcquisition
                 }
                 finally
                 {
-                    Marshal.FreeHGlobal(pointer);
+                    handle.Free();
                 }
 
                 return image;
@@ -988,6 +1003,7 @@ namespace Plugin.ImageAcquisition
             TotalFiles.Value = 0;
             FrameId.Value = 0;
             ReceivedCount.Value = 0;
+            SourceSerial.Value = string.Empty;   // 相机身份：失败轮不得留上一轮的序列号（下游会据此自动核对）
 
             try
             {
@@ -1021,6 +1037,9 @@ namespace Plugin.ImageAcquisition
                     TotalFiles.Value = result.TotalFiles;
                     FrameId.Value = result.FrameId;
                     ReceivedCount.Value = result.ReceivedCount;
+                    SourceSerial.Value = Mode == AcquisitionMode.Camera
+                        ? (CameraSerial ?? string.Empty).Trim()
+                        : string.Empty;
                     context.Logger?.Info($"{InstanceName} {result.Error}");
 
                     // 发布到主程序视图（DisplayViewIndex 已是真实窗口号 1~9；0=不显示则跳过）。

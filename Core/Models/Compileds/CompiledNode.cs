@@ -180,6 +180,17 @@ namespace VisionMaster.Models
                 if (context.CancellationToken.IsCancellationRequested)
                     return;
 
+                // ===== 调试门（DWV 第 1 期，全引擎唯一的节点级插桩点）=====
+                // 断点 / 单步 / 暂停继续都在这里等：顶层、If 选中分支、While/For 循环体全走
+                // RunSequence，一处覆盖全部层级（切勿往各节点 RunAndGetNext 里复制检查——必然漏）。
+                // 判定沿用本文件 UpdateStepRuntimeState 的既有先例：只有带会话的 ExecutionContext
+                // 谈得上调试；非调试会话在门内一步不停（HTTP 触发 / 试运行 / 普通运行全走早退路径）。
+                if (context is VisionMaster.Services.ExecutionContext execContext && execContext.CurrentSession != null)
+                    execContext.CurrentSession.DebugGateBeforeNode(currentNode, context.CancellationToken);
+
+                if (context.CancellationToken.IsCancellationRequested)
+                    return; // 门内被停止/取消：不再执行本节点，交外层按令牌检查退栈
+
                 // 返回值 = 本节点选中的子清单（If 分支 / 循环体由节点自己交出）
                 var nextBranchToRun = currentNode.RunAndGetNext(context);
                 if (nextBranchToRun != null && nextBranchToRun.Count > 0)

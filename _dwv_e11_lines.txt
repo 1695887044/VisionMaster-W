@@ -1,0 +1,25 @@
+580 | ---- [E11] D 组 状态转换语义 ----
+581 |   [√通过] 状态语义图纸编译通过
+582 |   [√通过] 连续执行正常收尾
+583 |   [√通过] 【核心】OldState 不再恒等于 NewState（Stopped 事件的旧状态是 Running）  →  实际 2 次转换: Idle▶Running → Running▶Stopped
+584 |   [√通过] 本次运行恰好两次转换 Running / Stopped（无冗余通知）  →  Idle▶Running → Running▶Stopped
+585 |   [√通过] 一次状态转换只触发一次 State 通知（反证清单'触发两次'的推测）  →  实际 2 次
+586 |   [√通过] 单次执行已进入算子（构造出真实运行窗口）
+587 |   [√通过] 单次执行期间 IsContinuousRun=false  →  IsContinuousRun=False
+588 |   [√通过] 【核心】单次执行期间 PauseSession 不生效（State 仍是 Running，不是 Paused）  →  State=Running
+589 |   [√通过] 单次执行的暂停请求被显式拒绝并留痕（不静默吞掉）  →  Warn:流程 执行层断言流程 单次执行不支持暂停（它不经过暂停点），本次暂停请求已忽略
+590 |   [√通过] 单次执行正常收尾
+591 |   [√通过] 连续执行已进入算子
+592 |   [√通过] 连续执行期间 IsContinuousRun=true  →  IsContinuousRun=True
+593 |   [√通过] 【核心】连续执行期间 PauseSession 照常生效（State=Paused）  →  State=Paused
+594 |   [√通过] 恢复后回到 Running  →  State=Running
+595 |   [√通过] 连续执行正常收尾
+596 | 
+
+--- baseline summary tail ---
+  [√通过] [PT] 跟随端口类型 = HRegion / HImage（接 BlobDetect.MaskRegion 与图像下游）
+  [√通过] [PT] 插件带 [Display]（GroupName=定位，否则工具箱里拖不出来）
+
+========== 结果汇总 ==========
+通过: 1135  失败: 19
+>>> 存在 19 项失败 <<<

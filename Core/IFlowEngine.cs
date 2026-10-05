@@ -54,6 +54,14 @@ namespace VisionMaster.Services
         void ResumeSession(FlowSession session);
 
         /// <summary>
+        /// 单步执行：从调试停点放行，恰好执行一个节点后再次停住（DWV 第 1 期）。
+        /// 仅当会话处于"运行中且已暂停"时有效；其余情况忽略（与 ResumeSession 的守卫同口径——
+        /// 没有等待中的调试门时置"单步待停"只会遗留给下一轮，下一轮开始会清）。
+        /// </summary>
+        /// <param name="session">要单步的流程会话</param>
+        void StepSession(FlowSession session);
+
+        /// <summary>
         /// 获取当前引擎中所有正在运行的 Session 数量
         /// </summary>
         int ActiveSessionCount { get; }

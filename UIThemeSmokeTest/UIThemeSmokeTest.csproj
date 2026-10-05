@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
+    <!-- 标定配置视图冒烟（calibration 模式）：需直接实例化 Plugin.Calibration 的视图 -->
+    <ProjectReference Include="..\Plugins\Plugin.Calibration\Plugin.Calibration.csproj" />
   </ItemGroup>
 
   <ItemGroup>

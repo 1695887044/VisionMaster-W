@@ -191,17 +191,12 @@ namespace VisionMaster.Models
             get => _steps;
             set
             {
-                var old = _steps;
-                if (old != null)
-                {
-                    old.CollectionChanged -= OnStepsCollectionChanged;
-                    foreach (var s in old) s.PropertyChanged -= OnStepPropertyChanged;
-                }
-
                 _steps = value ?? new ObservableCollection<StepModel>();
 
-                _steps.CollectionChanged += OnStepsCollectionChanged;
-                foreach (var s in _steps) s.PropertyChanged += OnStepPropertyChanged;
+                // 反序列化也会走到这里：新集合（及其子树）在赋值时已填好内容，
+                // 一次重扫即完成挂接；旧集合与旧步骤因不再可达被摘除。
+                // 刻意不递增 Version——版本号由 JSON 反序列化赋值，内容变更由集合事件负责
+                RebuildSubscriptions();
             }
         }
 
@@ -211,28 +206,120 @@ namespace VisionMaster.Models
         [JsonConstructor]
         public FlowModel()
         {
-            _steps.CollectionChanged += OnStepsCollectionChanged;
+            _watchedCollections.Add(_steps);
+            _steps.CollectionChanged += OnStructureChanged;
         }
 
-        private void OnStepsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        /// <summary>
+        /// 已订阅 PropertyChanged 的步骤（全树，含嵌套分支/循环体内的步骤）
+        /// </summary>
+        private readonly HashSet<StepModel> _watchedSteps = new();
+
+        /// <summary>
+        /// 已订阅 CollectionChanged 的集合：顶层 Steps + 每个分支/循环体的 Steps + 每个容器的 Children。
+        ///
+        /// 【为什么连 Children 也要盯】新增 ElseIf/Else 分支只动 Children 集合，
+        /// 不盯它就收不到事件 → 既不递增版本，也不会重扫订阅 → 之后往这个新分支里
+        /// 拖入的步骤永远挂不上 PropertyChanged（禁用/改参数静默不生效）。
+        /// </summary>
+        private readonly HashSet<INotifyCollectionChanged> _watchedCollections = new();
+
+        /// <summary>
+        /// 按当前流程树重扫订阅：从顶层集合出发收集所有可达的步骤集合、分支集合与步骤，
+        /// 与已订阅名单求差后摘挂。
+        ///
+        /// 【为什么不按事件的 New/OldItems 逐个摘挂】Move（拖动改序）会同时带上
+        /// OldItems 与 NewItems，Reset（Clear）则不带任何明细——按明细摘挂会把还在树上的
+        /// 步骤订阅摘掉（后续禁用/改参数不再递增版本），或漏摘已删除的步骤（假版本递增 → 白重编译）。
+        /// 重扫的代价是 O(全树步骤数)，而结构变更由用户操作驱动、不在运行热路径上。
+        /// </summary>
+        private void RebuildSubscriptions()
+        {
+            var wantedCollections = new HashSet<INotifyCollectionChanged>();
+            var wantedSteps = new HashSet<StepModel>();
+            CollectSubscriptions(_steps, wantedCollections, wantedSteps);
+
+            foreach (var collection in _watchedCollections.ToList())
+            {
+                if (wantedCollections.Contains(collection)) continue;
+                collection.CollectionChanged -= OnStructureChanged;
+                _watchedCollections.Remove(collection);
+            }
+
+            foreach (var step in _watchedSteps.ToList())
+            {
+                if (wantedSteps.Contains(step)) continue;
+                step.PropertyChanged -= OnStepPropertyChanged;
+                _watchedSteps.Remove(step);
+            }
+
+            foreach (var collection in wantedCollections)
+            {
+                if (_watchedCollections.Add(collection))
+                    collection.CollectionChanged += OnStructureChanged;
+            }
+
+            foreach (var step in wantedSteps)
+            {
+                if (_watchedSteps.Add(step))
+                    step.PropertyChanged += OnStepPropertyChanged;
+            }
+        }
+
+        /// <summary>
+        /// 深度优先收集子树里的全部集合与步骤（迭代实现，避免深层嵌套递归爆栈）。
+        /// collections 兼作访问标记与环检测：容器 Children 若被手工编辑成环，不会死循环。
+        /// </summary>
+        private static void CollectSubscriptions(
+            ObservableCollection<StepModel> root,
+            HashSet<INotifyCollectionChanged> collections,
+            HashSet<StepModel> steps)
+        {
+            var pending = new Stack<ObservableCollection<StepModel>>();
+            pending.Push(root);
+
+            while (pending.Count > 0)
+            {
+                var collection = pending.Pop();
+                if (collection == null || !collections.Add(collection)) continue;
+
+                foreach (var step in collection)
+                {
+                    if (step == null) continue;
+
+                    steps.Add(step);
+
+                    if (step is not IContainerStep container || container.Children == null) continue;
+
+                    collections.Add(container.Children);
+
+                    foreach (var branch in container.Children)
+                    {
+                        if (branch?.Steps != null)
+                            pending.Push(branch.Steps);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 任意一处结构变更（增删步骤、增删分支、拖动改序、整体清空）的统一入口：
+        /// 递增版本 + 重扫订阅 + 清理已移出流程树的步骤的布局。
+        /// </summary>
+        private void OnStructureChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             Version++;
 
-            if (e.NewItems != null)
-            {
-                foreach (StepModel item in e.NewItems)
-                    item.PropertyChanged += OnStepPropertyChanged;
-            }
+            // 先快照，重扫后不在名单里的就是被移出流程树的步骤，顺带清掉它们保存的坐标。
+            // 判据用"是否仍可达"而不是"是否出现在 OldItems 里"：Move（拖动改序）同样带
+            // OldItems，但步骤还在树上，误删会让它的位置丢失（下次渲染被迫重新自动布局）。
+            var before = _watchedSteps.ToList();
+            RebuildSubscriptions();
 
-            if (e.OldItems != null)
+            foreach (var step in before)
             {
-                foreach (StepModel item in e.OldItems)
-                {
-                    item.PropertyChanged -= OnStepPropertyChanged;
-                    // 步骤删除时同步清理布局，避免残留垃圾项。
-                    // 注意此处不能走 Layout 的事件，删除语义由 Version++ 表达
-                    Layout.Remove(item.StepID);
-                }
+                if (!_watchedSteps.Contains(step))
+                    Layout.Remove(step.StepID);
             }
         }
 

@@ -155,6 +155,14 @@ namespace Plugin.CaliperMeasure
         /// <summary>待测量的输入图像（可链接上游；未连线时按既有插件惯例给中文提示后判失败）</summary>
         public InputPort<HImage> SrcImage { get; } = new("SrcImage", description: "待测量的输入图像");
 
+        /// <summary>
+        /// 像素当量（mm/px）：接「标定」插件的 MmPerPixel 输出（也可链接运行时变量）。
+        /// **未接（无连线）时用「⑤ 判定与标定」里手填的像素当量**（旧行为不变）；
+        /// 已接时以其为准——上游值无效（≤0/NaN）会**明确失败**并指下一步，绝不静默回退。
+        /// </summary>
+        public InputPort<double> MmPerPixel { get; } = new("MmPerPixel", 0, "像素当量（mm/px）：接「标定」插件 MmPerPixel；未接=用手填值")
+        { IsRequired = false };
+
         /// <summary>测量物理值（像素测量值 × 像素当量）</summary>
         public OutputPort<double> MeasureValue { get; } = new("MeasureValue", "测量值（已乘像素当量）");
 
@@ -1728,12 +1736,19 @@ namespace Plugin.CaliperMeasure
                 StandardValue = ClampFinite(StandardValue, -ToleranceAbsMax, ToleranceAbsMax),
                 UpperTolerance = ClampFinite(UpperTolerance, -ToleranceAbsMax, ToleranceAbsMax),
                 LowerTolerance = ClampFinite(LowerTolerance, -ToleranceAbsMax, ToleranceAbsMax),
-                PixelSizeMm = ClampFinite(PixelSizeMm, PixelSizeClampMin, PixelSizeClampMax),
+                PixelSizeMm = GetEffectivePixelSizeMm(out var pixelSizeError),
                 FitAlgorithm = FitAlgorithm,
                 FitMaxError = ClampFinite(FitMaxError, FitMaxErrorClampMin, FitMaxErrorClampMax),
                 FitMinPoints = (int)Math.Round(ClampFinite(FitMinPoints, FitMinPointsClampMin, FitMinPointsClampMax)),
                 AnnulusWidth = ClampFinite(AnnulusWidth, AnnulusWidthClampMin, AnnulusWidthClampMax),
             };
+
+            // 上游当量无效（≤0/NaN）→ 明确失败：拿错当量 = 所有测量值整体缩放错，绝不静默回退
+            if (pixelSizeError.Length > 0)
+            {
+                p.ValidationError = pixelSizeError;
+                return p;
+            }
 
             int required = RequiredRegionCountOf(p.Kind);
             var used = CaliperRegions.Take(required).ToList();
@@ -1797,6 +1812,42 @@ namespace Plugin.CaliperMeasure
                 p.RectangleNames.Add(region.Name);
             }
             return p;
+        }
+
+        /// <summary>
+        /// 生效的像素当量（public：供回归断言与界面查询）。
+        /// 取值规则：
+        /// · **已接上游**（流程画布连到本步骤 MmPerPixel 端口，或链接运行时变量）→ 上游值，
+        ///   照常走同一安全夹取（1e-9~1e6，真实标定值不会触到边界）；
+        ///   上游值无效（≤0/NaN/Inf）时返回手填值并把原因写入 <paramref name="error"/>——
+        ///   调用方（NormalizedParameters）据此**明确失败**：拿错当量 = 所有测量值整体缩放错，
+        ///   与「标定」插件"失配必须报"的纪律一致，绝不静默回退到旧值。
+        /// · **未接上游但端口值 &gt; 0** → 用端口值。这条覆盖"配置界面试运行"：
+        ///   PluginTestRunner 的桥接会把上游实际值灌进端口手动值（并清掉 LinkedSource），
+        ///   此时与运行期同口径取值，保证"试运行所见 = 运行所得"。
+        /// · **未接上游且端口值 ≤ 0**（从未接过的常态）→ 手填的「像素当量」（与旧行为完全一致）。
+        /// </summary>
+        public double GetEffectivePixelSizeMm(out string error)
+        {
+            error = string.Empty;
+            double portValue = MmPerPixel.ActualValue;   // 链接值优先；无链接时=手动值（试运行桥接走这里）
+
+            if (MmPerPixel.LinkedSource != null)
+            {
+                if (double.IsNaN(portValue) || double.IsInfinity(portValue) || portValue <= 0)
+                {
+                    error = $"像素当量来自上游连线但无效（{portValue:0.####}）：请检查上游（「标定」步骤本轮是否成功 / 链接的变量是否有值），"
+                          + "或改用手填像素当量并断开该连线";
+                    return ClampFinite(PixelSizeMm, PixelSizeClampMin, PixelSizeClampMax);
+                }
+                return ClampFinite(portValue, PixelSizeClampMin, PixelSizeClampMax);
+            }
+
+            // 未接线：端口值 >0（试运行桥接的上游快照）与手填值二选一——前者优先
+            if (portValue > 0 && !double.IsNaN(portValue) && !double.IsInfinity(portValue))
+                return ClampFinite(portValue, PixelSizeClampMin, PixelSizeClampMax);
+
+            return ClampFinite(PixelSizeMm, PixelSizeClampMin, PixelSizeClampMax);
         }
 
         /// <summary>夹取到 [min, max]；NaN/Infinity 一律当 min 处理</summary>

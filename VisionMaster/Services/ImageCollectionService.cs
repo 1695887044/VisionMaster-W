@@ -477,13 +477,34 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 缩略图：先整体转一次位图（唯一转换入口 <see cref="HalconImageHelper"/>），
-        /// 再按最长边缩放。刻意不在 HALCON 侧缩放——那要处理单/多通道与像素类型分支，
-        /// 而 WPF 侧的 <see cref="TransformedBitmap"/> 一律适用，且结果冻结后可跨线程读。
-        /// 代价是转换时会短暂占用一张全尺寸位图（一张 500 万像素彩图约 15MB，随即被 GC 回收）。
+        /// 缩略图：优先走"HALCON 先等比缩小、再转位图"的快路径（<see cref="HalconImageHelper.ToThumbnailSource"/>），
+        /// 不适用时回落"全尺寸转位图再缩放"。
+        ///
+        /// 为什么快路径值当
+        /// ---------
+        /// 本方法在**每帧 × 每输出端口**上被调用：全尺寸路径要为一张 160px 的缩略图把整张图
+        /// （500 万像素彩图约 15MB）搬进托管堆，随即被 GC 回收。先缩小再转，转换量降到千分之几。
+        ///
+        /// 为什么不影响视觉算法
+        /// ---------
+        /// 缩略图**只用于图像集网格渲染**（<c>ImageGallery.xaml</c> 的 <c>&lt;Image Source="{Binding Thumbnail}"&gt;</c>）；
+        /// 大图显示、导出、标注、取色走的都是 <see cref="ImageFrame.Image"/>（全尺寸原图）。
+        /// 这条路径与算法结果没有任何交集。
+        ///
+        /// 回落的情况（int4/real、非常规通道、缩放失败）
+        /// ---------
+        /// int4/real 的显示依赖本图 min/max 拉伸，先缩小会让缩略图量程与全图不一致，故不走快路径；
+        /// 这类图（视差 / 深度 / 浮点结果图）本就少见，回落全尺寸路径行为与历史完全一致。
+        ///
+        /// 两条路径产出的位图都已 <c>Freeze()</c>（缩略图要跨线程读）。
         /// </summary>
         private static BitmapSource? MakeThumbnail(HImage image, int maxSize)
         {
+            // 快路径：HALCON 侧先等比缩小再转换（只影响缩略图渲染，不参与任何视觉算法）
+            var fast = HalconImageHelper.ToThumbnailSource(image, maxSize);
+            if (fast != null) return fast;
+
+            // 回落：全尺寸转换 + WPF 侧缩放（int4/real 等），与历史行为逐字一致
             var full = HalconImageHelper.ToBitmapSource(image);
             if (full == null) return null;
 

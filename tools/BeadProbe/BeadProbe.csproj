@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    胶路检测插件 · 探针脚手架（临时工程，结论回写 docs\胶路检测\ 后即删）
+
+    位置说明：放 tools\ 而不是 Plugins\——Plugins\ 下的工程会被 Directory.Build.targets
+    当作插件投递到 Modules\，探针不是插件。
+    本工程不加入 VisionMaster.sln，不影响主构建。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>BeadProbe</RootNamespace>
+    <AssemblyName>BeadProbe</AssemblyName>
+    <!-- 控制台输出中文会被代码页转换，故探针把结果写 UTF-8 文件，不靠 stdout -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

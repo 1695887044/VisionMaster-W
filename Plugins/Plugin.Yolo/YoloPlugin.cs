@@ -43,94 +43,52 @@ namespace Plugin.Yolo
         Description = "用 ONNX 格式的 YOLO 检测模型找出目标（类别 + 置信度 + 位置）",
         ShortName = "\uf03d"
     )]
-    public class YoloPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class YoloPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================
         //  参数
         // ==================================================================
 
-        private string _modelPath = string.Empty;
-
         /// <summary>
         /// ONNX 模型文件路径。
         /// 支持绝对路径，也支持相对于宿主程序目录的路径（换机器部署时相对路径更省事）。
         /// </summary>
-        [StepConfig]
+        [StepConfig, DefaultValue("")]
         [BrowsePath(FileFilter = "ONNX 模型|*.onnx|所有文件|*.*")]
-        public string ModelPath
-        {
-            get => _modelPath;
-            set => SetProperty(ref _modelPath, value);
-        }
-
-        private int _inputSize;
+        public partial string ModelPath { get; set; }
 
         /// <summary>
         /// letterbox 的目标边长（像素）。**0 = 用模型元数据里的静态输入尺寸**（推荐）。
         /// 只有当模型是动态形状、元数据里读不到边长时才需要手填（常见值 640）。
         /// </summary>
         [StepConfig]
-        public int InputSize
-        {
-            get => _inputSize;
-            set => SetProperty(ref _inputSize, value);
-        }
-
-        private double _confidenceThreshold = 0.25;
+        public partial int InputSize { get; set; }
 
         /// <summary>置信度阈值：低于它的候选直接丢弃。0.25 是 Ultralytics 的默认值</summary>
-        [StepConfig]
-        public double ConfidenceThreshold
-        {
-            get => _confidenceThreshold;
-            set => SetProperty(ref _confidenceThreshold, value);
-        }
-
-        private double _nmsIoU = 0.45;
+        [StepConfig, DefaultValue(0.25)]
+        public partial double ConfidenceThreshold { get; set; }
 
         /// <summary>NMS 的 IoU 阈值：同类框重叠超过它就只保留置信度高的那个</summary>
-        [StepConfig]
-        public double NmsIoU
-        {
-            get => _nmsIoU;
-            set => SetProperty(ref _nmsIoU, value);
-        }
-
-        private int _maxDetections = 100;
+        [StepConfig, DefaultValue(0.45)]
+        public partial double NmsIoU { get; set; }
 
         /// <summary>最多保留多少个目标（按置信度截断）。0 = 不限</summary>
-        [StepConfig]
-        public int MaxDetections
-        {
-            get => _maxDetections;
-            set => SetProperty(ref _maxDetections, value);
-        }
-
-        private string _classFilterText = string.Empty;
+        [StepConfig, DefaultValue(100)]
+        public partial int MaxDetections { get; set; }
 
         /// <summary>
         /// 只保留这些类别（类别索引，逗号分隔，如 "0,2"）。留空 = 不过滤。
         /// 用于"我只关心缺陷这一类"的场景，既减少下游数据量，也避免无关目标干扰。
         /// </summary>
-        [StepConfig]
-        public string ClassFilterText
-        {
-            get => _classFilterText;
-            set => SetProperty(ref _classFilterText, value);
-        }
-
-        private int _cropMargin;
+        [StepConfig, DefaultValue("")]
+        public partial string ClassFilterText { get; set; }
 
         /// <summary>
         /// 「最佳目标裁剪图」向外扩张的边距（像素）。0 = 用检测框原样裁剪。
         /// 下游要做精细测量时，给几像素余量能避免把目标边缘切掉。
         /// </summary>
         [StepConfig]
-        public int CropMargin
-        {
-            get => _cropMargin;
-            set => SetProperty(ref _cropMargin, value);
-        }
+        public partial int CropMargin { get; set; }
 
         // ==================================================================
         //  端口

@@ -158,25 +158,48 @@
                             FontSize="11"
                             Visibility="Collapsed" />
 
-                        <!--  图标色块（圆角容器，替代裸图标）  -->
-                        <Border
-                            x:Name="IconChip"
+                        <!--  图标色块（圆角容器，替代裸图标）；右上角叠断点小红点（DWV 第 1 期）  -->
+                        <Grid
                             Grid.Column="1"
                             Width="28"
                             Height="28"
-                            Margin="2,0,8,0"
-                            Background="#F0F6FF"
-                            CornerRadius="8">
-                            <TextBlock
-                                x:Name="IconText"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontFamily="{StaticResource Icon}"
-                                FontSize="14"
-                                Foreground="#409EFF"
-                                Text="{Binding Icon}"
-                                TextOptions.TextFormattingMode="Display" />
-                        </Border>
+                            Margin="2,0,8,0">
+                            <Border
+                                x:Name="IconChip"
+                                Background="#F0F6FF"
+                                CornerRadius="8">
+                                <TextBlock
+                                    x:Name="IconText"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="14"
+                                    Foreground="#409EFF"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                            </Border>
+                            <!--  断点标记：只标记"有断点"的状态；未设断点时收起，避免噪声  -->
+                            <Ellipse
+                                Width="6"
+                                Height="6"
+                                Margin="0,-2,-2,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Fill="#F56C6C"
+                                Stroke="#FFFFFF"
+                                StrokeThickness="1">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBreakpoint}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                        </Grid>
 
                         <!--  名称 + 类型（上下两行，窄面板更易读）  -->
                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
@@ -553,53 +576,19 @@
                     Icon="comment-lines" />
                 <MenuItem
                     Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.ExecuteSelected}"
-                    Header="执行选中模块"
-                    Icon="play" />
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.ExecuteFromHere}"
-                    Header="从此处执行"
-                    Icon="forward" />
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.ShowAll}"
-                    Header="显示所有"
-                    Icon="eye" />
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.EnableSuperTool}"
-                    Header="启用超级工具"
-                    Icon="wrench" />
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.SetBreakpoint}"
-                    Header="设置断点"
-                    Icon="circle-dot" />
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
                     CommandParameter="{x:Static enums:ModuleCommandAction.ModuleParameters}"
                     Header="模块参数"
                     Icon="sliders" />
+                <Separator />
                 <MenuItem
                     Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.Cut}"
-                    Header="剪切"
-                    Icon="scissors" />
+                    CommandParameter="{x:Static enums:ModuleCommandAction.ToggleBreakpoint}"
+                    Header="{Binding BreakpointToggleHeader}"
+                    Icon="circle-dot" />
                 <MenuItem
                     Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.Copy}"
-                    Header="复制"
-                    Icon="copy" />
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.Paste}"
-                    Header="粘贴"
-                    Icon="paste" />
-                <MenuItem
-                    Command="{Binding ModuleActionCommand}"
-                    CommandParameter="{x:Static enums:ModuleCommandAction.Disable}"
-                    Header="禁用"
+                    CommandParameter="{x:Static enums:ModuleCommandAction.ToggleDisable}"
+                    Header="{Binding DisableToggleHeader}"
                     Icon="ban" />
                 <MenuItem
                     Command="{Binding ModuleActionCommand}"

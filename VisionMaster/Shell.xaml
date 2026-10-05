@@ -15,6 +15,7 @@
     Height="920"
     prism:ViewModelLocator.AutoWireViewModel="True"
     ui:WindowExtensions.IsAutoWireCommands="True"
+    PreviewKeyDown="OnShellPreviewKeyDown"
     Background="#FFFFFF"
     FontFamily="Microsoft YaHei"
     WindowStyle="None">
@@ -149,6 +150,17 @@
             </Setter>
         </Style>
     </Window.Resources>
+
+    <Window.InputBindings>
+        <!--  DWV 第 1 期快捷键（窗口级）：F9 切换断点、F5 继续。
+              F10（单步）不走这里 —— WPF Menu 会把 F10 当"菜单激活键"消费，
+              改在 Shell.xaml.cs 的 PreviewKeyDown 里截获（见 OnShellPreviewKeyDown 注释）。  -->
+        <KeyBinding Key="F9" Command="{Binding ToggleBreakpointOnCurrentStepCommand}" />
+        <KeyBinding
+            Key="F5"
+            Command="{Binding ExecutionCommand}"
+            CommandParameter="{x:Static local:ExecutionAction.Resume}" />
+    </Window.InputBindings>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -653,6 +665,25 @@
                     Foreground="#2DA44E"
                     Style="{StaticResource TitleButton}"
                     ToolTip="循环运行" />
+                <!--  DWV 第 1 期调试控制：暂停 / 继续 / 单步（f04c=circle-pause、f04b=circle-play、f051=step-forward）  -->
+                <Button
+                    Command="{Binding ExecutionCommand}"
+                    CommandParameter="{x:Static local:ExecutionAction.Pause}"
+                    Content="&#xf04c;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="暂停（全部运行中的调试会话）" />
+                <Button
+                    Command="{Binding ExecutionCommand}"
+                    CommandParameter="{x:Static local:ExecutionAction.Resume}"
+                    Content="&#xf04b;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="继续（快捷键 F5）" />
+                <Button
+                    Command="{Binding ExecutionCommand}"
+                    CommandParameter="{x:Static local:ExecutionAction.StepOnce}"
+                    Content="&#xf051;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="单步：执行一个节点后再次停住（快捷键 F10；仅当恰好一个会话暂停时可用）" />
                 <Button
                     Command="{Binding ExecutionCommand}"
                     CommandParameter="{x:Static local:ExecutionAction.Stop}"

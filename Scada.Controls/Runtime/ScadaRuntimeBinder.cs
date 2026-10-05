@@ -34,7 +34,8 @@ namespace VisionMaster.Scada.Controls
     /// ② <b>脏值暂存 + 单次排队合并</b>：后台线程只写暂存表并立标志，UI 线程一次刷完。
     ///    20ms 周期里一个变量变十次，界面只重绘一次；十个变量同帧变，也只排一次 Dispatcher。
     /// ③ <b>按变量订阅一次 + 反向分发</b>：表结构是「变量 → 一批目标」，
-    ///    同一个变量被十个图元绑着也只挂一个 handler、只解析一次。
+    ///    同一个变量被十个图元绑着也只挂一个 handler、只解析一次、每次变化只读一次值
+    ///    （图像变量的一次读取 = 一次全尺寸转换，见 <c>OnValueChanged</c>）。
     ///    <b>动画并入本类而不是另起一个 Binder</b>，为的就是这一条：动画与绑定看的常常是同一个变量，
     ///    分开建表就会变成同一个变量挂两个 handler、同一帧排两次 Dispatcher。
     /// ④ <b>失败可见</b>：变量没解析到 → 橙角标；值转换失败 → 红角标；两者都写日志。
@@ -315,8 +316,20 @@ namespace VisionMaster.Scada.Controls
         {
             lock (_gate)
             {
+                // 空目标：订阅已挂上、目标还没挂上的极窄装配窗口（见 BuildBinding / BuildAnimation 的挂表顺序）。
+                // 没有要写的地方就直接回头——图像变量的一次读取就是一次全尺寸转换，不为空目标白读；
+                // 本次没有制造脏值，尾部的 QueueFlushIfDirty 跳过也是安全的。
+                if (subscription.Targets.Count == 0)
+                    return;
+
+                // 值只读一次、写给全部目标：图像变量的每次读取都是一次全尺寸"像素→位图"转换
+                // （见 RegistryScadaValueSource.Value 的读取出口），逐目标读 N 遍 = N 次重复转换。
+                // 读取留在锁内：后进锁者读到的才是最新值——读取若挪到锁外，先读到的旧值可能
+                // 后写入、盖掉后到的新值。
+                var value = subscription.Handle.Value;
+
                 foreach (var target in subscription.Targets)
-                    _dirty[target] = subscription.Handle.Value; // 同一目标一帧内变多次只留最后一次
+                    _dirty[target] = value; // 同一目标一帧内变多次只留最后一次
             }
 
             QueueFlushIfDirty();

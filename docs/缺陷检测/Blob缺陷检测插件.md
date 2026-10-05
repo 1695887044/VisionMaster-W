@@ -114,13 +114,14 @@ HALCON 区域数组本身**没有顺序约定**，下游按索引取"第 N 个�
 
 ## 2.2 端口完整清单（全部固定端口，无动态端口）
 
-### 输入（3 个）
+### 输入（4 个）
 
 | 端口 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `SrcImage` | HImage | ✔ | 待检测图像 |
 | `MaskRegion` | HRegion | ✖ | **检测区域**：只在该区域内找缺陷（接创建 ROI 的 `MaskRegion`）。未连线 = 整图 |
 | `ExcludeRegion` | HRegion | ✖ | **排除区域**：区域内候选一律丢弃 |
+| `MmPerPixel` | double | ✖ | **像素当量直连口**：接「标定」插件的 `MmPerPixel` 输出（也可链接运行时变量）。**未接线 = 用配置项 `PixelSizeMm`**（旧行为不变）；已接线但上游值无效（≤0/NaN，例如标定步骤本轮失败）→ 步骤**明确失败**，不静默回退旧值 |
 
 > 排除区域用在哪：螺丝孔、二维码、标记载体这类"位置固定、永远不该报"的误检源。触边排除只能处理图像边缘，处理不了画面中间的固定干扰。
 
@@ -201,7 +202,7 @@ HALCON 区域数组本身**没有顺序约定**，下游按索引取"第 N 个�
 
 | 配置 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `PixelSizeMm` | double | `1.0` | 像素当量 mm/px（只影响 mm² 输出，不参与判定） |
+| `PixelSizeMm` | double | `1.0` | 像素当量 mm/px（只影响 mm² 输出，不参与判定）。**接「标定」后此框为兜底**：已接 `MmPerPixel` 输入端口时运行时以连线为准 |
 | `SortMode` | 枚举 | `None` | 不排序 / 面积从大到小 / 从上到下从左到右 |
 | `DisplayViewIndex` | int | `1` | 运行显示窗口（0 = 不发布，1~9） |
 
@@ -380,6 +381,7 @@ HALCON 区域数组本身**没有顺序约定**，下游按索引取"第 N 个�
 | P1 | HALCON 23.05 不认识 `'elongation'`（`#3101`） | 改自己用 `smallest_rectangle1` 算长宽比 |
 | P1 | `disp_text` 用 `"image"` 坐标 | 无显示会话环境整段画不出来 |
 | P1 | 检测目标切换后阈值停在暗侧 | 默认值守卫把 `DetectTarget` 也算进去了 |
+| P1 | 视图给 `h:ImageReadOnly` 挂内联 `Style`（无 `BasedOn`） | 顶掉合并字典里的隐式样式 → 控件没模板，**预览区永远空白且无日志** |
 | P2 | `MaxGray` 默认 140 | 拿验证样图当调参目标 → 改 128 |
 | P2 | `MaxSingleArea=0` 语义相反 | 与其余"0=不启用"对齐 |
 | P2 | 4 通道图直接拒绝 | 改为取前 3 通道 |
@@ -466,6 +468,14 @@ HALCON 区域数组本身**没有顺序约定**，下游按索引取"第 N 个�
 
 **修法**：切换目标时记一笔 `_pendingAdaptOnTargetChange`，下次刷新时补做一次适配。
 
+### ⑪ 内联 `Style` 顶掉隐式样式 → 配置窗口预览区永远空白
+
+**现象**：配置窗口点「执行」试运行后，右侧预览区（「图像视图」页签）永远空白；信息栏却**有结果文字**（「NG：…」）、主界面显示窗口也**能收到标注图**——只有这一处控件不渲染。
+
+**原因**：视图给 `h:ImageReadOnly` 挂了只设 `Visibility` 的**内联** `<h:ImageReadOnly.Style>`（无 `BasedOn`）。WPF 中控件的显式 Style 会**顶掉**资源查找链里的**隐式样式**；而 `ImageReadOnly` 的 `ControlTemplate` 只存在于 `Core.Halcon` 合并字典（`Generic.xaml` → `Themes/ImageReadOnly.xaml`）的隐式样式里 → 控件没有模板（可视树里没有 `HSmartWindowControlWPF` / `PART_Halcon`）→ `HalconBase.RenderAll()` 因 `hWindow == null` **静默返回**。**不报错、不留日志**。该内联样式是 2026-10-01 12:28 加「图像视图/数据输出」页签时引入的（与 `[StepConfig]` partial 属性迁移无关：内容级 diff 证明迁移只动属性区）。附带边界：stock 控件（`ComboBox` / `ScrollViewer`）挂内联样式**不受影响**（模板来自 OS 主题样式）；中招的只限模板在合并字典隐式样式里的 `h:` 系控件。
+
+**修法**：两个页签的可见性触发器移到**外层包装 Grid**（`h:ImageReadOnly` 与 `ScrollViewer` 各包一层），控件自身不再挂内联样式。回归断言：`FlowCanvasChecks\BlobDetectChecks.cs` 的 `RunViewAndThemeContract` 静态闸「不给 h: 控件挂内联 Style」（仓库级同款闸在 `UIThemeSmokeTest\Program.cs` 的 XAML 扫描）。完整记录：`docs/code-changes/2026-10-04-Blob配置窗口预览区空白修复（内联Style顶掉控件模板）.md`。
+
 ## 4.4 代码级踩坑汇编
 
 | # | 现象 | 原因 | 正确做法 |
@@ -521,6 +531,7 @@ HALCON 区域数组本身**没有顺序约定**，下游按索引取"第 N 个�
 | Plugin.CreateRoi ★ | ROI | 常用工具 | `MaskRegion` / `ExcludeRegion` 接它的区域输出 | 圈检测区 / 排除区 |
 | Plugin.PreProcessing ★ | 图像预处理 | 图像处理 | 接 `SrcImage` | 洗图（去噪、二值化前置） |
 | Plugin.Matching | 模板匹配 | 定位 | 定位后把 ROI 送给 Blob | 先定位再检测 |
+| **Plugin.Calibration** ★ | **标定** | **标定** | 把标定的 `MmPerPixel` 连到本步骤 `MmPerPixel`（可选） | **当量直连**：mm² 输出免手抄；标定失败 → 本步骤明确失败（不拿旧值硬算） |
 | **Plugin.BlobDetect** | **Blob 缺陷检测** | **缺陷检测** | — | 检出缺陷并判定 |
 | Plugin.CaliperMeasure | 卡尺测量 | 测量 | 可与 Blob 并列做不同尺寸项 | 量尺寸 |
 | Plugin.CSharpScript ★ | C#脚本 | 逻辑控制 | 接 `DefectCircularities`/`DefectAspectRatios` 分流 | 气泡 vs 划痕分类 |
@@ -541,6 +552,9 @@ ROI.ExcludeRegion ──▶ BlobDetect.ExcludeRegion
 
 ③ 缺陷分类分流
 BlobDetect.DefectCircularities / DefectAspectRatios ──▶ C#脚本（圆斑=气泡 / 长条=划痕）
+
+④ 当量直连（mm² 输出要物理量时推荐）
+标定.MmPerPixel ──▶ BlobDetect.MmPerPixel（未接线时用 ⑤区手填 PixelSizeMm 兜底；标定失败 → Blob 明确失败）
 ```
 
 > **位置原则**：Blob 是"检测判定"节点，前面要有图（采集/预处理/ROI），后面接记录/上报/分流。

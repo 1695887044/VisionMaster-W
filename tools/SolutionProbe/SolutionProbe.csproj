@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    胶路检测 · 方案生成与验证台（临时工程，验证通过后即删）
+
+    目的：不手写 .vms JSON——用宿主自己的 SolutionService.Serialize 生成方案文件，
+    再走 LoadAsync → FlowCompiler.Compile → CompiledFlow.Run 全链路验证，
+    确保用户从宿主"打开方案"到"点运行"一路可用。
+
+    位置说明：放 tools\（不是 Plugins\，不是 FlowCanvasChecks\——后者是正式断言工程，
+    本探针是一次性脚手架，且 FlowCanvasChecks 正被并发任务共用，不去动它）。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>SolutionProbe</RootNamespace>
+    <AssemblyName>SolutionProbe</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 宿主：SolutionService / FlowCompiler / WorkspaceContext / ExecutionContext / ActionStep -->
+    <ProjectReference Include="..\..\VisionMaster\VisionMaster.csproj" />
+    <!-- 被方案引用的插件：FlowCompiler 用 Type.GetType(PluginTypeName) 反射实例化，
+         程序集必须在探针进程里可解析，所以直接引用插件工程 -->
+    <ProjectReference Include="..\..\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj" />
+    <ProjectReference Include="..\..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

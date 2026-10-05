@@ -16,10 +16,12 @@
     </UserControl.Resources>
     <Grid Background="#FFFFFF">
         <ListBox
+            x:Name="FlowList"
             HorizontalContentAlignment="Stretch"
             Background="Transparent"
             BorderThickness="0"
             ItemsSource="{Binding Workspace.CurrentSolution.Flows}"
+            PreviewMouseRightButtonUp="FlowList_PreviewMouseRightButtonUp"
             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
             SelectedItem="{Binding SelectFlow}">
             <ListBox.ItemContainerStyle>
@@ -54,13 +56,15 @@
             </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <!--  精简两列：图标 + 名称（描述与完整信息进 Tooltip）  -->
+                    <!--  精简三列：图标 + 名称 + 禁用小标签（描述与完整信息进 Tooltip）  -->
                     <Grid Background="Transparent" ToolTip="{Binding Description}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="35" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock
+                            x:Name="FlowIcon"
                             Grid.Column="0"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
@@ -69,6 +73,7 @@
                             Foreground="#007ACC"
                             Text="&#xf1c9;" />
                         <TextBlock
+                            x:Name="NameText"
                             Grid.Column="1"
                             Margin="5,0,0,0"
                             VerticalAlignment="Center"
@@ -76,6 +81,15 @@
                             Foreground="#333333"
                             Text="{Binding FlowName}"
                             TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            x:Name="DisabledTag"
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="#F56C6C"
+                            Text="已禁用"
+                            Visibility="Collapsed" />
                         <Grid.ContextMenu>
                             <ContextMenu FontFamily="{StaticResource Icon}">
                                 <MenuItem Header="流程" Icon="&#xf0e8;">
@@ -99,18 +113,17 @@
                                         CommandParameter="{x:Static enums:FlowAction.EditComment}"
                                         Header="编辑注释"
                                         Icon="&#xf075;" />
-                                </MenuItem>
-                                <MenuItem Header="流程加密" Icon="&#xf132;">
+                                    <Separator />
                                     <MenuItem
                                         Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Encrypt}"
-                                        Header="加密流程"
-                                        Icon="&#xf023;" />
+                                        CommandParameter="{x:Static enums:FlowAction.ToggleEnabled}"
+                                        Header="{Binding Data.FlowToggleHeader, Source={StaticResource MyViewModelProxy}}"
+                                        Icon="ban" />
                                     <MenuItem
                                         Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                        CommandParameter="{x:Static enums:FlowAction.Decrypt}"
-                                        Header="解密流程"
-                                        Icon="&#xf09c;" />
+                                        CommandParameter="{x:Static enums:FlowAction.Compile}"
+                                        Header="编译本流程"
+                                        Icon="&#xf0e7;" />
                                 </MenuItem>
                                 <MenuItem
                                     Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
@@ -120,6 +133,15 @@
                             </ContextMenu>
                         </Grid.ContextMenu>
                     </Grid>
+                    <!--  禁用态放 DataTemplate.Triggers：本仓库实测 ControlTemplate.Triggers 里的 DataTrigger 对模板内元素静默失效  -->
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                            <Setter TargetName="FlowIcon" Property="Foreground" Value="#C0C4CC" />
+                            <Setter TargetName="NameText" Property="Foreground" Value="#909399" />
+                            <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
+                            <Setter TargetName="DisabledTag" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>

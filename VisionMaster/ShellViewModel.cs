@@ -45,6 +45,30 @@ namespace VisionMaster
         /// </summary>
         private readonly ScadaAccessPolicy _accessPolicy;
         private readonly IRuntimeManager _runtimeManager;
+
+        /// <summary>
+        /// 具体类型注入（容器把具体类型与 IFlowEngine 映射到同一单例，先例见 FlowEngineModule 注册注释）：
+        /// SessionStateChanged 事件不在 IFlowEngine 契约上，必须拿具体类型才能订阅。
+        /// </summary>
+        private readonly FlowEngineService _flowEngineService;
+
+        // ================= DWV 第 1 期：调试暂停 / 命中窗 =================
+
+        /// <summary>暂停前的运行态（进入 Paused 时记住，最后一个暂停会话恢复时还原）</summary>
+        private MainRunState _prePauseRunState = MainRunState.NotStarted;
+
+        /// <summary>「本次运行不再提示」：断点 / 单步照常停（引擎侧不受影响），只是不再弹命中窗</summary>
+        private bool _suppressHitThisRun;
+
+        /// <summary>命中窗（单实例，懒建；点 X 只隐藏，下次命中再现）</summary>
+        private DebugHitWindow _hitWindow;
+
+        /// <summary>命中窗的展示 VM</summary>
+        private DebugHitViewModel _debugHitVm;
+
+        /// <summary>当前命中步骤（「打开模块参数」的目标；未定位到时为 null）</summary>
+        private StepModel _hitTargetStep;
+
         private CancellationTokenSource _cts;
         private Task _monitorTask;
 
@@ -103,6 +127,9 @@ namespace VisionMaster
             get { return field; }
             set
             {
+                // 捕获旧值：命中窗"新一轮开始才复位抑制"要区分
+                // NotStarted→Running*（新运行）与 Paused→Running*（暂停恢复，抑制保留到本轮结束）
+                var previous = field;
                 if (SetProperty(ref field, value))
                 {
                     ExecutionCommand?.RaiseCanExecuteChanged();
@@ -110,6 +137,24 @@ namespace VisionMaster
                     SolutionCommand?.RaiseCanExecuteChanged();
                     RaisePropertyChanged(nameof(RunStateText));
                     RaisePropertyChanged(nameof(RunStateBrush));
+
+                    // DWV 第 1 期：命中窗与"本次运行不再提示"的生命周期挂在运行态转换上——
+                    //  · 回到"未启动"：关窗 + 复位抑制（上一次运行的"不再提示"不跨运行泄漏）；
+                    //  · 新一轮运行开始（从未启动进入 Running*）：同样复位 —— 抑制只作用于"本次运行"。
+                    //    注意：暂停恢复（Paused → Running*）不算新一轮、不复位，
+                    //    否则用户勾的"不再提示"在点继续后就失效（口径：断点/单步照常停，只是不弹窗）。
+                    if (value == MainRunState.NotStarted)
+                    {
+                        _prePauseRunState = MainRunState.NotStarted;
+                        ResetHitSuppression();
+                        _hitWindow?.Hide();
+                    }
+                    else if (previous == MainRunState.NotStarted
+                             && (value == MainRunState.RunningOnce || value == MainRunState.RunningContinuous))
+                    {
+                        ResetHitSuppression();
+                    }
+
                     // 向全应用广播运行状态（流程栏编辑锁等消费方经 GlobalEventBus 订阅）；
                     // setter 必在 UI 线程调用，总线同步派发，订阅者拿不到脏线程上下文
                     GlobalEventBus.Publish(value);
@@ -117,25 +162,33 @@ namespace VisionMaster
             }
         }
 
-        /// <summary>状态栏文字：未启动 / 启动中 / 循环运行中</summary>
+        /// <summary>状态栏文字：未启动 / 启动中 / 循环运行中 / 已暂停</summary>
         public string RunStateText => RunState switch
         {
             MainRunState.RunningOnce => "启动中",
             MainRunState.RunningContinuous => "循环运行中",
+            MainRunState.Paused => "已暂停",
             _ => "未启动",
         };
 
-        /// <summary>状态指示灯颜色：灰=未启动，橙=单次运行，绿=循环运行</summary>
+        /// <summary>暂停态灯色 #409EFF（评审建议色；静态复用，避免每次取属性都新建画刷）</summary>
+        private static readonly Brush PausedBrush = new SolidColorBrush(Color.FromRgb(0x40, 0x9E, 0xFF));
+
+        /// <summary>状态指示灯颜色：灰=未启动，橙=单次运行，绿=循环运行，蓝=已暂停</summary>
         public Brush RunStateBrush => RunState switch
         {
             MainRunState.RunningOnce => Brushes.DarkOrange,
             MainRunState.RunningContinuous => Brushes.ForestGreen,
+            MainRunState.Paused => PausedBrush,
             _ => Brushes.Gray,
         };
         #endregion
         #region Commands
         public AsyncDelegateCommand<SolutionAction?> SolutionCommand { get; }
         public DelegateCommand<ExecutionAction?> ExecutionCommand { get; }
+
+        /// <summary>F9：切换当前步骤断点（无选中则 no-op；与流程栏「切换断点」同口径）</summary>
+        public DelegateCommand ToggleBreakpointOnCurrentStepCommand { get; }
         public DelegateCommand<SystemAction?> SystemCommand { get; }
 
         public DelegateCommand<string> SwitchCanvasCommand {  get; }
@@ -251,12 +304,14 @@ namespace VisionMaster
             FlowCompiler _flowCompiler,
             AdvancedCommunicationManager communicationManager,
             NetworkVariableBridge variableBridge,
-            ScadaAccessPolicy accessPolicy
+            ScadaAccessPolicy accessPolicy,
+            FlowEngineService flowEngineService
         )
         {
             StartBackgroundMonitoring();
             SolutionCommand = new(ExecuteProjectAction, CanExecuteSolution);
             ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction, CanExecuteExecution);
+            ToggleBreakpointOnCurrentStepCommand = new DelegateCommand(ToggleBreakpointOnCurrentStep);
             SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
             SwitchCanvasCommand = new DelegateCommand<string>(SwitchCanvas);
             TogglePanelCommand = new DelegateCommand<string>(TogglePanel);
@@ -271,6 +326,12 @@ namespace VisionMaster
             this._flowCompiler = _flowCompiler;
             this._communicationManager = communicationManager;
             this._variableBridge = variableBridge;
+
+            // DWV 第 1 期：调试会话状态订阅（生命周期 = Shell 全程，无需退订）。
+            // DebugEnabled 的置位在各运行入口（RunAllEnabledOnce/Continuous）；这里负责把
+            // "暂停 / 恢复"镜像到 RunState、按暂停原因驱动命中窗。
+            this._flowEngineService = flowEngineService;
+            _flowEngineService.SessionStateChanged += OnSessionStateChanged;
 
             // 空闲超时登出要"说一声"。挂在这里（而不是弹窗里）是因为主窗口是唯一
             // 从头到尾开着的那一个——超时那一刻弹窗多半关着（见 ScadaLoginViewModel 注释①）。
@@ -505,14 +566,38 @@ namespace VisionMaster
         private FlowSession _currentSession;
 
         /// <summary>
-        /// 运行按钮互锁规则：未运行时可点"编译/启动/循环"；运行中只留"停止"可点。
+        /// 运行按钮互锁矩阵（DWV 第 1 期扩了"已暂停"一行）：
+        ///  · 未启动：编译 / 运行一次 / 循环运行；
+        ///  · 运行中：停止 / 暂停；
+        ///  · 已暂停：停止 / 继续；单步仅当"恰好一个会话暂停"（多会话时步谁说不清，宁缺毋滥）；
+        ///  · 其余（暂停中点编译 / 运行等）一律灰。
         /// WPF 按钮在 CanExecute=false 时自动置灰，无需在 View 里写任何状态判断。
         /// </summary>
         private bool CanExecuteExecution(ExecutionAction? action)
         {
-            return action == ExecutionAction.Stop
-                ? RunState != MainRunState.NotStarted
-                : RunState == MainRunState.NotStarted;
+            switch (action)
+            {
+                case ExecutionAction.Compile:
+                case ExecutionAction.RunOnce:
+                case ExecutionAction.RunContinuous:
+                    return RunState == MainRunState.NotStarted;
+
+                case ExecutionAction.Stop:
+                    return RunState != MainRunState.NotStarted;
+
+                case ExecutionAction.Pause:
+                    return RunState == MainRunState.RunningOnce || RunState == MainRunState.RunningContinuous;
+
+                case ExecutionAction.Resume:
+                    return RunState == MainRunState.Paused;
+
+                case ExecutionAction.StepOnce:
+                    // 快照现取：暂停会话数随会话事件变化，缓存会过期
+                    return RunState == MainRunState.Paused && PausedSessions().Count == 1;
+
+                default:
+                    return false;
+            }
         }
 
         /// <summary>
@@ -547,6 +632,15 @@ namespace VisionMaster
                     break;
                 case ExecutionAction.Stop:
                     StopAllRunning();
+                    break;
+                case ExecutionAction.Pause:
+                    PauseAllDebugSessions();
+                    break;
+                case ExecutionAction.Resume:
+                    ResumeAllPausedSessions();
+                    break;
+                case ExecutionAction.StepOnce:
+                    StepSinglePausedSession();
                     break;
             }
         }
@@ -897,6 +991,9 @@ namespace VisionMaster
 
                 if (session != null && !session.IsRunning)
                 {
+                    // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
+                    // per-run 语义：引擎在每轮收尾统一清回 false，绝不泄漏给 HTTP 触发等非界面路径
+                    session.DebugEnabled = true;
                     tasks.Add(flowEngine.RunSessionOnceAsync(session));
                     runCount++;
                 }
@@ -966,6 +1063,9 @@ namespace VisionMaster
 
                 if (session != null && !session.IsRunning)
                 {
+                    // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
+                    // per-run 语义：引擎在每轮收尾统一清回 false，绝不泄漏给 HTTP 触发等非界面路径
+                    session.DebugEnabled = true;
                     // 循环会话的任务只有被"停止"取消后才会结束，因此这里绝不能 await 它
                     tasks.Add(flowEngine.RunSessionAsync(session));
                     runCount++;
@@ -993,6 +1093,206 @@ namespace VisionMaster
         {
             flowEngine.StopAll();
             Notifier.ShowSuccess("已停止所有运行中的流程");
+        }
+
+        // ================= DWV 第 1 期：调试暂停 / 继续 / 单步 / 命中窗 =================
+
+        /// <summary>
+        /// 暂停所有运行中的调试会话（「暂停 / 继续 = 全部运行中会话」，与 StopAll 同口径）。
+        ///
+        /// 【为什么只暂停 DebugEnabled 的会话】调试门只在调试会话上装（HTTP 触发 / 试运行从不置位
+        /// DebugEnabled），非调试会话没有可等待的门；按钮的语义就是"暂停本次界面发起的运行"，
+        /// 跳过非调试会话是刻意的（别去卡外部触发的产线链路）。
+        /// 【为什么走快照】ActiveSessions 是运行期可变集合（HTTP 线程会增删），裸枚举会撞"集合已修改"。
+        /// </summary>
+        private void PauseAllDebugSessions()
+        {
+            foreach (var session in _runtimeManager.SnapshotSessions())
+            {
+                if (session.State == SessionState.Running && session.DebugEnabled)
+                    flowEngine.PauseSession(session);
+            }
+        }
+
+        /// <summary>继续：对所有"已暂停"的会话放行（断点 / 单步 / 用户暂停三种暂停统一适用，评审结论 9）</summary>
+        private void ResumeAllPausedSessions()
+        {
+            foreach (var session in _runtimeManager.SnapshotSessions())
+            {
+                if (session.State == SessionState.Paused)
+                    flowEngine.ResumeSession(session);
+            }
+        }
+
+        /// <summary>单步：仅当"恰好一个会话暂停"时可用（多会话同时暂停时步哪个说不清，宁缺毋滥）</summary>
+        private void StepSinglePausedSession()
+        {
+            var paused = PausedSessions();
+            if (paused.Count == 1)
+                flowEngine.StepSession(paused[0]);
+        }
+
+        /// <summary>暂停中的会话快照（"已无暂停会话" / "恰一个暂停"两处判定共用的唯一来源，防口径漂移）</summary>
+        private List<FlowSession> PausedSessions()
+            => _runtimeManager.SnapshotSessions().Where(s => s.State == SessionState.Paused).ToList();
+
+        /// <summary>复位命中窗抑制（同步命中窗 VM 的勾选态；VM 回调仅回写同一字段，幂等）</summary>
+        private void ResetHitSuppression()
+        {
+            _suppressHitThisRun = false;
+            if (_debugHitVm != null)
+                _debugHitVm.SuppressThisRun = false;
+        }
+
+        /// <summary>
+        /// 会话状态变更（DWV 第 1 期）。
+        ///
+        /// 事件可能来自执行线程（调试门命中 → 引擎在运行线程上 NotifyStateChanged），
+        /// 先经 UiDispatcher 切回 UI 线程，再动 RunState / 命中窗。
+        ///
+        /// 两件事：
+        ///  · 运行态镜像：有会话进入 Paused → 整机切"已暂停"（记住暂停前的运行态）；
+        ///    最后一个暂停会话回到 Running 且"已无暂停会话" → 还原暂停前的运行态。
+        ///  · 命中窗：仅"断点命中 / 单步停住"弹窗（用户手动暂停不弹）；被"本次运行不再提示"抑制时不弹；
+        ///    暂停会话清零（继续 / 停止都会走到）自动隐藏。
+        /// </summary>
+        private void OnSessionStateChanged(object sender, SessionStateChangedEventArgs e)
+            => UiDispatcher.Post(() => HandleSessionStateChanged(e));
+
+        private void HandleSessionStateChanged(SessionStateChangedEventArgs e)
+        {
+            if (e.NewState == SessionState.Paused)
+            {
+                if (RunState != MainRunState.Paused)
+                {
+                    _prePauseRunState = RunState;
+                    RunState = MainRunState.Paused;
+                }
+
+                // 命中窗按暂停原因分流：只有"断点 / 单步"才弹（用户手动暂停不弹）；
+                // 用 SessionId 反查会话拿 PauseReason（通知只捎带 Id，不带会话本体）
+                var session = _runtimeManager.GetSessionById(e.SessionId);
+                if (session != null
+                    && !_suppressHitThisRun
+                    && (session.PauseReason == SessionPauseReason.Breakpoint
+                        || session.PauseReason == SessionPauseReason.Step))
+                {
+                    ShowDebugHit(session);
+                }
+            }
+            else if (e.NewState == SessionState.Running
+                     && RunState == MainRunState.Paused
+                     && PausedSessions().Count == 0)
+            {
+                // 最后一个暂停会话已放行：还原暂停前的运行态（正常路径下必为 RunningOnce / Continuous）
+                RunState = _prePauseRunState == MainRunState.NotStarted
+                    ? MainRunState.RunningContinuous
+                    : _prePauseRunState;
+            }
+
+            // 暂停会话清零 → 命中窗自动隐藏（继续 / 停止后都会走到这里）
+            if (_hitWindow != null && _hitWindow.IsVisible && PausedSessions().Count == 0)
+                _hitWindow.Hide();
+
+            // 会话状态一变，"单步"可用性（暂停会话数）可能就变了：让按钮重新查询
+            ExecutionCommand.RaiseCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// 弹出 / 刷新命中窗（单实例）。窗口仍以 Shell 命令为唯一执行入口
+        /// （继续 / 单步 / 停止直接绑 ExecutionCommand；「打开模块参数」走共享帮助类）。
+        /// </summary>
+        private void ShowDebugHit(FlowSession session)
+        {
+            _hitTargetStep = FindDebugStoppedStep(session);
+
+            EnsureHitWindow();
+
+            _debugHitVm.Update(
+                session.PauseReason == SessionPauseReason.Step ? "单步暂停" : "断点命中",
+                session.FlowName,
+                _hitTargetStep?.StepName ?? "（未能定位命中步骤）",
+                _hitTargetStep != null);
+
+            if (!_hitWindow.IsVisible)
+                _hitWindow.Show();
+        }
+
+        /// <summary>懒建命中窗（首命中才建，避免 Shell 构造期就碰 Window 对象）</summary>
+        private void EnsureHitWindow()
+        {
+            if (_hitWindow != null) return;
+
+            _debugHitVm = new DebugHitViewModel(
+                ExecutionCommand,
+                openParameters: OpenHitStepParameters,
+                suppressChanged: v => _suppressHitThisRun = v);
+
+            _hitWindow = new DebugHitWindow { DataContext = _debugHitVm };
+
+            // 挂主窗口为属主：随主窗口最小化 / 不退到主窗口后面；不设 Topmost，避免压住其它应用
+            if (Application.Current?.MainWindow is { } main && !ReferenceEquals(main, _hitWindow))
+                _hitWindow.Owner = main;
+        }
+
+        /// <summary>命中窗「打开模块参数」：复用流程栏同一帮助类（口径只有一份）</summary>
+        private void OpenHitStepParameters()
+        {
+            if (_hitTargetStep == null) return;
+            StepParameterDialog.Open(_hitTargetStep, dialogService);
+        }
+
+        /// <summary>
+        /// 在方案里按流程名找到命中流程，再递归找 IsDebugStopped==true 的步骤（含容器分支内嵌套步骤）。
+        /// 用 IsDebugStopped 而不是按 PauseReason 猜步骤：它是调试门在"停住期间"置的权威停点标记
+        /// （放行 / 收尾时清除），与引擎停点零漂移。
+        /// </summary>
+        private StepModel FindDebugStoppedStep(FlowSession session)
+        {
+            var flows = Workspace.CurrentSolution?.Flows;
+            if (flows == null) return null;
+
+            foreach (var flow in flows)
+            {
+                if (flow == null || flow.FlowName != session.FlowName) continue;
+                return FindDebugStoppedStep(flow.Steps);
+            }
+
+            return null;
+        }
+
+        private static StepModel FindDebugStoppedStep(IEnumerable<StepModel> steps)
+        {
+            if (steps == null) return null;
+
+            foreach (var step in steps)
+            {
+                if (step == null) continue;
+                if (step.IsDebugStopped) return step;
+
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                    {
+                        var hit = FindDebugStoppedStep(branch?.Steps);
+                        if (hit != null) return hit;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// F9：取反当前选中步骤的断点标记。无选中 no-op（评审：F9 纳入第 1 期）。
+        /// 纯运行期标记：运行 / 暂停中同样可用（与流程栏「切换断点」的运行锁豁免同一理由）。
+        /// </summary>
+        private void ToggleBreakpointOnCurrentStep()
+        {
+            var step = Workspace.CurrentStep;
+            if (step == null) return;
+
+            step.IsBreakpoint = !step.IsBreakpoint;
         }
 
         #endregion

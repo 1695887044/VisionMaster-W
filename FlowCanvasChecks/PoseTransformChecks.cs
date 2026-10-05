@@ -30,7 +30,7 @@ namespace FlowCanvasChecks
     {
         public static void Run()
         {
-            Section("[PT] 坐标变换插件：正反变换 / 角度 / 三类失配 / 位姿跟随 / 端口面");
+            Section("[PT] 坐标变换插件：正反变换 / 角度 / 三类失配 / 位姿跟随 / 透视联动 / 端口面");
 
             // ================= 数学层 =================
 
@@ -73,19 +73,19 @@ namespace FlowCanvasChecks
                 s * Math.Cos(alpha),  s * Math.Sin(alpha),
                 0d, 0d
             });
-            bool ang1 = PoseTransformMath.TryPixelAngleToMechanical(tSimilar, 30, out double ma1, out string? ea1);
+            bool ang1 = PoseTransformMath.TryPixelAngleToMechanical(tSimilar, 30, 0, 0, out double ma1, out string? ea1);
             Check("[PT] 角度：保向标定下像素 30° → 机械 30°（±1e-3）",
                 ang1 && Math.Abs(ma1 - 30) < 1e-3, ang1 ? $"{ma1:0.####}°" : ea1 ?? "失败");
-            bool ang2 = PoseTransformMath.TryPixelAngleToMechanical(tSimilar, -90, out double ma2, out _);
+            bool ang2 = PoseTransformMath.TryPixelAngleToMechanical(tSimilar, -90, 0, 0, out double ma2, out _);
             Check("[PT] 角度：保向标定下像素 −90° → 机械 −90°（±1e-3）",
                 ang2 && Math.Abs(ma2 + 90) < 1e-3, $"{ma2:0.####}°");
-            bool ang0 = PoseTransformMath.TryPixelAngleToMechanical(tSimilar, 0, out double ma0, out _);
+            bool ang0 = PoseTransformMath.TryPixelAngleToMechanical(tSimilar, 0, 0, 0, out double ma0, out _);
             Check("[PT] 角度：像素 0° → 机械 0°（基准定义，任何标定都成立）",
                 ang0 && Math.Abs(ma0) < 1e-9, $"{ma0:0.######}°");
 
             // 轴交换 = 反射（X=Row, Y=Col）：60°−90° = −30°，转角取反由矩阵吸收
             var tMirror = NinePoint(new[] { 1d, 0, 0, 1, 0, 0 });
-            bool angM = PoseTransformMath.TryPixelAngleToMechanical(tMirror, 30, out double maM, out _);
+            bool angM = PoseTransformMath.TryPixelAngleToMechanical(tMirror, 30, 0, 0, out double maM, out _);
             Check("[PT] 角度：轴交换（反射）→ 转角取反（−30°，由矩阵吸收、不再校正）",
                 angM && Math.Abs(maM + 30) < 1e-9, $"{maM:0.####}°");
 
@@ -301,6 +301,45 @@ namespace FlowCanvasChecks
 
             plugin.Dispose();
 
+            // ---- 新增：角度换算失败 → 所有标量端口保持开轮清零值（不留半成品） ----
+            // 用 NaN 像素角触发 TryPixelAngleToMechanical 失败：此时 MechanicalX/Y、PixelEchoRow/Col
+            // 已经算出来了，若先写端口再算角度，下游会读到"看起来正常"的半成品值。
+            // 注意必须显式设 Mode=ToMechanical（默认是 FollowRoi，会因"基准 ROI 为空"提前失败，
+            // 让断言假通过）。
+            var failPlugin = new PoseTransformPlugin { Mode = TransformMode.ToMechanical };
+            failPlugin.Transform.Value = tSwap;
+            failPlugin.PixelPointRow.Value = 100;
+            failPlugin.PixelPointCol.Value = 200;
+            failPlugin.PixelAngle.Value = double.NaN;
+            failPlugin.RunAlgorithm(ctx);
+            Check("[PT] 角度换算失败 → 五个标量端口全部为 0（不留半成品值）",
+                failPlugin.Success.Value is false
+                && Err(failPlugin).Contains("角度")
+                && failPlugin.MechanicalX.TypedValue == 0.0
+                && failPlugin.MechanicalY.TypedValue == 0.0
+                && failPlugin.PixelEchoRow.TypedValue == 0.0
+                && failPlugin.PixelEchoCol.TypedValue == 0.0
+                && failPlugin.MechanicalAngle.TypedValue == 0.0,
+                $"Success={failPlugin.Success.Value} ({failPlugin.MechanicalX.TypedValue}, {failPlugin.MechanicalY.TypedValue}) 回显=({failPlugin.PixelEchoRow.TypedValue}, {failPlugin.PixelEchoCol.TypedValue}) Err={Err(failPlugin)}");
+            failPlugin.Dispose();
+
+            // ---- 新增：角度端口断开后 MechanicalAngle 复位（不残留上一轮角度） ----
+            var anglePlugin = new PoseTransformPlugin { Mode = TransformMode.ToMechanical };
+            anglePlugin.Transform.Value = tSwap;
+            anglePlugin.PixelPointRow.Value = 100;
+            anglePlugin.PixelPointCol.Value = 200;
+            anglePlugin.PixelAngle.Value = 30.0;
+            anglePlugin.RunAlgorithm(ctx);
+            Check("[PT] 角度有值 → MechanicalAngle 已输出（前置条件）",
+                anglePlugin.Success.Value is true && anglePlugin.MechanicalAngle.TypedValue != 0.0,
+                $"{anglePlugin.MechanicalAngle.TypedValue:0.####}° {Err(anglePlugin)}");
+            anglePlugin.PixelAngle.Value = 0.0;
+            anglePlugin.RunAlgorithm(ctx);
+            Check("[PT] 角度断开/归零 → MechanicalAngle 复位为 0（不残留上一轮）",
+                anglePlugin.Success.Value is true && anglePlugin.MechanicalAngle.TypedValue == 0.0,
+                $"{anglePlugin.MechanicalAngle.TypedValue:0.####}° {Err(anglePlugin)}");
+            anglePlugin.Dispose();
+
             // ---- 11) 端口面：改名即断下游接线，锁住 ----
             var probe = new PoseTransformPlugin();
             var inputs = probe.Inputs.Keys.ToList();
@@ -334,7 +373,139 @@ namespace FlowCanvasChecks
             Check("[PT] 插件带 [Display]（GroupName=定位，否则工具箱里拖不出来）",
                 probe.GetType().GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.DisplayAttribute), false).Length == 1,
                 "");
+
+            // ================= 透视标定联动（二期①；承接标定侧 #66 的消费方联动项） =================
+            // 真透视样例（手算友好）：w 在 (250,500) 处恰好 = 2、在 (0,0) 处 = 1，便于逐位手算核对。
+            var tProjective = Perspective(new[] { 2.0, 0.2, 30.0, 0.5, 1.5, -75.0, 0.002, 0.001, 1.0 });
+
+            // ---- 12) 透视正/反变换：手算常量 ----
+            bool pm1 = PoseTransformMath.TryMapPixelToMechanical(tProjective, 250, 500, out double px1, out double py1, out string? pe1);
+            bool pm2 = PoseTransformMath.TryMapPixelToMechanical(tProjective, 0, 0, out double px2, out double py2, out _);
+            bool pinv = PoseTransformMath.TryMapMechanicalToPixel(tProjective, 315, 400, out double prr, out double pcc, out string? pe2);
+            Check("[PT] 透视正/反变换：手算常量（(250,500)→(315,400)、(0,0)→(30,−75)；互逆 < 1e-9）",
+                pm1 && Math.Abs(px1 - 315) < 1e-9 && Math.Abs(py1 - 400) < 1e-9
+                && pm2 && Math.Abs(px2 - 30) < 1e-9 && Math.Abs(py2 + 75) < 1e-9
+                && pinv && Math.Abs(prr - 250) < 1e-9 && Math.Abs(pcc - 500) < 1e-9,
+                pm1 ? $"({px1:0.######},{py1:0.######})、({px2:0.######},{py2:0.######}) 反向 ({prr:0.######},{pcc:0.######})" : pe1 ?? pe2 ?? "失败");
+
+            // ---- 13) 缺失/退化投影矩阵 → 拒绝（文案含「损坏/重新运行标定」） ----
+            var tProjMissing = new CalibrationTransform { Kind = CalibrationKind.Perspective, ProjectiveMatrix = null };
+            var tProjZero = new CalibrationTransform { Kind = CalibrationKind.Perspective, ProjectiveMatrix = new double[9] };
+            var tProjShort = new CalibrationTransform { Kind = CalibrationKind.Perspective, ProjectiveMatrix = new double[8] };
+            bool pjMiss = !PoseTransformMath.CheckCalibrationUsable(tProjMissing, out string? pje1)
+                          && (pje1 ?? "").Contains("损坏") && (pje1 ?? "").Contains("重新运行");
+            bool pjZero = !PoseTransformMath.CheckCalibrationUsable(tProjZero, out string? pje2)
+                          && (pje2 ?? "").Contains("损坏") && (pje2 ?? "").Contains("重新运行");
+            bool pjShort = !PoseTransformMath.CheckCalibrationUsable(tProjShort, out _);
+            Check("[PT] 透视矩阵缺失/退化/长度不足 → 拒绝且文案含「损坏/重新运行标定」",
+                pjMiss && pjZero && pjShort, pje1 ?? pje2 ?? "");
+
+            // ---- 14) 未知 Kind → 拒绝（不静默按旧逻辑；矩阵故意给"可用仿射"作反证） ----
+            var tUnknown = new CalibrationTransform { Kind = (CalibrationKind)7, Matrix = new[] { 1d, 0, 0, 1, 10, 20 } };
+            bool unknownRejected = !PoseTransformMath.CheckCalibrationUsable(tUnknown, out string? ue1)
+                                   && (ue1 ?? "").Contains("不支持的标定类型");
+            Check("[PT] 未知 Kind=(CalibrationKind)7 → 拒绝（防「忘记分支」静默按旧逻辑放行）",
+                unknownRejected, ue1 ?? "（竟然通过）");
+
+            // ---- 15) 分母≈0 的像素点 → 明确失败（w=0 线上拒绝；线外点照常映射） ----
+            var tDegLine = Perspective(new[] { 1.0, 0, 0, 0, 1, 0, 1, 0, -100.0 });
+            bool onLine = !PoseTransformMath.TryMapPixelToMechanical(tDegLine, 100, 50, out _, out _, out string? dle)
+                          && (dle ?? "").Contains("退化线");
+            bool offLine = PoseTransformMath.TryMapPixelToMechanical(tDegLine, 0, 50, out double offX, out double offY, out _)
+                           && Math.Abs(offX) < 1e-12 && Math.Abs(offY + 0.5) < 1e-12;
+            Check("[PT] 透视分母≈0 的像素点 → 明确失败（w=0 线上拒绝；线外点照常映射）",
+                onLine && offLine, dle ?? "（竟然通过）");
+
+            // ---- 16) 角度位置相关：J(p) 手算对比（±1e-6）；同 θ 两位置结果不同 ----
+            bool jacOk = PoseTransformMath.JacobianAt(tProjective.ProjectiveMatrix!, 250, 500, out double ja, out double jb, out double jc, out double jd)
+                         && Math.Abs(ja - 0.685) < 1e-6 && Math.Abs(jb + 0.0575) < 1e-6
+                         && Math.Abs(jc + 0.15) < 1e-6 && Math.Abs(jd - 0.55) < 1e-6;
+            bool pa1 = PoseTransformMath.TryPixelAngleToMechanical(tProjective, 30, 250, 500, out double pma1, out string? pae1);
+            bool pa2 = PoseTransformMath.TryPixelAngleToMechanical(tProjective, 30, 100, 100, out double pma2, out _);
+            // 期望角：用同一手算 J 按契约公式独立算（v0=J·(0,1)、vθ=J·(sinθ,cosθ)）
+            double pRad = 30 * Math.PI / 180.0;
+            double expAng = PoseTransformMath.NormalizeDegrees(
+                Math.Atan2(jc * Math.Sin(pRad) + jd * Math.Cos(pRad), ja * Math.Sin(pRad) + jb * Math.Cos(pRad)) * 180.0 / Math.PI
+                - Math.Atan2(jd, jb) * 180.0 / Math.PI);
+            Check("[PT] 透视角度位置相关：J(p) 手算对比（±1e-6）；同 θ 两位置结果不同",
+                jacOk && pa1 && pa2 && Math.Abs(pma1 - expAng) < 1e-6 && Math.Abs(pma1 - pma2) > 0.5,
+                $"J=({ja:0.####},{jb:0.####},{jc:0.####},{jd:0.####})；θ=30°@(250,500)={pma1:0.####}°（期望 {expAng:0.####}°）vs @(100,100)={pma2:0.####}° {pae1}");
+
+            // ---- 17) 插件级透视 ToMechanical：坐标=手算、回显 < 1e-6、机械角=手算 ----
+            var projPlugin = new PoseTransformPlugin { Mode = TransformMode.ToMechanical };
+            projPlugin.Transform.Value = tProjective;
+            projPlugin.PixelPointRow.Value = 250;
+            projPlugin.PixelPointCol.Value = 500;
+            projPlugin.PixelAngle.Value = 30.0;
+            projPlugin.RunAlgorithm(ctx);
+            Check("[PT] 插件级透视 ToMechanical：坐标=手算 (315,400)、回显 < 1e-6、机械角=手算",
+                projPlugin.Success.Value is true
+                && Math.Abs(projPlugin.MechanicalX.TypedValue - 315) < 1e-9
+                && Math.Abs(projPlugin.MechanicalY.TypedValue - 400) < 1e-9
+                && Math.Abs(projPlugin.PixelEchoRow.TypedValue - 250) < 1e-6
+                && Math.Abs(projPlugin.PixelEchoCol.TypedValue - 500) < 1e-6
+                && Math.Abs(projPlugin.MechanicalAngle.TypedValue - expAng) < 1e-6,
+                $"({projPlugin.MechanicalX.TypedValue:0.####},{projPlugin.MechanicalY.TypedValue:0.####}) 回显=({projPlugin.PixelEchoRow.TypedValue:0.####},{projPlugin.PixelEchoCol.TypedValue:0.####}) 角={projPlugin.MechanicalAngle.TypedValue:0.####}° {Err(projPlugin)}");
+            projPlugin.Dispose();
+
+            // ---- 18) FollowRoi 与标定类型解耦：九点/透视输出完全一致；不接标定照常成功 ----
+            var fA = new PoseTransformPlugin { Mode = TransformMode.FollowRoi };
+            fA.Transform.Value = tSwap;            // 九点（跟随不消费标定，仅"挂着"）
+            var fB = new PoseTransformPlugin { Mode = TransformMode.FollowRoi };
+            fB.Transform.Value = tProjective;      // 透视
+            var fC = new PoseTransformPlugin { Mode = TransformMode.FollowRoi };   // 不接标定
+            foreach (var f in new[] { fA, fB, fC })
+            {
+                f.BaseRegion.Value = baseRegion;
+                f.PoseRow.Value = 110;
+                f.PoseCol.Value = 95;
+                f.PoseAngle.Value = 15;
+                f.RunAlgorithm(ctx);
+            }
+            double fAreaA = 0, fRowA = 0, fColA = 0, fAreaB = 0, fRowB = 0, fColB = 0, fAreaC = 0;
+            if (fA.FollowedRegion.Value is HRegion rA) TryArea(rA, out fAreaA, out fRowA, out fColA);
+            if (fB.FollowedRegion.Value is HRegion rB) TryArea(rB, out fAreaB, out fRowB, out fColB);
+            if (fC.FollowedRegion.Value is HRegion rC) TryArea(rC, out fAreaC, out _, out _);
+            Check("[PT] FollowRoi 与标定类型解耦：九点/透视输出完全一致、不接标定照常成功",
+                fA.Success.Value is true && fB.Success.Value is true && fC.Success.Value is true
+                && fAreaA > 0
+                && Math.Abs(fAreaA - fAreaB) <= 1e-9 * fAreaA
+                && Math.Abs(fRowA - fRowB) < 1e-9 && Math.Abs(fColA - fColB) < 1e-9
+                && Math.Abs(fAreaA - fAreaC) <= 1e-9 * fAreaA,
+                $"面积 {fAreaA:0.###}/{fAreaB:0.###}/{fAreaC:0.###}，中心差 ({Math.Abs(fRowA - fRowB):0.###e+0},{Math.Abs(fColA - fColB):0.###e+0}) {Err(fA)}{Err(fB)}{Err(fC)}");
+            fA.Dispose();
+            fB.Dispose();
+            fC.Dispose();
+
+            // ---- 19) 失配②文案：同时含「九点」与「透视」（旧断言依赖「九点」不丢） ----
+            bool twoWords = PoseTransformMath.PixelScaleCannotMapMessage.Contains("九点")
+                            && PoseTransformMath.PixelScaleCannotMapMessage.Contains("透视");
+            bool twoWordsViaCheck = !PoseTransformMath.CheckCalibrationUsable(tScaleOnly, out string? twoErr)
+                                    && (twoErr ?? "").Contains("九点") && (twoErr ?? "").Contains("透视");
+            Check("[PT] 失配②文案同时含「九点」与「透视」（旧断言依赖「九点」不丢）",
+                twoWords && twoWordsViaCheck, twoErr ?? "");
+
+            // ---- 20) 尺寸失配（透视）：两个尺寸都进文案；尺寸相符放行 ----
+            var tProjSized = Perspective(new[] { 2.0, 0.2, 30.0, 0.5, 1.5, -75.0, 0.002, 0.001, 1.0 }, 2448, 2048);
+            bool pSizeBad = !PoseTransformMath.CheckImageSizeMatch(tProjSized, 1280, 1024, out string? psErr)
+                            && (psErr ?? "").Contains("2448×2048") && (psErr ?? "").Contains("1280×1024")
+                            && (psErr ?? "").Contains("重新标定");
+            bool pSizeOk = PoseTransformMath.CheckImageSizeMatch(tProjSized, 2448, 2048, out _);
+            Check("[PT] 尺寸失配（透视）：两个尺寸都进文案；相符放行",
+                pSizeBad && pSizeOk, psErr ?? "（竟然通过）");
         }
+
+        /// <summary>构造"透视"标定（本套断言只关心矩阵语义，MmPerPixel 不参与计算）。</summary>
+        private static CalibrationTransform Perspective(double[] hom, int width = 0, int height = 0) => new()
+        {
+            Kind = CalibrationKind.Perspective,
+            MmPerPixel = 0.02,
+            ProjectiveMatrix = hom,
+            SourceImageWidth = width,
+            SourceImageHeight = height,
+            SourceTag = "合成",
+            CameraSerial = "SYNTH-PT"
+        };
 
         /// <summary>构造"九点"标定（本套断言只关心矩阵语义，MmPerPixel 不参与计算）。</summary>
         private static CalibrationTransform NinePoint(double[] matrix, int width = 0, int height = 0) => new()

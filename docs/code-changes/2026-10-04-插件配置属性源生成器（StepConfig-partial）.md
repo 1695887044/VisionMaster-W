@@ -1,9 +1,9 @@
-# 2026-10-04 插件配置属性源生成器（StepConfig partial 属性）：7 插件 97 属性迁移
+# 2026-10-04 插件配置属性源生成器（StepConfig partial 属性）：两批 13 工程 114 属性迁移
 
 - 日期：2026-10-04
-- 范围：新增 `Shard\Core.PluginGenerators\`（生成器工程：csproj + StepConfigGenerator.cs）；新增 `Plugins\Directory.Build.props`（Analyzer 接线）；`VisionMaster.sln` 登记；7 个插件工程 97 个 `[StepConfig]` 属性迁移
-- 依据：`docs\问题汇总\2026-10-04-插件配置属性样板压缩（源生成器+约定收敛）讨论.md`（同日"已拍板并落地"；本记录为其首轮实施）
-- 背景：`[StepConfig]` 配置属性（后备字段 + SetProperty + 副作用 setter）样板约 7.6 行/个。拍板路线：**源生成器（partial property 写法，完整版含钩子）+ 约定三选一收敛**——零公共契约改动、可逐插件渐进迁移。本记录覆盖生成器工程与首轮 7 个工程迁移。
+- 范围：新增 `Shard\Core.PluginGenerators\`（生成器工程：csproj + StepConfigGenerator.cs）；新增 `Plugins\Directory.Build.props`（Analyzer 接线）；`VisionMaster.sln` 登记；第一批 7 个插件工程 97 个 `[StepConfig]` 属性迁移；第二批 6 个工程 17 个属性迁移（见「五、补充批次（第二批）」）
+- 依据：`docs\问题汇总\2026-10-04-插件配置属性样板压缩（源生成器+约定收敛）讨论.md`（同日"已拍板并落地"；本记录为其首轮实施与第二批补充）
+- 背景：`[StepConfig]` 配置属性（后备字段 + SetProperty + 副作用 setter）样板约 7.6 行/个。拍板路线：**源生成器（partial property 写法，完整版含钩子）+ 约定三选一收敛**——零公共契约改动、可逐插件渐进迁移。本记录覆盖生成器工程、第一批 7 个工程迁移（97 属性）与第二批 6 个工程迁移（17 属性）；两批共 13 个工程、114 个属性。
 
 > 口径标注：**已构建验证** = 施工会话实际运行过对应构建命令；**静态核对** = 不运行代码的源码 / 产物检查（含本次落盘的复核）。
 
@@ -18,7 +18,7 @@
 | `Plugins\Directory.Build.props` | 目录级接线（MSBuild 为 `Plugins\` 下每个工程自动导入）：`ProjectReference` + `OutputItemType=Analyzer` + `ReferenceOutputAssembly=false` → 24+ 个插件工程一次挂接，生成器 DLL 不进插件输出 |
 | `VisionMaster.sln` | `dotnet sln add` 登记生成器工程（Shard 文件夹） |
 
-**迁移明细（97 个属性）**：
+**迁移明细（第一批：97 个属性）**：
 
 | 插件工程 | 迁移属性数 |
 | --- | --- |
@@ -29,11 +29,11 @@
 | Plugin.Calibration | 13 |
 | Plugin.CaliperMeasure | 15 |
 | Plugin.BlobDetect | 24（收尾） |
-| **合计** | **97** |
+| **第一批合计** | **97** |
 
-行数变化：7 个插件主文件合计 **8992 → 8642**（净减 ~350 行；单插件最多 BlobDetect -76、ResultUpload -72）。——施工会话统计。
+行数变化（第一批）：7 个插件主文件合计 **8992 → 8642**（净减 ~350 行；单插件最多 BlobDetect -76、ResultUpload -72）。——施工会话统计。
 
-**跳过项（保持手写）与原因**：
+**跳过项（保持手写）与原因（第一批）**：
 
 | 跳过项 | 原因 |
 | --- | --- |
@@ -87,7 +87,7 @@ public partial int RetryCount
 
 ---
 
-## 三、验证证据
+## 三、验证证据（第一批）
 
 | 项 | 结果 | 口径 |
 | --- | --- | --- |
@@ -107,7 +107,47 @@ public partial int RetryCount
 
 ---
 
-## 五、未决 / 待人工验收
+## 五、补充批次（第二批，2026-10-04）
+
+- 范围：6 个插件工程迁移 17 个 `[StepConfig]` 属性；另有一组按结构型规则**保持手写**的跳过项（见下）。`Plugin.PoseTransform` 由并发会话开发，本批以**最小 diff** 迁移（只把属性改成 partial 写法，不动工程其余结构）。
+- 口径：下列迁移 / 跳过 / 证据均为**施工会话口径**；本轮落盘另做静态核对（迁移属性名、partial 与钩子形态、跳过项的手写形态与源码一致）。
+
+**迁移明细（第二批：17 个属性）**：
+
+| 插件工程 | 迁移属性数 | 属性与钩子 |
+| --- | --- | --- |
+| Plugin.Yolo | 7 | ModelPath / InputSize / ConfidenceThreshold / NmsIoU / MaxDetections / ClassFilterText / CropMargin；全部无钩子；ModelPath 保留 `[BrowsePath]` |
+| Plugin.ImageAcquisition | 3 | Mode → `OnModeChanged` = ClearPreview + ValidatePathInputs；DisplayViewIndex → `OnChanging` = Clamp(0,9) + `DefaultValue(1)`；CameraSerial 无钩子 |
+| Plugin.PoseTransform | 4 | Mode / EmitFollowedImage / TemplateRefFromRegionCenter → `OnChanged` = RefreshConfigState；PreviewImagePath → `OnChanged` = EnsurePreviewLoaded |
+| Plugin.CreateRoi | 1 | MaskInvert → `OnMaskInvertChanged` = ScheduleMaskPreview |
+| Plugin.CSharpScript | 1 | ScriptText → `OnChanging` = `??= ""`，`DefaultValue(DefaultScript)` 常量引用 |
+| Plugin.PreProcessing | 1 | DisplayViewIndex，无钩子 |
+| **第二批合计** | **17** | — |
+
+**跳过项（保持手写）与原因（第二批）**：
+
+| 跳过项 | 原因 |
+| --- | --- |
+| CodeReader `Symbology` | 默认值 `CodeSymbologyTable.Default.HalconName` 不是编译期常量（特性实参必须常量）→ 手写；同文件 `TimeoutMs` / `Polarity` 为自动属性型，未动 |
+| CreateRoi `RoiList` | RebuildDynamicOutputs + 快照 + 集合 `new()` |
+| CreateRoi `SmearDrawData` / `SmearEraseData` | 「手写赋值 + 无条件通知」型（非 `SetProperty`），按结构型规则保守跳过 |
+| CSharpScript `InputVars` / `OutputVars` | Unhook / Hook + RebuildDynamic |
+| ImageScript 全部 4 个（`Procedures` / `SelectedProcedure` / `InputVars` / `OutputVars`） | `Procedures` 集合 `new()` + EnsureSelectedProcedure；`SelectedProcedure` 为「手写赋值 + 通知」型；`InputVars` / `OutputVars` 为 Unhook / Hook + Rebuild |
+| PreProcessing `Chain` | 集合 `?? new()` + 非 `SetProperty` |
+
+**验证证据（第二批，施工会话口径）**：
+
+- 6 个工程单独构建：**0 error**。
+- `dotnet build VisionMaster.sln`：**0 error**。
+- 契约反射核对：Yolo 7 / CodeReader 3 / ImageAcquisition 3 / CreateRoi 5 / CSharpScript 3 / ImageScript 4 / PreProcessing 2 / PoseTransform 4（均与源声明一致）。
+- 警告对比：目标文件 8 条警告为**存量**（仅行号位移，无新增）。
+- `Modules\` 投递：6 个 DLL 已刷新（12:49）。
+
+**累计口径**：两批共 **13 个工程、114 个属性**迁移；未被迁移的旧式写法 = 上述第二批跳过清单 + 第一批跳过清单（ResultUpload `Headers` / `Fields`、DataRecord `Columns` / `ImageSaveMode`、Calibration `PointRows`、CaliperMeasure `CaliperRegions`、BlobDetect `DetectTarget`）。
+
+---
+
+## 六、未决 / 待人工验收
 
 - 宿主人工验收未做：GUI 打开既有 `.vms` 回显、试运行、XAML 绑定。
 - CPG 负面用例未做：故意写错形态（缺 partial 类 / 不支持修饰符等），验证 CPG0001~CPG0005 确实报编译错误。

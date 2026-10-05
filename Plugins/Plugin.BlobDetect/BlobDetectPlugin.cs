@@ -50,6 +50,15 @@ namespace Plugin.BlobDetect
         public InputPort<HRegion> ExcludeRegion { get; } = new("ExcludeRegion", description: "排除区域（可选）：区域内的候选一律丢弃")
         { IsRequired = false };
 
+        /// <summary>
+        /// 像素当量（mm/px）：接「标定」插件的 MmPerPixel 输出（也可链接运行时变量）。
+        /// **未接（无连线）时用「像素当量」配置项**（默认 1.0，旧行为不变）；
+        /// 已接时以其为准——上游值无效（≤0/NaN）会**明确失败**，绝不静默回退。
+        /// 注意：像素当量只影响 mm² 输出（判定仍按像素），不会因为接了标定而改变判定结果。
+        /// </summary>
+        public InputPort<double> MmPerPixel { get; } = new("MmPerPixel", 0, "像素当量（mm/px）：接「标定」插件 MmPerPixel；未接=用手填值")
+        { IsRequired = false };
+
         /// <summary>标注图：原图上把缺陷圈红 + 左上角写判定结果与个数</summary>
         public OutputPort<HImage> DefectImage { get; } = new("DefectImage", "标注图（原图 + 缺陷红圈 + 判定文字）");
 
@@ -1291,6 +1300,15 @@ namespace Plugin.BlobDetect
             }
 
             var p = NormalizedParameters();
+
+            // 上游当量无效（≤0/NaN）→ 明确失败：mm² 输出会整体缩放错，绝不静默回退
+            if (p.PixelSizeError.Length > 0)
+            {
+                Fail(p.PixelSizeError);
+                context.Logger.Error($"{InstanceName} {ErrorMessage.Value}");
+                return;
+            }
+
             BlobResult result;
             try
             {
@@ -1405,6 +1423,9 @@ namespace Plugin.BlobDetect
             public double MaxTotalArea;
             public double PixelSizeMm;
             public DefectSortMode SortMode;
+
+            /// <summary>像素当量取值的校验结果（非空 = 上游接线无效，运行期必须明确失败）</summary>
+            public string PixelSizeError = string.Empty;
 
             // 检测/排除区域：借用的端口值（所有权在端口，算法里绝不 Dispose）；
             // null = 未连线或上游没给值，区域逻辑整段跳过
@@ -1965,9 +1986,46 @@ namespace Plugin.BlobDetect
             p.MinDefectCount = (int)Math.Round(ClampFinite(MinDefectCount, 0, 1_000_000));
             p.MaxSingleArea = ClampFinite(MaxSingleArea, 0, AreaClampMax);
             p.MaxTotalArea = ClampFinite(MaxTotalArea, 0, AreaClampMax);
-            p.PixelSizeMm = ClampFinite(PixelSizeMm, 0, 1000);
+            p.PixelSizeMm = GetEffectivePixelSizeMm(out var pixelSizeError);
+            p.PixelSizeError = pixelSizeError;
             p.SortMode = SortMode;
             return p;
+        }
+
+        /// <summary>
+        /// 生效的像素当量（public：供回归断言与界面查询）。
+        /// 取值规则：
+        /// · **已接上游**（流程画布连到本步骤 MmPerPixel 端口，或链接运行时变量）→ 上游值，
+        ///   照常走同一安全夹取（0~1000，与手填同一护栏）；
+        ///   上游值无效（≤0/NaN/Inf）时返回手填值并把原因写入 <paramref name="error"/>——
+        ///   调用方（RunAlgorithm）据此**明确失败**：拿错当量 = mm² 输出整体缩放错，
+        ///   与「标定」插件"失配必须报"的纪律一致，绝不静默回退到旧值。
+        /// · **未接上游但端口值 &gt; 0** → 用端口值。这条覆盖"配置界面试运行"：
+        ///   PluginTestRunner 的桥接会把上游实际值灌进端口手动值（并清掉 LinkedSource），
+        ///   此时与运行期同口径取值，保证"试运行所见 = 运行所得"。
+        /// · **未接上游且端口值 ≤ 0**（从未接过的常态）→ 配置项的「像素当量」（默认 1.0，与旧行为一致）。
+        /// </summary>
+        public double GetEffectivePixelSizeMm(out string error)
+        {
+            error = string.Empty;
+            double portValue = MmPerPixel.ActualValue;   // 链接值优先；无链接时=手动值（试运行桥接走这里）
+
+            if (MmPerPixel.LinkedSource != null)
+            {
+                if (double.IsNaN(portValue) || double.IsInfinity(portValue) || portValue <= 0)
+                {
+                    error = $"像素当量来自上游连线但无效（{portValue:0.####}）：请检查上游（「标定」步骤本轮是否成功 / 链接的变量是否有值），"
+                          + "或改用手填像素当量并断开该连线";
+                    return ClampFinite(PixelSizeMm, 0, 1000);
+                }
+                return ClampFinite(portValue, 0, 1000);
+            }
+
+            // 未接线：端口值 >0（试运行桥接的上游快照）与手填值二选一——前者优先
+            if (portValue > 0 && !double.IsNaN(portValue) && !double.IsInfinity(portValue))
+                return ClampFinite(portValue, 0, 1000);
+
+            return ClampFinite(PixelSizeMm, 0, 1000);
         }
 
         /// <summary>夹取到 [min, max]；NaN/Infinity 一律当 min 处理</summary>

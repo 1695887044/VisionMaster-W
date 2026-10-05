@@ -1,0 +1,217 @@
+===== 胶路检测插件 · 探针 P1~P8 =====
+时间: 2026-10-05 22:22:25
+HALCONROOT: C:\Users\16958\AppData\Local\Programs\MVTec\HALCON-23.05-Progress
+
+=== A. 图像基础信息 ===
+  adhesive_bead_ref.png      1280x1024  ch=1  type=byte  gray=[10,255]
+  adhesive_bead_01.png       1280x1024  ch=1  type=byte  gray=[7,255]
+  adhesive_bead_02.png       1280x1024  ch=1  type=byte  gray=[14,255]
+  adhesive_bead_03.png       1280x1024  ch=1  type=byte  gray=[12,255]
+  adhesive_bead_04.png       1280x1024  ch=1  type=byte  gray=[8,255]
+  adhesive_bead_05.png       1280x1024  ch=1  type=byte  gray=[13,255]
+  adhesive_bead_06.png       1280x1024  ch=1  type=byte  gray=[10,255]
+  adhesive_bead_07.png       1280x1024  ch=1  type=byte  gray=[6,255]
+
+=== B. 平面可变形（投影）对齐 ===
+  [OK]   矫正后参考图尺寸 1280x1024（范例目标区 300..948 列 / 300..708 行）
+  [OK]   平面区: 面积=128558  锚点(RowT,ColT)=(432.67,624.8)  二值化阈值=127
+  [OK]   P5: create_planar_uncalib_deformable_model 耗时 = 177 ms
+  对齐分数（变体1 = 按范例做矫正）:
+    图01: score=0.8984
+    图02: score=0.9818
+    图03: score=0.8937
+    图04: score=0.8788
+    图05: score=0.9639
+    图06: score=0.8680
+    图07: score=0.9887
+  对齐分数（变体2 = 不做矫正）:
+    图01: score=0.8930
+    图02: score=0.9803
+    图03: score=0.8581
+    图04: score=0.8508
+    图05: score=0.9603
+    图06: score=0.8752
+    图07: score=0.9839
+  P2 小结: 矫正后 平均score=0.9248 失败0张 | 不矫正 平均score=0.9145 失败0张
+  [OK]   已导出对齐图 aligned_01.png（供人工目视核对）
+  [OK]   参考图已对齐到同一坐标系（自匹配 score=0.9984）
+
+=== C. 参考路径与 bead 模型（范例控制点） ===
+  [OK]   P1-a gen_contour_nurbs_xld 成功: 对象数=1 长度=1006.23px
+  [OK]        以 NURBS 曲线建 bead 模型成功
+  [OK]   P1-b gen_contour_polygon_xld 成功: 长度=1015.68px（14 个顶点）
+  [OK]        以折线建 bead 模型成功
+  [OK]        [NURBS] target_thickness=14 thickness_tolerance=7 position_tolerance=30
+  [OK]        [折线] target_thickness=14 thickness_tolerance=7 position_tolerance=30
+  P10 create_bead_inspection_model 参数合法域探测（轮廓=范例 NURBS）:
+     target_thickness=    1 失败: HALCON error #3716: Wrong value of parameter target_thickness in
+     target_thickness=    2 失败: HALCON error #3716: Wrong value of parameter target_thickness in
+     target_thickness=    4 失败: HALCON error #3716: Wrong value of parameter target_thickness in
+  [OK]        target_thickness=    6 可用
+  [OK]        target_thickness=    8 可用
+  [OK]        target_thickness=   10 可用
+  [OK]        target_thickness=   14 可用
+  [OK]        target_thickness=   20 可用
+  [OK]        target_thickness=   40 可用
+
+=== D. 7 张样图检测（P4 真值表） ===
+  图号 | 对齐score | 错误段数 | 错误类型
+   01  |  0.8984  |     0    | (无)   [缺胶0/太细0/太粗0/偏移0]
+   02  |  0.9818  |     0    | (无)   [缺胶0/太细0/太粗0/偏移0]
+   03  |  0.8937  |     2    | too thin, incorrect position   [缺胶0/太细1/太粗0/偏移1]
+   04  |  0.8788  |     0    | (无)   [缺胶0/太细0/太粗0/偏移0]
+   05  |  0.9639  |     3    | too thick, no bead, too thin   [缺胶1/太细1/太粗1/偏移0]
+   06  |  0.8680  |     1    | no bead   [缺胶1/太细0/太粗0/偏移0]
+   07  |  0.9887  |     4    | incorrect position, incorrect position, no bead, incorrect position   [缺胶1/太细0/太粗0/偏移3]
+
+=== E. 实测胶宽（P3 像素口径） ===
+  [OK]   分割口径对比: black-hat=2864px(阈值116) | 参考图差分=16019px(阈值103)
+  [OK]   选用「参考图差分」→ 胶条面积=16019px
+  [OK]   亮平面区面积=128558px（占全图 9.8%）
+  [OK]   主胶条外接矩形 628x362  阈值=103
+  [OK]   沿中心线平均半宽=7.63px (σ=0.96)  →  平均胶宽 ≈ 15.26px
+  [OK]   骨架点数（中心线长度近似）=921
+  [OK]   最粗处半宽=9px  →  最大胶宽 ≈ 18px
+  P3 对照（范例 TargetWidth=14 是「矫正坐标系」下的值）:
+     本图平均胶宽 15.26px  →  与 14 的比值 1.09
+     半宽波动 σ=0.96px  →  与 WidthTolerance=7 的比值 0.14
+     ⇒ 范例的 14/7/30 不能直接照搬，必须按本坐标系实测重定
+  P3 建议默认值（本坐标系，1280x1024）:
+     TargetWidth ≈ 15  （实测平均胶宽）
+     WidthTolerance ≈ 3  （3σ 覆盖正常波动）
+     ⚠ 注意 P10 实测：target_thickness 有下界（<6 报 #3716）
+
+=== F. 自动提取中心线（P6/P7/P8） ===
+  口径A black-hat(15): 面积=2864px 外接=132x209 阈值=116
+  口径B 参考图差分  : 面积=16019px 外接=628x362 阈值=103
+  [OK]   选用 口径B(参考图差分)（面积更大者更可能覆盖整条胶路）
+  [OK]   骨架点数=921
+  P8 mode 合法值集探测:
+  [OK]        mode='filter' 可用: 轮廓数=3 总长=20.14px
+     mode='nurbs' 不可用: HALCON error #1302: Wrong value of control parameter 2
+     mode='polygon' 不可用: HALCON error #1302: Wrong value of control parameter 2
+     mode='original' 不可用: HALCON error #1302: Wrong value of control parameter 2
+     mode='lines' 不可用: HALCON error #1302: Wrong value of control parameter 2
+     mode='smooth' 不可用: HALCON error #1302: Wrong value of control parameter 2
+     mode='filter_smooth' 不可用: HALCON error #1302: Wrong value of control parameter 2
+  P8 结论: 合法 mode = 'filter'
+  [OK]   骨架线对象数=3 → 最长=755.22px  全部合计=1096.45px
+  P6 覆盖率: 最长骨架线 755.22px / 范例参考线 1006.23px = 75.1%
+     ⚠ 提取不完整（<90%）：'取最长一条'会丢掉其余分支 → 需合并多分支（见下 P6 结论）
+  [OK]   平滑 SmoothContoursXld(numRegrPoints=11) 成功
+  P6 合并试验 union_collinear_contours_xld: 段数 3 → 3  最长 755.22 → 755.22px
+  P7 gen_polygons_xld type 值集探测:
+     type='lines' 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type='lines_color' 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type='lines_circles' 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type='lines_ellipses' 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type='polygon' 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type='none' 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type='true' 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type='false' 不可用: HALCON error #1301: Wrong value of control parameter 1
+  P7 结论: 无合法 type → 改用 GetContourXld 直接取点（不简化）
+  [OK]   P6 提取点列: 639 点
+     提取范围: Row [356, 706.3]  Col [312.2, 804.1]
+  [OK]   P6 用提取点列建 bead 模型成功（target_thickness=15.3 tolerance=2.9）
+     ⚠ 但提取路径只覆盖 755px / 范例 1006px —— 分支未合并，
+       故下表的检出必然比范例多报（路径没覆盖到的地方被判「缺胶」）：
+  P6 检出对照（自动提取路径 vs 范例控制点路径）:
+     图01:   1 段  [缺胶1/太细0/太粗0/偏移0]
+     图02:   1 段  [缺胶0/太细1/太粗0/偏移0]
+     图03:   4 段  [缺胶1/太细2/太粗0/偏移1]
+     图04:   4 段  [缺胶0/太细4/太粗0/偏移0]
+     图05:   6 段  [缺胶2/太细3/太粗1/偏移0]
+     图06:   8 段  [缺胶1/太细7/太粗0/偏移0]
+     图07:   9 段  [缺胶2/太细4/太粗0/偏移3]
+
+=== G. 位置偏移分布（P9：定 PositionTolerance 默认值） ===
+  [OK]   基准中心线（图01，参考图差分口径）长度=755.22px
+  各图中心线相对基准的偏移（用于定 PositionTolerance）:
+  [OK]        图02: 长度=1099.66px  最小偏移=      0px  最大偏移= 621.14px
+  [OK]        图03: 长度= 823.98px  最小偏移=      0px  最大偏移= 592.53px
+  [OK]        图04: 长度= 982.27px  最小偏移=      0px  最大偏移= 629.98px
+  [OK]        图05: 长度= 372.63px  最小偏移=      3px  最大偏移= 580.48px
+  [OK]        图06: 长度=  659.4px  最小偏移=      0px  最大偏移= 555.68px
+  [OK]        图07: 长度=1147.71px  最小偏移=      1px  最大偏移=    629px
+  P9 说明: 上述「最大偏移」含真实胶路偏移与提取误差两部分；
+     定 PositionTolerance 应取「良品图偏移分布」上界再留余量。
+     注意：图01 自身不是经范例验证的良品——范例真值表里 01/02/04 判 OK，
+     故更稳妥的基准应取 01/02/04 的共识中心线，本期先用 01。
+
+=== H. 微探针（P7 参数类型 / P6 分支覆盖） ===
+  H1 gen_polygons_xld type 试探（含整数候选）:
+     type=lines 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type=lines_color 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type=lines_circles 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type=lines_ellipses 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type=max_deviation 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type=max_distance 不可用: HALCON error #1301: Wrong value of control parameter 1
+     type=int 0 不可用: HALCON error #1201: Wrong type of control parameter 1
+     type=int 1 不可用: HALCON error #1201: Wrong type of control parameter 1
+     type=int 2 不可用: HALCON error #1201: Wrong type of control parameter 1
+     type=int 3 不可用: HALCON error #1201: Wrong type of control parameter 1
+  H2 分支覆盖试验（全部分支 vs 只取最长）:
+     骨架线 3 条: 最长=755.22px 合计=1096.45px  → 只取最长丢掉 341.23px (31.1%)
+     ⇒ 只取最长一条不可行：未覆盖的 341.23px 会被误判「缺胶」
+  H3 尺度交叉验证（范例参数 → 本坐标系）:
+     本坐标系胶路全长=1096.45px；范例坐标系=1006.23px → 尺度因子=1.090
+     范例 TargetWidth=14 换算到本坐标系 ≈ 15.26px
+     P3 实测平均胶宽=15.26px  →  两者比值=1.00
+     ⇒ 比值接近 1 说明「实测」与「范例参数换算」自洽，可互相印证；偏离大则需查分割口径
+
+=== I. 分支合并（P6 核心遗留） ===
+  骨架段数=3  总长=1096.45px
+     段1: (435,804)→(451,796) 长=20.14px
+     段2: (435,804)→(701,925) 长=321.09px
+     段3: (435,804)→(706,312) 长=755.22px
+  [OK]   ① 树直径法：取到 2/3 段，覆盖 1076.31px / 总长 1096.45px = 98.2%
+  [OK]   ② 合并点列: 905 点
+  [OK]   ③ 抽稀到 40 点（目标 ~40 点，便于人工微调）
+  ④ 合并点列建模型成功（target=15.3 tol=2.9）——检出对照:
+     图号 | 自动提取路径检出        | 范例控制点检出（真值）
+     图01 |   1段 [缺胶1/太细0/太粗0/偏移0] | OK
+     图02 |   1段 [缺胶0/太细1/太粗0/偏移0] | OK
+     图03 |   4段 [缺胶1/太细2/太粗0/偏移1] | 太细1+偏移1
+     图04 |   4段 [缺胶0/太细4/太粗0/偏移0] | OK
+     图05 |   7段 [缺胶2/太细3/太粗2/偏移0] | 缺胶1+太细1+太粗1
+     图06 |   7段 [缺胶1/太细6/太粗0/偏移0] | 缺胶1
+     图07 |   9段 [缺胶2/太细4/太粗0/偏移3] | 缺胶1+偏移3
+
+=== J. 点数与容差对检出的影响（定位过度报错） ===
+  基准：树直径路径 1076.31px，原始点 905 个
+  扫描（点数 × tolerance）→ 各图错误段数 [真值]：
+     点= 905 tol=   1 → 段数 [15,3,2,20,20,35,9]  偏差[+15,+3,0,+20,+17,+34,+5]
+     点= 905 tol=   2 → 段数 [6,11,11,10,9,5,13]  偏差[+6,+11,+9,+10,+6,+4,+9]
+     点= 905 tol=   4 → 段数 [1,6,4,2,6,21,14]  偏差[+1,+6,+2,+2,+3,+20,+10]
+     点= 905 tol=   8 → 段数 [1,0,3,0,4,1,7]  偏差[+1,0,+1,0,+1,0,+3]
+     点=  40 tol=   1 → 段数 [13,5,2,17,18,30,7]  偏差[+13,+5,0,+17,+15,+29,+3]
+     点=  40 tol=   2 → 段数 [6,10,10,9,9,4,9]  偏差[+6,+10,+8,+9,+6,+3,+5]
+     点=  40 tol=   4 → 段数 [1,3,3,2,6,19,10]  偏差[+1,+3,+1,+2,+3,+18,+6]
+     点=  40 tol=   8 → 段数 [1,0,2,0,4,1,4]  偏差[+1,0,0,0,+1,0,0]
+     点=  80 tol=   1 → 段数 [12,5,3,16,18,29,7]  偏差[+12,+5,+1,+16,+15,+28,+3]
+     点=  80 tol=   2 → 段数 [6,9,14,9,9,4,9]  偏差[+6,+9,+12,+9,+6,+3,+5]
+     点=  80 tol=   4 → 段数 [1,3,3,2,6,18,11]  偏差[+1,+3,+1,+2,+3,+17,+7]
+     点=  80 tol=   8 → 段数 [1,0,2,0,4,1,4]  偏差[+1,0,0,0,+1,0,0]
+     点= 150 tol=   1 → 段数 [11,3,2,16,18,32,7]  偏差[+11,+3,0,+16,+15,+31,+3]
+     点= 150 tol=   2 → 段数 [5,11,8,9,9,4,9]  偏差[+5,+11,+6,+9,+6,+3,+5]
+     点= 150 tol=   4 → 段数 [1,3,3,3,6,19,10]  偏差[+1,+3,+1,+3,+3,+18,+6]
+     点= 150 tol=   8 → 段数 [1,0,2,0,4,1,4]  偏差[+1,0,0,0,+1,0,0]
+     点= 300 tol=   1 → 段数 [11,3,2,16,18,31,7]  偏差[+11,+3,0,+16,+15,+30,+3]
+     点= 300 tol=   2 → 段数 [6,11,12,9,9,4,9]  偏差[+6,+11,+10,+9,+6,+3,+5]
+     点= 300 tol=   4 → 段数 [1,3,4,2,6,18,11]  偏差[+1,+3,+2,+2,+3,+17,+7]
+     点= 300 tol=   8 → 段数 [1,0,3,0,4,1,5]  偏差[+1,0,+1,0,+1,0,+1]
+  判读：偏差全 0 的那组 = 正确口径；若只有高点数才归零 → 抽稀太狠；
+       若任何组都归不了零 → 提取路径本身偏离参考胶路（需查分割/坐标系）。
+
+=== K. 决定性对照：提取中心线 vs 范例参考线 ===
+  范例 ContourRef: 长=1006.23px  外接 Row[356.8,701.8] Col[319.2,931]
+  提取中心线: 长=1076.31px  外接 Row[356,706] Col[312,931]
+  提取线→范例线 有向Hausdorff(最大偏离)=8.39px  平均偏离=1.98px
+  范例线→提取线 有向Hausdorff(最大偏离)=3.98px
+结论：存在最大 8.4px 的局部偏离 → 需定位偏离位置（多为分叉/端点）
+  长度比 提取/范例 = 1.070（骨架链码长度对数字化曲线的固有高估上限约 8%）
+  [OK]        在链码高估范围内 → 提取路径与范例参考线长度一致
+  抽稀到 40 点后：最大偏离=8.39px 平均偏离=2.18px（对比全点 8.39/1.98px）
+  [OK]        抽稀未显著增大偏离 → 40 点可用
+
+===== 结束 =====

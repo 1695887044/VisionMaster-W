@@ -1,0 +1,95 @@
+base checks=1154  after checks=1211
+--- added in AFTER (not in BASELINE) ---
++1 | [√通过] 两次命中恰好两次 Paused 事件  →  Paused 次数=2
++1 | [√通过] ★Move 下发成功 ≠ 已到位（命令已 Done，但轴仍在途中）  →  命令=Done 到位=False 位置=2.00mm
++1 | [√通过] [S13a] 采集步骤进入等待（插件打出等待 Info）  →  Infos=Info:[HttpImageServer] 已监听 http://127.0.0.1:19123/flow/{流程名}?outputs=步骤名.端口名 | Info:[HttpImageServer] 请求 87cb2156 已为流程「收图冒烟流程」补编译并注册会话 | Info:收图冒烟流程.图像采集_0 已从网络槽取图: 64x48x1 | Info:[HttpImageServer] 请求…
++1 | [√通过] 停止打断图纸编译通过
++1 | [√通过] 继续后暂停原因清空  →  PauseReason=None
++1 | [√通过] [CAL] 修改标定数据后 CreatedAtUtc 前进  →  2026-10-05T11:44:17.9549238Z → 2026-10-05T11:44:17.9807910Z
++1 | [√通过] 试运行会话从未进入调试态（DebugEnabled=false）  →  trial=True DebugEnabled=False
++1 | [√通过] 序列化文本不含 IsBreakpoint  →  断点跟着方案进产线是安全隐患（评审结论 4）
++1 | [√通过] 暂停锁回到放行态（收尾 Set 兜底）  →  锁留在合上态：后续等待会被莫名按住
++1 | [√通过] 停止后会话锁干净归还  →  FlowSession:cab4dcffc2924a7683531963efe7141b
++1 | [√通过] 暂停消息承载原因（Message 首次启用）  →  Message=调试暂停：断点命中
++1 | [√通过] 连续调试图纸编译通过
++1 | [√通过] 图像变量的定义照样落盘（名字 / 类型 / 稳定身份都在）  →  DataTypeString=HalconDotNet.HImage, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8 Id=1fec1fed-7104-4bcf-a38d-a492eea21254
++1 | [√通过] 单步图纸编译通过
++1 | [√通过] 单步停点原因 = Step  →  PauseReason=Step
++1 | [√通过] [S8] 灰度图 POST → 200 且 success=true  →  HTTP 200 body={"success":true,"requestId":"87cb2156","flow":"\u6536\u56FE\u5192\u70DF\u6D41\u7A0B","elapsedMs":1,"image":{"width":64,"height":48,"channels":1},"outputs":{"\u56FE\u50CF\u91C7\u96C6_0.Image":{"type":"…
++1 | [√通过] 停点上的停止立即生效：任务干净收尾（非 Faulted）  →  （超时说明 PauseLock.Wait(token) 没被取消唤醒）
++1 | [√通过] 第 1 圈断开住（body=0，停在执行前）  →  paused=True body=0
++1 | [√通过] [S11] 前序请求已注册会话  →  SessionID=b70fee35408f418180a82a0ecc1a92f4 CompiledVersion=2
++1 | [√通过] 2a bead 模型构建成功且句柄非空  →  句柄=H41E40F501F0
++1 | [√通过] 第 2 圈同一断点再次停住（A=2 / B=1 / C=1）  →  State=Paused A=2 B=1 C=1
++1 | [√通过] DebugEnabled 默认 false  →  DebugEnabled=False
++1 | [√通过] 重复 StepId 的错误带上了节点名（可定位）  →  [结构错误] 节点 Id 重复：'重复Id乙' 与先前的节点撞了同一个 Id（49e3d2a6-98fd-4c8d-8686-2a80279eb620），请删除重复节点后重新编译。
++1 | [√通过] ★点动下发后轴**持续**运动（没有终点，直到被叫停）  →  位置=0.750 mm
++1 | [√通过] 暂停原因 = Breakpoint  →  PauseReason=Breakpoint
++1 | [√通过] [CAL] 连续两次运行 CreatedAtUtc 稳定（签名不变不推进）  →  2026-10-05T11:44:17.9549238Z → 2026-10-05T11:44:17.9549238Z
++1 | [√通过] 停在断点时 StopSession 干净收尾（线程不残留）  →  （超时说明停止打不断断点等待）
++1 | [√通过] 继续后回到 Running  →  State=Running
++1 | [√通过] 豁免图纸编译通过
++1 | [√通过] 切换断点/停点标记不递增 Version  →  Version 1 → 1
++1 | [√通过] [S13b] 采集步骤进入等待  →  Infos=Info:[HttpImageServer] 已监听 http://127.0.0.1:19123/flow/{流程名}?outputs=步骤名.端口名 | Info:[HttpImageServer] 请求 87cb2156 已为流程「收图冒烟流程」补编译并注册会话 | Info:收图冒烟流程.图像采集_0 已从网络槽取图: 64x48x1 | Info:[HttpImageServer] 请求…
++1 | [√通过] 序列化文本不含 IsDebugStopped
++1 | [√通过] 运行期间会话锁确实被占住  →  FlowSession:cab4dcffc2924a7683531963efe7141b
++1 | [√通过] 停止后 State=Stopped 且 IsRunning=false  →  State=Stopped IsRunning=False
++1 | [√通过] 全流程执行（A=B=C=1）  →  A=1 B=1 C=1
++1 | [√通过] 前序节点已执行（A=1）  →  A=1
++1 | [√通过] 同类运行期标记同样不落盘（IsRunningFocus 对照）
++1 | [√通过] 后序节点未执行（C=0）  →  C=0
++1 | [√通过] [UI] BeadInspectView 无硬编码颜色
++1 | [√通过] 断点图纸编译通过
++1 | [√通过] 从单步停点继续后跑完（D 也执行）  →  D=1
++1 | [√通过] 继续后正常跑完（任务干净结束）
++1 | [√通过] 挂着断点也不被卡住：一次跑完  →  （超时说明断点把非调试运行卡住了）
++1 | [√通过] 试运行确实执行了目标算子  →  Runs=1
++1 | [√通过] 带断点的步骤试运行正常完成（未被断点卡住）  →  执行完成
++1 | [√通过] [UI] BeadInspectView 不给 h: 控件挂内联 Style
++1 | [√通过] 【核心】PauseLock 被提前释放后会话锁仍被归还  →  FlowSession:7a5f46cff36249bcb63765d685e41bee
++1 | [√通过] 停点高亮随收尾清除（IsDebugStopped=false）  →  IsDebugStopped=False
++1 | [√通过] 标记变更确实发了通知（UI 红点 / 停点高亮会刷新）  →  IsBreakpoint,IsBreakpoint,IsDebugStopped,IsDebugStopped
++1 | [√通过] 常规字段仍被序列化（防'空文本假通过'）
++1 | [√通过] [UI] BeadInspectView 引用的每个 Plugin* 键都有定义  →  共 25 个键
++1 | [√通过] 会话仍活着等待放行（IsRunning=true）  →  IsRunning=True
++1 | [√通过] 继续后全流程走完（A=B=C=1）  →  A=1 B=1 C=1
++1 | [√通过] 收尾清除运行焦点（无残留高亮）  →  FocusedStep=(null)
++1 | [√通过] 已停在断点上（构造出打断窗口）  →  paused=True B=0
++1 | [√通过] 单步后停在下一个节点前（B 已执行 / C 未执行 —— 恰好 +1）  →  State=Paused B=1 C=0
++1 | [√通过] 第 2 圈同一断点再次断开住（body=1）  →  State=Paused body=1
++1 | [√通过] [S9] 彩色图 POST → 200 且通道=3  →  HTTP 200 image=64x48x3 body={"success":true,"requestId":"ecd156cf","flow":"\u6536\u56FE\u5192\u70DF\u6D41\u7A0B","elapsedMs":0,"image":{"width":64,"height":48,"channels":3},"outputs":{"\u56FE\u50CF\u91C7\u96C6_0.Image":{"type":"…
++1 | [√通过] 循环断点图纸编译通过
++1 | [√通过] 先命中 B 的断点（A=1 / B=0）  →  paused=True A=1 B=0
++1 | [√通过] 重复 StepId 不再炸成无定位的'系统崩溃级错误'  →  [结构错误] 节点 Id 重复：'重复Id乙' 与先前的节点撞了同一个 Id（49e3d2a6-98fd-4c8d-8686-2a80279eb620），请删除重复节点后重新编译。
++1 | [√通过] 再次单步仍恰好 +1（C 已执行 / D 未执行）  →  State=Paused C=1 D=0
++1 | [√通过] 收尾后 State=Stopped 且 IsRunning=false  →  IsRunning=False State=Stopped
++1 | [√通过] 命中节点始终未执行（停在执行前）  →  B=0
++1 | [√通过] 命中节点停在执行前（B=0）  →  B=0
++1 | [√通过] 命中断点后停在 Paused  →  State=Paused（超时说明断点没拦住）
++1 | [√通过] 【核心】订阅者抛异常后会话锁仍被归还  →  FlowSession:7a5f46cff36249bcb63765d685e41bee
++1 | [√通过] 继续后两圈跑完并正常收尾  →  body=2
++1 | [√通过] 第 1 圈断点停住（A=1 / B=0）  →  paused=True A=1 B=0
++1 | [√通过] For 容器冻结了非零耗时  →  LastRunTimeMs=0.0048
++1 | [√通过] 流程一路零通知（不惊动语义变更闸门）
++1 | [√通过] 全程从未进入 Paused  →  Paused 次数=0
++1 | [√通过] 命中节点被标记 IsDebugStopped（UI 停点高亮）  →  IsDebugStopped=True
++2 | [√通过] 收尾后 State=Stopped 且 IsRunning=false  →  State=Stopped IsRunning=False
+--- removed from BASELINE (not in AFTER) ---
+-1 | [√通过] 【核心】订阅者抛异常后会话锁仍被归还  →  FlowSession:7e6c2ec69bf841989f4c8c14c048d0c3
+-1 | [√通过] 运行期间会话锁确实被占住  →  FlowSession:0637f171054d4ee78d7b95d62530841b
+-1 | [√通过] 【核心】PauseLock 被提前释放后会话锁仍被归还  →  FlowSession:7e6c2ec69bf841989f4c8c14c048d0c3
+-1 | [√通过] ★Move 下发成功 ≠ 已到位（命令已 Done，但轴仍在途中）  →  命令=Done 到位=False 位置=1.00mm
+-1 | [√通过] 重复 StepId 不再炸成无定位的'系统崩溃级错误'  →  [结构错误] 节点 Id 重复：'重复Id乙' 与先前的节点撞了同一个 Id（a21c202b-ea0a-42f7-8f68-b6dc0a5c021e），请删除重复节点后重新编译。
+-1 | [√通过] [CAL] 连续两次运行 CreatedAtUtc 稳定（签名不变不推进）  →  2026-10-05T11:34:33.1508789Z → 2026-10-05T11:34:33.1508789Z
+-1 | [√通过] 重复 StepId 的错误带上了节点名（可定位）  →  [结构错误] 节点 Id 重复：'重复Id乙' 与先前的节点撞了同一个 Id（a21c202b-ea0a-42f7-8f68-b6dc0a5c021e），请删除重复节点后重新编译。
+-1 | [√通过] [S13b] 采集步骤进入等待  →  Infos=Info:[HttpImageServer] 已监听 http://127.0.0.1:19123/flow/{流程名}?outputs=步骤名.端口名 | Info:[HttpImageServer] 请求 97ffb98b 已为流程「收图冒烟流程」补编译并注册会话 | Info:收图冒烟流程.图像采集_0 已从网络槽取图: 64x48x1 | Info:[HttpImageServer] 请求…
+-1 | [√通过] ★点动下发后轴**持续**运动（没有终点，直到被叫停）  →  位置=1.000 mm
+-1 | [√通过] [S8] 灰度图 POST → 200 且 success=true  →  HTTP 200 body={"success":true,"requestId":"97ffb98b","flow":"\u6536\u56FE\u5192\u70DF\u6D41\u7A0B","elapsedMs":2,"image":{"width":64,"height":48,"channels":1},"outputs":{"\u56FE\u50CF\u91C7\u96C6_0.Image":{"type":"…
+-1 | [√通过] 2a bead 模型构建成功且句柄非空  →  句柄=H214D8F50220
+-1 | [√通过] [S13a] 采集步骤进入等待（插件打出等待 Info）  →  Infos=Info:[HttpImageServer] 已监听 http://127.0.0.1:19123/flow/{流程名}?outputs=步骤名.端口名 | Info:[HttpImageServer] 请求 97ffb98b 已为流程「收图冒烟流程」补编译并注册会话 | Info:收图冒烟流程.图像采集_0 已从网络槽取图: 64x48x1 | Info:[HttpImageServer] 请求…
+-1 | [√通过] 图像变量的定义照样落盘（名字 / 类型 / 稳定身份都在）  →  DataTypeString=HalconDotNet.HImage, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8 Id=00b0e241-8aa1-4cb1-a80c-eb1150a8a512
+-1 | [√通过] [S11] 前序请求已注册会话  →  SessionID=41c2981a71b64341804222790ec371e6 CompiledVersion=2
+-1 | [√通过] 停止后会话锁干净归还  →  FlowSession:0637f171054d4ee78d7b95d62530841b
+-1 | [√通过] For 容器冻结了非零耗时  →  LastRunTimeMs=0.008
+-1 | [√通过] [S9] 彩色图 POST → 200 且通道=3  →  HTTP 200 image=64x48x3 body={"success":true,"requestId":"7890ae45","flow":"\u6536\u56FE\u5192\u70DF\u6D41\u7A0B","elapsedMs":1,"image":{"width":64,"height":48,"channels":3},"outputs":{"\u56FE\u50CF\u91C7\u96C6_0.Image":{"type":"…
+-1 | [√通过] [CAL] 修改标定数据后 CreatedAtUtc 前进  →  2026-10-05T11:34:33.1508789Z → 2026-10-05T11:34:33.1802463Z

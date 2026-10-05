@@ -79,6 +79,36 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 调试断点标记（DWV 第 1 期）。
+        ///
+        /// [RuntimeState]：切换断点不改变流程语义 → 不递增 Version
+        /// （否则每点一下红点就触发一次全量重编译，正是 B2 排除名单当初要修掉的坑）；
+        /// [JsonIgnore]：断点不随 .vms 落盘 —— 遗留断点跟方案进产线是安全隐患（评审结论 4）。
+        /// 调试设施：纯运行期，会话结束不清理也不影响语义（引擎按 DebugEnabled 决定是否读它）。
+        /// </summary>
+        [RuntimeState]
+        [JsonIgnore]
+        public bool IsBreakpoint
+        {
+            get => field;
+            set => SetRuntimeState(ref field, value);
+        }
+
+        /// <summary>
+        /// 当前是否停在调试断点 / 单步位置（停的位置在节点执行前 = 本步还没跑）。
+        ///
+        /// 由调试门（FlowSession.DebugGateBeforeNode）在停住期间置位、放行 / 收尾时清除；
+        /// UI 据此画"停在这里"的高亮。调试设施：不递增 Version、不落盘（理由同 IsBreakpoint）。
+        /// </summary>
+        [RuntimeState]
+        [JsonIgnore]
+        public bool IsDebugStopped
+        {
+            get => field;
+            set => SetRuntimeState(ref field, value);
+        }
+
+        /// <summary>
         /// 最后运行起始的高精度时间戳（Stopwatch.GetTimestamp 的原始读数），null 表示未开始计时。
         /// 不用 DateTime：墙钟受系统校时影响，且 Tick 粒度粗，测不出亚毫秒耗时。
         /// </summary>

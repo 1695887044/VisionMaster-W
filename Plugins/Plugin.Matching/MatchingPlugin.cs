@@ -93,6 +93,9 @@ namespace Plugin.Matching
             }
         }
 
+        /// <summary>极性下拉框选项（视图绑定用：与 PolarityIndex 的 0/1 一一对应）</summary>
+        public string[] PolarityOptions { get; } = { "使用极性", "忽略极性" };
+
         private bool _seedingCanvas; // 播种画布期间为真：CanvasRois 的变更来自"回填"，不回写参数
 
         /// <summary>
@@ -381,6 +384,10 @@ namespace Plugin.Matching
                         old?.Dispose();
                     }
                     catch { }
+                    // 笔画结束（控件以新实例覆盖）即写回条目：徽标立即转橙、点「确定」不丢。
+                    // 播种期（从条目恢复掩膜到画布）跳过，否则刚恢复就被写回覆盖。
+                    if (!_seedingCanvas)
+                        WriteBackSmearToEntry(EditingEntry);
                     TouchModelStaleness(); // 掩膜变了 = 模型该重学
                 }
             }
@@ -404,6 +411,9 @@ namespace Plugin.Matching
                         old?.Dispose();
                     }
                     catch { }
+                    // 擦除同样改变有效涂抹（draw − erase）→ 与 SmearMask 同口径写回
+                    if (!_seedingCanvas)
+                        WriteBackSmearToEntry(EditingEntry);
                     TouchModelStaleness();
                 }
             }
@@ -459,6 +469,9 @@ namespace Plugin.Matching
         {
             SmearMask = null;
             SmearEraseRegion = null;
+            if (EditingEntry != null)
+                EditingEntry.Mask = string.Empty;
+            OnPropertyChanged(nameof(IsModelStale));
         }
 
         // ── 状态徽标与信息栏 ──
@@ -576,11 +589,14 @@ namespace Plugin.Matching
 
             try
             {
+                // 换图前先把当前涂抹按【旧图】坐标系写回条目（换图后同样的坐标含义就变了）
+                WriteBackSmearToEntry(EditingEntry);
                 DisplayImage?.Dispose();
                 DisplayImage = new HImage(upstream);
                 SetStatus(
                     "已显示上游图像（试运行带进来的）：右键 → 新建矩形/圆形/椭圆，框住模板特征"
                 );
+                OnPropertyChanged(nameof(IsModelStale));
                 return true;
             }
             catch (Exception ex)
@@ -639,6 +655,9 @@ namespace Plugin.Matching
         /// </summary>
         private void ParseLibraryAndMigrate()
         {
+            // 释放旧条目的模型句柄，防止反复解析库时泄漏
+            foreach (var e in Library.ToArray())
+                ReleaseEntryModel(e);
             Library.Clear();
             try
             {
@@ -795,7 +814,11 @@ namespace Plugin.Matching
 
             using var raw = BuildRawSmearRegion();
             if (raw == null)
+            {
+                // 涂抹被擦光/清空：写空串让"清除"真正生效——否则切回条目时旧掩膜从条目复活
+                entry.Mask = string.Empty;
                 return;
+            }
 
             HOperatorSet.GetImageSize(DisplayImage, out HTuple w, out HTuple h);
             entry.Mask = MaskRegionToBase64(raw, w.I, h.I) ?? string.Empty;
@@ -1260,9 +1283,10 @@ namespace Plugin.Matching
             return new MatchingView { DataContext = this };
         }
 
-        /// <summary>确认：库序列化成 JSON 后走统一落盘</summary>
+        /// <summary>确认：先把涂抹写回条目（画完直接点确定也不丢），再把库序列化成 JSON 落盘</summary>
         public override void OnConfirm(IStepConfigData stepData)
         {
+            WriteBackSmearToEntry(EditingEntry);
             TemplateLibraryJson = JsonConvert.SerializeObject(Library);
             base.OnConfirm(stepData);
         }

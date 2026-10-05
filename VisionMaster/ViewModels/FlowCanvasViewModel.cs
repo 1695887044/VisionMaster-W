@@ -124,6 +124,7 @@ namespace VisionMaster.ViewModels
             CompleteConnectionCommand = new DelegateCommand<object>(OnCompleteConnection);
             UnbindBindingCommand = new DelegateCommand<CanvasLinkBinding?>(OnUnbindBinding);
             ToggleCollapseCommand = new DelegateCommand<CanvasNodeViewModel?>(OnToggleCollapse);
+            ToggleBreakpointCommand = new DelegateCommand<CanvasNodeViewModel?>(OnToggleBreakpoint);
             TidyLayoutCommand = new DelegateCommand(OnTidyLayout);
             ZoomCommand = new DelegateCommand<object>(
                 o => OnZoomCommand((FlowCanvasZoomCommand)o!));
@@ -199,6 +200,12 @@ namespace VisionMaster.ViewModels
 
         /// <summary>折叠/展开容器框（持久化到 FlowLayoutStore.Collapsed）</summary>
         public DelegateCommand<CanvasNodeViewModel?> ToggleCollapseCommand { get; }
+
+        /// <summary>
+        /// 切换断点（DWV 第 1 期）：画布节点右上角圆点。
+        /// 仅普通步骤节点有效——容器（If/While/For）本轮不提供断点操作（数据模型已支持，留待后续）。
+        /// </summary>
+        public DelegateCommand<CanvasNodeViewModel?> ToggleBreakpointCommand { get; }
 
         /// <summary>
         /// 整理布局：清空本流程全部节点坐标后按正交规则重排。
@@ -1351,6 +1358,16 @@ namespace VisionMaster.ViewModels
         // ==================================================================
         //  折叠
         // ==================================================================
+
+        private void OnToggleBreakpoint(CanvasNodeViewModel? node)
+        {
+            // 断点只落在普通步骤上：容器框（If/While/For）本轮不提供断点 UI
+            // （数据模型已支持，口径留待后续轮）；泳道没有 Model，一并被这道闸门挡下。
+            // IsBreakpoint 是 [RuntimeState]：不递增 Version、不落盘；圆点等绑定靠属性通知自行刷新，无需重画。
+            if (node?.Model == null || node.Kind != CanvasNodeKind.Step) return;
+
+            node.Model.IsBreakpoint = !node.Model.IsBreakpoint;
+        }
 
         private void OnToggleCollapse(CanvasNodeViewModel? node)
         {

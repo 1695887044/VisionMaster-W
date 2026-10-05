@@ -29,9 +29,9 @@ namespace Plugin.PoseTransform
 
         /// <summary>PixelScale 标定没有机械坐标系：当机械坐标用时必须明确失败。</summary>
         public const string PixelScaleCannotMapMessage =
-            "当前标定只有像素当量、不含机械坐标：坐标换算请用九点标定（像素当量模式只给 mm/px）";
+            "当前标定只有像素当量、不含机械坐标：坐标换算请用九点标定或透视标定（像素当量模式只给 mm/px）";
 
-        /// <summary>标定缺失/类型不对/矩阵损坏 → false（失配第一、二类）。</summary>
+        /// <summary>标定缺失/类型不对/矩阵损坏 → false（失配第一、二类；按 Kind 分支，未知类型绝不静默放行）。</summary>
         public static bool CheckCalibrationUsable(CalibrationTransform? t, out string? error)
         {
             error = null;
@@ -48,13 +48,29 @@ namespace Plugin.PoseTransform
                 return false;
             }
 
-            if (!IsUsableMatrix(t.Matrix))
+            switch (t.Kind)
             {
-                error = "标定数据损坏（矩阵缺失或退化）：请重新运行「标定」步骤";
-                return false;
-            }
+                case CalibrationKind.NinePoint:
+                    if (!IsUsableMatrix(t.Matrix))
+                    {
+                        error = "标定数据损坏（矩阵缺失或退化）：请重新运行「标定」步骤";
+                        return false;
+                    }
+                    return true;
 
-            return true;
+                case CalibrationKind.Perspective:
+                    if (!IsUsableProjective(t.ProjectiveMatrix))
+                    {
+                        error = "标定数据损坏（投影矩阵缺失或退化）：请重新运行「标定」步骤";
+                        return false;
+                    }
+                    return true;
+
+                default:
+                    // 防"忘记分支"静默放行：未知 Kind 明确拒绝（消费方联动断言钉住）
+                    error = $"不支持的标定类型（{t.Kind}）：请升级软件或重新标定";
+                    return false;
+            }
         }
 
         /// <summary>
@@ -122,7 +138,7 @@ namespace Plugin.PoseTransform
 
         #region 点换算（正 / 反）
 
-        /// <summary>像素 (Row, Col) → 机械 (X, Y)。</summary>
+        /// <summary>像素 (Row, Col) → 机械 (X, Y)（九点：仿射；透视：投影除法）。</summary>
         public static bool TryMapPixelToMechanical(
             CalibrationTransform? t, double row, double col, out double x, out double y, out string? error)
         {
@@ -138,13 +154,29 @@ namespace Plugin.PoseTransform
                 return false;
             }
 
-            var m = t!.Matrix;
+            var tc = t!;
+            if (tc.Kind == CalibrationKind.Perspective)
+            {
+                var h = tc.ProjectiveMatrix!;   // CheckCalibrationUsable 已保证可用
+                double w = h[6] * row + h[7] * col + h[8];
+                if (!IsFinite(w) || Math.Abs(w) < 1e-12)
+                {
+                    error = "像素点落在投影退化线上（w≈0，无法映射）";
+                    return false;
+                }
+
+                x = (h[0] * row + h[1] * col + h[2]) / w;
+                y = (h[3] * row + h[4] * col + h[5]) / w;
+                return true;
+            }
+
+            var m = tc.Matrix;
             x = m[0] * row + m[1] * col + m[4];
             y = m[2] * row + m[3] * col + m[5];
             return true;
         }
 
-        /// <summary>机械 (X, Y) → 像素 (Row, Col)（2×2 线性部分求逆；退化 → 明确失败）。</summary>
+        /// <summary>机械 (X, Y) → 像素 (Row, Col)（九点：2×2 求逆；透视：3×3 伴随求逆 + 齐次除法）。</summary>
         public static bool TryMapMechanicalToPixel(
             CalibrationTransform? t, double x, double y, out double row, out double col, out string? error)
         {
@@ -154,7 +186,42 @@ namespace Plugin.PoseTransform
             if (!CheckCalibrationUsable(t, out error))
                 return false;
 
-            var m = t!.Matrix;
+            var tc = t!;
+            if (tc.Kind == CalibrationKind.Perspective)
+            {
+                var h = tc.ProjectiveMatrix!;   // CheckCalibrationUsable 已保证可用
+                // 3×3 伴随求逆：H⁻¹ = adj(H)/det
+                double c00 = h[4] * h[8] - h[5] * h[7];
+                double c01 = h[5] * h[6] - h[3] * h[8];
+                double c02 = h[3] * h[7] - h[4] * h[6];
+                double c10 = h[2] * h[7] - h[1] * h[8];
+                double c11 = h[0] * h[8] - h[2] * h[6];
+                double c12 = h[1] * h[6] - h[0] * h[7];
+                double c20 = h[1] * h[5] - h[2] * h[4];
+                double c21 = h[2] * h[3] - h[0] * h[5];
+                double c22 = h[0] * h[4] - h[1] * h[3];
+                double detH = h[0] * c00 + h[1] * c01 + h[2] * c02;
+                if (!IsFinite(detH) || Math.Abs(detH) < 1e-12)
+                {
+                    error = "标定矩阵不可逆（投影退化）：请重新标定";
+                    return false;
+                }
+
+                double pr = (c00 * x + c10 * y + c20) / detH;
+                double pc = (c01 * x + c11 * y + c21) / detH;
+                double pw = (c02 * x + c12 * y + c22) / detH;
+                if (!IsFinite(pw) || Math.Abs(pw) < 1e-12)
+                {
+                    error = "机械点落在投影退化线上（w≈0，无法反算像素）";
+                    return false;
+                }
+
+                row = pr / pw;
+                col = pc / pw;
+                return true;
+            }
+
+            var m = tc.Matrix;
             double det = m[0] * m[3] - m[1] * m[2];
             if (!IsFinite(det) || Math.Abs(det) < 1e-12)
             {
@@ -189,9 +256,13 @@ namespace Plugin.PoseTransform
         ///
         /// 镜像/轴交换标定会让转角**取反**：这是矩阵的自然结果（手性翻转），
         /// 不做任何额外"校正"（方案 §二·5：负负得正类错误都出在"再校正一次"）。
+        ///
+        /// **透视标定下角度与位置相关**：基准与对象方向都用**同一点 p** 的局部雅可比 J(p)
+        /// （v0 = J·(0,1)ᵀ、vθ = J·(sinθ,cosθ)ᵀ）；九点标定忽略 row/col（全局线性），行为与旧版一致。
         /// </summary>
         public static bool TryPixelAngleToMechanical(
-            CalibrationTransform? t, double pixelAngleDeg, out double mechanicalAngleDeg, out string? error)
+            CalibrationTransform? t, double pixelAngleDeg, double row, double col,
+            out double mechanicalAngleDeg, out string? error)
         {
             mechanicalAngleDeg = 0;
 
@@ -204,23 +275,47 @@ namespace Plugin.PoseTransform
                 return false;
             }
 
-            var m = t!.Matrix;
+            double rad = pixelAngleDeg * Math.PI / 180.0;
+            double sin = Math.Sin(rad);
+            double cos = Math.Cos(rad);
+            double dx0, dy0, dx, dy;
 
-            // ① 图像 x 轴 (Row=0, Col=1) 的映射方向
-            double dx0 = m[1];
-            double dy0 = m[3];
+            var tc = t!;
+            if (tc.Kind == CalibrationKind.Perspective)
+            {
+                // 透视：角度与位置相关——基准与对象方向都用**同一点 p** 的局部雅可比 J(p)
+                if (!IsFinite(row) || !IsFinite(col))
+                {
+                    error = "像素位置无效（NaN/Inf）：透视角度换算需要有效位置（局部雅可比随点变化）";
+                    return false;
+                }
+                if (!JacobianAt(tc.ProjectiveMatrix!, row, col, out double a, out double b, out double c, out double d))
+                {
+                    error = "标定矩阵退化（局部雅可比取不到，投影退化线上）：请重新标定";
+                    return false;
+                }
+
+                dx0 = b;                  // 基准方向 = 图像 x 轴经 J(p) 的像
+                dy0 = d;
+                dx = a * sin + b * cos;   // 转 θ 后的方向向量经同一 J(p) 的像
+                dy = c * sin + d * cos;
+            }
+            else
+            {
+                var m = tc.Matrix;
+                // ① 图像 x 轴 (Row=0, Col=1) 的映射方向
+                dx0 = m[1];
+                dy0 = m[3];
+                // ② 转 θ 后的方向向量 (Row=sinθ, Col=cosθ) 经线性部分映射
+                dx = m[0] * sin + m[1] * cos;
+                dy = m[2] * sin + m[3] * cos;
+            }
+
             if (Math.Sqrt(dx0 * dx0 + dy0 * dy0) < 1e-12)
             {
                 error = "标定矩阵退化（图像 x 轴映射为 0）：请重新标定";
                 return false;
             }
-
-            // ② 转 θ 后的方向向量 (Row=sinθ, Col=cosθ) 经线性部分映射
-            double rad = pixelAngleDeg * Math.PI / 180.0;
-            double sin = Math.Sin(rad);
-            double cos = Math.Cos(rad);
-            double dx = m[0] * sin + m[1] * cos;
-            double dy = m[2] * sin + m[3] * cos;
 
             // ③ 方向角之差 = 机械系转角
             mechanicalAngleDeg = NormalizeDegrees(
@@ -241,6 +336,54 @@ namespace Plugin.PoseTransform
         #endregion
 
         #region 内部
+
+        // ---- 透视（投影，二期①）：口径与「标定」侧 CalibrationMath 对齐，独立实现（插件间不互引） ----
+
+        /// <summary>
+        /// 透视矩阵是否可用（长度 ≥9 &amp; 全部有限 &amp; |det H| ≥ 1e-12）。
+        /// 口径与「标定」侧 CalibrationMath.IsUsableProjective 一致。
+        /// </summary>
+        public static bool IsUsableProjective(double[]? hom)
+        {
+            if (hom == null || hom.Length < 9)
+                return false;
+
+            for (int i = 0; i < 9; i++)
+                if (!IsFinite(hom[i]))
+                    return false;
+
+            double det = hom[0] * (hom[4] * hom[8] - hom[5] * hom[7])
+                       - hom[1] * (hom[3] * hom[8] - hom[5] * hom[6])
+                       + hom[2] * (hom[3] * hom[7] - hom[4] * hom[6]);
+            return IsFinite(det) && Math.Abs(det) >= 1e-12;
+        }
+
+        /// <summary>
+        /// 透视映射在 (row, col) 处的**局部雅可比** J = [[a, b], [c, d]]
+        /// （a=∂X/∂Row、b=∂X/∂Col、c=∂Y/∂Row、d=∂Y/∂Col；口径与标定侧 JacobianProjective 一致）。
+        /// 投影矩阵不可用或落在退化线上（w≈0）→ false。
+        /// </summary>
+        public static bool JacobianAt(double[] hom, double row, double col,
+            out double a, out double b, out double c, out double d)
+        {
+            a = b = c = d = 0;
+
+            if (!IsUsableProjective(hom))
+                return false;
+
+            double w = hom[6] * row + hom[7] * col + hom[8];
+            if (!IsFinite(w) || Math.Abs(w) < 1e-12)
+                return false;
+
+            double numX = hom[0] * row + hom[1] * col + hom[2];
+            double numY = hom[3] * row + hom[4] * col + hom[5];
+            double w2 = w * w;
+            a = (hom[0] * w - numX * hom[6]) / w2;
+            b = (hom[1] * w - numX * hom[7]) / w2;
+            c = (hom[3] * w - numY * hom[6]) / w2;
+            d = (hom[4] * w - numY * hom[7]) / w2;
+            return true;
+        }
 
         /// <summary>矩阵是否可用：长度≥6、全部有限、线性部分不退化。</summary>
         public static bool IsUsableMatrix(double[]? matrix)

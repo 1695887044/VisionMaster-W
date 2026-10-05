@@ -238,6 +238,22 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 调试门命中（断点 / 单步）处理：把会话状态归到 Paused，并让暂停原因随消息送达
+        /// （SessionStateChangedEventArgs.Message 的首次启用，评审结论 4）。
+        /// 由运行前订阅、收尾退订（成对，见 RunSessionAsync / RunSessionOnceAsync）——
+        /// 会话对象比引擎实例活得久，不退订就是悬挂订阅。
+        /// </summary>
+        private void OnDebugStopped(FlowSession session)
+        {
+            var message = session.PauseReason == SessionPauseReason.Step
+                ? "调试暂停：单步"
+                : "调试暂停：断点命中";
+
+            // State 由 NotifyStateChanged 统一赋值（唯一赋值点）；订阅者异常在内部隔离
+            NotifyStateChanged(session, SessionState.Paused, message);
+        }
+
+        /// <summary>
         /// 启动会话连续执行
         /// </summary>
         /// <param name="session">要执行的会话</param>
@@ -262,10 +278,18 @@ namespace VisionMaster.Services
                 // 先记"这一轮可暂停"，再置 IsRunning：PauseSession 的守卫先读 IsRunning，
                 // 所以它能通过守卫时，读到的 IsContinuousRun 必定是本轮的值
                 session.IsContinuousRun = true;
+                // 清掉上一轮可能残留的调试状态：单步请求（否则本轮第一个节点就莫名停住）、
+                // 暂停原因（否则运行中 UI 还显示着上一轮的暂停理由）
+                session.DebugStepPending = false;
+                session.PauseReason = SessionPauseReason.None;
                 session.IsRunning = true;
                 session.PauseLock.Set();
                 session.CancellationTokenSource = new CancellationTokenSource();
                 var token = session.CancellationTokenSource.Token;
+
+                // 订阅调试门命中通知（断点 / 单步在节点执行前 raise）：本订阅负责把 State 归到
+                // Paused（State 唯一赋值点在 NotifyStateChanged）。与收尾的退订成对。
+                session.DebugStopped += OnDebugStopped;
 
                 // 复位所有步序状态
                 foreach (var step in session.Blueprints)
@@ -331,6 +355,12 @@ namespace VisionMaster.Services
                 // （[E9] ① ② 两条断言就是靠"订阅者抛异常 / 提前释放 PauseLock"把旧结构的漏还现场做出来的）
                 try
                 {
+                    // 调试标志随本轮结束归零：DebugEnabled 表达的是"这一轮是不是界面发起的调试运行"，
+                    // 绝不能泄漏给同会话的下一次非界面触发（HTTP 收图复用界面会话，残留 true 就会被
+                    // 断点卡住产线链路——硬约束）；退订与运行前的订阅成对（会话比引擎活得久）
+                    session.DebugEnabled = false;
+                    session.DebugStopped -= OnDebugStopped;
+
                     session.IsRunning = false;
 
                     // 循环退出后清除所有步骤的运行焦点：
@@ -390,14 +420,23 @@ namespace VisionMaster.Services
 
             try
             {
-                // 单次执行不经过暂停点（没有循环去等 PauseLock），显式标记为"不可暂停"，
-                // 让 PauseSession 能拒绝这个请求而不是造出"UI 显示已暂停、流程照跑"的假象
+                // 非调试单次执行不经过暂停点（没有循环去等 PauseLock），显式标记为"不可暂停"，
+                // 让 PauseSession 能拒绝这种请求而不是造出"UI 显示已暂停、流程照跑"的假象；
+                // 调试会话（DebugEnabled）例外——它经调试门逐节点等待，PauseSession 守卫放行
                 session.IsContinuousRun = false;
+                // 兜底清掉上一轮"停在暂停点被停止"可能留下的合锁（调试单次执行才可能出现）
+                // 与调试残留：单步请求 / 暂停原因的理由同 RunSessionAsync 开轮清理
+                session.PauseLock.Set();
+                session.DebugStepPending = false;
+                session.PauseReason = SessionPauseReason.None;
                 session.IsRunning = true;
 
                 // 单次执行同样需要取消令牌：否则 StopSession 因 CTS 为 null 而无法停止
                 session.CancellationTokenSource = new CancellationTokenSource();
                 var token = session.CancellationTokenSource.Token;
+
+                // 与连续执行同一口径：订阅调试门命中，退订在收尾（成对）
+                session.DebugStopped += OnDebugStopped;
 
                 // 复位所有步序状态
                 foreach (var step in session.Blueprints)
@@ -439,6 +478,10 @@ namespace VisionMaster.Services
                 // 与连续执行同一结构、同一理由：收尾失败可以忽略，会话锁绝不能漏还
                 try
                 {
+                    // 与连续执行同一口径：调试标志/订阅随本轮结束归零（理由见 RunSessionAsync 收尾）
+                    session.DebugEnabled = false;
+                    session.DebugStopped -= OnDebugStopped;
+
                     session.IsRunning = false;
 
                     // 单次执行结束同样清除运行焦点，避免最终行高亮卡住
@@ -453,6 +496,11 @@ namespace VisionMaster.Services
                         // State 由 NotifyStateChanged 统一赋值（唯一赋值点）
                         NotifyStateChanged(session, SessionState.Stopped);
                     }
+
+                    // 兜底（同连续执行）：调试单次执行可能"停在暂停点"时被停止，
+                    // 保证 PauseLock 不留在合上的状态；会话可能已被 RemoveAndDispose 释放
+                    try { session.PauseLock.Set(); }
+                    catch (ObjectDisposedException) { }
 
                     session.CancellationTokenSource?.Dispose();
                     session.CancellationTokenSource = null;
@@ -472,14 +520,15 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 暂停会话执行（**仅对连续执行有效**）
+        /// 暂停会话执行（连续执行全量有效；单次执行仅调试会话有效）
         ///
-        /// 【为什么单次执行要显式拒绝（#7）】
-        /// 暂停生效的前提是执行体在循环里等 PauseLock —— 只有连续执行有这个循环。
-        /// 单次执行是一把跑完整图，中间没有可插入等待的位置；而它运行期间 State 同样是 Running，
+        /// 【为什么非调试单次执行要显式拒绝（#7）】
+        /// 暂停生效的前提是执行体有等待 PauseLock 的位置 —— 连续执行在轮顶等；
+        /// 单次执行只有"调试会话（DebugEnabled）"才经调试门逐节点等（DWV 第 1 期）。
+        /// 非调试单次执行是一把跑完整图，中间没有等待位置；而它运行期间 State 同样是 Running，
         /// 所以旧实现只按 State == Running 判断，会把它也置成 Paused ——
         /// UI 显示"已暂停"、流程却一路跑到底，结束时直接落 Stopped，前后矛盾。
-        /// 现在按 IsContinuousRun 显式区分，并对无效请求写 Warn（不静默吞掉）。
+        /// 现在按 "IsContinuousRun || DebugEnabled" 显式区分，并对无效请求写 Warn（不静默吞掉）。
         /// </summary>
         /// <param name="session">要暂停的会话</param>
         public void PauseSession(FlowSession session)
@@ -487,7 +536,7 @@ namespace VisionMaster.Services
             if (session == null || !session.IsRunning || session.State != SessionState.Running)
                 return;
 
-            if (!session.IsContinuousRun)
+            if (!session.IsContinuousRun && !session.DebugEnabled)
             {
                 // 明确拒绝而不是静默返回：用户点了暂停，总得有个说法
                 _logService.Warn(
@@ -496,24 +545,51 @@ namespace VisionMaster.Services
                 return;
             }
 
+            // 记原因供 UI / 日志区分（调试门命中的 Breakpoint/Step 由门自己置位）
+            session.PauseReason = SessionPauseReason.User;
             session.PauseLock.Reset();
             // State 由 NotifyStateChanged 统一赋值（唯一赋值点）
             NotifyStateChanged(session, SessionState.Paused);
         }
 
         /// <summary>
-        /// 恢复会话执行
+        /// 恢复会话执行（对"用户暂停 / 断点命中 / 单步停点"三种暂停统一适用）
         /// </summary>
         /// <param name="session">要恢复的会话</param>
         public void ResumeSession(FlowSession session)
         {
-            // 只有连续执行会被置成 Paused（见 PauseSession），所以这里不必再判 IsContinuousRun
+            // 会进入 Paused 的通路：连续执行（PauseSession）、调试会话的调试门（断点/单步）——
+            // 两者都满足 IsRunning && State==Paused，所以这里不必再判 IsContinuousRun/DebugEnabled
             if (session != null && session.IsRunning && session.State == SessionState.Paused)
             {
+                session.PauseReason = SessionPauseReason.None; // 已放行，暂停原因随之清空
                 session.PauseLock.Set();
                 // State 由 NotifyStateChanged 统一赋值（唯一赋值点）
                 NotifyStateChanged(session, SessionState.Running);
             }
+        }
+
+        /// <summary>
+        /// 单步执行：从调试停点放行，恰好执行一个节点后再次停住（DWV 第 1 期）。
+        ///
+        /// 机制：置"单步待停"标志再放行 —— 等待中的调试门醒来先执行当前节点，
+        /// 下一个节点边界读到标志即消费并再次停住（容器算一步：它的子节点同样经过调试门，
+        /// 从容器停点单步会停到容器内第一个子节点，天然"步入"）。
+        /// 仅当"运行中且已暂停"时有效：其余情况没有等待中的调试门可唤醒，置了标志也只是
+        /// 下一轮开始被清（见 RunSessionAsync 开轮清理）。
+        /// </summary>
+        /// <param name="session">要单步的流程会话</param>
+        public void StepSession(FlowSession session)
+        {
+            if (session == null || !session.IsRunning || session.State != SessionState.Paused)
+                return;
+
+            // 置位先于放行：等待中的门醒来后必然读到（Set/Wait 之间的栅栏由 ManualResetEventSlim 提供）
+            session.DebugStepPending = true;
+            session.PauseReason = SessionPauseReason.None;
+            session.PauseLock.Set();
+            // State 由 NotifyStateChanged 统一赋值（唯一赋值点）
+            NotifyStateChanged(session, SessionState.Running);
         }
 
         /// <summary>

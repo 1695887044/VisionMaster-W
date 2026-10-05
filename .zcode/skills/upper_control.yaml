@@ -1,0 +1,13 @@
+# 上位机开发 Skill
+# 特色：代码生成、单元测试、架构审查、文档编写
+# 触发：
+#  - game: "receive_code_request"
+#  - game: "run_unit_test"
+#  - game: "generate_architect_review"
+#  - game: "produce_documentation"
+# 示例：
+#  ```json
+#  {"code": "public class Foo {}"}
+#  ```
+# 使用方式：在开发流程中通过钉钉或 GitHub Action 触发，自动生成脚本并报告结果。
+# 说明：该 Skill 依赖 CodeBuddy 内置的代码生成器及单元测试框架，适用于 C#/.NET Core 项目。

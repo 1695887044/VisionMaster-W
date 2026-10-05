@@ -121,7 +121,17 @@ namespace VisionMaster
         Compile,
         RunOnce,
         RunContinuous,
-        Stop
+        Stop,
+
+        /// <summary>
+        /// 调试暂停（DWV 第 1 期）。生效范围：连续执行全量；单次执行仅调试会话（DebugEnabled）。
+        /// 同样追加在末尾——枚举整数可能已落进 Layout.xml / 旧配置，插中间会让老数据整体错位。
+        /// </summary>
+        Pause,
+        /// <summary>调试继续：从暂停点放行（断点 / 单步 / 用户暂停统一适用）</summary>
+        Resume,
+        /// <summary>调试单步：放行恰好一个节点后再次停住</summary>
+        StepOnce
     }
 
     /// <summary>
@@ -134,7 +144,13 @@ namespace VisionMaster
         /// <summary>单次运行中</summary>
         RunningOnce,
         /// <summary>循环运行中</summary>
-        RunningContinuous
+        RunningContinuous,
+
+        /// <summary>
+        /// 已暂停（调试 / 用户暂停；具体原因见 FlowSession.PauseReason。
+        /// 追加在末尾的理由同 ExecutionAction）
+        /// </summary>
+        Paused
     }
 
     /// <summary>
@@ -208,9 +224,9 @@ namespace VisionMaster
         Edit,
         Rename,
         EditComment,
-        Encrypt,
-        Decrypt,
-        Manager
+        Manager,
+        ToggleEnabled,
+        Compile
     }
 
     /// <summary>
@@ -249,25 +265,23 @@ namespace VisionMaster
     {
         Rename,
         EditComment,
-        ExecuteSelected,
-        ExecuteFromHere,
-        ShowAll,
-        EnableSuperTool,
-        SetBreakpoint,
         ModuleParameters,
-        Cut,
-        Copy,
-        Paste,
-        Disable,
+        ToggleDisable,
         Delete,
         AddElseIf,
         AddElse,
 
         /// <summary>
         /// 保留：Switch/Case 半成品已下线（无算子、无 UI 入口）。
-        /// 留着不删是为了不打乱既有枚举序号，避免波及可能已存盘的引用。
+        /// 本枚举只作 UI 命令参数、不存盘，保留此成员只为后续恢复 Case 功能时占位。
         /// </summary>
-        AddCase
+        AddCase,
+
+        /// <summary>
+        /// 切换断点（DWV 第 1 期：右键菜单 / 画布圆点 / F9）。
+        /// 标记落在 StepModel.IsBreakpoint（不落盘）；本枚举本身只作 UI 命令参数。
+        /// </summary>
+        ToggleBreakpoint
     }
     // 2. Modbus 特有区域枚举
     public enum ModbusArea
@@ -442,5 +456,21 @@ namespace VisionMaster
         None,
         Sign,
         SignAndEncrypt
+    }
+
+    /// <summary>
+    /// 会话暂停原因（DWV 第 1 期）：UI / 日志据此区分"为什么停住"。
+    /// 放在文件末尾（新枚举不插队，理由同各枚举的"追加在末尾"）。
+    /// </summary>
+    public enum SessionPauseReason
+    {
+        /// <summary>未暂停（运行中 / 已恢复）</summary>
+        None,
+        /// <summary>用户点击"暂停"（PauseSession）</summary>
+        User,
+        /// <summary>命中调试断点（节点执行前停住，节点尚未执行）</summary>
+        Breakpoint,
+        /// <summary>单步停点（单步放行恰好多执行一个节点后再次停住）</summary>
+        Step
     }
 }

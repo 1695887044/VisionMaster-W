@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.BeadInspect</RootNamespace>
+    <AssemblyName>Plugin.BeadInspect</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core.Halcon：显示/渲染基建（下一批配置界面用）；Core.Interfaces：端口与插件基类契约 -->
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

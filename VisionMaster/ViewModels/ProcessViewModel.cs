@@ -24,6 +24,16 @@ namespace VisionMaster.ViewModels
         private readonly IDialogService dialogService;
         // 判据统一收在 ConditionStep.IsIfLike，避免这里再写一份 Contains 造成口径漂移
         public bool IsIfNodeSelected => SelectStep is ConditionStep step && step.IsIfLike;
+
+        /// <summary>右键菜单「禁用/启用」的标题：跟随当前选中步骤的禁用状态</summary>
+        public string DisableToggleHeader => CurrentSelectedStepModel?.IsDisEnable == true ? "启用" : "禁用";
+
+        /// <summary>
+        /// 右键菜单「切换断点」的标题：跟随当前选中步骤的断点状态（照 DisableToggleHeader 先例）。
+        /// 刷新点：选中步骤变化（SelectStep setter）与经本命令取反之后。
+        /// </summary>
+        public string BreakpointToggleHeader => CurrentSelectedStepModel?.IsBreakpoint == true ? "取消断点" : "设置断点";
+
         public IWorkspaceManager Workspace { get; init; }
 
         /// <summary>
@@ -46,6 +56,8 @@ namespace VisionMaster.ViewModels
                 SetProperty(ref field, value);
                 CurrentSelectedStepModel = value as StepModel;
                 RaisePropertyChanged(nameof(IsIfNodeSelected));
+                RaisePropertyChanged(nameof(DisableToggleHeader));
+                RaisePropertyChanged(nameof(BreakpointToggleHeader));
 
                 // 反向推送来的值本来就是 Workspace 自己发出来的，再 SwitchStep 一次纯属回环
                 if (!_syncingFromWorkspace)
@@ -68,12 +80,6 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private MainRunState _runState = MainRunState.NotStarted;
         private bool IsRunLocked => _runState != MainRunState.NotStarted;
-
-        /// <summary>
-        /// 是否属于"编辑"动作：复制、查看类放行，其余全部受运行锁管控
-        /// </summary>
-        private static bool IsEditingAction(ModuleCommandAction action)
-            => action is not (ModuleCommandAction.Copy or ModuleCommandAction.ShowAll);
 
         /// <summary>
         /// 运行时间实时刷新定时器：
@@ -220,37 +226,35 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 根据 StepModel 的 PluginTypeName 反射创建插件实例
-        /// 用于检查插件是否实现 IPluginCustomViewProvider
+        /// 运行锁豁免表（DWV 第 1 期）。豁免只放宽下列动作，其余编辑动作维持原锁。
+        ///
+        /// 【为什么「切换断点」任何运行态都放行】断点标记是 [RuntimeState] 运行期设施——
+        /// 不落盘、不递增 Version、不改流程语义（见 StepModel.IsBreakpoint 注释）；
+        /// 而"停在断点上给后续步骤加减断点"恰恰是调试的日常动作，锁住它等于调试时不能调断点。
+        ///
+        /// 【为什么「模块参数」只在"已暂停"放行】暂停中查看/调整参数是调试的核心诉求
+        /// （引擎停在节点执行前，此刻看参数不与被执行中的插件状态打架）；
+        /// 运行中（非暂停）仍锁死，防止"边跑边换轮胎"。
+        /// 注意：豁免只影响本命令的运行锁守卫；参数写回仍走既有通道（Version 递增照旧），
+        /// 是否对下一轮生效由引擎的编译版本检查决定，本命令不做额外处理。
         /// </summary>
-        private static object ResolvePluginInstance(ActionStep step)
+        private bool IsRunLockExempt(ModuleCommandAction action)
         {
-            if (step == null || string.IsNullOrWhiteSpace(step.PluginTypeName))
-                return null;
+            if (action == ModuleCommandAction.ToggleBreakpoint)
+                return true;
 
-            try
-            {
-                var type = Type.GetType(step.PluginTypeName);
-                if (type == null)
-                    return null;
+            if (action == ModuleCommandAction.ModuleParameters && _runState == MainRunState.Paused)
+                return true;
 
-                // 注意：这里**不再**要求"必须实现 IPluginCustomViewProvider"。
-                // 没有自定义视图的插件同样需要实例 —— 框架要靠它的输入端口来生成参数面板
-                //（AutoPortConfigView）。返回 null 的表现就是：面板弹出来了却一片空白
-                //（没有端口可渲染），而"这个插件有没有自带视图"由调用方用
-                // is IPluginCustomViewProvider 判断即可，不该由本方法替它决定。
-                return Activator.CreateInstance(type);
-            }
-            catch
-            {
-                return null;
-            }
+            return false;
         }
 
         private async Task ModuleActionAsync(ModuleCommandAction? action)
         {
-            // 运行锁：双击卡片、右键菜单（重命名/删除/禁用/模块参数…）都汇聚到本命令，单点拦截
-            if (action.HasValue && IsRunLocked && IsEditingAction(action.Value))
+            // 运行锁：双击卡片、右键菜单（重命名/删除/禁用/模块参数…）都汇聚到本命令，单点拦截。
+            // 删除/改名/参数等全部菜单动作都是编辑动作，运行中一律拦截（原 Copy/ShowAll 放行已随空壳项移除）。
+            // DWV 第 1 期两处豁免见 IsRunLockExempt：切换断点任何运行态放行；模块参数仅"已暂停"放行。
+            if (action.HasValue && IsRunLocked && !IsRunLockExempt(action.Value))
             {
                 Notifier.ShowWarning("流程运行中，禁止编辑；如需修改请先点击“停止”");
                 return;
@@ -274,63 +278,25 @@ namespace VisionMaster.ViewModels
                     if (data1.IsConfirmed)
                         CurrentSelectedStepModel.Description = data1.Value;
                     break;
-                case ModuleCommandAction.ExecuteSelected:
-                    break;
-                case ModuleCommandAction.ExecuteFromHere:
-                    break;
-                case ModuleCommandAction.ShowAll:
-                    break;
-                case ModuleCommandAction.EnableSuperTool:
-                    break;
-                case ModuleCommandAction.SetBreakpoint:
-                    break;
                 case ModuleCommandAction.ModuleParameters:
-                    if(SelectStep is ActionStep stepModel)
-                    {
-                        // 尝试获取插件实例：两种插件（有视图 / 没视图）都要用到它
-                        var pluginInstance = ResolvePluginInstance(stepModel);
-                        var stepData = (IStepConfigData)stepModel;
-
-                        // 有自定义视图就用插件的；没有则**框架包一层**（AutoPortConfigView）：
-                        // 把输入端口逐个渲染成「标签 + 值 + 🔗 + ✕」的行。
-                        // 这样两种插件对外完全一致 —— 同一个外壳（标题 / 试运行 / 确认取消），
-                        // 插件作者也不必为了"让参数能编辑"去写一遍视图。
-                        FrameworkElement view = pluginInstance is IPluginCustomViewProvider viewProvider
-                            ? viewProvider.GetConfigView(stepData) as FrameworkElement
-                            : null;
-
-                        if (view == null)
-                        {
-                            // 灌值这一步**放在分支里**、不能提到分支外面：
-                            // 插件自带的视图在 GetConfigView 里已经自己灌过一次，宿主再灌就是重复；
-                            // 而框架生成的这层没有那一步，只能在这里补。
-                            // 缺了它的表现是界面显示端口声明时的默认值 —— 看着像"上次改的没保存"。
-                            (pluginInstance as VisionPluginBase)?.Initialize(stepData);
-                            view = new AutoPortConfigView(pluginInstance as IVisionPlugin);
-                        }
-
-                        var parameters = new DialogParameters();
-                        parameters.Add("StepData", stepData);
-                        parameters.Add("PluginView", view);
-                        parameters.Add("Plugin", pluginInstance);
-                        dialogService.ShowDialog("PluginConfigShell", parameters);
-                    }
-                    else
-                    {
-                        var parameters = new DialogParameters();
-                        parameters.Add("Node", SelectStep);
-                        dialogService.ShowDialog("ConditionEditor", parameters);
-                    }
-                   
+                    // 打开逻辑原样搬到 StepParameterDialog（DWV 第 1 期）：
+                    // 命中窗「打开模块参数」与流程栏右键共用同一实现，杜绝第二份口径漂移。
+                    StepParameterDialog.Open(SelectStep, dialogService);
                     break;
-                case ModuleCommandAction.Cut:
+                case ModuleCommandAction.ToggleBreakpoint:
+                    // 纯运行期标记：取反 IsBreakpoint（不落盘、不递增 Version）。
+                    // 菜单标题靠 BreakpointToggleHeader 通知刷新；红点/画布圆点各自绑定 IsBreakpoint，
+                    // 属性通知由 StepModel.SetRuntimeState 自动发出。
+                    if (CurrentSelectedStepModel == null)
+                        break;
+                    CurrentSelectedStepModel.IsBreakpoint = !CurrentSelectedStepModel.IsBreakpoint;
+                    RaisePropertyChanged(nameof(BreakpointToggleHeader));
                     break;
-                case ModuleCommandAction.Copy:
-                    break;
-                case ModuleCommandAction.Paste:
-                    break;
-                case ModuleCommandAction.Disable:
-                    CurrentSelectedStepModel.IsDisEnable = false;
+                case ModuleCommandAction.ToggleDisable:
+                    if (CurrentSelectedStepModel == null)
+                        break;
+                    CurrentSelectedStepModel.IsDisEnable = !CurrentSelectedStepModel.IsDisEnable;
+                    RaisePropertyChanged(nameof(DisableToggleHeader));
                     break;
                 case ModuleCommandAction.Delete:
                     if (CurrentSelectedStepModel == null || Workspace?.CurrentFlow == null)

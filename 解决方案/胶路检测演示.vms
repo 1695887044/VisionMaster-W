@@ -1,0 +1,96 @@
+{
+  "SolutionName": "胶路检测演示",
+  "Version": 1.0,
+  "Config": {
+    "ImageViewMode": 0
+  },
+  "Flows": [
+    {
+      "FlowID": "87e2c5675a244a30baef07b852cbf038",
+      "FlowName": "胶路检测",
+      "Version": 6,
+      "IsEnabled": true,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 0,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": [
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "04e4b60b-e5f6-4406-8706-63c9da978fb8",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_0",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Mode": "Folder",
+            "FolderPath": "D:\\C#\\VM\\Image\\bead",
+            "FileIndex": 0,
+            "DisplayViewIndex": 1
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "7c89a200-9f28-4487-9834-ce154f9566cc",
+          "Icon": "",
+          "PluginName": "胶路检测",
+          "PluginTypeName": "Plugin.BeadInspect.BeadInspectPlugin, Plugin.BeadInspect, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "胶路检测_0",
+          "Description": "胶路检测",
+          "SortId": 1,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "RecipeLibraryJson": "[{\"Name\":\"范例\",\"RefImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_ref.png\",\"RefNoBeadImagePath\":\"D:\\\\C#\\\\VM\\\\Image\\\\bead\\\\adhesive_bead_ref.png\",\"RefPointsJson\":\"[[701.767,319.24],[626.953,336.133],[538.867,367.507],[443.54,431.46],[390.447,489.38],[360.28,546.093],[354.247,646.247],[363.9,722.267],[400.1,776.567],[458.02,826.04],[509.907,869.48],[588.34,912.92],[659.533,934.64],[696.94,929.813]]\",\"RectifyQuadJson\":\"{\\\"src\\\":[[658.232,330.071],[291.923,316.617],[314.817,971.032],[691.533,947.008]],\\\"dst\\\":[[708.0,300.0],[300.0,300.0],[300.0,948.0],[708.0,948.0]]}\",\"TargetWidth\":15.0,\"WidthTolerance\":8.0,\"PositionTolerance\":30.0,\"Polarity\":\"dark\",\"LearnedSignature\":\"\"}]",
+            "DefaultRecipeName": "范例",
+            "AlignMode": "PlanarDeformable",
+            "Polarity": "Dark",
+            "TargetWidth": 15.0,
+            "WidthTolerance": 8.0,
+            "PositionTolerance": 30.0,
+            "MinErrorLength": 0.0,
+            "MinScore": 0.4,
+            "PlanarNumLevels": 5,
+            "DisplayViewIndex": 1,
+            "OutputAlignedImage": true,
+            "UnitOutput": "Pixel",
+            "PixelSizeMm": 0.0
+          },
+          "LinkedSources": {
+            "SrcImage": {
+              "Kind": 1,
+              "TargetStepId": "04e4b60b-e5f6-4406-8706-63c9da978fb8",
+              "TargetPortName": "Image",
+              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
+              "DisplayAddress": "图像采集_0.Image"
+            }
+          },
+          "OutputPortDefinitions": []
+        }
+      ]
+    }
+  ],
+  "CommunicationConfigs": [],
+  "CameraConfigs": [],
+  "MotionCards": [],
+  "CamTables": [],
+  "VariableSnapshots": [],
+  "WatchItems": [],
+  "Scada": {
+    "SchemaVersion": 1,
+    "Pages": [],
+    "Alarms": [],
+    "VariableEvents": [],
+    "StartupPageId": "00000000-0000-0000-0000-000000000000"
+  }
+}

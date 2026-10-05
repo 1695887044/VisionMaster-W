@@ -1,0 +1,9 @@
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+
+已成功生成。
+
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+    1 个警告
+    0 个错误
+
+已用时间 00:00:02.06

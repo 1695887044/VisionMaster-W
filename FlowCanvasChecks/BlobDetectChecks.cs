@@ -112,6 +112,17 @@ namespace FlowCanvasChecks
                 Check("【收编】插件视图改用 Plugin* 公共样式",
                     xaml.Contains("StaticResource PluginCard") && xaml.Contains("StaticResource PluginNumericBox"),
                     "");
+
+                // 内联 <h:*.Style> 会把 Core.Halcon 合并字典里的**隐式样式**顶掉（ControlTemplate 就在那边）——
+                // 控件没有模板 → 永远不渲染，且不报错、不留日志。2026-10-04 实际事故：
+                // 本视图的 h:ImageReadOnly 挂了只设 Visibility 的内联 Style，配置窗口预览区从此永远空白
+                //（信息栏有结果、图不显示）。可见性一律挂外层容器，控件自身样式不动。
+                var inlineControlStyles = Regex.Matches(xaml, @"<h:[A-Za-z0-9_]+\.Style>");
+                Check("【收编】视图不给 h: 控件挂内联 Style（顶掉隐式样式=控件没模板，预览会永远空白）",
+                    inlineControlStyles.Count == 0,
+                    inlineControlStyles.Count == 0
+                        ? ""
+                        : "发现：" + string.Join(", ", inlineControlStyles.Select(m => m.Value).Distinct().Take(4)));
             }
 
             // ---- ② UI 库侧：必需键必须存在 + 插件用到的每个 Plugin* 键都必须有定义 ----
@@ -382,6 +393,27 @@ namespace FlowCanvasChecks
             Check("【像素当量】mm² = 像素面积 × 当量²（当量 2 → ×4）",
                 Math.Abs(mm2 - px * 4) < 1e-6, $"px={px:0.#} mm²={mm2:0.#}");
             pMm.Dispose();
+
+            // 像素当量直连「标定」：已接上游以连线为准；上游失效明确失败（绝不静默回退旧值）
+            var pLink = NewPlugin(image);
+            pLink.PixelSizeMm = 2.0;                    // 手填值（兜底），故意设成与上游不同
+            var upstream = new OutputPort<double>("测试当量", "");
+            upstream.Value = 0.5;
+            pLink.MmPerPixel.LinkedSource = upstream;
+            pLink.Execute(MakeContext(new StubLog()));
+            double pxL = Convert.ToDouble(pLink.MaxArea.Value);
+            double mm2L = Convert.ToDouble(pLink.MaxAreaMm2.Value);
+            Check("【当量直连】已接上游 → 以连线为准（当量 0.5 → ×0.25；手填 2.0 被忽略）",
+                pLink.Success.Value is true && Math.Abs(mm2L - pxL * 0.25) < 1e-6,
+                $"px={pxL:0.#} mm²={mm2L:0.#}（手填 2.0 若生效会是 ×4）");
+
+            upstream.Value = 0;                          // 上游标定失败/未就绪
+            pLink.Execute(MakeContext(new StubLog()));
+            Check("【当量直连】上游当量无效 → 明确失败且指「标定」（绝不静默回退）",
+                pLink.Success.Value is false
+                && (pLink.ErrorMessage.Value as string ?? "").Contains("标定"),
+                $"Success={pLink.Success.Value} Err='{pLink.ErrorMessage.Value}'");
+            pLink.Dispose();
         }
 
         // ==================================================================

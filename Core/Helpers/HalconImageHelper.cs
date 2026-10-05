@@ -62,6 +62,109 @@ namespace VisionMaster.Helpers
         }
 
         /// <summary>
+        /// 缩略图专用快路径：**先在 HALCON 侧等比缩小，再转位图**。
+        ///
+        /// 为什么要单独开一条
+        /// ---------
+        /// 全尺寸转位图的代价是"每帧 × 每输出端口"都要付的：为得到一张最长边 160px 的缩略图，
+        /// 先把整张图（500 万像素彩图约 15MB）搬进托管堆。高频采图下这笔分配与随之而来的
+        /// GC 压力完全没必要——先把图缩小几十倍再转，转换量直接降到千分之几。
+        ///
+        /// 为什么不影响任何算法精度
+        /// ---------
+        /// 本方法只服务缩略图（<see cref="Core.Halcon.Models.ImageFrame.Thumbnail"/>），
+        /// 而缩略图**只用于图像集网格渲染**：大图显示、导出、标注、取色走的都是
+        /// <see cref="Core.Halcon.Models.ImageFrame.Image"/>（全尺寸原图）。
+        /// 因此这条路径与视觉算法结果**没有任何交集**。
+        ///
+        /// 为什么只对 byte / int2 / uint2 走快路径
+        /// ---------
+        /// int4 / real 的显示走 <c>StretchToGray8</c>：量程（min/max）是在**被转换的那张图**上
+        /// 统计的。先缩小会让缩略图的量程取自缩小后的图，对比度与全图不一致——这类图多是
+        /// 视差 / 深度 / 浮点结果图，为省一点开销引入"缩略图和大图看起来不一样"的困惑不值得。
+        /// 故这两类（以及非常规通道数）返回 null，由调用方回落全尺寸路径。
+        ///
+        /// 插值为什么必须是 bilinear
+        /// ---------
+        /// HALCON 默认 "constant" 相当于最近邻：缩十几倍以上时细线条会**整条消失**、出现摩尔纹——
+        /// 那不是"缩小"，是失真。bilinear 取邻域加权，才是缩略图该有的样子。
+        /// （若该 HALCON 版本不接受此插值串，异常会被吞掉并回落全尺寸路径，行为不会变坏。）
+        /// </summary>
+        /// <returns>成功返回缩略图位图；不适用（int4/real/非常规通道）或失败返回 null</returns>
+        public static BitmapSource? ToThumbnailSource(HImage? image, int maxSize)
+        {
+            if (image == null)
+                return null;
+
+            try
+            {
+                HOperatorSet.CountChannels(image, out HTuple channels);
+                int count = channels.I;
+                if (count != 1 && count != 3)
+                    return null;
+
+                // 读尺寸与像素类型（顺带做守卫：宽高非法或指针为空时不必往下走）
+                string type;
+                int w, h;
+                if (count == 1)
+                {
+                    HOperatorSet.GetImagePointer1(image, out HTuple p, out HTuple t,
+                                                  out HTuple ww, out HTuple hh);
+                    if (p.IP == IntPtr.Zero) return null;
+                    type = t.S; w = ww.I; h = hh.I;
+                }
+                else
+                {
+                    HOperatorSet.GetImagePointer3(image, out HTuple pr, out HTuple pg, out HTuple pb,
+                                                  out HTuple t, out HTuple ww, out HTuple hh);
+                    if (pr.IP == IntPtr.Zero || pg.IP == IntPtr.Zero || pb.IP == IntPtr.Zero) return null;
+                    type = t.S; w = ww.I; h = hh.I;
+                }
+
+                if (w <= 0 || h <= 0)
+                    return null;
+
+                // int4 / real 的显示依赖本图 min/max 拉伸，缩放会改变量程 → 不走快路径
+                if (!string.Equals(type, "byte", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(type, "int2", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(type, "uint2", StringComparison.OrdinalIgnoreCase))
+                    return null;
+
+                int max = Math.Max(32, maxSize);
+                double longest = Math.Max(w, h);
+
+                // 原图本来就不超过目标尺寸：直接转，不做无意义的缩放
+                if (longest <= max)
+                    return ToBitmapSource(image);
+
+                double scale = max / longest;
+                int targetW = Math.Max(1, (int)Math.Round(w * scale));
+                int targetH = Math.Max(1, (int)Math.Round(h * scale));
+
+                HImage? zoomed = null;
+                try
+                {
+                    zoomed = image.ZoomImageSize(targetW, targetH, "bilinear");
+                    return ToBitmapSource(zoomed);
+                }
+                finally
+                {
+                    // 缩放结果是一份**新的非托管内存**，用完必须归还，否则每帧漏一张图
+                    if (zoomed != null && zoomed.IsInitialized())
+                        zoomed.Dispose();
+                }
+            }
+            catch (HalconException)
+            {
+                return null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// 单通道图：按 Halcon 的像素类型分派。
         /// byte / uint2 直接搬运（灰度级语义一致），int4 / real 取值范围不固定，
         /// 按本图自己的最小最大值线性拉伸到 0~255 再显示（这类图多是视差图、深度图、浮点结果图）。

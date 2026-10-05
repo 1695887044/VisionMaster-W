@@ -45,6 +45,16 @@ namespace FlowCanvasChecks
                 return 0;
             }
 
+            // 性能基准模式：--perf 只跑 A1/A2 基准，不跑常规断言（计时数字会抖，混进来会让"红了"说不清原因）。
+            // 必须 Release 构建跑（dotnet build -c Release），Debug 的 JIT 不做优化，数字失真。
+            if (args.Length >= 1 && args[0] == "--perf")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                PerfChecks.Run();
+                Finish();
+                return Environment.ExitCode;
+            }
+
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.WriteLine("========== 流程画布 v2（海康式扁平画布）断言（容器框/泳道/模块连线/折叠/联动/撤销栈） ==========");
 
@@ -80,6 +90,9 @@ namespace FlowCanvasChecks
             ExecutionChecks.SessionStateTransitionSemantics();
             ExecutionChecks.ContractHygieneAndStepCollection();
 
+            // DWV 第 1 期：断点 / 单步 / 暂停继续（调试门；断点不落盘、HTTP / 试运行豁免）
+            DebugChecks.Run();
+
             // OCR：字符分割 + 识别（真图 + 真模型）
             OcrChecks.Run();
             CodeReaderChecks.Run();
@@ -91,6 +104,10 @@ namespace FlowCanvasChecks
             MotionZMotionChecks.Run();
             MatchingChecks.Run();
             CreateRoiChecks.Run();
+
+            // 胶路检测插件：路径生成 / bead 模型 / 7 图真值表（P4）/ 树直径合并 / 下限保护 / 贴合度
+            //（真样图 Image\bead\adhesive_bead_01..07.png，断言 1~9、13、14、15）
+            BeadInspectChecks.Run();
 
             // HTTP 收图端到端冒烟（真起服务端 + 真发 HTTP 图片）
             HttpImageSmoke.Run();
@@ -128,8 +145,14 @@ namespace FlowCanvasChecks
             // 预览帧捕获时机：发布线程同步拷贝（循环运行"图不被收纳"的回归）
             PreviewCaptureChecks.Run();
 
+            // 缩略图快路径：先缩小再转换（长宽比/不放大/细线条可见/不改源图/量程回落）
+            ThumbnailChecks.Run();
+
             // 标定插件：仿射求解/正反变换/质量闸门/端口面（合成数据，不依赖引擎）
             CalibrationChecks.Run();
+
+            // 卡尺插件：像素当量直连「标定」（手填/上游/失效三态 + 真实测量链路）
+            CaliperMeasureChecks.Run();
 
             // 坐标变换插件：正反变换/角度/三类失配/位姿跟随（合成标定与合成区域，HALCON 真算子）
             PoseTransformChecks.Run();

@@ -25,7 +25,8 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid Margin="12">
+    <Grid Margin="12" KeyDown="OnViewKeyDown"
+          Focusable="True">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="1.3*" MinWidth="340" MaxWidth="520" />
             <ColumnDefinition Width="1*" MinWidth="240" />
@@ -40,15 +41,22 @@
                 <Border Style="{StaticResource PluginCard}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 标定模式与标定图" />
-                        <!--  用 WrapPanel：窄窗口下两个单选项不会互相挤掉  -->
+                        <!--  用 WrapPanel：窄窗口下三个单选项不会互相挤掉  -->
                         <WrapPanel Margin="0,8,0,0">
                             <RadioButton
                                 Content="像素当量"
-                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.PixelScale}}" />
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.PixelScale}}"
+                                IsEnabled="{Binding IsEditable}" />
                             <RadioButton
                                 Margin="16,0,0,0"
                                 Content="九点标定（N×N）"
-                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}" />
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}"
+                                IsEnabled="{Binding IsEditable}" />
+                            <RadioButton
+                                Margin="16,0,0,0"
+                                Content="透视标定（投影）"
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.Perspective}}"
+                                IsEnabled="{Binding IsEditable}" />
                         </WrapPanel>
 
                         <cv:LinkableValueEditor
@@ -63,6 +71,12 @@
                             Foreground="{StaticResource PluginLabelTextBrush}"
                             Text="{Binding SourceImageSizeText}"
                             TextWrapping="Wrap" />
+                        <TextBlock
+                            Margin="0,2,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="接了「实时图」输入端口（端口连线，或点试运行时自动桥接）→ 画布优先显示实时图并可直接在其上取点（引用借入，不占内存所有权）。"
+                            TextWrapping="Wrap" />
 
                         <!--  像素当量：已知长度 + A/B 两点  -->
                         <StackPanel Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:CalibrationMode.PixelScale}}">
@@ -74,14 +88,46 @@
                                 <TextBox
                                     Width="90"
                                     Style="{StaticResource PluginNumericBox}"
-                                    Text="{Binding KnownLengthMm}" />
+                                    Text="{Binding KnownLengthMm}"
+                                    IsEnabled="{Binding IsEditable}" />
+                                <Button
+                                    Margin="10,0,0,0"
+                                    Padding="10,2"
+                                    Command="{Binding PickScalePointCommand}"
+                                    CommandParameter="A"
+                                    Content="取A点"
+                                    ToolTip="进入取点待命：在图上点击标定物的一端，Row/Col 自动填入 A" />
+                                <Button
+                                    Margin="8,0,0,0"
+                                    Padding="10,2"
+                                    Command="{Binding PickScalePointCommand}"
+                                    CommandParameter="B"
+                                    Content="取B点"
+                                    ToolTip="进入取点待命：在图上点击标定物的另一端，Row/Col 自动填入 B" />
                             </StackPanel>
                             <TextBlock
                                 Margin="0,6,0,0"
                                 FontSize="{StaticResource PluginHintFontSize}"
                                 Foreground="{StaticResource PluginLabelTextBrush}"
-                                Text="点「把点画到图上」→ 在画布上把 A / B 两个标记拖到标定物两端；也可在下面直接填坐标。"
+                                Text="点「取A点/取B点」→ 在图上各点一下；或点「把点画到图上」拖动 A / B 标记；也可手工填坐标。"
                                 TextWrapping="Wrap" />
+                            <!--  跨度提示：短基线是当量误差的头号来源，必须摆在明面上（方案 §五①）  -->
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Text="{Binding ScaleSpanText}"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ScaleSpanLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                                <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                             <UniformGrid Margin="0,6,0,0" Columns="2">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
@@ -91,7 +137,8 @@
                                     <TextBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
-                                        Text="{Binding ScaleARow}" />
+                                        IsEnabled="{Binding IsEditable}"
+                                        Text="{Binding ScaleARow, TargetNullValue=''}" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
@@ -101,7 +148,8 @@
                                     <TextBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
-                                        Text="{Binding ScaleACol}" />
+                                        IsEnabled="{Binding IsEditable}"
+                                        Text="{Binding ScaleACol, TargetNullValue=''}" />
                                 </StackPanel>
                                 <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
                                     <TextBlock
@@ -111,7 +159,8 @@
                                     <TextBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
-                                        Text="{Binding ScaleBRow}" />
+                                        IsEnabled="{Binding IsEditable}"
+                                        Text="{Binding ScaleBRow, TargetNullValue=''}" />
                                 </StackPanel>
                                 <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
                                     <TextBlock
@@ -121,39 +170,42 @@
                                     <TextBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
-                                        Text="{Binding ScaleBCol}" />
+                                        IsEnabled="{Binding IsEditable}"
+                                        Text="{Binding ScaleBCol, TargetNullValue=''}" />
                                 </StackPanel>
                             </UniformGrid>
                         </StackPanel>
 
-                        <!--  九点标定：网格规模  -->
+                        <!--  九点/透视共用：网格规模（点数=采样密度）  -->
                         <StackPanel
                             Margin="0,8,0,0"
                             Orientation="Horizontal"
-                            Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}">
+                            Visibility="{Binding ShowPointTable, Converter={ui:BooleanToVisibilityConverter}}">
                             <TextBlock
                                 VerticalAlignment="Center"
                                 Style="{StaticResource PluginFieldLabel}"
                                 Text="网格规模" />
                             <ComboBox
                                 Width="70"
+                                IsEnabled="{Binding IsEditable}"
                                 ItemsSource="{Binding GridSizeOptions}"
                                 SelectedItem="{Binding GridSize}"
-                                ToolTip="点数只是采样密度（仿射 3 点即唯一解）：默认 3×3；覆盖四角+中心后加密到 4×4/5×5 可提高抗噪余量" />
+                                ToolTip="点数只是采样密度（仿射 3 点即唯一解）：默认 3×3；覆盖四角+中心后加密到 4×4/5×5 可提高抗噪余量；透视标定至少 4 点（推荐 3×3/4×4，覆盖视野四角+中心）" />
                             <Button
                                 Margin="10,0,0,0"
                                 Padding="10,2"
+                                IsEnabled="{Binding IsEditable}"
                                 Command="{Binding RebuildGridCommand}"
                                 Content="重建网格" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
-                <!--  ② 标定表（九点模式；列宽与表头两处保持一致）  -->
+                <!--  ② 标定表（九点/透视共用；列宽与表头两处保持一致）  -->
                 <Border
                     Margin="{StaticResource PluginSectionMargin}"
                     Style="{StaticResource PluginCard}"
-                    Visibility="{Binding Mode, Converter={ui:EnumToVisibilityConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}">
+                    Visibility="{Binding ShowPointTable, Converter={ui:BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource PluginCardTitle}" Text="② 标定表（机械坐标 ↔ 图像点）" />
 
@@ -164,6 +216,8 @@
                                 <ColumnDefinition Width="60" />
                                 <ColumnDefinition Width="60" />
                                 <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="44" />
+                                <ColumnDefinition Width="44" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <TextBlock
@@ -193,6 +247,16 @@
                                 Text="像Col" />
                             <TextBlock
                                 Grid.Column="5"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="取点" />
+                            <TextBlock
+                                Grid.Column="6"
+                                FontSize="{StaticResource PluginHintFontSize}"
+                                Foreground="{StaticResource PluginLabelTextBrush}"
+                                Text="预填" />
+                            <TextBlock
+                                Grid.Column="7"
                                 Margin="6,0,0,0"
                                 FontSize="{StaticResource PluginHintFontSize}"
                                 Foreground="{StaticResource PluginLabelTextBrush}"
@@ -200,7 +264,9 @@
                         </Grid>
 
                         <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding PointRows}">
+                            <ItemsControl
+                                IsEnabled="{Binding IsEditable}"
+                                ItemsSource="{Binding PointRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,2,0,2">
@@ -210,6 +276,8 @@
                                                 <ColumnDefinition Width="60" />
                                                 <ColumnDefinition Width="60" />
                                                 <ColumnDefinition Width="60" />
+                                                <ColumnDefinition Width="44" />
+                                                <ColumnDefinition Width="44" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <!--  点名的颜色 = 行状态：绿=有效 / 橙=半填 / 灰=空  -->
@@ -253,8 +321,28 @@
                                                 Margin="0,0,4,0"
                                                 Style="{StaticResource PluginNumericBox}"
                                                 Text="{Binding ImageCol}" />
-                                            <TextBlock
+                                            <Button
                                                 Grid.Column="5"
+                                                MinWidth="36"
+                                                Margin="2,0,2,0"
+                                                Padding="2,0"
+                                                Command="{Binding DataContext.PickRowPointCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="取点"
+                                                FontSize="{StaticResource PluginHintFontSize}"
+                                                ToolTip="在图上点击该行的特征点位置，Row/Col 自动填入" />
+                                            <Button
+                                                Grid.Column="6"
+                                                MinWidth="36"
+                                                Margin="2,0,2,0"
+                                                Padding="2,0"
+                                                Command="{Binding DataContext.PrefillRowFromSourceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="预填"
+                                                FontSize="{StaticResource PluginHintFontSize}"
+                                                ToolTip="把上游定位点（SourcePointRow / SourcePointCol——接匹配的 Row/Col 或脚本算出的 ROI 中心）填进本行" />
+                                            <TextBlock
+                                                Grid.Column="7"
                                                 Margin="6,0,0,0"
                                                 VerticalAlignment="Center"
                                                 FontSize="{StaticResource PluginHintFontSize}"
@@ -266,12 +354,12 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <WrapPanel Margin="0,8,0,0">
+                        <WrapPanel IsEnabled="{Binding IsEditable}" Margin="0,8,0,0">
                             <Button
                                 Padding="10,2"
                                 Command="{Binding PasteRowsCommand}"
                                 Content="粘贴 N 行"
-                                ToolTip="先在 Excel 里复制若干行（每行 4 列：机械X、机械Y、图像Row、图像Col；带序号 5 列也行）" />
+                                ToolTip="先在 Excel 里复制若干行（每行 4 列：机械X、机械Y、图像Row、图像Col；带序号 5 列也行；Tab 分隔时空格子=未填）" />
                             <Button
                                 Margin="8,0,0,0"
                                 Padding="10,2"
@@ -288,7 +376,7 @@
                             Margin="0,6,0,0"
                             FontSize="{StaticResource PluginHintFontSize}"
                             Foreground="{StaticResource PluginLabelTextBrush}"
-                            Text="全 0 行 = 空行（不参与计算）；半填行运行时会直接报错并指到行。典型流程：机械走位 → 相机采图 → 把点拖到特征中心 → 从示教器粘贴机械坐标。"
+                            Text="整行留空 = 空行（不参与计算）；0 是合法坐标值（回零位取点不会被当成没填）；半填行运行时报错并指到行。典型流程：机械走位 → 相机采图 → 点行上的「取点」定位（或先接上游定位点再点「预填」）→ 从示教器粘贴机械坐标。透视标定用同一张表：至少 4 点（推荐 3×3/4×4，覆盖视野四角+中心）。"
                             TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
@@ -333,6 +421,30 @@
                                 Style="{StaticResource PluginNumericBox}"
                                 Text="{Binding CameraSerial, UpdateSourceTrigger=PropertyChanged}"
                                 ToolTip="填「系统 → 相机设置」里的序列号：多相机下用于核对这份标定属于哪台（下游失配检测会用它）" />
+                            <CheckBox
+                                Margin="14,0,0,0"
+                                VerticalAlignment="Center"
+                                Content="锁定标定（防误改）"
+                                IsChecked="{Binding IsCalibrationLocked}"
+                                ToolTip="锁定后表格 / A、B 点 / 粘贴 / 重建 / 取点全部禁止改动；运行期照常重算输出，不受影响" />
+                        </StackPanel>
+                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                            <Button
+                                Padding="10,2"
+                                Command="{Binding ExportCalibrationCommand}"
+                                Content="导出标定…"
+                                ToolTip="把标定数据+质量策略导出为 JSON（可带到其他设备导入；不含锁定状态/预览图）" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                Command="{Binding ImportCalibrationCommand}"
+                                Content="导入标定…"
+                                ToolTip="从 JSON 导入一份标定（全量覆盖：数据+阈值+护栏；锁定态拒绝；导入后请看质量区核对残差）" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginHintText}"
+                                Text="多台设备共享同一份标定" />
                         </StackPanel>
                         <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
                             <TextBlock
@@ -344,6 +456,26 @@
                                 Style="{StaticResource PluginNumericBox}"
                                 Text="{Binding ResidualThresholdPx}"
                                 ToolTip="残差 RMS 超过它 → 本步骤失败：标定不合格必须是看得见的失败，而不是静默放行" />
+                            <TextBlock
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="当量下限" />
+                            <TextBox
+                                Width="64"
+                                Style="{StaticResource PluginNumericBox}"
+                                Text="{Binding MmPerPixelMin}"
+                                ToolTip="当量合理性护栏下限（mm/px）：低于它判失败——防 µm 当 mm、防标定物量错一个数量级" />
+                            <TextBlock
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="上限" />
+                            <TextBox
+                                Width="64"
+                                Style="{StaticResource PluginNumericBox}"
+                                Text="{Binding MmPerPixelMax}"
+                                ToolTip="当量合理性护栏上限（mm/px）：高于它判失败" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -353,23 +485,40 @@
         <!--  右侧：画布 + 信息栏  -->
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <!--  取点待命提示：橙色横幅盖在画布上方，一眼知道"现在点图是取点不是选标记"  -->
             <Border
+                Grid.Row="0"
+                Padding="8,4"
+                Background="{StaticResource PluginWarningBrush}"
+                CornerRadius="4"
+                Visibility="{Binding IsPickingPoint, Converter={ui:BooleanToVisibilityConverter}}">
+                <TextBlock
+                    FontSize="{StaticResource PluginLabelFontSize}"
+                    Foreground="White"
+                    Text="{Binding PickHintText}" />
+            </Border>
+            <Border
+                Grid.Row="1"
                 Padding="8"
                 Background="{StaticResource PluginSurfaceBrush}"
                 BorderBrush="#E0E0E0"
                 BorderThickness="1"
                 CornerRadius="6">
                 <h:ImageEdit
+                    x:Name="Canvas"
                     ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
                     DrawObjectList="{Binding CanvasMarkers}"
-                    HImage="{Binding DisplayImage, Mode=OneWay}"
-                    ToolTip="滑轮缩放 / 右键菜单可适应图片；点中标记可拖动（拖完自动回写表格）" />
+                    HImage="{Binding CanvasImage, Mode=OneWay}"
+                    IsPickMode="{Binding IsPickingPoint}"
+                    ImagePicked="OnImagePicked"
+                    ToolTip="滑轮缩放 / 右键菜单可适应图片；点中标记可拖动（拖完自动回写表格）；点行上的「取点」后，在图上点一下即可回填坐标；接了实时图时画布优先显示实时图" />
             </Border>
             <Border
-                Grid.Row="1"
+                Grid.Row="2"
                 Margin="{StaticResource PluginSectionMargin}"
                 Style="{StaticResource PluginStatusPanel}">
                 <DockPanel>

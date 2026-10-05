@@ -1,0 +1,22 @@
+599 | [×失败] 相机插件转交模块注册表后可见（否则等于'加载成功却拖不出来'）  →  模块表 0 项，相机分类表 1 项
+709 | [×失败] 类别过滤填了非法值 → 报失败并说明该填什么（不静默忽略）  →  Success=False Error='模型文件不存在：C:\不存在的模型.onnx。请重新选择，或把模型放到该路径'
+906 | [×失败] Dialog* 公共键已成体系（界面只需引用，不再各写一份）  →  共 26 个 Dialog* 键
+924 | [×失败] ★两个属性面板都注册了动态候选生成器（漏一个就有一半场景仍是文本框）
+929 | [×失败] ★卡候选的**值**仍是地址（显示可以带设备名，但写进流程的必须是稳定的地址键）  →  值一旦改成显示文本，用户改设备名就会让已配流程全部失效
+1221 | [×失败] 【5 芯】扫出 5 根（实测 ）  →  WireCount= 步骤状态=图像采集_0=Failed 找线=Failed 选配方=Success 比对=Failed 结果分流=Success 变量赋值_5=Failed Err=Error:线序检测.图像采集_0 找不到序列号为「VIRTUAL-001」的相机。请到「系统 → 相机设置」添加该相机，或回到本步骤的「相机采集」页重新选择 | Error:步骤[线序检测.图像采集_0]执行失败: 找不到序列号为「VIRTUAL-001」的相机。请到「系统 → 相机设置」添加该相机，或回到本步骤的「相机采集」页重新选择 | Error:步骤[线序检测.找线]执行失败: 第 1 行 第 1 列: Metadata file 'D:\C#\VM\FlowCanvasChecks\bin\Debug\net9.0-windows\onnxruntime_providers_shared.dll' could not be opened -- PE image doesn't contain managed metadata. | Error:步骤[线序检测.比对]执行失败: 第 1 行 第 1 列: Metadata file 'D:\C#\VM\FlowCanvasChecks\bin\Debug\net9.0-windows\onnxruntime_providers_shared.dll' could not be opened -- PE image doesn't contain managed metadata. | Error:线序检测.变量赋值_5 找不到全局变量「Img」，请先在变量管理里新建同名变量 | Error:步骤[线序检测.变量赋值_5]执行失败: 找不到全局变量「Img」，请先在变量管理里新建同名变量 Warn=
+1222 | [×失败] 【5 芯】走 If 分支取到配方 A = 黑,棕,玫红,红,黄  →  Expected=[]
+1223 | [×失败] 【5 芯】线序与黄金参照一致  →  实测=[]
+1224 | [×失败] 【5 芯】判定合格、分流走 If 记 OK  →  Result= Verdict=NG
+1225 | [×失败] 【5 芯】日志留下结论全文  →  Info:线序检测.赋值_Expected 本地变量 Expected 已创建并赋值 | Info:线序检测.赋值_Verdict 本地变量 Verdict 已创建并赋值
+1227 | [×失败] 【10 芯】扫出 10 根（实测 ）  →  WireCount=
+1228 | [×失败] 【10 芯】线序与黄金参照一致：黑,白,灰,紫,蓝,绿,黄,红,玫红,棕  →  实测=[]
+1229 | [×失败] 【10 芯】走 ElseIf 分支取到配方 B  →  Expected=[]
+1230 | [×失败] 【10 芯】判定合格、分流走 If 记 OK  →  Result= Verdict=NG
+1233 | [×失败] 【未知芯数】判定不合格  →  Result=
+1234 | [×失败] 【未知芯数】结论明确写「未知产品」，不含糊成「线数不符」  →  Warn=[]
+1236 | [×失败] 脚本往视图窗口发过预览帧（共 0 帧）  →  一帧都没发：ShowImage 没被调到，或预览通道断了
+1237 | [×失败] 带标注的结果帧恰好 2 帧（找线一帧 + 比对一帧，不会重复投射）  →  各帧目标窗口：；带标注的帧数=0
+1238 | [×失败] 结果帧落在合法的视图窗口号上（1~9）  →  没有带标注的帧
+
+TOTAL_LINES=1605
+FAIL_COUNT=19

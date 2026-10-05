@@ -1,0 +1,90 @@
+608 | ---- [E13] 断点命中 / 继续（调试单次执行） ----
+609 |   [√通过] 断点图纸编译通过
+610 |   [√通过] 命中断点后停在 Paused  →  State=Paused（超时说明断点没拦住）
+611 |   [√通过] 暂停原因 = Breakpoint  →  PauseReason=Breakpoint
+612 |   [√通过] 前序节点已执行（A=1）  →  A=1
+613 |   [√通过] 命中节点停在执行前（B=0）  →  B=0
+614 |   [√通过] 后序节点未执行（C=0）  →  C=0
+615 |   [√通过] 命中节点被标记 IsDebugStopped（UI 停点高亮）  →  IsDebugStopped=True
+616 |   [√通过] 会话仍活着等待放行（IsRunning=true）  →  IsRunning=True
+617 |   [√通过] 暂停消息承载原因（Message 首次启用）  →  Message=调试暂停：断点命中
+618 |   [√通过] 继续后回到 Running  →  State=Running
+619 |   [√通过] 继续后暂停原因清空  →  PauseReason=None
+620 |   [√通过] 继续后正常跑完（任务干净结束）
+621 |   [√通过] 继续后全流程走完（A=B=C=1）  →  A=1 B=1 C=1
+622 |   [√通过] 收尾后 State=Stopped 且 IsRunning=false  →  IsRunning=False State=Stopped
+623 | 
+624 | ---- [E13] 停在断点时 StopSession 干净收尾 ----
+625 |   [√通过] 停止打断图纸编译通过
+626 |   [√通过] 已停在断点上（构造出打断窗口）  →  paused=True B=0
+627 |   [√通过] 停点上的停止立即生效：任务干净收尾（非 Faulted）  →  （超时说明 PauseLock.Wait(token) 没被取消唤醒）
+628 |   [√通过] 收尾后 State=Stopped 且 IsRunning=false  →  State=Stopped IsRunning=False
+629 |   [√通过] 命中节点始终未执行（停在执行前）  →  B=0
+630 |   [√通过] 停点高亮随收尾清除（IsDebugStopped=false）  →  IsDebugStopped=False
+631 |   [√通过] 暂停锁回到放行态（收尾 Set 兜底）  →  锁留在合上态：后续等待会被莫名按住
+632 |   [√通过] 收尾清除运行焦点（无残留高亮）  →  FocusedStep=(null)
+633 | 
+634 | ---- [E13] 非调试单次执行豁免（HTTP 触发同款路径） ----
+635 |   [√通过] 豁免图纸编译通过
+636 |   [√通过] DebugEnabled 默认 false  →  DebugEnabled=False
+637 |   [√通过] 挂着断点也不被卡住：一次跑完  →  （超时说明断点把非调试运行卡住了）
+638 |   [√通过] 全流程执行（A=B=C=1）  →  A=1 B=1 C=1
+639 |   [√通过] 全程从未进入 Paused  →  Paused 次数=0
+640 |   [√通过] 收尾后 State=Stopped 且 IsRunning=false  →  State=Stopped IsRunning=False
+641 | 
+642 | ---- [E13] 单步：恰好多执行 1 个节点 ----
+643 |   [√通过] 单步图纸编译通过
+644 |   [√通过] 先命中 B 的断点（A=1 / B=0）  →  paused=True A=1 B=0
+645 |   [√通过] 单步后停在下一个节点前（B 已执行 / C 未执行 —— 恰好 +1）  →  State=Paused B=1 C=0
+646 |   [√通过] 单步停点原因 = Step  →  PauseReason=Step
+647 |   [√通过] 再次单步仍恰好 +1（C 已执行 / D 未执行）  →  State=Paused C=1 D=0
+648 |   [√通过] 从单步停点继续后跑完（D 也执行）  →  D=1 
+649 | 
+650 | ---- [E13] 循环体断点：每圈命中都断 ----
+651 |   [√通过] 循环断点图纸编译通过
+652 |   [√通过] 第 1 圈断开住（body=0，停在执行前）  →  paused=True body=0
+653 |   [√通过] 第 2 圈同一断点再次断开住（body=1）  →  State=Paused body=1
+654 |   [√通过] 继续后两圈跑完并正常收尾  →  body=2
+655 | 
+656 | ---- [E13] 连续调试运行：第二圈再次命中 + 停点停止 ----
+657 |   [√通过] 连续调试图纸编译通过
+658 |   [√通过] 第 1 圈断点停住（A=1 / B=0）  →  paused=True A=1 B=0
+659 |   [√通过] 第 2 圈同一断点再次停住（A=2 / B=1 / C=1）  →  State=Paused A=2 B=1 C=1
+660 |   [√通过] 两次命中恰好两次 Paused 事件  →  Paused 次数=2
+661 |   [√通过] 停在断点时 StopSession 干净收尾（线程不残留）  →  （超时说明停止打不断断点等待）
+662 |   [√通过] 停止后 State=Stopped 且 IsRunning=false  →  State=Stopped IsRunning=False
+663 | 
+664 | ---- [E13] 断点标记：不递增 Version ----
+665 |   [√通过] 切换断点/停点标记不递增 Version  →  Version 1 → 1
+666 |   [√通过] 标记变更确实发了通知（UI 红点 / 停点高亮会刷新）  →  IsBreakpoint,IsBreakpoint,IsDebugStopped,IsDebugStopped
+667 |   [√通过] 流程一路零通知（不惊动语义变更闸门）
+668 | 
+669 | ---- [E13] 断点不落盘：序列化文本不含调试标记 ----
+670 |   [√通过] 序列化文本不含 IsBreakpoint  →  断点跟着方案进产线是安全隐患（评审结论 4）
+671 |   [√通过] 序列化文本不含 IsDebugStopped
+672 |   [√通过] 同类运行期标记同样不落盘（IsRunningFocus 对照）
+673 |   [√通过] 常规字段仍被序列化（防'空文本假通过'）
+674 | 
+675 | ---- [E13] 插件试运行豁免：带断点也不能卡住 ----
+676 |   [√通过] 带断点的步骤试运行正常完成（未被断点卡住）  →  执行完成
+677 |   [√通过] 试运行确实执行了目标算子  →  Runs=1
+678 |   [√通过] 试运行会话从未进入调试态（DebugEnabled=false）  →  trial=True DebugEnabled=False
+679 | 
+680 | ---- [E13] 调试单次执行：暂停 / 继续生效 ----
+681 |   [√通过] 暂停继续图纸编译通过
+682 |   [√通过] 执行中已进入闸门算子（构造出运行窗口）  →  5 秒内没进到算子，后面的暂停断言无意义
+683 |   [√通过] 调试单次执行期间 PauseSession 生效（State=Paused）  →  State=Paused（非调试单次执行时这里必须仍是 Running）
+684 |   [√通过] 暂停原因 = User  →  PauseReason=User
+685 |   [√通过] 闸门后的下一节点被调试门按住（C 未执行）  →  bDone=True State=Paused C=0
+686 |   [√通过] 继续后跑完并正常收尾  →  A=1 C=1 
+687 | 
+
+--- summary tail ---
+  [√通过] [PT] 输出端口面齐全  →  FollowedRegion,FollowedImage,MechanicalX,MechanicalY,MechanicalAngle,PixelEchoRow,PixelEchoCol,Success,ErrorMessage
+  [√通过] [PT] Transform 端口类型 = CalibrationTransform（接标定插件输出）  →  CalibrationTransform
+  [√通过] [PT] 跟随端口类型 = HRegion / HImage（接 BlobDetect.MaskRegion 与图像下游）
+  [√通过] [PT] 插件带 [Display]（GroupName=定位，否则工具箱里拖不出来）
+
+========== 结果汇总 ==========
+通过: 1198  失败: 19
+>>> 存在 19 项失败 <<<

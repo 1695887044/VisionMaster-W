@@ -35,7 +35,7 @@ namespace Plugin.PoseTransform
         Description = "位姿跟随与像素↔机械换算：把定位位姿变成下游能用的跟随 ROI 与机械坐标",
         ShortName = "\uf047"
     )]
-    public class PoseTransformPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class PoseTransformPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 输入端口
 
@@ -131,60 +131,32 @@ namespace Plugin.PoseTransform
 
         #region 配置项（[StepConfig]：随步骤落盘；纯配置，不进端口）
 
-        private TransformMode _mode = TransformMode.FollowRoi;
         /// <summary>模式（切换只影响界面与执行分支；不会清掉另一种模式已填的参数）</summary>
-        [StepConfig]
-        public TransformMode Mode
-        {
-            get => _mode;
-            set
-            {
-                if (!SetProperty(ref _mode, value)) return;
-                RefreshConfigState();
-            }
-        }
+        [StepConfig, DefaultValue(TransformMode.FollowRoi)]
+        public partial TransformMode Mode { get; set; }
 
-        private bool _emitFollowedImage;
+        partial void OnModeChanged(TransformMode value) => RefreshConfigState();
+
         /// <summary>是否输出对齐图（默认关：少一次重采样、少一次内存拷贝；需要时才付代价）</summary>
         [StepConfig]
-        public bool EmitFollowedImage
-        {
-            get => _emitFollowedImage;
-            set
-            {
-                if (!SetProperty(ref _emitFollowedImage, value)) return;
-                RefreshConfigState();
-            }
-        }
+        public partial bool EmitFollowedImage { get; set; }
 
-        private bool _templateRefFromRegionCenter = true;
+        partial void OnEmitFollowedImageChanged(bool value) => RefreshConfigState();
+
         /// <summary>true（默认）= 模板参考点由基准 ROI 中心派生，避免手填两张数；false = 用 TemplateRefRow/Col 端口值</summary>
-        [StepConfig]
-        public bool TemplateRefFromRegionCenter
-        {
-            get => _templateRefFromRegionCenter;
-            set
-            {
-                if (!SetProperty(ref _templateRefFromRegionCenter, value)) return;
-                RefreshConfigState();
-            }
-        }
+        [StepConfig, DefaultValue(true)]
+        public partial bool TemplateRefFromRegionCenter { get; set; }
 
-        private string _previewImagePath = string.Empty;
+        partial void OnTemplateRefFromRegionCenterChanged(bool value) => RefreshConfigState();
+
         /// <summary>
         /// 配置态预览图路径（**不参与运行**：运行只用端口）。
         /// 方案未指定预览图来源，取与「模板匹配」PreviewImagePath 同一模式（方案 §五 的"预览区（有图时）"）。
         /// </summary>
-        [StepConfig]
-        public string PreviewImagePath
-        {
-            get => _previewImagePath;
-            set
-            {
-                if (!SetProperty(ref _previewImagePath, value)) return;
-                EnsurePreviewLoaded();
-            }
-        }
+        [StepConfig, DefaultValue("")]
+        public partial string PreviewImagePath { get; set; }
+
+        partial void OnPreviewImagePathChanged(string value) => EnsurePreviewLoaded();
 
         #endregion
 
@@ -532,27 +504,32 @@ namespace Plugin.PoseTransform
                 return;
             }
 
-            MechanicalX.Value = x;
-            MechanicalY.Value = y;
-            PixelEchoRow.Value = echoRow;
-            PixelEchoCol.Value = echoCol;
-
             // 角度：接了（或有非零值/NaN）才换算输出；NaN 走"无效"失败而不是静默跳过
             double pixelAngle = PixelAngle.ActualValue;
             bool hasAngle = PixelAngle.LinkedSource != null || pixelAngle != 0.0 || !double.IsFinite(pixelAngle);
+            double? mechanicalAngle = null;
             if (hasAngle)
             {
-                if (!PoseTransformMath.TryPixelAngleToMechanical(t, pixelAngle, out double mechanicalAngle, out string? angleError))
+                if (!PoseTransformMath.TryPixelAngleToMechanical(t, pixelAngle, pixelRow, pixelCol, out double ma, out string? angleError))
                 {
                     Fail(angleError!);
                     return;
                 }
-                MechanicalAngle.Value = mechanicalAngle;
+                mechanicalAngle = ma;
             }
+
+            // 统一写出所有端口（只有在所有检查都通过后才会到这里）
+            MechanicalX.Value = x;
+            MechanicalY.Value = y;
+            PixelEchoRow.Value = echoRow;
+            PixelEchoCol.Value = echoCol;
+            if (mechanicalAngle.HasValue)
+                MechanicalAngle.Value = mechanicalAngle.Value;
 
             context.Logger?.Info(
                 $"{InstanceName} 像素 ({pixelRow:0.##}, {pixelCol:0.##}) → 机械 ({x:0.###}, {y:0.###})mm"
-                + (hasAngle ? $"，机械角 {MechanicalAngle.Value:0.###}°" : ""));
+                + (hasAngle ? $"，机械角 {MechanicalAngle.Value:0.###}°" : "")
+                + (t!.Kind == CalibrationKind.Perspective ? "（透视）" : ""));
         }
 
         #endregion
@@ -583,12 +560,12 @@ namespace Plugin.PoseTransform
                     SetStatus(PoseTransformMath.MissingCalibrationMessage, StatusLevel.Warning);
                     return;
                 }
-                if (t.Kind == CalibrationKind.PixelScale)
+                if (!PoseTransformMath.CheckCalibrationUsable(t, out string? calibError))
                 {
-                    SetStatus(PoseTransformMath.PixelScaleCannotMapMessage, StatusLevel.Warning);
+                    SetStatus(calibError, StatusLevel.Warning);
                     return;
                 }
-                SetStatus("就绪：标定已接入，运行输出机械坐标（含反向回显自校验）", StatusLevel.Info);
+                SetStatus($"就绪：标定已接入（{CalibrationKindText(t.Kind)}），运行输出机械坐标（含反向回显自校验）", StatusLevel.Info);
                 return;
             }
 
@@ -624,9 +601,9 @@ namespace Plugin.PoseTransform
                 CalibrationInfoLevel = StatusLevel.Error;
                 return;
             }
-            if (t.Kind == CalibrationKind.PixelScale)
+            if (!PoseTransformMath.CheckCalibrationUsable(t, out string? calibError))
             {
-                CalibrationInfoText = PoseTransformMath.PixelScaleCannotMapMessage;
+                CalibrationInfoText = calibError ?? string.Empty;
                 CalibrationInfoLevel = StatusLevel.Error;
                 return;
             }
@@ -638,7 +615,7 @@ namespace Plugin.PoseTransform
             string tag = string.IsNullOrWhiteSpace(t.SourceTag) ? "（未填）" : t.SourceTag;
 
             CalibrationInfoText =
-                $"来源 {tag} ｜ 相机 {serial} ｜ 标定图 {size} ｜ 创建 {t.CreatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}"
+                $"类型 {CalibrationKindText(t.Kind)} ｜ 来源 {tag} ｜ 相机 {serial} ｜ 标定图 {size} ｜ 创建 {t.CreatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}"
                 + $" ｜ 残差 RMS {t.ResidualRmsPx:0.###}px / 最大 {t.MaxResidualPx:0.###}px";
 
             // 与已载入的预览图比对尺寸（运行期由 SrcImage 在 RunToMechanical 里把关）
@@ -811,6 +788,15 @@ namespace Plugin.PoseTransform
             return painted;
         }
 
+        /// <summary>标定类型的人话名（状态栏/信息块共用；未知类型原样显示）。</summary>
+        private static string CalibrationKindText(CalibrationKind kind) => kind switch
+        {
+            CalibrationKind.PixelScale => "像素当量",
+            CalibrationKind.NinePoint => "九点",
+            CalibrationKind.Perspective => "透视",
+            _ => kind.ToString()
+        };
+
         private void SetStatus(string? message, StatusLevel level = StatusLevel.Info)
         {
             StatusMessage = message ?? string.Empty;
@@ -856,6 +842,7 @@ namespace Plugin.PoseTransform
                 _loadedPreviewPath = string.Empty;
                 SetPreviewImage(null);
                 DisplayImage = null;
+                ++_previewLoadId; // 丢弃任何在途的预览载入，防止旧图"复活"
                 return;
             }
 

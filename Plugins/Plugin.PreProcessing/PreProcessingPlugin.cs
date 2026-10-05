@@ -41,18 +41,13 @@ namespace Plugin.PreProcessing
         Description = "串接色彩/几何/滤波/形态学/增强/二值化算子，支持逐步预览与单步启停",
         ShortName = "\uf085"
     )]
-    public class PreProcessingPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class PreProcessingPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 存盘配置（[StepConfig] 由基类统一读写 InputValues）
 
-        private int _displayViewIndex = 1;
         /// <summary>显示窗口：0 = 不显示，1~9 = 主界面视图号（与采集插件同一套语义）</summary>
-        [StepConfig]
-        public int DisplayViewIndex
-        {
-            get => _displayViewIndex;
-            set => SetProperty(ref _displayViewIndex, value);
-        }
+        [StepConfig, DefaultValue(1)]
+        public partial int DisplayViewIndex { get; set; }
 
         private List<OperatorStepItem> _chain = new();
         /// <summary>
