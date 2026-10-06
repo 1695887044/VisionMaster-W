@@ -63,6 +63,16 @@ namespace VisionMaster.Services
         public IMotionProvider Motions { get; init; } = NullMotionProvider.Instance;
 
         /// <summary>
+        /// 流程调用器（「调用流程」步骤用）。
+        ///
+        /// 默认值是 <see cref="NullFlowInvoker"/>，而不是 null —— 与 <see cref="Cameras"/> /
+        /// <see cref="Motions"/> 同一口径：容器注册的简化构造与单元测试夹具走这条默认路径，
+        /// 插件侧因此只判结果的 Success，不必再为"流程调用能力可能不存在"写一层判空。
+        /// 真正可用的一份由流程引擎在构造上下文时注入（FlowEngineService.FlowInvoker）。
+        /// </summary>
+        public IFlowInvoker FlowInvoker { get; init; } = NullFlowInvoker.Instance;
+
+        /// <summary>
         /// 当前执行节点的ID（用于调试和追踪）
         /// </summary>
         public Guid? CurrentNodeId { get; set; }

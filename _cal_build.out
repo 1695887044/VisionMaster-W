@@ -1,0 +1,36 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  Core.PluginGenerators -> D:\C#\VM\Shard\Core.PluginGenerators\bin\Debug\netstandard2.0\Core.PluginGenerators.dll
+  Core.Interfaces -> D:\C#\VM\Shard\Core.Interfaces\bin\Debug\net9.0\Core.Interfaces.dll
+  VM.Scada -> D:\C#\VM\Scada\bin\Debug\net9.0\VM.Scada.dll
+  Core.Halcon -> D:\C#\VM\Services\Core.Halcon\bin\Debug\net9.0-windows\Core.Halcon.dll
+  Core.Controls -> D:\C#\VM\Shard\Core.Controls\bin\Debug\net9.0-windows\Core.Controls.dll
+  VM.Core -> D:\C#\VM\Core\bin\Debug\net9.0-windows\VM.Core.dll
+  UI -> D:\C#\VM\UI\Controls\bin\Debug\net9.0-windows\UI.dll
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(582,35): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<Plugin.Calibration.Models.CalibPointRow?>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(583,37): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<string>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(585,35): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<Plugin.Calibration.Models.CalibPointRow?>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(586,37): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<string>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(575,16): warning CS8618: 在退出构造函数时，不可为 null 的 属性 "PickPointCommand" 必须包含非 null 值。请考虑添加 "required" 修饰符或将该 属性 声明为可为 null。 [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(575,16): warning CS8618: 在退出构造函数时，不可为 null 的 属性 "PickAScalePointCommand" 必须包含非 null 值。请考虑添加 "required" 修饰符或将该 属性 声明为可为 null。 [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(575,16): warning CS8618: 在退出构造函数时，不可为 null 的 属性 "PickBScalePointCommand" 必须包含非 null 值。请考虑添加 "required" 修饰符或将该 属性 声明为可为 null。 [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(556,32): warning CS0169: 从不使用字段“CalibrationPlugin._pickTargetRow” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(559,25): warning CS0169: 从不使用字段“CalibrationPlugin._pickTargetScale” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(562,25): warning CS0169: 从不使用字段“CalibrationPlugin._lastStampSignature” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+
+生成失败。
+
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(575,16): warning CS8618: 在退出构造函数时，不可为 null 的 属性 "PickPointCommand" 必须包含非 null 值。请考虑添加 "required" 修饰符或将该 属性 声明为可为 null。 [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(575,16): warning CS8618: 在退出构造函数时，不可为 null 的 属性 "PickAScalePointCommand" 必须包含非 null 值。请考虑添加 "required" 修饰符或将该 属性 声明为可为 null。 [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(575,16): warning CS8618: 在退出构造函数时，不可为 null 的 属性 "PickBScalePointCommand" 必须包含非 null 值。请考虑添加 "required" 修饰符或将该 属性 声明为可为 null。 [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(556,32): warning CS0169: 从不使用字段“CalibrationPlugin._pickTargetRow” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(559,25): warning CS0169: 从不使用字段“CalibrationPlugin._pickTargetScale” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(562,25): warning CS0169: 从不使用字段“CalibrationPlugin._lastStampSignature” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(582,35): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<Plugin.Calibration.Models.CalibPointRow?>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(583,37): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<string>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(585,35): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<Plugin.Calibration.Models.CalibPointRow?>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.Calibration\CalibrationPlugin.cs(586,37): error CS0029: 无法将类型“Prism.Commands.DelegateCommand<object?>”隐式转换为“Prism.Commands.DelegateCommand<string>” [D:\C#\VM\Plugins\Plugin.Calibration\Plugin.Calibration_5j0rtuil_wpftmp.csproj::TargetFramework=net9.0-windows]
+    6 个警告
+    4 个错误
+
+已用时间 00:00:02.66

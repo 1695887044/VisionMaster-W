@@ -196,6 +196,22 @@ namespace VisionMaster.Services
             if (bytes == null || bytes.Length == 0)
                 return Fail(req, 400, "请求体为空：请把图片文件的字节作为 body 发送");
 
+            // ---- 调用门禁：谁可以被 HTTP 触发，由流程的「调用方式」说了算 ----
+            // 门禁放在解码图片之前：不合规的请求连解码都省了，且错误码/文案一步到位——
+            // 客户端能明确区分"流程不存在(404)""流程被禁用(403)""没开放 HTTP 调用(403)"，
+            // 而不是统统等到补编译阶段收一个模糊的 404（用户决策：只有勾选了「HTTP 外部调用」的流程才能被 HTTP 调用）
+            var flowModel = FindFlow(flowName);
+            if (flowModel == null)
+                return Fail(req, 404, $"当前方案中没有名为「{flowName}」的流程");
+
+            if (!flowModel.IsEnabled)
+                return Fail(req, 403, $"流程「{flowName}」已被禁用，HTTP 触发被拒绝");
+
+            if (!flowModel.InvokeType.IsHttpCallable())
+                return Fail(req, 403,
+                    $"流程「{flowName}」未开放「HTTP 外部调用」（当前调用方式：{flowModel.InvokeType.DisplayText()}）。"
+                    + "请在「流程管理」里勾选「HTTP外部调用」后重试");
+
             HubImageItem item;
             try
             {
@@ -215,8 +231,8 @@ namespace VisionMaster.Services
             var session = _runtimeManager.GetSessionByName(flowName);
             if (session == null || IsOutdated(session, flowName))
             {
-                if (!TryBuildSession(flowName, requestId, out session, out var buildError))
-                    return Fail(req, 404, buildError);
+                if (!TryBuildSession(flowName, requestId, out session, out var buildError, out var buildStatus))
+                    return Fail(req, buildStatus, buildError);
             }
 
             // 单次执行抢不到会话锁时会静默吞单（FlowEngineService.TryOccupySession 失败只记 Warn），
@@ -306,11 +322,16 @@ namespace VisionMaster.Services
         /// 按 HTTP 侧需要补编译并注册会话。骨架与 ShellViewModel.RunAllEnabledOnce 完全一致，
         /// 区别只有一处：这里必须传 flowName（与界面侧"编译全部"同口径），
         /// 否则插件 InstanceName 少一截，排查日志时对不上是哪条流程。
+        ///
+        /// statusCode：失败时给客户端的 HTTP 状态码——缺流程 404、禁用 403。
+        /// 「禁用」在这里虽然正常顺序下不可达（门禁先判），但"门禁判过之后、编译之前被并发禁用"
+        /// 这个窄窗口仍会走到，状态码必须与门禁同语义（同一种错给两种码，客户端就没法统一处理）。
         /// </summary>
-        private bool TryBuildSession(string flowName, string requestId, out FlowSession session, out string error)
+        private bool TryBuildSession(string flowName, string requestId, out FlowSession session, out string error, out int statusCode)
         {
             session = null;
             error = null;
+            statusCode = 404;
 
             var flow = FindFlow(flowName);
             if (flow == null)
@@ -322,6 +343,7 @@ namespace VisionMaster.Services
             if (!flow.IsEnabled)
             {
                 error = $"流程「{flowName}」已被禁用（IsEnabled=false）";
+                statusCode = 403;
                 return false;
             }
 

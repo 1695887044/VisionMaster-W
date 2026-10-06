@@ -90,6 +90,15 @@ namespace FlowCanvasChecks
             ExecutionChecks.SessionStateTransitionSemantics();
             ExecutionChecks.ContractHygieneAndStepCollection();
 
+            // S3：FlowModel 版本链（嵌套 / 后加分支 / 改序 / 清空 / 替换集合 / 反序列化往返后订阅重扫）
+            FlowModelVersionChecks.Run();
+
+            // 调用方式（位集 + 迁移 + HTTP 门禁判定）与强制骨架流程（Home / Main / End）
+            FlowInvokeChecks.Run();
+
+            // 调用方式运行侧三位：定时调度 / 变量触发 / 子程序调用（含「调用流程」插件端到端）
+            FlowAutomationChecks.Run();
+
             // DWV 第 1 期：断点 / 单步 / 暂停继续（调试门；断点不落盘、HTTP / 试运行豁免）
             DebugChecks.Run();
 

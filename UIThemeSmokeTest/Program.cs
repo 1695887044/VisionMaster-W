@@ -1270,19 +1270,29 @@ namespace UIThemeSmokeTest
                 host.UpdateLayout();
                 host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
-                Check("配置视图可实例化并完成模板实例化（资源键/转换器/控件模板全部解析）", true);
+                int elementCount = Descendants<FrameworkElement>(view).Count();
+                bool contentRealized = view is System.Windows.Controls.UserControl uc
+                    && uc.Content != null && elementCount > 10;
+                Check("配置视图可实例化并完成模板实例化（资源键/转换器/控件模板全部解析）", contentRealized,
+                    $"elements={elementCount}");
 
                 int canvas = Descendants<Core.Halcon.Controls.ImageEdit>(view).Count();
                 Check("画布控件存在（ImageEdit 恰 1 个）", canvas == 1, $"count={canvas}");
 
                 var buttons = Descendants<System.Windows.Controls.Button>(view).ToList();
-                int pickButtons = buttons.Count(b => (b.Content as string) == "取点");
-                Check("逐行「取点」按钮 = 9（默认 3×3 表格）", pickButtons == 9, $"count={pickButtons}");
-                int prefillButtons = buttons.Count(b => (b.Content as string) == "预填");
-                Check("逐行「预填」按钮 = 9（上游定位点回填）", prefillButtons == 9, $"count={prefillButtons}");
-                bool hasExport = buttons.Any(b => (b.Content as string ?? "").Contains("导出"));
-                bool hasImport = buttons.Any(b => (b.Content as string ?? "").Contains("导入"));
-                Check("导入 / 导出按钮存在（多设备共享标定）", hasExport && hasImport, $"export={hasExport} import={hasImport}");
+                var pickList = buttons.Where(b => (b.Content as string) == "取点").ToList();
+                Check("逐行「取点」按钮 = 9、且命令全部绑定（默认 3×3 表格）",
+                    pickList.Count == 9 && pickList.All(b => b.Command != null),
+                    $"count={pickList.Count} bound={pickList.Count(b => b.Command != null)}");
+                var prefillList = buttons.Where(b => (b.Content as string) == "预填").ToList();
+                Check("逐行「预填」按钮 = 9、且命令全部绑定（上游定位点回填）",
+                    prefillList.Count == 9 && prefillList.All(b => b.Command != null),
+                    $"count={prefillList.Count} bound={prefillList.Count(b => b.Command != null)}");
+                var ioButtons = buttons.Where(b => (b.Content as string ?? "").Contains("导出")
+                    || (b.Content as string ?? "").Contains("导入")).ToList();
+                Check("导入 / 导出按钮存在且命令绑定（多设备共享标定）",
+                    ioButtons.Count >= 2 && ioButtons.All(b => b.Command != null),
+                    $"count={ioButtons.Count} bound={ioButtons.Count(b => b.Command != null)}");
 
                 var lockBox = Descendants<System.Windows.Controls.CheckBox>(view).FirstOrDefault();
                 Check("锁定复选框存在（防误改）", lockBox != null);
@@ -1290,6 +1300,10 @@ namespace UIThemeSmokeTest
                 bool hasPerspectiveRadio = Descendants<System.Windows.Controls.RadioButton>(view)
                     .Any(r => (r.Content as string ?? "").Contains("透视"));
                 Check("存在「透视标定」模式单选", hasPerspectiveRadio);
+
+                bool hasMeshRadio = Descendants<System.Windows.Controls.RadioButton>(view)
+                    .Any(r => (r.Content as string ?? "").Contains("网格"));
+                Check("存在「网格标定」模式单选（分段仿射）", hasMeshRadio);
 
                 System.Windows.Controls.ItemsControl FindTable()
                     => Descendants<System.Windows.Controls.ItemsControl>(view)
@@ -1326,9 +1340,12 @@ namespace UIThemeSmokeTest
                 plugin.Mode = Plugin.Calibration.CalibrationMode.Perspective;
                 host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
                 bool shownInPerspective = tableHost != null && tableHost.Visibility == Visibility.Visible;
-                Check("模式切换 → 表格显隐跟随（像素当量隐藏 / 九点、透视显示）",
-                    hiddenInPixelScale && shownInNinePoint && shownInPerspective,
-                    $"pixelScale={hiddenInPixelScale} ninePoint={shownInNinePoint} perspective={shownInPerspective}");
+                plugin.Mode = Plugin.Calibration.CalibrationMode.Mesh;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                bool shownInMesh = tableHost != null && tableHost.Visibility == Visibility.Visible;
+                Check("模式切换 → 表格显隐跟随（像素当量隐藏 / 九点、透视、网格显示）",
+                    hiddenInPixelScale && shownInNinePoint && shownInPerspective && shownInMesh,
+                    $"pixelScale={hiddenInPixelScale} ninePoint={shownInNinePoint} perspective={shownInPerspective} mesh={shownInMesh}");
 
                 // 取点横幅默认不占位（进入待命需加载图像；默认态与绑定正确性）
                 Check("取点横幅默认不占位（IsPickingPoint=false）", !plugin.IsPickingPoint);

@@ -1,4 +1,5 @@
 using Core.Events;
+using Core.Interfaces;
 using Prism.Dialogs;
 using Prism.Mvvm;
 using System;
@@ -22,6 +23,8 @@ namespace VisionMaster.ViewModels
         private readonly IDialogService dialogService;
         private readonly FlowCompiler _compiler;
         private readonly IRuntimeManager _runtimeManager;
+        private readonly IFlowEngine _flowEngine;
+        private readonly ILogService _log;
 
         public IWorkspaceManager Workspace { get; init; }
 
@@ -64,12 +67,16 @@ namespace VisionMaster.ViewModels
             IWorkspaceManager workspace,
             IDialogService dialogService,
             FlowCompiler compiler,
-            IRuntimeManager runtimeManager)
+            IRuntimeManager runtimeManager,
+            IFlowEngine flowEngine,
+            ILogService logService)
         {
             Workspace = workspace;
             this.dialogService = dialogService;
             _compiler = compiler;
             _runtimeManager = runtimeManager;
+            _flowEngine = flowEngine;
+            _log = logService;
             FlowCommand = new AsyncDelegateCommand<FlowAction?>(FlowCommandExecute);
         }
 
@@ -118,8 +125,10 @@ namespace VisionMaster.ViewModels
         private async Task FlowCommandExecute(FlowAction? action)
         {
             // 运行中编译：RegisterSession 会静默停掉同名运行会话，等于“边跑边拆台”，直接拦下。
-            // 其余列表操作（增删改名）本轮不加锁，行为保持原样
-            if (action == FlowAction.Compile && IsRunLocked)
+            // 判据两条并用：MainRunState（界面整体运行）+ 本条流程自己的 RunState（单流程运行 / HTTP 触发
+            // 都不写 MainRunState，只认前者会让"单跑时编译本流程"把那条流程静默杀掉）
+            if (action == FlowAction.Compile
+                && (IsRunLocked || (SelectFlow != null && SelectFlow.RunState != FlowRunState.Stopped)))
             {
                 Notifier.ShowWarning("流程运行中，禁止编译；如需编译请先点击“停止”");
                 return;
@@ -128,14 +137,46 @@ namespace VisionMaster.ViewModels
             switch (action)
             {
                 case FlowAction.Create:
-                    Workspace.CurrentSolution.Flows.Insert(Workspace.CurrentSolution.Flows.IndexOf(SelectFlow) + 1, new FlowModel() { FlowName = "新建流程" });
+                {
+                    // 流程名是运行标识（会话 / 运行状态镜像 / HTTP 路由都按名找），必须唯一：
+                    // 建重名流程会让"哪条在跑"不可判，这里顺手生成一个不冲突的默认名
+                    var flows = Workspace.CurrentSolution.Flows;
+                    var newName = "新建流程";
+                    int suffix = 2;
+                    while (flows.Any(f => f != null && string.Equals(f.FlowName, newName, StringComparison.Ordinal)))
+                        newName = $"新建流程{suffix++}";
+
+                    flows.Insert(flows.IndexOf(SelectFlow) + 1, new FlowModel { FlowName = newName });
                     break;
+                }
                 case FlowAction.Delete:
+                    if (MandatoryFlows.IsMandatory(SelectFlow))
+                    {
+                        Notifier.ShowWarning($"流程 [{SelectFlow.FlowName}] 是强制流程（{SelectFlow.Role}），不允许删除");
+                        break;
+                    }
                     Workspace.CurrentSolution.Flows.Remove(SelectFlow);
                     break;
                 case FlowAction.Rename:
                     var data = await EasyDialog.ShowTextInputAsync("流程重命名", SelectFlow.FlowName);
-                    if (data.IsConfirmed) SelectFlow.FlowName = data.Value;
+                    if (data.IsConfirmed)
+                    {
+                        var newName = (data.Value ?? string.Empty).Trim();
+                        if (newName.Length == 0)
+                        {
+                            Notifier.ShowWarning("流程名不能为空");
+                            break;
+                        }
+                        // 改名同样要防重：流程名是运行标识，重名会让按名找会话 / 状态镜像错配
+                        if (Workspace.CurrentSolution.Flows.Any(f =>
+                                f != null && !ReferenceEquals(f, SelectFlow)
+                                && string.Equals(f.FlowName, newName, StringComparison.Ordinal)))
+                        {
+                            Notifier.ShowWarning($"已存在名为「{newName}」的流程（流程名是运行标识，必须唯一）");
+                            break;
+                        }
+                        SelectFlow.FlowName = newName;
+                    }
                     break;
                 case FlowAction.EditComment:
                     var data1 = await EasyDialog.ShowTextInputAsync("流程注释修改", SelectFlow.Description);
@@ -179,6 +220,116 @@ namespace VisionMaster.ViewModels
                 case FlowAction.Manager:
                     ShowFlowManager();
                     break;
+                case FlowAction.RunOnce:
+                    await RunSingleFlowAsync(continuous: false);
+                    break;
+                case FlowAction.RunContinuous:
+                    await RunSingleFlowAsync(continuous: true);
+                    break;
+                case FlowAction.Stop:
+                    StopSingleFlow();
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 运行单条流程（程序栏右键入口）。
+        ///
+        /// 走**非调试**路径（不传 debugSession）：与 HTTP 触发 / 定时触发同口径，断点不生效；
+        /// 需要断点调试请用主界面的运行按钮（那里装调试门）。
+        /// 会话准备与"编译本流程"同款：优先复用运行管理器里未过期的会话，
+        /// 缺了或图纸改过（Version 涨了）才重编译——否则拿旧图纸跑新图，结果对不上用户看到的设计。
+        /// </summary>
+        private async Task RunSingleFlowAsync(bool continuous)
+        {
+            var flow = SelectFlow;
+            if (flow == null) return;
+
+            if (!flow.IsEnabled)
+            {
+                Notifier.ShowWarning($"流程 [{flow.FlowName}] 已禁用，请先启用再运行");
+                return;
+            }
+
+            if (flow.StepsEncrypted)
+            {
+                Notifier.ShowWarning($"流程 [{flow.FlowName}] 步序已加密，无法编译运行");
+                return;
+            }
+
+            // 已在运行就先停再跑：**必须在重编译之前判**——编译走 RegisterSession，
+            // 它会先把同名运行会话停掉，等编译完再看 IsRunning 已经晚了（老会话被换掉了）
+            var session = _runtimeManager.GetSessionByName(flow.FlowName);
+            if (session?.IsRunning == true || flow.RunState != FlowRunState.Stopped)
+            {
+                Notifier.ShowWarning($"流程 [{flow.FlowName}] 已在运行中；如需重跑请先「停止本流程」");
+                return;
+            }
+
+            if (session == null || flow.Version > session.CompiledVersion)
+            {
+                var compileResult = _compiler.Compile(flow.Steps, flow.FlowName);
+                if (!compileResult.Success)
+                {
+                    foreach (var err in compileResult.Errors)
+                        Notifier.ShowError($"[{flow.FlowName}] {err}");
+                    return;
+                }
+
+                session = new FlowSession
+                {
+                    FlowName = flow.FlowName,
+                    ExecutionEngine = compileResult.Data,
+                    CompiledVersion = flow.Version,
+                };
+                session.AddBlueprintsDeep(flow.Steps);
+                _runtimeManager.RegisterSession(session);
+            }
+
+            // 到这里 session 必定"没在跑"（上面已拦）；编译分支会把会话换成新实例，
+            // 复用的分支沿用原实例——两条路的 IsRunning 都是 false
+            if (continuous)
+            {
+                _ = TrackSingleRunAsync(_flowEngine.RunSessionAsync(session), flow.FlowName);
+                Notifier.ShowSuccess($"流程 [{flow.FlowName}] 已开始循环运行");
+            }
+            else
+            {
+                _ = TrackSingleRunAsync(_flowEngine.RunSessionOnceAsync(session), flow.FlowName);
+                Notifier.ShowSuccess($"流程 [{flow.FlowName}] 单次运行已启动");
+            }
+        }
+
+        /// <summary>停止单条流程（按流程名找会话；引擎侧"没在跑"只是 Warn，这里先给用户一句人话）</summary>
+        private void StopSingleFlow()
+        {
+            var flow = SelectFlow;
+            if (flow == null) return;
+
+            var session = _runtimeManager.GetSessionByName(flow.FlowName);
+            if (session == null || !session.IsRunning)
+            {
+                Notifier.ShowInfo($"流程 [{flow.FlowName}] 当前未在运行");
+                return;
+            }
+
+            _flowEngine.StopSession(session);
+        }
+
+        /// <summary>
+        /// 观察单流程运行任务的结局：消化异常（不消化会变成"未观察异常"，GC 时可能把进程打挂），
+        /// 并兜底记一条 Warn —— 引擎只保证把**自己的**失败写进日志，任务之外的异常（取消竞态等）
+        /// 若这里也一声不吭，现场就只剩"流程莫名停了"这一条线索
+        /// </summary>
+        private async Task TrackSingleRunAsync(Task task, string flowName)
+        {
+            try
+            {
+                await task;
+            }
+            catch (Exception ex)
+            {
+                _log?.Warn($"[{flowName}] 单流程运行任务异常结束（引擎侧失败原因见运行日志）：{ex.Message}");
             }
         }
 

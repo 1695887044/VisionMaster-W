@@ -1,0 +1,1796 @@
+﻿========== 娴佺▼鐢诲竷 v2锛堟捣搴峰紡鎵佸钩鐢诲竷锛夋柇瑷€锛堝鍣ㄦ/娉抽亾/妯″潡杩炵嚎/鎶樺彔/鑱斿姩/鎾ら攢鏍堬級 ==========
+
+---- [A] 绌哄伐浣滃尯涓庡垏鎹㈤噸寤?----
+  [鈭氶€氳繃] 绌?workspace 鏋勯€犱笉鎶?
+  [鈭氶€氳繃] 绌烘€侊細Nodes / Links 鐨嗙┖  鈫? Nodes=0 Links=0
+  [鈭氶€氳繃] 绌烘€侊細HasFlow=false 涓旀彁绀哄彲瑙? 鈫? EmptyHint=Visible
+  [鈭氶€氳繃] 绌烘€侊細涓や釜璁℃暟涓庡憡璀︽潯褰掗浂  鈫? deferred=0 illegal=0 hidden=0
+  [鈭氶€氳繃] 鏈紑鐢诲竷鍓嶄笉搴旇Е纰?Layout锛堜笉鐢熸垚鍧愭爣锛? 鈫? Layout.Count=0
+[trace] CollectCollections add=[A] intoCount=0
+[trace] BuildOrderLinks collections=A
+  [鈭氶€氳繃] 鎵撳紑鐢诲竷鍗冲憟鐜板綋鍓嶆祦绋? 鈫? Steps=1
+  [鈭氶€氳繃] 鏍囬鍙栨祦绋嬪悕  鈫? '鐢诲竷鏂█娴佺▼'
+[trace] CollectCollections add=[] intoCount=0
+[trace] BuildOrderLinks collections=
+  [鈭氶€氳繃] 鍒囨祦绋嬪悗鐢诲竷娓呯┖锛堣闃呮寕鍦?WorkspaceContext 涓婏級  鈫? Nodes=0
+[trace] CollectCollections add=[A] intoCount=0
+[trace] BuildOrderLinks collections=A
+  [鈭氶€氳繃] 鍒囧洖鍘熸祦绋嬪悗鑺傜偣鍥炴潵
+
+---- [B] 鎵佸钩娓叉煋涓庢墽琛屽簭鍙?----
+[trace] CollectCollections add=[A,鍒ゆ柇,澶栧眰寰幆] intoCount=0
+[trace] CollectCollections add=[B1] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] CollectCollections add=[E1] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,澶栧眰寰幆 || B1 ||  || E1
+  [鈭氶€氳繃] 鍏ㄦ繁搴︽楠ら兘涓婄敾甯冿紙椤跺眰 + 鍒嗘敮鍐?= 3锛? 鈫? 瀹為檯 3
+  [鈭氶€氳繃] 瀹瑰櫒娓叉煋鎴愭鑺傜偣锛圛f + For = 2锛? 鈫? 瀹為檯 2
+  [鈭氶€氳繃] 椤跺眰姝ラ = 鍙湁 a锛堝鍣ㄥ彟绠楋級  鈫? 椤跺眰 1
+  [鈭氶€氳繃] 瀹瑰櫒妗嗗甫绫诲瀷寰芥爣锛欼f / For  鈫? 'If'/'For'
+  [鈭氶€氳繃] 娉抽亾鎸夊紩鐢ㄦ寕浣忓垎鏀?
+  [鈭氶€氳繃] 鏈夊唴瀹圭殑鍒嗘敮涓嶇畻绌烘吵閬?
+  [鈭氶€氳繃] If 鍒嗘敮鏉′欢涓虹┖鏃舵爣棰樺甫銆庢湭缁戝畾鏉′欢銆? 鈫? 'If [ 鏈粦瀹氭潯浠?]'
+  [鈭氶€氳繃] 椤跺眰搴忓彿锛歛=1 / cond=2 / outer=3锛堝鍣ㄥ弬涓庢墽琛屽簭锛? 鈫? 1,2,3
+  [鈭氶€氳繃] 鍒嗘敮鍐呮楠ゅ簭鍙风嫭绔嬩粠 1 璧? 鈫? 1,1
+[trace] CollectCollections add=[A,鍒ゆ柇,澶栧眰寰幆] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] CollectCollections add=[E1] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,澶栧眰寰幆 || B1,B2 ||  || E1
+  [鈭氶€氳繃] 椤哄簭閾撅細椤跺眰 a鈫抍ond鈫抩uter 鍏?2 鏉?+ 鍒嗘敮鍐?b1鈫抌2 鍏?1 鏉? 鈫? 椤哄簭閾?3 鏉? A鈫掑垽鏂?| 鍒ゆ柇鈫掑灞傚惊鐜?| B1鈫払2
+  [鈭氶€氳繃] 椤哄簭閾剧鐐?= 涓婁竴姝ュ簳缂樹腑鐐?鈫?涓嬩竴姝ラ《缂樹腑鐐癸紙绾靛悜娴佸姩锛? 鈫? src=105,62 tgt=325,-52
+  [鈭氶€氳繃] 椤哄簭閾炬偓鍋滄彁绀哄甫鎵ц娆″簭  鈫? '鎵ц椤哄簭锛欰 鈫?鍒ゆ柇'
+  [鈭氶€氳繃] 椤哄簭閾句笉璁″叆闈炴硶/闄嶇骇锛堝畠涓嶆槸鏁版嵁绾匡級
+[trace] CollectCollections add=[A,鍒ゆ柇,澶栧眰寰幆] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] CollectCollections add=[E1] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,澶栧眰寰幆 || B1,B2 ||  || E1
+  [鈭氶€氳繃] 鎶樺彔瀹瑰櫒鍚庡叾鍐呴儴椤哄簭閾炬秷澶便€佸鍣ㄤ粛鍦ㄩ《灞傞摼  鈫? 椤哄簭閾?2 鏉?
+[trace] CollectCollections add=[A,鍒ゆ柇,澶栧眰寰幆] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] CollectCollections add=[E1] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,澶栧眰寰幆 || B1,B2 ||  || E1
+  [鈭氶€氳繃] Z 搴忥細瀹瑰櫒妗?鈫?娉抽亾 鈫?瀛愬瓩锛堟鍨簳锛? 鈫? frame=1 lane=2 child=3
+[trace] CollectCollections add=[A,鍒ゆ柇,澶栧眰寰幆] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] CollectCollections add=[E1] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,澶栧眰寰幆 || B1,B2 ||  || E1
+[trace] CollectCollections add=[A,鍒ゆ柇,澶栧眰寰幆] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] CollectCollections add=[E1] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,澶栧眰寰幆 || B1,B2 ||  || E1
+  [鈭氶€氳繃] 绂佺敤姝ラ鏍囬甯﹀悗缂€锛堥噸寤哄悗鍒锋柊锛?
+
+---- [C] 娉抽亾涓庡鍣ㄦ鍑犱綍 ----
+[trace] CollectCollections add=[A,鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B1] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=A,鍒ゆ柇 || B1 || 
+  [鈭氶€氳繃] 妗嗕綋灏哄涓烘  鈫? 270x324
+  [鈭氶€氳繃] 妗嗕綋鍖呬綇鍒嗘敮鍐呮楠? 鈫? frame=(190,-52) child=(220,180)
+  [鈭氶€氳繃] 绌哄垎鏀吵閬撶粰鍗犱綅鎻愮ず
+  [鈭氶€氳繃] 娉抽亾澶栨帴妗嗕负姝ｅ昂瀵? 鈫? 238x116
+  [鈭氶€氳繃] 娉抽亾涓嶅彲鎷?/ 涓嶅彲閫?/ 灞炶楗?
+  [鈭氶€氳繃] 娉抽亾 StepId 涓虹┖ Guid锛堢粷涓嶅啓杩涘潗鏍囧簱锛?
+  [鈭氶€氳繃] 瀹瑰櫒妗嗕笉鍙嫋锛堜綅缃敱鍐呭绠楀嚭锛変絾鍙€変腑锛堣仈鍔ㄥ睘鎬ф爮锛?
+  [鈭氶€氳繃] 鎸姩娉抽亾/瀹瑰櫒妗嗕笉鏂板銆佷笉姹℃煋鍧愭爣椤? 鈫? Layout.Count=3
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1 || 
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1 || 
+  [鈭氶€氳繃] AutoLayout 棰勭暀瀹瑰櫒鍒嗘敮楂樺害锛氬悗缁厔寮熸帓鍦ㄥ垎鏀唴瀹逛箣涓? 鈫? tail=(0,270) b1=(220,180)
+  [鈭氶€氳繃] 鍒嗘敮鍐呮楠ゆ嫋鍔ㄥ啓鍥炲潗鏍囧簱  鈫? X=999
+
+---- [D] 鎶樺彔涓庡睍寮€ ----
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1,鍐呭眰] intoCount=1
+[trace] CollectCollections add=[娣卞眰] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1,鍐呭眰 || 娣卞眰 || 
+  [鈭氶€氳繃] 灞曞紑鎬侊細娣卞眰姝ラ鍙涓旇繛绾跨敾鍒版繁灞?
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1,鍐呭眰] intoCount=1
+[trace] CollectCollections add=[娣卞眰] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1,鍐呭眰 || 娣卞眰 || 
+  [鈭氶€氳繃] 鎶樺彔鍚庢鏍囪缈昏浆骞惰惤搴?
+  [鈭氶€氳繃] 鎶樺彔鍚庡瓙瀛欒妭鐐瑰叏閮ㄦ憳涓嬶紙鍚祵濂楋級  鈫? 姝ラ 2
+  [鈭氶€氳繃] 鎶樺彔瑙掓爣缁熻鍚祵濂楀瓙瀛欙紙b1+inner+deep = 3锛? 鈫? '3 姝?
+  [鈭氶€氳繃] 鎶樺彔鍚庢浣撳昂瀵稿洖钀藉埌鏍囩О鐩? 鈫? 230x64
+  [鈭氶€氳繃] 閫氬線鎶樺彔瀛愭爲鐨勮繛绾块殣钘忓苟璁℃暟锛堜笉鍛婅銆佷笉鍒犲浘绾革級  鈫? hidden=1
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1,鍐呭眰] intoCount=1
+[trace] CollectCollections add=[娣卞眰] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1,鍐呭眰 || 娣卞眰 || 
+  [鈭氶€氳繃] 鍐嶇偣灞曞紑锛氬瓙瀛欏洖鏉ャ€佽繛绾块噸鐢?
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1,鍐呭眰] intoCount=1
+[trace] CollectCollections add=[娣卞眰] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1,鍐呭眰 || 娣卞眰 || 
+[trace] CollectCollections add=[] intoCount=0
+[trace] BuildOrderLinks collections=
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1,鍐呭眰] intoCount=1
+[trace] CollectCollections add=[娣卞眰] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1,鍐呭眰 || 娣卞眰 || 
+  [鈭氶€氳繃] 鍒囨祦绋嬪線杩斿悗鎶樺彔鎬佷繚鎸侊紙瀛愬瓩浠嶉殣钘忥級
+  [鈭氶€氳繃] 鎶樺彔鍚庡閮ㄩ€変腑闅愯棌姝ラ缁欏嚭鎻愮ず锛堜笉鐐搞€佺粰鎸囧紩锛?
+[trace] CollectCollections add=[A,鍒ゆ柇,灏鹃儴] intoCount=0
+[trace] CollectCollections add=[B1,鍐呭眰] intoCount=1
+[trace] CollectCollections add=[娣卞眰] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=A,鍒ゆ柇,灏鹃儴 || B1,鍐呭眰 || 娣卞眰 || 
+  [鈭氶€氳繃] 鍐嶇偣灞曞紑鍚庢繁灞傛楠ゅ洖鏉?
+
+---- [E] 妯″潡杩炵嚎鑱氬悎 ----
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 鍗曠粦瀹氾細涓€鏍圭嚎銆佹棤 脳N 瑙掓爣
+  [鈭氶€氳繃] 绾跨殑涓ょ = 鐢熶骇鏂?娑堣垂鏂硅妭鐐?
+  [鈭氶€氳繃] 閿氱偣 = 鐩掑瓙杈圭紭涓偣锛堟簮鍙崇紭 / 鐩爣宸︾紭锛岀函鏁板涓嶄緷璧栨帶浠跺洖鎶ワ級  鈫? src=210,31 tgt=0,121
+  [鈭氶€氳繃] 鑺傜偣鎸姩鍚庨敋鐐瑰疄鏃惰窡闅忥紙杩炵嚎璺熼殢鎷栨嫿鐨勬満鍒讹級
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 鍚屽妯″潡绗簩鏉＄粦瀹氳仛鍚堣繘鍚屼竴鏍圭嚎锛埫?锛? 鈫? 1/2
+  [鈭氶€氳繃] 鎮仠鎻愮ず閫愭潯鍒楀嚭缁戝畾  鈫? '路 In 鈫?A.Out
+|路 In2 鈫?A.Out'
+[trace] CollectCollections add=[A,B,D] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D
+[trace] CollectCollections add=[A,B,D] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D
+[trace] CollectCollections add=[A,B,D] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D
+  [鈭氶€氳繃] 涓嶅悓娑堣垂鏂瑰悇涓€鏍圭嚎  鈫? 瀹為檯 2
+[trace] CollectCollections add=[A,B,D,Q] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D,Q
+[trace] CollectCollections add=[A,B,D,Q] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D,Q
+[trace] CollectCollections add=[A,B,D,Q,R] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D,Q,R
+[trace] CollectCollections add=[A,B,D,Q,R] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D,Q,R
+[trace] CollectCollections add=[A,B,D,Q,R] intoCount=0
+[trace] BuildOrderLinks collections=A,B,D,Q,R
+  [鈭氶€氳繃] 鍏ㄥ眬鍙橀噺/甯搁噺缁戝畾涓嶇敾绾裤€佷笉璁￠潪娉曚笌闄嶇骇  鈫? links=6
+  [鈭氶€氳繃] 鍏ㄥ眬鍙橀噺鎶樻垚瑙掓爣锛堟偓鍋滃甫鍙橀噺鍚嶏級  鈫? '闈炶繛绾跨粦瀹氾細|路 鍏ㄥ眬鍙橀噺 GV'
+  [鈭氶€氳繃] 甯搁噺鎶樻垚瑙掓爣
+[trace] CollectCollections add=[Y] intoCount=0
+[trace] BuildOrderLinks collections=Y
+  [鈭氶€氳繃] 涓婃父宸插垹 鈫?闄嶇骇璁℃暟锛堢紪璇戜細鎶ヨ嚧鍛芥柇杩烇級  鈫? deferred=1
+
+---- [F] 杩炵嚎鍚堟硶鎬?----
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 鍚堟硶绾匡細0 鍛婅
+[trace] CollectCollections add=[B,A] intoCount=0
+[trace] BuildOrderLinks collections=B,A
+[trace] CollectCollections add=[B,A] intoCount=0
+[trace] BuildOrderLinks collections=B,A
+  [鈭氶€氳繃] 鏀瑰簭鍚庤嚜鍔ㄩ噸绠楀苟鏍囪闈炴硶  鈫? illegal=1
+  [鈭氶€氳繃] 闈炴硶绾垮甫鍙鍘熷洜  鈫? '鐢熶骇鏂规帓鍦ㄦ秷璐规柟涔嬪悗锛堟墽琛岄『搴忓€掑簭锛?
+  [鈭氶€氳繃] 鍛婅鏉℃枃妗堝悓鏃舵姤闈炴硶涓庨檷绾ф暟閲? 鈫? '鈿?1 鏉¤繛绾跨粨鏋勯潪娉曪紙缂栬瘧浼氭姤鑷村懡閿欙級锛屽凡鎸夌孩鑹茶櫄绾挎樉绀猴紱鍙︽湁 0 鏉¤繛绾跨殑涓婃父宸蹭笉鍦ㄥ浘绾镐笂'
+  [鈭氶€氳繃] 鐢诲竷涓嶆搮鑷垹鍥剧焊寮曠敤
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[If鍐匽 intoCount=1
+[trace] CollectCollections add=[Else鍐匽 intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || If鍐?|| Else鍐?
+  [鈭氶€氳繃] 璺ㄥ垎鏀繛绾挎爣绾笖 Classify 鍒ゆ垚璺ㄥ垎鏀?
+[trace] CollectCollections add=[寰幆] intoCount=0
+[trace] CollectCollections add=[浣撳唴] intoCount=1
+[trace] BuildOrderLinks collections=寰幆 || 浣撳唴
+[trace] CollectCollections add=[寰幆] intoCount=0
+[trace] CollectCollections add=[浣撳唴] intoCount=1
+[trace] BuildOrderLinks collections=寰幆 || 浣撳唴
+  [鈭氶€氳繃] 寰幆浣撳彇 For.Index 鍚堟硶锛圥roducerIsAncestor锛? 鈫? illegal=0 links=1
+[trace] CollectCollections add=[瀹瑰櫒,澶栧眰鐢熶骇] intoCount=0
+[trace] CollectCollections add=[鍐呭眰娑堣垂] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=瀹瑰櫒,澶栧眰鐢熶骇 || 鍐呭眰娑堣垂 || 
+  [鈭氶€氳繃] 鐢熶骇鏂规帓鍦ㄥ寘浣忔秷璐规柟鐨勫鍣ㄤ箣鍚?鈫?鏍囩孩璁?1  鈫? illegal=1
+  [鈭氶€氳繃] 闈炴硶鏂囨鍚€庣敓浜ф柟鎺掑湪鍖呬綇娑堣垂鏂圭殑瀹瑰櫒涔嬪悗銆? 鈫? '鐢熶骇鏂规帓鍦ㄥ寘浣忔秷璐规柟鐨勫鍣ㄤ箣鍚庯紝娑堣垂鏃跺畠杩樻病鎵ц'
+
+---- [G] 寤虹嚎鎵嬪娍涓庢嫆缁?----
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 椤哄悜鎷栫嚎鍙戝嚭寤虹嚎璇锋眰涓斿甫鍥炴秷璐规柟  鈫? 'B'
+  [鈭氶€氳繃] 鐢诲竷鑷韩涓嶅啓杩炵嚎锛堢鍙ｅ褰掔粦瀹氬脊绐楋紝椤哄簭閾鹃櫎澶栵級
+  [鈭氶€氳繃] 鍙嶅悜璧锋嫋褰掍竴鍚庡悓鏍疯姹傛秷璐规柟
+[trace] CollectCollections add=[A,B,灏鹃儴] intoCount=0
+[trace] BuildOrderLinks collections=A,B,灏鹃儴
+[trace] CollectCollections add=[A,B,灏鹃儴] intoCount=0
+[trace] BuildOrderLinks collections=A,B,灏鹃儴
+  [鈭氶€氳繃] 鍊掑簭鎷栫嚎琚嫆骞剁粰鍑哄師鍥? 鈫? '杩炵嚎琚嫆缁濓細鐢熶骇鏂规帓鍦ㄦ秷璐规柟涔嬪悗锛堟墽琛岄『搴忓€掑簭锛?
+  [鈭氶€氳繃] 鑷繛琚嫆
+  [鈭氶€氳繃] 鎷掔粷鍚庢彁绀哄彲瑙侊紙鐘舵€佹爮锛?
+
+---- [H] 鎷撴墤鍒ゅ畾 鈬?缂栬瘧鏍￠獙涓€鑷存€?----
+  [鈭氶€氳繃] 鍙嶅皠鎵惧埌 FlowCompiler.CheckLinkOrder
+  [鈭氶€氳繃] 鍚屽眰鍓嶁啋鍚庡悎娉? 鈫? SameListBefore / 閿欒 0 鏉?
+  [鈭氶€氳繃] 澶栧眰鎺掑墠 鈫?鍐呭眰娑堣垂锛圫ameListBefore锛? 鈫? SameListBefore / 閿欒 0 鏉?
+  [鈭氶€氳繃] 鍚屽眰鍊掑簭 鈫?鑷村懡閿? 鈫? SameListReversed / 閿欒 1 鏉?
+  [鈭氶€氳繃]   鈹?閿欒瀹氫綅鍒版秷璐规柟  鈫? C1
+  [鈭氶€氳繃] 澶栧眰鎺掑悗 鈫?ProducerAfterEnclosingContainer 鈫?鑷村懡閿? 鈫? ProducerAfterEnclosingContainer / 閿欒 1 鏉?
+  [鈭氶€氳繃]   鈹?閿欒瀹氫綅鍒版秷璐规柟  鈫? 鍐呭眰娑堣垂
+  [鈭氶€氳繃] 璺ㄥ垎鏀?鈫?鑷村懡閿? 鈫? CrossBranch / 閿欒 1 鏉?
+  [鈭氶€氳繃]   鈹?閿欒瀹氫綅鍒版秷璐规柟  鈫? Else鍐?
+  [鈭氶€氳繃] 鑷繛 鈫?鑷村懡閿欎笖鏂囨鍚€庡紩鐢ㄤ簡鑷韩鐨勮緭鍑恒€? 鈫? SameListReversed / 閿欒 1 鏉?
+  [鈭氶€氳繃]   鈹?閿欒瀹氫綅鍒版秷璐规柟  鈫? S
+  [鈭氶€氳繃] For.Index 鈫?寰幆浣擄紙ProducerIsAncestor锛夊悎娉? 鈫? ProducerIsAncestor / 閿欒 0 鏉?
+  [鈭氶€氳繃] 閲?Id 鈫?Classify=Unknown 涓斾笉鎶ュ€掑簭閿? 鈫? Unknown / 閿欒 0 鏉?
+  [鈭氶€氳繃] 绂佺敤娑堣垂姝ラ 鈫?璺宠繃鍊掑簭妫€鏌? 鈫? 閿欒 0 鏉?
+  [鈭氶€氳繃] 闈?StepPort 鏉ユ簮 鈫?璺宠繃  鈫? 閿欒 0 鏉?
+  [鈭氶€氳繃] 绂佺敤鐢熶骇鏂?鈫?璺宠繃鍊掑簭妫€鏌? 鈫? 閿欒 0 鏉?
+
+---- [I] 鍒嗘敮鏀瑰悕涓庢樉绀哄悕閫氱煡 ----
+  [鈭氶€氳繃] 鏀?StepName 琛ュ彂 DisplayName 閫氱煡  鈫? StepName,DisplayName
+  [鈭氶€氳繃] 鏈粦瀹氭潯浠舵椂鏄剧ず鍚嶅甫鍗犱綅鎻愮ず  鈫? '鍛戒腑 [ 鏈粦瀹氭潯浠?]'
+  [鈭氶€氳繃] 琛ヤ笂鏉′欢鍚庢樉绀哄悕甯﹁〃杈惧紡  鈫? '鍛戒腑 [ Score > 80 ]'
+  [鈭氶€氳繃] 鏀规垚 Else 鍚庝笉鍐嶈姹傛潯浠? 鈫? '鍛戒腑'
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 ||  || 
+  [鈭氶€氳繃] 鐢诲竷娉抽亾鏍囬闅忓垎鏀敼鍚嶅埛鏂? 鈫? '鎴愬姛鍒嗘敮 [ 鏈粦瀹氭潯浠?]'
+
+---- [J] 澧為噺閲嶅缓涓庨€変腑淇濇寔 ----
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 缃€変腑鐢熸晥
+[trace] CollectCollections add=[A,B,C] intoCount=0
+[trace] BuildOrderLinks collections=A,B,C
+[trace] CollectCollections add=[A,B,C] intoCount=0
+[trace] BuildOrderLinks collections=A,B,C
+  [鈭氶€氳繃] 闆嗗悎鍙樻洿鍚庝粛澶嶇敤鍚屼竴 VM 瀹炰緥
+  [鈭氶€氳繃] 澶嶇敤鍚庨€変腑鎬佹湭钂稿彂
+  [鈭氶€氳繃] 閲嶇敾鍚庢楠よ妭鐐规暟閫掑  鈫? 3 涓楠よ妭鐐?
+[trace] CollectCollections add=[A,C] intoCount=0
+[trace] BuildOrderLinks collections=A,C
+[trace] CollectCollections add=[A,C] intoCount=0
+[trace] BuildOrderLinks collections=A,C
+  [鈭氶€氳繃] 鍒犻櫎姝ラ鍚庣敾甯冩憳鎺夎妭鐐? 鈫? 2
+  [鈭氶€氳繃] 琚垹姝ラ鐨勫潗鏍囧悓姝ュ洖鏀?
+  [鈭氶€氳繃] 瀛樻椿鑺傜偣浠嶄繚鎸侀€変腑
+[trace] CollectCollections add=[P,Q] intoCount=0
+[trace] BuildOrderLinks collections=P,Q
+  [鈭氶€氳繃] 杩炵嚎鐢诲嚭鍒颁笂娓? 鈫? 2
+[trace] CollectCollections add=[Q] intoCount=0
+[trace] BuildOrderLinks collections=Q
+[trace] CollectCollections add=[Q] intoCount=0
+[trace] BuildOrderLinks collections=Q
+  [鈭氶€氳繃] 涓婃父鍒犻櫎鍚庤繛绾块殢閲嶇敾娑堝け骞惰鍏ラ檷绾? 鈫? deferred=1
+  [鈭氶€氳繃] 杩炴帴鍣ㄨ繛鎺ユ€佸湪閲嶇敾鏃剁粺涓€澶嶄綅
+
+---- [K] 鍧愭爣鍐欏洖 ----
+[trace] CollectCollections add=[鍒ゆ柇,A] intoCount=0
+[trace] CollectCollections add=[鍐呭眰寰幆] intoCount=1
+[trace] CollectCollections add=[B1] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=鍒ゆ柇,A || 鍐呭眰寰幆 || B1 || 
+  [鈭氶€氳繃] 棣栧抚鑷姩甯冨眬琛ラ綈缂哄け鍧愭爣锛堝惈宓屽锛? 鈫? Layout.Count=4
+  [鈭氶€氳繃] 鑷姩甯冨眬缁撴灉宸插洖濉妭鐐?
+  [鈭氶€氳繃] 鎷栧姩姝ラ鑺傜偣鍐欏洖鍧愭爣搴? 鈫? (1234, 567)
+  [鈭氶€氳繃] 鎸潗鏍囦笉閫掑鍥剧焊鐗堟湰锛堜笉瑙﹀彂閲嶇紪璇戯級  鈫? 2
+  [鈭氶€氳繃] 鎸姩瀹瑰櫒妗嗕笉姹℃煋鍧愭爣搴? 鈫? 0
+[trace] CollectCollections add=[鍒ゆ柇,A] intoCount=0
+[trace] CollectCollections add=[鍐呭眰寰幆] intoCount=1
+[trace] CollectCollections add=[B1] intoCount=2
+[trace] CollectCollections add=[] intoCount=3
+[trace] BuildOrderLinks collections=鍒ゆ柇,A || 鍐呭眰寰幆 || B1 || 
+  [鈭氶€氳繃] 閲嶇敾鍚庢浣撲綅缃洖鍒板唴瀹瑰鎺ユ  鈫? frame.X=380
+
+---- [L] 澶栭儴閫変腑鑱斿姩 ----
+[trace] CollectCollections add=[A,鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[娣卞眰] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=A,鍒ゆ柇 || 娣卞眰 || 
+  [鈭氶€氳繃] 澶栭儴閫変腑娣卞眰姝ラ 鈫?鐢诲竷瀵瑰簲鑺傜偣琚€変腑
+  [鈭氶€氳繃] 澶栭儴閫変腑椤跺眰姝ラ 鈫?閫変腑璺熺潃璧?
+  [鈭氶€氳繃] 鐢诲竷鐐归€夊洖鍐欏伐浣滃尯褰撳墠姝ラ  鈫? '娣卞眰'
+  [鈭氶€氳繃] 閫変腑涓嶅湪鍥剧焊閲岀殑姝ラ鐢?WorkspaceContext 鎶涢敊锛堢敾甯冧笉鍙備笌鍏滃簳锛?
+  [鈭氶€氳繃] 鎶涢敊鍚庣敾甯冮€変腑鏈鐮村潖
+  [鈭氶€氳繃] 鏀瑰悕涓嶈Е鍙戦噸寤? 鈫? '鏀瑰悕鍚庣殑娣卞眰'
+
+---- [M] 鎷栨嫿鏀瑰簭涓?Version ----
+[trace] CollectCollections add=[A,B,C] intoCount=0
+[trace] BuildOrderLinks collections=A,B,C
+  [鈭氶€氳繃] 鍒濆鐢诲竷宸插缓锛氳妭鐐?3 姝ラ
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+  [鈭氶€氳繃] Redo 鎵ц鍚?Steps[0] = B
+  [鈭氶€氳繃] Redo 鎵ц鍚?Steps[2] = A
+  [鈭氶€氳繃] Redo 瑙﹀彂 Version 閫掑锛? 娆★級  鈫? 3 鈫?4
+  [鈭氶€氳繃] Redo 鍚庣敾甯冧富鍒楁寜鏂伴『搴忓睍绀? 鈫? B,C,A
+  [鈭氶€氳繃] 鍘嬫爤鍚庢挙閿€鏍堟繁搴?= 1  鈫? size=1
+  [鈭氶€氳繃] 鍘嬫爤鍚庨噸鍋氭爤涓虹┖
+[trace] CollectCollections add=[C,B,A] intoCount=0
+[trace] BuildOrderLinks collections=C,B,A
+[trace] CollectCollections add=[C,B,A] intoCount=0
+[trace] BuildOrderLinks collections=C,B,A
+  [鈭氶€氳繃] 绗簩娆″帇鏍堝悗鎾ら攢鏍?= 2
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+  [鈭氶€氳繃] Undo 鎶婄浜屾鏀瑰簭鍥炴粴锛歋teps[0] = B  鈫? 'B'
+  [鈭氶€氳繃] Undo 瑙﹀彂 Version 閫掑
+  [鈭氶€氳繃] Undo 鍚庨噸鍋氭爤 = 1
+[trace] CollectCollections add=[C,B,A] intoCount=0
+[trace] BuildOrderLinks collections=C,B,A
+[trace] CollectCollections add=[C,B,A] intoCount=0
+[trace] BuildOrderLinks collections=C,B,A
+[trace] CollectCollections add=[C,B,A] intoCount=0
+[trace] BuildOrderLinks collections=C,B,A
+  [鈭氶€氳繃] Redo 閲嶆斁绗簩娆℃敼搴忥細Steps[0] = C  鈫? 'C'
+  [鈭氶€氳繃] Redo 瑙﹀彂 Version 閫掑
+  [鈭氶€氳繃] Redo 鍚庢挙閿€鏍?= 2
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+[trace] CollectCollections add=[B,C,A] intoCount=0
+[trace] BuildOrderLinks collections=B,C,A
+[trace] CollectCollections add=[A,B,C] intoCount=0
+[trace] BuildOrderLinks collections=A,B,C
+[trace] CollectCollections add=[A,B,C] intoCount=0
+[trace] BuildOrderLinks collections=A,B,C
+[trace] CollectCollections add=[A,B,C] intoCount=0
+[trace] BuildOrderLinks collections=A,B,C
+  [鈭氶€氳繃] 涓ゆ Undo 鍚庡洖鍒板師濮嬮『搴?[A,B,C]  鈫? A,B,C
+  [鈭氶€氳繃] 鍏ㄩ儴 Undo 鍚庢挙閿€鏍堢┖
+  [鈭氶€氳繃] 鍏ㄩ儴 Undo 鍚庨噸鍋氭爤 = 2
+  [鈭氶€氳繃] 鏍堢┖鏃?UndoCommand.CanExecute = false
+  [鈭氶€氳繃] 鏍堥潪绌烘椂 RedoCommand.CanExecute = true
+[trace] CollectCollections add=[B,A,C] intoCount=0
+[trace] BuildOrderLinks collections=B,A,C
+[trace] CollectCollections add=[B,A,C] intoCount=0
+[trace] BuildOrderLinks collections=B,A,C
+  [鈭氶€氳繃] 鏂版搷浣滃悗 redo 鏍堣娓呯┖
+
+---- [O] 璺ㄥ垎鏀Щ鍒嗘敮 ----
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B1,B2 || 
+  [鈭氶€氳繃] 寤哄浘锛欼f 鍒嗘敮 2 涓€丒lse 绌?
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B2 || 
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B2] intoCount=1
+[trace] CollectCollections add=[B1] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B2 || B1
+  [鈭氶€氳繃] Redo 鍚?If 鍒嗘敮鍓?[B2]
+  [鈭氶€氳繃] Redo 鍚?Else 鍒嗘敮涓?[B1]
+  [鈭氶€氳繃] 鐢诲竷閲嶆柊娓叉煋锛氫袱鏉℃吵閬撻兘鍦ㄣ€佷袱涓妭鐐归兘鍙
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B2 || 
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B1,B2 || 
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B1,B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B1,B2 || 
+  [鈭氶€氳繃] Undo 鍚?If 鍒嗘敮鎭㈠ [B1,B2]
+  [鈭氶€氳繃] Undo 鍚?Else 鍒嗘敮绌?
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B2] intoCount=1
+[trace] CollectCollections add=[] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B2 || 
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B2] intoCount=1
+[trace] CollectCollections add=[B1] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B2 || B1
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B2] intoCount=1
+[trace] CollectCollections add=[B1] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B2 || B1
+  [鈭氶€氳繃] Redo 鍚庡啀娆?If=[B2], Else=[B1]
+[trace] CollectCollections add=[] intoCount=0
+[trace] BuildOrderLinks collections=
+  [鈭氶€氳繃] 鍒囨祦绋嬪悗鎾ら攢鏍堣娓呯┖
+[trace] CollectCollections add=[鍒ゆ柇] intoCount=0
+[trace] CollectCollections add=[B2] intoCount=1
+[trace] CollectCollections add=[B1] intoCount=2
+[trace] BuildOrderLinks collections=鍒ゆ柇 || B2 || B1
+  [鈭氶€氳繃] 鍒囧洖鍘熸祦绋嬪悗鏍堜粛绌猴紙涓嶅娲伙級
+
+---- [P] 瑙ｇ粦 / 鎾ら攢 ----
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 缁戝畾蹇収甯﹁В缁戝墠鐨勫浘绾稿紩鐢紙鎾ら攢鐨勪緷鎹級
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 瑙ｇ粦鍚庡浘绾稿紩鐢ㄥ垹闄?
+  [鈭氶€氳繃] 瑙ｇ粦鍚庤繛绾挎秷澶? 鈫? 1
+  [鈭氶€氳繃] 瑙ｇ粦鐣欑棔鐘舵€佹爮锛堝彲鎾ら攢锛? 鈫? '宸茶В缁戙€孖n 鈫?A.Out銆嶏紙Ctrl+Z 鍙挙閿€锛?
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 鎾ら攢鎭㈠鍥剧焊寮曠敤
+  [鈭氶€氳繃] 鎾ら攢鍚庤繛绾块噸鐢诲洖鏉?
+[trace] CollectCollections add=[A,B] intoCount=0
+[trace] BuildOrderLinks collections=A,B
+  [鈭氶€氳繃] 閲嶅仛鍐嶆瑙ｇ粦
+
+---- [Q] 鏍堟繁涓婇檺涓庡垏娴佺▼娓呮爤 ----
+[trace] CollectCollections add=[P,Q] intoCount=0
+[trace] BuildOrderLinks collections=P,Q
+  [鈭氶€氳繃] 鍘嬫爤 51 鏉″悗鏍堟繁灏侀《 50  鈫? size=50
+[trace] CollectCollections add=[] intoCount=0
+[trace] BuildOrderLinks collections=
+  [鈭氶€氳繃] 鍒囨祦绋嬫竻绌烘挙閿€鏍堬紙鏃у浘绾稿紩鐢ㄤ笉闃诲 GC锛?
+
+---- [R] 杩愯鏃跺彉閲忔ā鍧楄繛绾?----
+[trace] CollectCollections add=[瀹氫箟loopN,寰幆] intoCount=0
+[trace] CollectCollections add=[] intoCount=1
+[trace] BuildOrderLinks collections=瀹氫箟loopN,寰幆 || 
+  [鈭氶€氳繃] 瀹氫箟鑺傜偣琚瘑鍒苟娓叉煋锛堣韩浠芥潵鑷?FlowQueryHelper 鐨勫悓涓€鍙ｅ緞锛?
+  [鈭氶€氳繃] 鎸夊彉閲忓悕鍥炴壘鍑烘ā鍧楄繛绾匡紙涓嶄緷璧栫鍙ｏ級  鈫? links=2
+  [鈭氶€氳繃] 鍙橀噺绾垮悎娉曚笖涓嶉檷绾?
+  [鈭氶€氳繃] 缁戝畾鏄剧ず涓插甫鍙橀噺鍚嶄笌杈撳叆鍒悕  鈫? '寰幆娆℃暟 鈫?瀹氫箟loopN.loopN'
+  [鈭氶€氳繃] 鍥剧焊渚т笁鍏冪粍涓嶅彉锛堢敾甯冨彧璇绘姇褰憋級
+[trace] CollectCollections add=[寰幆] intoCount=0
+[trace] CollectCollections add=[] intoCount=1
+[trace] BuildOrderLinks collections=寰幆 || 
+[trace] CollectCollections add=[寰幆] intoCount=0
+[trace] CollectCollections add=[] intoCount=1
+[trace] BuildOrderLinks collections=寰幆 || 
+  [鈭氶€氳繃] 瀹氫箟鑺傜偣琚垹 鈫?闄嶇骇闅愬舰锛堜笉鐢荤嚎銆佷笉鏍囩孩銆佷笉鍛婅锛? 鈫? deferred=1
+  [鈭氶€氳繃] 闄嶇骇涓嶅姩鍥剧焊锛堢敾甯冧笉鏇跨敤鎴峰垹绾匡級
+[trace] CollectCollections add=[瀹氫箟thresh,娑堣垂] intoCount=0
+[trace] BuildOrderLinks collections=瀹氫箟thresh,娑堣垂
+[trace] CollectCollections add=[瀹氫箟thresh,娑堣垂] intoCount=0
+[trace] BuildOrderLinks collections=瀹氫箟thresh,娑堣垂
+  [鈭氶€氳繃] 鍙橀噺鍠傛櫘閫氱畻瀛愯緭鍏ュ彛鍚屾牱鍥炴壘鎴愮嚎
+  [鈭氶€氳繃] 钀界洏鏂囨湰閲?Kind 鏄暟瀛?3锛堜笉鍐嶉潬 DisplayAddress 鐚滐級
+  [鈭氶€氳繃] 寰€杩斿悗杩炵嚎韬唤涓嶅彉
+  [鈭氶€氳繃] 寰€杩斿悗鍙橀噺瀹氫箟姝ラ浠嶈兘琚瘑鍒紙Name/Type 瀛樻垚瑁稿瓧绗︿覆锛? 鈫? thresh/Double
+  [鈭氶€氳繃] 鍊欓€夋爲鑳介€掑綊杩?For 瀛愬眰鎷垮埌寰幆鍐呭畾涔夌殑鍙橀噺锛堟棫瀹炵幇鍙 If锛? 鈫? 鎵惧埌 3 涓細[鍓嶇疆,澶栧眰For,寰幆鍐呭畾涔塢
+
+---- [E1] A1 寰幆浣撳唴鐨?If 鍒嗘敮 ----
+  [鈭氶€氳繃] 鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] For(2) 濂?If(鐪? 鍐呯殑绠楀瓙鎭板ソ璺?2 娆? 鈫? 瀹為檯 Runs=2锛堟棫瀹炵幇姝ゅ涓?0锛屽嵆寰幆鍐?If 闈欓粯澶辨晥锛?
+  [鈭氶€氳繃] 鍚?Break 鐨勫浘绾哥紪璇戦€氳繃
+  [鈭氶€氳繃] 寰幆浣撳唴 Break 绔嬪嵆璺冲嚭锛? 鍦堝彧璺?1 鍦堬級  鈫? 瀹為檯 Runs=1
+
+---- [E2] A1 While 寰幆浣撲笌鏉′欢鎺ㄨ繘 ----
+  [鈭氶€氳繃] While 鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] While(Counter<2) 绮剧‘璺?2 鍦? 鈫? 瀹為檯 Runs=2锛堟挒 MaxIterations=9999 璇存槑鏉′欢娌℃帹杩涳級
+  [鈭氶€氳繃] 娌℃湁閫€鍖栨垚 9999 鍦堟寰幆  鈫? 2ms
+
+---- [E3] A2 瀹瑰櫒鐘舵€佷笂鎶?+ B1 鍙嶅悜鎸囬拡 ----
+  [鈭氶€氳繃] 鐘舵€佺敤渚嬬紪璇戦€氳繃
+  [鈭氶€氳繃] For 瀹瑰櫒璺戝畬钀?Success  鈫? State=Success
+  [鈭氶€氳繃] If 瀹瑰櫒璺戝畬钀?Success  鈫? State=Success
+  [鈭氶€氳繃] 寰幆浣撳唴鐨勭畻瀛愪篃钀?Success  鈫? State=Success
+  [鈭氶€氳繃] For 瀹瑰櫒鍐荤粨浜嗛潪闆惰€楁椂  鈫? LastRunTimeMs=0.0066
+  [鈭氶€氳繃] 杩愯鐒︾偣绉讳氦鍒版渶鍚庝竴姝ワ紙鎵ц鎸囬拡鎭掑畾鍗曡锛? 鈫? FocusedStep=椤跺眰If
+  [鈭氶€氳繃] NodeLookup 鍐呮瘡涓妭鐐归兘鎸備簡 Blueprint  鈫? 3/3
+  [鈭氶€氳繃] For 鑺傜偣鐨勫弽鍚戞寚閽堟寚鍥炲師鍥剧焊
+  [鈭氶€氳繃] 宓屽鐨勫惊鐜綋鑺傜偣鍚屾牱鎸傚鍥剧焊
+
+---- [E4] A3 浼氳瘽绾у惎鍔ㄤ簰鏂?----
+  [鈭氶€氳繃] 闂搁棬鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 鎵ц绾跨▼宸叉姷杈鹃椄闂紙鏋勯€犲嚭鐪熷疄鐨勮繍琛屼腑绐楀彛锛?
+  [鈭氶€氳繃] 杩愯鏈熼棿浼氳瘽閿佺‘瀹炶鍗犱綇  鈫? FlowSession:91a6631d5bb248f89ba30909e1a56df7
+  [鈭氶€氳繃] 閲嶅鍚姩琚拷鐣ュ苟鐣欎笅 Warn  鈫? Warn:娴佺▼ 鎵ц灞傛柇瑷€娴佺▼ 宸插湪杩愯涓紝蹇界暐閲嶅鐨勫惎鍔ㄨ姹?
+  [鈭氶€氳繃] 閲嶅鍚姩娌℃湁韪╁潖浼氳瘽鐨勫彇娑堜护鐗屾簮
+  [鈭氶€氳繃] 鍋滄鍚庢墽琛屼换鍔￠€€鍑?
+  [鈭氶€氳繃] 鍋滄鍚?IsRunning=false 涓旂姸鎬佸綊涓?Stopped  鈫? IsRunning=False State=Stopped
+  [鈭氶€氳繃] 鍋滄鍚庝細璇濋攣骞插噣褰掕繕  鈫? FlowSession:91a6631d5bb248f89ba30909e1a56df7
+  [鈭氶€氳繃] 鍋滄鍚庡悓涓€浼氳瘽鑳藉啀娆″惎鍔紙鏃犻攣娉勬紡锛?
+
+---- [E5] B2 杩愯鐘舵€侀€氱煡闄嶉 ----
+  [鈭氶€氳繃] 杩愯鐘舵€佽繛鏀?7 娆′笉閫掑 Version  鈫? Version 1 鈫?1
+  [鈭氶€氳繃] 鐘舵€佸彉鏇寸‘瀹炲彂浜嗛€氱煡锛堢晫闈笉浼氫笉鍒锋柊锛? 鈫? 鏀跺埌 10 鏉★細State,IsRunningFocus,LastRunStartTimestamp,LastRunTimeMs,CurrentRunTimeMs
+  [鈭氶€氳繃] 鐘舵€侀€氱煡鍏ㄩ儴璁板悕锛堟棤绌轰覆骞挎挱锛? 鈫? 鍏?10 鏉★紝姣忔潯閮藉甫灞炴€у悕
+  [鈭氶€氳繃] 娴佺▼瀵硅薄涓€璺潤榛橈紙娌¤姝ラ鐨勭┖涓查€氱煡鎯婂埌锛? 鈫? flow 鏀跺埌 0 鏉★細
+  [鈭氶€氳繃] 閫氱煡鐨勫睘鎬у悕閮藉湪 [RuntimeState] 鍚嶅崟鍐? 鈫? IsRunningFocus,LastRunStartTimestamp,LastRunTimeMs,CurrentRunTimeMs
+  [鈭氶€氳繃] 璇箟鍙樻洿浠嶈兘瑙﹀彂 Version++锛堥椄闂ㄦ病琚鐒婃锛? 鈫? Version=2
+
+---- [E6] B3 娉ㄥ唽涓庝細璇濋泦鍚堥攣鍒嗗 ----
+  [鈭氶€氳繃] RuntimeManager 鏋勯€犳湭鎶涳紙闆嗗悎鍚屾宸插惎鐢級
+  [鈭氶€氳繃] 娉ㄥ唽鏈熼棿骞跺彂鏌ヨ鏈崱姝?
+  [鈭氶€氳繃] 杈规敞鍐岃竟鏌ヨ鏈姏寮傚父  鈫? 瀹屾垚 20000 杞煡璇?
+  [鈭氶€氳繃] 20 涓細璇濇敞鍐屽悗鍚屽悕鏇挎崲鏈爢绉? 鈫? 瀹為檯 20
+  [鈭氶€氳繃] ClearAll 鍚庨泦鍚堟竻绌? 鈫? 娈嬬暀 0
+
+---- [E7] For.LoopCount 鍚冭繍琛屾椂鍙橀噺 ----
+  [鈭氶€氳繃] 甯﹀彉閲忕嚎鐨勫浘绾哥紪璇戦€氳繃锛坢arker Guid 涓嶄細琚?CheckLinkOrder 褰撻噹 Id锛?
+  [鈭氶€氳繃] 缂栬瘧鏈熸妸鍙橀噺绾挎帴鎴?LoopCountLink 浠ｇ悊绔彛锛堝彉閲忓悕 + int 绫诲瀷锛? 鈫? loopN/Int32
+  [鈭氶€氳繃] 寮圭獥榛樿娆℃暟浠嶇暀鍦ㄨ妭鐐逛笂锛堝彧鏈夎繛绾垮彇涓嶅埌鍊兼椂鎵嶇敤锛? 鈫? 99
+  [鈭氶€氳繃] 鍦堟暟鐢卞彉閲忓€煎喅瀹氾紙3 鍦堬級锛屼笉鏄脊绐楅粯璁ゅ€?99  鈫? 瀹為檯 3
+  [鈭氶€氳繃] 姝ｅ父鍊间笉浜х敓 Warn
+  [鈭氶€氳繃] 鑴忓€煎浘绾哥紪璇戦€氳繃
+  [鈭氶€氳繃] 鑴忓€煎洖钀藉脊绐楅粯璁ゆ鏁帮紙99 鍦堬級涓斾笉鎶涚┛娴佺▼  鈫? 瀹為檯 99
+  [鈭氶€氳繃] 鑴忓€兼湁 Warn 鐣欑棔  鈫? Warn:For鑺傜偣 '鍙橀噺鍦堟暟For' 鐨?LoopCount 杈撳叆鍊?[abc] 鏃犳硶杞负鏁存暟锛屽洖钀介粯璁ゆ鏁?99锛歍he input string 'abc' was not in a correct format.
+  [鈭氶€氳繃] 璐熸暟鍦堟暟鎸?0 娆″鐞? 鈫? 瀹為檯 0
+  [鈭氶€氳繃] 璐熸暟鏈?Warn 鐣欑棔  鈫? Warn:For鑺傜偣 '鍙橀噺鍦堟暟For' 寰幆娆℃暟涓鸿礋 (-1)锛屾寜 0 娆″鐞?
+  [鈭氶€氳繃] 缂轰笂娓稿畾涔夌殑鍥剧焊鐓ф牱缂栬瘧閫氳繃锛堢被鍨嬫牎楠屽湪寤虹嚎鏈熶笉鍋氾級
+  [鈭氶€氳繃] 鍙橀噺缂洪敭 鈫?鍙栧埌 int 榛樿鍊?0 鈫?璺?0 鍦堬紙鐜拌涓猴細涓嶅洖钀介粯璁ゆ鏁帮級  鈫? 瀹為檯 0
+
+---- [E8] 鏉′欢鍒嗘敮澶辫触璇箟涓庣被鍨嬪綊涓€ ----
+  [鈭氶€氳繃] 鑴忓€煎浘绾哥紪璇戦€氳繃锛堢被鍨嬫牎楠屼笉鎷﹁繍琛屾湡鑴忔暟鎹級
+  [鈭氶€氳繃] 鏉′欢姹傚€煎け璐ヤ細鎶涚┛娴佺▼锛堜笉鍐嶈鍚炴帀锛? 鈫? InvalidCastException
+  [鈭氶€氳繃] If 鑺傜偣钀?Failed锛堜笉鏄倓鎮勮蛋 Else 杩樻爣缁匡級  鈫? State=Failed
+  [鈭氶€氳繃] Else 鍒嗘敮涓€涓畻瀛愰兘娌¤窇锛堟棫瀹炵幇姝ゅ涓?1锛屽嵆璧伴敊鍒嗘敮锛? 鈫? 瀹為檯 Runs=0
+  [鈭氶€氳繃] double 鍊煎浘绾哥紪璇戦€氳繃
+  [鈭氶€氳繃] 澹版槑 int 鏀跺埌 double 2.0 鈫?褰掍竴涓?2锛孖f 鍛戒腑锛圗lse 璁℃暟淇濇寔 0锛? 鈫? Runs=0 State=Success
+  [鈭氶€氳繃] 鏃犲啓鍏ヨ€呯殑鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 缂哄€煎厹搴曠粰 int 鐨?0锛堟敞 0.0 浼氬洜鏀剁獎鐐告帀锛? 鈫? Runs=0 State=Success
+  [鈭氶€氳繃] 鎭掔湡 While 鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 鎾炰笂闄愪細鎶涚┛娴佺▼  鈫? InvalidOperationException
+  [鈭氶€氳繃] While 鑺傜偣钀?Failed  鈫? State=Failed
+  [鈭氶€氳繃] 鎭板ソ璺戞弧涓婇檺 5 鍦堬紙涓嶅涓嶅皯锛? 鈫? 瀹為檯 Runs=5
+  [鈭氶€氳繃] 鍒氬ソ璺戞弧涓婇檺鐨勫浘绾哥紪璇戦€氳繃
+  [鈭氶€氳繃] 鏉′欢鎭板ソ鍦ㄤ笂闄愰偅涓€鍦堣浆鍋?鈫?涓嶈鎶ユ寰幆锛堟棫瀹炵幇姝ゅ蹇呮姏锛?
+  [鈭氶€氳繃] While 鑺傜偣钀?Success锛堜笉鏄?Failed锛? 鈫? State=Success
+  [鈭氶€氳繃] 鎭板ソ璺?5 鍦堬紙涓嶅涓嶅皯锛? 鈫? 瀹為檯 Runs=5
+  [鈭氶€氳繃] Else 涔嬪悗鐨勫垎鏀鍒や负涓嶅彲杈惧苟闃绘柇缂栬瘧  鈫? [缂栬瘧閿欒] 鑺傜偣 '涔卞簭If' 鐨勫垎鏀?'ElseIf 鍒嗘敮' 浣嶄簬 Else/Default 涔嬪悗锛屾案杩滀笉浼氳鎵ц锛堜笉鍙揪鍒嗘敮锛夛紝璇疯皟鏁村垎鏀『搴忋€?
+  [鈭氶€氳繃] ConditionStep.IsIfLike 璁ょ被鍨嬪悕鑰岄潪鏄剧ず鍚? 鈫? IsIfLike=True Children=2
+  [鈭氶€氳繃] 闈?If 鍨嬫潯浠剁畻瀛愪笉浼氳鍒ゆ垚 If
+  [鈭氶€氳繃] If 鍥剧焊瀛樼洏寰€杩斿悗鍒嗘敮涓嶉噸澶嶄笖鏉′欢淇濈暀锛堝簲涓?2 涓斿惈琛ㄨ揪寮忥級  鈫? 瀹為檯 2锛圛f,Else锛塃xpr0='1 == 1'
+  [鈭氶€氳繃] For 鍥剧焊瀛樼洏寰€杩斿悗寰幆浣撲笉閲嶅锛堝簲涓?1锛? 鈫? 瀹為檯 1
+  [鈭氶€氳繃] While 鍥剧焊瀛樼洏寰€杩斿悗寰幆浣撲笉閲嶅锛堝簲涓?1锛? 鈫? 瀹為檯 1
+
+---- [E9] A 缁?浼氳瘽閿佸綊杩樼邯寰?----
+  [鈭氶€氳繃] 鐢熷懡鍛ㄦ湡鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 鎵ц绾跨▼宸叉姷杈鹃椄闂紙鏋勯€犲嚭杩愯涓殑绐楀彛锛?
+  [鈭氶€氳繃] 璁㈤槄鑰呮姏寮傚父涓嶅奖鍝嶆湰杞甯告敹灏撅紙浠诲姟涓?Faulted锛?
+  [鈭氶€氳繃] 璁㈤槄鑰呭紓甯歌灏卞湴闅旂骞剁暀鐥? 鈫? Error:娴佺▼ 鎵ц灞傛柇瑷€娴佺▼ 鐨勭姸鎬佸彉鏇磋闃呰€呮姏鍑哄紓甯革紙宸查殧绂伙紝涓嶅奖鍝嶆祦绋嬫敹灏撅級: 璁㈤槄鑰呮晠鎰忓湪 Stopped 涓婄偢
+  [鈭氶€氳繃] 銆愭牳蹇冦€戣闃呰€呮姏寮傚父鍚庝細璇濋攣浠嶈褰掕繕  鈫? FlowSession:0cc1b78e61fa49b98cbad5d7ec07d063
+  [鈭氶€氳繃] 鍋滅ǔ鍚?IsRunning=false 涓旂姸鎬佸綊涓?Stopped  鈫? IsRunning=False State=Stopped
+  [鈭氶€氳繃] 绗簩娆℃墽琛岀‘瀹炶繘鍒颁簡绠楀瓙锛堜笉鏄娈嬬暀鐨勯攣鎷掍箣闂ㄥ锛?
+  [鈭氶€氳繃] 鏀跺熬绐楀彛閲?PauseLock 琚噴鏀撅紝浠诲姟浠嶆甯哥粨鏉?
+  [鈭氶€氳繃] 銆愭牳蹇冦€慞auseLock 琚彁鍓嶉噴鏀惧悗浼氳瘽閿佷粛琚綊杩? 鈫? FlowSession:0cc1b78e61fa49b98cbad5d7ec07d063
+  [鈭氶€氳繃] 瀵瑰凡閲婃斁鐨勫彇娑堜护鐗岃皟 StopSession 涓嶆姏
+  [鈭氶€氳繃] StopAll/ActiveSessionCount 涓庢敞鍐屽苟鍙戞椂鏈崱姝?
+  [鈭氶€氳繃] StopAll/ActiveSessionCount 涓庢敞鍐屽苟鍙戞椂鏈姏寮傚父
+
+---- [E10] C 缁?缂栬瘧鏈熼潤榛樺け鏁堟敹鍙?----
+  [鈭氶€氳繃] 閲嶅 StepId 涓嶅啀鐐告垚鏃犲畾浣嶇殑'绯荤粺宕╂簝绾ч敊璇?  鈫? [缁撴瀯閿欒] 鑺傜偣 Id 閲嶅锛?閲嶅Id涔? 涓庡厛鍓嶇殑鑺傜偣鎾炰簡鍚屼竴涓?Id锛坈3c935c5-9c58-4c90-af95-9d3af0c17bab锛夛紝璇峰垹闄ら噸澶嶈妭鐐瑰悗閲嶆柊缂栬瘧銆?
+  [鈭氶€氳繃] 閲嶅 StepId 鐨勯敊璇甫涓婁簡鑺傜偣鍚嶏紙鍙畾浣嶏級  鈫? [缁撴瀯閿欒] 鑺傜偣 Id 閲嶅锛?閲嶅Id涔? 涓庡厛鍓嶇殑鑺傜偣鎾炰簡鍚屼竴涓?Id锛坈3c935c5-9c58-4c90-af95-9d3af0c17bab锛夛紝璇峰垹闄ら噸澶嶈妭鐐瑰悗閲嶆柊缂栬瘧銆?
+  [鈭氶€氳繃] While 娌℃湁寰幆鍒嗘敮 鈫?缂栬瘧鎶ラ敊锛堜笉鍐嶉潤榛樻垚绌烘搷浣滐級  鈫? [缂栬瘧閿欒] '绌轰綋While' 娌℃湁寰幆鍒嗘敮锛堢敾甯冧笂璇ヨ妭鐐逛笅娌℃湁寰幆浣擄級锛岀紪璇戝嚭鏉ユ槸涓┖鎿嶄綔锛岃琛ヤ笂寰幆鍒嗘敮銆?
+  [鈭氶€氳繃] 涓婃父鏄?If 鑺傜偣锛堟棤杈撳嚭绔彛锛夆啋 杩炵嚎鎶ラ敊锛屼笉鍐嶆棤澹板け鏁? 鈫? [杩炵嚎閿欒] '鏉′欢涓婃父鐨勪笅娓? 鐨勪笂娓歌妭鐐?'涓婃父If' 涓嶆彁渚涜緭鍑虹鍙?'Value'锛堟潯浠?寰幆鑺傜偣鍙帴鏀惰繛绾匡紝涓嶈兘鍚戝鎻愪緵鏁版嵁锛夈€?
+  [鈭氶€氳繃] 杩愯鏃跺彉閲忚繛鍒颁笉瀛樺湪鐨勮緭鍏ュ悕 鈫?杩炵嚎鎶ラ敊  鈫? [杩炵嚎閿欒] '閿欒緭鍏ュ悕鐨勪笅娓? 娌℃湁鍚嶄负 '涓嶅瓨鍦ㄧ殑杈撳叆' 鐨勮緭鍏ョ鍙ｏ紝杩欐潯杩炵嚎涓嶄細鐢熸晥銆?
+  [鈭氶€氳繃] For 鐨勮繛绾块敭涓嶆槸 LoopCount 鈫?杩炵嚎鎶ラ敊  鈫? [杩炵嚎閿欒] For 鑺傜偣 '閿欓敭For' 鍙帴鍙楀惊鐜鏁扮鍙?'LoopCount'锛屽疄闄呮敹鍒?'Bogus'锛岃繖鏉¤繛绾夸笉浼氱敓鏁堛€?
+  [鈭氶€氳繃] 绔彛涓嬫爣瓒呭嚭鏁存暟鑼冨洿 鈫?瀹氫綅閿欒锛堜笉鍐嶇偢鎴?绯荤粺宕╂簝绾ч敊璇?锛? 鈫? [杩炵嚎閿欒] '涓嬫爣涓嬫父' 寮曠敤鐨勪笂娓歌緭鍑虹鍙ｄ笅鏍?'99999999999999' 瓒呭嚭鏁存暟鑼冨洿銆?| [杩炵嚎鏂紑] 涓婃父 '鎵ц灞傛柇瑷€娴佺▼.涓嬫爣涓婃父' 涓嶅瓨鍦ㄨ緭鍑?'Value'
+  [鈭氶€氳繃] 涓嬫爣婧㈠嚭鐨勯敊璇甫涓婁簡鍑洪敊鑺傜偣鍚嶏紙鍙畾浣嶏級  鈫? [杩炵嚎閿欒] '涓嬫爣涓嬫父' 寮曠敤鐨勪笂娓歌緭鍑虹鍙ｄ笅鏍?'99999999999999' 瓒呭嚭鏁存暟鑼冨洿銆?| [杩炵嚎鏂紑] 涓婃父 '鎵ц灞傛柇瑷€娴佺▼.涓嬫爣涓婃父' 涓嶅瓨鍦ㄨ緭鍑?'Value'
+  [鈭氶€氳繃] 绔彛鍚嶆牸寮忛潪娉?鈫?瀹氫綅閿欒锛屼笉鍐嶆棤澹板け鏁? 鈫? [杩炵嚎閿欒] '鍧忓悕涓嬫父' 寮曠敤鐨勪笂娓歌緭鍑虹鍙ｅ悕 'Value[abc]' 鏍煎紡闈炴硶锛堝簲涓恒€岀鍙ｅ悕銆嶆垨銆岀鍙ｅ悕[涓嬫爣]銆嶏級銆?
+
+---- [E11] D 缁?鐘舵€佽浆鎹㈣涔?----
+  [鈭氶€氳繃] 鐘舵€佽涔夊浘绾哥紪璇戦€氳繃
+  [鈭氶€氳繃] 杩炵画鎵ц姝ｅ父鏀跺熬
+  [鈭氶€氳繃] 銆愭牳蹇冦€慜ldState 涓嶅啀鎭掔瓑浜?NewState锛圫topped 浜嬩欢鐨勬棫鐘舵€佹槸 Running锛? 鈫? 瀹為檯 2 娆¤浆鎹? Idle鈻禦unning 鈫?Running鈻禨topped
+  [鈭氶€氳繃] 鏈杩愯鎭板ソ涓ゆ杞崲 Running / Stopped锛堟棤鍐椾綑閫氱煡锛? 鈫? Idle鈻禦unning 鈫?Running鈻禨topped
+  [鈭氶€氳繃] 涓€娆＄姸鎬佽浆鎹㈠彧瑙﹀彂涓€娆?State 閫氱煡锛堝弽璇佹竻鍗?瑙﹀彂涓ゆ'鐨勬帹娴嬶級  鈫? 瀹為檯 2 娆?
+  [鈭氶€氳繃] 鍗曟鎵ц宸茶繘鍏ョ畻瀛愶紙鏋勯€犲嚭鐪熷疄杩愯绐楀彛锛?
+  [鈭氶€氳繃] 鍗曟鎵ц鏈熼棿 IsContinuousRun=false  鈫? IsContinuousRun=False
+  [鈭氶€氳繃] 銆愭牳蹇冦€戝崟娆℃墽琛屾湡闂?PauseSession 涓嶇敓鏁堬紙State 浠嶆槸 Running锛屼笉鏄?Paused锛? 鈫? State=Running
+  [鈭氶€氳繃] 鍗曟鎵ц鐨勬殏鍋滆姹傝鏄惧紡鎷掔粷骞剁暀鐥曪紙涓嶉潤榛樺悶鎺夛級  鈫? Warn:娴佺▼ 鎵ц灞傛柇瑷€娴佺▼ 鍗曟鎵ц涓嶆敮鎸佹殏鍋滐紙瀹冧笉缁忚繃鏆傚仠鐐癸級锛屾湰娆℃殏鍋滆姹傚凡蹇界暐
+  [鈭氶€氳繃] 鍗曟鎵ц姝ｅ父鏀跺熬
+  [鈭氶€氳繃] 杩炵画鎵ц宸茶繘鍏ョ畻瀛?
+  [鈭氶€氳繃] 杩炵画鎵ц鏈熼棿 IsContinuousRun=true  鈫? IsContinuousRun=True
+  [鈭氶€氳繃] 銆愭牳蹇冦€戣繛缁墽琛屾湡闂?PauseSession 鐓у父鐢熸晥锛圫tate=Paused锛? 鈫? State=Paused
+  [鈭氶€氳繃] 鎭㈠鍚庡洖鍒?Running  鈫? State=Running
+  [鈭氶€氳繃] 杩炵画鎵ц姝ｅ父鏀跺熬
+
+---- [E12] E 缁?濂戠害涓庢楠ゆ敹闆?----
+  [鈭氶€氳繃] RegisterCamera 涓嶅啀鎶?NotImplementedException锛堟棫瀹炵幇蹇呮姏锛?
+  [脳澶辫触] 鐩告満鎻掍欢杞氦妯″潡娉ㄥ唽琛ㄥ悗鍙锛堝惁鍒欑瓑浜?鍔犺浇鎴愬姛鍗存嫋涓嶅嚭鏉?锛? 鈫? 妯″潡琛?0 椤癸紝鐩告満鍒嗙被琛?1 椤?
+  [鈭氶€氳繃] GetCamera 涓庢敞鍐屽悓琛ㄦ煡鎵撅紝涓嶅啀'娉ㄥ唽杩涘幓鍗存煡涓嶅埌'  鈫? 杩斿洖 null 璇存槑涓や釜鍙ｆ煡浜嗕笉鍚岀殑琛?
+  [鈭氶€氳繃] GetLaser 鏌ヤ笉鍒版椂杩斿洖 null 鑰屼笉鏄姏锛堟棫瀹炵幇蹇呮姏锛?
+  [鈭氶€氳繃] 椤跺眰姝ラ杩?Blueprints
+  [鈭氶€氳繃] 寰幆浣撳唴鐨勪竴灞傛楠や篃杩?Blueprints锛堟祬濉細婕忔帀锛? 鈫? 鍏?3 椤?
+  [鈭氶€氳繃] 鍒嗘敮閲岀殑绗簩灞傛楠や篃杩?Blueprints锛堥€掑綊鍒板簳锛? 鈫? 鍏?3 椤?
+  [鈭氶€氳繃] 閫掑綊鏀堕泦鎭板ソ 3 涓紙For / 鍐呭眰If / 鏈€鍐呭眰璁℃暟锛? 鈫? 瀹為檯 3
+  [鈭氶€氳繃] 瀵圭収锛氭祬濉彧鎷垮埌椤跺眰 1 涓紙#9 鐥呯伓鏈韩锛? 鈫? 瀹為檯 1
+
+---- [E14] 鐗堟湰閾撅細椤跺眰涓庡祵濂楁楠ょ殑灞炴€у彉鏇?----
+  [鈭氶€氳繃] 椤跺眰姝ラ绂佺敤锛歏ersion +1  鈫? Version 1 鈫?2
+  [鈭氶€氳繃] 寰幆浣撻噷鏂板姝ラ锛歏ersion +1  鈫? Version 3 鈫?4
+  [鈭氶€氳繃] 鈽呭惊鐜綋鍐呮楠ょ鐢細Version +1锛圫3 淇鍓嶆澶勯潤榛樹笉閫掑锛? 鈫? Version 4 鈫?5锛堜笉閫掑 = 缂栬瘧浼氳瘽澶嶇敤鏃у浘绾革級
+  [鈭氶€氳繃] 宓屽姝ラ鏀瑰睘鎬э細鎭板ソ +1锛堥噸澶嶈闃呬細 +2锛? 鈫? Version 5 鈫?6
+
+---- [E14] 鐗堟湰閾撅細鍚庡姞鐨勫垎鏀強鍏朵腑鐨勬楠?----
+  [鈭氶€氳繃] 宸叉湁 If 鍒嗘敮閲屾柊澧炴楠わ細Version +1  鈫? Version 1 鈫?2
+  [鈭氶€氳繃] If 鍒嗘敮鍐呮楠ょ鐢細Version +1  鈫? Version 2 鈫?3
+  [鈭氶€氳繃] 鈽呮柊澧?ElseIf 鍒嗘敮锛歏ersion +1锛堝彧鍔?Children 闆嗗悎锛? 鈫? Version 3 鈫?4
+  [鈭氶€氳繃] 鏂板垎鏀噷鏂板姝ラ锛歏ersion +1  鈫? Version 4 鈫?5
+  [鈭氶€氳繃] 鈽呭悗鍔犲垎鏀唴鐨勬楠ょ鐢細Version +1锛堜慨澶嶅墠鏂板垎鏀殑姝ラ姘歌繙鎸備笉涓婅闃咃級  鈫? Version 5 鈫?6
+
+---- [E14] 鐗堟湰閾撅細涓夊眰宓屽锛團or 鈫?If 鈫?姝ラ锛?----
+  [鈭氶€氳繃] 鈽呯涓夊眰姝ラ绂佺敤锛歏ersion +1  鈫? Version 3 鈫?4
+  [鈭氶€氳繃] 绗笁灞傦紙Else 鍒嗘敮锛夋柊澧炴楠わ細Version +1  鈫? Version 4 鈫?5
+
+---- [E14] 鐗堟湰閾撅細鎷栧姩鏀瑰簭鍚庤闃呬粛鍦?----
+  [鈭氶€氳繃] 鏀瑰簭鏈韩锛歏ersion +1  鈫? Version 2 鈫?3
+  [鈭氶€氳繃] 鈽呰 Move 鐨勬楠や粛琚闃咃細绂佺敤 Version +1锛堟寜 OldItems 鎽樻寕浼氭妸璁㈤槄鎽樻帀锛? 鈫? Version 3 鈫?4
+
+---- [E14] 鐗堟湰閾撅細娓呯┖鍚庤闃呮敹鍙?----
+  [鈭氶€氳繃] 娓呯┖锛歏ersion +1  鈫? Version 1 鈫?2
+  [鈭氶€氳繃] 鈽呭凡娓呯┖鐨勬楠や笉鍐嶆儕鍔ㄧ増鏈紙婕忔憳 = 鍋囬€掑 鈫?鐧介噸缂栬瘧锛? 鈫? Version 2 鈫?2锛堝彉浜嗚鏄庢棫姝ラ璁㈤槄娌℃憳锛?
+  [鈭氶€氳繃] 娓呯┖鍚庢柊鍔犳楠わ細Version +1  鈫? Version 2 鈫?3
+  [鈭氶€氳繃] 娓呯┖鍚庢柊鍔犳楠よ璁㈤槄锛堢鐢?+1锛? 鈫? Version 3 鈫?4
+
+---- [E14] 鐗堟湰閾撅細鏁翠釜瀹瑰櫒绉诲嚭娴佺▼鏍?----
+  [鈭氶€氳繃] 绉婚櫎瀹瑰櫒锛歏ersion +1  鈫? Version 1 鈫?2
+  [鈭氶€氳繃] 鈽呭鍣ㄧЩ鍑哄悗锛屽叾鍐呴儴姝ラ涓嶅啀鎯婂姩鐗堟湰  鈫? Version 2 鈫?2
+  [鈭氶€氳繃] 绉诲嚭鐨勫鍣ㄨ嚜韬篃涓嶅啀鎯婂姩鐗堟湰  鈫? Version 2 鈫?2
+
+---- [E14] 鐗堟湰閾撅細鏁翠綋鏇挎崲 Steps锛堝弽搴忓垪鍖栧悓娆捐矾寰勶級 ----
+  [鈭氶€氳繃] 鏇挎崲闆嗗悎鏈韩涓嶆敼鍐?Version锛堢増鏈彿鐢卞瓨鐩樺唴瀹硅礋璐ｏ級  鈫? Version 1 鈫?1
+  [鈭氶€氳繃] 鏃ч泦鍚堢殑姝ラ涓嶅啀琚闃? 鈫? Version 1 鈫?1
+  [鈭氶€氳繃] 鏂伴泦鍚堢殑姝ラ宸叉寕涓婅闃咃紙绂佺敤 +1锛? 鈫? Version 1 鈫?2
+
+---- [E14] 鐗堟湰閾撅細杩愯鏃跺睘鎬т笉鎯婂姩鐗堟湰 ----
+  [鈭氶€氳繃] 鈽匸RuntimeState] 灞炴€э紙鐒︾偣 / 鐘舵€?/ 鑰楁椂锛変笉閫掑 Version  鈫? Version 1 鈫?1
+  [鈭氶€氳繃] 宓屽姝ラ鐨勮繍琛屾椂灞炴€т篃涓嶆儕鍔ㄦ祦绋嬶紙涓€璺浂閫氱煡锛?
+
+---- [E14] 鐗堟湰閾撅細鍙嶅簭鍒楀寲寰€杩斿悗璁㈤槄閲嶆寕 ----
+  [鈭氶€氳繃] 寰€杩斿弽搴忓垪鍖栨垚鐢燂紙鍥剧焊绫诲瀷淇℃伅榻愬叏锛? 鈫? Steps=2
+  [鈭氶€氳繃] 寰€杩斿悗瀹瑰櫒涓庡垎鏀粨鏋勮繕鍘燂紙For 寰幆浣?1 涓?/ If 涓ゅ垎鏀級  鈫? for=1 if=2
+  [鈭氶€氳繃] 鈽呭線杩斿悗寰幆浣撴楠ょ鐢細Version +1锛堣闃呭湪璧嬪€兼椂宸查噸鎸傦級  鈫? Version 2 鈫?3
+  [鈭氶€氳繃] 寰€杩斿悗 If 鍒嗘敮姝ラ绂佺敤锛氭伆濂?+1锛堟棤閲嶅璁㈤槄锛? 鈫? Version 3 鈫?4
+  [鈭氶€氳繃] 寰€杩斿悗寰€寰幆浣撳姞姝ラ锛歏ersion +1  鈫? Version 4 鈫?5
+  [鈭氶€氳繃] 寰€杩斿悗鏂板姞姝ラ琚闃咃紙绂佺敤 +1锛? 鈫? Version 5 鈫?6
+  [鈭氶€氳繃] 寰€杩斿悗杩愯鏃跺睘鎬т粛涓嶆儕鍔ㄧ増鏈? 鈫? Version 6 鈫?6
+  [鈭氶€氳繃] 寰€杩斿悗鏂板 ElseIf 鍒嗘敮锛歏ersion +1锛圕hildren 浠嶈鐩級  鈫? Version 6 鈫?7
+  [鈭氶€氳繃] 寰€杩斿悗鏂板垎鏀姞姝ラ锛歏ersion +1  鈫? Version 7 鈫?8
+  [鈭氶€氳繃] 鈽呭線杩斿悗鏂板垎鏀唴鐨勬楠ょ鐢細Version +1  鈫? Version 8 鈫?9
+
+---- [E13] 鏂偣鍛戒腑 / 缁х画锛堣皟璇曞崟娆℃墽琛岋級 ----
+  [鈭氶€氳繃] 鏂偣鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 鍛戒腑鏂偣鍚庡仠鍦?Paused  鈫? State=Paused锛堣秴鏃惰鏄庢柇鐐规病鎷︿綇锛?
+  [鈭氶€氳繃] 鏆傚仠鍘熷洜 = Breakpoint  鈫? PauseReason=Breakpoint
+  [鈭氶€氳繃] 鍓嶅簭鑺傜偣宸叉墽琛岋紙A=1锛? 鈫? A=1
+  [鈭氶€氳繃] 鍛戒腑鑺傜偣鍋滃湪鎵ц鍓嶏紙B=0锛? 鈫? B=0
+  [鈭氶€氳繃] 鍚庡簭鑺傜偣鏈墽琛岋紙C=0锛? 鈫? C=0
+  [鈭氶€氳繃] 鍛戒腑鑺傜偣琚爣璁?IsDebugStopped锛圲I 鍋滅偣楂樹寒锛? 鈫? IsDebugStopped=True
+  [鈭氶€氳繃] 浼氳瘽浠嶆椿鐫€绛夊緟鏀捐锛圛sRunning=true锛? 鈫? IsRunning=True
+  [鈭氶€氳繃] 鏆傚仠娑堟伅鎵胯浇鍘熷洜锛圡essage 棣栨鍚敤锛? 鈫? Message=璋冭瘯鏆傚仠锛氭柇鐐瑰懡涓?
+  [鈭氶€氳繃] 缁х画鍚庡洖鍒?Running  鈫? State=Running
+  [鈭氶€氳繃] 缁х画鍚庢殏鍋滃師鍥犳竻绌? 鈫? PauseReason=None
+  [鈭氶€氳繃] 缁х画鍚庢甯歌窇瀹岋紙浠诲姟骞插噣缁撴潫锛?
+  [鈭氶€氳繃] 缁х画鍚庡叏娴佺▼璧板畬锛圓=B=C=1锛? 鈫? A=1 B=1 C=1
+  [鈭氶€氳繃] 鏀跺熬鍚?State=Stopped 涓?IsRunning=false  鈫? IsRunning=False State=Stopped
+
+---- [E13] 鍋滃湪鏂偣鏃?StopSession 骞插噣鏀跺熬 ----
+  [鈭氶€氳繃] 鍋滄鎵撴柇鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 宸插仠鍦ㄦ柇鐐逛笂锛堟瀯閫犲嚭鎵撴柇绐楀彛锛? 鈫? paused=True B=0
+  [鈭氶€氳繃] 鍋滅偣涓婄殑鍋滄绔嬪嵆鐢熸晥锛氫换鍔″共鍑€鏀跺熬锛堥潪 Faulted锛? 鈫? 锛堣秴鏃惰鏄?PauseLock.Wait(token) 娌¤鍙栨秷鍞ら啋锛?
+  [鈭氶€氳繃] 鏀跺熬鍚?State=Stopped 涓?IsRunning=false  鈫? State=Stopped IsRunning=False
+  [鈭氶€氳繃] 鍛戒腑鑺傜偣濮嬬粓鏈墽琛岋紙鍋滃湪鎵ц鍓嶏級  鈫? B=0
+  [鈭氶€氳繃] 鍋滅偣楂樹寒闅忔敹灏炬竻闄わ紙IsDebugStopped=false锛? 鈫? IsDebugStopped=False
+  [鈭氶€氳繃] 鏆傚仠閿佸洖鍒版斁琛屾€侊紙鏀跺熬 Set 鍏滃簳锛? 鈫? 閿佺暀鍦ㄥ悎涓婃€侊細鍚庣画绛夊緟浼氳鑾悕鎸変綇
+  [鈭氶€氳繃] 鏀跺熬娓呴櫎杩愯鐒︾偣锛堟棤娈嬬暀楂樹寒锛? 鈫? FocusedStep=(null)
+
+---- [E13] 闈炶皟璇曞崟娆℃墽琛岃眮鍏嶏紙HTTP 瑙﹀彂鍚屾璺緞锛?----
+  [鈭氶€氳繃] 璞佸厤鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] DebugEnabled 榛樿 false  鈫? DebugEnabled=False
+  [鈭氶€氳繃] 鎸傜潃鏂偣涔熶笉琚崱浣忥細涓€娆¤窇瀹? 鈫? 锛堣秴鏃惰鏄庢柇鐐规妸闈炶皟璇曡繍琛屽崱浣忎簡锛?
+  [鈭氶€氳繃] 鍏ㄦ祦绋嬫墽琛岋紙A=B=C=1锛? 鈫? A=1 B=1 C=1
+  [鈭氶€氳繃] 鍏ㄧ▼浠庢湭杩涘叆 Paused  鈫? Paused 娆℃暟=0
+  [鈭氶€氳繃] 鏀跺熬鍚?State=Stopped 涓?IsRunning=false  鈫? State=Stopped IsRunning=False
+
+---- [E13] 鍗曟锛氭伆濂藉鎵ц 1 涓妭鐐?----
+  [鈭氶€氳繃] 鍗曟鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 鍏堝懡涓?B 鐨勬柇鐐癸紙A=1 / B=0锛? 鈫? paused=True A=1 B=0
+  [鈭氶€氳繃] 鍗曟鍚庡仠鍦ㄤ笅涓€涓妭鐐瑰墠锛圔 宸叉墽琛?/ C 鏈墽琛?鈥斺€?鎭板ソ +1锛? 鈫? State=Paused B=1 C=0
+  [鈭氶€氳繃] 鍗曟鍋滅偣鍘熷洜 = Step  鈫? PauseReason=Step
+  [鈭氶€氳繃] 鍐嶆鍗曟浠嶆伆濂?+1锛圕 宸叉墽琛?/ D 鏈墽琛岋級  鈫? State=Paused C=1 D=0
+  [鈭氶€氳繃] 浠庡崟姝ュ仠鐐圭户缁悗璺戝畬锛圖 涔熸墽琛岋級  鈫? D=1 
+
+---- [E13] 寰幆浣撴柇鐐癸細姣忓湀鍛戒腑閮芥柇 ----
+  [鈭氶€氳繃] 寰幆鏂偣鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 绗?1 鍦堟柇寮€浣忥紙body=0锛屽仠鍦ㄦ墽琛屽墠锛? 鈫? paused=True body=0
+  [鈭氶€氳繃] 绗?2 鍦堝悓涓€鏂偣鍐嶆鏂紑浣忥紙body=1锛? 鈫? State=Paused body=1
+  [鈭氶€氳繃] 缁х画鍚庝袱鍦堣窇瀹屽苟姝ｅ父鏀跺熬  鈫? body=2
+
+---- [E13] 杩炵画璋冭瘯杩愯锛氱浜屽湀鍐嶆鍛戒腑 + 鍋滅偣鍋滄 ----
+  [鈭氶€氳繃] 杩炵画璋冭瘯鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 绗?1 鍦堟柇鐐瑰仠浣忥紙A=1 / B=0锛? 鈫? paused=True A=1 B=0
+  [鈭氶€氳繃] 绗?2 鍦堝悓涓€鏂偣鍐嶆鍋滀綇锛圓=2 / B=1 / C=1锛? 鈫? State=Paused A=2 B=1 C=1
+  [鈭氶€氳繃] 涓ゆ鍛戒腑鎭板ソ涓ゆ Paused 浜嬩欢  鈫? Paused 娆℃暟=2
+  [鈭氶€氳繃] 鍋滃湪鏂偣鏃?StopSession 骞插噣鏀跺熬锛堢嚎绋嬩笉娈嬬暀锛? 鈫? 锛堣秴鏃惰鏄庡仠姝㈡墦涓嶆柇鏂偣绛夊緟锛?
+  [鈭氶€氳繃] 鍋滄鍚?State=Stopped 涓?IsRunning=false  鈫? State=Stopped IsRunning=False
+
+---- [E13] 鏂偣鏍囪锛氫笉閫掑 Version ----
+  [鈭氶€氳繃] 鍒囨崲鏂偣/鍋滅偣鏍囪涓嶉€掑 Version  鈫? Version 1 鈫?1
+  [鈭氶€氳繃] 鏍囪鍙樻洿纭疄鍙戜簡閫氱煡锛圲I 绾㈢偣 / 鍋滅偣楂樹寒浼氬埛鏂帮級  鈫? IsBreakpoint,IsBreakpoint,IsDebugStopped,IsDebugStopped
+  [鈭氶€氳繃] 娴佺▼涓€璺浂閫氱煡锛堜笉鎯婂姩璇箟鍙樻洿闂搁棬锛?
+
+---- [E13] 鏂偣涓嶈惤鐩橈細搴忓垪鍖栨枃鏈笉鍚皟璇曟爣璁?----
+  [鈭氶€氳繃] 搴忓垪鍖栨枃鏈笉鍚?IsBreakpoint  鈫? 鏂偣璺熺潃鏂规杩涗骇绾挎槸瀹夊叏闅愭偅锛堣瘎瀹＄粨璁?4锛?
+  [鈭氶€氳繃] 搴忓垪鍖栨枃鏈笉鍚?IsDebugStopped
+  [鈭氶€氳繃] 鍚岀被杩愯鏈熸爣璁板悓鏍蜂笉钀界洏锛圛sRunningFocus 瀵圭収锛?
+  [鈭氶€氳繃] 甯歌瀛楁浠嶈搴忓垪鍖栵紙闃?绌烘枃鏈亣閫氳繃'锛?
+
+---- [E13] 鎻掍欢璇曡繍琛岃眮鍏嶏細甯︽柇鐐逛篃涓嶈兘鍗′綇 ----
+  [鈭氶€氳繃] 甯︽柇鐐圭殑姝ラ璇曡繍琛屾甯稿畬鎴愶紙鏈鏂偣鍗′綇锛? 鈫? 鎵ц瀹屾垚
+  [鈭氶€氳繃] 璇曡繍琛岀‘瀹炴墽琛屼簡鐩爣绠楀瓙  鈫? Runs=1
+  [鈭氶€氳繃] 璇曡繍琛屼細璇濅粠鏈繘鍏ヨ皟璇曟€侊紙DebugEnabled=false锛? 鈫? trial=True DebugEnabled=False
+
+---- [E13] 璋冭瘯鍗曟鎵ц锛氭殏鍋?/ 缁х画鐢熸晥 ----
+  [鈭氶€氳繃] 鏆傚仠缁х画鍥剧焊缂栬瘧閫氳繃
+  [鈭氶€氳繃] 鎵ц涓凡杩涘叆闂搁棬绠楀瓙锛堟瀯閫犲嚭杩愯绐楀彛锛? 鈫? 5 绉掑唴娌¤繘鍒扮畻瀛愶紝鍚庨潰鐨勬殏鍋滄柇瑷€鏃犳剰涔?
+  [鈭氶€氳繃] 璋冭瘯鍗曟鎵ц鏈熼棿 PauseSession 鐢熸晥锛圫tate=Paused锛? 鈫? State=Paused锛堥潪璋冭瘯鍗曟鎵ц鏃惰繖閲屽繀椤讳粛鏄?Running锛?
+  [鈭氶€氳繃] 鏆傚仠鍘熷洜 = User  鈫? PauseReason=User
+  [鈭氶€氳繃] 闂搁棬鍚庣殑涓嬩竴鑺傜偣琚皟璇曢棬鎸変綇锛圕 鏈墽琛岋級  鈫? bDone=True State=Paused C=0
+  [鈭氶€氳繃] 缁х画鍚庤窇瀹屽苟姝ｅ父鏀跺熬  鈫? A=1 C=1 
+
+---- [E13] 璋冭瘯鎬佸綊寮曟搸缃綅锛堥缃?true 涓嶇敓鏁堬級 ----
+  [鈭氶€氳繃] 绔炴€佸浘绾哥紪璇戦€氳繃
+  [鈭氶€氳繃] 棰勭疆鐨勮皟璇曟€佽寮曟搸娓呮帀锛氬甫鏂偣涔熶笉鍋? 鈫? Paused 娆℃暟=0锛?0 璇存槑娈嬬暀鐨?true 鎶婃柇鐐规斁琛屼簡锛?
+  [鈭氶€氳繃] 闈炶皟璇曡皟鐢ㄦ敹灏惧悗 DebugEnabled=false  鈫? DebugEnabled=False
+  [鈭氶€氳繃] 鍏ㄦ祦绋嬬収甯告墽琛岋紙A=B=C=1锛? 鈫? A=1 B=1 C=1
+
+---- [OCR] 鎻掍欢绠楁硶锛氬垎鍓?+ 璇嗗埆锛堢湡鍥鹃獙璇侊級 ----
+  [鈭氶€氳繃] 鍐呯疆 OCR 妯″瀷鎸夐粯璁よ矾寰勫彲瑙ｆ瀽  鈫? D:\C#\VM\FlowCanvasChecks\bin\Debug\net9.0-windows\Assets\ocr\Industrial_0-9A-Z_Rej.omc
+  [鈭氶€氳繃] 鏄惧紡閰嶄簡涓嶅瓨鍦ㄧ殑妯″瀷 鈫?鎶ラ敊鑰屼笉鏄潤榛橀€€鍥炲唴缃? 鈫? 鎸囧畾鐨?OCR 妯″瀷鏂囦欢涓嶅瓨鍦細C:\涓嶅瓨鍦ㄧ殑妯″瀷.abc銆傝淇璺緞锛屾垨娓呯┖璇ラ厤缃互浣跨敤鍐呯疆妯″瀷锛圛ndustrial_0-9A-Z_Rej锛夈€?
+  [鈭氶€氳繃] lot_number_01.png 璇嗗埆鍑?11240B锛堢湡鍊艰鍥剧‘璁わ級  鈫? 鏂囨湰='11240B' 瀛楃鏁?6 鎷掕瘑=0 鍧囧€肩疆淇?0.99 闃堝€?111 鏄庣粏=1:1(0.99) 2:1(0.98) 3:2(1.00) 4:4(1.00) 5:0(0.98) 6:B(0.99)
+  [鈭氶€氳繃] lot_number_02.png 璇嗗埆鍑?11240B锛堢湡鍊艰鍥剧‘璁わ級  鈫? 鏂囨湰='11240B' 瀛楃鏁?6 鎷掕瘑=0 鍧囧€肩疆淇?0.98 闃堝€?149 鏄庣粏=1:1(0.99) 2:1(0.98) 3:2(0.99) 4:4(1.00) 5:0(0.96) 6:B(0.95)
+  [鈭氶€氳繃] lot_number_03.png 璇嗗埆鍑?11240B锛堢湡鍊艰鍥剧‘璁わ級  鈫? 鏂囨湰='11240B' 瀛楃鏁?6 鎷掕瘑=0 鍧囧€肩疆淇?0.98 闃堝€?108 鏄庣粏=1:1(0.99) 2:1(0.99) 3:2(0.93) 4:4(1.00) 5:0(0.98) 6:B(0.97)
+  [鈭氶€氳繃] lot_number_04.png 璇嗗埆鍑?09240A  鈫? 鏂囨湰='09240A' 瀛楃鏁?6 鎷掕瘑=0 鍧囧€肩疆淇?0.97 闃堝€?118 鏄庣粏=1:0(0.91) 2:9(0.99) 3:2(1.00) 4:4(1.00) 5:0(0.95) 6:A(0.98)
+  [鈭氶€氳繃] lot_number_04.png 鎭板ソ鍒囧嚭 6 涓瓧绗︿笖闆舵嫆璇嗭紙澶氬垏=鍣０锛屽皯鍒?瀛楃琚垏鏂級  鈫? 鏂囨湰='09240A' 瀛楃鏁?6 鎷掕瘑=0 鍧囧€肩疆淇?0.97 闃堝€?118 鏄庣粏=1:0(0.91) 2:9(0.99) 3:2(1.00) 4:4(1.00) 5:0(0.95) 6:A(0.98)
+  [鈭氶€氳繃] dot_print_02.png 鍒囧嚭 9 涓瓧绗︼紙041023/A5 鍏?9 涓級  鈫? 鏂囨湰='A1A9T8' 瀛楃鏁?9 鎷掕瘑=3 鍧囧€肩疆淇?0.72 闃堝€?98 鏄庣粏=1:A(0.39) 2:?(0.98) 3:1(0.69) 4:A(0.46) 5:9(0.74) 6:T(0.97) 7:?(0.99) 8:8(0.58) 9:?(0.71)
+  [鈭氶€氳繃] dot_print_01.png 涓嶆姏寮傚父骞剁粰鍑虹粨鏋滄垨鍙鍘熷洜锛堝垎灞傚弬鏁拌兘琚幇鍦虹敤鏉ョ户缁皟锛? 鈫? 鏂囨湰='P91' 瀛楃鏁?19 鎷掕瘑=16 鍧囧€肩疆淇?0.83 闃堝€?154 鏄庣粏=1:?(0.94) 2:P(0.88) 3:9(0.27) 4:?(0.99) 5:?(0.99) 6:?(1.00) 7:?(0.76) 8:?(0.84) 9:?(0.74) 10:1(0.48) 11:?(0.86) 12:?(0.91) 13:?(1.00) 14:?(0.42) 15:?(0.97) 16:?(0.84) 17:?(0.96) 18:?(0.97) 19:?(0.92)
+  [鈭氶€氳繃] 銆愭牳蹇冦€戜綆瀵规瘮鐐归樀鍥捐涓嶅噯鏃剁粰鍑轰綆缃俊搴︼紙鐜板満鎹鍒や笉鍙俊锛? 鈫? dot02 缃俊=0.72锛宒ot01 缃俊=0.83
+  [鈭氶€氳繃] 銆愭牳蹇冦€戜綆瀵规瘮鐐归樀鍥惧繀椤诲嚭鐜版嫆璇嗭紝鑰屼笉鏄竻涓€鑹?璁ゅ嚭鏉ヤ簡'  鈫? dot02 鎷掕瘑=3锛宒ot01 鎷掕瘑=16
+  [鈭氶€氳繃] 鎻掍欢杩愯涓嶆姏寮傚父锛圗xecute 鐨勫け璐ュ绾﹀厹浣忎簡锛?
+  [鈭氶€氳繃] 鎻掍欢鎸夐粯璁ら厤缃蛋鍐呯疆妯″瀷骞惰瘑鍒嚭 11240B  鈫? Text='11240B' Success=True Error=''
+  [鈭氶€氳繃] 鎻掍欢鎶ユ垚鍔熶笖瀛楃鏁颁负 6  鈫? Success=True Count=6 Confidence=0.991564553689483
+  [鈭氶€氳繃] 浣庡姣斿浘璧版彃浠惰矾寰勪篃涓嶆姏寮傚父
+  [鈭氶€氳繃] 銆愭牳蹇冦€戝嚭鐜版嫆璇嗗瓧鏃跺啓 Warn锛堝惁鍒欓敊瀛楃涓蹭細琚綋鎴愬姛缁撴灉鏀捐锛? 鈫? Warn:OCR 鏈?3 涓瓧绗﹁鎷掕瘑锛堜笉鍦ㄥ垎绫诲櫒瀛楃闆嗗唴鎴栧瓧褰笉鍙鲸锛夛紝璇嗗埆缁撴灉涓嶅畬鏁达細1:A(0.39) 2:?(0.98) 3:1(0.69) 4:A(0.46) 5:9(0.74) 6:T(0.97) 7:?(0.99) 8:8(0.58) 9:?(0.71) | Warn:OCR 鍧囧€肩疆淇″害鍋忎綆锛?.72 < 0.90锛夛紝鏈璇嗗埆缁撴灉涓嶅彲淇★紝璇峰嬁鐩存帴鐢ㄤ簬鏀捐锛?:A(0.39) 2:?(0.98) 3:1(0.69) 4:A(0.46) 5:9(0.74) 6:T(0.97) 7:?(0.99) 8:8(0.58) 9:?(0.71)
+  [鈭氶€氳繃] 銆愭牳蹇冦€戝潎鍊肩疆淇″害鍋忎綆鏃跺啓 Warn 鎻愮ず缁撴灉涓嶅彲淇? 鈫? Warn:OCR 鏈?3 涓瓧绗﹁鎷掕瘑锛堜笉鍦ㄥ垎绫诲櫒瀛楃闆嗗唴鎴栧瓧褰笉鍙鲸锛夛紝璇嗗埆缁撴灉涓嶅畬鏁达細1:A(0.39) 2:?(0.98) 3:1(0.69) 4:A(0.46) 5:9(0.74) 6:T(0.97) 7:?(0.99) 8:8(0.58) 9:?(0.71) | Warn:OCR 鍧囧€肩疆淇″害鍋忎綆锛?.72 < 0.90锛夛紝鏈璇嗗埆缁撴灉涓嶅彲淇★紝璇峰嬁鐩存帴鐢ㄤ簬鏀捐锛?:A(0.39) 2:?(0.98) 3:1(0.69) 4:A(0.46) 5:9(0.74) 6:T(0.97) 7:?(0.99) 8:8(0.58) 9:?(0.71)
+  [鈭氶€氳繃] 妯″瀷璺緞閰嶉敊 鈫?鎻掍欢鎶ュけ璐ヤ笖鍘熷洜鍙锛堜笉闈欓粯閫€鍥炲唴缃級  鈫? Success=False Error='鎸囧畾鐨?OCR 妯″瀷鏂囦欢涓嶅瓨鍦細C:\涓嶅瓨鍦ㄧ殑妯″瀷.omc銆傝淇璺緞锛屾垨娓呯┖璇ラ厤缃互浣跨敤鍐呯疆妯″瀷锛圛ndustrial_0-9A-Z_Rej锛夈€?
+  [鈭氶€氳繃] 娌℃璇嗗埆鍖?鈫?鎶ュけ璐ヤ笖鎻愮ず鎸囧悜鍙抽敭鏂板缓鐭╁舰  鈫? Success=False Error='灏氭湭妗嗛€夎瘑鍒尯锛氳鍦ㄨ妭鐐归厤缃噷浜庡浘鍍忎笂鍙抽敭 鈫?鏂板缓鐭╁舰锛屾浣忔暣琛屽瓧绗?
+  [鈭氶€氳繃] Dispose 閲婃斁鍒嗙被鍣ㄥ彞鏌勪笉鎶涘紓甯?
+
+---- [鐮佽鍙朷 鏉＄爜/浜岀淮鐮佽瘑鍒紙瀹樻柟鏍峰紶楠岃瘉锛?----
+  [鈭氶€氳繃] DataMatrix(CPU鏉? 瑙ｅ嚭鍐呭锛堢爜鍒?Data Matrix ECC 200锛? 鈫? Count=1 鍐呭锛歍249A601
+1082
+  [鈭氶€氳繃] QR(鐢熸垚鍥? 瑙ｅ嚭鍐呭锛堢爜鍒?QR Code锛? 鈫? Count=1 鍐呭锛歁VTec Software GmbH
+  [鈭氶€氳繃] MicroQR(鏉? 瑙ｅ嚭鍐呭锛堢爜鍒?Micro QR Code锛? 鈫? Count=1 鍐呭锛?0943BA
+  [鈭氶€氳繃] PDF417 瑙ｅ嚭鍐呭锛堢爜鍒?PDF417锛? 鈫? Count=1 鍐呭锛歋T32140A23731-103EC9267
+  [鈭氶€氳繃] Aztec(鎵嬫満灞? 瑙ｅ嚭鍐呭锛堢爜鍒?Aztec Code锛? 鈫? Count=1 鍐呭锛歁VTec Software GmbH
+  [鈭氶€氳繃] DotCode 瑙ｅ嚭鍐呭锛堢爜鍒?DotCode锛? 鈫? Count=1 鍐呭锛歁VTec Software GmbH
+  [鈭氶€氳繃] Code128 瑙ｅ嚭鍐呭锛堢爜鍒?Code 128锛? 鈫? Count=1 鍐呭锛歁VTec Software GmbH
+  [鈭氶€氳繃] Code39 瑙ｅ嚭鍐呭锛堢爜鍒?Code 39锛? 鈫? Count=2 鍐呭锛歊74-2001-010 | 92274A
+  [鈭氶€氳繃] EAN-13 瑙ｅ嚭鍐呭锛堢爜鍒?EAN-13锛? 鈫? Count=1 鍐呭锛?008535118906
+  [鈭氶€氳繃] EAN-8 瑙ｅ嚭鍐呭锛堢爜鍒?EAN-8锛? 鈫? Count=1 鍐呭锛?0266657
+  [鈭氶€氳繃] Codabar 瑙ｅ嚭鍐呭锛堢爜鍒?Codabar锛? 鈫? Count=1 鍐呭锛欰123451A
+  [鈭氶€氳繃] 浜ゆ彃浜屼簲鐮?瑙ｅ嚭鍐呭锛堢爜鍒?2/5 Interleaved锛? 鈫? Count=1 鍐呭锛?234567895
+  [鈭氶€氳繃] 浜岀淮鏍峰紶鍏ㄩ儴瑙ｅ嚭锛?/6锛? 鈫? 鎴愬姛 6 涓?
+  [鈭氶€氳繃] 涓€缁存牱寮犲叏閮ㄨВ鍑猴紙6/6锛? 鈫? 鎴愬姛 6 涓?
+  [鈭氶€氳繃] 鐮佸埗閿欓厤锛堢敤 DataMatrix 璇?QR 鍥撅級鈫?瑙ｄ笉鍑轰笖涓嶆姏寮傚父  鈫? Count=0 鍐呭锛?
+  [鈭氶€氳繃] 绌虹櫧鍥句笂璇讳簩缁寸爜 鈫?瑙ｄ笉鍑轰笖涓嶆姏寮傚父  鈫? Count=0
+  [鈭氶€氳繃] 绌虹櫧鍥句笂璇讳竴缁寸爜 鈫?瑙ｄ笉鍑轰笖涓嶆姏寮傚父  鈫? Count=0
+  [鈭氶€氳繃] 娣峰悎鍥句笂鎸変竴缁寸爜鍒惰 鈫?瑙ｅ嚭鏉＄爜  鈫? Count=1 鍐呭锛歊R002205656DE200
+  [鈭氶€氳繃] 娣峰悎鍥句笂鎸変簩缁寸爜鐮佸埗璇?鈫?瑙ｅ嚭浜岀淮鐮? 鈫? Count=1 鍐呭锛?0000001456789012345678901234567890123456789012345678901234567890123456789012345678901234560517
+  [鈭氶€氳繃] EAN-13 瑙ｅ嚭 13 浣嶇函鏁板瓧锛堝疄涓?'4008535118906'锛? 鈫? 闀垮害 13
+  [鈭氶€氳繃] EAN-13 鏍￠獙浣嶆纭紙鐙珛浜?HALCON 鐨勬暟瀛﹂獙绠楋級  鈫? 4008535118906 鈫?鍔犳潈鍜?84锛屾牎楠屼綅鏈熸湜 6 瀹為檯 6
+  [鈭氶€氳繃] EAN-8 瑙ｅ嚭 8 浣嶇函鏁板瓧锛堝疄涓?'40266657'锛? 鈫? 闀垮害 8
+  [鈭氶€氳繃] EAN-8 鏍￠獙浣嶆纭紙鐙珛浜?HALCON 鐨勬暟瀛﹂獙绠楋級  鈫? 40266657 鈫?鍔犳潈鍜?63锛屾牎楠屼綅鏈熸湜 7 瀹為檯 7
+  [鈭氶€氳繃] 鎻掍欢杩愯涓嶆姏寮傚父
+  [鈭氶€氳繃] 鎻掍欢鎶ユ垚鍔燂紙璇诲埌鐮佸睘姝ｅ父鎴愬姛璺緞锛? 鈫? Success=True Error=''
+  [鈭氶€氳繃] 銆愭牳蹇冦€戜竴甯т袱涓爜 鈫?Codes 鏁扮粍鐪熺殑鎵胯浇浜嗕袱涓厓绱狅紙鏁扮粍绔彛鍙敤锛? 鈫? Codes=R74-2001-010 | 92274A Count=2
+  [鈭氶€氳繃] Count 涓庢暟缁勯暱搴︿竴鑷? 鈫? Count=2 鏁扮粍闀?2
+  [鈭氶€氳繃] Text锛堥€楀彿鍒嗛殧锛変笌 Codes 鍐呭涓€鑷?鈥斺€?鏍囬噺涓嬫父灏遍潬瀹冩帴  鈫? Text='R74-2001-010,92274A'
+  [鈭氶€氳繃] 銆愭牳蹇冦€戝浘涓婃病鏈夌爜 鈫?涓嶆姏寮傚父銆丼uccess=true锛堜笉鎶婃甯稿伐鍐靛綋澶辫触锛? 鈫? Success=True Error=''
+  [鈭氶€氳繃] 銆愭牳蹇冦€戝浘涓婃病鏈夌爜 鈫?Count=0 涓?Codes 涓虹┖鏁扮粍锛堜笅娓哥敤 Count 鍒ゆ湁娌℃湁锛? 鈫? Count=0 Codes=0
+  [鈭氶€氳繃] 鏈鍒扮爜鏃跺啓 Info锛屼笖甯︿笂褰撳墠鐮佸埗锛堜究浜庣幇鍦鸿嚜鏌ユ槸涓嶆槸鐮佸埗閫夐敊浜嗭級  鈫? Info:鐮佽鍙栵細鏈抚鏈鍒扮爜锛堝綋鍓嶇爜鍒?Data Matrix ECC 200锛岃秴鏃?500ms锛夈€傝嫢鍥句笂纭湁鐮侊紝璇峰厛纭锛氣憼 鐮佸埗鏄惁閫夊锛涒憽 涓婄骇浼犳潵鐨勫浘鏄惁鎶婄爜瀹屾暣鍖呬綇锛堝埆璐磋竟瑁侊級
+  [鈭氶€氳繃] 鐮佸埗鍚嶄笉鍦ㄨ〃閲?鈫?鎶ュけ璐ヤ笖鎶婂彲閫夊€煎垪鍑烘潵锛堜笉闈欓粯閫€鍥為粯璁わ級  鈫? Success=False Error='鐮佸埗銆屼笉瀛樺湪鐨勭爜鍒躲€嶄笉鍦ㄦ敮鎸佺殑鐮佸埗琛ㄩ噷銆傚彲閫夛細auto / Code 128 / Code 39 / Code 93 / GS1-128 / EAN-13 / EAN-8 / UPC-A / UPC-E / 2/5 Interleaved / Codabar / Code 32 / MSI / PharmaCode / Data Matrix ECC 200 / QR Code / Micro QR Code / PDF417 / Aztec Code / DotCode'
+  [鈭氶€氳繃] 涓婃父娌¤繛鍥?鈫?鎶ュけ璐ヤ笖鎻愮ず鎸囧悜杩?Image  鈫? Success=False Error='涓婃父娌℃湁鍥惧儚锛氳鎶婁笂绾у畾浣嶈妭鐐癸紙鎴栬鍓妭鐐癸級鐨勮緭鍑鸿繛鍒版湰鑺傜偣鐨?Image'
+  [鈭氶€氳繃] Dispose 閲婃斁涓や釜妯″瀷鍙ユ焺涓嶆姏寮傚父
+
+---- [YOLO] 鍚庡鐞嗭細letterbox / 甯冨眬鏍￠獙 / 瑙ｇ爜 / NMS / 鍧愭爣鎹㈢畻 ----
+  [鈭氶€氳繃] letterbox锛堝鍥撅級锛氱缉鏀剧郴鏁颁笌琛ヨ竟姝ｇ‘  鈫? scale=0.5 scaled=100脳50 pad=(0,25)
+  [鈭氶€氳繃] letterbox锛堥珮鍥撅級锛氱缉鏀剧郴鏁颁笌琛ヨ竟姝ｇ‘  鈫? scale=0.5 scaled=50脳100 pad=(25,0)
+  [鈭氶€氳繃] 銆愭牳蹇冦€戝潗鏍囨崲绠楀洖鍘熷浘锛氬噺鍘昏ˉ杈瑰啀闄や互缂╂斁绯绘暟  鈫? letterbox(40,40,60,60) 鈫?鍘熷浘(80,30,120,70)锛屾湡鏈?(80,30,120,70)
+  [鈭氶€氳繃] 瓒婄晫妗嗚澶硅繘鍘熷浘鑼冨洿锛堜笅娓歌鍓墠涓嶄細鎷垮埌璐熷潗鏍囷級  鈫? 鈫?(0,0,199,99)锛屽簲钀藉湪 [0,200)脳[0,100) 鍐?
+  [鈭氶€氳繃] 甯冨眬鏍￠獙锛歒OLOv8 鐨?[1,84,8400] 琚瘑鍒紙80 绫伙級  鈫? layout=V8Transposed 绫诲埆鏁?80
+  [鈭氶€氳繃] 銆愭牳蹇冦€慪OLOv5 椋庢牸鐨?[1,25200,85] 琚槑纭嫆缁濓紙涓嶆寜 v8 纭В锛? 鈫? 杈撳嚭褰㈢姸 [25200,85] 鐪嬭捣鏉ユ槸 YOLOv5 椋庢牸鐨?[N, 5+C]锛堥€氶亾鍦ㄥ悗銆佸甫 objectness锛夛紝绗竴鏈熷彧鏀寔 YOLOv8/v11 鐨?[4+C, N] 甯冨眬銆傝嫢纭疄鏄?v5 妯″瀷锛岃鐢?v8/v11 閲嶆柊瀵煎嚭锛屾垨鑱旂郴寮€鍙戣ˉ鏀寔
+  [鈭氶€氳繃] 宸茬煡姝т箟锛氬垎鍓叉ā鍨嬬殑褰㈢姸鍦ㄥ嚑浣曚笂涓庢娴嬫棤娉曞尯鍒嗭紙浼氳璇鎴?112 绫伙級  鈫? 褰㈢姸鏍￠獙鍙兘缁欏嚭 112 绫?鈥斺€?杩欐鏄繀椤婚潬 task 鍏冩暟鎹厹搴曠殑鍘熷洜
+  [鈭氶€氳繃] 銆愭牳蹇冦€憈ask 鍏冩暟鎹畧鍗細segment 妯″瀷琚槑纭嫆缁濓紙褰㈢姸鎷︿笉浣忕殑瀹冭兘鎷︼級  鈫? 杩欎釜妯″瀷鐨勪换鍔＄被鍨嬫槸銆屽疄渚嬪垎鍓层€嶏紙鍏冩暟鎹?task=segment锛夛紝鑰屾湰鑺傜偣绗竴鏈熷彧鍋?*鐩爣妫€娴?*銆備笉鍚屼换鍔＄殑杈撳嚭鏍煎紡瀹屽叏涓嶅悓锛屾寜妫€娴嬭В璇讳細寰楀埌閿欒缁撴灉鍗翠笉鎶ラ敊锛屾墍浠ヨ繖閲岀洿鎺ユ嫆缁濄€傝鏀圭敤 detect 浠诲姟瀵煎嚭妯″瀷锛歽olo export model=浣犵殑妯″瀷.pt format=onnx
+  [鈭氶€氳繃] task 瀹堝崼锛歱ose 涔熸嫆锛沝etect 鏀捐銆佸厓鏁版嵁缂哄け鏃舵斁琛岋紙涓嶅洜缂哄厓鏁版嵁灏辨嫆缁濆彲鐢ㄦā鍨嬶級  鈫? pose鎷?True detect鏀捐=True 鏃犲厓鏁版嵁鏀捐=True
+  [鈭氶€氳繃] 瑙ｇ爜锛氭 3 涓洰鏍囪В鍑?3 涓紙绗?4 涓敋鐐瑰垎鏁颁綆浜庨槇鍊艰涓級  鈫? 瑙ｅ嚭 3 涓細鍒掍激(0.90) [40,40,60,60] | 鍒掍激(0.80) [42,42,62,62] | 缂洪櫡(0.70) [40,40,60,60]
+  [鈭氶€氳繃] 瑙ｇ爜锛氱被鍒储寮?/ 绫诲埆鍚?/ 缃俊搴︽纭? 鈫? 鍒掍激 conf=0.90
+  [鈭氶€氳繃] 瑙ｇ爜锛氭鎸?cxcywh 杩樺師涓哄乏涓婂彸涓嬶紙letterbox 鍧愭爣绯伙級  鈫? (40,40,60,60)锛屾湡鏈?(40,40,60,60)
+  [鈭氶€氳繃] 銆愭牳蹇冦€慛MS 鍚岀被鍘婚噸锛? 涓噸鍙犵殑銆屽垝浼ゃ€嶅彧鐣欑疆淇″害楂樼殑 1 涓? 鈫? 鍒掍激(0.90) [40,40,60,60]
+  [鈭氶€氳繃] 銆愭牳蹇冦€慛MS 鎸夌被鍒垎鍒仛锛氥€屽紓鐗┿€嶄笌銆屽垝浼ゃ€嶆瀹屽叏閲嶅彔涔熶簰涓嶅帇鍒? 鈫? 缁撴灉绫诲埆锛氬垝浼?缂洪櫡
+  [鈭氶€氳繃] 銆愭牳蹇冦€戠鍒扮锛堝彈鎺у紶閲忥級锛氭渶缁堟钀藉湪鍘熷浘姝ｇ‘浣嶇疆  鈫? 鏈€楂樼疆淇＄洰鏍囷細鍒掍激(0.90) [80,30,120,70]
+  [鈭氶€氳繃] 杈撳嚭鐢ㄦ硶婕旂ず锛堢鍙ｅ€煎舰鎬侊級  鈫? 
+      Count=2
+      ClassIds=2,0
+      ClassNames=鍒掍激,缂洪櫡
+      Confidences=0.900,0.700
+      Boxes=80,30,120,70,80,30,120,70锛堟瘡 4 涓竴缁?x1,y1,x2,y2锛?
+      BoxesText=鍒掍激:0.90@[80,30,120,70];缂洪櫡:0.70@[80,30,120,70]
+      letterbox: scale=0.5 pad=(0,25)
+  [鈭氶€氳繃] 妯″瀷娌″甫绫诲埆鍚嶆椂鐢?class_N 鍗犱綅锛屼笉缂栭€犲悕瀛? 鈫? class_2,class_0
+  [鈭氶€氳繃] 鍏ㄩ浂寮犻噺 鈫?瑙ｅ嚭 0 涓紙涓嶅穿锛? 鈫? 瑙ｅ嚭 0 涓?
+
+---- [YOLO] ONNX Runtime 渚濊禆閾捐矾涓庣湡瀹炴ā鍨?----
+  [鈭氶€氳繃] ONNX Runtime 渚濊禆閾捐矾锛堥渶瑕佷换涓€ ONNX 妯″瀷锛? 鈫? 璺宠繃锛氭湭鎵惧埌娴嬭瘯妯″瀷銆傝缃幆澧冨彉閲?YOLO_TEST_MODEL 鎸囧悜浠绘剰 .onnx 鍗冲彲鍚敤鏈粍鏂█
+
+---- [YOLO] 鏈€浣崇洰鏍囪鍓紙璺ㄦ帴绾挎柇灞傜殑鍏抽敭锛変笌鎻掍欢澹?----
+  [鈭氶€氳繃] 瑁佸壀锛氬昂瀵告寜妗嗙殑瀹介珮绠楀嚭锛?0脳10锛? 鈫? 20脳10
+  [鈭氶€氳繃] 銆愭牳蹇冦€戣鍓細瑁佸埌鐨勬槸妗嗘墍鎸囩殑浣嶇疆锛堢櫧鍧楀湪瑁佸壀鍥惧唴锛? 鈫? 鏈€澶х伆搴?255锛堝簲鎺ヨ繎 255锛?
+  [鈭氶€氳繃] 銆愭牳蹇冦€戣鍓細妗嗗鐨勫尯鍩熻鍑烘潵鏄叏榛戯紙璇佹槑琛屽垪娌″啓鍙嶏級  鈫? 20脳10 鏈€澶х伆搴?0锛堝簲涓?0锛?
+  [鈭氶€氳繃] 瑁佸壀锛氬姞 10 鍍忕礌杈硅窛鍚庡昂瀵稿彉澶э紙40脳30锛夛紝涓旀浠嶅湪鍥惧唴鏃朵笉璇ュ嚭鐜板す鍙栨彁绀? 鈫? 40脳30 note=''
+  [鈭氶€氳繃] 銆愭牳蹇冦€戣竟璺濇妸妗嗘帹鍑哄浘鍍忔椂琚す鍙栧苟鐣欑棔锛堜笉瓒婄晫涓嶆姤銆佽秺鐣屽繀鎶ワ級  鈫? 100脳90 note='锛堟敞鎰忥細妫€娴嬫瓒呭嚭鍥惧儚鑼冨洿锛屽凡澶瑰彇涓?琛? 鍒? 100脳90锛?
+  [鈭氶€氳繃] 銆愭牳蹇冦€戣秺鐣屾琚す杩涘浘鍍忚寖鍥达紙crop_part 瓒婄晫涓嶆姤閿欙紝蹇呴』鑷繁澶癸級  鈫? 200脳100 note='锛堟敞鎰忥細妫€娴嬫瓒呭嚭鍥惧儚鑼冨洿锛屽凡澶瑰彇涓?琛? 鍒? 200脳100锛?
+  [鈭氶€氳繃] 娌℃娴嬪埌鐩爣鏃朵笉鍋氳鍓紙杩斿洖绌鸿€屼笉鏄殢渚胯涓€鍧楋級
+  [鈭氶€氳繃] 鎻掍欢甯?[Display] 涓斿綊鍏ャ€屽浘鍍忓鐞嗐€嶇粍锛堝惁鍒欏涓绘壂鍒颁篃涓嶄細杩涚畻瀛愬垪琛級  鈫? Name=YOLO 鐩爣妫€娴?Group=鍥惧儚澶勭悊
+  [鈭氶€氳繃] 杈撳嚭绔彛濂戠害榻愬叏锛堟暟缁?+ 鏂囨湰 + 瑁佸壀鍥撅級  鈫? BestCrop,Boxes,BoxesText,ClassIds,ClassNames,Confidences,Count
+  [鈭氶€氳繃] 鏈€夋ā鍨?鈫?鎶ュけ璐ヤ笖鍘熷洜鎸囧悜閰嶇疆锛堜笉鎶涘紓甯革級  鈫? Success=False Error='灏氭湭閫夋嫨妯″瀷锛氳鍦ㄨ妭鐐归厤缃噷閫夋嫨涓€涓?.onnx 妫€娴嬫ā鍨?
+  [鈭氶€氳繃] 妯″瀷璺緞涓嶅瓨鍦?鈫?鎶ュけ璐ヤ笖鍘熷洜鍚€屼笉瀛樺湪銆? 鈫? Success=False Error='妯″瀷鏂囦欢涓嶅瓨鍦細C:\涓嶅瓨鍦ㄧ殑妯″瀷.onnx銆傝閲嶆柊閫夋嫨锛屾垨鎶婃ā鍨嬫斁鍒拌璺緞'
+  [脳澶辫触] 绫诲埆杩囨护濉簡闈炴硶鍊?鈫?鎶ュけ璐ュ苟璇存槑璇ュ～浠€涔堬紙涓嶉潤榛樺拷鐣ワ級  鈫? Success=False Error='妯″瀷鏂囦欢涓嶅瓨鍦細C:\涓嶅瓨鍦ㄧ殑妯″瀷.onnx銆傝閲嶆柊閫夋嫨锛屾垨鎶婃ā鍨嬫斁鍒拌璺緞'
+  [鈭氶€氳繃] 浼氳瘽闅忔ā鍨嬭矾寰勫垏鎹紙闇€瑕?ONNX 妯″瀷锛? 鈫? 璺宠繃锛氭湭鎵惧埌娴嬭瘯妯″瀷
+
+---- [Blob] 缂洪櫡妫€娴嬫彃浠讹紙鍚堟垚纭畾鎬у浘鍍忛獙璇侊級 ----
+  [鈭氶€氳繃] 杩愯涓嶆姏寮傚父
+  [鈭氶€氳繃] 鎶ユ垚鍔燂紙妫€鍑虹己闄锋槸姝ｅ父宸ュ喌锛屼笉鏄け璐ワ級  鈫? Success=True Error='缂洪櫡涓暟 5 瓒呰繃涓婇檺 0'
+  [鈭氶€氳繃] 銆愭牳蹇冦€戞鍑?5 涓己闄凤紙4px 鐨勫櫔鐐硅闈㈢Н涓嬮檺婊ゆ帀锛? 鈫? DefectCount=5
+  [鈭氶€氳繃] 銆愭牳蹇冦€戜簲涓暟缁勭鍙ｉ€愰」瀵归綈锛堜笅娓告寜鍚屼竴绱㈠紩鍙栧氨鑳藉涓婂彿锛? 鈫? areas=5 rows=5 cols=5 w=5 h=5
+  [鈭氶€氳繃] MaxArea 绛変簬閫愰」闈㈢Н鐨勬渶澶у€? 鈫? MaxArea=208 areas.Max=208
+  [鈭氶€氳繃] TotalArea 绛変簬閫愰」闈㈢Н涔嬪拰  鈫? TotalArea=498 sum=498
+  [鈭氶€氳繃] 榛樿闆跺蹇?鈫?鍒?NG锛屼絾 Success 浠嶄负 true锛圢G 鏄甯哥粨鏋滐級  鈫? IsOk=False Success=True Err='缂洪櫡涓暟 5 瓒呰繃涓婇檺 0'
+  [鈭氶€氳繃] 銆愭帓搴忋€戦潰绉粠澶у埌灏忥細杈撳嚭纭疄鍗曡皟涓嶅  鈫? 208, 112, 64, 62, 52
+  [鈭氶€氳繃] 銆愭帓搴忋€戞帓搴忓悗绗竴涓氨鏄?MaxArea  鈫? first=208 MaxArea=208
+  [鈭氶€氳繃] 銆愯Е杈规帓闄ゃ€慐xcludeBorderPx=1 鈫?鎭板ソ灏戜竴涓紙璐村彸杈圭紭閭ｄ釜琚涪鎺夛級  鈫? DefectCount=4锛堟湡鏈?4锛?
+  [鈭氶€氳繃] 銆愯Е杈规帓闄ゃ€戝墿涓嬬殑閮戒笉鍘嬪埌鏈€澶?1 鍍忕礌  鈫? c=49.5,w=12,c=99.5,w=8,c=149.5,w=16,c=10.5,w=2
+  [鈭氶€氳繃] 銆愰暱瀹芥瘮銆慚axAspectRatio=5 鈫?缁嗛暱鏉¤鎺掗櫎锛? 涓墿 4 涓級  鈫? DefectCount=4锛堟湡鏈?4锛?
+  [鈭氶€氳繃] 銆愰暱瀹芥瘮銆戝墿涓嬬殑姣忎釜閮?鈮?璁惧畾鐨勯暱瀹芥瘮  鈫? 8脳8,12脳12,8脳8,16脳16
+  [鈭氶€氳繃] 銆愬渾搴︺€慚inCircularity=0.5 鈫?缁嗛暱鏉¤鎺掗櫎锛堝渾鏂戜繚鐣欙級  鈫? DefectCount=4锛堟湡鏈?4锛?
+  [鈭氶€氳繃] 銆愬悎骞躲€戞柇瑁備袱娈碉細涓嶅悎骞舵槸 2 涓? 鈫? DefectCount=2锛堟湡鏈?2锛?
+  [鈭氶€氳繃] 銆愬悎骞躲€慚ergeRadius=2.5 鈫?鍚堝苟鎴?1 涓紙鍒掔棔鏂涓嶅啀铏氶珮璁℃暟锛? 鈫? DefectCount=1锛堟湡鏈?1锛?
+  [鈭氶€氳繃] 銆愬～瀛斻€戠幆褰㈢己闄峰～瀛斿悗闈㈢Н鍙樺ぇ锛堝瓟涓嶅啀琚紡绠楋級  鈫? 鏈～=948 濉悗=1264
+  [鈭氶€氳繃] 銆愬瓨鍦ㄦ€с€戜釜鏁板皯浜庝笅闄?鈫?鍒?NG 涓斿師鍥犲啓鏄庛€屽皯浜庝笅闄愩€? 鈫? IsOk=False Err='缂洪櫡涓暟 5 灏戜簬涓嬮檺 6锛堢洰鏍囩壒寰佹湭妫€鍒帮級'
+  [鈭氶€氳繃] 銆愭€婚潰绉€戝崟缂洪櫡閮藉悎鏍间絾鎬婚潰绉秴鏍?鈫?鍒?NG 涓斿師鍥犲啓鏄庛€屾€婚潰绉€? 鈫? IsOk=False Err='缂洪櫡鎬婚潰绉?498 瓒呰繃涓婇檺 10'
+  [鈭氶€氳繃] 銆愬儚绱犲綋閲忋€憁m虏 = 鍍忕礌闈㈢Н 脳 褰撻噺虏锛堝綋閲?2 鈫?脳4锛? 鈫? px=208 mm虏=832
+  [鈭氶€氳繃] 銆愬綋閲忕洿杩炪€戝凡鎺ヤ笂娓?鈫?浠ヨ繛绾夸负鍑嗭紙褰撻噺 0.5 鈫?脳0.25锛涙墜濉?2.0 琚拷鐣ワ級  鈫? px=208 mm虏=52锛堟墜濉?2.0 鑻ョ敓鏁堜細鏄?脳4锛?
+  [鈭氶€氳繃] 銆愬綋閲忕洿杩炪€戜笂娓稿綋閲忔棤鏁?鈫?鏄庣‘澶辫触涓旀寚銆屾爣瀹氥€嶏紙缁濅笉闈欓粯鍥為€€锛? 鈫? Success=False Err='鍍忕礌褰撻噺鏉ヨ嚜涓婃父杩炵嚎浣嗘棤鏁堬紙0锛夛細璇锋鏌ヤ笂娓革紙銆屾爣瀹氥€嶆楠ゆ湰杞槸鍚︽垚鍔?/ 閾炬帴鐨勫彉閲忔槸鍚︽湁鍊硷級锛屾垨鏀圭敤鎵嬪～鍍忕礌褰撻噺骞舵柇寮€璇ヨ繛绾?
+  [鈭氶€氳繃] 銆愬紑杞噸缃€戝け璐ヨ疆鎶婁笂涓€杞殑鑴忔暟鎹竻闆讹紙涓嬫父涓嶄細璇诲埌鏃х粨鏋滐級  鈫? 涓婁竴杞?5 鏈疆 Count=0 IsOk=False
+  [鈭氶€氳繃] 澶辫触鍘熷洜鍐欐槑鏄浘鍍忎负绌? 鈫? Success=False Err='杈撳叆鍥惧儚涓虹┖鎴栨湭鍒濆鍖?
+  [鈭氶€氳繃] 銆愪綅娣便€憉int2 鏍囨敞搴曞浘鎸夊疄闄呯伆搴﹁寖鍥存媺浼? 鈫? 璺宠繃锛氭湰鐜绂诲睆绐楀彛涓嶆覆鏌撳簳鍥惧眰娆★紙byte 瀵圭収缁勮法搴?0锛屾湡鏈?鈮?00锛夛紝闇€鍦ㄥ甫鏄剧ず浼氳瘽鐨勭幆澧冮噷鐩纭 鈥斺€?浣嶆繁鎴柇鐨勫疄璐ㄨ瘉鎹寮€鍙戣褰曪紙uint2 1632 鈫?byte 瀹炴祴涓?255锛?
+  [鈭氶€氳繃] 銆愬閫氶亾銆? 閫氶亾杈撳叆妫€鍑轰笌 1 閫氶亾涓€鑷? 鈫? 1閫氶亾=5 3閫氶亾=5
+  [鈭氶€氳繃] 銆愬閫氶亾銆? 閫氶亾杈撳叆妫€鍑轰笌 1 閫氶亾涓€鑷达紙alpha 琚拷鐣ワ級  鈫? 4閫氶亾=5 1閫氶亾=5
+  [鈭氶€氳繃] 銆愬閫氶亾銆? 閫氶亾杈撳叆鐨勬爣娉ㄥ浘鐓ф牱鐢熸垚锛堝簳鍥惧凡涓?alpha锛屾覆鏌撲笉鎶ラ敊锛? 鈫? Warn=
+  [鈭氶€氳繃] 銆愮紪鍙枫€戠己闄锋梺鍐欐湁 1 鍩虹紪鍙凤紙涓庤緭鍑虹鍙ｉ『搴忛€愰」瀵瑰簲锛? 鈫? 缂栧彿閿氱偣寮€绐楃孩涓诲鍍忕礌=7锛堟湡鏈?鈮?锛涗笉鍐欑紪鍙锋椂涓?0锛?
+
+---- [Blob] 瑙嗗浘鏍峰紡鏀剁紪濂戠害锛圲I 搴?Plugin* 浠ょ墝锛?----
+  [鈭氶€氳繃] 銆愭敹缂栥€戞彃浠惰鍥鹃噷宸叉棤纭紪鐮侀鑹诧紙棰滆壊涓€寰嬭蛋浠ょ墝锛?
+  [鈭氶€氳繃] 銆愭敹缂栥€戞彃浠惰鍥句笉鍐嶆湰鍦板畾涔?CardBorder/CardTitle/HintText/FieldLabel/NumericBox
+  [鈭氶€氳繃] 銆愭敹缂栥€戞彃浠惰鍥炬敼鐢?Plugin* 鍏叡鏍峰紡
+  [鈭氶€氳繃] 銆愭敹缂栥€戣鍥句笉缁?h: 鎺т欢鎸傚唴鑱?Style锛堥《鎺夐殣寮忔牱寮?鎺т欢娌℃ā鏉匡紝棰勮浼氭案杩滅┖鐧斤級
+  [鈭氶€氳繃] 銆愭牳蹇冦€戜富棰樹护鐗岋紙棰滆壊/灏哄锛夊叏閮ㄥ湪 UI 搴撻噷锛堟崲涓婚鍙敼杩欎竴鏈級
+  [鈭氶€氳繃] 銆愭牳蹇冦€慞lugin* 鍏叡鏍峰紡鍏ㄩ儴鍦?UI 搴撻噷
+  [鈭氶€氳繃] 銆愭牳蹇冦€戞彃浠惰鍥惧紩鐢ㄧ殑姣忎釜 Plugin* 閿兘鏈夊畾涔夛紙杩愯鏈熸姤'鎵句笉鍒拌祫婧?灏辨槸杩欐潯娌″畧浣忥級  鈫? 鍏卞紩鐢?25 涓敭
+  [鈭氶€氳繃] 銆愭牳蹇冦€慞luginConfigStyles 鑷繁鍚堝苟浜?PluginConfigColors锛堝悎骞跺瓧鍏镐笉妯悜鏌ユ壘锛?
+  [鈭氶€氳繃] Generic.xaml 宸插悎骞?Plugin* 涓ゆ湰瀛楀吀锛堝涓讳笌鎻掍欢閮介潬瀹冩嬁鍒版牱寮忥級
+
+---- [PortBind] 绔彛缁戝畾绫诲瀷鍒ゆ嵁锛堝垪琛ㄨ繃婊や笌鍙屽嚮鏍￠獙鍏辩敤鍚屼竴鎶婂昂瀛愶級 ----
+  [鈭氶€氳繃] 銆愬垽鎹€戝悓绫诲瀷鍙粦
+  [鈭氶€氳繃] 銆愬垽鎹€戞淳鐢熺被 鈫?鍩虹被鍙粦锛圚Image 鈫?HObject锛?
+  [鈭氶€氳繃] 銆愬垽鎹€戞暣鍨?鈫?娴偣鍙粦锛堟暟鍊兼嫇瀹斤級
+  [鈭氶€氳繃] 銆愬垽鎹€戜换鎰忕被鍨?鈫?object 绔彛鍙粦
+  [鈭氶€氳繃] 銆愬垽鎹€戜换鎰忕被鍨?鈫?string 绔彛鍙粦锛堝瓧绗︿覆鍖栨槸鏈夋剰鏀惧紑鐨勶級
+  [鈭氶€氳繃] 銆愬垽鎹€戞暟缁?鈫?鍚屽厓绱犳爣閲忓彲缁戯紙缁戝畾鏃舵寜涓嬫爣鍙栦竴涓級
+  [鈭氶€氳繃] 銆愬垽鎹€戞暟缁?鈫?鏁扮粍浠嶈蛋甯歌鍏煎鍒ゆ柇
+  [鈭氶€氳繃] 銆愬垽鎹€戝厓绱犵被鍨嬩笉鍏煎鏃讹紝鏁扮粍涔熶笉鑳界粦锛坉ouble[] 鈫?HImage锛?
+  [鈭氶€氳繃] 銆愬垽鎹€慔Region 鈫?HImage 涓嶅彲缁?
+  [鈭氶€氳繃] 銆愬垽鎹€慔Image 鈫?鏁板€肩鍙ｄ笉鍙粦
+  [鈭氶€氳繃] 銆愬垽鎹€憃bject 鈫?鍏蜂綋绫诲瀷绔彛**鍙粦**锛堢被鍨嬪緟瀹氾紝浜ょ粰杩愯鏈熸牎楠岋級  鈫? 鏀瑰洖銆屼笉鍙粦銆嶄細璁╁叏灞€鍙橀噺閫変笉涓换浣曞己绫诲瀷绔彛锛岃〃鐜颁负缁戝畾寮圭獥鍙充晶鍒楄〃绌虹潃
+  [鈭氶€氳繃] 銆愬垽鎹€憃bject 浣滀负鐩爣绔彛鍚屾牱鏀捐锛堣绠辨案杩滄垚绔嬶級
+  [鈭氶€氳繃] 銆愬垽鎹€憂ull 鍏ュ弬涓嶆姏銆佽繑鍥?false
+  [鈭氶€氳繃] 銆愬垽鎹€戝彇鍏冪礌绫诲瀷锛氭暟缁勭粰鍏冪礌绫诲瀷銆侀潪鏁扮粍缁欒嚜韬?
+
+---- [G] 鍙橀噺绠＄悊锛氭槑缁嗙瓫閫夛紙鏉ユ簮 / 鎼滅储 / 鏁扮粍瀛愯璺熼殢鐖剁骇锛?----
+  [鈭氶€氳繃] 閫変腑銆屾湰鍦板彉閲忋€嶏細鍙墿鏈湴鏍硅妭鐐?+ 瀹冪殑鏁扮粍瀛愯  鈫? 瀹為檯锛欱arcode,[0],[1]
+  [鈭氶€氳繃] 鈽呴€変腑銆岀綉缁滃彉閲忋€嶏細鏁扮粍瀛愯涓嶈婕忓嚭鏉ワ紙鏃у疄鐜板湪杩欓噷婕?2 琛屾棤涓?[0]/[1]锛? 鈫? 瀹為檯锛歍est
+  [鈭氶€氳繃] 鎼滅储鍛戒腑鐨勬槸缃戠粶鍙橀噺鏃讹紝鏈湴鏍逛笌瀹冪殑瀛愯涓€璧锋秷澶? 鈫? 瀹為檯锛?
+  [鈭氶€氳繃] 鎼滅储鍛戒腑鏁扮粍鏍癸紙鎸夋弿杩帮級鏃讹紝瀛愯璺熺潃涓€璧风暀涓? 鈫? 瀹為檯锛欱arcode,[0],[1]
+  [鈭氶€氳繃] 鎼滅储鎸夊湴鍧€鍛戒腑缃戠粶鍙橀噺  鈫? 瀹為檯锛歍est
+  [鈭氶€氳繃] 閫変腑涓嶅瓨鍦ㄧ殑杩炴帴锛氫粈涔堥兘涓嶆樉绀猴紙涔熶笉璁告紡瀛愯锛? 鈫? 瀹為檯锛?
+
+---- [G] 鏁扮粍鍏冪礌灏卞湴缂栬緫锛氬啓鍥炵埗鏁扮粍 / 绫诲瀷鏍￠獙 / 鐣欑┖鐢ㄩ粯璁ゅ€?----
+  [鈭氶€氳繃] 鏀瑰厓绱?鈫?鍒濆鍊间笌褰撳墠鍊煎悓姝ュ啓涓嬫爣  鈫? DefaultValue=[A,C] Value=[A,C]
+  [鈭氶€氳繃] 鑺傜偣鑷韩鍥炴樉鍚屾鏇存柊  鈫? ChildDefaultValue=C
+  [鈭氶€氳繃] 闈炴硶鍊兼姏寮傚父銆佷笖妯″瀷淇濇寔鍘熷€硷紙涓嶆薄鏌擄級  鈫? 鎶涘紓甯?True 妯″瀷[0]=1
+  [鈭氶€氳繃] int 鍏冪礌鐣欑┖ 鈫?鍐欏叆 0  鈫? 妯″瀷[0]=0
+  [鈭氶€氳繃] string 鍏冪礌鐣欑┖ 鈫?鍐欏叆 null锛堝紩鐢ㄧ被鍨嬫病鏈夊彲瀹炰緥鍖栫殑榛樿鍊硷級
+  [鈭氶€氳繃] ElementIndex 鏈锛?1锛夋椂涓嶅啓浠讳綍涓滆タ锛堥槻姝㈣鏀圭埗鏁扮粍锛? 鈫? 妯″瀷[1]=C
+
+---- [G] 鏁扮粍缂栬緫锛氭枃鏈浆鏁扮粍锛堢暀绌虹敤榛樿鍊?/ 闈炴硶鍊兼槑纭け璐ワ級 ----
+  [鈭氶€氳繃] int[]锛氭甯稿€煎啓鍏ャ€佺┖涓叉寜 0 澶勭悊  鈫? 1,2,0
+  [鈭氶€氳繃] double[]锛氭寜鍏冪礌绫诲瀷杞崲锛堜笉鏄寜瀛楃涓叉嫾锛? 鈫? 1.5,2
+  [鈭氶€氳繃] int[]锛氶潪娉曞厓绱犳暣浣撳け璐ュ苟缁欏嚭鍘熷洜锛堜笉鍗婇€斿啓鍏ワ級  鈫? error=The input string 'abc' was not in a correct format.
+  [鈭氶€氳繃] 绌哄垪琛?鈫?闀垮害 0 鐨勬暟缁勶紙鏂板缓鏁扮粍鐨勫垵濮嬪舰鎬侊紝蹇呴』鑳藉缓鎴愶級
+  [鈭氶€氳繃] string[]锛氱┖涓蹭繚鐣欎负 null 鍏冪礌锛堣€屼笉鏄涓㈠純锛岄暱搴﹀繀椤讳笌鐣岄潰涓€鑷达級  鈫? a,<null>,c
+  [鈭氶€氳繃] 璇紶鏁扮粍绫诲瀷鏃舵槑纭け璐ワ紙鑰屼笉鏄姏涓€鍙ユ寚涓嶅埌闂鎵€鍦ㄧ殑 InvalidCastException锛? 鈫? error=鍏冪礌绫诲瀷涓嶈兘鏄暟缁勶紙鏀跺埌 Int32[]锛屽簲浼犲厓绱犵被鍨嬫湰韬級
+
+---- [M] 杩愬姩鎺у埗鍐呮牳锛氶棬绂?/ 寮傛璇箟 / 杞檺浣?/ 鎬ュ仠鎵撴柇 / 鐪嬮棬鐙?/ 鎶ヨ / 鍥為浂 ----
+
+---- [M] 鍛戒护闂ㄧ涓庡紓姝ヨ涔夛紙涓嬪彂 鈮?鍒颁綅锛?----
+  [鈭氶€氳繃] 鏈繛鎺ユ椂鍛戒护琚嫆缁濓紙涓嶄細闈欓粯鎺掗槦绛夌潃锛? 鈫? 杩斿洖=Rejected_NotConnected 鎷掔粷鏁?2
+  [鈭氶€氳繃] 杩炴帴鎴愬姛涓旂姸鎬佷负鍦ㄧ嚎  鈫? 鐘舵€?Online 璇存槑=宸茶繛鎺ヨ櫄鎷熷崱锛? 杞达紝缁濆缂栫爜鍣紝浣嶇疆鍙俊锛?
+  [鈭氶€氳繃] 杩炴帴鍚庤兘鍔涘凡鍥炲～锛? 杞?/ 8 杈撳叆 / 8 杈撳嚭 / 鏈夌‖闄愪綅锛? 鈫? 杞?3 DI=8 DO=8
+  [鈭氶€氳繃] 缁濆寮忕紪鐮佸櫒锛氳繛鎺ュ悗浣嶇疆鍗冲彲淇★紙IsHomed=true锛? 鈫? IsHomed=True
+  [鈭氶€氳繃] 杞翠娇鑳藉懡浠ゅ畬鎴愶紝涓旇澶囧洖鎶ュ凡浣胯兘  鈫? 鍛戒护=Done 璁惧鍥炴姤浣胯兘=True
+  [鈭氶€氳繃] 鈽匨ove 涓嬪彂鎴愬姛 鈮?宸插埌浣嶏紙鍛戒护宸?Done锛屼絾杞翠粛鍦ㄩ€斾腑锛? 鈫? 鍛戒护=Done 鍒颁綅=False 浣嶇疆=2.00mm
+  [鈭氶€氳繃] 杞鎺ㄨ繘鍚庤酱鐪熺殑璧板埌鐩爣锛堜綅缃?鈮?20mm 涓斿埌浣嶏級  鈫? 浣嶇疆=20.00mm
+  [鈭氶€氳繃] 杞村彿瓒婄晫琚嫆缁濓紙鑳藉姏宸茬煡鏃舵寜鑳藉姏鏍￠獙锛? 鈫? 杩斿洖=Rejected_InvalidArgument
+
+---- [M] 杞檺浣嶉棬绂?----
+  [鈭氶€氳繃] 鐩爣瓒呭嚭杞檺浣嶆椂琚嫆缁濓紙涓嶈杞村線闄愪綅鏂瑰悜璧帮級  鈫? 杩斿洖=Rejected_InvalidArgument 鐩爣=500mm 杞檺浣嶄笂闄?100mm
+  [鈭氶€氳繃] 杞檺浣嶆嫆缁濊涓?Notice 绾э紙涓氬姟涓婃甯革紝涓嶈褰撴垚璁惧鏁呴殰锛? 鈫? 绾у埆=Notice 璇存槑=鐩爣 500.000 mm 瓒呭嚭杞檺浣?[-100.0, 100.0] mm
+  [鈭氶€氳繃] 琚蒋闄愪綅鎷掔粷鍚庤澶囦粛鏄彲鐢ㄧ殑锛堜笉杩涙姤璀?瀹夊叏鍋滄満锛? 鈫? 鐘舵€?Online
+
+---- [M] 鎬ュ仠锛氭竻绌洪槦鍒?+ 鎵撴柇姝ｅ湪鎵ц鐨勫懡浠?----
+  [鈭氶€氳繃] 鍥為浂鎵ц鏈熼棿锛屽悗缁懡浠ゅ湪鎺掗槦绛夊緟  鈫? 寰呮墽琛?2
+  [鈭氶€氳繃] 鎬ュ仠琚帴鍙? 鈫? 杩斿洖=Accepted
+  [鈭氶€氳繃] 鈽呮€ュ仠鑳芥墦鏂鍦ㄦ墽琛岀殑鍛戒护锛堝洖闆剁珛鍒荤粨鏉燂紝鑰屼笉鏄瓑瀹冭窇瀹岋級  鈫? 鍥為浂鐘舵€?Canceled 鍘熷洜=琚€ュ仠涓柇
+  [鈭氶€氳繃] 鈽呮€ュ仠娓呯┖寰呮墽琛岄槦鍒楋紙鎺掗槦鐨?Move 鍏ㄩ儴琚彇娑堬級  鈫? q1=Canceled q2=Canceled
+  [鈭氶€氳繃] 鎬ュ仠鏄鏈熸搷浣滐細涓嶈鎴愯澶囨晠闅溿€佷篃涓嶈繘瀹夊叏鍋滄満  鈫? 鐘舵€?Online 鏈€杩戞晠闅?
+
+---- [M] 鐪嬮棬鐙楋細杞澶辫仈 鈫?瀹夊叏鍋滄満 + 浣嶇疆澶辨晥 ----
+  [鈭氶€氳繃] 澧為噺寮忕紪鐮佸櫒锛氳繛鎺ュ悗浣嶇疆涓嶅彲淇★紙IsHomed=false锛? 鈫? IsHomed=False
+  [鈭氶€氳繃] 鍥為浂鍚?IsHomed=true  鈫? IsHomed=True
+  [鈭氶€氳繃] 鈽呰疆璇㈣繛缁け璐ュ悗杩涘叆瀹夊叏鍋滄満锛堢湅闂ㄧ嫍锛? 鈫? 鐘舵€?SafeStopped 璇存槑=鐘舵€佽疆璇㈣繛缁け璐?3 娆★細妯℃嫙锛氫笌杩愬姩鍗＄殑閫氫俊涓柇锛涘凡瀹夊叏鍋滄満
+  [鈭氶€氳繃] 閫氫俊绫诲け鑱旇涓哄彲鎭㈠绾э紙鑰屼笉鏄渶浜哄伐澶嶄綅锛? 鈫? 绾у埆=Recoverable 璇存槑=鐘舵€佽疆璇㈣繛缁け璐?3 娆★細妯℃嫙锛氫笌杩愬姩鍗＄殑閫氫俊涓柇 寤鸿=妫€鏌ョ綉绾?鐢垫簮涓庡崱鏄惁姝绘満锛涘閲忕紪鐮佸櫒閲嶆柊杩炴帴鍚?*蹇呴』閲嶆柊鍥為浂**鍐嶈繍鍔?
+  [鈭氶€氳繃] 鈽呭閲忕紪鐮佸櫒澶辫仈鍚?IsHomed 褰?false锛堜綅缃笉鍙俊锛屽繀椤婚噸鏂板洖闆讹級  鈫? IsHomed=False
+  [鈭氶€氳繃] 瀹夊叏鍋滄満鍚庝笉鍐嶆帴鍙楄繍鍔ㄥ懡浠わ紙涓嶄細鍦ㄤ笉鐭ラ亾杞村湪鍝殑鎯呭喌涓嬬户缁蛋锛? 鈫? 杩斿洖=Rejected_NotConnected
+
+---- [M] 鎶ヨ锛氱姸鎬侀棬绂?鈫?娓呮姤璀︽仮澶?----
+  [鈭氶€氳繃] 鈽呰疆璇㈠埌浼烘湇鎶ヨ 鈫?鐘舵€佽浆 Alarm  鈫? 鐘舵€?Alarm 璇存槑=A2锛氭ā鎷燂細浼烘湇鎶ヨ
+  [鈭氶€氳繃] 鎶ヨ鏁呴殰涓洪渶浜哄伐澶嶄綅绾э紙蹇呴』浜哄伐纭锛屼笉鑳借嚜鍔ㄦ仮澶嶏級  鈫? 绾у埆=RequiresReset 璇存槑=A2锛氭ā鎷燂細浼烘湇鎶ヨ
+  [鈭氶€氳繃] 鈽呮姤璀︽€佹嫆缁濊繍鍔ㄥ懡浠わ紙涓嶄細瀵圭潃鎶ヨ涓殑杞翠笅鍙?Move锛? 鈫? 杩斿洖=Rejected_NotConnected
+  [鈭氶€氳繃] 鈽呮竻闄ゆ姤璀﹀悗鍥炲埌鍙繍鍔ㄧ姸鎬侊紙涓嶅繀閲嶅惎杞欢锛? 鈫? 娓呮姤璀?True 鍘熷洜= 鐘舵€?Online
+  [鈭氶€氳繃] 娓呮姤璀﹀悗杩愬姩鍛戒护鎭㈠姝ｅ父  鈫? 杩斿洖=Accepted
+
+---- [M] 鍥為浂锛氬畬鎴愬嵆褰掗浂 / 涓嶆敮鎸佺殑鏂瑰紡褰撳満鎷︿綇 ----
+  [鈭氶€氳繃] 鍥為浂鍛戒护瀹屾垚  鈫? 鐘舵€?宸插埌浣嶏紙0.000 mm锛?
+  [鈭氶€氳繃] 鍥為浂鍚庝綅缃綊闆讹紙鍧愭爣绯婚噸寤猴級  鈫? 浣嶇疆=0.00mm
+  [鈭氶€氳繃] 鈽呬笉鏀寔鐨勫洖闆舵柟寮忓湪鍏ラ槦鏃跺氨琚嫆缁濓紙鑰屼笉鏄繍琛屽埌涓€鍗婃墠澶辫触锛? 鈫? 杩斿洖=Rejected_NotSupported
+
+---- [Z] 姝ｈ繍鍔ㄩ┍鍔ㄤ笌璋冭瘯闈㈡澘锛氬洖闆剁爜 / 鏈哄瀷 / 浣嶅煙 / 鏁呴殰鍒嗙骇 / 閮ㄧ讲 / 鐐瑰姩 ----
+
+---- [Z] 鍥為浂妯″紡鐮佹槧灏勶紙姝ｈ繍鍔?homemode锛?----
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆岃礋闄愪綅+Index銆嶁啋 1  鈫? 瀹為檯=1
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆屾闄愪綅+Index銆嶁啋 2  鈫? 瀹為檯=2
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆岃礋闄愪綅銆嶁啋 17  鈫? 瀹為檯=17
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆屾闄愪綅銆嶁啋 18  鈫? 瀹為檯=18
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆屽師鐐广€嶁啋 19  鈫? 瀹為檯=19
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆屾闄愪綅+鍘熺偣銆嶁啋 23  鈫? 瀹為檯=23
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆岃礋闄愪綅+鍘熺偣銆嶁啋 27  鈫? 瀹為檯=27
+  [鈭氶€氳繃] 鍥為浂鏂瑰紡銆岄浂浣嶇疆棰勮銆嶁啋 37  鈫? 瀹為檯=37
+  [鈭氶€氳繃] 濂戠害閲屽畾涔夌殑鍥為浂鏂瑰紡鍏ㄩ儴鏈夋槧灏勶紙娌℃湁婕忕綉鐨勬灇涓惧€硷級  鈫? 缂哄け锛?
+  [鈭氶€氳繃] 闆朵綅缃璁捐鏍囪涓恒€屼笉闇€瑕佹壘寮€鍏炽€嶏紙鐣岄潰鎹鎻愮ず锛?
+
+---- [Z] 鏈哄瀷 鈫?鑳藉姏锛堣酱鏁?/ IO 鏁帮級 ----
+  [鈭氶€氳繃] ECI3428 鈫?4 杞?/ 24 鍏?/ 16 鍑猴紙宸茶瘑鍒級  鈫? 4 杞?/ 24 鍏?/ 16 鍑?/ 璇嗗埆=True
+  [鈭氶€氳繃] ECI3828 鈫?8 杞?/ 24 鍏?/ 20 鍑猴紙鍚屼竴椹卞姩鐨勪笉鍚屾満鍨嬶紝鑳藉姏涓嶅悓锛? 鈫? 8 杞?/ 24 鍏?/ 20 鍑?
+  [鈭氶€氳繃] ZMC408SCAN 鈫?4 杞达紙ZMC 绯诲垪涔熷湪琛ㄥ唴锛? 鈫? 4 杞?
+  [鈭氶€氳繃] VPLC532R锛堣櫄鎷?PLC / RTSys 浠跨湡鍣級鈫?32 杞达紝涓斿瀹炴爣璁般€孖O 鐐规暟鏈牳瀹炪€? 鈫? 32 杞达綔IO 24/16锛堟湭鏍稿疄=True锛夆€斺€擵PLC 鐨勭偣浣嶅彇鍐充簬缁勬€侊紝鎶ヤ竴涓湅璧锋潵纭畾鐨勬暟瀛楀弽鑰岃瀵?
+  [鈭氶€氳繃] 閰嶇疆鐣欑┖鏃剁敤鎺у埗鍣ㄤ笂鎶ョ殑鏈哄瀷  鈫? 8 杞?
+  [鈭氶€氳繃] 涓婃姤鏈哄瀷甯︾増鏈悗缂€涔熻兘鍖归厤锛堝墠缂€鍖归厤锛? 鈫? 8 杞?
+  [鈭氶€氳繃] 閰嶇疆鏈哄瀷浼樺厛浜庝笂鎶ユ満鍨嬶紙鐢ㄦ埛鐭ラ亾鐨勫彲鑳芥洿鍑嗭級
+  [鈭氶€氳繃] 鈽呮湭璇嗗埆鏈哄瀷涓嶇寽锛氭爣璁?Recognized=false 骞舵寜鏈€灏忛厤缃厹搴? 鈫? 璇嗗埆=False 杞存暟=4锛堟姤灏忕殑鍚庢灉鏄€屾煇浜涜酱涓嶈兘鎿嶄綔銆嶏紝鍙鍙敼锛涙姤澶х殑鍚庢灉鏄湞鐫€涓嶅瓨鍦ㄧ殑杞翠笅鍙戝懡浠わ級
+
+---- [Z] 杞寸姸鎬佷綅鍩熻В鏋?----
+  [鈭氶€氳繃] 浣嶅畾涔夛細鎶ヨ=bit3 / 姝ｉ檺浣?bit4 / 璐熼檺浣?bit5 / 鍒颁綅=bit11 / 鎬ュ仠=bit12  鈫? Alm=8 Pot=10 Net=20 Inp=800 Emg=1000
+  [鈭氶€氳繃] 鐘舵€佸瓧 0x800锛堜粎鍒颁綅锛夆啋 鍒颁綅=true銆佸叾浣欏叏 false  鈫? 鏈娇鑳?
+  [鈭氶€氳繃] 鈽呯姸鎬佸瓧 0x08锛堟姤璀︿綅锛夆啋 鎶ヨ=true 涓旀湁璇存槑锛堣鎴愬埌浣嶅氨绛変簬瀹夊叏鍋滄満涓嶈Е鍙戯級  鈫? 鎶ヨ锛氫己鏈嶆姤璀?
+  [鈭氶€氳繃] 鐘舵€佸瓧 0x30 鈫?姝ｈ礋闄愪綅鍚屾椂瑙﹀彂锛堜袱涓綅浜掍笉骞叉壈锛? 鈫? 姝ｉ檺浣嶈瑙﹀彂
+  [鈭氶€氳繃] 鐘舵€佸瓧 0x1000 鈫?鎬ュ仠杈撳叆瑙﹀彂锛堝睘涓寸晫淇″彿锛? 鈫? 鎬ュ仠杈撳叆琚Е鍙?
+  [鈭氶€氳繃] 鍏ㄤ綅閮界疆浣嶆椂浜旈」鍏ㄤ负 true锛堜綅瑙ｆ瀽娌℃湁浜掔浉瑕嗙洊锛? 鈫? 鎶ヨ锛氫己鏈嶆姤璀?
+
+---- [Z] 鏁呴殰鍒嗙骇涓庡缃缓璁?----
+  [鈭氶€氳繃] 鍥為浂澶辫触 鈫?闇€浜哄伐澶嶄綅锛堝彲鑳芥鍗″湪鍘熺偣寮€鍏充笂锛屼笉鑳借嚜鍔ㄩ噸璇曪級  鈫? RequiresReset
+  [鈭氶€氳繃] 鏁呴殰閲屽甫**鍘熷閿欒鐮?*锛堢幇鍦烘嵁姝ゅ鍘傚晢鎵嬪唽锛? 鈫? 鍥為浂澶辫触锛堣酱 Y锛屾杩愬姩閿欒鐮?-7锛?
+  [鈭氶€氳繃] 鏁呴殰閲屽甫鍑洪敊鐨勬搷浣滀笂涓嬫枃锛堛€屽洖闆躲€嶆瘮銆屾搷浣滃け璐ャ€嶆湁鐢ㄥ緱澶氾級  鈫? 鍥為浂澶辫触锛堣酱 Y锛屾杩愬姩閿欒鐮?-7锛?
+  [鈭氶€氳繃] 鏈夊缃缓璁紙鐜板満灏戞墦涓€娆＄數璇濓級  鈫? 妫€鏌ュ師鐐?闄愪綅寮€鍏虫槸鍚﹁瑙﹀彂銆佸洖闆舵柟寮忎笌鍥為浂閫熷害鏄惁涓庢満鏋勫尮閰嶏紱鎺掗櫎鍚庨噸鏂板洖闆?
+  [鈭氶€氳繃] 甯︿笂鍑洪敊杞村悕  鈫? Y
+  [鈭氶€氳繃] 杩炴帴澶辫触 鈫?闇€鐜板満澶勭悊锛堟鏌?IP / 缃戠嚎 / 渚涚數 / 鍗犵敤锛夛紝骞剁粰鍑哄搴斿缓璁? 鈫? 妫€鏌ユ帶鍒跺櫒 IP銆佺綉绾夸笌渚涚數锛涚‘璁ゆ病鏈夎鍘傚晢璋冭瘯杞欢鎴栧彟涓€涓湰绋嬪簭瀹炰緥鍗犵敤
+  [鈭氶€氳繃] 璇荤姸鎬佸け璐?鈫?鍙仮澶嶇骇锛堝崟娆￠€氫俊鎶栧姩涓嶈鎶婅澶囧垽姝伙紝鐪嬮棬鐙椾細鍏滆繛缁け璐ワ級  鈫? Recoverable
+  [鈭氶€氳繃] 杩愬姩琚嫆 鈫?闇€浜哄伐澶嶄綅锛堝崱渚х姸鎬佷笉瀵癸細鏈娇鑳?鎶ヨ/闄愪綅锛? 鈫? RequiresReset
+  [鈭氶€氳繃] 鈽呬笉閫愮爜缂栭€犳枃妗堬細璇存槑閲屼繚鐣欏師濮嬬爜鑰屼笉鏄吉瑁呮垚宸茬煡鍚箟  鈫? 鍥為浂澶辫触锛堣酱 Y锛屾杩愬姩閿欒鐮?-7锛?
+
+---- [Z] 閮ㄧ讲锛歋DK 涓?native 搴?----
+  [鈭氶€氳繃] 鈽卬ative 搴撶敤閫氶厤鎶曢€掑埌**瀹夸富 bin**锛欴llImport 鍙湪 exe 鐩綍/绯荤粺鐩綍/PATH 閲屾壘锛屼笉浼氬幓 Modules\ 鎵撅紙鎻掍欢鎵樼 dll 鎶曢€掑湪閭ｉ噷锛宯ative 鐨勪笉琛岋級  鈫? 閫愪釜鍒楁枃浠跺悕鐨勮瘽锛孲DK 鍗囩骇鏃舵紡鍔犱竴涓枃浠跺氨浼氬湪杩愯鏈熺偢锛涜€岀己 native 渚濊禆鏃剁殑鎶ラ敊涓嶄細鍛婅瘔浣犳槸缂轰簡鍝竴涓?
+  [鈭氶€氳繃] SDK 澹版槑鏂囦欢涓?native 搴撳悓鍦?Sdk\锛堝崌绾ф椂蹇呴』鎴愬鏇挎崲锛屽垎寮€鏀炬棭鏅氱増鏈敊閰嶏級  鈫? Zmcaux.cs=True zauxdll.dll=True
+  [鈭氶€氳繃] 鈽匰DK 瀹屾暣锛歾auxdll.dll锛堣緟鍔╁眰锛変笌 zmotion.dll锛堟牳蹇冨眰锛夊繀椤诲悓鏃跺瓨鍦? 鈫? 涓や釜 native 鏂囦欢閮藉湪
+  [鈭氶€氳繃] 鈽呴┍鍔ㄨ嚜甯﹁瘖鏂細鎹曡幏 DllNotFoundException 骞?*鐐瑰悕**缂哄け鐨?native 鏂囦欢锛堝惁鍒欑幇鍦哄彧鑳界湅鍒般€屾壘涓嶅埌鎸囧畾鐨勬ā鍧椼€嶏級
+  [鈭氶€氳繃] 椹卞姩瀵逛綅鏁颁笉绗︾粰鍑哄崟鐙彁绀猴紙32 浣?SDK 瑁呭埌 64 浣嶈繘绋嬪悓鏍锋姤 0x7E锛屾瀬鏄撹鍒や负璺緞闂锛?
+  [鈭氶€氳繃] sln 宸茬櫥璁拌繍鍔ㄦ彃浠跺伐绋嬶紙鍚﹀垯 sln 鍏ㄩ噺鏋勫缓涓嶄骇鍑猴紝Modules\ 閲屼細缂?dll锛?
+
+---- [Z] 鐐瑰姩绔埌绔紙铏氭嫙鍗★級锛氭寔缁繍鍔?/ 鍋滄鑳界粓姝?----
+  [鈭氶€氳繃] 鐐瑰姩鍛戒护琚帴鍙? 鈫? 杩斿洖=Accepted
+  [鈭氶€氳繃] 鈽呯偣鍔ㄤ笅鍙戝悗杞?*鎸佺画**杩愬姩锛堟病鏈夌粓鐐癸紝鐩村埌琚彨鍋滐級  鈫? 浣嶇疆=0.750 mm
+  [鈭氶€氳繃] 鈽呭仠姝㈠懡浠よ兘缁堟鐐瑰姩锛堜綅缃笉鍐嶅彉鍖栵級  鈫? 鍋滄鍚?1.000 mm 鈫?1.000 mm
+
+---- [Z] 鐐瑰姩蹇冭烦鍏滃簳锛堢晫闈簨浠跺け鏁堟椂鐨勬渶鍚庝竴閬撻椄锛?----
+  [鈭氶€氳繃] 闃堝€煎彇 500ms锛氭寜浣忔湡闂?UI 姣?150ms 涓€娆¤剦鍐诧紝鐣?3 鍊嶄綑閲? 鈫? 瀹為檯 500ms
+  [鈭氶€氳繃] 蹇冭烦鏂伴矞锛?00ms 鍓嶅垰鎸夎繃锛夆啋 涓嶅共棰勭偣鍔?
+  [鈭氶€氳繃] 鈽呭績璺宠秴鏃讹紙900ms 娌¤剦鍐诧級鈫?鍒ゅ畾蹇呴』鍋?
+  [鈭氶€氳繃] 浠庢湭鐐瑰姩杩囷紙MinValue锛変笉瑙﹀彂鍋滄锛堝惁鍒欎竴寮€闈㈡澘灏变細鍘诲仠璁惧锛?
+  [鈭氶€氳繃] 鍒氬ソ绛変簬闃堝€兼椂涓嶅垽瓒呮椂锛堥伩鍏嶄复鐣屾姈鍔ㄥ鑷存寜浣忔椂鍙嶅璧峰仠锛?
+
+---- [Z] 璋冭瘯闈㈡澘濂戠害锛氭帶鍒?/ 瀹氫綅 / 鍥為浂 / IO / 鎬ュ仠 ----
+  [鈭氶€氳繃] 璋冭瘯闈㈡澘濂戠害  鈫? 璺宠繃锛氬畾浣嶄笉鍒?MotionDebugView.xaml
+
+---- [Z] 涓婚瀛楀吀閿敮涓€鎬э紙閲嶅閿?= 鍚姩鍗冲穿锛?----
+  [鈭氶€氳繃] 鈽呬富棰樺瓧鍏搁噷娌℃湁閲嶅鐨?x:Key锛堥噸澶嶄細璁╃▼搴忓惎鍔ㄥ嵆鎶涖€孖tem has already been added銆嶏級  鈫? 宸叉壂 209 涓敭锛屽叏閮ㄥ敮涓€
+  [脳澶辫触] Dialog* 鍏叡閿凡鎴愪綋绯伙紙鐣岄潰鍙渶寮曠敤锛屼笉鍐嶅悇鍐欎竴浠斤級  鈫? 鍏?26 涓?Dialog* 閿?
+
+---- [Z] 璁惧琛ㄥ悓姝ュ櫒锛氶槻閲嶅叆 + 浜嬩欢椤哄簭锛堣繚鍙嶅嵆 StackOverflow锛?----
+  [鈭氶€氳繃] 鈽呰繍鍔ㄥ崱 Provider 鐨?EnsureSynced 鏈夐噸鍏ラ椄锛堝悓姝ユ湡闂村啀杩涙潵鐩存帴杩斿洖锛? 鈫? 缂轰簡瀹冧細锛氬悓姝?鈫?骞挎挱浜嬩欢 鈫?浜嬩欢閲岃璁惧 鈫?鍐嶅悓姝?鈥︹€?鏍堟棤闄愬姞娣憋紝鏈€缁?StackOverflowException锛堣繘绋嬬洿鎺ユ秷澶便€佹病鏈夊爢鏍堬級
+  [鈭氶€氳繃] 鈽呰繍鍔ㄥ崱 Provider 鍏堣鍚屾鐘舵€併€佸啀骞挎挱 DevicesChanged锛堜簨浠跺鐞嗛噷璇昏澶囦細鍥炲埌 EnsureSynced锛岀姸鎬佸繀椤诲凡灏辩华锛? 鈫? 椤哄簭姝ｇ‘锛堣鐘舵€佸湪骞挎挱涔嬪墠锛?
+  [鈭氶€氳繃] 鈽呯浉鏈?Provider 鐨?EnsureSynced 鏈夐噸鍏ラ椄锛堝悓姝ユ湡闂村啀杩涙潵鐩存帴杩斿洖锛? 鈫? 缂轰簡瀹冧細锛氬悓姝?鈫?骞挎挱浜嬩欢 鈫?浜嬩欢閲岃璁惧 鈫?鍐嶅悓姝?鈥︹€?鏍堟棤闄愬姞娣憋紝鏈€缁?StackOverflowException锛堣繘绋嬬洿鎺ユ秷澶便€佹病鏈夊爢鏍堬級
+  [鈭氶€氳繃] 鈽呯浉鏈?Provider 鍏堣鍚屾鐘舵€併€佸啀骞挎挱 DevicesChanged锛堜簨浠跺鐞嗛噷璇昏澶囦細鍥炲埌 EnsureSynced锛岀姸鎬佸繀椤诲凡灏辩华锛? 鈫? 椤哄簭姝ｇ‘锛堣鐘舵€佸湪骞挎挱涔嬪墠锛?
+
+---- [Z] 鎵撴柇鎬у懡浠わ細鍋滄 / 澶辫兘涓嶅啀鎺掑湪鍥為浂鍚庨潰绛?----
+  [鈭氶€氳繃] 鈽匰top 涓?Disable 琚櫥璁颁负鎵撴柇鎬у懡浠? 鈫? 娌℃湁瀹冿紝銆屽仠姝€嶄細鑰佸疄鎺掑湪鍥為浂锛堝嚑鍗佺锛夊悗闈?鈥斺€?杞埌瀹冩椂杞存棭璧板畬浜?
+  [鈭氶€氳繃] 鈽呭叆闃熸椂瀵规墦鏂€у懡浠よЕ鍙戝彇娑堬紙鎵撴柇姝ｅ湪鎵ц鐨勯偅鏉★級  鈫? 缂轰簡瀹冿紝闀垮懡浠や細涓€鐩村崰鐫€鍛戒护绾跨▼锛屽仠姝?澶辫兘鎺掍笉杩涘幓
+  [鈭氶€氳繃] 鎵撴柇鍦ㄥ叆闃熼攣**涔嬪**鎵ц锛堥攣鍐?Cancel 浼氫笌鍛戒护绾跨▼鎶㈠悓涓€鎶婇攣锛岀瓑浜庤嚜宸辩瓑鑷繁锛? 鈫? 鍙栨秷@1455 / 閿佸鎷掔粷澶勭悊@1643
+  [鈭氶€氳繃] 璋冭瘯闈㈡澘涓嶅湪 UI 绾跨▼涓婂悓姝ョ瓑鍛戒护锛堝惁鍒欓槦鍒楅噷鏈夊洖闆舵椂鐣岄潰浼氬喕浣忥級  鈫? 鍚屾 Wait 浼氭妸 UI 绾跨▼鍐讳綇鏈€闀?CommandTimeoutMs锛堝疄娴嬪弽棣堢殑銆岀偣涓€涓嬪崱姝汇€嶏級鈥斺€旀柊鐗堥〉绛剧敤 Task.Run 寮傛绛夊懡浠ゅ畬鎴?
+  [鈭氶€氳繃] 鍛戒护澶勭悊鍣ㄦ湁寮傚父鍏滃簳锛坅sync void 鐨勫紓甯告病鏈夋帴鏀惰€咃紝浼氱洿鎺ュ穿杩涚▼锛?
+
+---- [Z] 杞?/ 鍗″弬鏁扮殑鍙€夊寲锛堝姩鎬佸€欓€変笅鎷夛級 ----
+  [鈭氶€氳繃] 鈽呭叏閮?7 涓繍鍔ㄦ彃浠剁殑銆岃酱銆嶅弬鏁伴兘鏍囦簡鍔ㄦ€佸€欓€?
+  [鈭氶€氳繃] 鈽呰繍鍔ㄦ彃浠堕噷涓嶅啀鍑虹幇銆屽崱鍦板潃銆嶅鍧€锛圡otionCardAddress / CardKey 宸插垹闄わ級
+  [脳澶辫触] 鈽呬袱涓睘鎬ч潰鏉块兘娉ㄥ唽浜嗗姩鎬佸€欓€夌敓鎴愬櫒锛堟紡涓€涓氨鏈変竴鍗婂満鏅粛鏄枃鏈锛?
+  [鈭氶€氳繃] 鏉垮崱绐楀彛鏈€灏忛珮 680锛堝惁鍒欓粯璁ゅ昂瀵镐笅椤电鍐呭鏄剧ず涓嶅叏锛? 鈫? 鐢ㄦ埛鍙嶉锛氭棫鐗堣酱鏄犲皠鍖哄煙鍦ㄩ粯璁ゅ昂瀵镐笅鏃犳硶鏄剧ず 鈥斺€?鍚堝苟绐楀彛鐢ㄦ渶灏忛珮搴︿繚搴?
+  [鈭氶€氳繃] 鈽呮瘡涓彃浠剁殑銆岃酱 / 鍗°€嶉兘鏈夊彲閾炬帴鐨勮緭鍏ョ鍙ｏ紙鍙潬 [StepConfig] 甯搁噺鐨勮瘽锛岀紪杈戞祦绋嬫椂璧嬩笉浜嗗€尖€斺€斿畠涓嶆毚闇蹭负绔彛锛?
+  [鈭氶€氳繃] 鈽呯鍙ｅ湪杩愯鏈熺湡鐨勮璇诲彇锛堟湁绔彛鍗村彧璇诲父閲?= 鎽嗚锛岄摼鎺ヤ笂鍘讳篃涓嶇敓鏁堬級
+  [鈭氶€氳繃] 鈽呭凡娣诲姞鐨勫崱鍙互鏀硅澶囧悕锛堟柊澧炲璇濇閲岃兘濉€佸姞瀹屽氨娌″叆鍙ｄ簡锛岃€岀幇鍦哄線寰€鎺ョ嚎鍚庢墠鎯宠捣鏀瑰悕锛?
+  [脳澶辫触] 鈽呭崱鍊欓€夌殑**鍊?*浠嶆槸鍦板潃锛堟樉绀哄彲浠ュ甫璁惧鍚嶏紝浣嗗啓杩涙祦绋嬬殑蹇呴』鏄ǔ瀹氱殑鍦板潃閿級  鈫? 鍊间竴鏃︽敼鎴愭樉绀烘枃鏈紝鐢ㄦ埛鏀硅澶囧悕灏变細璁╁凡閰嶆祦绋嬪叏閮ㄥけ鏁?
+  [鈭氶€氳繃] 鍊欓€夌殑鏄剧ず鍚嶅彧鍦ㄨ澶囧悕闈炵┖鏃舵墠鍔犳嫭鍙凤紙鍚﹀垯鏄剧ず鎴愩€?27.0.0.1锛?27.0.0.1锛夈€嶆洿涔憋級
+  [鈭氶€氳繃] 棰勮涓嬫媺鏄剧ず Display銆佸啓鍏?Option锛堝€间笌鏄剧ず鍒嗙锛?
+  [鈭氶€氳繃] 鈽呮棤鑷畾涔夎鍥剧殑鎻掍欢鐢辨鏋惰嚜鍔ㄥ寘涓€灞傚弬鏁伴潰鏉匡紙涓嶅啀鍥為€€鍒颁袱姝ュ紡鐨勫彉閲忕粦瀹氱獥鍙ｏ級  鈫? 鍥為€€鍒?DataBindView 鐨勮瘽锛屽～涓父閲忚缁曚竴鍦堬紙鍏堥€夌鍙ｃ€佸啀閫変笂娓革級
+  [鈭氶€氳繃] 鈽呮病鏈夎嚜瀹氫箟瑙嗗浘鐨勬彃浠朵篃鑳芥嬁鍒拌緭鍏ョ鍙ｏ紙鎷夸笉鍒扮殑璇濆弬鏁伴潰鏉垮氨鏄竴鐗囩┖鐧斤級  鈫? 鑷畾涔夎鍥?False 杈撳叆绔彛鏁?1
+  [鈭氶€氳繃] 鈽呭缓鐣岄潰鍓嶅厛鎶婂凡淇濆瓨鐨勯厤缃亴杩涚鍙ｏ紙鍚﹀垯鐣岄潰鏄剧ず榛樿鍊硷紝鐪嬬潃鍍忋€屾敼瀹屾病淇濆瓨銆嶏級
+  [鈭氶€氳繃] 鍙湪銆屾鏋剁敓鎴愩€嶈繖鏉″垎鏀噷鐏屽€硷紙鎻掍欢鑷甫瑙嗗浘鍦?GetConfigView 閲屽凡鐏岃繃锛岄噸澶嶇亴鏄浣欏姩浣滐級
+  [鈭氶€氳繃] 鈽呮彃浠跺疄渚嬭В鏋愪笉鍐嶈姹傘€屽繀椤诲疄鐜?IPluginCustomViewProvider銆嶏紙閭ｆ牱鏃犺鍥炬彃浠朵細鎷垮埌 null锛岄潰鏉垮氨鏄竴鐗囩┖鐧斤級  鈫? 瑙ｆ瀽閲岃嫢杩樻湁 IsAssignableFrom 鐨勬彁鍓?return锛屾棤瑙嗗浘鎻掍欢灏卞張鎷夸笉鍒板疄渚嬩簡
+  [鈭氶€氳繃] 鈽呭澹宠涓ょ瑙嗗浘褰㈡€侊紙鎺ュ彛鍦?DataContext 涓?/ 鐩存帴瀹炵幇鍦ㄦ帶浠惰嚜韬笂锛? 鈫? 鍙涓€绉嶇殑璇濓紝妗嗘灦鐢熸垚鐨勫弬鏁伴潰鏉?Initialize 涓嶄細琚皟鍒帮紝寮圭獥閲屾槸绌虹櫧
+  [鈭氶€氳繃] 涓ょ鎻掍欢鍏辩敤鍚屼竴涓澹筹紙鏈夎鍥剧敤鎻掍欢鐨勶紝娌¤鍥剧敤妗嗘灦鐢熸垚鐨勶級
+  [鈭氶€氳繃] 鑷姩鍙傛暟灞備竴琛屼竴涓彲閾炬帴缂栬緫鍣紙鏍囩 + 鍊?+ 馃敆 + 鉁曪級锛屼笖鏍囩浼樺厛鐢ㄧ鍙ｆ弿杩?
+  [鈭氶€氳繃] 鑷姩鍙傛暟灞傚箓绛夐噸寤猴紙澶栧３涓庤鍥鹃兘鍙兘璋?Initialize锛屼笉骞傜瓑浼氶噸澶嶅嚭琛岋級
+  [鈭氶€氳繃] 鈽呮灇涓剧鍙ｇ敤涓嬫媺锛堟墜鎵?Absolute/Relative 鏃㈡槗閿欍€佷篃鐪嬩笉鍑烘湁鍝簺鍚堟硶鍊硷級
+  [鈭氶€氳繃] 鏋氫妇涓嬫媺涓庡浐瀹氬€兼浜掓枼锛堜袱鑰呭悓鍦?Column 1锛屼笉浜掓枼浼氬彔鍦ㄤ竴璧凤級
+  [鈭氶€氳繃] 鈽呮灇涓剧鍙ｄ笉鎻愪緵閾炬帴鎸夐挳锛堜笂娓稿€兼湭蹇呮槸鍚堟硶鏋氫妇锛岀粦涓婂幓绛変簬鎶婇潪娉曞€煎杩涘皝闂泦鍚堬級  鈫? 鏋氫妇杩樿兘缁戠殑璇濓紝杩愯鏃朵細鍑虹幇闈炴硶鏋氫妇鍊?
+  [鈭氶€氳繃] 鈽呮灇涓剧鍙ｄ笉鎻愪緵娓呴櫎鎸夐挳锛堟竻鎺変箣鍚庢病鏈変换浣曘€岀┖鏋氫妇銆嶅彲浠ヨ〃绀猴級
+  [鈭氶€氳繃] 杈撳叆妗嗘寜瑙勬牸鍋氭垚鍦嗚娴呯伆鎻忚竟锛圱extBox 鏃?CornerRadius锛屽繀椤昏蛋妯℃澘锛?
+  [鈭氶€氳繃] 鍙傛暟鏍囩鍥哄畾瀹?112 涓斿彸瀵归綈锛堝乏瀵归綈+瀹藉害闅忔枃瀛椾几缂╀細璁╂瘡琛岃緭鍏ユ璧风偣涓嶉綈锛?
+  [鈭氶€氳繃] 鈽呮灇涓惧€欓€変粠绔彛**绫诲瀷**鐜板満鎺紙涓嶄緷璧?PresetOptions 蹇収锛岄偅鏉¤矾浼氭嬁鍒扮┖锛?
+  [鈭氶€氳繃] 鈽呯被鍨嬪悕鑳借В鏋愬洖鏋氫妇绫诲瀷锛堣В鏋愪笉鍥炴潵锛屾灇涓惧€欓€夊氨姘歌繙鏄┖鐨勶級  鈫? 瑙ｆ瀽缁撴灉=StringComparison
+  [鈭氶€氳繃] 鑷姩鍙傛暟闈㈡澘鐨勮鏈夊搴︿笌琛岃窛锛堜笉闄愬鏃惰緭鍏ユ浼氫竴璺摵鍒板睆骞曟渶鍙宠竟锛?
+  [鈭氶€氳繃] 鈽呭弬鏁板尯琛岄珮涓?*锛堝澹崇獥鍙ｅ浐瀹氶珮锛岃缁?Auto 鏃舵彃浠惰嚜甯﹁鍥惧彧鐢昏嚜鐒堕珮銆佺獥鍙ｄ笅鍗婃埅鍏ㄧ┖锛涜嚜鍔ㄩ潰鏉块潬 SizeToContent=Height 鏃?* 琛岀収鏍风缉鍒板唴瀹归珮锛?
+  [鈭氶€氳繃] 鈽呭弬鏁伴潰鏉胯嚜宸卞湪 Loaded 閲屾敼绐楀彛灏哄锛堝澹崇寽鍐呭绫诲瀷浼氳俯鏃跺簭锛屼笂涓€鐗堝氨娌＄敓鏁堬級
+  [鈭氶€氳繃] 鈽呰嚜閫傚簲鏃跺繀椤诲悓鏃惰皟灏?MinHeight锛堝澹抽偅涓?420 鏄粰鎻掍欢澶ц鍥剧殑淇濆簳锛岀暀鐫€灏辫繕鏄┖鐧斤級
+  [鈭氶€氳繃] 鈽呮寜閽渾瑙掕蛋妯℃澘锛圔utton 娌℃湁 CornerRadius锛屾敼榛樿妯℃澘閲岀殑 Border 鏄棤鏁堢殑鈥斺€斾笂涓€鐗堝氨鏄洿瑙掞級
+  [鈭氶€氳繃] 澶栧３涓嶅啀鑷繁鍒ゆ柇绐楀彛灏哄锛堣亴璐ｅ湪鍙傛暟闈㈡澘锛岄伩鍏嶄袱澶勯€昏緫鎵撴灦锛?
+  [鈭氶€氳繃] 鈽呭澹抽厤鑹插叏閮ㄨ蛋浠ょ墝锛堜笉鍐嶆暎钀?#409EFF / #303133 / #909399 杩欑被纭紪鐮侊級  鈫? 纭紪鐮佽壊鍊兼崲涓婚鏃朵細琚紡鎺夛紱DialogShadowColor 鏄?Color 绫诲瀷锛堜緵 DropShadowEffect锛?
+  [鈭氶€氳繃] 澶撮儴鎸夎鏍硷細鍥炬爣寰界珷锛?0px 鍦嗚 12锛? 鏍囬 16 SemiBold + 鍓爣棰?12
+  [鈭氶€氳繃] 澶撮儴鏈夊叧闂寜閽紙澶嶇敤 CancelCommand 鈥斺€?鍙栨秷閫昏緫閲屽惈銆屾鍦ㄦ墽琛屽厛鍋溿€嶇殑澶勭悊锛?
+  [鈭氶€氳繃] 搴曢儴锛氱姸鎬佽兌鍥?+ 鑰楁椂绛夊瀛椾綋 + 鎵ц鎸夐挳甯?鈻?鍥炬爣
+  [鈭氶€氳繃] 鍙傛暟闈㈡澘閲岀殑鎻愮ず鏉℃槸娴呬富鑹插渾瑙掓潯锛堜笉鏄竴娈佃８鏂囧瓧锛屽惁鍒欏儚鐣岄潰鍑烘晠闅滐級
+  [鈭氶€氳繃] 鈽呰酱鍚嶇鍙ｈ璇嗗埆涓恒€屽彧鑳介€夈€嶄笖鍊欓€夋潵鑷柟妗堬紙鍐欒繘娴佺▼鐨勫氨鏄酱鍚嶆湰韬級  鈫? 鍙兘閫?True 鍊欓€夋暟=1 鏄剧ず=X 鍊?X
+  [鈭氶€氳繃] 鈽呬笅鎷夊€欓€変笌鏋氫妇鍏辩敤涓€濂楁満鍒讹紙IsOptionPort = 鏋氫妇 鈭?鏂规鍊欓€夛級锛屼笉鍐嶅彧璁ゆ灇涓?
+  [鈭氶€氳繃] 涓嬫媺鍊欓€夊€?鏄剧ず鍒嗙锛圖isplayMemberPath=Display銆丼electedValuePath=Value锛? 鈫? 涓嶅垎绂荤殑璇濓紝閫変簡銆岃繍鍔ㄥ崱2锛?92.168.0.11锛夈€嶄細鎶婃暣涓叉枃瀛楀啓杩涙祦绋?
+  [鈭氶€氳繃] 鈽呴€変腑椤规樉绀虹敤 Binding 鍙?SelectionBoxItemTemplate锛圱emplateBinding 涓嶈窡闅忓悗鏈熷彉鍖栵級  鈫? 鍥為€€鎴?TemplateBinding 鐨勭幇璞★細涓嬫媺妗嗘敹璧锋椂鏄剧ず Core.Interfaces.StepConfigOption
+  [鈭氶€氳繃] 鈽呭繀濉弬鏁板垽鎹惈銆岀晫闈㈠～杩囧父閲忋€嶏紙鍙湅 LinkedSource 浼氭妸濉簡甯搁噺鐨勬楠ゅ垽鎴愭湭閰嶇疆锛? 鈫? 涓嶄慨鐨勮瘽鐜拌薄鏄€岃緭鍏ュ父閲忔病鍙嶅簲锛屾墽琛屼粛鎶ュ弬鏁扮己澶便€?
+  [鈭氶€氳繃] 鈽呭脊绐楀眳涓敤闄勫姞琛屼负锛堣 Left/Top 绔嬪嵆鐢熸晥锛沇indowStartupLocation 鏃舵満宸茶繃锛?
+  [鈭氶€氳繃] 鎸夊伐浣滃尯灞呬腑鑰屼笉鏄暣灞忥紙浠诲姟鏍忓湪涓嬫柟鏃讹紝鎸夋暣灞忓眳涓湅鐫€鍍忔病灞呬腑锛?
+  [鈭氶€氳繃] 鈽呭弬鏁伴潰鏉夸笌鍙橀噺缁戝畾绐楀彛閮芥寕浜嗗眳涓涓?
+  [鈭氶€氳繃] 鏋氫妇涓嬫媺鑷甫鍦嗚妯℃澘锛堥粯璁ゆ槸绯荤粺鐏板簳鏂硅鏍峰紡锛屾贩鍦ㄥ渾瑙掕緭鍏ユ閲屽緢绐佸厐锛?
+  [鈭氶€氳繃] 鈽呮灇涓句笅鎷夊鐢ㄧ殑鏄嚜瀹氫箟妯℃澘锛堝懡涓?Bd 鍦嗚杈规锛涚郴缁熸ā鏉块噷娌℃湁杩欎釜鍚嶅瓧锛? 鈫? 涓嬫媺瀹炰緥=True 鑷畾涔夋ā鏉垮懡涓?True 瀹?520
+  [鈭氶€氳繃] 鈽呮寮忚繍琛岀殑鎵ц涓婁笅鏂囨敞鍏ヤ簡 IMotionProvider锛堟鍓嶆案杩滄槸 NullMotionProvider锛? 鈫? 涓嶆敞鍏ョ殑璇濓紝杩愬姩姝ラ姘歌繙鎶ャ€屾壘涓嶅埌杩愬姩鍗°€?
+  [鈭氶€氳繃] 鈽呰瘯杩愯鐨勬墽琛屼笂涓嬫枃鍚屾牱娉ㄥ叆锛堜笌姝ｅ紡杩愯鍏辩敤鍚屼竴鏉＄粍瑁呰鍒欙級
+  [鈭氶€氳繃] 鈽呮瘡杞?16 鐐圭偣浣嶆ā鍨嬮殢鏂规钀界洏锛堝浐瀹氳鏁拌銆岀偣浣嶅彿銆嶆湁绋冲畾鎸囦唬锛?
+  [鈭氶€氳繃] 鈽呮洸绾挎槧灏勫埌姝ｈ繍鍔?SetSramp锛堟褰?0 / S鏇茬嚎=200ms锛汚ccel/Decel鈮? 涓嶈鐩栫幇鍦哄弬鏁帮級
+  [鈭氶€氳繃] 杞寸鍙?IsRequired=false锛堣€佹祦绋嬪彧濉父閲忥紝涓嶈兘鍥犱负娌￠摼鎺ュ氨鍒ょ紪璇戝け璐ワ級
+  [鈭氶€氳繃] 杞寸鍙ｅ惎鐢?IsFunctionalEnum锛堢粦瀹氱晫闈笂鏄剧ず涓轰笅鎷夛紝鍊欓€夋潵鑷綋鍓嶆柟妗堬級
+  [鈭氶€氳繃] 鈽呰繍鍔ㄧ鍙ｅ０鏄庝簡 OptionKind锛堝€欓€夐」闅忔柟妗堝彉鍖栵紝涓嶈兘鍦ㄦ壂鎻忔湡鍙栦竴娆″氨瀛樹笅鏉ワ級  鈫? 缂?OptionKind 鐨勭鍙ｅ湪缁戝畾鐣岄潰涓婁細娌℃湁涓嬫媺鍊欓€?
+  [鈭氶€氳繃] 鈽呯粦瀹氱獥鍙ｆ寜 OptionKind **鐜板彇**鍊欓€夛紙涓嶆槸鐩存帴鐢?PresetOptions 蹇収锛?
+  [鈭氶€氳繃] 鍊欓€夌被鍒兘涓€璺紶鍒扮晫闈紙IPort.OptionKind 鈫?PortDefinition.OptionKind 鈫?PluginService 璧嬪€硷級  鈫? 閾捐矾鏂湪浠讳綍涓€娈碉紝缁戝畾鐣岄潰閮芥嬁涓嶅埌鍊欓€夌被鍒?
+
+---- [Matching] 妯℃澘鍖归厤鎻掍欢锛堝悎鎴愮‘瀹氭€у浘鍍忛獙璇侊級 ----
+  [鈭氶€氳繃] 銆愭ā鏉裤€戝涔犳垚鍔熶笖杞借嵎闅忔柟妗堝簭鍒楀寲  鈫? 杞借嵎 76392 瀛楃
+  [鈭氶€氳繃] 銆愭ā鏉裤€戝涔犲悗鍙傛暟鏈彉涓嶆彁绀洪噸瀛?
+  [鈭氶€氳繃] 銆愬唴鏍搞€戝悓鍥惧畾浣嶅懡涓?1 涓疄渚? 鈫? MatchCount=1 Score=1.000
+  [鈭氶€氳繃] 銆愬唴鏍搞€戝悓鍥惧畾浣嶅垎鏁?鈮?0.9  鈫? Score=1.000
+  [鈭氶€氳繃] 銆愬唴鏍搞€戜綅缃簹鍍忕礌绾у洖鍑嗭紙150,200 卤0.5锛? 鈫? (150.00,200.00)
+  [鈭氶€氳繃] 銆愬唴鏍搞€戝悓鍥捐搴?鈮?0锛埪?.5掳锛? 鈫? Angle=0.000掳
+  [鈭氶€氳繃] 銆愯緭鍑恒€戜綅濮垮綊涓€鍖栧浘鍍忓凡鐢熸垚
+  [鈭氶€氳繃] 銆愯緭鍑恒€戞爣娉ㄥ浘宸茬敓鎴?
+  [鈭氶€氳繃] 銆愯緭鍑恒€慚atchedTemplate 鍥炰紶閰嶆柟鍚? 鈫? MatchedTemplate='妯℃澘1'
+  [鈭氶€氳繃] 銆愭暟缁勩€戞暟缁勭鍙ｄ笌瀹炰緥鏁伴€愰」瀵归綈  鈫? rows=1 scores=1
+  [鈭氶€氳繃] 銆愭暟缁勩€戞湭鍚敤缂╂斁鏃?Scales 鎭掍负 1
+  [鈭氶€氳繃] 銆愬钩绉汇€戝浘妗堟惉鍒?(280,360) 鍚庝綅缃洖鍑嗭紙卤1锛? 鈫? (280.00,360.00)
+  [鈭氶€氳繃] 銆愭棆杞€戞暣鍥捐浆 10掳 鍚庝粛鍛戒腑  鈫? Score=0.996
+  [鈭氶€氳繃] 銆愭棆杞€戣搴﹀洖鍑?10掳锛埪?.5掳锛? 鈫? Angle=10.001掳
+  [鈭氶€氳繃] 銆愮缉鏀俱€戝惎鐢ㄧ缉鏀炬ā鍨嬪悗 1.15脳 鐩爣浠嶅懡涓? 鈫? count=1 Score=0.996
+  [鈭氶€氳繃] 銆愮缉鏀俱€戠缉鏀惧€嶇巼鍥炲噯 1.15锛埪?.05锛? 鈫? Scale=1.151
+  [鈭氶€氳繃] 銆愬簭鍒楀寲銆慴ase64 杞借嵎缁忕‘璁?鍔犺浇寰€杩旀棤鎹? 鈫? 杞借嵎 76392 瀛楃 鈫?鏂板疄渚嬪尮閰嶆垚鍔?
+  [鈭氶€氳繃] 銆愭湭鎵惧埌銆戠┖鐧借儗鏅垽澶辫触锛圫uccess=false锛? 鈫? Success=False
+  [鈭氶€氳繃] 銆愭湭鎵惧埌銆戝け璐ュ師鍥犲啓鏄庛€屾湭鎵惧埌鐩爣銆嶅苟甯︿笂鍒嗘暟闃堝€? 鈫? Err='鏈壘鍒扮洰鏍囷細妯℃澘銆屾ā鏉?銆嶆病鏈夋弧瓒冲垎鏁?鈮?0.50 鐨勫尮閰嶏紙鍏夌収/閬尅鍙樺寲锛熷彲闄嶄綆鍒嗘暟涓嬮檺閲嶈瘯锛?
+  [鈭氶€氳繃] 銆愭湭鎵惧埌銆慚atchCount=0 涓旀爣娉ㄥ浘浠嶇敓鎴愶紙浜х嚎鐪嬬幇鍦猴級
+  [鈭氶€氳繃] 銆愬瀹炰緥銆戜袱涓浉鍚屽浘妗堝叏閮ㄦ壘鍥烇紙count=2锛? 鈫? MatchCount=2
+  [鈭氶€氳繃] 銆愬瀹炰緥銆戞暟缁勭鍙ｉ€愰」瀵归綈涓斿垎鏁伴兘 鈮?0.9  鈫? scores=1.000,1.000
+  [鈭氶€氳繃] 銆怣axMatches銆戜笂闄?1 鈫?鍙姤鏈€楂樺垎瀹炰緥锛堜笉瓒婇檺锛? 鈫? MatchCount=1
+  [鈭氶€氳繃] 銆怣axOverlap銆戦槇鍊兼斁瀹斤紙0.9锛夆啋 涓や釜閲嶅彔瀹炰緥閮芥姤鍑? 鈫? MatchCount=2锛堟湡鏈?2锛?
+  [鈭氶€氳繃] 銆怣axOverlap銆戦槇鍊兼敹绱э紙0.05锛夆啋 閲嶅彔瀹炰緥琚幓閲嶆垚涓€涓? 鈫? MatchCount=1锛堟湡鏈?1锛屽鏉炬椂 2锛?
+  [鈭氶€氳繃] 銆怉lignedImage銆戞垚鍔熷尮閰嶅悗浣嶅Э褰掍竴鍖栧浘闈炵┖  鈫? AlignedImage=HalconDotNet.HImage
+  [鈭氶€氳繃] 銆愭秱鎶规椂搴徛峰嵆鍐欏嵆瀛樸€戞秱鎶瑰悗鏉＄洰鎺╄啘宸插啓鍥烇紙鐐广€岀‘瀹氥€嶄笉浼氫涪锛? 鈫? 鎺╄啘闀垮害=500
+  [鈭氶€氳繃] 銆愭秱鎶规椂搴徛疯繃鏈熷強鏃躲€戞秱鎶瑰悗绔嬪嵆鎻愮ず闇€閲嶆柊瀛︿範锛堜笉蹇呯瓑鎹㈡潯鐩級  鈫? IsModelStale=True 鐘舵€?'鍙傛暟宸叉敼路闇€閲嶆柊瀛︿範'
+  [鈭氶€氳繃] 銆愭秱鎶规椂搴徛锋竻闄ょ敓鏁堛€戞竻绌烘秱鎶瑰悗鏉＄洰鎺╄啘鐪熸娓呯┖锛堟崲鏉＄洰鍐嶅垏鍥炰笉浼氬娲伙級  鈫? 鎺╄啘闀垮害=0
+  [鈭氶€氳繃] 銆愰噸瀛︽彁绀恒€戞敼鍖归厤鍙傛暟锛堣繍琛屾湡锛変笉瑙﹀彂閲嶅
+  [鈭氶€氳繃] 銆愰噸瀛︽彁绀恒€戞敼鎻愬彇鍙傛暟锛堝垱寤烘€侊級瑙﹀彂閲嶅鎻愮ず  鈫? StatusText='鍙傛暟宸叉敼路闇€閲嶆柊瀛︿範'
+  [鈭氶€氳繃] 銆愰噸瀛︽彁绀恒€戝窘鏍囨枃瀛楀杩愯瀹炰緥鍚屾牱鎴愮珛锛堣浇鑽锋湭鍙樻椂涓嶈鎶ワ級
+  [鈭氶€氳繃] 銆愬渾褰㈡ā鏉裤€戝渾褰㈠尯鍩熷彲瀛︿範妯℃澘锛堝煙浠绘剰褰㈢姸锛屾棤鐭╁舰纭檺鍒讹級  鈫? 杞借嵎 39580 瀛楃
+  [鈭氶€氳繃] 銆愬渾褰㈡ā鏉裤€戝悓鍥惧畾浣嶅洖鍑嗗渾蹇?(150,200 卤0.5)  鈫? (150.00,200.00) Score=0.998
+  [鈭氶€氳繃] 銆愭秱鎶广€戞棤娑傛姽鏃舵帺鑶滀负绌? 鈫? 鎺╄啘闀垮害=0
+  [鈭氶€氳繃] 銆愭秱鎶广€戞秱鎶瑰悗閲嶆柊瀛︿範锛氭帺鑶滈殢鏉＄洰钀界洏  鈫? 鎺╄啘 676 瀛楃
+  [鈭氶€氳繃] 銆愭秱鎶广€戞寲鎺変腑蹇冨悗妯″瀷杞借嵎鍙樺皬锛堢壒寰佺偣鍑忓皯锛? 鈫? 瑁?76392 娑傚悗=76296
+  [鈭氶€氳繃] 銆愭秱鎶广€戞寲鎺変腑蹇冨悗瀹氫綅浠嶅洖鍑?(150,200 卤1)  鈫? (150.01,200.01)
+  [鈭氶€氳繃] 銆愰噸寮€銆戦€変腑鏉＄洰鑷姩鎭㈠鐗瑰緛棰勮锛堝弬鑰冨浘 + 缁胯壊杞粨锛?
+  [鈭氶€氳繃] 銆愰噸寮€銆慖nitialize 浠庢柟妗堟仮澶嶆秱鎶规帺鑶滐紙姗欒壊鏄剧ず銆佸彲缁х画缂栬緫锛? 鈫? 鎺╄啘 base64 640 瀛楃
+  [鈭氶€氳繃] 銆愰噸寮€銆戞ā鏉挎ā鍨嬩竴骞舵仮澶嶏紙涓嶇敤閲嶇敾閲嶅锛?
+  [鈭氶€氳繃] 銆愰噸寮€銆戞仮澶嶅悗鐨勬ā鏉跨洿鎺ュ彲瀹氫綅
+  [鈭氶€氳繃] 銆愰厤鏂广€戞潯鐩?A鍨?瀛︿範鎴愬姛  鈫? 杞借嵎 76392 瀛楃
+  [鈭氶€氳繃] 銆愰厤鏂广€戞潯鐩?B鍨?瀛︿範鎴愬姛锛堝簱 2 鏉★級  鈫? 搴?2 鏉?
+  [鈭氶€氳繃] 銆愰厤鏂广€戣繍琛屽疄渚嬪姞杞藉埌 2 鏉℃ā鏉? 鈫? 搴?2 鏉?
+  [鈭氶€氳繃] 銆愰厤鏂广€慠ecipeName 涓虹┖ 鈫?鐢ㄩ粯璁ゆā鏉?A鍨?涓斿洖鍑? 鈫? Matched='A鍨? Row=150.0
+  [鈭氶€氳繃] 銆愰厤鏂广€慠ecipeName=B鍨?鈫?鐢?B鍨嬫ā鏉夸笖鍥炲噯 (280,360)  鈫? Matched='B鍨? Row=280.0
+  [鈭氶€氳繃] 銆愰厤鏂广€戞湭鐭ラ厤鏂瑰垽澶辫触涓斿垪鍑哄簱閲岀幇鏈夌殑鍚嶅瓧  鈫? Err='鏈煡浜у搧锛欳鍨?娌℃湁瀵瑰簲妯℃澘锛堝簱閲屾湁锛欰鍨嬶紝B鍨嬶級'
+  [鈭氶€氳繃] 銆愰厤鏂广€慠ecipeName 娓呯┖ 鈫?鍥炶惤榛樿妯℃澘 A鍨? 鈫? Matched='A鍨?
+  [鈭氶€氳繃] 銆愰厤鏂广€戦厤鏂归€夋嫨涓庡満鏅唴瀹规棤鍏筹紙閫?B 灏辩敤 B 骞跺瀹炴姤鍛婏級
+  [鈭氶€氳繃] 銆愯縼绉汇€戣€佹柟妗堝崟妯℃澘瀛楁鑷姩杩佸叆妯℃澘搴撶涓€鏉? 鈫? 搴?1 鏉★紝杞借嵎 76392 瀛楃
+  [鈭氶€氳繃] 銆愯縼绉汇€戣縼绉诲悗閬楃暀瀛楁娓呯┖锛堥槻閲嶅瀵煎叆锛?
+  [鈭氶€氳繃] 銆愯縼绉汇€戣縼绉诲嚭鐨勬ā鏉垮彲鐩存帴瀹氫綅
+  [鈭氶€氳繃] 銆愯縼绉汇€戣縼绉诲悗鐨勬柟妗堝啀鍔犺浇涓嶅啀閲嶅杩佺Щ锛堜粛 1 鏉★級  鈫? 搴?1 鏉?
+  [鈭氶€氳繃] 銆愮紪璇戦摼璺€戝彧璧?ApplyConfigValues 涔熻兘鎷垮埌妯℃澘搴撳苟瀹氫綅  鈫? MatchCount=1
+
+---- [Matching] 鍥炲綊锛氭湰杞慨澶嶇殑缂洪櫡 ----
+  [鈭氶€氳繃] 銆愬洖褰捖稰0銆戝涔犳垚鍔熷悗鐘舵€佹爮涓嶆槸澶辫触锛堟棭鍏堟瘡娆″涔犻兘鎶ュ垱寤烘ā鏉垮け璐ワ級  鈫? StatusLevel=Info 鏂囨='妯℃澘銆屾ā鏉?銆嶅凡瀛︿範锛氶噾瀛楀 5 灞傦紝瑙掑害 -180~180掳锛岀壒寰佸尯鍩?160脳160 px锛岃浇鑽?55 KB銆傚乏涓嬭涓烘ā鏉块瑙?
+  [鈭氶€氳繃] 銆愬洖褰捖稰0銆戞垚鍔熸枃妗堢粰鍑虹壒寰佸尯鍩熷昂瀵革紙涓嶆槸 0脳0銆佷篃涓嶆槸绌猴級  鈫? 妯℃澘銆屾ā鏉?銆嶅凡瀛︿範锛氶噾瀛楀 5 灞傦紝瑙掑害 -180~180掳锛岀壒寰佸尯鍩?160脳160 px锛岃浇鑽?55 KB銆傚乏涓嬭涓烘ā鏉块瑙?
+  [鈭氶€氳繃] 銆愬洖褰捖稰1銆戣疆寤撴斁缃寜銆愬害銆戞崲绠楋細缁?0掳 灏辨槸 0掳  鈫? Phi=0掳
+  [鈭氶€氳繃] 銆愬洖褰捖稰1銆戣疆寤撴斁缃寜銆愬害銆戞崲绠楋細缁?30掳 灏辫浆 30掳锛堟棭鍏堣鍙岄噸杞垚 鈮?.5掳锛? 鈫? Phi=30掳
+  [鈭氶€氳繃] 銆愬洖褰捖稰2銆戝垹闄ゆ潯鐩椂閲婃斁浜嗘ā鍨嬪彞鏌勶紙鏉＄洰宸蹭粠搴撻噷鎽樻帀锛孌ispose 澶熶笉鐫€瀹冿級  鈫? RuntimeModelId=宸查噴鏀?
+  [鈭氶€氳繃] 銆愬洖褰捖稰2銆戞崲鏉＄洰鍐嶅垏鍥烇紝涓嶈鎶ラ渶閲嶆柊瀛︿範  鈫? 寰芥爣='宸插涔?
+  [鈭氶€氳繃] 銆愬洖褰捖稰2銆戠紪璇戝疄渚嬩笉鎸佹湁鏄剧ず鐢ㄥ弬鑰冨浘锛堝彧璇昏璇荤殑锛屼笉娓叉煋棰勮锛? 鈫? DisplayImage=null
+  [鈭氶€氳繃] 銆愬洖褰捖稰2銆戠紪璇戝疄渚嬩粛鐒舵嬁寰楀埌妯℃澘搴擄紙闅旂涓嶈兘鎶婂姛鑳戒篃闅旀帀锛? 鈫? 搴?1 鏉?
+  [鈭氶€氳繃] 銆愬洖褰捖稰2銆戝鐓э細閰嶇疆鎬佽蛋 Initialize 鏃堕瑙堢収甯告仮澶嶏紙闅旂娌＄煫鏋夎繃姝ｏ級  鈫? 搴?1 鏉★紝EditingEntry=妯℃澘1
+  [鈭氶€氳繃] 銆愬洖褰捖稰3銆戞潯鐩尯鍩熷弬鏁版崯鍧?鈫?澶辫触鍘熷洜鍐欐槑鍖哄煙鍙傛暟鎹熷潖  鈫? Success=False Err='妯℃澘銆屾ā鏉?銆嶇殑鍖哄煙鍙傛暟鎹熷潖锛堝簲涓?5 涓€硷紝瀹為檯 0 涓級锛氳鎵撳紑閰嶇疆鐣岄潰閲嶆柊妗嗛€夊苟瀛︿範'
+  [鈭氶€氳繃] 銆愬洖褰捖稰3銆戠缉鏀句笂涓嬮檺鐩哥瓑鏃朵粛鑳藉涔狅紙鎾戝紑鏈€灏忕獥鍙ｈ€屼笉鏄姤閿欙級  鈫? StatusLevel=Info 鏂囨='妯℃澘銆岄€€鍖栥€嶅凡瀛︿範锛氶噾瀛楀 5 灞傦紝瑙掑害 -180~180掳锛岀缉鏀?1~1脳锛岀壒寰佸尯鍩?160脳160 px锛岃浇鑽?55 KB銆傚乏涓嬭涓烘ā鏉块瑙?
+
+---- [CreateRoi] 鍒涘缓ROI鎻掍欢锛堝舰鐘?鎺╄啘/娑傛摝/鍔ㄦ€佺鍙?杩愯绔埌绔級 ----
+  [鈭氶€氳繃] 銆愬舰鐘躲€戠煩褰㈠尯鍩熼潰绉?= 4路L1路L2锛堟棆杞笉鍙橈紝瀹瑰樊鎸夋爡鏍煎寲杈圭晫锛? 鈫? area=13093.00
+  [鈭氶€氳繃] 銆愬舰鐘躲€戠煩褰腑蹇冨洖鍑?(150,150)  鈫? (150.00,150.00)
+  [鈭氶€氳繃] 銆愬舰鐘躲€戝渾褰㈠尯鍩熼潰绉?= 蟺路r虏锛坮=15 鍍忕礌鍖栧悗 716 px锛? 鈫? area=716.00
+  [鈭氶€氳繃] 銆愬舰鐘躲€戞き鍦嗗尯鍩熼潰绉?= 蟺路Ra路Rb锛?0脳30 鍍忕礌鍖栧悗 5732 px锛? 鈫? area=5732.00
+  [鈭氶€氳繃] 銆愬舰鐘躲€戠┖鍙傛暟/鍙傛暟涓嶈冻 鈫?null锛堜笉鐐革級
+  [鈭氶€氳繃] 銆愭帺鑶溿€戞甯告ā寮忥細ROI 鍐呬繚鐣欏師鍥剧伆搴? 鈫? gray=180.0
+  [鈭氶€氳繃] 銆愭帺鑶溿€戞甯告ā寮忥細ROI 澶栫疆榛?
+  [鈭氶€氳繃] 銆愭帺鑶溿€戜簩鍊兼帺鑶滃唴 255 澶?0
+  [鈭氶€氳繃] 銆愭帺鑶溿€戞帓闄ゆā寮忥細ROI 鍐呯疆榛戙€佸閮ㄤ繚鐣?
+  [鈭氶€氳繃] 銆愭帺鑶溿€戞帓闄ゆā寮忔帺鑶滃弽杞紙鍐?0 澶?255锛?
+  [鈭氶€氳繃] 銆愭帺鑶溿€戜笁閫氶亾鍥惧悎鎴愭甯革紙閫愰€氶亾鐩镐箻涓嶆埅鏂級
+  [鈭氶€氳繃] 銆愬悎骞躲€戜袱涓笉鐩镐氦 ROI 闈㈢Н = 鍚勮嚜涔嬪拰锛坮=30 鍦嗙洏 2828 px/涓級  鈫? area=5656.00
+  [鈭氶€氳繃] 銆愬悎骞躲€戞秱鎶瑰尯骞跺叆鏈夋晥鍖哄煙锛堚埅 娑傛姽锛宺=20 鍦嗙洏 1264 px锛? 鈫? area=6920.00
+  [鈭氶€氳繃] 銆愬悎骞躲€戞摝闄ゅ尯浠庢湁鏁堝尯鍩熸寲闄わ紙鈭?鎿﹂櫎锛宺=15 鍦嗙洏 716 px锛? 鈫? area=6204.00
+  [鈭氶€氳繃] 銆愮鍙ｃ€戠敾甯冩柊澧?ROI 鍗抽暱鍑?Crop_ 鍔ㄦ€佺鍙? 鈫? Crop_ROI_0,Crop_ROI_1
+  [鈭氶€氳繃] 銆愮鍙ｃ€戝浐瀹氱鍙?MaskRegion/MaskImage 闅忔彃浠跺氨浣?
+  [鈭氶€氳繃] 銆愮鍙ｃ€戝揩鐓у悓姝ュ埌 StepData锛堢紪璇戝櫒鎹鎺ョ嚎锛? 鈫? Crop_ROI_0,Domain_ROI_0,OffsetRow_ROI_0,OffsetCol_ROI_0,Crop_ROI_1,Domain_ROI_1,OffsetRow_ROI_1,OffsetCol_ROI_1
+  [鈭氶€氳繃] 銆愰噸鍚嶉槻寰°€戠敾甯冩挒鍚嶅悗 RoiList 鍏ㄥ眬鍞竴  鈫? ROI_0,ROI_1,ROI_2
+  [鈭氶€氳繃] 銆愰噸鍚嶉槻寰°€戝敮涓€鍚嶅洖鍐欐帶浠舵爣绛撅紙鐢诲竷鏄剧ず璺熻繘锛? 鈫? 'ROI_2'
+  [鈭氶€氳繃] 銆愰噸鍚嶉槻寰°€戠鍙ｆ棤閲嶅悕锛堜笉鍐嶉潤榛樺幓閲?浜掔浉瑕嗙洊锛? 鈫? Crop_ROI_0,Crop_ROI_1,Crop_ROI_2
+  [鈭氶€氳繃] 銆愰噸鍚嶉槻寰°€戝巻鍙查噸鍚嶆柟妗堟挱绉嶆椂鍘婚噸鏀瑰悕  鈫? ROI_0/ROI_1
+  [鈭氶€氳繃] 銆愰噸鍚嶉槻寰°€戝幓閲嶅悗绔彛涓庡揩鐓у悓姝ラ噸寤? 鈫? Crop_ROI_0,Domain_ROI_0,OffsetRow_ROI_0,OffsetCol_ROI_0,Crop_ROI_1,Domain_ROI_1,OffsetRow_ROI_1,OffsetCol_ROI_1
+  [鈭氶€氳繃] 銆愯仈鍔ㄣ€戝垪琛ㄩ€変腑 鈫?鐢诲竷鎸傛帴鍚屼竴瀵硅薄
+  [鈭氶€氳繃] 銆愯仈鍔ㄣ€戝弬鏁板井璋冨啓鍥炵敾甯冨彞鏌勶紙鍥炲綊锛氭棫 bug 鍦ㄥ垪琛ㄩ€変腑璺緞鏂摼锛? 鈫? HTuples[0]=77
+  [鈭氶€氳繃] 銆愯仈鍔ㄣ€戠敾甯冪偣閫?鈫?鍒楄〃瀹氫綅
+  [鈭氶€氳繃] 銆愯仈鍔ㄣ€戠敾甯冮€変腑璺緞鍙傛暟寰皟鍚屾牱鐢熸晥  鈫? HTuples[1]=88
+  [鈭氶€氳繃] 銆愯仈鍔ㄣ€戞崲閫夊悗鏃?ROI 鍙傛暟涓嶈璇敼
+  [鈭氶€氳繃] 銆愯仈鍔ㄣ€戠敾甯冪偣绌虹櫧 鈫?鍒楄〃鍚屾鍙栨秷閫変腑
+  [鈭氶€氳繃] 銆愯仈鍔ㄣ€戦噸閫夊悗鍙傛暟寰皟鎭㈠鐢熸晥  鈫? HTuples[3]=99
+  [鈭氶€氳繃] 銆愯繍琛屻€戞垚鍔熶笖 RoiCount = 瀹為檯杈撳嚭鏁? 鈫? Success=True RoiCount=2
+  [鈭氶€氳繃] 銆愯繍琛屻€慚askRegion = 涓?ROI 闈㈢Н涔嬪拰  鈫? area=7769.00
+  [鈭氶€氳繃] 銆愯繍琛屻€慚askImage 浜屽€煎寲姝ｇ‘锛圧OI 鍐?255 澶?0锛?
+  [鈭氶€氳繃] 銆愯繍琛屻€戠煩褰㈣鍓浘鍖呭洿鐩掓纭紙81脳61锛変笖鍩熷畬鏁? 鈫? 81脳61 domain=4941.0
+  [鈭氶€氳繃] 銆愯繍琛屻€戝渾褰㈣鍓浘鍩熼潰绉?= 蟺路r虏锛堝儚绱犲寲 2828 px锛? 鈫? domain=2828.0
+  [鈭氶€氳繃] 銆愯繍琛屻€戝潖 ROI 鍙烦杩囦笉闃绘柇锛孯oiCount 浠?鎴愬姛鏁? 鈫? RoiCount=2
+  [鈭氶€氳繃] 銆愯繍琛屻€戝潖 ROI 鐣欎笅璀﹀憡鏃ュ織锛堢幇鍦哄彲杩芥煡锛? 鈫? Warn:ROI_杩愯 ROI[Crop_鍧廟OI] 褰㈢姸鍙傛暟鏃犳晥锛岃烦杩囪鍓?
+  [鈭氶€氳繃] 銆愭摝闄ゃ€戞摝闄ゅ尯浠庤鍓煙鎸栭櫎锛?941鈭?16锛? 鈫? domain=4625.0
+  [鈭氶€氳繃] 銆愭摝闄ゃ€戣鍓寘鍥寸洅涓嶅彉锛堝彧鎸栨礊涓嶇缉妗嗭級  鈫? 81脳61
+  [鈭氶€氳繃] 銆愬け璐ャ€戞棤杈撳叆鍥?鈫?鏄惧紡澶辫触骞跺啓鏄庡師鍥? 鈫? '杈撳叆鍥惧儚涓虹┖鎴栨湭鍒濆鍖?
+  [鈭氶€氳繃] 銆愯繍琛屻€戜笁閫氶亾搴曞浘鍏ㄩ摼璺甯革紙瑁佸壀+鎺╄啘+鍙戝竷锛?
+  [鈭氶€氳繃] 銆愬線杩斻€戝皬娑傛摝璧扮函鏂囨湰鏍煎紡锛堝彲璇诲彲鎵嬫敼锛? 鈫? 80,96,103;81,92,107;82,90,109;83,89,110;鈥?
+  [鈭氶€氳繃] 銆愬線杩斻€戝ぇ娑傛摝鑷姩杞?gz 鍘嬬缉锛堟柟妗堟枃浠朵笉鑶ㄨ儉锛? 鈫? erase 2779 瀛楃 / 瑙ｅ帇鍓?RLE 绾?6600
+  [鈭氶€氳繃] 銆愬線杩斻€慠oiList 蹇収钀界洏涓斾笌娲诲璞¤劚閽?
+  [鈭氶€氳繃] 銆愬線杩斻€慠OI 閰嶇疆鏃犳崯鎭㈠锛堝悕瀛?褰㈢姸/鍙傛暟锛? 鈫? ROI_0[Rectangle]
+  [鈭氶€氳繃] 銆愬線杩斻€戞秱鎶瑰尯浠庣函鏂囨湰鎭㈠锛坮=20 鍦嗙洏鍍忕礌鍖?1264 px锛? 鈫? area=1264.00
+  [鈭氶€氳繃] 銆愬線杩斻€戞摝闄ゅ尯浠?gz 鍘嬬缉鎭㈠锛?00 琛屾父绋嬪叏閲忚繕鍘燂級  鈫? area=1200.00
+  [鈭氶€氳繃] 銆愰噴鏀俱€慏ispose 骞傜瓑涓嶆姏
+  [鈭氶€氳繃] 銆愯鍥俱€慍reateRoiView 瀹炰緥鍖?甯冨眬鏃犻敊锛圶AML 瑙ｆ瀽/璧勬簮/妯℃澘/缁戝畾锛?
+  [鈭氶€氳繃] 銆愯緭鍑哄舰鎬併€慏omain_{鍚峿 瀛樺湪涓斿箙闈笌鍘熷浘涓€鑷达紙璇存槑娌℃湁瑁佸壀銆佸潗鏍囩郴娌″姩锛? 鈫? 520脳400锛堝師鍥?520脳400锛?
+  [鈭氶€氳繃] 銆愯緭鍑哄舰鎬併€慏omain_{鍚峿 鍙湁 ROI 鍐呮湁鍍忕礌锛坉omain 闈㈢Н = ROI 闈㈢Н锛? 鈫? domain=25921.0锛屾湡鏈?25921
+  [鈭氶€氳繃] 銆愯緭鍑哄舰鎬併€慜ffsetRow/Col = 瑁佸壀鍥惧乏涓婅鍦ㄥ師鍥句腑鐨勪綅缃紙70,120锛? 鈫? Offset=(70,120)锛屾湡鏈?(70,120)
+  [鈭氶€氳繃] 銆愭牳蹇冦€慸omain 鍥句笂鍋氭ā鏉垮尮閰?鈫?寰楀埌鐨勫氨鏄叏灞€鍧愭爣锛堜笅娓搁浂鍥炲彉鎹級  鈫? 鍖归厤寰?(150,200)锛岀湡鍊?(150,200)
+  [鈭氶€氳繃] 銆愯緭鍑哄舰鎬併€戣鍓浘涓婂尮閰嶅緱鍒扮殑鏄眬閮ㄥ潗鏍囷紙鍘熺偣宸茶鎼蛋锛? 鈫? 灞€閮?(80,80)锛屾湡鏈?(80,80)
+  [鈭氶€氳繃] 銆愭牳蹇冦€戝眬閮ㄥ潗鏍?+ Offset 鑳借繕鍘熸垚涓?domain 鍥句竴鑷寸殑鍏ㄥ眬鍧愭爣  鈫? (80+70, 80+120) = (150,200)锛岀湡鍊?(150,200)
+
+---- [BeadInspect] 鑳惰矾妫€娴嬫彃浠讹紙鐪熸牱鍥?Image\bead锛孭4 鐪熷€艰〃锛?----
+  [鈭氶€氳繃] 鏍峰浘灏变綅锛圛mage\bead 01..07 + ref锛? 鈫? D:\C#\VM\Image\bead
+  [鈭氶€氳繃] 1a 14 鎺у埗鐐圭敓鎴愰潪绌烘姌绾?XLD锛圥1 鎶樼嚎鍙ｅ緞锛? 鈫? 瀵硅薄鏁?1 闀垮害=1015.68px锛堟帰閽?P1-b 瀹炴祴 1015.68px锛?
+  [鈭氶€氳繃] 1b 鐐规暟 < 2 鈫?涓枃閿欒锛堝惈銆岃嚦灏戦渶瑕?2 涓偣銆嶏級  鈫? 鍙傝€冭矾寰勮嚦灏戦渶瑕?2 涓偣锛氳鍦ㄩ厤缃晫闈㈡嬀鍙栨垨瀵煎叆鑳惰矾涓績绾?
+  [鈭氶€氳繃] 1c 鐐瑰垪杩戜技閲嶅悎 鈫?涓枃閿欒锛堝惈銆岄€€鍖栥€嶏級  鈫? 鍙傝€冭矾寰勯€€鍖栵紙鍚勭偣鍑犱箮閲嶅悎锛夛細鏃犳硶鐢熸垚鏈夋晥鏇茬嚎
+  [鈭氶€氳繃] 2a bead 妯″瀷鏋勫缓鎴愬姛涓斿彞鏌勯潪绌? 鈫? 鍙ユ焺=H44A44F502B0
+  [鈭氶€氳繃] 2b 妯″瀷鍙傛暟鍥炶涓€鑷达紙target=15 / tol=8 / pos=30锛? 鈫? target=15 tol=8 pos=30
+  [鈭氶€氳繃] 3-01 閿欒娈垫暟涓?P4 鐪熷€间竴鑷达紙鏈熸湜 0锛? 鈫? got=0 Success=True Err=''
+  [鈭氶€氳繃] 3-01 鍥涚被璁℃暟涓庣湡鍊间竴鑷达紙缂鸿兌0/澶粏0/澶矖0/鍋忕Щ0锛? 鈫? got=缂鸿兌0/澶粏0/澶矖0/鍋忕Щ0
+  [鈭氶€氳繃] 6-01 鍥涚被璁℃暟涔嬪拰 == ErrorCount  鈫? 0+0+0+0 vs 0
+  [鈭氶€氳繃] 4-01 鑹搧闆惰鎶ワ紙IsOk=true銆丯gReason 绌恒€丄nnotatedImage 灏辩华锛? 鈫? IsOk=True Ng=''
+  [鈭氶€氳繃] 3-02 閿欒娈垫暟涓?P4 鐪熷€间竴鑷达紙鏈熸湜 0锛? 鈫? got=0 Success=True Err=''
+  [鈭氶€氳繃] 3-02 鍥涚被璁℃暟涓庣湡鍊间竴鑷达紙缂鸿兌0/澶粏0/澶矖0/鍋忕Щ0锛? 鈫? got=缂鸿兌0/澶粏0/澶矖0/鍋忕Щ0
+  [鈭氶€氳繃] 6-02 鍥涚被璁℃暟涔嬪拰 == ErrorCount  鈫? 0+0+0+0 vs 0
+  [鈭氶€氳繃] 4-02 鑹搧闆惰鎶ワ紙IsOk=true銆丯gReason 绌恒€丄nnotatedImage 灏辩华锛? 鈫? IsOk=True Ng=''
+  [鈭氶€氳繃] 3-03 閿欒娈垫暟涓?P4 鐪熷€间竴鑷达紙鏈熸湜 2锛? 鈫? got=2 Success=True Err=''
+  [鈭氶€氳繃] 3-03 鍥涚被璁℃暟涓庣湡鍊间竴鑷达紙缂鸿兌0/澶粏1/澶矖0/鍋忕Щ1锛? 鈫? got=缂鸿兌0/澶粏1/澶矖0/鍋忕Щ1
+  [鈭氶€氳繃] 6-03 鍥涚被璁℃暟涔嬪拰 == ErrorCount  鈫? 0+1+0+1 vs 2
+  [鈭氶€氳繃] 5-03 NG 璇箟锛圫uccess 浠嶄负 true銆丯gReason 闈炵┖锛? 鈫? Success=True IsOk=False Ng='澶粏 1 娈点€佷綅缃亸绉?1 娈?
+  [鈭氶€氳繃] 3-04 閿欒娈垫暟涓?P4 鐪熷€间竴鑷达紙鏈熸湜 0锛? 鈫? got=0 Success=True Err=''
+  [鈭氶€氳繃] 3-04 鍥涚被璁℃暟涓庣湡鍊间竴鑷达紙缂鸿兌0/澶粏0/澶矖0/鍋忕Щ0锛? 鈫? got=缂鸿兌0/澶粏0/澶矖0/鍋忕Щ0
+  [鈭氶€氳繃] 6-04 鍥涚被璁℃暟涔嬪拰 == ErrorCount  鈫? 0+0+0+0 vs 0
+  [鈭氶€氳繃] 4-04 鑹搧闆惰鎶ワ紙IsOk=true銆丯gReason 绌恒€丄nnotatedImage 灏辩华锛? 鈫? IsOk=True Ng=''
+  [鈭氶€氳繃] 3-05 閿欒娈垫暟涓?P4 鐪熷€间竴鑷达紙鏈熸湜 3锛? 鈫? got=3 Success=True Err=''
+  [鈭氶€氳繃] 3-05 鍥涚被璁℃暟涓庣湡鍊间竴鑷达紙缂鸿兌1/澶粏1/澶矖1/鍋忕Щ0锛? 鈫? got=缂鸿兌1/澶粏1/澶矖1/鍋忕Щ0
+  [鈭氶€氳繃] 6-05 鍥涚被璁℃暟涔嬪拰 == ErrorCount  鈫? 1+1+1+0 vs 3
+  [鈭氶€氳繃] 5-05 NG 璇箟锛圫uccess 浠嶄负 true銆丯gReason 闈炵┖锛? 鈫? Success=True IsOk=False Ng='缂鸿兌 1 娈点€佸お缁?1 娈点€佸お绮?1 娈?
+  [鈭氶€氳繃] 3-06 閿欒娈垫暟涓?P4 鐪熷€间竴鑷达紙鏈熸湜 1锛? 鈫? got=1 Success=True Err=''
+  [鈭氶€氳繃] 3-06 鍥涚被璁℃暟涓庣湡鍊间竴鑷达紙缂鸿兌1/澶粏0/澶矖0/鍋忕Щ0锛? 鈫? got=缂鸿兌1/澶粏0/澶矖0/鍋忕Щ0
+  [鈭氶€氳繃] 6-06 鍥涚被璁℃暟涔嬪拰 == ErrorCount  鈫? 1+0+0+0 vs 1
+  [鈭氶€氳繃] 5-06 NG 璇箟锛圫uccess 浠嶄负 true銆丯gReason 闈炵┖锛? 鈫? Success=True IsOk=False Ng='缂鸿兌 1 娈?
+  [鈭氶€氳繃] 3-07 閿欒娈垫暟涓?P4 鐪熷€间竴鑷达紙鏈熸湜 4锛? 鈫? got=4 Success=True Err=''
+  [鈭氶€氳繃] 3-07 鍥涚被璁℃暟涓庣湡鍊间竴鑷达紙缂鸿兌1/澶粏0/澶矖0/鍋忕Щ3锛? 鈫? got=缂鸿兌1/澶粏0/澶矖0/鍋忕Щ3
+  [鈭氶€氳繃] 6-07 鍥涚被璁℃暟涔嬪拰 == ErrorCount  鈫? 1+0+0+3 vs 4
+  [鈭氶€氳繃] 5-07 NG 璇箟锛圫uccess 浠嶄负 true銆丯gReason 闈炵┖锛? 鈫? Success=True IsOk=False Ng='缂鸿兌 1 娈点€佷綅缃亸绉?3 娈?
+  [鈭氶€氳繃] 3-07 绫诲瀷鏄庣粏 = 鍋忕Щ3 + 缂鸿兌1锛堥『搴忎笌鏁扮粍绔彛閫愰」瀵归綈锛? 鈫? incorrect position,incorrect position,no bead,incorrect position
+  [鈭氶€氳繃] 3-07 ErrorSegments / BeadContours 杈撳嚭灏辩华
+  [鈭氶€氳繃] 7 mm 杈撳嚭 == 鍍忕礌鍊?脳 褰撻噺锛堝宸?1e-9锛? 鈫? px=4 mm=0.07999986 棰勬湡=0.07999986
+  [鈭氶€氳繃] 8a 杈撳叆绔彛闈細SrcImage/RecipeName/AlignedImage/RoiRegion/Transform锛堝悕瀛?绫诲瀷閿佸畾锛? 鈫? Inputs=[SrcImage,RecipeName,AlignedImage,RoiRegion,Transform]
+  [鈭氶€氳繃] 8b 杈撳嚭绔彛闈細16 涓鍙ｅ叏閮ㄥ氨浣嶏紙鍚嶅瓧+绫诲瀷閿佸畾锛? 鈫? Outputs=[IsOk,NgReason,AnnotatedImage,ErrorCount,ErrorTypes,ErrorLengths,ErrorRows,ErrorCols,TotalErrorLength,NoBeadCount,TooThinCount,TooThickCount,MispositionCount,ErrorSegments,BeadContours,AlignedImage,Success,ErrorMessage]
+  [鈭氶€氳繃] 9a 棣栬疆锛歜ead 涓?planar 鍚勯噸寤?1 娆? 鈫? bead=1 planar=1
+  [鈭氶€氳繃] 9b 绗簩杞紙鍚屽弬鏁帮級锛氫笉閲嶅缓锛堟寚绾圭紦瀛樼敓鏁堬級  鈫? bead=1 planar=1
+  [鈭氶€氳繃] 9c 鏀瑰宸悗锛歜ead 閲嶅缓 1 娆°€乸lanar 浠嶅鐢? 鈫? bead=2 planar=1
+  [鈭氶€氳繃] 澶瑰叿 瀵归綈澶瑰叿灏辩华锛堢煫姝?+ planar 妯″瀷 + 鍙屽悜瀵归綈锛?
+  [鈭氶€氳繃] 10a 鑷姩鎻愬彇锛堝弬鑰冨浘宸垎鍙ｅ緞锛夊嚭闈炵┖鐐瑰垪  鈫? 鐐规暟=40 棣栫偣=(706,312)
+  [鈭氶€氳繃] 10b 鎻愬彇鐐规暟鍦?40~80 鍖洪棿锛堣鏍?搂7.2 #10锛屼笌 13d 鍚屽彛寰勶紱P12锛?0 鐐规娊绋€瀵规鍑哄嚑涔庢棤褰卞搷锛? 鈫? 鐐规暟=40
+  [鈭氶€氳繃] 10c black-hat 鍥為€€涓嶅穿锛堟垚鍔熺粰鐐瑰垪 / 澶辫触缁欎腑鏂囧師鍥狅級  鈫? 鐐规暟=40
+  [鈭氶€氳繃] 13a 鎻愬彇鎴愬姛涓旈鏋舵鏁?> 1锛堝垎鍙夊満鏅垚绔嬶級  鈫? 娈垫暟=3
+  [鈭氶€氳繃] 13b 鏍戠洿寰勫悎骞惰鐩栫巼 鈮?95%锛圥6 瀹炴祴 98.2%锛? 鈫? 98.16%
+  [鈭氶€氳繃] 13c 鍙彇鏈€闀夸竴鏉＄殑瑕嗙洊鐜?< 70%锛圥6 瀹炴祴 68.9%锛岃瘉鏄庡繀椤诲悎骞讹級  鈫? 68.88%
+  [鈭氶€氳繃] 13d 鎶界█鐐规暟鍦?40~80 鍖洪棿锛埪?.4 鈶э級  鈫? 鐐规暟=40
+  [鈭氶€氳繃] 15 鎻愬彇涓績绾垮埌鑼冧緥 ContourRef 骞冲潎鍋忕 < 3px锛圥11 瀹炴祴 1.98 鍏ㄧ偣 / 2.18 @40 鐐癸級  鈫? 骞冲潎=2.18px 鏈€澶у亸绂?8.39px
+  [鈭氶€氳繃] 11a UnitOutput=Mm 鏃犱换浣曟潵婧?鈫?Fail锛堜腑鏂囪瘽鏈級  鈫? Success=False Err='杈撳嚭鍗曚綅璁句负姣背锛屼絾鏃㈡湭杩炴帴鏍囧畾鍙樻崲涔熸湭濉啓鍍忕礌褰撻噺锛氳琛ュ叾涓€'
+  [鈭氶€氳繃] 11b 鏍囧畾鍥惧儚灏哄涓庡綋鍓嶅浘涓嶇 鈫?Fail锛堜腑鏂囪瘽鏈級  鈫? Success=False Err='鏍囧畾澶遍厤锛氬綋鍓嶅浘 1280脳1024 鈮?鏍囧畾鍥?640脳512锛屾崲鍒嗚鲸鐜?鎹㈢浉鏈哄悗闇€閲嶆柊鏍囧畾'
+  [鈭氶€氳繃] 11c PixelScale 鏍囧畾鍙彇 MmPerPixel锛堢煩闃靛叏闆朵笉褰卞搷闀垮害鎹㈢畻锛? 鈫? px=4 mm=0.07999986 Success=True Err=''
+  [鈭氶€氳繃] 12b 鐩寸嚎涓鎻掔偣锛氱偣鏁?1銆佹彃鍒版渶杩戞銆佽蛋鍚戜笉鍙橈紙涓嶆姌杩旓級  鈫? 鎻掑叆浣?2 鐐规暟=6 璧板悜涓嶅彉=True
+  [鈭氶€氳繃] 12c 鑼冧緥璺緞涓鎻掔偣锛氬師鐐瑰垪淇濆簭銆佹渶澶ц浆瑙掍笉鍙橈紙璧板悜涓嶅彉锛夈€佸眬閮ㄨ浆瑙?90掳銆佹€婚暱鍋忓樊<0.1%  鈫? 鎻掑叆浣?1 淇濆簭=True 杞 26.5掳鈫?6.5掳 灞€閮?0掳 闀垮害 1015.68鈫?015.68
+  [鈭氶€氳繃] 12d 鍒犵偣鍚庝粛鍙缓妯″瀷锛?3 鐐?鈫?鎶樼嚎 XLD + bead 妯″瀷鏋勫缓鎴愬姛锛? 鈫? 鍒犻櫎浣?7 鍓?13 
+  [鈭氶€氳繃] 14a TargetWidth 浼?4/2/1 閮借閽╁瓙澶瑰埌 6锛屼紶 15 鍘熸牱浣跨敤  鈫? 4鈫? 2鈫? 1鈫? 15鈫?5
+  [鈭氶€氳繃] 14b 鐢ㄥす鍒?6 鐨勮兌瀹藉疄闄呭缓妯″瀷鎴愬姛锛堜笉鎶?#3716锛?
+  [鈭氶€氳繃] 14c 瀵圭収锛氱粫杩囦繚鎶ょ洿鎺ヤ紶 4 纭疄鎶?#3716锛堣瘉鏄庡す鍙栫殑蹇呰鎬э級  鈫? HALCON error #3716
+  [鈭氶€氳繃] [UI] BeadInspectView 寮曠敤鐨勬瘡涓?Plugin* 閿兘鏈夊畾涔? 鈫? 鍏?25 涓敭
+  [鈭氶€氳繃] [UI] BeadInspectView 涓嶇粰 h: 鎺т欢鎸傚唴鑱?Style
+  [鈭氶€氳繃] [UI] BeadInspectView 鏃犵‖缂栫爜棰滆壊
+
+---- [S] HTTP 鏀跺浘 鈫?瑙嗚澶勭悊 鈫?HTTP 鍙嶉 绔埌绔啋鐑?----
+  [鈭氶€氳繃] [S1] AppConfig.json 鍔犺浇锛圚ttpImageServer 鑺傦級  鈫? Enabled=True Host=127.0.0.1 Port=19123 Token=visionmaster
+  [鈭氶€氳繃] [S1] 榛樿浠ょ墝鍒ゅ畾锛圛sUsingDefaultToken锛? 鈫? IsUsingDefaultToken=True
+  [鈭氶€氳繃] [S2] 鍔犺浇 Plugin.ImageAcquisition.dll 骞惰В鏋愭彃浠剁被鍨? 鈫? Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+  [鈭氶€氳繃] [S2] 瀹夸富涓庢彃浠舵寚鍚戝悓涓€浠?Core.Interfaces  鈫? 瀹夸富 Core.Interfaces 1.0.0.0 / 鎻掍欢寮曠敤 1.0.0.0
+  [鈭氶€氳繃] [S3] 宸ヤ綔鍖哄氨缁紙褰撳墠鏂规 1 鏉℃祦绋?/ 1 涓楠わ級  鈫? Flows=1 Steps=1 ModeType=AcquisitionMode
+  [鈭氶€氳繃] [S4] 鏈嶅姟绔凡寮€濮嬬洃鍚? 鈫? IsListening=True
+  [鈭氶€氳繃] [S4] 鍚姩鏃ュ織鍚洃鍚湴鍧€  鈫? Info:[HttpImageServer] 宸茬洃鍚?http://127.0.0.1:19123/flow/{娴佺▼鍚峿?outputs=姝ラ鍚?绔彛鍚?
+  [鈭氶€氳繃] [S4] 榛樿浠ょ墝 鈫?鍚姩 Warn  鈫? Warn:[HttpImageServer] 璁块棶浠ょ墝浠嶆槸榛樿鍗犱綅鍊笺€寁isionmaster銆嶏紝璇蜂慨鏀?AppConfig.json 鐨?HttpImageServer.Token 鍚庡啀鎶曠敤
+  [鈭氶€氳繃] [S5] 鏃犱护鐗?鈫?鎷掔粷锛堥潪 200锛? 鈫? HTTP 401 body={"Error":"NotAuthorized","StatusCode":401,"Description":"Authentication is required or has failed."}
+  [鈭氶€氳繃] [S5] 閿欒浠ょ墝 鈫?鎷掔粷锛堥潪 200锛? 鈫? HTTP 401 body={"Error":"NotAuthorized","StatusCode":401,"Description":"Authentication is required or has failed."}
+  [鈭氶€氳繃] [S6] 鏈煡娴佺▼ 鈫?404  鈫? HTTP 404 body={"success":false,"message":"\u5F53\u524D\u65B9\u6848\u4E2D\u6CA1\u6709\u540D\u4E3A\u300C\u4E0D\u5B58\u5728\u7684\u6D41\u7A0B\u300D\u7684\u6D41\u7A0B"}
+  [鈭氶€氳繃] [S7] 绌?body 鈫?400  鈫? HTTP 400 body={"success":false,"message":"\u8BF7\u6C42\u4F53\u4E3A\u7A7A\uFF1A\u8BF7\u628A\u56FE\u7247\u6587\u4EF6\u7684\u5B57\u8282\u4F5C\u4E3A body \u53D1\u9001"}
+  [鈭氶€氳繃] [S8] 鐏板害鍥?POST 鈫?200 涓?success=true  鈫? HTTP 200 body={"success":true,"requestId":"d54e568b","flow":"\u6536\u56FE\u5192\u70DF\u6D41\u7A0B","elapsedMs":3,"image":{"width":64,"height":48,"channels":1},"outputs":{"\u56FE\u50CF\u91C7\u96C6_0.Image":{"type":"鈥?
+  [鈭氶€氳繃] [S8] 鍥炲寘 image 灏哄/閫氶亾 = 婧愬浘 64x48x1  鈫? image=64x48x1
+  [鈭氶€氳繃] [S8] 杈撳嚭绔彛 Image 鏄?HImage 涓斿昂瀵?64x48  鈫? {"type":"image","width":64,"height":48}
+  [鈭氶€氳繃] [S8] CurrentPath 鍥炰紶 X-Image-Name  鈫? "smoke-gray.png"
+  [鈭氶€氳繃] [S8] TotalFiles = 1  鈫? 1
+  [鈭氶€氳繃] [S8] 鎻掍欢鑷姤 Success=true  鈫? Success=true ErrorMessage=
+  [鈭氶€氳繃] [S9] 褰╄壊鍥?POST 鈫?200 涓旈€氶亾=3  鈫? HTTP 200 image=64x48x3 body={"success":true,"requestId":"d2653569","flow":"\u6536\u56FE\u5192\u70DF\u6D41\u7A0B","elapsedMs":0,"image":{"width":64,"height":48,"channels":3},"outputs":{"\u56FE\u50CF\u91C7\u96C6_0.Image":{"type":"鈥?
+  [鈭氶€氳繃] [S9] 褰╄壊鍥?HImage 灏哄 64x48  鈫? {"type":"image","width":64,"height":48}
+  [鈭氶€氳繃] [S10] 鏃犳潵婧愬悕 鈫?CurrentPath = hub://娴佺▼鍚嶏紙璇佹槑璧扮殑鏄綉缁滄Ы閫氳矾锛? 鈫? HTTP 200 "hub://\u6536\u56FE\u5192\u70DF\u6D41\u7A0B"
+  [鈭氶€氳繃] [S11] 鍓嶅簭璇锋眰宸叉敞鍐屼細璇? 鈫? SessionID=efd1fe3abedb4160a51e56d21e02871b CompiledVersion=2
+  [鈭氶€氳繃] [S11] 娴佺▼杩愯涓?鈫?409  鈫? HTTP 409 body={"success":false,"message":"\u6D41\u7A0B\u300C\u6536\u56FE\u5192\u70DF\u6D41\u7A0B\u300D\u6B63\u5728\u8FD0\u884C\u4E2D\uFF0C\u672C\u6B21\u8BF7\u6C42\u672A\u53D7\u7406"}
+  [鈭氶€氳繃] [S12] 鐪佺暐 outputs 鈫?鍥炰紶鍏ㄩ儴杈撳嚭绔彛  鈫? HTTP 200 keys=鍥惧儚閲囬泦_0.Image,鍥惧儚閲囬泦_0.CurrentPath,鍥惧儚閲囬泦_0.CurrentIndex,鍥惧儚閲囬泦_0.TotalFiles,鍥惧儚閲囬泦_0.FrameId,鍥惧儚閲囬泦_0.ReceivedCount,鍥惧儚閲囬泦_0.SourceSerial,鍥惧儚閲囬泦_0.Success,鍥惧儚閲囬泦_0.ErrorMessage
+  [鈭氶€氳繃] [S12] 娴佺▼缁撴潫鍚?Hub 妲藉凡鎺掔┖  鈫? Count=0
+  [鈭氶€氳繃] [S12] Dispose 鍚庡仠姝㈢洃鍚? 鈫? IsListening=False
+
+---- [S13] 缃戠粶鎺ㄩ€侊細妲界┖闃诲绛夊浘 / 鍋滄鎵撴柇 ----
+  [鈭氶€氳繃] [S13a] 璧峰妲戒负绌猴紙淇濊瘉璧板埌绛夊緟鍒嗘敮锛? 鈫? Count=0
+  [鈭氶€氳繃] [S13a] 閲囬泦姝ラ杩涘叆绛夊緟锛堟彃浠舵墦鍑虹瓑寰?Info锛? 鈫? Infos=Info:[HttpImageServer] 宸茬洃鍚?http://127.0.0.1:19123/flow/{娴佺▼鍚峿?outputs=姝ラ鍚?绔彛鍚?| Info:[HttpImageServer] 璇锋眰 d54e568b 宸蹭负娴佺▼銆屾敹鍥惧啋鐑熸祦绋嬨€嶈ˉ缂栬瘧骞舵敞鍐屼細璇?| Info:鏀跺浘鍐掔儫娴佺▼.鍥惧儚閲囬泦_0 宸蹭粠缃戠粶妲藉彇鍥? 64x48x1 | Info:[HttpImageServer] 璇锋眰鈥?
+  [鈭氶€氳繃] [S13a] 妲界┖鏈熼棿娴佺▼纭疄琚崱鍦ㄩ噰闆嗘楠わ紙鏈畬鎴愶級  鈫? IsCompleted=False
+  [鈭氶€氳繃] [S13a] 鎺ㄥ叆涓€甯у悗娴佺▼缁х画骞舵垚鍔? 鈫? State=Success Count=0
+  [鈭氶€氳繃] [S13b] 閲囬泦姝ラ杩涘叆绛夊緟  鈫? Infos=Info:[HttpImageServer] 宸茬洃鍚?http://127.0.0.1:19123/flow/{娴佺▼鍚峿?outputs=姝ラ鍚?绔彛鍚?| Info:[HttpImageServer] 璇锋眰 d54e568b 宸蹭负娴佺▼銆屾敹鍥惧啋鐑熸祦绋嬨€嶈ˉ缂栬瘧骞舵敞鍐屼細璇?| Info:鏀跺浘鍐掔儫娴佺▼.鍥惧儚閲囬泦_0 宸蹭粠缃戠粶妲藉彇鍥? 64x48x1 | Info:[HttpImageServer] 璇锋眰鈥?
+  [鈭氶€氳繃] [S13b] 鍋滄鎵撴柇绛夊緟鍚庢湰姝ユ寜銆屾湭鎴愬姛銆嶆敹灏? 鈫? State=Failed
+  [鈭氶€氳繃] [S13b] 鎻掍欢鎵撲簡涓€鏉°€屽凡鍋滄绛夊緟缃戠粶鍥惧儚銆嶇殑 Warn  鈫? Warns=Warn:[HttpImageServer] 璁块棶浠ょ墝浠嶆槸榛樿鍗犱綅鍊笺€寁isionmaster銆嶏紝璇蜂慨鏀?AppConfig.json 鐨?HttpImageServer.Token 鍚庡啀鎶曠敤 | Warn:鏀跺浘鍐掔儫娴佺▼.鍥惧儚閲囬泦_0 宸插仠姝㈢瓑寰呯綉缁滃浘鍍忥紙娴佺▼銆屾敹鍥惧啋鐑熸祦绋嬨€嶏級
+  [鈭氶€氳繃] [S13b] 浼氳瘽姝ｅ父鏀跺熬锛圫topped锛屼笉鏄?Faulted锛? 鈫? State=Stopped
+  [鈭氶€氳繃] [S13b] 鍋滄鍚庢Ы浠嶇┖锛堟病琚嚟绌哄杩涗竴甯э級  鈫? Count=0
+
+---- [W] 澶氫骇鍝佺嚎搴忔娴嬫柟妗堬細鍔犺浇 鈫?缂栬瘧 鈫?涓夊垎鏀悇璺戜竴閬?鈫?鏂█缁撴灉涓庢姇灏?----
+  [鈭氶€氳繃] 鏂规鏂囦欢瀛樺湪  鈫? D:\C#\VM\瑙ｅ喅鏂规\绾垮簭妫€娴?vms
+  [鈭氶€氳繃] 閲囬泦 / 鑴氭湰 / 鍙橀噺璧嬪€?涓変釜鎻掍欢绋嬪簭闆嗗彲瑁呰浇
+  [鈭氶€氳繃] 鐢熶骇鍔犺浇鍣ㄨ兘鎵撳紑杩欎唤鏂规  鈫? 鎿嶄綔鎴愬姛
+  [鈭氶€氳繃] 鏂规閲屽彧鏈変竴鏉℃祦绋嬶紝涓斿悕涓恒€岀嚎搴忔娴嬨€? 鈫? 娴佺▼鏁?1 鍚嶇О=绾垮簭妫€娴?
+  [鈭氶€氳繃] 娴佺▼涓诲共鍓?5 姝ヤ緷娆℃槸 閲囬泦 鈫?鎵剧嚎 鈫?閫夐厤鏂?鈫?姣斿 鈫?缁撴灉鍒嗘祦  鈫? 姝ラ鏁?6: 鍥惧儚閲囬泦_0 鈫?鎵剧嚎 鈫?閫夐厤鏂?鈫?姣斿 鈫?缁撴灉鍒嗘祦 鈫?鍙橀噺璧嬪€糭5
+  [鈭氶€氳繃] 姝ラ绫诲瀷渚濇鏄?閲囬泦 / 鑴氭湰 / 鏉′欢鍒嗘敮 / 鑴氭湰 / 鏉′欢鍒嗘敮  鈫? 鍥惧儚閲囬泦 / C#鑴氭湰 / 鏉′欢鍒嗘敮 / C#鑴氭湰 / 鏉′欢鍒嗘敮
+  [鈭氶€氳繃] 閫夐厤鏂规湁 3 涓垎鏀紙If / ElseIf / Else锛? 鈫? 鍒嗘敮=If,ElseIf,Else
+  [鈭氶€氳繃] If 鐨勬潯浠舵槸銆? 鑺€嶃€丒lseIf 鐨勬潯浠舵槸銆?0 鑺€? 鈫? If=[WireCount == 5] ElseIf=[WireCount == 10]
+  [鈭氶€氳繃] 鏉′欢鑺傜偣澹版槑浜嗚繍琛屾椂鍙橀噺 WireCount锛堜笉澹版槑鏉′欢姹傚€兼椂浼氬彇涓嶅埌鍊硷級  鈫? WireCount:System.Int32
+  [鈭氶€氳繃] 涓変釜鍒嗘敮浣撻噷鍚勬湁 1 涓€屽彉閲忚祴鍊笺€嶈妭鐐癸紙閰嶆柟灏卞啓鍦ㄩ噷闈級  鈫? If:1姝?| ElseIf:1姝?| Else:1姝?
+  [鈭氶€氳繃] 缁撴灉鍒嗘祦鏈?If / Else 涓よ矾锛屾潯浠舵槸 Result == true  鈫? 鍒嗘敮=If:[Result == true],Else:[]
+  [鈭氶€氳繃] 涓や釜鑴氭湰姝ラ鐨?Image 杈撳叆閮借繛鍒伴噰闆嗘楠ょ殑 Image 杈撳嚭  鈫? 鎵剧嚎鈫掑浘鍍忛噰闆哶0.Image锛涙瘮瀵光啋鍥惧儚閲囬泦_0.Image
+  [鈭氶€氳繃] 銆? 鑺€戠紪璇戝苟鎵ц瀹屾垚
+  [脳澶辫触] 銆? 鑺€戞壂鍑?5 鏍癸紙瀹炴祴 锛? 鈫? WireCount= 姝ラ鐘舵€?鍥惧儚閲囬泦_0=Failed 鎵剧嚎=Failed 閫夐厤鏂?Success 姣斿=Failed 缁撴灉鍒嗘祦=Success 鍙橀噺璧嬪€糭5=Failed Err=Error:绾垮簭妫€娴?鍥惧儚閲囬泦_0 鎵句笉鍒板簭鍒楀彿涓恒€孷IRTUAL-001銆嶇殑鐩告満銆傝鍒般€岀郴缁?鈫?鐩告満璁剧疆銆嶆坊鍔犺鐩告満锛屾垨鍥炲埌鏈楠ょ殑銆岀浉鏈洪噰闆嗐€嶉〉閲嶆柊閫夋嫨 | Error:姝ラ[绾垮簭妫€娴?鍥惧儚閲囬泦_0]鎵ц澶辫触: 鎵句笉鍒板簭鍒楀彿涓恒€孷IRTUAL-001銆嶇殑鐩告満銆傝鍒般€岀郴缁?鈫?鐩告満璁剧疆銆嶆坊鍔犺鐩告満锛屾垨鍥炲埌鏈楠ょ殑銆岀浉鏈洪噰闆嗐€嶉〉閲嶆柊閫夋嫨 | Error:姝ラ[绾垮簭妫€娴?鎵剧嚎]鎵ц澶辫触: 绗?1 琛?绗?1 鍒? Metadata file 'D:\C#\VM\FlowCanvasChecks\bin\Debug\net9.0-windows\onnxruntime_providers_shared.dll' could not be opened -- PE image doesn't contain managed metadata. | Error:姝ラ[绾垮簭妫€娴?姣斿]鎵ц澶辫触: 绗?1 琛?绗?1 鍒? Metadata file 'D:\C#\VM\FlowCanvasChecks\bin\Debug\net9.0-windows\onnxruntime_providers_shared.dll' could not be opened -- PE image doesn't contain managed metadata. | Error:绾垮簭妫€娴?鍙橀噺璧嬪€糭5 鎵句笉鍒板叏灞€鍙橀噺銆孖mg銆嶏紝璇峰厛鍦ㄥ彉閲忕鐞嗛噷鏂板缓鍚屽悕鍙橀噺 | Error:姝ラ[绾垮簭妫€娴?鍙橀噺璧嬪€糭5]鎵ц澶辫触: 鎵句笉鍒板叏灞€鍙橀噺銆孖mg銆嶏紝璇峰厛鍦ㄥ彉閲忕鐞嗛噷鏂板缓鍚屽悕鍙橀噺 Warn=
+  [脳澶辫触] 銆? 鑺€戣蛋 If 鍒嗘敮鍙栧埌閰嶆柟 A = 榛?妫?鐜孩,绾?榛? 鈫? Expected=[]
+  [脳澶辫触] 銆? 鑺€戠嚎搴忎笌榛勯噾鍙傜収涓€鑷? 鈫? 瀹炴祴=[]
+  [脳澶辫触] 銆? 鑺€戝垽瀹氬悎鏍笺€佸垎娴佽蛋 If 璁?OK  鈫? Result= Verdict=NG
+  [脳澶辫触] 銆? 鑺€戞棩蹇楃暀涓嬬粨璁哄叏鏂? 鈫? Info:绾垮簭妫€娴?璧嬪€糭Expected 鏈湴鍙橀噺 Expected 宸插垱寤哄苟璧嬪€?| Info:绾垮簭妫€娴?璧嬪€糭Verdict 鏈湴鍙橀噺 Verdict 宸插垱寤哄苟璧嬪€?
+  [鈭氶€氳繃] 銆?0 鑺€戠紪璇戝苟鎵ц瀹屾垚
+  [脳澶辫触] 銆?0 鑺€戞壂鍑?10 鏍癸紙瀹炴祴 锛? 鈫? WireCount=
+  [脳澶辫触] 銆?0 鑺€戠嚎搴忎笌榛勯噾鍙傜収涓€鑷达細榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫? 鈫? 瀹炴祴=[]
+  [脳澶辫触] 銆?0 鑺€戣蛋 ElseIf 鍒嗘敮鍙栧埌閰嶆柟 B  鈫? Expected=[]
+  [脳澶辫触] 銆?0 鑺€戝垽瀹氬悎鏍笺€佸垎娴佽蛋 If 璁?OK  鈫? Result= Verdict=NG
+  [鈭氶€氳繃] 銆愭湭鐭ヨ姱鏁般€戠紪璇戝苟鎵ц瀹屾垚
+  [鈭氶€氳繃] 銆愭湭鐭ヨ姱鏁般€戣蛋 Else 鍒嗘敮锛圗xpected 琚竻鎴愮┖锛? 鈫? Expected=[]
+  [脳澶辫触] 銆愭湭鐭ヨ姱鏁般€戝垽瀹氫笉鍚堟牸  鈫? Result=
+  [脳澶辫触] 銆愭湭鐭ヨ姱鏁般€戠粨璁烘槑纭啓銆屾湭鐭ヤ骇鍝併€嶏紝涓嶅惈绯婃垚銆岀嚎鏁颁笉绗︺€? 鈫? Warn=[]
+  [鈭氶€氳繃] 銆愭湭鐭ヨ姱鏁般€戝垎娴佽蛋 Else 璁?NG  鈫? Verdict=NG
+  [脳澶辫触] 鑴氭湰寰€瑙嗗浘绐楀彛鍙戣繃棰勮甯э紙鍏?0 甯э級  鈫? 涓€甯ч兘娌″彂锛歋howImage 娌¤璋冨埌锛屾垨棰勮閫氶亾鏂簡
+  [脳澶辫触] 甯︽爣娉ㄧ殑缁撴灉甯ф伆濂?2 甯э紙鎵剧嚎涓€甯?+ 姣斿涓€甯э紝涓嶄細閲嶅鎶曞皠锛? 鈫? 鍚勫抚鐩爣绐楀彛锛氾紱甯︽爣娉ㄧ殑甯ф暟=0
+  [脳澶辫触] 缁撴灉甯ц惤鍦ㄥ悎娉曠殑瑙嗗浘绐楀彛鍙蜂笂锛?~9锛? 鈫? 娌℃湁甯︽爣娉ㄧ殑甯?
+
+---- [V] 鍙橀噺缁戝畾绐楀彛锛氬洖鏄惧綋鍓嶅€?/ 鎹㈢鍙ｄ笉涓插€?/ 涓嶆妸杩炵嚎褰撳父閲?----
+  [鈭氶€氳繃] 鐢ㄤ緥鍓嶆彁锛歂ame 鐨勫€煎瓨鍦?InputValues 閲岋紙涓嶆槸 LinkedSources锛? 鈫? LinkedSources 鏈?Name = False锛汭nputValues 鏈?Name = True
+  [鈭氶€氳繃] 寮圭獥鎵撳紑鍚庯紝榛樿閫変腑绔彛鐨勬墜濉€艰鍥炴樉鍑烘潵  鈫? ConstantValue=[Expected]
+  [鈭氶€氳繃] 鎹㈠埌銆屽父閲忚繛绾裤€嶇殑绔彛锛氬洖鏄捐繛绾块噷鐨勫父閲? 鈫? ConstantValue=[榛?妫?鐜孩,绾?榛刔
+  [鈭氶€氳繃] 鎹㈠埌銆岀粦鐨勬槸涓婃父绔彛銆嶇殑绔彛锛氬父閲忔蹇呴』娓呯┖锛堝惁鍒欑偣纭畾浼氭妸杩炵嚎鏀瑰啓鎴愬父閲忥級  鈫? ConstantValue=[]
+  [鈭氶€氳繃] 鍐嶆崲鍥炴潵鍊艰繕鍦紙鍥炴樉鍙噸澶嶏紝涓嶆槸涓€娆℃€э級  鈫? ConstantValue=[Expected]
+
+---- [V] 鍊欓€夌鍙ｅ垪琛細鎸夌洰鏍囩鍙ｇ被鍨嬭繃婊?/ 鏄剧ず鍏ㄩ儴 / 鎹㈢鍙ｉ噸绠?----
+  [鈭氶€氳繃] 閫変腑 HImage 绔彛锛氬€欓€夐噷鍙墿 HImage 杈撳嚭锛圚Region / double 琚繃婊ゆ帀锛? 鈫? 瀹為檯鍊欓€夛細Image
+  [鈭氶€氳繃] 鍕鹃€夈€屾樉绀哄叏閮ㄣ€嶏細涓夋潯閮藉垪鍑烘潵锛屼笖涓嶅吋瀹圭殑涓ゆ潯琚爣涓轰笉鍙粦瀹? 鈫? 鍊欓€?3 鏉★紝涓嶅彲缁戝畾锛歊egion, Row
+  [鈭氶€氳繃] 涓嶅彲缁戝畾椤瑰甫寰楀嚭鍘熷洜锛堝惁鍒欑疆鐏颁簡涔熻涓嶆竻涓轰粈涔堬級  鈫? Image: | Region:绫诲瀷涓嶅尮閰嶏細HRegion 鏃犳硶缁戝埌 HImage 绔彛 | Row:绫诲瀷涓嶅尮閰嶏細Double 鏃犳硶缁戝埌 HImage 绔彛
+  [鈭氶€氳繃] 鍙栨秷銆屾樉绀哄叏閮ㄣ€嶏細鎭㈠鎴愬彧鍓╄兘缁戠殑  鈫? 瀹為檯鍊欓€夛細Image
+  [鈭氶€氳繃] 鎹㈠埌 object 绔彛锛氫笁鏉″叏閮ㄥ彲缁戯紙object 浠€涔堥兘鎺ュ緱浣忥級  鈫? 瀹為檯鍊欓€夛細Image, Region, Row
+  [鈭氶€氳繃] 鎹㈠洖 HImage 绔彛锛氳繃婊ょ粨鏋滆窡鐫€閲嶇畻锛堜笉鏄畫鐣欎笂涓€娆＄殑锛? 鈫? 瀹為檯鍊欓€夛細Image
+  [鈭氶€氳繃] 鍒ゆ嵁 null 瀹夊叏锛堟棤閫変腑绔彛鏃朵笉鎶涖€佹寜鍏ㄥ吋瀹瑰鐞嗭級
+
+---- [V] 绔彛绫诲瀷鍚嶈В鏋愶紙杩囨护鏄惁鐢熸晥鐨勫墠鎻愶級 ----
+  [鈭氶€氳繃] 绋嬪簭闆嗛檺瀹氬悕鍙В鏋?
+  [鈭氶€氳繃] 鍙啓鐭悕涔熻兘瑙ｆ瀽锛堥€愮▼搴忛泦鍏滃簳锛? 鈫? 瑙ｆ瀽缁撴灉=HImage
+  [鈭氶€氳繃] 鏈煡绫诲瀷鍚嶉€€鍥?object锛? 鏀捐锛屼笉璇潃锛?
+  [鈭氶€氳繃] 绌虹被鍨嬪悕閫€鍥?object锛堜笉鎶涘紓甯革級
+
+---- [V] 瑙嗗浘鏍峰紡鏀剁紪濂戠害锛圲I 搴?Dialog* 浠ょ墝锛?----
+  [鈭氶€氳繃] 銆愭敹缂栥€戣鍥鹃噷宸叉棤纭紪鐮侀鑹诧紙鍚師鏉ラ偅濂?#409EFF / #F5F7FA锛屼竴寰嬭蛋浠ょ墝锛?
+  [鈭氶€氳繃] 銆愭敹缂栥€戣鍥句笉鍐嶆湰鍦板畾涔?NoWarningItemStyle / InputPortItemStyle / PresetOptionButtonStyle
+  [鈭氶€氳繃] 銆愭敹缂栥€戣鍥炬敼鐢?Dialog* 鍏叡鏍峰紡锛堟爮鍗＄墖 / 閫夐」琛?/ 搴曢儴鏍忥級
+  [鈭氶€氳繃] 銆愮粦瀹氥€戝€欓€夎鏄剧ず鏁版嵁绫诲瀷锛圖ataTypeName 璧板弸濂藉悕杞崲鍣級  鈫? 鍊欓€夎浼氬湪鍚嶇О鍙充晶鏄剧ず銆屾枃鏈?(String)銆嶃€屽皬鏁?(Double)銆嶈繖绫荤被鍨嬫枃鏈紙甯﹀簳鑹茬殑灏忔柟鍦嗚鏍囩 DialogTag锛?
+  [鈭氶€氳繃] 銆愬昂瀵搞€戣鍥句笉鍐嶅啓姝?900脳580锛堟敼涓轰笅闄?+ 鍙缉鏀撅紝绐楀彛灏哄浜ょ粰瀹夸富 Window锛?
+  [鈭氶€氳繃] 銆愬昂瀵搞€戝厑璁哥缉鏀句笖涓嶅啀 SizeToContent锛堝惁鍒欐嫋杈规鐪嬩笉鍒板彉鍖栵級
+  [鈭氶€氳繃] 銆愭牳蹇冦€戣鍥剧敤鍒扮殑姣忎釜 Dialog* 閿兘鍦?UI 搴撻噷鏈夊畾涔夛紙鍚﹀垯杩愯鏈熸姏"鎵句笉鍒拌祫婧?锛? 鈫? 鍏?33 涓敭鍏ㄩ儴鍛戒腑
+  [鈭氶€氳繃] 銆愭牳蹇冦€戞湰娆℃敹缂栫殑鍏叡閿叏閮ㄨ惤鍦?UI 搴擄紙Dialog/ 鍒嗗唽鎴?Colors 浠ょ墝锛?
+  [鈭氶€氳繃] 銆愮粦瀹氥€戠被鍨嬪悕涓嶈繘鑳跺泭锛圖ialogChip 鍙敤浜庣煭瑙掓爣锛岄暱鏂囨湰浼氭拺鎴愭í妞渾锛? 鈫? DialogChip 鍏?2 澶勶紝鍧囦笉鍚被鍨嬬粦瀹?
+  [鈭氶€氳繃] 銆愮粦瀹氥€戠被鍨嬪悕鐢?DialogTag锛堝甫搴曡壊鐨勫皬鏂瑰渾瑙掓爣绛撅級  鈫? DialogTag 鍏?1 澶勶紝绫诲瀷缁戝畾鍦ㄥ叾涓?
+  [鈭氶€氳繃] 銆愬舰鐘躲€慏ialogTag 鏄皬鏂瑰渾瑙掞紙鈮?锛涗袱灞傞兘蹇呴』鏄惧紡缁欙紝涓嶅緱缁ф壙鎴愯兌鍥婏級  鈫? 鍏?2 灞傚畾涔夛紝鍦嗚鍧囧悎瑙?
+  [鈭氶€氳繃] 銆愭牳蹇冦€慏ialog 鍒嗗唽鍏ㄩ儴鎸傝繘 Generic.xaml 鍚堝苟閾撅紙婕忔寕涓€鍐?= 寮圭獥鎵句笉鍒拌祫婧愶級  鈫? 鍏?8 鍐屽叏閮ㄥ湪閾句笂
+  [鈭氶€氳繃] 銆愮獥鍙ｆ牱寮忋€戞病鏈変换浣曞脊绐楁妸闈炰緷璧栧睘鎬э紙WindowStartupLocation锛夊啓杩?Style 鐨?Setter  鈫? 宸叉壂鍏ㄩ儴寮圭獥锛氬彧鏈?WindowStyle / ResizeMode / SizeToContent / Width / Height / MinWidth / MinHeight 杩欑被 DP
+  [鈭氶€氳繃] 銆愯祫婧愩€戞病鏈夎鍥惧紩鐢ㄤ笉瀛樺湪鐨勮祫婧愰敭锛坽StaticResource BooleanToVisibilityConverter} 鈫?搴斾负 {ui:...}锛? 鈫? 宸叉壂 VisionMaster\Views 涓?Plugins 鍏ㄩ儴 xaml
+  [鈭氶€氳繃] 銆愮獥妗嗐€戞墍鏈夊脊绐楅兘宸插幓鎺夌郴缁熸爣棰樻爮锛堟敼鑷粯锛屼笌闈掕摑鐣岄潰缁熶竴锛? 鈫? 鍏辨壘鍒?17 涓甫绐楀彛鏍峰紡鐨勫脊绐楋紱鍏ㄩ儴鑷粯
+  [鈭氶€氳繃] 銆愮獥妗嗐€戞瘡涓脊绐楃殑鑷粯鏍囬鏍忛兘鍙嫋鍔紙鏃犺竟妗嗙獥鍙ｆ病鏈夌郴缁熸嫋鍔ㄥ尯锛?
+  [鈭氶€氳繃] 銆愮獥妗嗐€戞瘡涓脊绐楅兘鏈夊叧闂叆鍙ｏ紙鏍囬鏍?脳 鎴栧簳閮ㄥ彇娑?纭畾锛屼簩閫変竴锛? 鈫? 鍏ㄩ儴鍏峰锛堟棤杈规绐楀彛娌℃湁绯荤粺鍏抽棴鎸夐挳锛岃繖涓€鏉℃槸鍏充笉鍏冲緱鎺夌殑搴曠嚎锛?
+  [鈭氶€氳繃] 銆愭敹缂栥€戝凡鏀剁紪寮圭獥閲屼笉鍐嶆湁纭紪鐮侀鑹诧紙鐧藉悕鍗曢噷鐨勯噰闆嗚川閲忚壊鐐归櫎澶栵級  鈫? 宸叉壂 6 涓脊绐楋紝棰滆壊鍏ㄩ儴璧?Dialog* 浠ょ墝
+  [鈭氶€氳繃] 銆愭敹缂栥€戝凡鏀剁紪寮圭獥涓嶅啀鏈湴瀹氫箟 Style锛堝舰鐘朵笌棰滆壊涓€寰嬪彇鑷?UI 搴擄級
+
+---- [A2] 鍙橀噺璧嬪€硷細杩愯鏃?/ 鍏ㄥ眬涓ょ浣滅敤鍩?----
+  [鈭氶€氳繃] 鍓嶆彁锛氬叏灞€鍙橀噺娉ㄥ唽鍚庢寜鍚嶅彲鏌ワ紙娉ㄥ唽琛ㄨ闃呬簡闆嗗悎鍙樻洿锛? 鈫? FindByName(Img) = 鍛戒腑
+  [鈭氶€氳繃] 銆愯繍琛屾椂銆戝彉閲忎笉瀛樺湪 + 鍕句簡鑷姩鍒涘缓 鈫?寤烘垚骞惰祴鍊兼垚鍔? 鈫? Success=True Err=[] 鍊?[hello]
+  [鈭氶€氳繃] 銆愯繍琛屾椂銆戝彉閲忓凡瀛樺湪 鈫?瑕嗙洊涓烘柊鍊硷紙涓嶉噸澶嶅垱寤猴級  鈫? Success=True 鍊?[world]
+  [鈭氶€氳繃] 銆愯繍琛屾椂銆戝彉閲忎笉瀛樺湪 + 娌″嬀鑷姩鍒涘缓 鈫?鏄庣‘鎶ャ€屼笉瀛樺湪銆? 鈫? Success=False Err=[鏈湴鍙橀噺 Out2 涓嶅瓨鍦╙
+  [鈭氶€氳繃] 銆愬叏灞€銆戠洰鏍囧瓨鍦?+ 鍊兼槸 HImage 鈫?鍐欒繘鍏ㄥ眬鍙橀噺  鈫? Success=True Err=[] 鍙橀噺鐜板€?HImage 鉁?
+  [鈭氶€氳繃] 銆愬叏灞€銆戠洰鏍囦笉瀛樺湪 鈫?鏄庣‘鎶ラ敊銆佷笖涓嶆柊寤哄彉閲忥紙鍕句簡鑷姩鍒涘缓涔熶笉鏂板缓锛? 鈫? Success=False Err=[鎵句笉鍒板叏灞€鍙橀噺銆孨oSuchVar銆嶏紝璇峰厛鍦ㄥ彉閲忕鐞嗛噷鏂板缓鍚屽悕鍙橀噺] 鍙橀噺鏁?14 鈫?14
+  [鈭氶€氳繃] 銆愬叏灞€銆戠被鍨嬩笉鍖归厤锛坕nt 鍙橀噺鍐欐枃鏈級鈫?鏄庣‘鎶ラ敊  鈫? Success=False Err=[鍏ㄥ眬鍙橀噺銆孮ty銆嶇殑绫诲瀷鏄?Int32锛屾棤娉曞啓鍏?String]
+  [鈭氶€氳繃] 浣滅敤鍩熷彇鍊兼嫾閿?鈫?鏄庣‘鎶ラ敊锛屼笉闈欓粯褰撴垚杩愯鏃? 鈫? Success=False Err=[浣滅敤鍩熷彇鍊兼棤娉曡瘑鍒細銆実lobl銆嶏紙搴斾负 Runtime 鎴?Global锛塢
+
+---- [A3] 鍥惧儚鍙橀噺锛氬彧瀛樺畾涔夈€佷笉瀛樺€硷紙瀛樺€间細璁╂柟妗堝瓨涓嶄笅鏉ワ級 ----
+  [鈭氶€氳繃] 鍚浘鍍忓彉閲忕殑鏂规鑳藉簭鍒楀寲锛堟棫瀹炵幇鎶?HALCON #4056 object-ID is NULL锛?
+  [鈭氶€氳繃] 鍥惧儚鍙橀噺鐨勫畾涔夌収鏍疯惤鐩橈紙鍚嶅瓧 / 绫诲瀷 / 绋冲畾韬唤閮藉湪锛? 鈫? DataTypeString=HalconDotNet.HImage, halcondotnet, Version=23.5.0.0, Culture=neutral, PublicKeyToken=4973bed59ddbf2b8 Id=5d0bc1a2-4c76-4927-acd2-dfffd6429fef
+  [鈭氶€氳繃] 鍥惧儚鍙橀噺鐨勫綋鍓嶅€间笌鍒濆鍊奸兘涓嶈惤鐩橈紙钀?null锛屼笉鎶婂儚绱犲啓杩?.vms锛? 鈫? Value=null / DefaultValue=null
+  [鈭氶€氳繃] 鏅€氬彉閲忕殑鍊肩収鏃у線杩旓紙杩欐鏀剁揣娌℃湁璇激锛? 鈫? Num.Value=42
+
+---- [R2] 棰滆壊搴忓垪妫€鏌ワ紙绗竴鍒€锛夛細ROI 閲囨牱鍖虹殑鐢绘 / 瀛樼洏 / 鍥炲～ ----
+  [鈭氶€氳繃] 鎻掍欢绋嬪簭闆嗗彲瑁呰浇锛堝惈 WPF 瑙嗗浘锛? 鈫? Plugin.ColorCheck
+  [鈭氶€氳繃] 鎵撳紑閰嶇疆鏃舵寜宸插瓨鍙傛暟鍥炲～鍑?1 涓噰鏍风煩褰? 鈫? CanvasRois.Count=1
+  [鈭氶€氳繃] 鍥炲～鐨勭煩褰㈠潗鏍囦笌閰嶇疆涓€鑷达紙涓嶆槸閲嶆柊閲囨牱鍑烘潵鐨勮繎浼煎€硷級  鈫? 240,440,0,100,30
+  [鈭氶€氳繃] 鍦ㄥ浘涓婄敾妗嗗悗锛岄厤缃噷鐨勫舰鐘跺弬鏁拌鍚屾鍥炲啓  鈫? 200,300,15,80,25
+  [鈭氶€氳繃] 鎷栨嫿鍙ユ焺鍚庯紝閰嶇疆閲岀殑褰㈢姸鍙傛暟璺熺潃鏇存柊  鈫? 210,305,15,90,28
+  [鈭氶€氳繃] 鐢讳簡澶氫釜閲囨牱鍖烘椂鍙鏈€鍚庣敾鐨勯偅涓紙涓嶄細姘歌繙鍋滃湪绗竴涓級  鈫? 100,100,0,40,10
+  [鈭氶€氳繃] 纭鍚庡舰鐘跺弬鏁拌繘浜嗘楠ら厤缃紙鑳介殢鏂规钀界洏锛? 鈫? InputValues[RoiParams]=Double[]
+  [鈭氶€氳繃] 閲嶅紑閰嶇疆鍚庡洖濉殑鐭╁舰涓庡瓨鐩樺墠涓€鑷达紙鐢绘 鈫?瀛?鈫?鍥炲～ 闂幆锛? 鈫? 100,100,0,40,10
+  [鈭氶€氳繃] 娌℃閲囨牱鍖烘椂杩愯鏈熸槑纭姤閿欙紙骞惰娓呮€庝箞琛ワ級  鈫? Success=False Err=[灏氭湭妗嗛€夐噰鏍峰尯锛氳鍦ㄨ妭鐐归厤缃噷浜庡浘鍍忎笂鍙抽敭 鈫?鏂板缓鐭╁舰锛屾浣忕嚎鏉焆
+  [鈭氶€氳繃] 妗嗗ソ閲囨牱鍖猴紙涓旂湡妗嗗湪绾挎潫涓婏級鍚庤繍琛屾湡鑳借繃  鈫? Success=True Err=[]
+
+---- [R3] 棰滆壊搴忓垪妫€鏌ワ紙绗簩鍒€锛夛細鑷€傚簲鎵剧嚎涓庨鑹插簭鍒?----
+  [鈭氶€氳繃] 鎻掍欢绋嬪簭闆嗗彲瑁呰浇  鈫? Plugin.ColorCheck
+  [鈭氶€氳繃] 銆?0 鑺€慶able2.png 璺戦€氬苟缁欏嚭缁撴灉  鈫? Success=True Err=[]
+  [鈭氶€氳繃] 銆?0 鑺€戞牴鏁?= 10锛堣剼鏈増鐨勯粍閲戝弬鐓э級  鈫? 瀹炴祴 10
+  [鈭氶€氳繃] 銆?0 鑺€戦鑹插簭鍒椾笌榛勯噾鍙傜収閫愪綅涓€鑷达細榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫? 鈫? 瀹炴祴 榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫?
+  [鈭氶€氳繃] 銆?0 鑺€戦€愭牴鏄庣粏鏉℃暟涓庢牴鏁颁竴鑷? 鈫? 鏄庣粏 10 鏉?/ 鏍规暟 10
+  [鈭氶€氳繃] 銆?0 鑺€戞瘡鏍归兘甯﹀悎娉曠殑鏉ユ簮鏍囪锛堟 = 妫€鍑?/ 琛?= 瑙勬暣琛ュ嚭锛? 鈫? 1榛戞,2鐧芥,3鐏拌ˉ,4绱,5钃濇,6缁挎,7榛勬,8绾㈡,9鐜孩妫€,10妫曟
+  [鈭氶€氳繃] 銆?0 鑺€戣ˉ鍑烘潵鐨勬牴鏁颁笉瓒呰繃涓€鍗婏紙琛ュお澶氳鏄庡垽鎹€変笉鍑虹嚎锛? 鈫? 琛?1 / 鍏?10
+  [鈭氶€氳繃] 銆?0 鑺€戞瘡鏍圭嚎鐨勮鍙蜂笌鑴氭湰鐗堝寰椾笂锛堝宸?8 鍍忕礌锛? 鈫? 瀹炴祴 [147,168,189,210,231,252,273,294,315,336] / 鍙傜収 [147,168,189,209,230,251,272,292,313,334]
+  [鈭氶€氳繃] 銆? 鑺€慶able1.png 璺戦€氬苟缁欏嚭缁撴灉  鈫? Success=True Err=[]
+  [鈭氶€氳繃] 銆? 鑺€戞牴鏁?= 5锛堣剼鏈増鐨勯粍閲戝弬鐓э級  鈫? 瀹炴祴 5
+  [鈭氶€氳繃] 銆? 鑺€戦鑹插簭鍒椾笌榛勯噾鍙傜収閫愪綅涓€鑷达細榛?妫?鐜孩,绾?榛? 鈫? 瀹炴祴 榛?妫?鐜孩,绾?榛?
+  [鈭氶€氳繃] 銆? 鑺€戦€愭牴鏄庣粏鏉℃暟涓庢牴鏁颁竴鑷? 鈫? 鏄庣粏 5 鏉?/ 鏍规暟 5
+  [鈭氶€氳繃] 銆? 鑺€戞瘡鏍归兘甯﹀悎娉曠殑鏉ユ簮鏍囪锛堟 = 妫€鍑?/ 琛?= 瑙勬暣琛ュ嚭锛? 鈫? 1榛戞,2妫曟,3鐜孩妫€,4绾㈡,5榛勬
+  [鈭氶€氳繃] 銆? 鑺€戣ˉ鍑烘潵鐨勬牴鏁颁笉瓒呰繃涓€鍗婏紙琛ュお澶氳鏄庡垽鎹€変笉鍑虹嚎锛? 鈫? 琛?0 / 鍏?5
+  [鈭氶€氳繃] 銆愬鐓х粍銆戝叧鎺夎鏁村寲鍚庡彧鎶ョ湅寰楄鐨勭嚎锛屾牴鏁扮‘瀹炲彉灏? 鈫? 瑙勬暣鍖栧叧 鈫?9 鏍癸紱瑙勬暣鍖栧紑 鈫?10 鏍?
+  [鈭氶€氳繃] 銆愭棆閽€戞墜鍔ㄦ寚瀹?8 鏍?鈫?灏辨姤 8 鏍? 鈫? Success=True 瀹炴祴 8 鏍?
+  [鈭氶€氳繃] 銆愭棆閽€戝嬀涓娿€屽簭鍒楀弽鍚戙€嶁啋 搴忓垪棣栧熬瀵硅皟  鈫? 瀹炴祴 妫?鐜孩,绾?榛?缁?钃?绱?鐏?鐧?榛?
+  [鈭氶€氳繃] 娌℃閲囨牱鍖?鈫?鏄庣‘鎶ラ敊骞惰娓呮€庝箞琛? 鈫? Success=False Err=[灏氭湭妗嗛€夐噰鏍峰尯锛氳鍦ㄨ妭鐐归厤缃噷浜庡浘鍍忎笂鍙抽敭 鈫?鏂板缓鐭╁舰锛屾浣忕嚎鏉焆
+  [鈭氶€氳繃] 鐏板害鍥?鈫?鏄庣‘鎶ャ€岃褰╄壊鍥俱€嶏紙涓嶉潤榛樼粰閿欑粨鏋滐級  鈫? Success=False Err=[棰滆壊搴忓垪妫€鏌ヨ褰╄壊鍥撅紝褰撳墠鍥惧儚鍙湁 1 涓€氶亾]
+  [鈭氶€氳繃] 閲囨牱鍖鸿秴鍑哄浘鍍?鈫?鎶ャ€岃秴鍑哄浘鍍忚寖鍥淬€? 鈫? Success=False Err=[閲囨牱鍖鸿秴鍑哄浘鍍忚寖鍥达紙鍥惧儚 640x480锛岄噰鏍风偣鍙栧埌 (-60, 436)锛夛細璇锋妸妗嗙敾鍦ㄥ浘鍍忓唴]
+  [鈭氶€氳繃] 閲囨牱鍖虹煭杈瑰彧鏈夊嚑涓儚绱?鈫?鎶ャ€屽お绐勩€? 鈫? Success=False Err=[閲囨牱鍖虹殑鐭竟鍙湁 5 涓儚绱狅紝澶獎浜嗭細鎶婃娌跨嚎鏉熸柟鍚戜箣澶栫殑閭ｄ竴杈规媺瀹戒簺]
+  [鈭氶€氳繃] 閲囨牱鍖鸿惤鍦ㄧ┖鐧借儗鏅笂锛堟病鏈夌嚎锛夆啋 鏄庣‘鎶ラ敊锛屼笉纭噾鏍规暟  鈫? Success=False Err=[閲囨牱鍖洪噷鍑犱箮娌℃湁鏄庢殫鍙樺寲锛堜寒搴︽瀬宸彧鏈?8 绾э級锛氬鍗婃鍒扮┖鐧借儗鏅笂浜嗭紝璇锋妸閲囨牱鍖虹Щ鍒扮嚎鏉熶笂]
+  [鈭氶€氳繃] 鐣岄潰銆岃瘯绠椼€嶅湪娌¤浇绀烘剰鍥炬椂缁欏嚭鏄庣‘鎻愮ず锛堜笉鏄潤榛樻棤鍙嶅簲锛? 鈫? 鍏堢偣銆岃浇鍏ャ€嶆妸绀烘剰鍥捐杩涙潵鍐嶈瘯绠?
+  [鈭氶€氳繃] 鐣岄潰銆岃瘯绠椼€嶇粰鍑烘牴鏁般€佺嚎璺濅笌鍒ゆ嵁闃堝€硷紙璋冨弬鐨勪緷鎹氨鍦ㄨ繖鍑犺閲岋級  鈫? 鎵惧埌 5 鏍癸細榛?妫?鐜孩,绾?榛?| 绾胯窛 21.5 鍍忕礌锛堝垎娈典及 21.5 / 鑷浉鍏?16.0锛?| 闃堝€硷細鏆?< 157銆€褰?> 67銆€浜?> 223 | 鏉ユ簮锛?榛戞,2妫曟,3鐜孩妫€,4绾㈡,5榛勬 | 鏈熸湜锛?,*,*,*,*锛堥厤鏂广€? 鑺€嶏級 | 鍒ゅ畾锛氬悎鏍笺€€绾垮簭姝ｇ‘锛? 鑺細榛?妫?鐜孩,绾?榛勶紙閰嶆柟銆? 鑺€嶏級
+  [鈭氶€氳繃] 銆愰厤鏂孤峰悎鏍笺€?0 鑺寜鏍规暟鍖归厤鍒般€?0 鑺帓绾裤€嶅苟鍒ゅ悎鏍? 鈫? 鍚堟牸=True 鏈熸湜=[榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫昡 缁撹=[绾垮簭姝ｇ‘锛?0 鑺細榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫曪紙閰嶆柟銆?0 鑺帓绾裤€嶏級]
+  [鈭氶€氳繃] 銆愰厤鏂孤峰悎鏍笺€戝悓涓€涓妭鐐规崲鎴?5 鑺浘 鈫?鍖归厤鍒般€? 鑺帓绾裤€嶅苟鍒ゅ悎鏍硷紙涓嶇敤鏀逛换浣曢厤缃級  鈫? 鍚堟牸=True 鏈熸湜=[榛?妫?鐜孩,绾?榛刔 缁撹=[绾垮簭姝ｇ‘锛? 鑺細榛?妫?鐜孩,绾?榛勶紙閰嶆柟銆? 鑺帓绾裤€嶏級]
+  [鈭氶€氳繃] 銆愰厤鏂孤蜂笉鍚堟牸銆戠 3 浣嶈鍐欐垚绱?鈫?鍒や笉鍚堟牸涓旀寚鍒扮 3 浣? 鈫? 鍚堟牸=False BadIndex=3 缁撹=[绾垮簭閿欒锛氱 3 鏍瑰簲涓?绱€佸疄娴?鐏帮紙閰嶆柟銆?0 鑺€嶏紱瀹炴祴 榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫曪級]
+  [鈭氶€氳繃] 銆愰厤鏂孤烽€氶厤銆戠 3 浣嶅啓 * 鈫?杩欎竴浣嶄笉妫€锛屾暣浣撲粛鍒ゅ悎鏍? 鈫? 鍚堟牸=True 缁撹=[绾垮簭姝ｇ‘锛?0 鑺細榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫曪紙閰嶆柟銆?0 鑺€嶏級]
+  [鈭氶€氳繃] 銆愮鍙ｄ紭鍏堛€戙€屾湡鏈涘簭鍒椼€嶇鍙ｆ湁鍊兼椂浠ョ鍙ｄ负鍑嗭紙閰嶆柟琛ㄩ噷鐨勯敊閰嶆柟涓嶇敓鏁堬級  鈫? 鍚堟牸=True 鏈熸湜=[榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫昡
+  [鈭氶€氳繃] 銆愰厤鏂孤锋牴鏁颁笉绗︺€戞湡鏈?8 浣嶃€佸疄娴?10 鏍?鈫?鍒や笉鍚堟牸涓旂粨璁鸿娓呮槸鏍规暟闂  鈫? 鍚堟牸=False BadIndex=0 缁撹=[鏍规暟涓嶇锛氬疄娴?10 鏍癸紙榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫曪級锛岄厤鏂广€岃緭鍏ョ鍙ｃ€嶈姹?8 鏍筣
+  [鈭氶€氳繃] 銆愰厤鏂圭己澶便€?0 鑺湪閰嶆柟琛ㄩ噷鎵句笉鍒?鈫?姝ラ澶辫触璁╂祦绋嬪仠浣忥紙涓嶅垽鎴?NG锛? 鈫? Success=False Err=[鏈煡浜у搧锛?0 鑺病鏈夊搴旈厤鏂癸紙閰嶆柟琛ㄩ噷鏈?5 鑺帓绾匡紙5 鑺級锛夛細璇疯ˉ涓€鏉￠厤鏂癸紝鎴栫敤銆屾湡鏈涘簭鍒椼€嶈緭鍏ョ鍙ｇ洿鎺ユ妸鏈熸湜搴忓垪缁欒繘鏉
+  [鈭氶€氳繃] 銆愰厤鏂硅〃鏍煎紡閿欍€戞煇琛屽彧鏈変骇鍝佸悕娌℃湁棰滆壊 鈫?鏄庣‘鎶ュ嚭鏄鍑犺  鈫? Success=False Err=[閰嶆柟琛ㄧ 1 琛屻€?0 鑺帓绾?=銆嶉噷娌℃湁棰滆壊锛氭牸寮忔槸銆屼骇鍝佸悕 = 棰滆壊1,棰滆壊2,...銆峕
+  [鈭氶€氳繃] 銆愭姇灏勩€戝彧鎶曚竴甯с€佹姇鍒?1 鍙疯鍥剧獥鍙ｏ紙涓嶉噸澶嶆姇灏勶級  鈫? 甯ф暟=1 绐楀彛=1
+  [鈭氶€氳繃] 銆愭姇灏劼峰悎鏍笺€? 鏉￠噰鏍风嚎 + 姣忔牴 1 涓鑹叉爣绛?+ 1 琛岀粨璁猴紙10 鑺?鈫?1 绾?+ 11 鏂囨湰锛? 鈫? 绾?1 鏂囨湰=11
+  [鈭氶€氳繃] 銆愭姇灏劼峰悎鏍笺€戠粨璁洪偅涓€琛屾槸缁垮瓧锛屽唴瀹瑰氨鏄?Verdict 绔彛閭ｄ竴鍙? 鈫? 鑹?green 鏂?绾垮簭姝ｇ‘锛?0 鑺細榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫曪紙閰嶆柟銆?0 鑺帓绾裤€嶏級
+  [鈭氶€氳繃] 銆愭姇灏勩€戣鏁磋ˉ鍑烘潵鐨勯偅鏍圭敤姗欏瓧鏍囧嚭锛圖etail 閲?搂琛?鐨勭敾闈㈢増锛? 鈫? 鑹?orange 鏂?3.鐏?
+  [鈭氶€氳繃] 銆愭姇灏勩€戞鍑哄埌鐨勭嚎鏄豢瀛楋紙涓庢瀛楀尯鍒嗗紑锛? 鈫? 鑹?green 鏂?1.榛?
+  [鈭氶€氳繃] 銆愭姇灏劼蜂笉鍚堟牸銆戠粨璁轰笌涓嶇鐨勯偅涓€鏍归兘鏄孩瀛? 鈫? 缁撹鑹?red 绗?3 鏍硅壊=red
+  [鈭氶€氳繃] 銆愭姇灏勩€戣鍥剧獥鍙ｅ彿濉?0 鈫?瀹屽叏涓嶆姇灏? 鈫? 甯ф暟=0
+  [鈭氶€氳繃] 銆愪竴閿瓨閰嶆柟銆戞妸璇曠畻缁撴灉瀛樻垚涓€鏉￠厤鏂癸紙鐪佸緱鎵嬫墦棰滆壊璇嶆墦閿欙級  鈫? 5 鑺?= *,*,*,*,* / 8 鑺?= *,*,*,*,*,*,*,* / 9 鑺?= *,*,*,*,*,*,*,*,* / 10 鑺?= *,*,*,*,*,*,*,*,*,* / 10 鑺?= 榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫?
+  [鈭氶€氳繃] 銆愪竴閿瓨閰嶆柟銆戝啀鐐逛竴娆′笉浼氶噸澶嶈拷鍔犲悓涓€鏉? 鈫? 5 鑺?= *,*,*,*,* / 8 鑺?= *,*,*,*,*,*,*,* / 9 鑺?= *,*,*,*,*,*,*,*,* / 10 鑺?= *,*,*,*,*,*,*,*,*,* / 10 鑺?= 榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫?
+  [鈭氶€氳繃] 鏂板鐨勬鏌ュ弬鏁拌兘闅忔柟妗堣惤鐩樺苟鍥炲～锛堢嚎鏁?/ 瑙勬暣鍖?/ 鍒ゆ嵁骞呭害 / 鐧界嚎鐧惧垎浣?/ 鏈€灏忔闀?/ 绔偣澶栨帹 / 閰嶆柟琛?/ 鎶曞皠绐楀彛锛? 鈫? WireCount=7 Regularize=False DarkSpanRatio=42 BrightPercentile=88 MinRun=6 ExtendEnds=False DisplayViewIndex=3
+
+---- [R6] 鍖哄煙棰滆壊妫€鏌ワ細涓昏壊 / 鍗犳瘮 / 鍒ゅ畾 / 鎶曞皠锛堢浜屼釜棰滆壊绠楀瓙锛屽吋楠屽唴鏍搁€氱敤锛?----
+  [鈭氶€氳繃] 鎻掍欢绋嬪簭闆嗗彲瑁呰浇锛堝惈 WPF 瑙嗗浘涓庡叡鐢ㄩ槇鍊肩紪杈戝櫒锛? 鈫? Plugin.ColorRegion
+  [鈭氶€氳繃] 銆愮煩褰€戞浣忕伆绾?鈫?涓昏壊 鐏般€佸崰姣旈珮銆佸垽鍚堟牸  鈫? Success=True 涓昏壊=鐏?鍗犳瘮=1.00 鏄庣粏=[鐏?100%] 缁撹=[棰滆壊姝ｇ‘锛氱伆锛堝崰 100%锛屾湡鏈?鐏帮級]
+  [鈭氶€氳繃] 銆愮煩褰€戝悓涓€娴佺▼鎹竴鏍圭嚎锛堢孩锛夆啋 涓昏壊璺熺潃鍙?绾? 鈫? 涓昏壊=绾?鍗犳瘮=0.67 鏄庣粏=[绾?67%銆佺伆:17%銆佺帿绾?8%銆佺櫧:6%銆佹:2%]
+  [鈭氶€氳繃] 銆愬渾褰€戝渾妗嗕綇鐏扮嚎 鈫?涓昏壊 鐏帮紙鍦嗘帺鑶滅敓鏁堬紝涓嶆槸鏂规鍥涜锛? 鈫? 涓昏壊=鐏?鍗犳瘮=1.00 鏄庣粏=[鐏?100%]
+  [鈭氶€氳繃] 銆愭き鍦嗐€戞き鍦嗘浣忕伆绾?鈫?涓昏壊 鐏? 鈫? 涓昏壊=鐏?鍗犳瘮=1.00 鏄庣粏=[鐏?100%]
+  [鈭氶€氳繃] 銆愬垽瀹毬烽鑹查敊璇€戞湡鏈?绾?浣嗗疄娴?鐏?鈫?涓嶅悎鏍硷紝缁撹璇存竻瀹炴祴涓庢湡鏈? 鈫? 鍚堟牸=False 缁撹=[棰滆壊閿欒锛氬疄娴?鐏帮紙鍗?100%锛夛紝鏈熸湜 绾紱鏄庣粏 鐏?100%]
+  [鈭氶€氳繃] 銆愬垽瀹毬峰鍊欓€夈€戞湡鏈涘啓 绾?鐜孩,鐏?鈫?鍛戒腑鍏朵竴鍗冲悎鏍? 鈫? 鍚堟牸=True 缁撹=[棰滆壊姝ｇ‘锛氱伆锛堝崰 100%锛屾湡鏈?绾?鐜孩,鐏帮級]
+  [鈭氶€氳繃] 銆愬垽瀹毬烽€氶厤銆戞湡鏈涘啓 * 鈫?鍙姤棰滆壊涓嶅垽瀹氾紝浠嶇畻閫氳繃  鈫? 鍚堟牸=True 涓昏壊=鐏?缁撹=[鍙姤棰滆壊涓嶅垽瀹氾細鐏帮紙鍗?100%锛屼腑浣嶈壊 R138 G135 B135锛塢
+  [鈭氶€氳繃] 銆愬垽瀹毬锋贩鍚堛€戞浣忎袱鏍圭嚎+缂?鈫?鏄庣粏閲屽嚭鐜板绉嶉鑹诧紝涓昏壊鍗犳瘮鏄庢樉浣庝簬鍗曟牴绾? 鈫? 涓昏壊=鐏?鍗犳瘮=0.61 棰滆壊鏁?4 鏄庣粏=[鐏?61%銆佽摑:21%銆佺豢:18%銆佺櫧:1%]
+  [鈭氶€氳繃] 銆愬垽瀹毬峰崰姣斾笉瓒炽€戞湡鏈涘浣嗚姹?鈮?0%锛堝疄娴嬪彧鏈?67%锛夆啋 鍒ゃ€岄鑹蹭笉绾€? 鈫? 鍚堟牸=False 鍗犳瘮=0.67 缁撹=[棰滆壊涓嶇函锛氫富鑹?绾?鍙崰 67%锛堣姹?鈮?90%锛夛紝鏄庣粏 绾?67%銆佺伆:17%銆佺帿绾?8%銆佺櫧:6%銆佹:2%]
+  [鈭氶€氳繃] 娌℃閲囨牱鍖?鈫?鏄庣‘鎶ラ敊骞惰娓呮€庝箞琛? 鈫? Success=False Err=[灏氭湭妗嗛€夐噰鏍峰尯锛氳鍦ㄨ妭鐐归厤缃噷浜庡浘鍍忎笂鍙抽敭 鈫?鏂板缓鐭╁舰/鍦嗗舰/妞渾锛屾浣忚妫€鐨勯偅鍧梋
+  [鈭氶€氳繃] 娌″～鏈熸湜棰滆壊 鈫?鏄庣‘鎶ラ敊锛堥厤缃棶棰樹笉闈欓粯閫氳繃銆佷篃涓嶅垽鎴愪笉鑹級  鈫? Success=False Err=[灏氭湭閰嶇疆鏈熸湜棰滆壊锛氳鍦ㄨ妭鐐归厤缃噷濉€屾湡鏈涢鑹层€嶏紙澶氫釜鐢ㄩ€楀彿鍒嗛殧锛屽啓 * 琛ㄧず鍙姤棰滆壊涓嶅垽瀹氾級]
+  [鈭氶€氳繃] 鏈熸湜棰滆壊鍐欎簡璇嶈〃澶栫殑璇嶏紙娣辩孩锛夆啋 鏄庣‘鎶ラ敊骞跺垪鍑哄彲鐢ㄨ瘝  鈫? Success=False Err=[鏈熸湜棰滆壊閲屾湁璁や笉鍑虹殑璇嶏細娣辩孩锛涢鑹茶瘝鍙湁 榛戙€佺櫧銆佺伆銆佹銆佺孩銆佺帿绾€佹銆侀粍銆佺豢銆佽摑銆佺传锛堟垨鍐?* 琛ㄧず涓嶅垽瀹氾級]
+  [鈭氶€氳繃] 鐏板害鍥?鈫?鏄庣‘鎶ャ€岃褰╄壊鍥俱€? 鈫? Success=False Err=[鍖哄煙棰滆壊妫€鏌ヨ褰╄壊鍥撅紝褰撳墠鍥惧儚鍙湁 1 涓€氶亾]
+  [鈭氶€氳繃] 閲囨牱鍖烘暣涓惤鍦ㄥ浘鍍忓 鈫?鎶ャ€屾病鏈変氦闆嗐€? 鈫? Success=False Err=[閲囨牱鍖轰笌鍥惧儚娌℃湁浜ら泦锛氳鎶婃鐢诲湪鍥惧儚鍐匽
+  [鈭氶€氳繃] 銆? 鑺浘銆戞浣忕孩绾?鈫?涓昏壊 绾紙鍚屼竴绠楀瓙鎹㈠浘涓嶇敤鏀归厤缃級  鈫? 涓昏壊=绾?鍗犳瘮=0.91 鏄庣粏=[绾?91%銆佺帿绾?9%]
+  [鈭氶€氳繃] 銆愮敾甯兟风煩褰€戞墦寮€閰嶇疆鏃跺洖濉嚭 1 涓?鐭╁舰 妗嗭紝鍙傛暟涓€鑷? 鈫? 涓暟=1 褰㈢姸=Rectangle 鍙傛暟=[189,440,0,6,5]
+  [鈭氶€氳繃] 銆愮敾甯兟风煩褰€戝湪鍥句笂鐢绘鍚庯紝褰㈢姸涓庡弬鏁拌鍚屾鍥炲啓  鈫? 褰㈢姸=Rectangle 鍙傛暟=[189,440,0,6,5]
+  [鈭氶€氳繃] 銆愮敾甯兟峰渾褰€戞墦寮€閰嶇疆鏃跺洖濉嚭 1 涓?鍦嗗舰 妗嗭紝鍙傛暟涓€鑷? 鈫? 涓暟=1 褰㈢姸=Circle 鍙傛暟=[189,440,7,0,0]
+  [鈭氶€氳繃] 銆愮敾甯兟峰渾褰€戝湪鍥句笂鐢绘鍚庯紝褰㈢姸涓庡弬鏁拌鍚屾鍥炲啓  鈫? 褰㈢姸=Circle 鍙傛暟=[189,440,7,0,0]
+  [鈭氶€氳繃] 銆愮敾甯兟锋き鍦嗐€戞墦寮€閰嶇疆鏃跺洖濉嚭 1 涓?妞渾 妗嗭紝鍙傛暟涓€鑷? 鈫? 涓暟=1 褰㈢姸=Ellipse 鍙傛暟=[189,440,0,9,6]
+  [鈭氶€氳繃] 銆愮敾甯兟锋き鍦嗐€戝湪鍥句笂鐢绘鍚庯紝褰㈢姸涓庡弬鏁拌鍚屾鍥炲啓  鈫? 褰㈢姸=Ellipse 鍙傛暟=[189,440,0,9,6]
+  [鈭氶€氳繃] 銆愪笂娓稿浘銆戜笂娓稿浘鐏岃繘 Image 绔彛鍚庯紝鑷姩鏄剧ず鍒伴厤缃晫闈㈢殑鐢诲竷涓? 鈫? 宸蹭笂灞?
+  [鈭氶€氳繃] 銆愪笂娓稿浘銆戠敾甯冧笂鏄剧ず鐨勫氨鏄笂娓搁偅寮犲浘锛堝昂瀵镐竴鑷达級  鈫? 鐢诲竷 640x480 / 涓婃父 640x480
+  [鈭氶€氳繃] 銆愪笂娓稿浘銆戞樉绀虹殑鏄嚜宸辨嫹鐨勪竴浠斤細涓婃父鍙ユ焺閲婃斁鍚庣敾甯冧粛鐒跺彲鐢紙涓嶄細鍙樻垚绌哄彞鏌勶級  鈫? 閲婃斁涓婃父鍚庣敾甯?640x480
+  [鈭氶€氳繃] 銆愪笂娓稿浘銆戜笂娓告崲鎴愬彟涓€寮犲浘锛堟崲浜у搧锛夆啋 鐢诲竷璺熺潃鎹? 鈫? 鐢诲竷 640x480 / 鏂颁笂娓?640x480
+  [鈭氶€氳繃] 銆愪笂娓稿浘銆戞墦寮€閰嶇疆鏃朵紭鍏堢敤涓婃父鍥撅紝涓嶅幓璇伙紙鍙兘澶辨晥鐨勶級绀烘剰鍥捐矾寰? 鈫? 宸叉樉绀轰笂娓稿浘鍍忥紙璇曡繍琛屽甫杩涙潵鐨勶級锛氬彲浠ョ洿鎺ュ湪鍥句笂鍙抽敭妗嗛噰鏍峰尯
+  [鈭氶€氳繃] 銆愭姇灏勩€戝彧鎶曚竴甯с€佹姇鍒?1 鍙疯鍥剧獥鍙? 鈫? 甯ф暟=1 绐楀彛=1
+  [鈭氶€氳繃] 銆愭姇灏勩€戠煩褰㈣疆寤?= 4 鏉＄嚎 + 涓昏壊鏍囩 + 缁撹琛岋紙鍏?6 鏉℃爣娉級  鈫? 绾?4 鎬?6
+  [鈭氶€氳繃] 銆愭姇灏劼峰悎鏍笺€戠粨璁轰笌涓昏壊鏍囩閮芥槸缁垮瓧  鈫? 缁撹鑹?green 鏍囩=鐏?100%锛坓reen锛?
+  [鈭氶€氳繃] 銆愭姇灏劼峰渾褰€戣疆寤撴寜 32 娈垫姌绾跨敾锛堝渾瑕佸儚鍦嗭紝涓嶈兘鐢绘垚鏂规锛? 鈫? 绾?32
+  [鈭氶€氳繃] 銆愭姇灏劼蜂笉鍚堟牸銆戠粨璁烘槸绾㈠瓧  鈫? 缁撹=[棰滆壊閿欒锛氬疄娴?鐏帮紙鍗?100%锛夛紝鏈熸湜 绾紱鏄庣粏 鐏?100%] 鑹?red
+  [鈭氶€氳繃] 銆愯瘯绠椼€戠粰鍑轰富鑹层€佸崰姣斻€佷腑浣嶈壊涓庢槑缁嗭紙鐜板満鎹鍒ゆ柇妗嗗緱瀵逛笉瀵癸級  鈫? 涓昏壊锛氱伆锛堝崰 100%锛?| 涓綅鑹诧細R138 G135 B135锛堥噰鏍?143 鐐癸級 | 鏄庣粏锛氱伆:100% | 鍒ゅ畾锛氬皻鏈厤缃湡鏈涢鑹诧紙鐐逛笅闈㈤偅涓寜閽嵆鍙妸涓昏壊濉繘鍘伙級
+  [鈭氶€氳繃] 銆愮ず鏁欍€戙€屾妸涓昏壊濉垚鏈熸湜棰滆壊銆嶄竴閿垚閰嶆柟锛堢渷寰楁墜鎵撻鑹茶瘝鎵撻敊锛? 鈫? 鏈熸湜棰滆壊=[鐏癩
+  [鈭氶€氳繃] 鍙傛暟鑳介殢鏂规钀界洏骞跺洖濉紙褰㈢姸 / 閲囨牱鍖?/ 鏈熸湜棰滆壊 / 鏈€灏忓崰姣?/ 閲囨牱鐐规暟 / 鎶曞皠绐楀彛 / 棰滆壊闃堝€硷級  鈫? 褰㈢姸=Circle 鏈熸湜=[绾?鐜孩] MinShare=0.75 SamplePoints=250 DisplayViewIndex=2 BlueHueTo=225
+
+---- [R5] 绾垮簭妫€娴嬄锋彃浠剁増鏂规锛氬姞杞?鈫?缂栬瘧 鈫?鍚勮窇涓€閬?鈫?鏂█缁撴灉涓庢姇灏?----
+  [鈭氶€氳繃] 鏂规鏂囦欢瀛樺湪  鈫? D:\C#\VM\瑙ｅ喅鏂规\绾垮簭妫€娴?鎻掍欢鐗?vms
+  [鈭氶€氳繃] 閲囬泦 / 棰滆壊搴忓垪妫€鏌?涓や釜鎻掍欢绋嬪簭闆嗗彲瑁呰浇
+  [鈭氶€氳繃] 鐢熶骇鍔犺浇鍣ㄨ兘鎵撳紑杩欎唤鏂规  鈫? 鎿嶄綔鎴愬姛
+  [鈭氶€氳繃] 鏂规閲屽彧鏈変竴鏉℃祦绋嬶紝涓斿悕涓恒€岀嚎搴忔娴嬨€? 鈫? 娴佺▼鏁?1 鍚嶇О=绾垮簭妫€娴?
+  [鈭氶€氳繃] 涓诲共鍙湁涓ゆ锛氬浘鍍忛噰闆?鈫?棰滆壊搴忓垪妫€鏌ワ紙涓€鏉¤妭鐐归《鎺夎剼鏈増閭ｅ叚涓級  鈫? 姝ラ鏁?2: 鍥惧儚閲囬泦_0 鈫?棰滆壊搴忓垪妫€鏌0
+  [鈭氶€氳繃] 鎻掍欢鑺傜偣鐨?Image 杈撳叆杩炲埌閲囬泦姝ラ鐨?Image 杈撳嚭  鈫? 鍥惧儚閲囬泦_0.Image
+  [鈭氶€氳繃] 銆?0 鑺€戞祦绋嬭窇瀹屻€佷袱姝ラ兘鎴愬姛  鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪妫€鏌0=Success 锝?Warn= 锝?Err=
+  [鈭氶€氳繃] 銆?0 鑺€戞棩蹇楁姤鍑?10 鏍逛笌榛勯噾搴忓垪  鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪妫€鏌0=Success 锝?Warn= 锝?Err=
+  [鈭氶€氳繃] 銆?0 鑺€戝垽瀹氬悎鏍硷紝涓旂粨璁洪噷甯︿笂鐢ㄤ簡鍝潯閰嶆柟  鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪妫€鏌0=Success 锝?Warn= 锝?Err=
+  [鈭氶€氳繃] 銆?0 鑺€戦噰闆嗘姇涓€甯с€佹鏌ュ啀鎶曚竴甯э紝閮借惤鍦?1 鍙风獥鍙? 鈫? 甯ф暟=2 绐楀彛=1,1
+  [鈭氶€氳繃] 銆?0 鑺€戠粨鏋滃抚甯︽爣娉細1 鏉￠噰鏍风嚎 + 姣忔牴 1 涓鑹叉爣绛?+ 1 琛岀粨璁猴紙10 鑺?鈫?1 绾?+ 11 鏂囨湰锛? 鈫? 绾?1 鏂囨湰=11
+  [鈭氶€氳繃] 銆?0 鑺€戠粨璁洪偅涓€琛屾槸缁垮瓧锛堝悎鏍硷級锛屼笖琛ュ嚭鏉ョ殑閭ｆ牴鏄瀛? 鈫? green:1.榛?| green:2.鐧?| orange:3.鐏?| green:4.绱?| green:5.钃?| green:6.缁?| green:7.榛?| green:8.绾?| green:9.鐜孩 | green:10.妫?| green:绾垮簭姝ｇ‘锛?0 鑺細榛?鐧?鐏?绱?钃?缁?榛?绾?鐜孩,妫曪紙閰嶆柟銆?0 鑺帓绾裤€嶏級
+  [鈭氶€氳繃] 銆? 鑺€戝悓涓€鏉℃祦绋嬩笉鏀逛换浣曢厤缃氨鑷姩鎹㈠埌 5 鑺厤鏂瑰苟鍒ゅ悎鏍? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪妫€鏌0=Success 锝?Warn=Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 16.0 涓庡垎娈电嚎璺?21.5 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 锝?Err=
+  [鈭氶€氳繃] 銆愭湭鐭ヨ姱鏁般€戦厤鏂硅〃閲屾病鏈?10 鑺?鈫?鎻掍欢姝ラ澶辫触銆佹祦绋嬪仠浣忥紙涓嶆槸鍒ゆ垚 NG锛? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪妫€鏌0=Failed 锝?Warn= 锝?Err=Error:姝ラ[绾垮簭妫€娴?棰滆壊搴忓垪妫€鏌0]鎵ц澶辫触: 鏈煡浜у搧锛?0 鑺病鏈夊搴旈厤鏂癸紙閰嶆柟琛ㄩ噷鏈?5 鑺帓绾匡紙5 鑺級锛夛細璇疯ˉ涓€鏉￠厤鏂癸紝鎴栫敤銆屾湡鏈涘簭鍒椼€嶈緭鍏ョ鍙ｇ洿鎺ユ妸鏈熸湜搴忓垪缁欒繘鏉?
+  [鈭氶€氳繃] 銆愭湭鐭ヨ姱鏁般€戞姤閿欒娓呫€屾湭鐭ヤ骇鍝?+ 閰嶆柟琛ㄩ噷鏈変粈涔堛€? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪妫€鏌0=Failed 锝?Warn= 锝?Err=Error:姝ラ[绾垮簭妫€娴?棰滆壊搴忓垪妫€鏌0]鎵ц澶辫触: 鏈煡浜у搧锛?0 鑺病鏈夊搴旈厤鏂癸紙閰嶆柟琛ㄩ噷鏈?5 鑺帓绾匡紙5 鑺級锛夛細璇疯ˉ涓€鏉￠厤鏂癸紝鎴栫敤銆屾湡鏈涘簭鍒椼€嶈緭鍏ョ鍙ｇ洿鎺ユ妸鏈熸湜搴忓垪缁欒繘鏉?
+
+---- [C9] 鍚堟垚澶嶆潅棰滆壊鍥撅紙鐢熸垚鍣級+ 娴佺▼寮忛獙璇侊紙閲囬泦 鈫?棰滆壊搴忓垪 鈫?鍖哄煙脳2锛?----
+  [鈭氶€氳繃] 閲囬泦 / 棰滆壊搴忓垪 / 鍖哄煙棰滆壊 涓変釜鎻掍欢绋嬪簭闆嗗彲瑁呰浇
+  [鈭氶€氳繃] 鍚堟垚鍥剧敓鎴愭垚鍔燂紙8 浣?PNG + 16 浣?TIFF锛屽悓涓€寮犲浘鐨勪袱涓綅娣憋級  鈫? D:\C#\VM\Image\棰滆壊\鍚堟垚棰滆壊_8bit.png | D:\C#\VM\Image\棰滆壊\鍚堟垚棰滆壊_16bit.tif
+  [鈭氶€氳繃] 銆愬儚绱犳娊妫€銆?2 鏍圭嚎鏉熶腑蹇冪殑浜害涓庤皟鑹叉澘涓€鑷达紙鍚珮鍏夊甫 +22锛?
+  [鈭氶€氳繃] 娴佺▼鏂规宸茶惤鐩橈紙鍙湪杞欢閲岀洿鎺ユ墦寮€锛? 鈫? D:\C#\VM\瑙ｅ喅鏂规\鍚堟垚棰滆壊楠岃瘉.vms
+  [鈭氶€氳繃] 鐢熶骇鍔犺浇鍣ㄨ兘鎵撳紑杩欎唤鏂规锛堜富骞?4 姝ワ細閲囬泦 鈫?搴忓垪 鈫?鍖哄煙脳2锛岃繛绾垮畬濂斤級  鈫? Success=True Msg=鎿嶄綔鎴愬姛 Flows=1 Steps=4 Link=鍥惧儚閲囬泦_0.Image 姝ラ=鍥惧儚閲囬泦_0 鈫?棰滆壊搴忓垪_0 鈫?鍖哄煙绾㈢伅_0 鈫?鍖哄煙绱潡_0
+  [鈭氶€氳繃] 銆? 浣嶃€戞祦绋嬬紪璇戞墽琛屻€佸洓姝ュ叏閮?Success  鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 锝?Err=
+  [鈭氶€氳繃] 銆? 浣嶃€戝簭鍒楁鏌ユ姤鍑?12 鏍癸紝涓庨粍閲戝簭鍒楅€愪綅涓€鑷? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 锝?Err=
+  [鈭氶€氳繃] 銆? 浣嶃€戠嚎搴忓垽瀹氬悎鏍硷紙鍏ㄩ€氶厤閰嶆柟锛岀粨璁哄甫閰嶆柟鍚嶏級  鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 锝?Err=
+  [鈭氶€氳繃] 銆? 浣嶃€戠孩鑹叉寚绀虹伅锛氫富鑹?绾€佸垽瀹氶鑹叉纭? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 锝?Err=
+  [鈭氶€氳繃] 銆? 浣嶃€戠传鑹茶壊鍧楋細涓昏壊 绱€佸垽瀹氶鑹叉纭? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 锝?Err=
+  [鈭氶€氳繃] 銆? 浣嶃€戜笉瑙﹀彂楂樹綅娣卞綊涓€锛? 浣嶅浘娌℃湁褰掍竴鐨勯亾鐞嗭級  鈫? Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級
+  [鈭氶€氳繃] 銆?6 浣嶃€戞祦绋嬬紪璇戞墽琛屻€佸洓姝ュ叏閮?Success  鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10160锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷 | Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 | Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10200锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?| Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?7960锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?锝?Err=
+  [鈭氶€氳繃] 銆?6 浣嶃€戦珮浣嶆繁褰掍竴鍚庝粛鎵嚭鍚屼竴鏉￠粍閲戝簭鍒楋紙榛戣兘鍒ゅ嚭銆佺櫧涓嶆硾婊ワ級  鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10160锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷 | Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 | Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10200锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?| Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?7960锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?锝?Err=
+  [鈭氶€氳繃] 銆?6 浣嶃€戠嚎搴忓垽瀹氬悎鏍? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10160锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷 | Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 | Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10200锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?| Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?7960锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?锝?Err=
+  [鈭氶€氳繃] 銆?6 浣嶃€戜袱涓尯鍩熺畻瀛愮殑涓昏壊涓庡垽瀹氫笌 8 浣嶄竴鑷? 鈫?  锝?姝ラ鐘舵€?鍥惧儚閲囬泦_0=Success 棰滆壊搴忓垪_0=Success 鍖哄煙绾㈢伅_0=Success 鍖哄煙绱潡_0=Success 锝?Warn=Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10160锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷 | Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 | Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10200锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?| Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?7960锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?锝?Err=
+  [鈭氶€氳繃] 銆?6 浣嶃€戜笁涓鑹茶妭鐐归兘鐣欎笅楂樹綅娣卞綊涓€鐨?warning锛堟暟鍊煎彉灏忕殑鍘熷洜鍙煡锛? 鈫? Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10160锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷 | Warn:鑷浉鍏崇粰鍑虹殑绾胯窛 22.0 涓庡垎娈电嚎璺?36.0 宸緱杈冨锛屼互鍒嗘绾胯窛涓哄噯锛堣嚜鐩稿叧鍦ㄨ竟缂樹俊鍙蜂笂瀹规槗琚嚎瀹藉彉鍖栧甫鍋忥級 | Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?10200锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?| Warn:鍥惧儚鏄珮浣嶆繁锛堝疄娴嬫渶澶х伆搴?7960锛夛紝宸茬瓑姣斿帇鍒?8 浣嶅啀鍒よ壊锛涢鑹茶瘝涓嶅彈褰卞搷锛屼腑浣嶈壊 R,G,B 涓哄綊涓€鍚庣殑鍊?
+
+---- [HK] 娴峰悍鐩告満椹卞姩锛氬彂鐜?鈫?鏋勯€?鈫?缂?SDK 浼橀泤闄嶇骇 鈫?鍍忕礌鏍煎紡鍒嗙被 ----
+  [鈭氶€氳繃] 椹卞姩 DLL 鍦?Modules 鐩綍閲? 鈫? D:\C#\VM\Modules
+  [鈭氶€氳繃] 瀹炵幇 ICameraDevice 鐨勯潪鎶借薄绫诲瀷瀛樺湪
+  [鈭氶€氳繃] 椹卞姩甯?[Display]锛堟病鏈夊畠 PluginService 浼氶潤榛樿烦杩囷紝鐩告満璁剧疆閲岄€変笉鍒帮級  鈫? Name=娴峰悍鐩告満
+  [鈭氶€氳繃] 鎸?(CameraDescriptor) 鏋勯€犳垚鍔燂紝韬唤姝ｇ‘閫忎紶  鈫? 鍚堟垚娴峰悍鐩告満
+  [鈭氶€氳繃] 鍒濆鐘舵€?Closed  鈫? Closed
+  [鈭氶€氳繃] 鏈墦寮€鏃?StartStream 琚嫆缁? 鈫? Closed
+  [鈭氶€氳繃] 鍚堟垚搴忓垪鍙?鈫?Open 澶辫触锛堢湡鏈烘灇涓句笉鍒?/ 缂?SDK 鏃跺悓鏍峰け璐ワ級  鈫? State=Closed Detail=鎵撳紑澶辫触锛欼nvalidOperationException: 鏈壘鍒版捣搴?MVS 杩愯鏃讹紙MvCameraControl.Net.dll锛夈€傝瀹夎娴峰悍 MVS 瀹㈡埛绔紝骞舵妸瀹夎鐩綍 Development\DotNet\ 涓嬬殑 MvCameraControl.Net.dll 澶嶅埗鍒版湰绋嬪簭鐨?Modules 鐩綍鍚庨噸鍚蒋浠躲€傦紙鎺㈡祴璁板綍锛氭湭鎵惧埌 MvCameraControl.Net.dll锛?
+  [鈭氶€氳繃] 澶辫触鍘熷洜璇存竻銆屽幓鍝銆佹€庝箞瀵广€嶏細瑕佷箞缂?SDK 鎸囪矾锛岃涔堟姤鏈壘鍒板簭鍒楀彿  鈫? 鎵撳紑澶辫触锛欼nvalidOperationException: 鏈壘鍒版捣搴?MVS 杩愯鏃讹紙MvCameraControl.Net.dll锛夈€傝瀹夎娴峰悍 MVS 瀹㈡埛绔紝骞舵妸瀹夎鐩綍 Development\DotNet\ 涓嬬殑 MvCameraControl.Net.dll 澶嶅埗鍒版湰绋嬪簭鐨?Modules 鐩綍鍚庨噸鍚蒋浠躲€傦紙鎺㈡祴璁板綍锛氭湭鎵惧埌 MvCameraControl.Net.dll锛?
+  [鈭氶€氳繃] Dispose 骞傜瓑锛堜簩娆￠噴鏀句笉鎶涳級
+  [鈭氶€氳繃] 鍍忕礌鍒嗙被锛歁ono 绯诲綊 Mono
+  [鈭氶€氳繃] 鍍忕礌鍒嗙被锛欱ayer / RGB / YUV 绯诲綊 Color锛堢粺涓€杞?RGB8 鍐嶈繘绠＄嚎锛?
+  [鈭氶€氳繃] 鍍忕礌鍒嗙被锛氳涓嶅嚭鐨勫綊 Unknown锛堝畞鍙涪甯т篃涓嶅嚭鑺卞睆鍥撅級
+
+---- [IA] 鍥惧儚閲囬泦锛氱鍙ｉ潰 + 鍘熷鍍忕礌鈫扝Image + 鏂囦欢澶硅嚜鐒跺簭 ----
+  [鈭氶€氳繃] 鎻掍欢 DLL 鍦?Modules 鐩綍閲? 鈫? D:\C#\VM\Modules
+  [鈭氶€氳繃] 鎻掍欢绫诲瀷瀛樺湪涓斿疄鐜?IVisionPlugin  鈫? Plugin.ImageAcquisition.ImageAcquisitionPlugin
+  [鈭氶€氳繃] 鎻掍欢鍙疄渚嬪寲锛堟瀯閫犳湡涓嶇 HALCON 鍘熺敓搴擄級
+  [鈭氶€氳繃] 鏋勯€犲悗 PreviewImage 涓?null锛堟湭鍦ㄦ瀯閫犳湡鍒涘缓 HImage锛? 鈫? PreviewImage = null
+  [鈭氶€氳繃] 杈撳嚭绔彛鍚?FrameId / ReceivedCount锛堢浉鏈烘ā寮忕簿纭抚鍙凤紝涓嶉潬璇箟閲嶈浇锛? 鈫? Image,CurrentPath,CurrentIndex,TotalFiles,FrameId,ReceivedCount,SourceSerial,Success,ErrorMessage
+  [鈭氶€氳繃] 鏃ц緭鍑虹鍙ｆ湭琚敼鍚嶏紙Image / CurrentPath / CurrentIndex / TotalFiles锛? 鈫? Image,CurrentPath,CurrentIndex,TotalFiles,FrameId,ReceivedCount,SourceSerial,Success,ErrorMessage
+  [鈭氶€氳繃] 杈撳嚭绔彛鍚?SourceSerial锛堝鐩告満韬唤锛涚浉鏈烘ā寮?閰嶇疆搴忓垪鍙凤紝鍏朵綑妯″紡涓虹┖锛? 鈫? Image,CurrentPath,CurrentIndex,TotalFiles,FrameId,ReceivedCount,SourceSerial,Success,ErrorMessage
+  [鈭氶€氳繃] 杈撳叆绔彛鏈鏀瑰悕锛團ilePath / FolderPath / FileIndex / FrameTimeoutMs锛? 鈫? FilePath,FolderPath,FileIndex,FrameTimeoutMs
+  [鈭氶€氳繃] DisplayViewIndex 鍐欏叆鍗冲す鍙栧埌 0~9  鈫? 42鈫?, -5鈫?, 3鈫?
+  [鈭氶€氳繃] ToHImage(byte[],width,height,channels) 瀛樺湪
+  [鈭氶€氳繃] 鐏板害 4x3x1 鈫?鍗曢€氶亾銆佸昂瀵镐笌琛屽垪涓嶈浆缃? 鈫? 4x3x1, (0,0)=10, (1,2)=16, (2,3)=21
+  [鈭氶€氳繃] BGR 2x1x3 鈫?涓夐€氶亾锛涚函绾?绾摑钀藉湪 R/B 閫氶亾锛堜笉鍙嶈壊銆佷笉涓插儚绱狅級  鈫? 鍍? R=255 G=0 B=0锛涘儚1 R=0 B=255
+  [鈭氶€氳繃] BGRA 2x1x4 鈫?鎶藉嚭 alpha 鍘嬫垚涓夐€氶亾 BGR锛堜笉鏄寜 3 瀛楄妭/鍍忕礌閿欎綅璇伙級  鈫? 鍍? R=255 G=0锛涘儚1 G=255, ch=3
+  [鈭氶€氳繃] 鍍忕礌鏁版嵁涓嶈冻 鈫?ArgumentException锛堢粷涓嶈繘闈炴墭绠′笘鐣岃秺鐣岃锛? 鈫? ArgumentException: 鍍忕礌鏁版嵁涓嶈冻: 10 瀛楄妭锛?x4x1 搴斾负 16 瀛楄妭锛堝浘鍍忕殑瀹介珮涓庡儚绱犲瓧鑺傛暟涓嶈嚜娲斤級
+  [鈭氶€氳繃] 2 閫氶亾 鈫?ArgumentException锛堟病鏈夌害瀹氬ソ鐨勮В閲婃柟寮忥紝涓嶈闈欓粯鎸夌伆搴﹁锛? 鈫? ArgumentException: 涓嶆敮鎸佺殑鍥惧儚閫氶亾鏁? 2锛堜粎鏀寔 1=鐏板害 / 3=BGR / 4=BGRA锛? 閫氶亾娌℃湁绾﹀畾濂界殑瑙ｉ噴鏂瑰紡锛岀洿鎺ユ寜鐏板害璇讳細鎶婂浘璇婚敊鍗婂紶锛?
+  [鈭氶€氳繃] 瓒呭ぇ灏哄 鈫?ArgumentException锛坙ong 璁＄畻锛宨nt 婧㈠嚭涓嶄細鍙嶆斁琛岋級  鈫? ArgumentException: 鍥惧儚杩囧ぇ: 100000x100000x3 = 30000000000 瀛楄妭锛岃秴杩囧崟骞呭浘鍍忎笂闄?
+  [鈭氶€氳繃] 鎵╁睍鍚嶈繃婊わ細鍙敹鍥惧儚銆佸拷鐣?.txt  鈫? img1.bmp,img2.bmp,IMG3.BMP,img10.bmp
+  [鈭氶€氳繃] 鑷劧搴忥細img1 < img2 < IMG3 < img10锛堢函瀛楃涓插簭浼氭妸 10 鎺掑埌 2 鍓嶉潰锛? 鈫? img1.bmp,img2.bmp,IMG3.BMP,img10.bmp
+
+---- [PC] 棰勮甯ф崟鑾凤細鍙戝竷绾跨▼鍚屾鎷疯礉锛堝惊鐜繍琛屼笉涓㈠抚鐨勬牴鎹級 ----
+  [鈭氶€氳繃] 閲囬泦鏈嶅姟鎶婅嚜宸辨敞鍐屼负棰勮鎹曡幏閽╁瓙  鈫? ImageCollectionService
+  [鈭氶€氳繃] 瀹炴椂鏀跺綍寮€鍏冲彲鎺э紙鏈敤渚嬪墠鎻愶級
+  [鈭氶€氳繃] 鍙戝竷璋冪敤杩斿洖鏃跺抚宸叉敹绾筹紙鎷疯礉鍙戠敓鍦ㄥ彂甯冪嚎绋嬶級  鈫? 甯ф暟=1
+  [鈭氶€氳繃] 婧愬浘闅忓悗琚噴鏀撅紝鍓湰浠嶅彲鐢紙涓嶅啀鎷峰埌宸查噴鏀剧殑鍥撅級  鈫? ViewIndex=1
+  [鈭氶€氳繃] 浜嬩欢鐓ф棫娲惧彂锛氳闃呰€呬粛鏈夐€氱煡锛堟崟鑾蜂笉鍚炰簨浠讹級  鈫? 娲惧彂=1
+  [鈭氶€氳繃] 鍚屼竴甯у彧鏀剁撼涓€娆★紙寮傛鍏滃簳璺緞鐪嬪埌 Captured 浼氳烦杩囷級  鈫? 甯ф暟=1
+  [鈭氶€氳繃] 娓呯悊鍚庨挬瀛愬凡鎽橀櫎锛堜笉褰卞搷鍚庣画鐢ㄤ緥锛?
+
+---- [TH] 缂╃暐鍥惧揩璺緞锛氬厛缂╁皬鍐嶈浆鎹紙涓嶅奖鍝嶇簿搴︾殑鏍规嵁锛?----
+  [鈭氶€氳繃] [TH] 澶у浘 鈫?缂╃暐鍥鹃潪绌猴紙蹇矾寰勭敓鏁堬級  鈫? 160x90
+  [鈭氶€氳繃] [TH] 缂╃暐鍥炬渶闀胯竟 鈮?涓婇檺锛?60锛? 鈫? 160x90
+  [鈭氶€氳繃] [TH] 闀垮姣斾繚鎸?16:9锛堜笉鎷変几鍙樺舰锛? 鈫? 鏈熸湜 160x90锛屽疄娴?160x90
+  [鈭氶€氳繃] [TH] 蹇矾寰勪笉鏀瑰姩婧愬浘锛堢畻娉曡緭鍏ヤ笉鍙楀奖鍝嶏級  鈫? (0,0)=0锛堟湡鏈?0锛夛紝(100,100)=200锛堟湡鏈?200锛?
+  [鈭氶€氳繃] [TH] 鍘熷浘灏忎簬涓婇檺 鈫?涓嶆斁澶э紙灏哄鍘熸牱 64x48锛? 鈫? 64x48
+  [鈭氶€氳繃] [TH] 褰╄壊鍥剧缉鐣ュ浘闈炵┖涓斿昂瀵告纭紙640x480 鈫?160x120锛? 鈫? 160x120
+  [鈭氶€氳繃] [TH] 褰╄壊缂╃暐鍥鹃€氶亾椤哄簭姝ｇ‘锛堢函绾㈠浘浠嶆槸绾紝涓嶆槸钃濓級  鈫? B=0 G=0 R=255锛堟湡鏈?R 楂樸€丟/B 浣庯級
+  [鈭氶€氳繃] [TH] 缁嗙嚎鏉℃祴璇曞浘缂╃暐鍥鹃潪绌? 鈫? 32x32
+  [鈭氶€氳繃] [TH] 缁嗙嚎鏉″湪缂╃暐鍥句腑浠嶅彲瑙侊紙鐢ㄧ殑鏄偦鍩熸彃鍊硷紝涓嶆槸鏈€杩戦偦锛? 鈫? 缂╃暐鍥炬渶澶х伆搴?255锛堟渶杩戦偦璺宠繃鐧界嚎鏃朵細鎺ヨ繎 0锛?
+  [鈭氶€氳繃] [TH] int4 涓嶈蛋蹇矾寰勶紙杩斿洖 null锛屽洖钀藉叏灏哄浠ヤ繚浣忛噺绋嬭涔夛級  鈫? (null锛屾纭?
+  [鈭氶€氳繃] [TH] real 涓嶈蛋蹇矾寰勶紙杩斿洖 null锛? 鈫? (null锛屾纭?
+  [鈭氶€氳繃] [TH] 鍥惧儚闆嗙鍒扮锛氱缉鐣ュ浘宸茬敓鎴? 鈫? 160x90
+  [鈭氶€氳繃] [TH] 鍥惧儚闆嗙缉鐣ュ浘鏈€闀胯竟 鈮?160 涓斾繚鎸?16:9锛?60x90锛? 鈫? 160x90
+  [鈭氶€氳繃] [TH] 缂╃暐鍥惧凡鍐荤粨锛堣法绾跨▼娓叉煋鐨勫墠鎻愶級  鈫? IsFrozen=True
+  [鈭氶€氳繃] [TH] 鍥鹃泦涓殑澶у浘浠嶆槸鍏ㄥ昂瀵稿師鍥?1920x1080锛堢畻娉?瀵煎嚭/澶у浘璧扮殑鏄畠锛? 鈫? 1920x1080
+
+---- [CAL] 鏍囧畾鎻掍欢锛氫豢灏?閫忚姹傝В / 姝ｅ弽鍙樻崲 / 璐ㄩ噺闂搁棬 / 绔彛闈?----
+  [鈭氶€氳繃] [CAL] 宸茬煡浠垮皠鍙簿纭繕鍘燂紙鍣０ 0锛岃宸?< 1e-6锛? 鈫? 鏈€澶х郴鏁板亸宸?1.137e-13
+  [鈭氶€氳繃] [CAL] 鏃犲櫔澹版椂娈嬪樊 鈮?0锛? 1e-9锛? 鈫? rms=4.077e-12, max=5.729e-12
+  [鈭氶€氳繃] [CAL] 姝ｅ彉鎹笌鎵嬬畻涓€鑷达紙< 1e-9锛? 鈫? (249.029, -65.4502) vs (249.029, -65.4502)
+  [鈭氶€氳繃] [CAL] 姝ｅ弽鍙樻崲浜掗€嗭紙< 1e-9锛? 鈫? (321.7, 654.3)
+  [鈭氶€氳繃] [CAL] 3 涓潪鍏辩嚎鐐规伆濂藉彲瑙ｏ紙娈嬪樊鈮?锛? 鈫? rms=2.132e-12
+  [鈭氶€氳繃] [CAL] 鍏辩嚎鐐瑰繀椤诲け璐ヤ笖鏂囨鍚€屽叡绾裤€? 鈫? 鏍囧畾鐐硅繎浼煎叡绾匡紙鏃犳硶瀹氬嚭骞抽潰鏂瑰悜锛夛細璇锋妸鐐归摵寮€鎴?N脳N 缃戞牸锛岃鐩栬閲庡洓瑙掍笌涓績锛屽埆璁╃偣钀藉湪涓€鏉＄洿绾夸笂
+  [鈭氶€氳繃] [CAL] 娈嬪樊闅忓崐寰勫澶?鈫?鎻愮ず鐤戜技鐣稿彉  鈫? 娈嬪樊闅忚閲庡崐寰勫澶э紙杈圭紭甯?0.9px 鈮?涓績甯?0.1px 鐨?9 鍊嶏級锛氱枒浼奸暅澶寸暩鍙樷€斺€斾豢灏勬ā鍨嬫棤娉曞惛鏀讹紝鍙€冭檻缃戞牸鏍囧畾鎴栨爣瀹氭澘鍐呭弬鏍囧畾锛堣鏂规 搂鍗佷竴锛?
+  [鈭氶€氳繃] [CAL] 娈嬪樊褰㈡€佹甯?鈫?涓嶇粰璇鎬ф彁绀? 鈫? 锛堟棤鎻愮ず锛屾纭級
+  [鈭氶€氳繃] [CAL] 褰撻噺鍙嶈В 鈮?0.02 mm/px 涓斿悇鍚戝紓鎬?鈮?0  鈫? 褰撻噺=0.02, 鍚勫悜寮傛€?0%
+  [鈭氶€氳繃] [CAL] 涓ゅ悜褰撻噺涓嶄竴鑷?鈫?鍚勫悜寮傛€у彲琚瘑鍒紙> 1%锛? 鈫? 鍚勫悜寮傛€?4.432%
+  [鈭氶€氳繃] [CAL] 鍍忕礌褰撻噺锛?-4-5 鐩磋涓夎褰紙500px / 100mm 鈫?0.2 mm/px锛? 鈫? dist=500, mm/px=0.2
+  [鈭氶€氳繃] [CAL] 涓ょ偣閲嶅悎 鈫?澶辫触骞剁粰鍑轰笅涓€姝ワ紙鎻愮ず鍘绘嫋鍔ㄦ爣璁帮級  鈫? 涓ょ偣鍍忕礌璺濈涓?0锛氳鍦ㄧ敾甯冧笂鎶?A/B 涓や釜鏍囪鎷栧埌鏍囧畾鐗╃殑涓ょ锛堟垨鎵嬪伐濉啓琛ㄦ牸閲岀殑 Row/Col锛?
+  [鈭氶€氳繃] [CAL] 鏋勯€犲悗 DisplayImage 涓?null锛堟瀯閫犳湡涓嶇 HALCON 鍘熺敓搴擄級
+  [鈭氶€氳繃] [CAL] 鎻掍欢绾т節鐐规垚鍔燂細Success=true 涓?Transform 绔彛鏈夊€?
+  [鈭氶€氳繃] [CAL] 杈撳嚭鐭╅樀涓庡凡鐭ヤ竴鑷达紙< 1e-6锛? 鈫? 鏈€澶у亸宸?1.137e-13
+  [鈭氶€氳繃] [CAL] 杈撳嚭褰撻噺姝ｇ‘銆佺浉鏈哄簭鍒楀彿閫忎紶銆並ind=NinePoint  鈫? mm/px=0.02, cam=SYNTH-CAM-01, kind=NinePoint
+  [鈭氶€氳繃] [CAL] 绔彛褰撻噺/娈嬪樊涓庣粨鏋滀竴鑷? 鈫? 绔彛 mm/px=0.019999999999999997, rms=4.076600266969523E-12
+  [鈭氶€氳繃] [CAL] CalibrationTransform JSON 寰€杩斿瓧娈典笉涓?
+  [鈭氶€氳繃] [CAL] 寰勫悜甯︽棤 NaN锛堟棤鐐瑰甫=0 + 璁℃暟琛ㄨ揪锛孞SON 鎵嶈法璇█瀹夊叏锛? 鈫? bands=[4.3220627292571264E-12,3.582116836148764E-12,4.047269086122901E-12] counts=[1,2,6]
+  [鈭氶€氳繃] [CAL] 娈嬪樊瓒呴槇鍊?鈫?澶辫触涓旀枃妗堝甫娈嬪樊涓庢鏌ユ竻鍗? 鈫? 鏍囧畾娈嬪樊 7.86px 瓒呰繃闃堝€?1px锛堟渶澶у亸宸?22.22px锛夈€傝妫€鏌ワ細鈶?鏈烘鍧愭爣涓庡浘鍍忕偣鏄惁涓€涓€瀵瑰簲 鈶?鐗瑰緛鐐规槸鍚﹀彇鍦ㄥ悓涓€鐗╃悊浣嶇疆 鈶?鑻ユ畫宸憟銆屼腑蹇冨皬銆佽竟缂樺ぇ銆嶁啋 鐤戜技闀滃ご鐣稿彉锛堜豢灏勬ā鍨嬫棤娉曞惛鏀讹紝瑙佹柟妗?搂鍗佷竴锛?
+  [鈭氶€氳繃] [CAL] 鍗婂～琛?鈫?澶辫触涓旀寚鍒拌鍚嶏紙P3锛? 鈫? 鏍囧畾琛ㄧ銆孭3銆嶈鍙～浜嗕竴閮ㄥ垎锛氭満姊癤 / 鏈烘Y / 鍥惧儚Row / 鍥惧儚Col 蹇呴』鍥涘€奸綈鍏紙鏁磋涓嶅～ = 绌鸿锛屼笉鍙備笌璁＄畻锛? 鏄悎娉曞潗鏍囧€硷紝涓嶄細琚垽鎴愭病濉級
+  [鈭氶€氳繃] [CAL] 杈撳嚭绔彛榻愬叏锛圱ransform / MmPerPixel / ResidualRmsPx / ResidualMaxPx锛? 鈫? Transform,MmPerPixel,ResidualRmsPx,ResidualMaxPx,Success,ErrorMessage
+  [鈭氶€氳繃] [CAL] Transform 绔彛绫诲瀷 = CalibrationTransform锛堜笅娓告寜绫诲瀷鎺ワ級  鈫? CalibrationTransform
+  [鈭氶€氳繃] [CAL] 杈撳叆绔彛 SourceImagePath 瀛樺湪锛堥厤缃€佸彇鐐?棰勮鍏ュ彛锛? 鈫? SourceImagePath,SourceImage,SourceSerial,SourcePointRow,SourcePointCol
+  [鈭氶€氳繃] [CAL] 鎻掍欢甯?[Display]锛圙roupName=鏍囧畾锛屽惁鍒欏伐鍏风閲屾嫋涓嶅嚭鏉ワ級
+  [鈭氶€氳繃] [CAL] 琛ㄦ牸鏀逛竴鏍?鈫?璐ㄩ噺鍖虹珛鍗抽噸绠楋紙杩炵画涓ゆ鏀瑰姩鐨勮鏁颁笉鍚岋級  鈫? 绗竴娆?'娈嬪樊 RMS 0.248px 锝?鏈€澶?0.556px 锝?鍚勫悜寮傛€?0.08%' 绗簩娆?'娈嬪樊 RMS 0.497px 锝?鏈€澶?1.111px 锝?鍚勫悜寮傛€?0.16%'
+  [鈭氶€氳繃] [CAL] 缃戞牸缂╁皬閬囬潪绌鸿 鈫?涓嶅垹浠讳綍琛岋紙琛ㄤ繚鎸?9 琛屽師鏍凤級  鈫? 琛屾暟 9 鈫?9
+  [鈭氶€氳繃] [CAL] 鎷掔粷缂╁皬鏃剁粰鍑哄彲鎿嶄綔鎻愮ず锛堝惈鑳藉绾冲叏閮ㄨ鐨?3脳3 寤鸿锛? 鈫? 缃戞牸缂╁皬浼氭妸宸叉湁鐨勭 5 琛岋紙P5锛変涪鎺夛細璇峰厛娓呯┖璇ヨ锛屾垨鎶婄綉鏍艰妯¤皟鍒?3脳3
+  [鈭氶€氳繃] [CAL] 闈炲钩鏂硅鏁拌鎷掔缉鏃跺缓璁悜涓婂彇鏁达紙12 琛?鈫?4脳4 鑰岄潪 3脳3锛? 鈫? 琛屾暟=12 鏂囨='缃戞牸缂╁皬浼氭妸宸叉湁鐨勭 5 琛岋紙P5锛変涪鎺夛細璇峰厛娓呯┖璇ヨ锛屾垨鎶婄綉鏍艰妯¤皟鍒?4脳4'
+  [鈭氶€氳繃] [CAL] 缃戞牸瑙勬ā鍙€夊€艰鐩?2~10锛堜笌 OnGridSizeChanging 鐨?clamp 涓€鑷达級  鈫? 2,3,4,5,6,7,8,9,10
+  [鈭氶€氳繃] [CAL] 娓呯┖璺緞鍚庯紝鍦ㄩ€旇鍥句笉鎶婇瑙?澶嶆椿'锛圖isplayImage 淇濇寔绌猴級  鈫? DisplayImage=绌?璺緞=''
+  [鈭氶€氳繃] [CAL] 鏈烘鍧愭爣 0 鏄悎娉曞€硷紙涓嶅啀琚垽鍗婂～/绌鸿锛屾甯告眰瑙ｏ級
+  [鈭氶€氳繃] [CAL] 鍚?0 鍧愭爣鐨勮В涓嶅惈璇ョ偣琚墧闄ょ殑鐥曡抗锛? 鐐瑰叏鍙備笌锛? 鈫? counts=[1,2,6] rms=6.09e-13
+  [鈭氶€氳繃] [CAL] 鏃ф柟妗堣縼绉伙細鍥涘€煎叏 0 鈫?绌鸿锛堟棫鐗堟湰灏辨妸杩欑琛屽綋绌鸿锛? 鈫? IsEmpty=True
+  [鈭氶€氳繃] [CAL] 鏃ф柟妗堣縼绉伙細鍚潪 0 鍊肩殑琛屼笉琚锛? 鍧愭爣鐓у父淇濈暀涓烘湁鏁堢偣锛? 鈫? IsFilled=True
+  [鈭氶€氳繃] [CAL] 鏃ф柟妗堣縼绉伙細宸茬粡鏄?null 鐨勮鏄┖鎿嶄綔锛堝箓绛夛級
+  [鈭氶€氳繃] [CAL] 琛ㄦ牸娈嬪樊鍒楁寜鍍忕礌鍙ｅ緞锛?.5mm 鈮?22px锛屼笉鏄?0.5锛? 鈫? P5 娈嬪樊 = 22.22px锛堟湡鏈?鈮?0.5脳8/9/0.02 鈮?22.2px锛?
+  [鈭氶€氳繃] [CAL] 閰嶇疆鎬佹畫宸洖鍐欒〃鏍硷紙涓嶇敤璺戜竴娆℃祦绋嬫墠濉級  鈫? 璐ㄩ噺鍖?'娈嬪樊 RMS 7.857px 锝?鏈€澶?22.222px 锝?鍚勫悜寮傛€?0%'
+  [鈭氶€氳繃] [CAL] 闂搁棬鏈繃鏃惰川閲忔暟瀛椾繚鐣欙紙绾㈠瓧鏄剧ず宸灏戯紝涓嶅啀娓呯┖锛? 鈫? Level=Error 鏂囨湰='娈嬪樊 RMS 7.857px 锝?鏈€澶?22.222px 锝?鍚勫悜寮傛€?0%'
+  [鈭氶€氳繃] [CAL] NaN 鎸囧悕鍒拌锛圥2锛夛紝涓嶅啀鎶ャ€岀 N 缁勭偣銆? 鈫? 鏍囧畾琛ㄧ銆孭2銆嶈鍚潪娉曟暟鍊硷紙NaN/Inf锛夆€斺€旇妫€鏌ヨ琛岀殑濉啓
+  [鈭氶€氳繃] [CAL] 绌哄甫涓嶈鎶ョ暩鍙橈紙璁℃暟涓?0 鐨勫甫涓嶅弬涓庡舰鎬佸垽璇伙級  鈫? 锛堟棤鎻愮ず锛屾纭級
+  [鈭氶€氳繃] [CAL] 鏈夎鏁版椂鐓у父鎻愮ず鐣稿彉  鈫? 娈嬪樊闅忚閲庡崐寰勫澶э紙杈圭紭甯?0.9px 鈮?涓績甯?0.1px 鐨?9 鍊嶏級锛氱枒浼奸暅澶寸暩鍙樷€斺€斾豢灏勬ā鍨嬫棤娉曞惛鏀讹紝鍙€冭檻缃戞牸鏍囧畾鎴栨爣瀹氭澘鍐呭弬鏍囧畾锛堣鏂规 搂鍗佷竴锛?
+  [鈭氶€氳繃] [CAL] 鎻愮ず闂ㄩ檺闅忔畫宸槇鍊兼斁瀹斤紙闃堝€?3px 鈫?0.6px 杈圭紭涓嶅啀鎻愮ず锛? 鈫? 锛堟棤鎻愮ず锛屾纭級
+  [鈭氶€氳繃] [CAL] 杩炵画涓ゆ杩愯 CreatedAtUtc 绋冲畾锛堢鍚嶄笉鍙樹笉鎺ㄨ繘锛? 鈫? 2026-10-06T01:03:37.5597259Z 鈫?2026-10-06T01:03:37.5597259Z
+  [鈭氶€氳繃] [CAL] 淇敼鏍囧畾鏁版嵁鍚?CreatedAtUtc 鍓嶈繘  鈫? 2026-10-06T01:03:37.5597259Z 鈫?2026-10-06T01:03:37.5886076Z
+  [鈭氶€氳繃] [CAL] 杞藉叆鐨勬爣瀹氭椂闂村湪杩愯棣栬疆淇濇寔涓嶅彉锛堥杞彧璁扮鍚嶏級  鈫? stored=2026-01-02T03:04:05.0000000Z 鈫?杈撳嚭=2026-01-02T03:04:05.0000000Z
+  [鈭氶€氳繃] [CAL] A/B 鏈彇鍏?鈫?鏄庣‘澶辫触骞剁粰涓嬩竴姝ワ紙涓嶅啀璇敤 (0,0)锛? 鈫? 鍍忕礌褰撻噺锛欰 / B 涓ょ偣灏氭湭鍙栧叏鈥斺€旇鐐广€屽彇鐐广€嶅湪鍥句笂鍚勭偣涓€涓嬶紝鎴栫洿鎺ュ～琛ㄦ牸閲岀殑 Row/Col锛堜篃鐐广€屾妸鐐圭敾鍒板浘涓娿€嶅悗鎷栧姩 A / B 鏍囪锛?
+  [鈭氶€氳繃] [CAL] 鐭爣瀹氱嚎缁欏嚭璺ㄥ害璀﹀憡锛?1/3 瑙嗛噹锛? 鈫? 鏍囧畾绾?53.9px锛屽崰瑙嗛噹瀵硅 4.2%锛堝亸鐭細鐭熀绾跨浉瀵硅宸ぇ锛屽缓璁崲鏇撮暱鐨勬爣瀹氱墿锛岃法瑙嗛噹 鈮?/3锛?
+  [鈭氶€氳繃] [CAL] 璺ㄥ害鍏呰冻鏃朵笉璀﹀憡  鈫? 鏍囧畾绾?632.5px锛屽崰瑙嗛噹瀵硅 49.4%锛堣法搴﹀厖瓒筹級
+  [鈭氶€氳繃] [CAL] 鍍忕礌褰撻噺鍙栭綈 A/B 鍚庢垚鍔燂紝涓?Kind=PixelScale
+  [鈭氶€氳繃] [CAL] 閿佸畾鍚?IsEditable=false
+  [鈭氶€氳繃] [CAL] 閿佸畾鎬佸彇鐐硅鎷掞紙鏂囨鍚€岄攣瀹氥€嶏級  鈫? 鏍囧畾宸查攣瀹氾細鍏堣В閿佸啀鍙栫偣
+  [鈭氶€氳繃] [CAL] 閿佸畾鎬佹竻绌鸿〃鏍艰鎷掞紙鏁版嵁鍘熸牱淇濈暀锛? 鈫? 鏍囧畾宸查攣瀹氾細鍏堣В閿佸啀娓呯┖琛ㄦ牸
+  [鈭氶€氳繃] [CAL] 鏈攣瀹氫絾鏃犳爣瀹氬浘 鈫?鍙栫偣鎻愮ず鍏堣浇鍥? 鈫? 璇峰厛鍔犺浇鏍囧畾鍥撅紙鏂囦欢璺緞鎴栧疄鏃跺浘锛夛紝鍐嶇偣銆屽彇鐐广€?
+  [鈭氶€氳繃] [CAL] HalconBase.IsPickMode 榛樿 false锛堝姞娉曚笉鏀瑰彉鍏朵粬鎻掍欢琛屼负锛? 鈫? 榛樿鍊?False
+  [鈭氶€氳繃] [CAL] HalconBase.ImagePicked 浜嬩欢瀛樺湪锛堜竴娆℃€у彇鐐归€氶亾锛?
+  [鈭氶€氳繃] [CAL] 閰嶇疆闈㈡柊澧為敭瀛樺湪锛圕alibrationStampUtc / IsCalibrationLocked / 鍙┖ A/B锛? 鈫? ScaleARow 绫诲瀷=Nullable`1
+  [鈭氶€氳繃] [CAL] 閫忚锛氬€炬枩鐪熷€肩簿纭繕鍘燂紙h33 褰掍竴鍚?9 鍏冮€愪綅 < 1e-6锛? 鈫? 鏈€澶х郴鏁板亸宸?2.842e-14
+  [鈭氶€氳繃] [CAL] 閫忚锛氭棤鍣０娈嬪樊 < 1e-9 涓旀/鍙嶆姇褰变簰閫?< 1e-9  鈫? rms=5.335e-13, max=7.984e-13, 浜掗€嗗亸宸?(1.705e-13,1.137e-13)
+  [鈭氶€氳繃] [CAL] 閫忚锛? 鐐瑰け璐ワ紙鑷冲皯闇€瑕?4 缁勶級/ 杩戝叡绾?4 鐐广€侀噸澶?4 鐐瑰け璐ワ紙閫€鍖栵級  鈫? 3鐐?'閫忚鏍囧畾鑷冲皯闇€瑕?4 缁勭偣锛堟帹鑽?9~16 缁勶紝瑕嗙洊瑙嗛噹鍥涜+涓績锛涘綋鍓?3 缁勶級'锛涜繎鍏辩嚎='鏍囧畾鐐瑰垎甯冮€€鍖栵紙杩戜技鍏辩嚎/閲嶅悎鎴栬鐩栦笉瓒筹級锛屾棤娉曠ǔ瀹氭眰鍑烘姇褰卞彉鎹細褰掍竴鍖栬璁＄煩闃电殑娆♀€?锛涢噸澶?'鏍囧畾鐐瑰垎甯冮€€鍖栵紙杩戜技鍏辩嚎/閲嶅悎鎴栬鐩栦笉瓒筹級锛屾棤娉曠ǔ瀹氭眰鍑烘姇褰卞彉鎹細鏍囧畾鐐瑰叏閮ㄩ噸鍚堬紙褰掆€?
+  [鈭氶€氳繃] [CAL] 閫忚浠峰€煎弽璇侊細浠垮皠娈嬪樊瓒呴槇鍊硷紙鈮?px锛変笖鎶曞奖妯″瀷娈嬪樊杈炬爣锛? 1e-9锛? 鈫? 浠垮皠 rms=6.152px锛堥榾闂ㄩ槇鍊?1px锛夈€佹姇褰?rms=5.335e-13px
+  [鈭氶€氳繃] [CAL] 閫忚鍗曚綅鍙嶈瘉锛氳琛屾畫宸紙px锛? mm 梅 灞€閮ㄥ綋閲忥紙鈮?涓績褰撻噺锛屽樊 >2.5%锛? 鈫? 琛屾畫宸?0.2336px锛涘眬閮ㄥ彛寰?0.2336锛屼腑蹇冨綋閲忓彛寰?0.2456
+  [鈭氶€氳繃] [CAL] 閫忚灞€閮ㄥ綋閲忥細涓績鍊?涓績宸垎鐙珛绠楀€硷紙<1e-8锛夈€佸悇鍚戝紓鎬у彲璇嗗埆锛?5%锛夈€侀€€鍖栨姢鏍?0  鈫? 涓績灞€閮?0.019901锛堝樊鍒?0.019901锛沘niso 14.619% vs 宸垎 14.619%锛夛紱H2 aniso=18.678%锛涢€€鍖栫嚎鐐瑰綋閲?0
+  [鈭氶€氳繃] [CAL] 閫忚璺ㄦā鍨嬩竴鑷达細浠垮皠鏁版嵁涓?涓?TrySolveAffine 杈撳嚭閲嶆帓鍚庨€愪綅 < 1e-9  鈫? 鏈€澶у亸宸?1.137e-13
+  [鈭氶€氳繃] [CAL] 閫忚 JSON锛歅rojectiveMatrix 寰€杩旈€愪綅涓€鑷淬€乭33=1銆佹棤 NaN/Inf锛涙棫 JSON 璇诲叆琛屼负涓嶅彉  鈫? 寰€杩斿亸宸?0e+0锛沨33=1锛涙棫 JSON: Kind=NinePoint銆佹柊瀛楁=null锛堟纭級
+  [鈭氶€氳繃] [CAL] 閫忚鎷掔粷闈細缂哄け/閫€鍖栨姇褰辩煩闃佃鎷?+ 鏃у彛寰勶紙闆?Matrix锛夎鎷掞紙鏈煡 Kind=7 鐨勬秷璐逛晶鑱斿姩鐣欏緟绗簩闃舵锛?
+  [鈭氶€氳繃] [CAL] 閫忚鎻掍欢鍏ㄩ摼璺細Success/Kind/绔彛/鐩告満涓庡昂瀵搁€忎紶/褰撻噺=涓績灞€閮?琛ㄦ牸娈嬪樊=灞€閮ㄥ彛寰? 鈫? rms=1.118e-1锛屽綋閲?0.019901锛岃娈嬪樊=0.2336锛堝眬閮ㄥ绠?0.2336锛夛紝绔彛=True
+  [鈭氶€氳繃] [CAL] 閫忚绛惧悕/鏃堕棿鎴筹細鍒囨崲 NinePoint鈫擯erspective 鎺ㄨ繘锛涘悓鏁版嵁閲嶅杩愯涓嶆帹杩? 鈫? 01:03:37.601 鈫?01:03:37.601 鈫?01:03:37.667 鈫?01:03:37.699
+  [鈭氶€氳繃] [CAL] 閫忚 UI 闈細ShowPointTable 鐪熷€艰〃锛堝惈閫氱煡锛夈€佺姸鎬佸惈銆岄€忚銆嶃€佺鍙ｉ潰 5 鍏?4 鍑猴紙+鍩虹被 2 杈撳嚭锛変笉鍙? 鈫? ShowPointTable=(鍍忕礌:False/涔濈偣:True/閫忚:True)锛岄€氱煡=True锛岀姸鎬?'灏辩华锛氶€忚鏍囧畾 3脳3锛屾湁鏁堢偣 9 缁?锛岀鍙?SourceImage/SourceImagePath/SourcePointCol/SourcePointRow/SourceSerial | MmPerPixel/ResidualMaxPx/ResidualRmsPx/Transform
+  [鈭氶€氳繃] [CAL] 閫忚 HALCON 瀵规媿锛坴ector_to_proj_hom_mat2d / normalized_dlt锛夛細h33 褰掍竴鍚庨€愬厓 < 1e-6  鈫? maxdiff=1.421e-14
+  [鈭氶€氳繃] [CAL] 閫忚瀹堝崼浣欓」锛歨33鈮? 鎷掔粷 / 鏄犲皠鎶樿繑鎷掔粷 / 閫€鍖栫嚎鐐规嫆缁? 鈫? h33='鎶曞奖鐭╅樀姹傝В閫€鍖栵紙h33鈮?锛屾棤娉曟寜 h33=1 褰掍竴鍖栵級鈥斺€旀爣瀹氱偣鍒嗗竷鍙兘閫€鍖栵紝璇封€?锛涙姌杩?'鏍囧畾鐐硅法瓒婃姇褰遍€€鍖栫嚎锛堟槧灏勬姌杩斻€侀泤鍙瘮绗﹀彿涓嶄竴鑷达級鈥斺€旇妫€鏌ユ爣瀹氱偣鏁版嵁鏄惁瀵瑰簲閿欎綅鎴栤€?锛涢€€鍖栫嚎='鍍忕礌鐐硅惤鍦ㄦ姇褰遍€€鍖栫嚎涓婏紙w鈮?锛屾棤娉曟槧灏勶級'
+  [鈭氶€氳繃] [CAL] 瀵煎嚭/瀵煎叆寰€杩旓細0 涓?null 鐨勫尯鍒嗕笉涓€佸簭鍒楀彿閫愰」涓€鑷? 鈫? rows=9
+  [鈭氶€氳繃] [CAL] 瀵煎嚭锛氬彲瑙ｉ厤缃甫璐ㄩ噺蹇収锛圫napshot锛変笌鐗堟湰鍙?
+  [鈭氶€氳繃] [CAL] 瀵煎叆鍚庯細鎸夋枃浠舵暟鎹眰瑙ｆ垚鍔熴€佹椂闂存埑浠ユ枃浠朵负鍑嗭紙棣栬疆涓嶆帹杩涳級  鈫? stamp=2026-10-06T01:03:37.7104102Z 杈撳嚭=2026-10-06T01:03:37.7104102Z
+  [鈭氶€氳繃] [CAL] 瀵煎叆鎷掔粷闈細绌哄唴瀹?/ 闈炴硶 JSON / 鏇撮珮鐗堟湰 / 閿佸畾鎬? 鈫? empty=True badJson=True version=True locked=True
+  [鈭氶€氳繃] [CAL] 瀵煎叆鎷掔粷闈?2锛氱┖琛屼笉鎶涘紓甯革紙涓枃鍘熷洜锛夈€丯aN/Inf 闃堝€间笌鎶ゆ爮蹇呴』鎷掔粷  鈫? nullRow=瀵煎叆澶辫触锛氭爣瀹氳〃鍚┖琛岋紙鍏?1 澶勶紝鏂囦欢鍙兘宸叉崯鍧忥級 nanTh=瀵煎叆澶辫触锛氭畫宸槇鍊奸潪娉曪紙NaN锛?nanGuard=瀵煎叆澶辫触锛氬綋閲忔姢鏍忛潪娉曪紙鈭瀪1锛?
+  [鈭氶€氳繃] [CAL] 瀵煎叆鍏冧俊鎭細鏂囦欢灏哄 0 涓嶆竻鏈満灏哄锛?2 琛?vs 缃戞牸 5 鈫?褰掍竴 4脳4  鈫? keep=True(640脳480) grid=4 rows=12 err=
+  [鈭氶€氳繃] [CAL] 瀵煎叆鏉ユ簮鏍囩锛氭湰鏈烘棤鍥捐矾寰勬椂缁ф壙鏂囦欢 SourceTag锛堝苟杩涘叆浜х墿锛? 鈫? tag=camA_sample.png
+  [鈭氶€氳繃] [CAL] 瀵煎叆瑕嗙洊锛氳鏁版洿灏戠殑鏂囦欢鏁翠唤鏇挎崲鏃ц〃锛堜笉鐣欐棫琛?鏃х綉鏍硷級  鈫? rows=4 grid=2
+  [鈭氶€氳繃] [CAL] 瀹炴椂鍥炬帴鍏ワ細鐢诲竷搴曞浘鍒囨崲涓哄疄鏃跺浘涓斿昂瀵歌褰曟洿鏂? 鈫? canvas=瀹炴椂鍥?320脳240
+  [鈭氶€氳繃] [CAL] 瀹炴椂鍥炬柇寮€锛氱敾甯冨洖钀戒絾灏哄璁板綍淇濈暀锛堝揩鐓т笉琚娓咃級  鈫? 320脳240
+  [鈭氶€氳繃] [CAL] 绌鸿矾寰勪笖浠庢湭杞借繃鍥撅細灏哄璁板綍淇濈暀锛堜慨澶嶁€滄墦寮€鍗虫竻灏哄鈥濓級  鈫? 1280脳1024
+  [鈭氶€氳繃] [CAL] 棰勫～锛氫粠涓婃父瀹氫綅鐐圭鍙ｏ紙Row/Col锛夊洖濉琛? 鈫? Row=111.5 Col=222.5
+  [鈭氶€氳繃] [CAL] 棰勫～锛氫笂娓镐负绌?鈫?鏄庣‘鎷掔粷涓斾笉鍔ㄨ鏁版嵁  鈫? 棰勫～澶辫触锛氫笂娓稿畾浣嶇偣涓虹┖鈥斺€旇鎶婂尮閰?鍦嗘煡鎵剧殑 Row/Col锛堟垨鑴氭湰绠楀嚭鐨?ROI 涓績锛夋帴鍒?SourcePointRow / SourcePointCol 绔彛
+  [鈭氶€氳繃] [CAL] 鐩告満韬唤涓嶇 鈫?鏄庣‘澶辫触锛堟爣瀹氬睘浜?A銆佸浘鍍忔潵鑷?B锛? 鈫? 鐩告満韬唤涓嶇锛氳繖浠芥爣瀹氬睘浜庛€孋AM-A銆嶏紝浣嗗綋鍓嶅浘鍍忔潵鑷€孋AM-B銆嶁€斺€旇纭鐩告満搴忓垪鍙凤紙澶氱浉鏈烘椂姣忓彴鐩告満鍚勮嚜涓€浠芥爣瀹氾級锛屾垨淇銆岀浉鏈哄簭鍒楀彿銆嶅悗閲嶆柊鏍稿鏍囧畾鐐?
+  [鈭氶€氳繃] [CAL] 搴忓垪鍙蜂竴鑷达紙蹇界暐澶у皬鍐欙級鈫?姝ｅ父鎴愬姛
+  [鈭氶€氳繃] [CAL] 涓婃父鏈彁渚涘簭鍒楀彿 鈫?涓嶆牎楠岋紙鍗曠浉鏈?鏈帴绾块浂褰卞搷锛?
+  [鈭氶€氳繃] [CAL] 绮樿创瑙ｆ瀽锛氱┖鍗曞厓鏍?null銆佽棣栫┖鏍煎瓙淇濈暀銆佸叏绌鸿璺宠繃  鈫? rows=3
+  [鈭氶€氳繃] [CAL] 绮樿创瑙ｆ瀽锛? 鍒楀甫搴忓彿 鈫?棣栧垪涓㈠純銆佸洓鍊煎氨浣? 鈫? count=1
+  [鈭氶€氳繃] [CAL] 绮樿创瑙ｆ瀽锛氬垪鏁颁笉瀵?鈫?鎶ラ敊骞惰鏄庡簲涓?4/5 鍒? 鈫? 鍓创鏉跨 1 琛屾湁 3 鍒楋紝搴斾负 4 鍒楋紙鏈烘X銆佹満姊癥銆佸浘鍍廟ow銆佸浘鍍廋ol锛夋垨 5 鍒楋紙甯﹀簭鍙凤級锛圱ab 鍒嗛殧鏃剁┖鏍煎瓙=鏈～锛涜棣栫┖鍒椾篃鎸夋湭濉鐞嗭級
+
+---- [CALM] 鍗″昂鎻掍欢锛氬儚绱犲綋閲忕洿杩烇紙鎵嬪～/涓婃父/澶辨晥涓夋€?+ 鐪熷疄娴嬮噺閾捐矾锛?----
+  [鈭氶€氳繃] [CALM] 杈撳叆绔彛 MmPerPixel 瀛樺湪銆佸彲閫夈€佺被鍨?double锛堝彲鐩存帴鎺ユ爣瀹氳緭鍑猴級  鈫? 瀛樺湪=True 蹇呭～=False
+  [鈭氶€氳繃] [CALM] 鏍囧畾鎻掍欢 MmPerPixel 杈撳嚭绫诲瀷 = double锛堜笌鍗″昂杈撳叆绔彛绫诲瀷鍚诲悎锛? 鈫? Double
+  [鈭氶€氳繃] [CALM] 鏈帴涓婃父 鈫?鐢ㄦ墜濉€硷紙0.03锛? 鈫? 鍊?0.03
+  [鈭氶€氳繃] [CALM] 宸叉帴涓婃父 鈫?浠ヨ繛绾夸负鍑嗭紙0.02锛屾墜濉鎵撴柇鐐癸級  鈫? 鍊?0.02
+  [鈭氶€氳繃] [CALM] 璇曡繍琛屾ˉ鎺ワ細鏃犻摼鎺ヤ絾绔彛鍊?0 鈫?浠ョ鍙ｅ€间负鍑嗭紙璇曡繍琛屾墍瑙?杩愯鎵€寰楋級  鈫? 鍊?0.02
+  [鈭氶€氳繃] [CALM] 涓婃父=0 鈫?鎶ラ敊骞舵寚銆屾爣瀹氥€嶏紙涓嶉潤榛樺洖閫€锛? 鈫? 鍍忕礌褰撻噺鏉ヨ嚜涓婃父杩炵嚎浣嗘棤鏁堬紙0锛夛細璇锋鏌ヤ笂娓革紙銆屾爣瀹氥€嶆楠ゆ湰杞槸鍚︽垚鍔?/ 閾炬帴鐨勫彉閲忔槸鍚︽湁鍊硷級锛屾垨鏀圭敤鎵嬪～鍍忕礌褰撻噺骞舵柇寮€璇ヨ繛绾?
+  [鈭氶€氳繃] [CALM] 涓婃父=NaN 鈫?鍚屾牱鎶ラ敊锛圢aN 涓嶅緱婧滆繘浠讳綍璁＄畻锛? 鈫? 鍍忕礌褰撻噺鏉ヨ嚜涓婃父杩炵嚎浣嗘棤鏁堬紙NaN锛夛細璇锋鏌ヤ笂娓革紙銆屾爣瀹氥€嶆楠ゆ湰杞槸鍚︽垚鍔?/ 閾炬帴鐨勫彉閲忔槸鍚︽湁鍊硷級锛屾垨鏀圭敤鎵嬪～鍍忕礌褰撻噺骞舵柇寮€璇ヨ繛绾?
+  [鈭氶€氳繃] [CALM] 鏈帴涓婃父锛氭墜濉綋閲忚窇閫氾紙浜甫 鈮?40px 脳 0.5 鈮?120mm锛? 鈫? Success=True 鍊?120.5 Err='鍋忓樊 +120.5 瓒呭嚭涓婂叕宸紙涓婂叕宸?0锛?
+  [鈭氶€氳繃] [CALM] 宸叉帴涓婃父锛氫互杩炵嚎涓哄噯锛堝悓涓€浜甫锛?.0/0.5 搴旀斁澶?4 鍊嶏級  鈫? 鍊?482锛堟湡鏈?鈮?482锛?
+  [鈭氶€氳繃] [CALM] 涓婃父褰撻噺=0 鈫?姝ラ澶辫触骞舵寚銆屾爣瀹氥€嶏紙涓嶇粰鏃у€肩‖绠楃殑鏈轰細锛? 鈫? Success=False Err='鍍忕礌褰撻噺鏉ヨ嚜涓婃父杩炵嚎浣嗘棤鏁堬紙0锛夛細璇锋鏌ヤ笂娓革紙銆屾爣瀹氥€嶆楠ゆ湰杞槸鍚︽垚鍔?/ 閾炬帴鐨勫彉閲忔槸鍚︽湁鍊硷級锛屾垨鏀圭敤鎵嬪～鍍忕礌褰撻噺骞舵柇寮€璇ヨ繛绾?
+  [鈭氶€氳繃] [CALM] 褰撻噺澶辨晥鐨勫け璐ヨ疆锛氳緭鍑虹鍙ｆ竻闆讹紙鏃犱笂涓€杞剰鍊硷級  鈫? 鍊?0 鍋忓樊=0 IsOk=False
+  [鈭氶€氳繃] [CALM] 鏍囧畾鎻掍欢鍏堜骇鍑轰竴浠藉綋閲?0.02 鐨勬爣瀹氾紙閾捐矾婧愬ご锛? 鈫? mm/px=0.020000000000000004
+  [鈭氶€氳繃] [CALM] 鐪熷疄閾捐矾锛氬崱灏轰互鏍囧畾褰撻噺涓哄噯锛堚増240px 脳 0.02 鈮?4.8mm锛? 鈫? 鍊?4.82锛堟湡鏈?鈮?4.82锛?
+  [鈭氶€氳繃] [CALM] 鏍囧畾澶辫触浼犲锛氬綋閲忓彛褰?0 鈫?鍗″昂鏄庣‘澶辫触锛堜笉鎷挎棫鏍囧畾纭畻锛? 鈫? 鏍囧畾 Success=False锛涘崱灏?Err='鍍忕礌褰撻噺鏉ヨ嚜涓婃父杩炵嚎浣嗘棤鏁堬紙0锛夛細璇锋鏌ヤ笂娓革紙銆屾爣瀹氥€嶆楠ゆ湰杞槸鍚︽垚鍔?/ 閾炬帴鐨勫彉閲忔槸鍚︽湁鍊硷級锛屾垨鏀圭敤鎵嬪～鍍忕礌褰撻噺骞舵柇寮€璇ヨ繛绾?
+
+---- [PT] 鍧愭爣鍙樻崲鎻掍欢锛氭鍙嶅彉鎹?/ 瑙掑害 / 鍥涚被澶遍厤 / 浣嶅Э璺熼殢 / 閫忚鑱斿姩 / 绔彛闈?----
+  [鈭氶€氳繃] [PT] 姝ｅ彉鎹㈡寜濂戠害灞曞紑锛?100,200) 鈫?(110,220)锛屾墜绠楀父閲忥級  鈫? (110, 220)
+  [鈭氶€氳繃] [PT] 杞翠氦鎹?绗﹀彿涓嶉敊浣嶏紙(100,200) 鈫?(405,307)锛屾墜绠楀父閲忥級  鈫? (405, 307)
+  [鈭氶€氳繃] [PT] 鍙嶅悜浜掗€嗭紙T鈦宦?T(p)) 璇樊 < 1e-9锛? 鈫? (100, 200)
+  [鈭氶€氳繃] [PT] 鏃嬭浆+缂╂斁鐭╅樀鐨勬鍙嶄簰閫嗭紙< 1e-9锛? 鈫? (321.7, 654.3)
+  [鈭氶€氳繃] [PT] 瑙掑害锛氫繚鍚戞爣瀹氫笅鍍忕礌 30掳 鈫?鏈烘 30掳锛埪?e-3锛? 鈫? 30掳
+  [鈭氶€氳繃] [PT] 瑙掑害锛氫繚鍚戞爣瀹氫笅鍍忕礌 鈭?0掳 鈫?鏈烘 鈭?0掳锛埪?e-3锛? 鈫? -90掳
+  [鈭氶€氳繃] [PT] 瑙掑害锛氬儚绱?0掳 鈫?鏈烘 0掳锛堝熀鍑嗗畾涔夛紝浠讳綍鏍囧畾閮芥垚绔嬶級  鈫? 0掳
+  [鈭氶€氳繃] [PT] 瑙掑害锛氳酱浜ゆ崲锛堝弽灏勶級鈫?杞鍙栧弽锛堚垝30掳锛岀敱鐭╅樀鍚告敹銆佷笉鍐嶆牎姝ｏ級  鈫? -30掳
+  [鈭氶€氳繃] [PT] 瑙掑害褰掍竴鍖栧埌 (鈭?80, 180]
+  [鈭氶€氳繃] [PT] 澶遍厤鈶犳湭鎺ユ爣瀹?鈫?澶辫触骞舵寚鍒般€屾爣瀹氥€嶆彃浠? 鈫? 鏈帴鏍囧畾锛氳鎶娿€屾爣瀹氥€嶆彃浠剁殑 Transform 杈撳嚭鎺ュ埌鏈楠?
+  [鈭氶€氳繃] [PT] 澶遍厤鈶″綋閲忔爣瀹氬綋涔濈偣鐢?鈫?澶辫触骞舵寚鍒般€屼節鐐规爣瀹氥€? 鈫? 褰撳墠鏍囧畾鍙湁鍍忕礌褰撻噺銆佷笉鍚満姊板潗鏍囷細鍧愭爣鎹㈢畻璇风敤涔濈偣鏍囧畾鎴栭€忚鏍囧畾锛堝儚绱犲綋閲忔ā寮忓彧缁?mm/px锛?
+  [鈭氶€氳繃] [PT] 鐭╅樀缂哄け/閫€鍖?鈫?澶辫触骞舵寚鍒般€岄噸鏂拌繍琛屾爣瀹氥€? 鈫? 鏍囧畾鏁版嵁鎹熷潖锛堢煩闃电己澶辨垨閫€鍖栵級锛氳閲嶆柊杩愯銆屾爣瀹氥€嶆楠?
+  [鈭氶€氳繃] [PT] 澶遍厤鈶㈠浘鍍忓昂瀵镐笉绗?鈫?澶辫触銆佷袱涓昂瀵搁兘鍦ㄦ枃妗堥噷  鈫? 鏍囧畾涓庡綋鍓嶅浘鍍忓昂瀵镐笉绗︼紙鏍囧畾鏃?2448脳2048锛屽綋鍓?1280脳1024锛夆€斺€旀崲鍒嗚鲸鐜?鎹㈢浉鏈哄悗闇€閲嶆柊鏍囧畾
+  [鈭氶€氳繃] [PT] 灏哄鐩哥鈫掗€氳繃锛涙爣瀹氭湭璁板綍灏哄鈫掓斁琛岋紙鏃犱粠姣斿锛屼笉璇姤锛?
+  [鈭氶€氳繃] [PT] 浣嶅Э瀹堝崼锛歂aN/鍏ㄩ浂蹇呴』澶辫触銆佹甯镐綅濮块€氳繃锛堥槻鍖归厤澶辫触琚潤榛樺彉鎹級  鈫? 浣嶅Э鏃犳晥锛圢aN/Inf锛夆€斺€旇妫€鏌ユā鏉垮尮閰嶆槸鍚︽垚鍔燂紙鎴栦笂娓镐綅濮挎潵婧愶級
+  [鈭氶€氳繃] [PT] 鍍忕礌鐐瑰畧鍗細(0,0)/NaN 蹇呴』澶辫触锛堜笌浣嶅Э瀹堝崼鍚屽彛寰勶級  鈫? 寰呮崲绠楃殑鍍忕礌鐐逛负 (0,0)锛氬鍗婃槸妯℃澘鍖归厤澶辫触鎴栨湭鎺モ€斺€旇妫€鏌ヤ笂娓镐綅濮挎潵婧?
+  [鈭氶€氳繃] [PT] 璺熼殢濮挎€佹晱鎰燂細杞?90掳 鈫?澶栨帴妗嗗楂樹簰鎹紙41脳21 鈫?21脳41锛屄?px锛? 鈫? 楂?21 瀹?41锛堝熀鍑?楂?41 瀹?21锛?
+  [鈭氶€氳繃] [PT] 鏃嬭浆涓嶄涪闈㈢Н锛堢浉瀵瑰樊 < 1e-6锛? 鈫? 鐩稿宸?0e+0
+  [鈭氶€氳繃] [PT] 妯℃澘鎬佽嚜娲斤細浣嶅Э=鍙傝€冪偣銆佽搴?0 鈫?涓庡熀鍑?ROI 瀹屽叏閲嶅悎锛堥潰绉浉瀵瑰樊 < 1e-6锛? 鈫? 闈㈢Н鐩稿宸?0e+0锛屼腑蹇?(100,100)
+  [鈭氶€氳繃] [PT] 瀵归綈鍥炬柟鍚戯細鍐呭浠庝綅濮挎惉鍥炲弬鑰冪偣锛圱鈦宦癸紝涓嶆槸鎺ㄨ繙涓ゅ€嶏級  鈫? 浜偣涓績 (59.5,59.5)锛岄潰绉?316锛堟湡鏈涗腑蹇?(60,60)锛?
+  [鈭氶€氳繃] [PT] 鏋勯€犲悗 DisplayImage 涓?null锛堟瀯閫犳湡涓嶇 HALCON 鍘熺敓搴擄級
+  [鈭氶€氳繃] [PT] 鎻掍欢绾уけ閰嶁憼鏈帴鏍囧畾 鈫?澶辫触涓旀枃妗堝惈銆屾爣瀹氥€嶄笅涓€姝? 鈫? 鏈帴鏍囧畾锛氳鎶娿€屾爣瀹氥€嶆彃浠剁殑 Transform 杈撳嚭鎺ュ埌鏈楠?
+  [鈭氶€氳繃] [PT] 鎻掍欢绾уけ閰嶁憽褰撻噺鏍囧畾褰撲節鐐圭敤 鈫?澶辫触涓旀寚鍒般€屼節鐐规爣瀹氥€? 鈫? 褰撳墠鏍囧畾鍙湁鍍忕礌褰撻噺銆佷笉鍚満姊板潗鏍囷細鍧愭爣鎹㈢畻璇风敤涔濈偣鏍囧畾鎴栭€忚鏍囧畾锛堝儚绱犲綋閲忔ā寮忓彧缁?mm/px锛?
+  [鈭氶€氳繃] [PT] 鎻掍欢绾уけ閰嶁憿鍥惧儚灏哄涓嶇 鈫?澶辫触涓旀姤銆岄噸鏂版爣瀹氥€嶄笌涓や釜灏哄  鈫? 鏍囧畾涓庡綋鍓嶅浘鍍忓昂瀵镐笉绗︼紙鏍囧畾鏃?2448脳2048锛屽綋鍓?200脳200锛夆€斺€旀崲鍒嗚鲸鐜?鎹㈢浉鏈哄悗闇€閲嶆柊鏍囧畾
+  [鈭氶€氳繃] [PT] 澶遍厤鈶ｇ浉鏈鸿韩浠戒笉绗?鈫?澶辫触銆佷袱鍙扮浉鏈洪兘鍦ㄦ枃妗堥噷  鈫? 鐩告満韬唤涓嶇锛氳繖浠芥爣瀹氬睘浜庛€孋AM-A銆嶏紝浣嗗綋鍓嶅浘鍍忔潵鑷€孋AM-B銆嶏紱璇锋崲鐢ㄨ鐩告満鐨勬爣瀹氭枃浠讹紙鎴栨鏌?SourceSerial 鎺ョ嚎锛?
+  [鈭氶€氳繃] [PT] 韬唤鐩哥锛堝拷鐣ュぇ灏忓啓锛夆啋 姝ｅ父鎴愬姛锛堟墜绠?(405,307)锛? 鈫? (405, 307) 
+  [鈭氶€氳繃] [PT] 涓婃父搴忓垪鍙蜂负绌?鈫?涓嶆煡韬唤锛堢绾?鍗曠浉鏈轰笉鎵撴壈锛?
+  [脳澶辫触] [PT] 鏍囧畾鏈褰曞簭鍒楀彿 鈫?鏀捐锛堟棫鏍囧畾鏂囦欢涓嶈鎷︼級  鈫? 鐩告満韬唤涓嶇锛氳繖浠芥爣瀹氬睘浜庛€孲YNTH-PT銆嶏紝浣嗗綋鍓嶅浘鍍忔潵鑷€孋AM-B銆嶏紱璇锋崲鐢ㄨ鐩告満鐨勬爣瀹氭枃浠讹紙鎴栨鏌?SourceSerial 鎺ョ嚎锛?
+  [鈭氶€氳繃] [PT] 鎻掍欢绾ф垚鍔燂細鏈烘鍧愭爣 = 鎵嬬畻 (405,307)锛孲uccess=true  鈫? (405, 307) 
+  [鈭氶€氳繃] [PT] 鍙嶅悜鍥炴樉 = 鍘熷鍍忕礌鐐癸紙鑷牎楠岀鍙ｏ級  鈫? (100, 200)
+  [鈭氶€氳繃] [PT] 鍍忕礌瑙掑害鏈帴 鈫?MechanicalAngle 涓嶈緭鍑猴紙淇濇寔 0锛屼笉鐬庣粰锛? 鈫? 0
+  [鈭氶€氳繃] [PT] 鍍忕礌瑙掑害鎺ヤ簡 鈫?MechanicalAngle 鈮?30掳锛堜繚鍚戞爣瀹氬師鏍锋槧灏勶級  鈫? 30掳 
+  [鈭氶€氳繃] [PT] 绌?ROI 鈫?澶辫触锛堜笉闈欓粯杈撳嚭绌哄尯鍩燂級  鈫? 鍩哄噯 ROI 涓虹┖锛氳鎶?ROI 鎻掍欢鐨?MaskRegion 鎺ヨ繃鏉ワ紙骞跺湪妯℃澘鍥句笂鐢诲ソ鍩哄噯锛?
+  [鈭氶€氳繃] [PT] NaN 浣嶅Э 鈫?澶辫触锛堥槻鍖归厤澶辫触琚潤榛樺彉鎹級  鈫? 浣嶅Э鏃犳晥锛圢aN/Inf锛夆€斺€旇妫€鏌ユā鏉垮尮閰嶆槸鍚︽垚鍔燂紙鎴栦笂娓镐綅濮挎潵婧愶級
+  [鈭氶€氳繃] [PT] 浣嶅Э鍏ㄩ浂锛堟湭鎺?鍖归厤澶辫触锛夆啋 澶辫触骞惰鏄庡師鍥? 鈫? 浣嶅Э涓?(0,0,0)锛氬鍗婃槸妯℃澘鍖归厤澶辫触鎴栦綅濮挎湭鎺モ€斺€旇妫€鏌ヤ笂娓镐綅濮挎潵婧?
+  [鈭氶€氳繃] [PT] 鎻掍欢绾ц窡闅忔垚鍔燂紙妯℃澘鎬侊級锛欶ollowedRegion 鏈夊€间笖涓庡熀鍑嗛噸鍚堬紙鐩稿宸?< 1e-6锛? 鈫? 闈㈢Н鐩稿宸?0e+0
+  [鈭氶€氳繃] [PT] 瀵归綈鍥鹃粯璁ゅ叧锛欶ollowedImage 鏈緭鍑?
+  [鈭氶€氳繃] [PT] 鍕鹃€夊榻愬浘 + 鎺ヤ簡 SrcImage 鈫?FollowedImage 鏈夊€?
+  [鈭氶€氳繃] [PT] 瑙掑害鎹㈢畻澶辫触 鈫?浜斾釜鏍囬噺绔彛鍏ㄩ儴涓?0锛堜笉鐣欏崐鎴愬搧鍊硷級  鈫? Success=False (0, 0) 鍥炴樉=(0, 0) Err=鍍忕礌瑙掑害鏃犳晥锛圢aN/Inf锛夆€斺€旇妫€鏌ヤ笂娓歌搴︽潵婧?
+  [鈭氶€氳繃] [PT] 瑙掑害鏈夊€?鈫?MechanicalAngle 宸茶緭鍑猴紙鍓嶇疆鏉′欢锛? 鈫? 40.8934掳 
+  [鈭氶€氳繃] [PT] 瑙掑害鏂紑/褰掗浂 鈫?MechanicalAngle 澶嶄綅涓?0锛堜笉娈嬬暀涓婁竴杞級  鈫? 0掳 
+  [鈭氶€氳繃] [PT] 杈撳叆绔彛闈㈤綈鍏紙缁戝畾鐢級  鈫? SrcImage,BaseRegion,TemplateRefRow,TemplateRefCol,PoseRow,PoseCol,PoseAngle,Transform,SourceSerial,PixelPointRow,PixelPointCol,PixelAngle
+  [鈭氶€氳繃] [PT] 杈撳嚭绔彛闈㈤綈鍏? 鈫? FollowedRegion,FollowedImage,MechanicalX,MechanicalY,MechanicalAngle,PixelEchoRow,PixelEchoCol,Success,ErrorMessage
+  [鈭氶€氳繃] [PT] Transform 绔彛绫诲瀷 = CalibrationTransform锛堟帴鏍囧畾鎻掍欢杈撳嚭锛? 鈫? CalibrationTransform
+  [鈭氶€氳繃] [PT] 璺熼殢绔彛绫诲瀷 = HRegion / HImage锛堟帴 BlobDetect.MaskRegion 涓庡浘鍍忎笅娓革級
+  [鈭氶€氳繃] [PT] 鎻掍欢甯?[Display]锛圙roupName=瀹氫綅锛屽惁鍒欏伐鍏风閲屾嫋涓嶅嚭鏉ワ級
+  [鈭氶€氳繃] [PT] 閫忚姝?鍙嶅彉鎹細鎵嬬畻甯搁噺锛?250,500)鈫?315,400)銆?0,0)鈫?30,鈭?5)锛涗簰閫?< 1e-9锛? 鈫? (315,400)銆?30,-75) 鍙嶅悜 (250,500)
+  [鈭氶€氳繃] [PT] 閫忚鐭╅樀缂哄け/閫€鍖?闀垮害涓嶈冻 鈫?鎷掔粷涓旀枃妗堝惈銆屾崯鍧?閲嶆柊杩愯鏍囧畾銆? 鈫? 鏍囧畾鏁版嵁鎹熷潖锛堟姇褰辩煩闃电己澶辨垨閫€鍖栵級锛氳閲嶆柊杩愯銆屾爣瀹氥€嶆楠?
+  [鈭氶€氳繃] [PT] 鏈煡 Kind=(CalibrationKind)7 鈫?鎷掔粷锛堥槻銆屽繕璁板垎鏀€嶉潤榛樻寜鏃ч€昏緫鏀捐锛? 鈫? 涓嶆敮鎸佺殑鏍囧畾绫诲瀷锛?锛夛細璇峰崌绾ц蒋浠舵垨閲嶆柊鏍囧畾
+  [鈭氶€氳繃] [PT] 閫忚鍒嗘瘝鈮? 鐨勫儚绱犵偣 鈫?鏄庣‘澶辫触锛坵=0 绾夸笂鎷掔粷锛涚嚎澶栫偣鐓у父鏄犲皠锛? 鈫? 鍍忕礌鐐硅惤鍦ㄦ姇褰遍€€鍖栫嚎涓婏紙w鈮?锛屾棤娉曟槧灏勶級
+  [鈭氶€氳繃] [PT] 閫忚瑙掑害浣嶇疆鐩稿叧锛欽(p) 鎵嬬畻瀵规瘮锛埪?e-6锛夛紱鍚?胃 涓や綅缃粨鏋滀笉鍚? 鈫? J=(0.685,-0.0575,-0.15,0.55)锛浳?30掳@(250,500)=-42.074掳锛堟湡鏈?-42.074掳锛塿s @(100,100)=-30.4212掳 
+  [鈭氶€氳繃] [PT] 鎻掍欢绾ч€忚 ToMechanical锛氬潗鏍?鎵嬬畻 (315,400)銆佸洖鏄?< 1e-6銆佹満姊拌=鎵嬬畻  鈫? (315,400) 鍥炴樉=(250,500) 瑙?-42.074掳 
+  [鈭氶€氳繃] [PT] FollowRoi 涓庢爣瀹氱被鍨嬭В鑰︼細涔濈偣/閫忚杈撳嚭瀹屽叏涓€鑷淬€佷笉鎺ユ爣瀹氱収甯告垚鍔? 鈫? 闈㈢Н 862/862/862锛屼腑蹇冨樊 (0e+0,0e+0) 
+  [鈭氶€氳繃] [PT] 澶遍厤鈶℃枃妗堝悓鏃跺惈銆屼節鐐广€嶄笌銆岄€忚銆嶏紙鏃ф柇瑷€渚濊禆銆屼節鐐广€嶄笉涓級  鈫? 褰撳墠鏍囧畾鍙湁鍍忕礌褰撻噺銆佷笉鍚満姊板潗鏍囷細鍧愭爣鎹㈢畻璇风敤涔濈偣鏍囧畾鎴栭€忚鏍囧畾锛堝儚绱犲綋閲忔ā寮忓彧缁?mm/px锛?
+  [鈭氶€氳繃] [PT] 灏哄澶遍厤锛堥€忚锛夛細涓や釜灏哄閮借繘鏂囨锛涚浉绗︽斁琛? 鈫? 鏍囧畾涓庡綋鍓嶅浘鍍忓昂瀵镐笉绗︼紙鏍囧畾鏃?2448脳2048锛屽綋鍓?1280脳1024锛夆€斺€旀崲鍒嗚鲸鐜?鎹㈢浉鏈哄悗闇€閲嶆柊鏍囧畾
+
+========== 缁撴灉姹囨€?==========
+閫氳繃: 1285  澶辫触: 20
+>>> 瀛樺湪 20 椤瑰け璐?<<<

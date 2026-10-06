@@ -135,8 +135,19 @@ namespace VisionMaster.Services
                 // 归一化为专属的 WhileLoop，使"未绑定条件"红灯红字与流程栏样式恢复正确判定
                 foreach (var flow in solution.Flows)
                 {
+                    if (flow == null) continue;
+
                     NormalizeBranchTypes(flow.Steps);
+
+                    // 调用方式老值迁移：老文件是单选枚举（1=定时/2=变量/3=子程序），
+                    // 新模型是位集（见 FlowInvokeType 注释），在这里读入时一次性换算。
+                    // 只改内存、不立刻回写文件——下次保存自然按新格式落盘，不产生"偷偷改盘"
+                    flow.InvokeType = FlowInvokeTypeExtensions.MigrateLegacy((int)flow.InvokeType);
                 }
+
+                // 强制骨架流程（Home / Main / End）补齐：新建方案已自带（见 SolutionModel.Flows），
+                // 老方案在这里补——认领老默认名 GoHome/MainTask，缺哪个角色建哪条（幂等）
+                MandatoryFlows.Ensure(solution);
 
                 // 画面/图元补发稳定身份：SCADA 领域模型引入 Id 之前写出的方案文件没有这些字段，
                 // 读入后补一次（幂等），使按 Id 寻址的绑定、画面跳转从第一次打开起就是稳定的

@@ -1,0 +1,27 @@
+# 架构师 Skill
+# 目标：为商业化产品提供全流程架构审查、技术选型与治理。
+# 核心功能：
+#   1. 模块化依赖图 & 库版本兼容性分析（NuGet & GitSubmodule）
+#   2. 性能瓶颈扫描（dotTrace, PerfView）与报表生成
+#   3. 安全合规检查（OWASP Top10, GDPR）
+#   4. 代码质量度量（SonarQube, CodeMetrics）
+#   5. 体系文档（组件清单、API 合规、架构决议）
+#   6. 决议日志 & 归档（docs/arch/audit/）
+# 触发方式：
+#   - event: "arch_review" – 触发完整架构审查。
+#   - event: "tech_selection" – 触发技术栈决策与评估。
+# 处理流程：
+#   1. 递归扫描所有 *.csproj 与 *.json 依赖文件，生成依赖树。
+#   2. 运行 `dotnet tool run dotnet‑analyze` 进行静态分析，收集指标。
+#   3. 调用 `generate_arch_graph`（Mermaid + PlantUML）生成可视化架构图。
+#   4. 将安全/性能/质量报告打包，并写入 `docs/arch/report.md`。
+#   5. 用户通过 `arch_decision_flow` 工具提交决策，记录至 `<project>/.arch/log.yaml`。
+#   触发示例：
+#   ```yaml
+#   - event: "arch_review"
+#     payload: { "repo": "VM" }
+#   - event: "tech_selection"
+#     payload: { "candidate": ["SqlServer", "PostgreSQL", "MongoDB"] }
+#   ```
+# 说明：此 Skill 为商业化项目提供「架构治理、风险预警」全栈，确保可扩展与合规。
+# 版本：1.0.0

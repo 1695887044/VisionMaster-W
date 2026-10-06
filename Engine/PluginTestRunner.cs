@@ -40,6 +40,9 @@ namespace VisionMaster.Services
         /// 编译失败/步骤不存在时为 null，执行失败时仍有已执行部分的留存数据</param>
         /// <param name="cameras">相机仓库：试运行也要能取相机（相机采集步骤"试采一帧"就靠它）。
         /// 允许为 null —— 检查/测试夹具调用时回落 NullCameraProvider，插件侧会得到明确的失败原因</param>
+        /// <param name="motions">运动设备仓库：语义同上，缺省回落 NullMotionProvider</param>
+        /// <param name="flowInvoker">流程调用器：面板上点「执行」若步骤是「调用流程」，没有它就会拿到
+        /// NullFlowInvoker（"调用即失败并说明原因"）。允许为 null —— 检查夹具走默认值即可</param>
         /// <returns>执行结果</returns>
         public static PluginExecuteResult Run(
             IVisionPlugin configPlugin,
@@ -50,7 +53,8 @@ namespace VisionMaster.Services
             CancellationToken cancellationToken,
             out FlowSession trialSession,
             ICameraProvider cameras = null,
-            IMotionProvider motions = null)
+            IMotionProvider motions = null,
+            IFlowInvoker flowInvoker = null)
         {
             var sw = Stopwatch.StartNew();
             trialSession = null;
@@ -92,7 +96,9 @@ namespace VisionMaster.Services
             {
                 Cameras = cameras ?? NullCameraProvider.Instance,
                 // 试运行也要能取到运动设备 —— 否则"选了卡、一执行就报找不到"
-                Motions = motions ?? NullMotionProvider.Instance
+                Motions = motions ?? NullMotionProvider.Instance,
+                // 「调用流程」步骤同理：不注入的话面板上点「执行」必然报"没有绑定流程引擎"
+                FlowInvoker = flowInvoker ?? NullFlowInvoker.Instance
             };
 
             try

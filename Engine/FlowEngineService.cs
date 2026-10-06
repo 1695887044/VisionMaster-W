@@ -72,6 +72,15 @@ namespace VisionMaster.Services
         public event Action<FlowSession> FlowRunStarted;
 
         /// <summary>
+        /// 流程调用器：由「调用流程」步骤经执行上下文取用（子程序调用）。
+        ///
+        /// 为什么是"可写属性 + 装配时注入"而不是构造参数：调用器自己要用引擎跑子流程，
+        /// 与引擎互相引用（环）没法在构造期解；默认 <see cref="NullFlowInvoker"/>（调用即失败并说明原因），
+        /// FlowEngineModule 在装配时把它换成真实现（与 ServiceLocator.CommunicationManager 同一手法）。
+        /// </summary>
+        public IFlowInvoker FlowInvoker { get; set; } = NullFlowInvoker.Instance;
+
+        /// <summary>
         /// 构造函数
         /// </summary>
         /// <param name="runtimeManager">运行时管理器</param>
@@ -257,8 +266,13 @@ namespace VisionMaster.Services
         /// 启动会话连续执行
         /// </summary>
         /// <param name="session">要执行的会话</param>
+        /// <param name="debugSession">
+        /// 本次运行是否为调试会话（DWV 第 1 期）。置位动作在抢到会话锁之后、按本参数执行
+        /// （收尾统一清回 false，见 finally）：调用方先置位的写法把调试态与"谁抢到锁"解耦了——
+        /// 界面置 true 后被 HTTP 抢到锁时，true 会泄漏给那次非界面运行（P2 竞态）。
+        /// </param>
         /// <returns>异步任务</returns>
-        public async Task RunSessionAsync(FlowSession session)
+        public async Task RunSessionAsync(FlowSession session, bool debugSession = false)
         {
             if (session == null || session.ExecutionEngine == null)
                 throw new ArgumentException("Session 或底层执行引擎不能为空，请先编译！");
@@ -282,6 +296,9 @@ namespace VisionMaster.Services
                 // 暂停原因（否则运行中 UI 还显示着上一轮的暂停理由）
                 session.DebugStepPending = false;
                 session.PauseReason = SessionPauseReason.None;
+                // 调试态按本次调用的显式参数置位 —— 只在这里（抢到锁之后）赋值：
+                // 调用方先置位的话，本次若被拒（HTTP 抢到锁），true 会残留给那次 HTTP 运行（P2）
+                session.DebugEnabled = debugSession;
                 session.IsRunning = true;
                 session.PauseLock.Set();
                 session.CancellationTokenSource = new CancellationTokenSource();
@@ -317,7 +334,8 @@ namespace VisionMaster.Services
                         var context = new ExecutionContext(_logService, session, _workspaceManager, token)
                         {
                             Cameras = _cameras,
-                            Motions = _motions
+                            Motions = _motions,
+                            FlowInvoker = FlowInvoker
                         };
                         // 这一轮开始即广播（画布据此清空/覆盖上一轮的图，见 FlowRunStarted 的注释）
                         NotifyFlowRunStarted(session);
@@ -405,17 +423,33 @@ namespace VisionMaster.Services
         /// 启动会话单次执行
         /// </summary>
         /// <param name="session">要执行的会话</param>
+        /// <param name="debugSession">本次运行是否为调试会话（语义与置位时机同 RunSessionAsync）</param>
         /// <returns>异步任务</returns>
-        public async Task RunSessionOnceAsync(FlowSession session)
+        public async Task RunSessionOnceAsync(FlowSession session, bool debugSession = false)
+            => await TryRunSessionOnceAsync(session, debugSession);
+
+        /// <summary>
+        /// 启动会话单次执行，并**如实回答"这一单到底跑了没有"**。
+        ///
+        /// 为什么要有返回值：「抢不到会话锁」在旧签名里只记一条 Warn 就正常返回——
+        /// 对"触发一次就完事"的调用方（HTTP 收图 / 定时触发）没问题，但「调用流程」这类
+        /// **必须知道自己有没有跑上**的调用方会把"我没跑"误读成"跑完了"，
+        /// 父流程于是带着尚未落地的子流程数据继续往下走（假成功比报错危险得多）。
+        /// 返回 false = 目标正被别的执行占着，本次**没有执行**。
+        /// </summary>
+        /// <param name="session">要执行的会话</param>
+        /// <param name="debugSession">本次运行是否为调试会话（语义与置位时机同 RunSessionAsync）</param>
+        /// <returns>true = 抢到会话锁并跑完（含被停止打断）；false = 未执行</returns>
+        public async Task<bool> TryRunSessionOnceAsync(FlowSession session, bool debugSession = false)
         {
-            if (session == null || session.ExecutionEngine == null) return;
+            if (session == null || session.ExecutionEngine == null) return false;
 
             // A3：抢到锁才继续，抢不到说明这个会话已经在跑
             var sessionLock = TryOccupySession(session);
             if (sessionLock == null)
             {
                 _logService.Warn($"流程 {session.FlowName} 已在运行中，忽略重复的单次执行请求");
-                return;
+                return false;
             }
 
             try
@@ -429,6 +463,8 @@ namespace VisionMaster.Services
                 session.PauseLock.Set();
                 session.DebugStepPending = false;
                 session.PauseReason = SessionPauseReason.None;
+                // 调试态按本次调用的显式参数置位（抢到锁之后），理由见 RunSessionAsync 的 P2 注释
+                session.DebugEnabled = debugSession;
                 session.IsRunning = true;
 
                 // 单次执行同样需要取消令牌：否则 StopSession 因 CTS 为 null 而无法停止
@@ -452,7 +488,8 @@ namespace VisionMaster.Services
                     var context = new ExecutionContext(_logService, session, _workspaceManager, token)
                     {
                         Cameras = _cameras,
-                        Motions = _motions
+                        Motions = _motions,
+                        FlowInvoker = FlowInvoker
                     };
                     // 与连续运行同一语义：一轮开始/结束各广播一次
                     NotifyFlowRunStarted(session);
@@ -517,6 +554,9 @@ namespace VisionMaster.Services
                     ReleaseSession(sessionLock);
                 }
             }
+
+            // 走到这里说明这一单确实抢到锁执行过了（正常跑完 / 被停止 / 抛异常都算"跑过"）
+            return true;
         }
 
         /// <summary>

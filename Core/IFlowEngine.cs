@@ -15,16 +15,34 @@ namespace VisionMaster.Services
         /// 进入死循环模式，由节拍控制，直到收到停止指令
         /// </summary>
         /// <param name="session">要执行的流程会话</param>
+        /// <param name="debugSession">
+        /// 本次运行是否为调试会话（DWV 第 1 期）：装调试门，支持断点 / 单步 / 暂停继续。
+        /// 由引擎在<b>抢到会话锁之后</b>据此参数置位 <see cref="FlowSession.DebugEnabled"/>，收尾统一清回 false。
+        /// 【为什么不许调用方自己先置位】界面若在调用前置 true、而这一刻 HTTP 触发抢先拿到会话锁，
+        /// 界面这次调用会被拒（锁被占），true 却残留在会话上，于是"HTTP 触发不受断点影响"的
+        /// 硬约束被静态破坏。置位权收归引擎，与"谁真正抢到锁"绑死。
+        /// </param>
         /// <returns>异步任务</returns>
-        Task RunSessionAsync(FlowSession session);
+        Task RunSessionAsync(FlowSession session, bool debugSession = false);
 
         /// <summary>
         /// 启动指定会话的单次执行
         /// 常用于标定、调试或手动触发场景
         /// </summary>
         /// <param name="session">要执行的流程会话</param>
+        /// <param name="debugSession">本次运行是否为调试会话（语义同 <see cref="RunSessionAsync"/>）</param>
         /// <returns>异步任务</returns>
-        Task RunSessionOnceAsync(FlowSession session);
+        Task RunSessionOnceAsync(FlowSession session, bool debugSession = false);
+
+        /// <summary>
+        /// 单次执行，并**如实返回"这一单跑了没有"**（DWV 第 2 批：给「调用流程」用）。
+        /// 抢不到会话锁时不抛不静默，返回 false —— 调用方（子程序调用 / 自动触发）必须据此如实报错，
+        /// 否则会把"我没跑上"误读成"跑完了"（父流程带着未落地的数据继续走）。
+        /// </summary>
+        /// <param name="session">要执行的流程会话</param>
+        /// <param name="debugSession">本次运行是否为调试会话（语义同 <see cref="RunSessionAsync"/>）</param>
+        /// <returns>true = 抢到会话锁并跑完（含被停止打断）；false = 目标已被占用，本次未执行</returns>
+        Task<bool> TryRunSessionOnceAsync(FlowSession session, bool debugSession = false);
 
         /// <summary>
         /// 停止指定的活动会话

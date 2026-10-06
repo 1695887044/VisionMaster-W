@@ -1,0 +1,26 @@
+﻿C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(602,49): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_oyitquza_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1129,40): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_oyitquza_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1226,25): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_oyitquza_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,28): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_oyitquza_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,78): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_oyitquza_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1078,49): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_oyitquza_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(602,49): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1129,40): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1226,25): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,28): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,78): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1078,49): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+  [PASS] 配置视图可实例化并完成模板实例化（资源键/转换器/控件模板全部解析）  (elements=892)
+  [PASS] 画布控件存在（ImageEdit 恰 1 个）  (count=1)
+  [PASS] 逐行「取点」按钮 = 9、且命令全部绑定（默认 3×3 表格）  (count=9 bound=9)
+  [PASS] 逐行「预填」按钮 = 9、且命令全部绑定（上游定位点回填）  (count=9 bound=9)
+  [PASS] 导入 / 导出按钮存在且命令绑定（多设备共享标定）  (count=2 bound=2)
+  [PASS] 锁定复选框存在（防误改）
+  [PASS] 存在「透视标定」模式单选
+  [PASS] 存在「网格标定」模式单选（分段仿射）
+  [PASS] 标定表就位（绑定 PointRows）
+  [PASS] 锁定后标定表被禁用（IsEnabled 绑定生效）  (enabled=False)
+  [PASS] 模式切换 → 表格显隐跟随（像素当量隐藏 / 九点、透视、网格显示）  (pixelScale=True ninePoint=True perspective=True mesh=True)
+  [PASS] 取点横幅默认不占位（IsPickingPoint=false）
+=== 标定配置视图冒烟：全部通过 ===

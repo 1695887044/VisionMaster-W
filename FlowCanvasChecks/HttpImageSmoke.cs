@@ -51,6 +51,7 @@ namespace FlowCanvasChecks
     internal static class HttpImageSmoke
     {
         private const string FlowName = "收图冒烟流程";
+        private const string NotOpenFlowName = "未开放HTTP流程";
         private const string StepName = "图像采集_0";
         private const int Port = 19123;
 
@@ -121,7 +122,15 @@ namespace FlowCanvasChecks
             var solution = new SolutionModel { SolutionName = "收图冒烟方案" };
             solution.Flows.Clear();
 
-            var flow = new FlowModel { FlowName = FlowName, Description = "HTTP 收图冒烟", Version = 1, IsEnabled = true };
+            var flow = new FlowModel
+            {
+                FlowName = FlowName,
+                Description = "HTTP 收图冒烟",
+                Version = 1,
+                IsEnabled = true,
+                // 调用方式必须显式勾选「HTTP 外部调用」——门禁就认这一位（用户决策）
+                InvokeType = FlowInvokeType.Http,
+            };
 
             var step = new ActionStep("", "图像采集", pluginType.AssemblyQualifiedName, StepName);
             var modeType = pluginType.GetProperty("Mode")?.PropertyType;
@@ -133,10 +142,26 @@ namespace FlowCanvasChecks
             flow.Steps.Add(step);
 
             solution.Flows.Add(flow);
+
+            // 门禁用例的对照组：同样的单步流程，但**没勾**「HTTP 外部调用」→ 必须 403。
+            // 放在同一方案里是刻意的：证"拒绝的理由是调用方式，而不是流程不存在/编译不过"。
+            var notOpenFlow = new FlowModel
+            {
+                FlowName = NotOpenFlowName,
+                Description = "未开放 HTTP 调用（门禁对照组）",
+                Version = 1,
+                IsEnabled = true,
+                InvokeType = FlowInvokeType.Manual,
+            };
+            var notOpenStep = new ActionStep("", "图像采集", pluginType.AssemblyQualifiedName, "图像采集_0");
+            notOpenStep.SetInputValue("Mode", Enum.ToObject(modeType, 2));
+            notOpenFlow.Steps.Add(notOpenStep);
+            solution.Flows.Add(notOpenFlow);
+
             workspace.SwitchSolution(solution);
 
-            Check("[S3] 工作区就绪（当前方案 1 条流程 / 1 个步骤）",
-                workspace.CurrentSolution?.Flows.Count == 1 && flow.Steps.Count == 1,
+            Check("[S3] 工作区就绪（当前方案 2 条流程 / 各 1 个步骤）",
+                workspace.CurrentSolution?.Flows.Count == 2 && flow.Steps.Count == 1 && notOpenFlow.Steps.Count == 1,
                 $"Flows={workspace.CurrentSolution?.Flows.Count} Steps={flow.Steps.Count} ModeType={modeType?.Name}");
 
             // ---- S4 装配服务端并启动 ----
@@ -169,7 +194,7 @@ namespace FlowCanvasChecks
             // ---- S5~S12 真发 HTTP ----
             try
             {
-                RunHttpChecks(server, runtime, flow).GetAwaiter().GetResult();
+                RunHttpChecks(server, runtime, flow, notOpenFlow).GetAwaiter().GetResult();
             }
             finally
             {
@@ -292,7 +317,7 @@ namespace FlowCanvasChecks
                  + log.Warns.ToArray().Count(w => w.Contains(fragment));
         }
 
-        private static async Task RunHttpChecks(HttpImageServer server, RuntimeManager runtime, FlowModel flow)
+        private static async Task RunHttpChecks(HttpImageServer server, RuntimeManager runtime, FlowModel flow, FlowModel notOpenFlow)
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
             var url = $"http://127.0.0.1:{Port}/flow/{Uri.EscapeDataString(FlowName)}";
@@ -325,6 +350,51 @@ namespace FlowCanvasChecks
                 emptyBody.Status == 400
                     && GetString(TryParse(emptyBody.Body), "message")?.Contains("请求体为空") == true,
                 $"HTTP {emptyBody.Status} body={Clip(emptyBody.Body)}");
+
+            // ---- S7b 调用门禁：没勾「HTTP 外部调用」的流程一律 403 ----
+            // 用户决策："只有选择了这个的，才能被 Http 调用"。对照组流程与主流程同形同步骤，
+            // 唯一差别就是调用方式——拒绝的理由必须指向调用方式本身，而不是"流程不存在/编译不过"
+            var notOpenResp = await Post(http,
+                $"http://127.0.0.1:{Port}/flow/{Uri.EscapeDataString(NotOpenFlowName)}",
+                BuildPng(gray: true), Token);
+            Check("[S7b] 未勾选「HTTP 外部调用」→ 403",
+                notOpenResp.Status == 403
+                    && GetString(TryParse(notOpenResp.Body), "message")?.Contains("未开放") == true,
+                $"HTTP {notOpenResp.Status} body={Clip(notOpenResp.Body)}");
+
+            // ---- S7c 被禁用的流程 → 403（勾了 HTTP 也不跑；禁用优先） ----
+            flow.IsEnabled = false;
+            try
+            {
+                var disabledResp = await Post(http, url, BuildPng(gray: true), Token);
+                Check("[S7c] 流程已禁用 → 403（禁用优先于调用方式）",
+                    disabledResp.Status == 403
+                        && GetString(TryParse(disabledResp.Body), "message")?.Contains("已被禁用") == true,
+                    $"HTTP {disabledResp.Status} body={Clip(disabledResp.Body)}");
+            }
+            finally
+            {
+                flow.IsEnabled = true;
+            }
+
+            // ---- S7d 顺序证明：**禁用 + 未勾 HTTP** 必须报"禁用" ----
+            // 主流程 [S7c] 本身勾了 HTTP，把判定顺序换成"先 Http 后禁用"它照样通过；
+            // 只有这条（两个条件都不满足）能钉住顺序：禁用判定排在调用方式之前
+            notOpenFlow.IsEnabled = false;
+            try
+            {
+                var bothBadResp = await Post(http,
+                    $"http://127.0.0.1:{Port}/flow/{Uri.EscapeDataString(NotOpenFlowName)}",
+                    BuildPng(gray: true), Token);
+                Check("[S7d] 禁用 + 未勾 HTTP → 报「已被禁用」（禁用判定在调用方式之前）",
+                    bothBadResp.Status == 403
+                        && GetString(TryParse(bothBadResp.Body), "message")?.Contains("已被禁用") == true,
+                    $"HTTP {bothBadResp.Status} body={Clip(bothBadResp.Body)}");
+            }
+            finally
+            {
+                notOpenFlow.IsEnabled = true;
+            }
 
             // ---- S8 灰度图 happy path ----
             // outputs 里额外带上 Success / ErrorMessage：插件失败时这两个端口会直接说明

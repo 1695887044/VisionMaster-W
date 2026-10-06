@@ -775,7 +775,10 @@ namespace Plugin.BeadInspect
                 {
                     if (!BeadInspectHalcon.AlignImage(
                             good, entry.RuntimePlanarModel!, entry.RuntimeRowT, entry.RuntimeColT,
-                            MinScore, PlanarNumLevels, out HObject? alignedImg, out double score, out string alignErr))
+                            MinScore, PlanarNumLevels,
+                            FindAngleStartDeg * DegToRad, FindAngleExtentDeg * DegToRad,
+                            FindScaleRMin, FindScaleRMax, FindScaleCMin, FindScaleCMax,
+                            out HObject? alignedImg, out double score, out string alignErr))
                     {
                         SetStatus($"自动提取失败：{alignErr}", StatusLevel.Error);
                         return;
@@ -831,7 +834,10 @@ namespace Plugin.BeadInspect
                             // 无矫正四点：planar 模型建在原始参考图上，无胶图同位姿，find 自匹配 score≈1
                             if (!BeadInspectHalcon.AlignImage(
                                     noBead, entry.RuntimePlanarModel!, entry.RuntimeRowT, entry.RuntimeColT,
-                                    MinScore, PlanarNumLevels, out HObject? nb, out _, out string nbErr))
+                                    MinScore, PlanarNumLevels,
+                                    FindAngleStartDeg * DegToRad, FindAngleExtentDeg * DegToRad,
+                                    FindScaleRMin, FindScaleRMax, FindScaleCMin, FindScaleCMax,
+                                    out HObject? nb, out _, out string nbErr))
                             {
                                 SetStatus($"自动提取失败：无胶参考图对齐失败——{nbErr}", StatusLevel.Error);
                                 return;

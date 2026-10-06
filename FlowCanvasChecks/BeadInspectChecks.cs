@@ -1,5 +1,10 @@
 using System.IO;
 using System.Reflection;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using Core.Events;
 using Core.Interfaces;
 using HalconDotNet;
 using Newtonsoft.Json;
@@ -97,6 +102,8 @@ namespace FlowCanvasChecks
             Check12_InsertDeleteOrder();
             Check14_TargetWidthClamp();
             CheckUI_ViewContract();
+            CheckUI_BindingCard();
+            Check16_FindRangeConfigurable();
         }
 
         // ==================================================================
@@ -150,6 +157,201 @@ namespace FlowCanvasChecks
                     return candidate;
             }
             return null;
+        }
+
+        // ==================================================================
+        //  UI 断言②：⓪输入绑定卡（LinkableValueEditor × 5）
+        //  起因：第二批配置界面漏了绑定卡，上游产出的图没法从配置界面绑到 SrcImage
+        //  （2026-10-05 修复）。本断言锁两件事：
+        //    A. 静态结构：XAML 里 5 个编辑器分别绑在 5 个输入端口上（改名/删卡即红）；
+        //    B. 运行时行为（STA 真实例化视图）：
+        //       预置链接回显 → 解绑按钮 → 绑定事件（LinkPathEvent→OnBound→SetLink）
+        //       → OnConfirm 持久化 → 真实演示方案（.vms）的已存绑定回显。
+        //  LinkableValueEditor 机制（源码实证）：LinkBtn_Click 发 LinkPathEvent，
+        //  OnBound 回调里 stepData.SetLink + 编辑器自刷 LinkAddress——测试里自己扮演宿主
+        //  订阅该事件即可模拟"用户在绑定弹窗里选中上游输出"，全程无需人工。
+        // ==================================================================
+        private static void CheckUI_BindingCard()
+        {
+            string? xamlPath = ResolveRepoFile(@"Plugins\Plugin.BeadInspect\BeadInspectView.xaml");
+            if (xamlPath == null)
+            {
+                Check("[UI·绑定] 静态结构（跳过：定位不到视图）", true, "");
+                return;
+            }
+            string xaml = File.ReadAllText(xamlPath);
+
+            // A1. cv 命名空间在位
+            Check("[UI·绑定] XAML 声明 Core.Controls 命名空间",
+                xaml.Contains("xmlns:cv=\"clr-namespace:Core.Controls"), "");
+
+            // A2. 恰好 5 个 LinkableValueEditor（少了=端口绑不了；多了=重复卡）
+            int editorCount = System.Text.RegularExpressions.Regex.Matches(xaml, "<cv:LinkableValueEditor").Count;
+            Check("[UI·绑定] 输入绑定卡有 5 个 LinkableValueEditor", editorCount == 5, "实际 " + editorCount);
+
+            // A3. 5 个 Port 绑定逐一对上输入端口
+            var expectedPorts = new[] { "SrcImage", "RecipeName", "AlignedImageIn", "RoiRegion", "Transform" };
+            var missing = expectedPorts.Where(p => !xaml.Contains($"Port=\"{{Binding {p}}}\"")).ToArray();
+            Check("[UI·绑定] 5 个编辑器分别绑在 5 个输入端口属性上", missing.Length == 0,
+                missing.Length == 0 ? string.Join(",", expectedPorts) : "缺失：" + string.Join(",", missing));
+
+            // A4. 每个编辑器都喂了 StepData（否则 RestoreLinkState 无从回显）
+            int stepDataCount = System.Text.RegularExpressions.Regex.Matches(xaml, "StepData=\"{Binding StepData}\"").Count;
+            Check("[UI·绑定] 5 个编辑器都绑定 StepData", stepDataCount == 5, "实际 " + stepDataCount);
+
+            // A5. 卡标题在位（删卡/改名即红）
+            Check("[UI·绑定] 「⓪ 输入绑定」卡标题在位", xaml.Contains("⓪ 输入绑定"), "");
+
+            // B+C. 运行时行为（STA 线程实例化真实视图）
+            var results = new List<(string Name, bool Ok, string Detail)>();
+            var sta = new Thread(() =>
+            {
+                try { RunBindingRuntimeProbe(results); }
+                catch (Exception ex) { lock (results) results.Add(("STA 运行", false, ex.GetType().Name + ": " + ex.Message)); }
+            });
+            sta.SetApartmentState(ApartmentState.STA);
+            sta.Start();
+            sta.Join();
+
+            foreach (var r in results)
+                Check("[UI·绑定] " + r.Name, r.Ok, r.Detail);
+        }
+
+        /// <summary>STA 线程侧：真实例化 BeadInspectView，跑绑定/解绑/回显全链路</summary>
+        private static void RunBindingRuntimeProbe(List<(string Name, bool Ok, string Detail)> results)
+        {
+            void R(string name, bool ok, string detail)
+            {
+                lock (results) results.Add((name, ok, detail));
+            }
+
+            // ── B1. 实例化：预置链接的 StepData（模拟"方案文件里已保存的绑定"）──
+            var plugin = BuildRuntimePlugin("胶路_绑定UI");
+            var stepData = new LinkableFakeStepData();
+            stepData.SetLink("SrcImage", new LinkReference(LinkKind.StepPort, Guid.NewGuid(), "Image", "图像采集_0.Image"));
+
+            var view = new BeadInspectView { DataContext = plugin };
+            plugin.Initialize(stepData);
+
+            // 无宿主 Window 时绑定表达式停在 Unattached——包一层隐形 Window 激活绑定管线
+            var host = new Window
+            {
+                Content = view,
+                Width = 1100,
+                Height = 640,
+                WindowStyle = System.Windows.WindowStyle.None,
+                ShowActivated = false,
+                Opacity = 0,
+            };
+            host.Show();
+            host.Hide();
+
+            view.Measure(new System.Windows.Size(1100, 640));
+
+            var editors = CollectVisual<Core.Controls.LinkableValueEditor>(view).ToList();
+            R("实例化：视图里有 5 个 LinkableValueEditor", editors.Count == 5, "实际 " + editors.Count);
+            if (editors.Count != 5) return;
+
+            var expected = new[] { "SrcImage", "RecipeName", "AlignedImage", "RoiRegion", "Transform" };
+            var names = editors.Select(e => e.Port?.Name ?? "(空)").OrderBy(n => n).ToArray();
+            R("编辑器端口面 = 5 个输入端口", names.SequenceEqual(expected.OrderBy(n => n).ToArray()),
+                string.Join(",", names));
+
+            var src = editors.First(e => e.Port?.Name == "SrcImage");
+            R("预置链接回显：SrcImage 显示已链接", src.IsLinked, src.LinkAddress ?? "(空)");
+            R("预置链接回显：地址 = 图像采集_0.Image", src.LinkAddress == "图像采集_0.Image", src.LinkAddress ?? "(空)");
+            R("其余 4 个端口初始未链接", editors.Count(e => e.IsLinked) == 1, "已链接 " + editors.Count(e => e.IsLinked));
+
+            // ── B2. 解绑（点模板里的 PART_UnlinkBtn）──
+            ClickEditorPart(src, "PART_UnlinkBtn");
+            R("解绑：StepData 链接已移除", !stepData.IsLinked("SrcImage"), stepData.GetLinkedAddress("SrcImage") ?? "(空)");
+            R("解绑：编辑器恢复未链接显示", !src.IsLinked, src.LinkAddress ?? "(空)");
+
+            // ── B3. 绑定（LinkBtn 发 LinkPathEvent → 本测试扮演宿主回调 OnBound → SetLink）──
+            void OnLinkPath(LinkPathEvent e)
+            {
+                if (e.InputPortName == "SrcImage")
+                    e.OnBound(new LinkReference(LinkKind.StepPort, Guid.NewGuid(), "Image", "图像采集_0.Image"));
+            }
+            GlobalEventBus.Subscribe<LinkPathEvent>(OnLinkPath);
+            try
+            {
+                ClickEditorPart(src, "PART_LinkBtn");
+                R("绑定：StepData 收到链接", stepData.IsLinked("SrcImage"), stepData.GetLinkedAddress("SrcImage") ?? "(空)");
+                R("绑定：编辑器显示已链接", src.IsLinked, src.LinkAddress ?? "(空)");
+            }
+            finally { GlobalEventBus.Unsubscribe<LinkPathEvent>(OnLinkPath); }
+
+            // ── B4. OnConfirm 持久化（链接端口不落手动值）──
+            plugin.OnConfirm(stepData);
+            R("OnConfirm：链接保留、不写手动值",
+                stepData.GetLink("SrcImage") != null && !stepData.InputValues.ContainsKey("SrcImage"),
+                "GetLink=" + (stepData.GetLink("SrcImage") != null) + " 手动值=" + stepData.InputValues.ContainsKey("SrcImage"));
+
+            // ── C. 真实演示方案回显（.vms 里的 LinkedSources 是真实存储）──
+            var vmsPath = ResolveRepoFile(@"解决方案\胶路检测演示.vms");
+            if (vmsPath == null) { R("演示方案回显：跳过（定位不到 .vms）", true, ""); return; }
+            var loaded = new SolutionService().LoadAsync(vmsPath).GetAwaiter().GetResult();
+            var step = loaded?.Data?.Flows.SelectMany(f => f.Steps)
+                .FirstOrDefault(s => s.PluginTypeName.Contains("BeadInspect"));
+            if (step == null) { R("演示方案回显：跳过（方案里无胶路步骤）", true, ""); return; }
+
+            plugin.Initialize(step); // StepModel 本身就是 IStepConfigData（真实 LinkedSources 存储）
+            R("演示方案回显：SrcImage 编辑器显示已链接", src.IsLinked, src.LinkAddress ?? "(空)");
+            R("演示方案回显：地址 = 图像采集_0.Image", src.LinkAddress == "图像采集_0.Image", src.LinkAddress ?? "(空)");
+        }
+
+        /// <summary>收集可视树里全部指定类型元素（深度优先）</summary>
+        private static IEnumerable<T> CollectVisual<T>(DependencyObject root) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed) yield return typed;
+                foreach (var sub in CollectVisual<T>(child)) yield return sub;
+            }
+        }
+
+        /// <summary>在可视树里按 x:Name 找模板部件</summary>
+        private static DependencyObject? FindVisualByName(DependencyObject root, string name)
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is System.Windows.FrameworkElement fe && fe.Name == name) return child;
+                var sub = FindVisualByName(child, name);
+                if (sub != null) return sub;
+            }
+            return null;
+        }
+
+        /// <summary>触发编辑器模板里链接/解绑按钮的 Click（private 处理器的无头入口）</summary>
+        private static void ClickEditorPart(Core.Controls.LinkableValueEditor editor, string partName)
+        {
+            editor.ApplyTemplate();
+            if (FindVisualByName(editor, partName) is System.Windows.Controls.Primitives.ButtonBase btn)
+                btn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+        }
+
+        /// <summary>会真实存链接的 StepData 桩（Matching 的 FakeStepData 链接方法是空操作，不能用于绑定断言）</summary>
+        private sealed class LinkableFakeStepData : IStepConfigData
+        {
+            private readonly Dictionary<string, LinkReference> _links = new();
+            public Guid StepId { get; } = Guid.NewGuid();
+            public string Icon { get; } = "";
+            public string StepName { get; } = "BeadLinkFake";
+            public string Description { get; } = "";
+            public Dictionary<string, object> InputValues { get; } = new();
+            public void SetInputValue(string key, object value) => InputValues[key] = value;
+            public void RemoveInputValue(string key) => InputValues.Remove(key);
+            public bool IsLinked(string inputPortName) => _links.ContainsKey(inputPortName);
+            public string GetLinkedAddress(string inputPortName) =>
+                _links.TryGetValue(inputPortName, out var l) ? l.DisplayAddress : null;
+            public LinkReference GetLink(string inputPortName) =>
+                _links.TryGetValue(inputPortName, out var l) ? l : null;
+            public void SetLink(string inputPortName, LinkReference link) => _links[inputPortName] = link;
+            public void RemoveLink(string inputPortName) => _links.Remove(inputPortName);
+            public List<DynamicPortInfo> OutputPortDefinitions { get; set; } = new();
         }
 
         // ==================================================================
@@ -784,7 +986,9 @@ namespace FlowCanvasChecks
                 // 探针 B6 口径：把矫正后的参考图喂给 find，对齐进同一坐标系（自匹配 score≈1），
                 // 得到"无胶参考图的对齐版"——自动提取差分的基准
                 if (!BeadInspectHalcon.AlignImage(
-                        rectRef!, model, rowT, colT, 0.4, 5, out var refAligned, out _, out error))
+                        rectRef!, model, rowT, colT, 0.4, 5,
+                        -0.39, 0.78, 1, 1, 1, 1,
+                        out var refAligned, out _, out error))
                 {
                     fx.Dispose();
                     return null;
@@ -793,7 +997,9 @@ namespace FlowCanvasChecks
 
                 HOperatorSet.ReadImage(out HObject img01, Path.Combine(BeadDir, "adhesive_bead_01.png"));
                 if (!BeadInspectHalcon.AlignImage(
-                        img01, model, rowT, colT, 0.4, 5, out var aligned01, out _, out error))
+                        img01, model, rowT, colT, 0.4, 5,
+                        -0.39, 0.78, 1, 1, 1, 1,
+                        out var aligned01, out _, out error))
                 {
                     img01.Dispose();
                     fx.Dispose();
@@ -872,5 +1078,59 @@ namespace FlowCanvasChecks
         private static ExecutionContext MakeContext(ILogService log) =>
             new(log, new FlowSession { FlowName = "胶路插件断言" }, new WorkspaceContext(),
                 new System.Threading.CancellationTokenSource().Token);
+
+        // ==================================================================
+        //  断言 16：平面匹配搜索范围可配置（2026-10-05 通用性改进）
+        //  换工位/换相机时不再需要改代码：find 的角度/缩放范围提成了 [StepConfig]。
+        //  本条证明参数真的传进了 find 算子（不是死配置）：
+        //    ① 默认值 → 对齐成功、检出 OK；
+        //    ② 搜索窗口挪到 90°~100°（工件不可能在那儿）→ 对齐必须失败；
+        //    ③ 恢复默认 → 检出恢复。
+        //  planar 模型按「参考图 + 矫正四点」缓存，与 find 参数无关 —— 三次运行共用同一模型，
+        //  行为差异只可能来自 find 参数本身。
+        // ==================================================================
+        private static void Check16_FindRangeConfigurable()
+        {
+            // 静态面：XAML 必须把这 6 个参数接出来（漏接 = 用户改不了，等于没做可配置）
+            string? xamlPath = ResolveRepoFile(@"Plugins\Plugin.BeadInspect\BeadInspectView.xaml");
+            if (xamlPath != null)
+            {
+                string xaml = File.ReadAllText(xamlPath);
+                var binds = new[]
+                {
+                    "FindAngleStartDeg", "FindAngleExtentDeg",
+                    "FindScaleRMin", "FindScaleRMax", "FindScaleCMin", "FindScaleCMax",
+                };
+                var missing = binds.Where(b => !xaml.Contains($"Binding {b}")).ToArray();
+                Check("16d 搜索范围 6 个参数在配置界面可编辑（XAML 绑定齐全）",
+                    missing.Length == 0,
+                    missing.Length == 0 ? string.Join(",", binds) : "缺失：" + string.Join(",", missing));
+            }
+
+            var plugin = BuildRuntimePlugin("胶路_搜索范围");
+            var img = LoadImage(1);
+            plugin.SrcImage.Value = img;
+
+            plugin.Execute(MakeContext(new StubLog()));
+            Check("16a 默认搜索范围：对齐成功、检出 OK",
+                plugin.Success.Value is true && plugin.IsOk.Value is true,
+                $"Success={plugin.Success.Value} IsOk={plugin.IsOk.Value} Err='{plugin.LastError}'");
+
+            plugin.FindAngleStartDeg = 90;
+            plugin.FindAngleExtentDeg = 10;
+            plugin.Execute(MakeContext(new StubLog()));
+            Check("16b 搜索窗口挪到 90°~100°：对齐失败（证明参数真的传进 find 算子）",
+                plugin.Success.Value is false && plugin.LastError.Contains("平面匹配"),
+                $"Success={plugin.Success.Value} Err='{plugin.LastError}'");
+
+            plugin.FindAngleStartDeg = -22.35;
+            plugin.FindAngleExtentDeg = 44.69;
+            plugin.Execute(MakeContext(new StubLog()));
+            Check("16c 恢复默认：检出恢复 OK",
+                plugin.Success.Value is true && plugin.IsOk.Value is true,
+                $"Success={plugin.Success.Value} IsOk={plugin.IsOk.Value} Err='{plugin.LastError}'");
+
+            img.Dispose();
+        }
     }
 }

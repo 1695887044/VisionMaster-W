@@ -328,8 +328,8 @@ namespace VisionMaster
             this._variableBridge = variableBridge;
 
             // DWV 第 1 期：调试会话状态订阅（生命周期 = Shell 全程，无需退订）。
-            // DebugEnabled 的置位在各运行入口（RunAllEnabledOnce/Continuous）；这里负责把
-            // "暂停 / 恢复"镜像到 RunState、按暂停原因驱动命中窗。
+            // 调试态由各运行入口（RunAllEnabledOnce/Continuous）以 debugSession: true 参数交给
+            // 引擎置位（抢锁后），这里负责把"暂停 / 恢复"镜像到 RunState、按暂停原因驱动命中窗。
             this._flowEngineService = flowEngineService;
             _flowEngineService.SessionStateChanged += OnSessionStateChanged;
 
@@ -373,10 +373,31 @@ namespace VisionMaster
         }
 
         /// <summary>
-        /// 方案操作互锁：保存永远可用；新建/打开/浏览列表都会丢弃当前运行中的会话，运行中一律禁用
+        /// 方案操作互锁：保存永远可用；新建/打开/浏览列表都会丢弃当前运行中的会话，运行中一律禁用。
+        /// 判据除 MainRunState 外还要看"是否真有流程在跑"：单流程运行 / HTTP 触发都不写 MainRunState，
+        /// 只认它会让"边跑边换方案"从这两个入口溜进来（会话被 ClearAll 丢掉 = 静默拆台）。
         /// </summary>
         private bool CanExecuteSolution(SolutionAction? action)
-            => action == SolutionAction.Save || RunState == MainRunState.NotStarted;
+            => action == SolutionAction.Save
+               || (RunState == MainRunState.NotStarted && !AnyFlowRunning());
+
+        /// <summary>
+        /// 是否**有任意流程**处在运行或暂停（会话级镜像；涵盖界面运行 / 单流程运行 / HTTP 触发）。
+        /// 编译类与方案切换类操作的前置判据：RegisterSession / ClearAll 都会先停掉运行中的会话，
+        /// 而 MainRunState 只反映"界面发起的整体运行"，单流程与 HTTP 触发不在其中。
+        /// </summary>
+        private bool AnyFlowRunning()
+        {
+            var flows = Workspace?.CurrentSolution?.Flows;
+            if (flows == null) return false;
+
+            foreach (var flow in flows)
+            {
+                if (flow != null && flow.RunState != FlowRunState.Stopped)
+                    return true;
+            }
+            return false;
+        }
 
         /// <summary>
         /// 对于解决方案的操作
@@ -889,6 +910,14 @@ namespace VisionMaster
                 return;
             }
 
+            // 编译 = 重建会话（RegisterSession 会先停掉同名运行会话，最长等 3s）：
+            // 只要**有任意流程在跑**就先拦下，否则"编译完成"的提示背后是一条流程被静默杀掉
+            if (AnyFlowRunning())
+            {
+                Notifier.ShowWarning("有流程正在运行，禁止编译（编译会停掉同名运行会话）；如需编译请先停止");
+                return;
+            }
+
             int successCount = 0;
             int skipCount = 0;
             int failCount = 0;
@@ -992,9 +1021,9 @@ namespace VisionMaster
                 if (session != null && !session.IsRunning)
                 {
                     // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
-                    // per-run 语义：引擎在每轮收尾统一清回 false，绝不泄漏给 HTTP 触发等非界面路径
-                    session.DebugEnabled = true;
-                    tasks.Add(flowEngine.RunSessionOnceAsync(session));
+                    // 调试态不在这里预置：由引擎抢到会话锁后按此参数置位——预置的话，本次若被 HTTP
+                    // 抢到锁而拒绝，true 会残留给那次非界面运行（P2）；per-run 清回 false 在引擎收尾
+                    tasks.Add(flowEngine.RunSessionOnceAsync(session, debugSession: true));
                     runCount++;
                 }
             }
@@ -1064,10 +1093,9 @@ namespace VisionMaster
                 if (session != null && !session.IsRunning)
                 {
                     // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
-                    // per-run 语义：引擎在每轮收尾统一清回 false，绝不泄漏给 HTTP 触发等非界面路径
-                    session.DebugEnabled = true;
+                    // 调试态不在这里预置（理由同单次运行入口：抢锁后才置位，防 P2 泄漏）
                     // 循环会话的任务只有被"停止"取消后才会结束，因此这里绝不能 await 它
-                    tasks.Add(flowEngine.RunSessionAsync(session));
+                    tasks.Add(flowEngine.RunSessionAsync(session, debugSession: true));
                     runCount++;
                 }
             }
@@ -1194,8 +1222,52 @@ namespace VisionMaster
             if (_hitWindow != null && _hitWindow.IsVisible && PausedSessions().Count == 0)
                 _hitWindow.Hide();
 
-            // 会话状态一变，"单步"可用性（暂停会话数）可能就变了：让按钮重新查询
+            // 流程级运行状态镜像（FlowModel.RunState）：方案里 4 处"运行中禁止改配置"的守卫
+            // 读的都是它，此前没人赋值 = 守卫形同虚设（本次收口，含 HTTP / 手动运行等非界面触发）
+            SyncFlowRunState(e);
+
+            // 会话状态一变，"单步"可用性（暂停会话数）可能就变了：让按钮重新查询；
+            // 方案的 New/Open 互锁同时依赖"是否真有流程在跑"，一并重查
             ExecutionCommand.RaiseCanExecuteChanged();
+            SolutionCommand?.RaiseCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// 会话状态 → 流程级运行状态（<see cref="FlowModel.RunState"/>）的单向镜像。
+        ///
+        /// 【为什么按名字找流程而不是按会话】FlowModel 跟随 .vms 活、FlowSession 随编译/停止增删，
+        /// 两者唯一的稳定纽带就是流程名（与引擎补编译、命中窗定位同口径：Ordinal）。
+        /// 找不到流程（方案已切换 / 流程已删除）就静默返回——镜像只是守卫与列表显示的输入，
+        /// 不该反过来报错打断执行。
+        /// </summary>
+        private void SyncFlowRunState(SessionStateChangedEventArgs e)
+        {
+            var flows = Workspace.CurrentSolution?.Flows;
+            if (flows == null) return;
+
+            foreach (var flow in flows)
+            {
+                if (flow == null || !string.Equals(flow.FlowName, e.FlowName, StringComparison.Ordinal))
+                    continue;
+
+                bool wasRunning = flow.RunState == FlowRunState.Running;
+
+                flow.RunState = e.NewState switch
+                {
+                    SessionState.Running => FlowRunState.Running,
+                    SessionState.Paused => FlowRunState.Paused,
+                    // Stopped / Faulted（以及将来新增的终止态）一律回"停止"：
+                    // 列表上挂着"运行中"而实际没跑，比不显示状态危害大得多
+                    _ => FlowRunState.Stopped,
+                };
+
+                // 开始时间只在"由非运行进入运行"那一刻刷新：连续运行每轮都会发 Running 事件，
+                // 每轮都刷新会让"已运行时长"永远从 0 开始（它是给人看这一轮跑了多久的）
+                if (e.NewState == SessionState.Running && !wasRunning)
+                    flow.StartRunTime = DateTime.Now;
+
+                return;
+            }
         }
 
         /// <summary>

@@ -12,18 +12,125 @@ using System.Threading.Tasks;
 namespace VisionMaster.Models
 {
     /// <summary>
-    /// 流程调用类型枚举
+    /// 流程调用方式：哪一种"自动/外部"力量可以把这条流程跑起来。
+    ///
+    /// 【为什么是 [Flags]（多选位集）】一条流程完全可以"定时跑"又"允许 HTTP 触发"，
+    /// 单选枚举表达不了；列表界面按多选勾选，落盘就是一个整数位集。
+    ///
+    /// 【为什么位值从 8 起跳、Manual 取 0】老文件里这个字段曾是**单选**枚举：
+    /// 1=定时、2=变量、3=子程序。若把新位值定成 1/2/4，老值 3（子程序）会与
+    /// "定时|变量"撞成同一个数，读回来就变成另一种调用方式（静默地干错事）。
+    /// 把位值抬到 8/16/32/64 后，1/2/3 全部落在位区间之外，加载时一眼可辨"这是老值"，
+    /// 按 <see cref="FlowInvokeTypeExtensions.MigrateLegacy"/> 映射迁移。
+    /// Manual=0（不占位）表达"没有任何自动触发"，是新建流程的默认态；界面显示为「手动」。
+    ///
+    /// 落盘纪律同 <c>ScadaActionType</c>：数值一旦发布只许在末尾追加，不许改、不许回收——
+    /// 否则老工程里那条调用方式会被读成另一个方式。
     /// </summary>
+    [Flags]
     public enum FlowInvokeType
     {
-        /// <summary>手动调用</summary>
+        /// <summary>手动调用（默认）：只由本机界面的运行入口触发，不接受任何自动触发</summary>
         Manual = 0,
-        /// <summary>定时调用</summary>
-        Timer = 1,
-        /// <summary>变量触发调用</summary>
-        Variable = 2,
-        /// <summary>作为子程序调用</summary>
-        Subroutine = 3
+
+        /// <summary>定时调用：按 <see cref="FlowModel.TimerIntervalMs"/> 周期自动执行（位值 8，理由见上）</summary>
+        Timer = 8,
+
+        /// <summary>变量触发：<see cref="FlowModel.TriggerVariable"/> 指定的变量变化时执行（位值 16）</summary>
+        Variable = 16,
+
+        /// <summary>子程序调用：允许被其它流程以「调用流程」步骤调用（位值 32）</summary>
+        Subroutine = 32,
+
+        /// <summary>HTTP 外部调用：允许经 /flow/{流程名} 接口触发（位值 64；唯一带门禁的位）</summary>
+        Http = 64,
+    }
+
+    /// <summary>
+    /// 流程在方案里的<b>固定角色</b>：Home / Main / End 三条流程是每个方案的强制骨架
+    /// （用户决策：所有程序都要有这三个流程）。
+    ///
+    /// 【为什么是角色而不是"按名字管"】名字是给现场看的，可以被改名（"Home"改叫"回原点"），
+    /// 而"这条流程是不是骨架"必须有个不随改名漂移的判据——落盘的 Role 字段就是它。
+    /// 删除 / 新建的约束、加载时补齐骨架，全部按 Role 判定，名字只作新建时的默认名。
+    ///
+    /// 不是 [Flags]：一条流程只能有一个角色。数值一旦发布同样只许在末尾追加（理由同上）。
+    /// </summary>
+    public enum FlowRole
+    {
+        /// <summary>普通流程：无角色，可自由增删</summary>
+        None = 0,
+
+        /// <summary>回原 / 回零：开机与换产时的安全位姿流程</summary>
+        Home = 1,
+
+        /// <summary>主任务：生产主流程（连续或按触发运行）</summary>
+        Main = 2,
+
+        /// <summary>收尾：停机 / 换产前把机构与状态收干净</summary>
+        End = 3,
+    }
+
+    /// <summary>
+    /// 调用方式的展示与迁移（领域层只写一份，属性面板 / 流程管理列表 / 日志共用）。
+    /// </summary>
+    public static class FlowInvokeTypeExtensions
+    {
+        /// <summary>是否允许被 HTTP 接口触发（/flow/{流程名} 的唯一门禁位）</summary>
+        public static bool IsHttpCallable(this FlowInvokeType type) => (type & FlowInvokeType.Http) != 0;
+
+        /// <summary>
+        /// 老单选值 → 新位集的迁移映射。
+        ///
+        /// 只有加载 .vms 时走这里：位区间（1..7）之外的值要么是老单选（1/2/3），
+        /// 要么是未知数据；老值按"继续按原名工作"映射到对应位，
+        /// 未知值<b>原样保留</b>（高版本软件存下的位集，读进低版本不该被清掉）。
+        /// </summary>
+        public static FlowInvokeType MigrateLegacy(int raw) => raw switch
+        {
+            1 => FlowInvokeType.Timer,        // 老「定时」
+            2 => FlowInvokeType.Variable,     // 老「变量」
+            3 => FlowInvokeType.Subroutine,   // 老「子程序」
+            _ => (FlowInvokeType)raw,         // 0 = 手动；其它按位集原样保留
+        };
+
+        /// <summary>
+        /// 调用方式的人话文本：无任何自动触发 → 「手动」；否则按勾选的位拼（"定时 / HTTP外部调用"）。
+        /// 与流程列表和日志共用一个口径，避免"面板里叫『HTTP外部调用』、日志里叫『Http』"。
+        ///
+        /// 认不出的位（人工编辑 .vms 塞进 4/5/6/7 这类不在位表里的值）显示成「未知(4)」而不是
+        /// 回落"手动"：把损坏数据显示成合法状态，用户永远查不出为什么"勾了 HTTP 还是 403"。
+        /// </summary>
+        public static string DisplayText(this FlowInvokeType type)
+        {
+            if (type == FlowInvokeType.Manual) return "手动";
+
+            var parts = new List<string>(4);
+            if ((type & FlowInvokeType.Timer) != 0) parts.Add("定时");
+            if ((type & FlowInvokeType.Variable) != 0) parts.Add("变量");
+            if ((type & FlowInvokeType.Subroutine) != 0) parts.Add("子程序");
+            if ((type & FlowInvokeType.Http) != 0) parts.Add("HTTP外部调用");
+
+            return parts.Count > 0 ? string.Join(" / ", parts) : $"未知({(int)type})";
+        }
+
+        /// <summary>
+        /// 某个调用位"还没接通运行侧"的一句话原因；<c>null</c> = 已接通。
+        ///
+        /// 为什么要有它（与 <c>ScadaActionType.PendingReason</c> 同一条理由）：界面上勾了却
+        /// 什么都不发生，用户只会以为是软件坏了。把"哪一位已接通"写在领域层，
+        /// 列表提示与文档共用同一句，接一个删一句。
+        /// </summary>
+        public static string PendingReason(this FlowInvokeType flag) => flag switch
+        {
+            // 四位全部接通（2026-10-05 第二批）：
+            //  · Http        → HttpImageServer 会话获取前的门禁（404/403/403/409）；
+            //  · Timer       → FlowTimerScheduler 按 TimerIntervalMs 周期触发（下限 100ms）；
+            //  · Variable    → FlowVariableTriggerService 在 TriggerVariable 上升沿触发；
+            //  · Subroutine  → FlowInvoker + 「调用流程」插件（Plugin.RunFlow），宿主侧查这一位放行。
+            // 将来再加位、而运行侧没跟上时：在这里给它一句话，接上了把这句删掉（界面自动跟着变）。
+            _ => null,
+        };
     }
 
     /// <summary>
@@ -85,6 +192,17 @@ namespace VisionMaster.Models
             get { return field; }
             set { SetProperty(ref field, value); }
         } = true;
+
+        /// <summary>
+        /// 流程角色：Home / Main / End 三条骨架流程在方案里各占一角（见 <see cref="FlowRole"/>）。
+        /// 普通流程为 None。加载老方案时由 MandatoryFlows.Ensure 按名字补齐缺的角色；
+        /// 带角色的流程不允许删除（FlowListViewModel 拦截），改名不受限（判据是角色不是名字）。
+        /// </summary>
+        public FlowRole Role
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
 
         /// <summary>
         /// 调用类型

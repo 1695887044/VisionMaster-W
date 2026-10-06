@@ -18,6 +18,8 @@ namespace FlowCanvasChecks
     ///  · 调试门是全引擎唯一插桩点（CompiledNode.RunSequence），所以这里全部走"真图纸 → 真编译 →
     ///    真引擎（FlowEngineService）"；执行点在后台线程，用轮询等待（超时即失败，不挂死）。
     ///  · 豁免是硬约束：HTTP / 试运行 / 非调试单次执行不得被断点卡住 —— 用"跑得完"来钉。
+///  · 调试态归引擎置位：调用方以 debugSession 参数请求，引擎在抢到会话锁后赋值（收尾清 false）；
+///    调用方预置的 true 不生效（P2：界面预置 + HTTP 抢锁 = 调试态泄漏给非界面运行）。
     ///  · 断点不落盘、不递增 Version：用序列化文本与 FlowModel.Version 来钉（[E5] 的延伸）。
     ///  · 停止打断：停在断点上 StopSession 必须让任务干净退出（Canceled 或 RanToCompletion，
     ///    只有 Faulted 算炸），线程不残留、锁回放行态。
@@ -36,6 +38,7 @@ namespace FlowCanvasChecks
             SerializationKeepsDebugFlagsOut();
             TestRunIsExempt();
             PauseAndResumeDuringDebugSingleRun();
+            EngineOwnsDebugFlag();
         }
 
         // ==================================================================
@@ -110,12 +113,12 @@ namespace FlowCanvasChecks
 
             var engine = NewEngine(run, new StubLog());
             var session = run.Session!;
-            session.DebugEnabled = true; // Shell 两处运行入口的同款接线（本文件手工模拟）
 
             string? pauseMessage = null;
             engine.SessionStateChanged += (_, e) => { if (e.NewState == SessionState.Paused) pauseMessage = e.Message; };
 
-            var task = engine.RunSessionOnceAsync(session);
+            // Shell 两处运行入口的同款接线：调试态由引擎按 debugSession 参数、在抢到会话锁后置位
+            var task = engine.RunSessionOnceAsync(session, debugSession: true);
 
             bool paused = WaitFor(() => session.State == SessionState.Paused);
             Check("命中断点后停在 Paused", paused, $"State={session.State}（超时说明断点没拦住）");
@@ -153,9 +156,7 @@ namespace FlowCanvasChecks
 
             var engine = NewEngine(run, new StubLog());
             var session = run.Session!;
-            session.DebugEnabled = true;
-
-            var task = engine.RunSessionOnceAsync(session);
+            var task = engine.RunSessionOnceAsync(session, debugSession: true);
             bool paused = WaitFor(() => session.State == SessionState.Paused);
             Check("已停在断点上（构造出打断窗口）", paused && CountB.Runs == 0, $"paused={paused} B={CountB.Runs}");
 
@@ -218,9 +219,7 @@ namespace FlowCanvasChecks
 
             var engine = NewEngine(run, new StubLog());
             var session = run.Session!;
-            session.DebugEnabled = true;
-
-            var task = engine.RunSessionOnceAsync(session);
+            var task = engine.RunSessionOnceAsync(session, debugSession: true);
             bool stop1 = WaitFor(() => session.State == SessionState.Paused);
             Check("先命中 B 的断点（A=1 / B=0）", stop1 && CountA.Runs == 1 && CountB.Runs == 0,
                 $"paused={stop1} A={CountA.Runs} B={CountB.Runs}");
@@ -263,9 +262,7 @@ namespace FlowCanvasChecks
 
             var engine = NewEngine(run, new StubLog());
             var session = run.Session!;
-            session.DebugEnabled = true;
-
-            var task = engine.RunSessionOnceAsync(session);
+            var task = engine.RunSessionOnceAsync(session, debugSession: true);
 
             bool hit1 = WaitFor(() => session.State == SessionState.Paused);
             Check("第 1 圈断开住（body=0，停在执行前）", hit1 && CountA.Runs == 0, $"paused={hit1} body={CountA.Runs}");
@@ -291,12 +288,11 @@ namespace FlowCanvasChecks
 
             var engine = NewEngine(run, new StubLog());
             var session = run.Session!;
-            session.DebugEnabled = true;
 
             int pausedSeen = 0;
             engine.SessionStateChanged += (_, e) => { if (e.NewState == SessionState.Paused) Interlocked.Increment(ref pausedSeen); };
 
-            var task = engine.RunSessionAsync(session);
+            var task = engine.RunSessionAsync(session, debugSession: true);
 
             bool stop1 = WaitFor(() => session.State == SessionState.Paused);
             Check("第 1 圈断点停住（A=1 / B=0）", stop1 && CountA.Runs == 1 && CountB.Runs == 0,
@@ -423,9 +419,7 @@ namespace FlowCanvasChecks
 
             var engine = NewEngine(run, new StubLog());
             var session = run.Session!;
-            session.DebugEnabled = true;
-
-            var task = engine.RunSessionOnceAsync(session);
+            var task = engine.RunSessionOnceAsync(session, debugSession: true);
             bool inGate = GatePlugin.Reached.Wait(TimeSpan.FromSeconds(5));
             Check("执行中已进入闸门算子（构造出运行窗口）", inGate, "5 秒内没进到算子，后面的暂停断言无意义");
 
@@ -444,6 +438,38 @@ namespace FlowCanvasChecks
             engine.ResumeSession(session);
             Check("继续后跑完并正常收尾", EndedCleanly(task) && CountA.Runs == 1 && CountC.Runs == 1,
                 $"A={CountA.Runs} C={CountC.Runs} " + (task.IsFaulted ? "任务 Faulted" : ""));
+        }
+
+        // ==================================================================
+        //  [E13] ⑪ 调试态由引擎独占置位：调用方预置的 true 不生效（P2 竞态收口）
+        // ==================================================================
+        private static void EngineOwnsDebugFlag()
+        {
+            Section("[E13] 调试态归引擎置位（预置 true 不生效）");
+
+            // 竞态原形：界面在调用前置 true，随后 HTTP 触发抢先拿到会话锁 → 界面这次调用被拒，
+            // true 却残留在会话上，那次 HTTP 运行就会被断点卡住（违反"HTTP 豁免"硬约束）。
+            // 现在置位权在引擎侧：抢到锁后按调用显式参数**赋值**（不是只在 true 时置位），
+            // 于是非调试调用顺带把残留清干净 —— 用"预置 true + 带断点图纸必须一次跑完"来钉。
+            var run = PrepareAbc(breakpointOnB: true, out _, out _, out _);
+            Check("竞态图纸编译通过", run.Compiled, run.Errors);
+            if (!run.Compiled) return;
+
+            var engine = NewEngine(run, new StubLog());
+            var session = run.Session!;
+            session.DebugEnabled = true; // 模拟残留：调用方在调用前擅自置位
+
+            int pausedSeen = 0;
+            engine.SessionStateChanged += (_, e) => { if (e.NewState == SessionState.Paused) Interlocked.Increment(ref pausedSeen); };
+
+            var task = engine.RunSessionOnceAsync(session); // 非调试调用（默认参数）：引擎应把残留清掉
+            Check("预置的调试态被引擎清掉：带断点也不停", EndedCleanly(task) && pausedSeen == 0,
+                task.IsFaulted
+                    ? $"任务 Faulted：{task.Exception?.GetBaseException().Message}"
+                    : $"Paused 次数={pausedSeen}（>0 说明残留的 true 把断点放行了）");
+            Check("非调试调用收尾后 DebugEnabled=false", !session.DebugEnabled, $"DebugEnabled={session.DebugEnabled}");
+            Check("全流程照常执行（A=B=C=1）", CountA.Runs == 1 && CountB.Runs == 1 && CountC.Runs == 1,
+                $"A={CountA.Runs} B={CountB.Runs} C={CountC.Runs}");
         }
     }
 

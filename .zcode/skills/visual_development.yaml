@@ -1,7 +1,25 @@
 # 视觉开发 Skill
-# 功能：代码生成、单元测试、架构审查、文档编写
-# 触发方式：当收到视觉任务时自动执行
-# 例子：
-#  - 在 GitHub Pull Request 标记 "#vision" 时触发
-# 依赖：CodeBuddy 内置的图像处理库、单元测试框架
-# 说明：适合处理图像采集、图像处理、视觉算法组件
+# 主要功能：
+# 1. 视觉算法代码生成（C#, OpenCV、Mediapipe）
+# 2. 单元测试（MSTest）与集成测试（Docker容器）
+# 3. 架构审查（模块耦合/依赖图）
+# 4. 文档编写（API 文档、使用手册）
+# 触发方式：
+#  - event: "vision_task" – 触发算法实现或模型部署。
+#  - event: "vision_test" – 触发视觉单元/集成测试。
+# 处理流程：
+#   1. 解析输入 DTO（模型输入参数、输出格式）。
+#   2. 调用 CodeBuddy 内置的 `generate_code` 生成算法主体（类、接口、预置模型加载）。
+#   3. 生成 MSTest 测试项目，编写基本输入/输出验证。
+#   4. 生成 Docker Compose 文件，包含 OpenCV 运行时镜像，方便 CI 部署。
+#   5. 调用 `architect_review` 工具，生成依赖图与耦合分析报告。
+#   6. 通过 DocFX 或 Sandcastle 生成 API 文档，输出至 `docs/vision/`。
+#   触发示例：
+#   ```yaml
+#   - event: "vision_task"
+#     payload: { "algorithm": "ObjectDetection", "model": "yolov5", "framework": "ONNX" }
+#   - event: "vision_test"
+#     payload: { "project": "VM.Vision" }
+#   ```
+# 说明：此 Skill 适配商业化视觉组件，支持版本控制与 CI
+# 版本：1.0.0

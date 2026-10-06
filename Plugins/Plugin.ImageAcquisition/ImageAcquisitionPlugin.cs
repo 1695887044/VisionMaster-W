@@ -49,19 +49,18 @@ namespace Plugin.ImageAcquisition
         [StepConfig]
         public partial AcquisitionMode Mode { get; set; }
 
-partial void OnModeChanged(AcquisitionMode value)
-{
-    // 换模式等于换数据源：旧模式的预览图/路径/计数在新模式下全对不上号，
-    // 留着只会让界面自相矛盾（比如"文件目录"模式下还挂着上次的单图预览）
-    ClearPreview();
-    ValidatePathInputs();
-    if (value == AcquisitionMode.Folder)
-    {
-        // 进入文件夹模式后立即刷新目录，防止旧目录列表残留
-        RefreshFolderFiles();
-    }
-}
+        partial void OnModeChanged(AcquisitionMode value)
+        {
+            // 换模式等于换数据源：旧模式的预览图/路径/计数在新模式下全对不上号，
+            // 留着只会让界面自相矛盾（比如"文件目录"模式下还挂着上次的单图预览）
+            ClearPreview();
+            ValidatePathInputs();
 
+            // 在窗口里改模式不会走 Initialize：不刷就会停在"共 0 张 / 无预览"，
+            // 得手点一次「刷新预览」才出图；灌值那一次的刷新由 Initialize 末尾统一做，这里跳过。
+            if (value == AcquisitionMode.Folder && !_loadingConfig)
+                RefreshFolderFiles();
+        }
 
         /// <summary>
         /// 显示窗口索引：采集图像发布到主界面几号视图窗口（1~9），0=不显示。
@@ -508,6 +507,13 @@ partial void OnModeChanged(AcquisitionMode value)
         /// 配置实例是否已释放：关闭对话框后在途读图任务回来时，靠它拒绝往已释放的绑定上写图
         /// </summary>
         private volatile bool _disposed;
+
+        /// <summary>
+        /// 配置灌值中标记：ApplyConfigValues 灌值会触发 [StepConfig] 的 Changed 钩子（Mode 变化 → OnModeChanged），
+        /// 置位期间钩子不刷目录/预览——配置态那次由 Initialize 末尾统一恢复，
+        /// 运行实例则根本没有界面（灌值期读盘、持图都是白做）。
+        /// </summary>
+        private bool _loadingConfig;
 
         #endregion
 
@@ -1077,6 +1083,20 @@ partial void OnModeChanged(AcquisitionMode value)
 
         #region 配置生命周期（预览恢复；端口⇄InputValues 同步由基类默认实现）
 
+        /// <summary>
+        /// 灌值入口统一压住 [StepConfig] 钩子的副作用。
+        ///
+        /// 两条灌值路径都会经过这里：配置对话框的 Initialize，以及 FlowCompiler 编译运行实例。
+        /// 运行实例没有界面，灌值时在 Mode 钩子里枚举目录、解码首图、再持有一份预览 HImage
+        /// 全是白做的；配置态那次则由 Initialize 末尾统一恢复预览，不压住就是同一次灌值刷两遍。
+        /// </summary>
+        public override void ApplyConfigValues(IStepConfigData stepData)
+        {
+            _loadingConfig = true;
+            try { base.ApplyConfigValues(stepData); }
+            finally { _loadingConfig = false; }
+        }
+
         public override void Initialize(IStepConfigData stepData)
         {
             // 配置实例每次打开对话框都会 Initialize：先把上一次 Dispose 留下的标记清掉，
@@ -1169,9 +1189,9 @@ partial void OnModeChanged(AcquisitionMode value)
 
                 if (files.Count == 0)
                 {
-                    PreviewImage = null;
-                    PreviewImagePath = string.Empty;
-                    CurrentFileName = string.Empty;
+                    // 走统一清理入口：它会 +1 轮次号作废在途读图。否则上一个目录发起的读图回来后
+                    // 轮次号仍匹配，会把旧图回填到"没有文件的目录"的预览上并改写状态栏
+                    ClearPreview();
                     SetStatus("文件夹中没有匹配的图像文件", StatusLevel.Warning);
                     return;
                 }

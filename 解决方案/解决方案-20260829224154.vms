@@ -2,7 +2,7 @@
   "SolutionName": "解决方案-20261001122125",
   "Version": 1.0,
   "Config": {
-    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"ac339f3c-23d2-4d2c-914e-a409dd2f2fff\" DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"10/03/2026 16:21:08\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"277.79999999999995\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"10/03/2026 16:21:08\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"10/01/2026 22:51:05\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"9477.82767674242*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/03/2026 16:21:05\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"10/01/2026 14:40:15\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"09/27/2026 16:11:43\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/25/2026 01:09:22\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\" />\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"235.5\">\r\n      <LayoutAnchorable AutoHideWidth=\"260.6857142857143\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"10/02/2026 19:22:15\" />\r\n      <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"10/01/2026 11:55:59\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"10/03/2026 16:21:05\" PreviousContainerId=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" IsSelected=\"True\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"10/03/2026 16:21:05\" PreviousContainerId=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" PreviousContainerIndex=\"2\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"ac339f3c-23d2-4d2c-914e-a409dd2f2fff\" DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"10/06/2026 22:17:10\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"277.79999999999995\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"10/06/2026 22:17:20\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"10/01/2026 22:51:05\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"9477.82767674242*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/06/2026 22:17:08\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"10/01/2026 14:40:15\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"10/06/2026 10:58:28\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/25/2026 01:09:22\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\" />\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"235.5\">\r\n      <LayoutAnchorable AutoHideWidth=\"260.6857142857143\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"10/06/2026 22:17:18\" />\r\n      <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"10/01/2026 11:55:59\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"10/06/2026 22:17:08\" PreviousContainerId=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" IsSelected=\"True\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"10/06/2026 22:17:08\" PreviousContainerId=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" PreviousContainerIndex=\"2\" />\r\n  </Hidden>\r\n</LayoutRoot>",
     "ImageViewMode": 0
   },
   "Flows": [
@@ -12,6 +12,7 @@
       "Description": "回原",
       "Version": 0,
       "IsEnabled": true,
+      "Role": 1,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
@@ -26,8 +27,9 @@
       "FlowID": "76b3e0c6ccd8495aa3ccd0d1dcaf7af9",
       "FlowName": "MainTask",
       "Description": "主任务",
-      "Version": 347,
+      "Version": 413,
       "IsEnabled": true,
+      "Role": 2,
       "InvokeType": 0,
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
@@ -39,9 +41,9 @@
             "Y": 90.0,
             "Collapsed": false
           },
-          "2fdeb4b4-78ae-4b15-bb65-ac84eb388b23": {
+          "4f3bf47b-3bed-4e17-a48c-71c5450c4f4b": {
             "X": 0.0,
-            "Y": 288.0,
+            "Y": 180.0,
             "Collapsed": false
           }
         },
@@ -60,7 +62,7 @@
           "IsDisEnable": false,
           "State": 2,
           "InputValues": {
-            "FilePath": "D:\\C#\\VM\\Image\\颜色\\cable2.png",
+            "FilePath": "D:\\C#\\VM\\Image\\bead\\adhesive_bead_01.png",
             "FolderPath": "",
             "FileIndex": 0,
             "FrameTimeoutMs": 0,
@@ -73,48 +75,43 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "2fdeb4b4-78ae-4b15-bb65-ac84eb388b23",
-          "Icon": "",
-          "PluginName": "区域颜色检查",
-          "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "区域颜色检查_0",
-          "Description": "区域颜色检查",
+          "StepID": "4f3bf47b-3bed-4e17-a48c-71c5450c4f4b",
+          "Icon": "",
+          "PluginName": "胶路检测",
+          "PluginTypeName": "Plugin.BeadInspect.BeadInspectPlugin, Plugin.BeadInspect, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "胶路检测_0",
+          "Description": "胶路检测",
           "SortId": 0,
           "IsDisEnable": false,
-          "State": 2,
+          "State": 4,
           "InputValues": {
-            "RoiShape": "Rectangle",
-            "RoiParams": {
-              "$type": "System.Double[], System.Private.CoreLib",
-              "$values": [
-                237.0,
-                433.875,
-                0.0,
-                26.25,
-                120.0
-              ]
-            },
-            "PreviewImagePath": "",
-            "ExpectedColors": "灰",
-            "MinShare": 0.6,
-            "SamplePoints": 400,
+            "RecipeName": null,
+            "AlignedImage": null,
+            "RoiRegion": null,
+            "Transform": null,
+            "RecipeLibraryJson": "[{\"Name\":\"配方1\",\"RefImagePath\":\"\",\"RefNoBeadImagePath\":\"\",\"RefPointsJson\":\"[[177.2355253395973,256.3751740419922]]\",\"RectifyQuadJson\":\"\",\"TargetWidth\":15.0,\"WidthTolerance\":8.0,\"PositionTolerance\":30.0,\"Polarity\":\"dark\",\"LearnedSignature\":\"\"}]",
+            "DefaultRecipeName": "",
+            "AlignMode": 2,
+            "Polarity": 0,
+            "TargetWidth": 15.0,
+            "WidthTolerance": 8.0,
+            "PositionTolerance": 30.0,
+            "MinErrorLength": 5.0,
+            "MinScore": 0.4,
+            "PlanarNumLevels": 5,
+            "FindAngleStartDeg": -22.35,
+            "FindAngleExtentDeg": 44.69,
+            "FindScaleRMin": 1.0,
+            "FindScaleRMax": 1.0,
+            "FindScaleCMin": 1.0,
+            "FindScaleCMax": 1.0,
             "DisplayViewIndex": 1,
-            "ColorlessSaturation": 0.45,
-            "BlackValue": 80.0,
-            "WhiteSaturation": 0.15,
-            "WhiteValue": 195.0,
-            "BrownWarmth": 12,
-            "BrownValue": 175.0,
-            "RoseHueFrom": 330.0,
-            "RedHueFrom": 350.0,
-            "RedHueTo": 20.0,
-            "OrangeHueTo": 45.0,
-            "YellowHueTo": 70.0,
-            "GreenHueTo": 160.0,
-            "BlueHueTo": 230.0
+            "OutputAlignedImage": true,
+            "UnitOutput": 0,
+            "PixelSizeMm": 0.0
           },
           "LinkedSources": {
-            "Image": {
+            "SrcImage": {
               "Kind": 1,
               "TargetStepId": "a2140959-9f26-49cf-88c7-2b72c04b9b44",
               "TargetPortName": "Image",
@@ -125,6 +122,23 @@
           "OutputPortDefinitions": []
         }
       ]
+    },
+    {
+      "FlowID": "3c15fe5e058a4b44a9e759d40d80f62f",
+      "FlowName": "End",
+      "Description": "收尾",
+      "Version": 0,
+      "IsEnabled": true,
+      "Role": 3,
+      "InvokeType": 0,
+      "TimerIntervalMs": 0,
+      "StepsEncrypted": false,
+      "TriggerMode": 1,
+      "Layout": {
+        "Nodes": {},
+        "Count": 0
+      },
+      "Steps": []
     }
   ],
   "CommunicationConfigs": [],

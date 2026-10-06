@@ -89,9 +89,10 @@ namespace FlowCanvasChecks
                 new[] { "Image", "CurrentPath", "CurrentIndex", "TotalFiles" }.All(outputs.Contains),
                 string.Join(",", outputs));
             // 多相机身份：SourceSerial 是"这份标定/这张图属于哪台相机"的机器可读来源（接标定/坐标变换自动核对）
+            // 默认值即"空"（string 端口的 default 是 null，空串与 null 都算未提供——下游按 Trim 后非空才校验）
             Check("输出端口含 SourceSerial（多相机身份；相机模式=配置序列号，其余模式为空）",
                 outputs.Contains("SourceSerial")
-                && string.Equals(plugin.Outputs["SourceSerial"].Value as string, "", StringComparison.Ordinal),
+                && string.IsNullOrEmpty(plugin.Outputs["SourceSerial"].Value as string),
                 string.Join(",", outputs));
             Check("输入端口未被改名（FilePath / FolderPath / FileIndex / FrameTimeoutMs）",
                 new[] { "FilePath", "FolderPath", "FileIndex", "FrameTimeoutMs" }.All(plugin.Inputs.ContainsKey),

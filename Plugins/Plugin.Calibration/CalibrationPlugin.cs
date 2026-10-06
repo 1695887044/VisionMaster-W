@@ -315,7 +315,7 @@ namespace Plugin.Calibration
         /// <summary>
         /// 标定表与网格规模行是否可见（九点/透视共用同一张标定表；界面绑定 Visibility，模式切换时经 OnModeChanged 通知）。
         /// </summary>
-        public bool ShowPointTable => Mode is CalibrationMode.NinePoint or CalibrationMode.Perspective;
+        public bool ShowPointTable => Mode is CalibrationMode.NinePoint or CalibrationMode.Perspective or CalibrationMode.Mesh;
 
         /// <summary>
         /// 标定配置的最后改动时间（UTC）：由 <see cref="ComputeCalibration"/> 按"输入签名"推进——
@@ -509,23 +509,11 @@ namespace Plugin.Calibration
         /// <summary>把当前点画到图上（生成/更新画布标记；拖标记会自动回写表格）</summary>
         public DelegateCommand PushMarkersCommand { get; }
 
-        /// <summary>九点模式：为某行启动"图上取点"——返回若已在取点则取消</summary>
-        public DelegateCommand<CalibPointRow?> PickRowPointCommand { get; }
-
-        /// <summary>像素当量模式：为 A/B 启动"图上取点"（CommandParameter = "A"|"B"）</summary>
-        public DelegateCommand<string> PickScalePointCommand { get; }
-
-        /// <summary>对选中行在图上取点（仅九点模式有效）</summary>
-        public DelegateCommand<CalibPointRow> PickPointCommand { get; }
-
-        /// <summary>对像素当量模式的 A 点在图上取点</summary>
-        public DelegateCommand PickAScalePointCommand { get; }
-
-        /// <summary>对像素当量模式的 B 点在图上取点</summary>
-        public DelegateCommand PickBScalePointCommand { get; }
         /// <summary>逐行「取点」：点一下图上位置，把 Row/Col 填进该行（CommandParameter = CalibPointRow）</summary>
+        public DelegateCommand<object?> PickRowPointCommand { get; }
 
         /// <summary>像素当量模式「取点」：点一下图上位置，把 Row/Col 填进 A 或 B（CommandParameter = "A"/"B"）</summary>
+        public DelegateCommand<object?> PickScalePointCommand { get; }
 
         /// <summary>取消取点待命（再点一次取点按钮即可退出）</summary>
         public DelegateCommand CancelPickCommand { get; }
@@ -552,14 +540,6 @@ namespace Plugin.Calibration
         /// <summary>标记 ⇄ 表格 同步的重入守卫（拖动回写时不要再触发反向刷新）</summary>
         private bool _syncingMarkers;
 
-        /// <summary>当前"取点"待命中对应的表格行（null = 没等待）</summary>
-        private CalibPointRow? _pickTargetRow;
-
-        /// <summary>当前"取点"待命中对应的像素当量端点（null / "A" / "B"）</summary>
-        private string? _pickTargetScale;
-
-        /// <summary>标定输入签名（用于稳定 CreatedAtUtc：输入变才更新时间戳）</summary>
-        private string? _lastStampSignature;
         /// <summary>当前取点待命的目标（null = 未在取点）；取到一次即清空</summary>
         private object? _pickingTarget;
         private string _pickingLabel = string.Empty;
@@ -570,6 +550,19 @@ namespace Plugin.Calibration
         /// </summary>
         private string? _lastInputSignature;
 
+        /// <summary>
+        /// 导入文件里带来的"来源标签"（本机没有图路径时的兜底，见 <see cref="CurrentSourceTag"/>）。
+        /// 本机一旦载入/选了标定图，本机路径的标签优先——来源标签描述的是"图从哪来"。
+        /// </summary>
+        private string _importedSourceTag = string.Empty;
+
+        /// <summary>
+        /// 网格模式的"全局仿射基线"（6 元）：只用于**质量判读与逐行残差回写**——
+        /// 网格在节点处精确通过、残差恒 0，没有信息量；仿射基线的残差才是"畸变有多大"的度量。
+        /// null = 基线不可用（点集整体共线等），此时质量数字按 0 显示、逐行残差留空。
+        /// </summary>
+        private double[]? _meshAffineBaseline;
+
         #endregion
 
         public CalibrationPlugin()
@@ -579,9 +572,6 @@ namespace Plugin.Calibration
             PasteRowsCommand = new DelegateCommand(PasteRows);
             ClearRowsCommand = new DelegateCommand(ClearRows);
             PushMarkersCommand = new DelegateCommand(PushMarkers);
-            PickRowPointCommand = new DelegateCommand<object?>(PickRowPoint);
-            PickScalePointCommand = new DelegateCommand<object?>(PickScalePoint);
-            CancelPickCommand = new DelegateCommand(() => IsPickingPoint = false);
             PickRowPointCommand = new DelegateCommand<object?>(PickRowPoint);
             PickScalePointCommand = new DelegateCommand<object?>(PickScalePoint);
             CancelPickCommand = new DelegateCommand(CancelPick);
@@ -723,12 +713,20 @@ namespace Plugin.Calibration
 
             var hint = CalibrationMath.DiagnoseRadialBands(
                 t.ResidualByRadiusBands, t.ResidualBandCounts, MinEdgeResidualForHint());
+            // 相机两端序列号都进日志：多相机换标定出问题时，事后有迹可查（本步骤「相机序列号」+ 上游 SourceSerial）
+            string mySerialLog = (CameraSerial ?? string.Empty).Trim();
+            string upSerialLog = (SourceSerial.ActualValue ?? string.Empty).Trim();
+            string serialLog = mySerialLog.Length > 0 || upSerialLog.Length > 0
+                ? $"，相机 本步骤「{(mySerialLog.Length > 0 ? mySerialLog : "未填")}」/ 上游「{(upSerialLog.Length > 0 ? upSerialLog : "未接")}」"
+                : "";
             context.Logger?.Info(
                 $"{InstanceName} 标定完成（{ModeText()}）：当量 {t.MmPerPixel:0.######} mm/px"
                 + $"（{t.SourceImageWidth}×{t.SourceImageHeight}）"
-                + (t.Kind is CalibrationKind.NinePoint or CalibrationKind.Perspective
+                + (t.Kind is CalibrationKind.NinePoint or CalibrationKind.Perspective or CalibrationKind.Mesh
                     ? $"，残差 RMS {t.ResidualRmsPx:0.###}px / 最大 {t.MaxResidualPx:0.###}px"
+                      + (t.Kind == CalibrationKind.Mesh ? "（全局仿射基线，畸变度量；网格节点处精确通过）" : "")
                     : "")
+                + serialLog
                 + (string.IsNullOrEmpty(hint) ? "" : $"。{hint}"));
         }
 
@@ -795,6 +793,62 @@ namespace Plugin.Calibration
                     CameraSerial = (CameraSerial ?? string.Empty).Trim(),
                     CreatedAtUtc = CalibrationStampUtc
                 };
+                return attempt;
+            }
+
+            // 网格标定（分段仿射）：不走「任意点数求解」，要求 N×N 全取点——单列一条分支（缺节点 = 整格不可用）
+            if (Mode == CalibrationMode.Mesh)
+            {
+                if (!CollectMeshNodes(out var meshNodes, out var meshCollectError))
+                {
+                    attempt.BlockingError = meshCollectError;
+                    return attempt;
+                }
+
+                int meshN = Math.Clamp(GridSize, 2, 10);
+                if (!CalibrationMesh.TryMeanMmPerPixel(meshNodes!, meshN, out double meshMmPerPixel, out var meshUseError))
+                {
+                    attempt.BlockingError = meshUseError;
+                    return attempt;
+                }
+
+                // 质量口径（必须读懂）：网格在节点处**精确通过**，残差恒 0、没有信息量。
+                // 所以质量数字取"同一批点上全局仿射基线"的拟合质量——它衡量畸变有多大、网格值不值得用。
+                // 同理**不做残差闸门**：畸变场景下基线残差本就超阈值（这正是选网格的理由），闸门会自相矛盾。
+                double meshRmsPx = 0, meshMaxPx = 0;
+                double[] meshBands = new double[3];
+                int[] meshCounts = new int[3];
+                _meshAffineBaseline = null;
+                if (TryMeshAffineBaseline(meshNodes!, meshN,
+                        out var baseline, out meshRmsPx, out meshMaxPx, out meshBands, out meshCounts))
+                {
+                    _meshAffineBaseline = baseline;
+                }
+
+                attempt.Transform = new CalibrationTransform
+                {
+                    Kind = CalibrationKind.Mesh,
+                    MmPerPixel = meshMmPerPixel,
+                    MeshNodes = meshNodes,
+                    MeshSize = meshN,
+                    // Matrix 保持默认零（故意，同透视）：未升级的消费者走 6 元 Matrix（det=0）必须明确失败，
+                    // 绝不能把网格静默当单份仿射用（边缘区域会整体错位）。
+                    SourceImageWidth = SourceImageWidth,
+                    SourceImageHeight = SourceImageHeight,
+                    SourceTag = CurrentSourceTag(),
+                    CameraSerial = (CameraSerial ?? string.Empty).Trim(),
+                    CreatedAtUtc = CalibrationStampUtc,
+                    ResidualRmsPx = meshRmsPx,
+                    MaxResidualPx = meshMaxPx,
+                    ResidualByRadiusBands = meshBands,
+                    ResidualBandCounts = meshCounts
+                };
+
+                if (!CheckMmPerPixelRange(meshMmPerPixel, out var meshMmError))
+                {
+                    attempt.GateError = meshMmError;
+                    return attempt;
+                }
                 return attempt;
             }
 
@@ -994,6 +1048,99 @@ namespace Plugin.Calibration
         }
 
         /// <summary>
+        /// 网格标定的节点收集：**N×N 每行都必须填全**（网格是插值模型，缺一个节点整格不可用）。
+        /// 输出 [Row, Col, X, Y] 行主序数组（组下标 = r·N + c，与契约 <see cref="CalibrationMesh"/> 一致），
+        /// 并做"可用性"校验（退化三角形在插件侧就点出来，与消费者同一套判据）。
+        /// </summary>
+        private bool CollectMeshNodes(out double[]? nodes, out string? error)
+        {
+            nodes = null;
+            error = null;
+
+            int n = Math.Clamp(GridSize, 2, 10);
+            int expected = n * n;
+            if (PointRows.Count != expected)
+            {
+                error = $"网格标定要求 {n}×{n} = {expected} 行标定表，当前表里有 {PointRows.Count} 行："
+                    + "请用「按网格规模重建」把表调成一致，再逐行取点";
+                return false;
+            }
+
+            var missing = PointRows.FirstOrDefault(r => r == null || r.IsEmpty);
+            if (missing != null)
+            {
+                error = $"网格标定要求 N×N 每行都取点：第「{missing.Name}」行还空着"
+                    + "（网格是插值模型，缺一个节点它周围四格都不可用）";
+                return false;
+            }
+
+            var partial = PointRows.FirstOrDefault(r => r != null && r.IsPartial);
+            if (partial != null)
+            {
+                error = $"标定表第「{partial.Name}」行只填了一部分：机械X / 机械Y / 图像Row / 图像Col 必须四值齐全";
+                return false;
+            }
+
+            var invalid = PointRows.FirstOrDefault(r => r != null
+                && (!IsFinite(r.MachineX!.Value) || !IsFinite(r.MachineY!.Value)
+                    || !IsFinite(r.ImageRow!.Value) || !IsFinite(r.ImageCol!.Value)));
+            if (invalid != null)
+            {
+                error = $"标定表第「{invalid.Name}」行含非法数值（NaN/Inf）——请检查该行的填写";
+                return false;
+            }
+
+            var arr = new double[expected * CalibrationMesh.ValuesPerNode];
+            for (int i = 0; i < expected; i++)
+            {
+                var r = PointRows[i]!;
+                arr[i * CalibrationMesh.ValuesPerNode] = r.ImageRow!.Value;
+                arr[i * CalibrationMesh.ValuesPerNode + 1] = r.ImageCol!.Value;
+                arr[i * CalibrationMesh.ValuesPerNode + 2] = r.MachineX!.Value;
+                arr[i * CalibrationMesh.ValuesPerNode + 3] = r.MachineY!.Value;
+            }
+
+            if (!CalibrationMesh.IsUsable(arr, n, out var useError))
+            {
+                error = useError;
+                return false;
+            }
+
+            nodes = arr;
+            return true;
+        }
+
+        /// <summary>
+        /// 网格节点上的**全局仿射基线**（质量判读用；失败不阻断网格本身——基线只在"判读畸变"时有意义）。
+        /// </summary>
+        private static bool TryMeshAffineBaseline(
+            double[] nodes, int n,
+            out double[]? baseline, out double rmsPx, out double maxPx, out double[] bands, out int[] bandCounts)
+        {
+            baseline = null;
+            rmsPx = 0;
+            maxPx = 0;
+            bands = new double[3];
+            bandCounts = new int[3];
+
+            int count = n * n;
+            var rows = new double[count];
+            var cols = new double[count];
+            var xs = new double[count];
+            var ys = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                rows[i] = nodes[i * CalibrationMesh.ValuesPerNode];
+                cols[i] = nodes[i * CalibrationMesh.ValuesPerNode + 1];
+                xs[i] = nodes[i * CalibrationMesh.ValuesPerNode + 2];
+                ys[i] = nodes[i * CalibrationMesh.ValuesPerNode + 3];
+            }
+
+            return CalibrationMath.TrySolveAffine(rows, cols, xs, ys,
+                out baseline, out rmsPx, out maxPx, out bands, out bandCounts, out _);
+        }
+
+        /// <summary>
         /// 透视标定的"当量基准点"：有标定图尺寸 → 图像中心 (H/2, W/2)；
         /// 尺寸未知（尚未载图/无图流程）→ 退化为点集质心——局部当量随位置变化，质心是"数据重心"下的无偏选择（注释说明）。
         /// 返回 false = 没有任何有效点（正常流程不会发生——调用前已求解成功）。
@@ -1086,18 +1233,32 @@ namespace Plugin.Calibration
                 return;
             }
 
-            if (!CalibrationMath.IsUsableMatrix(t.Matrix))
+            // 网格模式：节点处精确通过（残差恒 0、没信息量）——逐行残差显示的是**全局仿射基线**的偏差，
+            // 与质量区口径一致（"畸变有多大"）；基线不可用时留空（0），不假装通过。
+            if (t.Kind == CalibrationKind.Mesh)
+            {
+                ApplyRowResidualsFromMatrix(_meshAffineBaseline);
+                return;
+            }
+
+            ApplyRowResidualsFromMatrix(t.Matrix);
+        }
+
+        /// <summary>按给定仿射矩阵回写逐行残差（px 口径：mm 偏差 ÷ 当量）</summary>
+        private void ApplyRowResidualsFromMatrix(double[]? matrix)
+        {
+            if (!CalibrationMath.IsUsableMatrix(matrix))
                 return;
 
             foreach (var row in PointRows)
             {
                 if (row == null || !row.IsFilled) { if (row != null) row.ResidualPx = 0; continue; }
 
-                if (CalibrationMath.TryMapPixelToXY(t.Matrix, row.ImageRow!.Value, row.ImageCol!.Value, out var x, out var y))
+                if (CalibrationMath.TryMapPixelToXY(matrix!, row.ImageRow!.Value, row.ImageCol!.Value, out var x, out var y))
                 {
                     double dx = x - row.MachineX!.Value;
                     double dy = y - row.MachineY!.Value;
-                    double mmPerPixel = CalibrationMath.DeriveMmPerPixel(t.Matrix, out _);
+                    double mmPerPixel = CalibrationMath.DeriveMmPerPixel(matrix!, out _);
                     if (mmPerPixel > 0)
                         row.ResidualPx = Math.Sqrt(dx * dx + dy * dy) / mmPerPixel;
                 }
@@ -1110,7 +1271,30 @@ namespace Plugin.Calibration
         private string CurrentSourceTag()
         {
             var path = SourceImagePath.GetTypedValue();
-            return string.IsNullOrWhiteSpace(path) ? string.Empty : Path.GetFileName(path);
+            if (!string.IsNullOrWhiteSpace(path)) return Path.GetFileName(path);
+            // 导入的标定没有本机图路径：用文件带来的标签，跨设备核对时有据可查
+            return _importedSourceTag;
+        }
+
+        /// <summary>
+        /// 当前底图（实时图优先，其次文件预览）的像素尺寸。取不到返回 false（无图/已释放）。
+        /// 导入标定回填尺寸用——<see cref="RefreshCanvasImageState"/> 是"谁在场用谁"，此处是"只为读值"。
+        /// </summary>
+        private bool TryGetCanvasImageSize(out int width, out int height)
+        {
+            width = 0;
+            height = 0;
+            try
+            {
+                if (OnlineImage is { } online && online.IsInitialized()) online.GetImageSize(out width, out height);
+                else if (DisplayImage is { } file && file.IsInitialized()) file.GetImageSize(out width, out height);
+            }
+            catch
+            {
+                width = 0;
+                height = 0;   // 读不到就是"没有"：调用方回落本机原值
+            }
+            return width > 0 && height > 0;
         }
 
         private string ModeText()
@@ -1118,6 +1302,7 @@ namespace Plugin.Calibration
             {
                 CalibrationMode.PixelScale => "像素当量",
                 CalibrationMode.Perspective => $"透视标定 {GridSize}×{GridSize}",
+                CalibrationMode.Mesh => $"网格标定 {GridSize}×{GridSize}",
                 _ => $"九点标定 {GridSize}×{GridSize}"
             };
 
@@ -1164,9 +1349,15 @@ namespace Plugin.Calibration
                 }
                 else
                 {
-                    QualityText = t.Kind == CalibrationKind.Perspective
-                        ? $"透视：残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px ｜ 各向异性 {anisotropy:0.##}%" + PerspectiveScaleSpanText(t)
-                        : $"残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px ｜ 各向异性 {anisotropy:0.##}%";
+                    QualityText = t.Kind switch
+                    {
+                        CalibrationKind.Perspective =>
+                            $"透视：残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px ｜ 各向异性 {anisotropy:0.##}%" + PerspectiveScaleSpanText(t),
+                        CalibrationKind.Mesh =>
+                            $"网格 {t.MeshSize}×{t.MeshSize}：节点处精确通过；下列为**全局仿射基线**残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px"
+                            + "（畸变度量：偏大说明畸变明显、网格的价值就在吸收它；不做残差闸门）",
+                        _ => $"残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px ｜ 各向异性 {anisotropy:0.##}%"
+                    };
                 }
                 QualityHint = CalibrationMath.DiagnoseRadialBands(
                     t.ResidualByRadiusBands, t.ResidualBandCounts, MinEdgeResidualForHint());
@@ -1176,7 +1367,9 @@ namespace Plugin.Calibration
                     QualityLevel = anisotropy > 1.0 ? StatusLevel.Warning : StatusLevel.Info;
                     SetStatus(t.Kind == CalibrationKind.PixelScale
                         ? $"就绪：像素当量 ≈ {t.MmPerPixel:0.######} mm/px"
-                        : $"就绪：{ModeText()}，有效点 {PointRows.Count(r => r != null && r.IsFilled)} 组",
+                        : t.Kind == CalibrationKind.Mesh
+                            ? $"就绪：{ModeText()}，节点 {PointRows.Count(r => r != null && r.IsFilled)}/{t.MeshSize * t.MeshSize}（节点处精确通过；质量数字为全局仿射基线，仅供判读畸变）"
+                            : $"就绪：{ModeText()}，有效点 {PointRows.Count(r => r != null && r.IsFilled)} 组",
                         anisotropy > 1.0 ? StatusLevel.Warning : StatusLevel.Info);
                 }
                 else
@@ -1940,6 +2133,10 @@ namespace Plugin.Calibration
         /// </summary>
         public string BuildCalibrationExportJson()
         {
+            // 先跑一次"唯一计算"：① 拿到质量快照；② 让时间戳按输入签名落定——
+            // 若先取时间戳再计算，"计算恰好在导出瞬间推进时间戳"会让文件里的时间与当前值不一致。
+            var attempt = ComputeCalibration();
+
             var file = new CalibrationExportFile
             {
                 Version = ExportFormatVersion,
@@ -1970,7 +2167,6 @@ namespace Plugin.Calibration
             };
 
             // 质量快照：读得懂就带上（人工核对用）；求解失败也不阻断导出（文件的价值是数据本身）
-            var attempt = ComputeCalibration();
             if (attempt.Transform is { } t)
             {
                 file.Snapshot = new CalibrationExportSnapshot
@@ -2009,8 +2205,17 @@ namespace Plugin.Calibration
             if (file == null) return "导入失败：文件内容无法解析";
             if (file.Version <= 0 || file.Version > ExportFormatVersion)
                 return $"导入失败：文件版本 {file.Version} 不支持（当前支持 1~{ExportFormatVersion}）";
-            if (file.Mode is < 0 or > 2) return $"导入失败：未知标定模式 {file.Mode}";
+            if (file.Mode is < 0 or > 3) return $"导入失败：未知标定模式 {file.Mode}";
             if (file.Points == null) return "导入失败：缺少标定表";
+
+            // 拒绝面先于任何改动：以下都必须在「动本机数据之前」查完，失败不留半填
+            if (file.Points.Any(p => p == null))
+                return $"导入失败：标定表含空行（共 {file.Points.Count(p => p == null)} 处，文件可能已损坏）";
+            if (!IsFinite(file.ResidualThresholdPx) || file.ResidualThresholdPx < 0)
+                return $"导入失败：残差阈值非法（{file.ResidualThresholdPx}）";
+            if (!IsFinite(file.MmPerPixelMin) || file.MmPerPixelMin < 0
+                || !IsFinite(file.MmPerPixelMax) || file.MmPerPixelMax < 0)
+                return $"导入失败：当量护栏非法（{file.MmPerPixelMin}~{file.MmPerPixelMax}）";
 
             CancelPick();
 
@@ -2026,8 +2231,22 @@ namespace Plugin.Calibration
             MmPerPixelMin = file.MmPerPixelMin;
             MmPerPixelMax = file.MmPerPixelMax;
             CalibrationStampUtc = file.CalibrationStampUtc;
-            SourceImageWidth = Math.Max(0, file.SourceImageWidth);
-            SourceImageHeight = Math.Max(0, file.SourceImageHeight);
+
+            // 尺寸：文件记录了就采信文件；**文件没记录（≤0）不许把本机已知尺寸清成 0**——
+            // 0 会让下游「换分辨率自证」（CheckImageSizeMatch）直接放行，换错分辨率的静默错位从此无人拦。
+            // 回填顺序：当前底图（导入时画布上的图通常就是这份标定的来源）→ 本机原值（宁可留旧值让下游查得出不符）。
+            int w = Math.Max(0, file.SourceImageWidth);
+            int h = Math.Max(0, file.SourceImageHeight);
+            if (w <= 0 || h <= 0)
+            {
+                if (TryGetCanvasImageSize(out int cw, out int ch)) { w = cw; h = ch; }
+                else { w = SourceImageWidth; h = SourceImageHeight; }
+            }
+            SourceImageWidth = w;
+            SourceImageHeight = h;
+
+            // 来源标签只在文件里带着（导入端没有图路径）——先收下，本机载了新图后由本机路径接管
+            _importedSourceTag = (file.SourceTag ?? string.Empty).Trim();
 
             PointRows.Clear();
             foreach (var p in file.Points)
@@ -2045,6 +2264,11 @@ namespace Plugin.Calibration
             // 行名统一重排 P1..PN（表内匹配按名走；文件里的旧名不保留，避免重名时静默错行）
             for (int i = 0; i < PointRows.Count; i++)
                 if (PointRows[i] != null) PointRows[i].Name = "P" + (i + 1);
+
+            // 行数与网格规模不一致（旧版"粘贴扩容后忘改网格"导出的文件）：以**行为准**归一网格。
+            // 求解只认行、不会因此算错，但下拉框显示 3×3、表格摆着 12 行的界面自相矛盾（兜底铺点也按 N 排）。
+            if (PointRows.Count > 0 && PointRows.Count != GridSize * GridSize)
+                GridSize = Math.Clamp((int)Math.Ceiling(Math.Sqrt(PointRows.Count)), 2, 10);
 
             // 关键一步：让下一次计算"只记签名、不推进时间戳"——文件里的标定时间是权威
             _lastInputSignature = null;

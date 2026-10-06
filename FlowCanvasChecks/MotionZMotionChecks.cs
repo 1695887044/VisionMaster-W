@@ -205,8 +205,13 @@ namespace FlowCanvasChecks
             // ★ "框架再包一层"：没有自定义视图的插件，由宿主自动生成参数面板。
             //   此前是回退到「变量绑定」窗口 —— 那是个两步式交互（先选左边端口、再在右边选上游），
             //   只想填个常量也得绕一圈。改成参数清单后一步到位，与有视图插件共用同一个外壳。
+            // DWV 第 1 期把"建参数面板"的整段逻辑抽到了共享帮助类 StepParameterDialog
+            // （ProcessViewModel 只剩转调），源码扫描必须把抽取后的文件一并读进来——
+            // 否则"搬家"这个动作本身就把下面 5 条断言扫成假红（模式还在，只是换了文件）。
             var processVm = ResolveRepoFile(@"VisionMaster\ViewModels\ProcessViewModel.cs");
-            string pvText = processVm != null ? File.ReadAllText(processVm) : string.Empty;
+            var stepParamDialog = ResolveRepoFile(@"VisionMaster\Services\StepParameterDialog.cs");
+            string pvText = (processVm != null ? File.ReadAllText(processVm) : string.Empty)
+                          + (stepParamDialog != null ? File.ReadAllText(stepParamDialog) : string.Empty);
 
             // 注意：不能断言"整个文件没有 DataBindView" —— 那里另外两处是**合法**的，
             // 是插件自定义视图里点 🔗 时的"单绑定模式"回调，与这条路径无关。

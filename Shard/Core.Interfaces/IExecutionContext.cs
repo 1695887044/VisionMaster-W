@@ -59,6 +59,15 @@ namespace Core.Interfaces
         /// </summary>
         IMotionProvider Motions { get; }
 
+        /// <summary>
+        /// 流程调用器：把一条流程当子程序跑起来并等它跑完（「调用流程」步骤的能力面）。
+        ///
+        /// 与 <see cref="GlobalVariables"/> / <see cref="Cameras"/> 同一范式——插件物理上够不到
+        /// 宿主引擎，只能由上下文递送。实现方必须保证"非空"：没有引擎时返回
+        /// <see cref="NullFlowInvoker"/>（调用即失败并说明原因），插件只判结果的 Success 即可。
+        /// </summary>
+        IFlowInvoker FlowInvoker { get; }
+
         IDictionary<string, object> LocalVariables { get; }
     }
 }

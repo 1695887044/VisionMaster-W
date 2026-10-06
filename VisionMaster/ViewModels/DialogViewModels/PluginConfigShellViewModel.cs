@@ -36,7 +36,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly FlowCompiler _flowCompiler;
         private readonly HttpImageServer _httpServer;
 
-        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions)
+        public PluginConfigShellViewModel(IWorkspaceManager workspace, ILogService logger, FlowCompiler flowCompiler, HttpImageServer httpServer, ICameraProvider cameras, IMotionProvider motions, IFlowInvoker flowInvoker)
         {
             _workspace = workspace;
             _logger = logger;
@@ -44,6 +44,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _httpServer = httpServer;
             _cameras = cameras ?? NullCameraProvider.Instance;
             _motions = motions ?? NullMotionProvider.Instance;
+            _flowInvoker = flowInvoker ?? NullFlowInvoker.Instance;
             ExecuteCommand = new DelegateCommand(ExecutePlugin, () => CanExecute);
             ConfirmCommand = new DelegateCommand(Confirm);
             CancelCommand = new DelegateCommand(Cancel);
@@ -57,6 +58,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>运动设备仓库：试运行时透传给执行上下文（否则运动步骤取不到卡，见 ExecutePlugin）</summary>
         private readonly IMotionProvider _motions;
+
+        /// <summary>流程调用器：透传给试运行的执行上下文（否则「调用流程」步骤在面板上点「执行」必失败）</summary>
+        private readonly IFlowInvoker _flowInvoker;
 
         #region IDialogAware
 
@@ -312,7 +316,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 try
                 {
-                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras, _motions);
+                    result = PluginTestRunner.Run(plugin, stepData, _workspace, _logger, _flowCompiler, token, out session, _cameras, _motions, _flowInvoker);
                 }
                 catch (Exception ex)
                 {

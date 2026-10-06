@@ -1,0 +1,26 @@
+# 运控开发 Skill
+# 业务目标：实现硬件/设备驱动层及运动控制逻辑，支持商业化机器人/设备。
+# 功能列表：
+#   1. 代码生成（驱动、状态机、定时器）
+#   2. 单元测试（MSTest + Fake Device）
+#   3. 架构审查（模块松耦合、线程安全）
+#   4. 文档编写（硬件接口规范、使用手册）
+# 触发方式：
+#   - event: "operation_task" – 通过 PR 触发或命令行手工启动。
+#   - event: "operation_test" – 触发自动测试。
+# 处理流程：
+#   1. 读取任务配置（JSON/YAML），包括硬件型号、驱动版本、功能需求。
+#   2. 利用 CodeBuddy 的 `generate_code` 生成对应驱动基类与实现文件。
+#   3. 自动创建 MSTest 测试项目，加入 **mock** 设备对象，编写基本 I/O 协议测试。
+#   4. 若涉及多线程，使用 `architect_review` 自动生成并发安全分析报告。
+#   5. 通过 `generate_documentation` 生成 Markdown/HTML 文档，输出到 `docs/operation/`。
+#   6. 如需要 docker 化部署，则自动生成 Dockerfile 与 docker-compose。
+# 触发示例：
+#   ```yaml
+#   - event: "operation_task"
+#     payload: { "device": "StepMotorV2", "protocol": "CAN" }
+#   - event: "operation_test"
+#     payload: { "project": "VM.Operation" }
+#   ```
+# 说明：该 Skill 面向商业化设备驱动与控制系统的自动化交付。
+# 版本：1.0.0

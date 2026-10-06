@@ -23,7 +23,16 @@ namespace Core.Interfaces
         /// 旧 <see cref="CalibrationTransform.Matrix"/> 保持零（故意）：未升级的消费者走 6 元 Matrix（det=0）
         /// 会**明确失败**——绝不允许把透视静默近似成仿射。
         /// </summary>
-        Perspective = 2
+        Perspective = 2,
+
+        /// <summary>
+        /// 网格标定（分段仿射，二期②）：N×N 节点（像素 ↔ 机械一一对应）三角化后**逐格仿射**，
+        /// 局部吸收径向畸变（工程近似；正解是标定板内参标定）。产出用
+        /// <see cref="CalibrationTransform.MeshNodes"/> + <see cref="CalibrationTransform.MeshSize"/>；
+        /// <see cref="CalibrationTransform.Matrix"/> 保持零（故意，同透视）：未升级的消费者必须明确失败，
+        /// 绝不能把网格静默当单份仿射用（边缘区域会整体错位）。
+        /// </summary>
+        Mesh = 3
     }
 
     /// <summary>
@@ -88,6 +97,23 @@ namespace Core.Interfaces
         /// （**a31/a32 插在索引 2/5，不是拼在尾部**——与 HALCON 行主序一致）。
         /// </summary>
         public double[]? ProjectiveMatrix { get; set; }
+
+        /// <summary>
+        /// 网格节点（**仅 Kind = Mesh 有效**，其余模式为 null）：长度 = N·N·4，每 4 个一组
+        /// [Row, Col, X, Y]，按**行主序**（组下标 = r·N + c，r=行、c=列）。
+        /// 语义：节点 (r,c) 的**实测**像素位置 (Row, Col) 与对应机械坐标 (X, Y)——不假设"理想等距网格"。
+        ///
+        /// 映射方式（消费方按此实现，确保两端一致）：把 N×N 节点三角化为 2·(N-1)² 个三角形，
+        /// 像素点落在哪个三角形就用该三角形的仿射（重心坐标插值）换算；节点处精确通过、格内近似畸变。
+        /// **点落在网格覆盖范围之外（凸包外）必须明确失败**——网格是插值，不做外推。
+        /// </summary>
+        public double[]? MeshNodes { get; set; }
+
+        /// <summary>
+        /// 网格边长 N（**仅 Kind = Mesh 有效**）：<see cref="MeshNodes"/> 应为 N×N 个节点。
+        /// N &lt; 2 或 长度 ≠ N·N·4 一律视作契约损坏，消费方必须明确失败（不猜、不降级）。
+        /// </summary>
+        public int MeshSize { get; set; }
 
         /// <summary>标定时的图像宽（失配检测用）</summary>
         public int SourceImageWidth { get; set; }

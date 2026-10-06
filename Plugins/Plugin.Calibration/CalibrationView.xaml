@@ -41,7 +41,7 @@
                 <Border Style="{StaticResource PluginCard}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource PluginCardTitle}" Text="① 标定模式与标定图" />
-                        <!--  用 WrapPanel：窄窗口下三个单选项不会互相挤掉  -->
+                        <!--  用 WrapPanel：窄窗口下四个单选项不会互相挤掉  -->
                         <WrapPanel Margin="0,8,0,0">
                             <RadioButton
                                 Content="像素当量"
@@ -57,6 +57,12 @@
                                 Content="透视标定（投影）"
                                 IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.Perspective}}"
                                 IsEnabled="{Binding IsEditable}" />
+                            <RadioButton
+                                Margin="16,0,0,0"
+                                Content="网格标定（分段仿射）"
+                                IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.Mesh}}"
+                                IsEnabled="{Binding IsEditable}"
+                                ToolTip="镜头畸变的工程近似：N×N 节点三角化后逐格仿射（要求 N×N 全部取点）。节点处精确通过；质量区显示的是全局仿射基线残差，用于判读畸变大小。正解请用标定板内参标定。" />
                         </WrapPanel>
 
                         <cv:LinkableValueEditor

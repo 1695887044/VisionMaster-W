@@ -96,14 +96,19 @@ namespace VisionMaster.Models
         /// <summary>
         /// 流程集合
         /// Newtonsoft.ObjectCreationHandling.Replace：反序列化时整体替换集合（而非向默认集合追加），
-        /// 否则字段初始化器预置的 GoHome/MainTask 会与 JSON 里的流程叠加导致重复。
+        /// 否则字段初始化器预置的 Home/Main/End 会与 JSON 里的流程叠加导致重复。
+        ///
+        /// 预置的 Home / Main / End 是**强制骨架**（用户决策：所有程序都要有这三个流程）：
+        /// 新建方案即自带、老方案打开时由 <see cref="MandatoryFlows.Ensure"/> 补齐、带角色的流程不许删。
+        /// 角色落在 <see cref="FlowModel.Role"/> 上，名字可自由改。
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<FlowModel> Flows { get; set; } =
             new()
             {
-                new FlowModel() { FlowName = "GoHome", Description="回原" },
-                new FlowModel() { FlowName = "MainTask" , Description="主任务" }
+                new FlowModel() { FlowName = "Home", Description = "回原 / 回零", Role = FlowRole.Home },
+                new FlowModel() { FlowName = "Main", Description = "主任务", Role = FlowRole.Main },
+                new FlowModel() { FlowName = "End", Description = "收尾", Role = FlowRole.End }
             };
 
         /// <summary>

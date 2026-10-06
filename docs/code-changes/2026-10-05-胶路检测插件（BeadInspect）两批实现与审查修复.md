@@ -116,3 +116,32 @@
 2. §11 其余实施期待定项不变（`PositionTolerance` 现场标定、插点策略手感、mm² 面积输出、black-hat 回退质量）；
 3. 本专题目录的**插件使用说明（入门层）**尚未新增（README 维护约定第 2 条：参照卡尺/匹配的"入门层 + 维护层"分层）——属后续轮次；
 4. 探针工程 `tools\BeadProbe\` 已可删（README 处置条已更新），删除动作留待用户确认后执行。
+
+## 九、通用性改进：平面匹配搜索范围可配置（2026-10-05 追加）
+
+**起因（通用性审查）**：`find_planar_uncalib_deformable_model` 的角度/缩放范围原先**硬编码**在
+`BeadInspectHalcon.AlignImage`（照抄范例 `-0.39rad~+0.39rad`、缩放 1:1）——同一工位换产品没问题，
+但**换工位/换相机**（工件旋转变大、视野远近变化）时会「平面匹配未找到匹配实例」，用户只能改源码重建。
+（同期审查还确认：`create_planar_uncalib_deformable_model` 的 `auto/use_polarity` 与提取分割的
+`smooth_histo` 也属硬编码，但二者是**训练型/分割型语义参数**，调整需重新验证模型质量，一期维持范例口径并留在
+识别清单里，不做成随手可调。）
+
+**改动**：
+
+| 文件 | 内容 |
+| --- | --- |
+| `BeadInspectPlugin.cs` | 新增 6 个 `[StepConfig]`：`FindAngleStartDeg`(-22.35) / `FindAngleExtentDeg`(44.69) / `FindScaleRMin`(1) / `FindScaleRMax`(1) / `FindScaleCMin`(1) / `FindScaleCMax`(1)；新增 `DegToRad` 常量 |
+| `BeadInspectHalcon.cs` | `AlignImage` 签名加 6 个入参（角度仍是**弧度**——本层是对算子的直封层），去掉硬编码 |
+| `BeadInspectPlugin.cs` / `BeadInspectPluginConfigView.cs` | 3 个调用点改传 `FindAngleStartDeg * DegToRad` 等（度→弧度只在这一处换算，**仓库约定**：插件面向用户用度） |
+| `BeadInspectView.xaml` | 新增「③ 平面匹配搜索范围」卡（6 行，含使用提示与逐个 ToolTip）；原「怎么用」改 ④ |
+| `BeadInspectChecks.cs` | 新增**断言 16**：16d 静态（XAML 绑定齐全）+ 16a/16b/16c 行为（默认成功 → 窗口挪到 90°~100° 必须失败 → 恢复默认又成功），证明参数真接通算子而非死配置；胶路断言总数 60 → **64** |
+
+**验证**：`VisionMaster.sln` 构建 0 错误；全量 **1411 通过 / 19 失败**（19 项仍为与胶路无关的既有环境性失败）；
+断言 16 实测：16a `Success=True IsOk=True`、16b `Success=False Err='图像对齐失败：平面匹配未找到匹配实例…'`、
+16c 恢复 `Success=True IsOk=True`。DLL 已随构建投递 `Modules\`（红线③）。
+
+**默认值口径**：`-22.35° / 44.69°` 是 `-0.39 / 0.78 rad` 的度数复刻（差 <0.01°，无行为影响）；
+真值表断言用**弧度字面量**直呼算子层，与本组默认值解耦——默认值只能由范例实测定，不许随手调。
+
+**未做（留二期）**：`create` 的 contrast/极性、提取分割的阈值方法仍硬编码——换反光特性或换光照时需改代码，
+属算法级调整（要重新验证），已记入方案说明书 §11 待定项。

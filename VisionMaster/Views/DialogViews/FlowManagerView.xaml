@@ -96,7 +96,7 @@
                         VerticalAlignment="Center"
                         FontSize="11.5"
                         Foreground="{StaticResource DialogTextMutedBrush}"
-                        Text="流程的加密、解密与启停" />
+                        Text="流程的加密、解密、启停与调用方式" />
                 </StackPanel>
 
                 <Button
@@ -174,14 +174,68 @@
                     Header="流程名称"
                     IsReadOnly="True" />
 
-                <DataGridTextColumn
-                    Width="100"
-                    Binding="{Binding InvokeTypeText}"
-                    Header="调用类型"
-                    IsReadOnly="True" />
+                <!--
+                    调用方式 = 多选位集（FlowInvokeType [Flags]），四位全部接通：
+                    「HTTP」= 允许 /flow/{流程名} 触发（会话获取前门禁）；
+                    「定时」= FlowTimerScheduler 按 TimerIntervalMs 周期跑（下限 100ms）；
+                    「变量」= 指定变量由假变真时跑（上升沿）；「子程序」= 允许被「调用流程」步骤调用。
+                    行尾的"待接通"提示来自领域层（FlowInvokeTypeExtensions.PendingReason）：
+                    现在四位都返回 null → 该行自动收起；将来加位没接通时它会把原因显示出来。
+                -->
+                <DataGridTemplateColumn Width="320" Header="调用方式（多选）">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox
+                                        Margin="0,0,10,0"
+                                        Content="定时"
+                                        FontSize="12"
+                                        IsChecked="{Binding IsTimerInvoke}"
+                                        ToolTip="按「定时间隔」周期自动执行（下限 20ms；拍精度取决于生效的节拍源，启动日志会写明）" />
+                                    <CheckBox
+                                        Margin="0,0,10,0"
+                                        Content="变量"
+                                        FontSize="12"
+                                        IsChecked="{Binding IsVariableInvoke}"
+                                        ToolTip="指定变量由假变真时触发一次（变量名见流程模型 TriggerVariable）" />
+                                    <CheckBox
+                                        Margin="0,0,10,0"
+                                        Content="子程序"
+                                        FontSize="12"
+                                        IsChecked="{Binding IsSubroutineInvoke}"
+                                        ToolTip="允许被其它流程的「调用流程」步骤调用（勾了才放行）" />
+                                    <CheckBox
+                                        Content="HTTP"
+                                        FontSize="12"
+                                        IsChecked="{Binding IsHttpInvoke}"
+                                        ToolTip="勾选后才允许经 /flow/{流程名} 接口触发（唯一门禁位）" />
+                                </StackPanel>
+                                <TextBlock
+                                    x:Name="InvokeSummary"
+                                    Margin="0,4,0,0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="{Binding InvokeTypeText}" />
+                                <TextBlock
+                                    x:Name="PendingNote"
+                                    Margin="0,2,0,0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="{Binding PendingReasonText}" />
+                            </StackPanel>
+                            <!--  仓库实测：DataTemplate.Triggers 里的 DataTrigger 可靠；空串时收起"待接通"行  -->
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding PendingReasonText}" Value="">
+                                    <Setter TargetName="PendingNote" Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
 
                 <DataGridTextColumn
-                    Width="200"
+                    Width="160"
                     Binding="{Binding Flow.Description}"
                     Header="描述"
                     IsReadOnly="True" />
@@ -261,7 +315,11 @@
                 <TextBlock
                     Margin="0,3,0,0"
                     Style="{StaticResource DialogHintText}"
-                    Text="· 调用类型：定时调用按指定间隔执行，变量调用在变量变化时触发" />
+                    Text="· 调用方式（多选）：HTTP = 允许经 /flow/{流程名} 触发；定时 = 按间隔周期跑（下限 20ms）；变量 = 指定变量由假变真时跑；子程序 = 允许被其它流程的「调用流程」步骤调用" />
+                <TextBlock
+                    Margin="0,3,0,0"
+                    Style="{StaticResource DialogHintText}"
+                    Text="· 强制流程：Home / Main / End 三条骨架流程每个方案都必须保留，不允许删除（可改名）" />
             </StackPanel>
         </Border>
     </Grid>

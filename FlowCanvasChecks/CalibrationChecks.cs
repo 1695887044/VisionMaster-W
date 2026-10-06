@@ -971,6 +971,89 @@ namespace FlowCanvasChecks
                 {
                     rej.Dispose();
                 }
+
+                // (d) 拒绝面 2：不会用异常绕过拒绝、也不会静默关闸（审查发现项）
+                //     · Points:[null] → 曾是 NRE（UI 未处理异常）；现在必须是「中文原因」
+                //     · NaN 阈值/护栏 → 曾静默放行一切（rms > NaN 恒 false）；现在必须拒绝
+                var rej2 = new CalibrationPlugin { InstanceName = "标定_导入拒绝2" };
+                try
+                {
+                    var nullRowErr = rej2.ImportCalibrationJson("{\"Version\":1,\"Points\":[null]}");
+                    bool nullRowOk = nullRowErr.Contains("空行");
+                    var nanThErr = rej2.ImportCalibrationJson(
+                        "{\"Version\":1,\"Points\":[],\"ResidualThresholdPx\":NaN}");
+                    bool nanThOk = nanThErr.Contains("残差阈值非法");
+                    var nanGuardErr = rej2.ImportCalibrationJson(
+                        "{\"Version\":1,\"Points\":[],\"MmPerPixelMin\":Infinity}");
+                    bool nanGuardOk = nanGuardErr.Contains("当量护栏非法");
+                    // 模式范围：0..3 放行（网格=3），越界必须拒绝（防"新模式下旧文件静默降级"）
+                    var modeHighErr = rej2.ImportCalibrationJson("{\"Version\":1,\"Mode\":4,\"Points\":[]}");
+                    var modeLowErr = rej2.ImportCalibrationJson("{\"Version\":1,\"Mode\":-1,\"Points\":[]}");
+                    bool modeRangeOk = modeHighErr.Contains("未知标定模式") && modeLowErr.Contains("未知标定模式");
+                    Check("[CAL] 导入拒绝面 2：空行不抛异常（中文原因）、NaN/Inf 阈值与护栏必须拒绝、模式越界拒绝",
+                        nullRowOk && nanThOk && nanGuardOk && modeRangeOk,
+                        $"nullRow={nullRowErr} nanTh={nanThErr} nanGuard={nanGuardErr} mode4={modeHighErr} mode-1={modeLowErr}");
+                }
+                finally
+                {
+                    rej2.Dispose();
+                }
+
+                // (e) 元信息不丢：文件尺寸为 0 不清本机尺寸（下游尺寸自证不 fail-open）、
+                //     来源标签跟着文件走、行数与网格不一致时以行为准归一
+                var meta = new CalibrationPlugin { InstanceName = "标定_导入元信息" };
+                try
+                {
+                    meta.SourceImageWidth = 640;
+                    meta.SourceImageHeight = 480;
+                    var keepErr = meta.ImportCalibrationJson(
+                        "{\"Version\":1,\"Mode\":1,\"GridSize\":3,\"Points\":[],\"SourceImageWidth\":0,\"SourceImageHeight\":0}");
+                    var keepSize = keepErr.Length == 0 && meta.SourceImageWidth == 640 && meta.SourceImageHeight == 480;
+
+                    // 12 行 vs GridSize 5 → 归一 4×4（界面下拉与表格自洽）
+                    string twelve = string.Join(",", Enumerable.Range(1, 12)
+                        .Select(i => $"{{\"Name\":\"P{i}\",\"MachineX\":{i},\"MachineY\":{i},\"ImageRow\":{i},\"ImageCol\":{i}}}"));
+                    var gridErr = meta.ImportCalibrationJson(
+                        "{\"Version\":1,\"Mode\":1,\"GridSize\":5,\"Points\":[" + twelve + "]}");
+                    var gridNorm = gridErr.Length == 0 && meta.GridSize == 4 && meta.PointRows.Count == 12;
+
+                    Check("[CAL] 导入元信息：文件尺寸 0 不清本机尺寸；12 行 vs 网格 5 → 归一 4×4",
+                        keepSize && gridNorm,
+                        $"keep={keepSize}({meta.SourceImageWidth}×{meta.SourceImageHeight}) grid={meta.GridSize} rows={meta.PointRows.Count} err={gridErr}");
+                }
+                finally
+                {
+                    meta.Dispose();
+                }
+
+                // (f) 来源标签：导入端没有图路径时继承文件里的 SourceTag（跨设备核对有据可查）
+                var tagSrc = BuildPlugin(imgPts, xs, ys);
+                var tagDst = new CalibrationPlugin { InstanceName = "标定_导入来源" };
+                try
+                {
+                    string jsonTag = tagSrc.BuildCalibrationExportJson()
+                        .Replace("\"SourceTag\": \"\"", "\"SourceTag\": \"camA_sample.png\"");
+                    var tagErr = tagDst.ImportCalibrationJson(jsonTag);
+                    tagDst.RunAlgorithm(ctx);
+                    var tagT = tagDst.Transform.Value as CalibrationTransform;
+                    Check("[CAL] 导入来源标签：本机无图路径时继承文件 SourceTag（并进入产物）",
+                        tagErr.Length == 0 && tagT?.SourceTag == "camA_sample.png",
+                        tagErr.Length > 0 ? tagErr : $"tag={tagT?.SourceTag ?? "无"}");
+
+                    // 覆盖语义：再来一份行数更少的文件 → 表格整份替换（旧行、旧网格都不残留）
+                    string four = string.Join(",", Enumerable.Range(1, 4)
+                        .Select(i => $"{{\"Name\":\"P{i}\",\"MachineX\":{i},\"MachineY\":{i},\"ImageRow\":{i * 3},\"ImageCol\":{i * 2}}}"));
+                    var overErr = tagDst.ImportCalibrationJson(
+                        "{\"Version\":1,\"Mode\":1,\"GridSize\":2,\"Points\":[" + four + "]}");
+                    Check("[CAL] 导入覆盖：行数更少的文件整份替换旧表（不留旧行/旧网格）",
+                        overErr.Length == 0 && tagDst.PointRows.Count == 4 && tagDst.GridSize == 2,
+                        overErr.Length > 0 ? overErr : $"rows={tagDst.PointRows.Count} grid={tagDst.GridSize}");
+                }
+                finally
+                {
+                    tagSrc.Dispose();
+                    tagDst.Dispose();
+                }
             }
 
             // ---- 73) 在线取点：实时图优先接管画布；断开后尺寸记录保留（快照不因"图片不在场"作废）----
@@ -1093,6 +1176,211 @@ namespace FlowCanvasChecks
                 bool bad = CalibrationPlugin.TryParseRows("1\t2\t3", out _, out var errBad);
                 Check("[CAL] 粘贴解析：列数不对 → 报错并说明应为 4/5 列",
                     !bad && (errBad ?? "").Contains("4 列"), errBad ?? "");
+            }
+
+            // ---- 77) 网格标定（分段仿射，二期②）：节点精确通过 / 畸变吸收优于全局仿射 / 边界与缺节点明确失败 ----
+            {
+                // 真值模型：机械 (X,Y) → 理想像素 → 径向畸变后的观测像素（模拟镜头畸变，最外圈 +5%）
+                const double meshMmPerPixel = 0.2;
+                const double spacingMm = 40.0;
+                const double radialK = 0.05;
+                const double mcx = 200.0, mcy = 150.0;
+                const double mCenterRow = 240.0, mCenterCol = 320.0;
+                const int meshN = 3;
+                double rMax = Math.Sqrt(2) * spacingMm / meshMmPerPixel;
+
+                (double Row, double Col) ObservedPixel(double x, double y)
+                {
+                    double u = (x - mcx) / meshMmPerPixel;
+                    double v = (y - mcy) / meshMmPerPixel;
+                    double rho = Math.Sqrt(u * u + v * v) / rMax;
+                    double s = 1 + radialK * rho * rho;   // 径向畸变（向外拉）
+                    return (mCenterRow + u * s, mCenterCol + v * s);
+                }
+
+                // 无头实例的默认表是空的（表格由 RebuildGrid 按需生成）——显式建 N×N 行
+                void FillMeshTable(CalibrationPlugin p, int n)
+                {
+                    p.PointRows.Clear();
+                    for (int i = 0; i < n * n; i++)
+                        p.PointRows.Add(new CalibPointRow { Name = "P" + (i + 1) });
+                }
+
+                var mesh = new CalibrationPlugin { InstanceName = "标定_网格" };
+                try
+                {
+                    mesh.Mode = CalibrationMode.Mesh;
+                    mesh.GridSize = meshN;
+                    FillMeshTable(mesh, meshN);
+                    mesh.SourceImageWidth = 640;
+                    mesh.SourceImageHeight = 480;
+                    for (int i = 0; i < meshN; i++)
+                    {
+                        for (int j = 0; j < meshN; j++)
+                        {
+                            double x = mcx + (i - 1) * spacingMm;
+                            double y = mcy + (j - 1) * spacingMm;
+                            var (mpr, mpc) = ObservedPixel(x, y);
+                            var row = mesh.PointRows[i * meshN + j];
+                            row.MachineX = x;
+                            row.MachineY = y;
+                            row.ImageRow = mpr;
+                            row.ImageCol = mpc;
+                        }
+                    }
+
+                    mesh.RunAlgorithm(ctx);
+                    var mt = mesh.Transform.Value as CalibrationTransform;
+                    Check("[CAL] 网格标定：求解成功、Kind=Mesh / 3×3 / 36 个数、Matrix 保持零（未升级消费方必须失败）",
+                        mesh.Success.Value is true && mt is { Kind: CalibrationKind.Mesh, MeshSize: meshN }
+                        && mt.MeshNodes?.Length == meshN * meshN * 4 && mt.Matrix.All(v => v == 0),
+                        mesh.ErrorMessage.Value?.ToString() ?? "");
+
+                    // 节点处精确通过（分段仿射的定义性质；不是"接近"，是 1e-9 内）
+                    double worstNode = 0;
+                    for (int idx = 0; idx < meshN * meshN; idx++)
+                    {
+                        double npr = mt!.MeshNodes![idx * 4], npc = mt.MeshNodes[idx * 4 + 1];
+                        double ex = mt.MeshNodes[idx * 4 + 2], ey = mt.MeshNodes[idx * 4 + 3];
+                        CalibrationMesh.TryMapPixelToXY(mt.MeshNodes, meshN, npr, npc, out double gx, out double gy, out _);
+                        worstNode = Math.Max(worstNode, Math.Max(Math.Abs(gx - ex), Math.Abs(gy - ey)));
+                    }
+                    Check("[CAL] 网格标定：节点处精确通过（最大偏差 < 1e-9）",
+                        worstNode < 1e-9, $"{worstNode:0.###e+0}");
+
+                    // 畸变吸收：格内点用网格 vs 同一批点的全局仿射（手算真值对比）
+                    const double probeOffset = spacingMm / 2;
+                    var (orr, occ) = ObservedPixel(mcx + probeOffset, mcy + probeOffset);
+                    CalibrationMesh.TryMapPixelToXY(mt!.MeshNodes!, meshN, orr, occ, out double gxs, out double gys, out _);
+                    double meshErr = Math.Sqrt(
+                        (gxs - (mcx + probeOffset)) * (gxs - (mcx + probeOffset))
+                        + (gys - (mcy + probeOffset)) * (gys - (mcy + probeOffset)));
+
+                    var mRows = new double[meshN * meshN];
+                    var mCols = new double[meshN * meshN];
+                    var mXs = new double[meshN * meshN];
+                    var mYs = new double[meshN * meshN];
+                    for (int idx = 0; idx < meshN * meshN; idx++)
+                    {
+                        mRows[idx] = mt.MeshNodes![idx * 4];
+                        mCols[idx] = mt.MeshNodes[idx * 4 + 1];
+                        mXs[idx] = mt.MeshNodes[idx * 4 + 2];
+                        mYs[idx] = mt.MeshNodes[idx * 4 + 3];
+                    }
+                    bool baselineOk = CalibrationMath.TrySolveAffine(
+                        mRows, mCols, mXs, mYs, out var meshBaseline, out double baseRms, out _, out _, out _, out _);
+                    CalibrationMath.TryMapPixelToXY(meshBaseline!, orr, occ, out double ax, out double ay);
+                    double affineErr = Math.Sqrt(
+                        (ax - (mcx + probeOffset)) * (ax - (mcx + probeOffset))
+                        + (ay - (mcy + probeOffset)) * (ay - (mcy + probeOffset)));
+
+                    Check("[CAL] 网格标定：格内点误差 ＜ 全局仿射基线的一半（畸变被分段吸收）",
+                        baselineOk && meshErr < affineErr / 2.0,
+                        $"网格 {meshErr:0.####}mm vs 仿射 {affineErr:0.####}mm（基线 RMS {baseRms:0.###}px）");
+
+                    // 闸门语义：畸变下基线残差超阈值（1px），但网格**不做残差闸门**（这正是选它的理由）；
+                    // 质量数字 = 基线残差（供判读），必须与插件报告值一致
+                    Check("[CAL] 网格标定：基线残差超阈值仍判成功，且报告值 = 基线 RMS（质量口径一致）",
+                        baseRms > 1.0 && mesh.Success.Value is true
+                        && Math.Abs(mt.ResidualRmsPx - baseRms) < 1e-9,
+                        $"baseline={baseRms:0.###}px 报告={mt.ResidualRmsPx:0.###}px");
+
+                    // 正反互逆（同一三角形内是同一个仿射）
+                    CalibrationMesh.TryMapXYToPixel(mt.MeshNodes!, meshN, gxs, gys, out double br, out double bc, out _);
+                    Check("[CAL] 网格标定：正反互逆（像素 → 机械 → 像素 误差 < 1e-9）",
+                        Math.Abs(br - orr) < 1e-9 && Math.Abs(bc - occ) < 1e-9,
+                        $"({br:0.######},{bc:0.######}) 期望 ({orr:0.######},{occ:0.######})");
+
+                    // 网格外：不插值，明确失败（正反两个方向都要拒绝；反向是机械空间定位）
+                    bool outside = !CalibrationMesh.TryMapPixelToXY(mt.MeshNodes!, meshN, 5, 5, out _, out _, out var outsideErr);
+                    bool outsideInv = !CalibrationMesh.TryMapXYToPixel(mt.MeshNodes!, meshN, 9999, 9999, out _, out _, out var outsideInvErr);
+                    Check("[CAL] 网格外不插值（正/反两向）→ 明确失败（文案含「不在网格覆盖范围内」）",
+                        outside && (outsideErr ?? "").Contains("不在网格覆盖范围内")
+                        && outsideInv && (outsideInvErr ?? "").Contains("不在网格覆盖范围内"),
+                        outsideInv ? outsideInvErr ?? "" : outsideErr ?? "");
+
+                    // 导出/导入往返：网格数据跟着文件走（Mode=3 在导入端不被拒）
+                    var meshDst = new CalibrationPlugin { InstanceName = "标定_网格导入" };
+                    try
+                    {
+                        var meshJson = mesh.BuildCalibrationExportJson();
+                        var meshImpErr = meshDst.ImportCalibrationJson(meshJson);
+                        meshDst.RunAlgorithm(ctx);
+                        var mtDst = meshDst.Transform.Value as CalibrationTransform;
+                        Check("[CAL] 网格标定导出/导入往返：Kind/N/节点逐项一致且可用",
+                            meshImpErr.Length == 0 && mtDst is { Kind: CalibrationKind.Mesh, MeshSize: meshN }
+                            && mtDst!.MeshNodes!.SequenceEqual(mt.MeshNodes!),
+                            meshImpErr.Length > 0 ? meshImpErr : $"Kind={mtDst?.Kind} N={mtDst?.MeshSize}");
+                    }
+                    finally
+                    {
+                        meshDst.Dispose();
+                    }
+                }
+                finally
+                {
+                    mesh.Dispose();
+                }
+
+                // 缺节点 → 明确失败并指名行（网格是插值模型，缺一个节点整格不可用）
+                var meshMiss = new CalibrationPlugin { InstanceName = "标定_网格缺节点" };
+                try
+                {
+                    meshMiss.Mode = CalibrationMode.Mesh;
+                    meshMiss.GridSize = 3;
+                    FillMeshTable(meshMiss, 3);
+                    for (int i = 0; i < 9; i++)
+                    {
+                        var r = meshMiss.PointRows[i];
+                        r.MachineX = (i % 3) * 10;
+                        r.MachineY = (i / 3) * 10;
+                        r.ImageRow = 100 + (i % 3) * 50;
+                        r.ImageCol = 100 + (i / 3) * 50;
+                    }
+                    // P5 整行留空（四值全 null = 空行；只清一个值会命中"半填"文案，那是另一条断言）
+                    var emptyRow = meshMiss.PointRows[4];
+                    emptyRow.MachineX = null;
+                    emptyRow.MachineY = null;
+                    emptyRow.ImageRow = null;
+                    emptyRow.ImageCol = null;
+                    meshMiss.RunAlgorithm(ctx);
+                    Check("[CAL] 网格缺节点 → 明确失败并指到行（缺一个节点整格不可用）",
+                        meshMiss.Success.Value is false
+                        && (meshMiss.ErrorMessage.Value as string ?? "").Contains("还空着"),
+                        meshMiss.ErrorMessage.Value?.ToString() ?? "");
+                }
+                finally
+                {
+                    meshMiss.Dispose();
+                }
+
+                // 退化（节点重合）→ 明确失败（与消费者同一套判据，在插件侧就点出来）
+                var meshDegen = new CalibrationPlugin { InstanceName = "标定_网格退化" };
+                try
+                {
+                    meshDegen.Mode = CalibrationMode.Mesh;
+                    meshDegen.GridSize = 3;
+                    FillMeshTable(meshDegen, 3);
+                    for (int i = 0; i < 9; i++)
+                    {
+                        var r = meshDegen.PointRows[i];
+                        r.MachineX = (i % 3) * 10;
+                        r.MachineY = (i / 3) * 10;
+                        r.ImageRow = 100 + (i % 3) * 50;
+                        r.ImageCol = 100 + (i / 3) * 50;
+                    }
+                    meshDegen.PointRows[4].ImageRow = meshDegen.PointRows[3].ImageRow;   // P5 与 P4 图像点重合
+                    meshDegen.PointRows[4].ImageCol = meshDegen.PointRows[3].ImageCol;
+                    meshDegen.RunAlgorithm(ctx);
+                    Check("[CAL] 网格退化（节点重合/共线）→ 明确失败且说清是哪一格",
+                        meshDegen.Success.Value is false
+                        && (meshDegen.ErrorMessage.Value as string ?? "").Contains("退化"),
+                        meshDegen.ErrorMessage.Value?.ToString() ?? "");
+                }
+                finally
+                {
+                    meshDegen.Dispose();
+                }
             }
         }
 

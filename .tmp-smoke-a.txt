@@ -1,0 +1,25 @@
+﻿C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 鏈兘瑙ｆ瀽姝ゅ紩鐢ㄣ€傛湭鑳芥壘鍒扮▼搴忛泦鈥淪ystem.Resources.Extensions鈥濄€傝妫€鏌ョ鐩樹笂鏄惁瀛樺湪璇ョ▼搴忛泦銆?濡傛灉鎮ㄧ殑浠ｇ爜闇€瑕佹寮曠敤锛屽垯鍙兘鍑虹幇缂栬瘧閿欒銆?[D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(602,49): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_2joizmoh_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1129,40): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_2joizmoh_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1226,25): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_2joizmoh_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,28): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_2joizmoh_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,78): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_2joizmoh_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1078,49): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest_2joizmoh_wpftmp.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(602,49): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1129,40): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1226,25): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,28): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1033,78): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+D:\C#\VM\UIThemeSmokeTest\Program.cs(1078,49): warning CS8632: 鍙兘鍦?"#nullable" 娉ㄩ噴涓婁笅鏂囧唴鐨勪唬鐮佷腑浣跨敤鍙负 null 鐨勫紩鐢ㄧ被鍨嬬殑娉ㄩ噴銆?[D:\C#\VM\UIThemeSmokeTest\UIThemeSmokeTest.csproj]
+  [PASS] 閰嶇疆瑙嗗浘鍙疄渚嬪寲骞跺畬鎴愭ā鏉垮疄渚嬪寲锛堣祫婧愰敭/杞崲鍣?鎺т欢妯℃澘鍏ㄩ儴瑙ｆ瀽锛? (elements=882)
+  [PASS] 鐢诲竷鎺т欢瀛樺湪锛圛mageEdit 鎭?1 涓級  (count=1)
+  [PASS] 閫愯銆屽彇鐐广€嶆寜閽?= 9銆佷笖鍛戒护鍏ㄩ儴缁戝畾锛堥粯璁?3脳3 琛ㄦ牸锛? (count=9 bound=9)
+  [PASS] 閫愯銆岄濉€嶆寜閽?= 9銆佷笖鍛戒护鍏ㄩ儴缁戝畾锛堜笂娓稿畾浣嶇偣鍥炲～锛? (count=9 bound=9)
+  [PASS] 瀵煎叆 / 瀵煎嚭鎸夐挳瀛樺湪涓斿懡浠ょ粦瀹氾紙澶氳澶囧叡浜爣瀹氾級  (count=2 bound=2)
+  [PASS] 閿佸畾澶嶉€夋瀛樺湪锛堥槻璇敼锛?
+  [PASS] 瀛樺湪銆岄€忚鏍囧畾銆嶆ā寮忓崟閫?
+  [PASS] 鏍囧畾琛ㄥ氨浣嶏紙缁戝畾 PointRows锛?
+  [PASS] 閿佸畾鍚庢爣瀹氳〃琚鐢紙IsEnabled 缁戝畾鐢熸晥锛? (enabled=False)
+  [PASS] 妯″紡鍒囨崲 鈫?琛ㄦ牸鏄鹃殣璺熼殢锛堝儚绱犲綋閲忛殣钘?/ 涔濈偣銆侀€忚鏄剧ず锛? (pixelScale=True ninePoint=True perspective=True)
+  [PASS] 鍙栫偣妯箙榛樿涓嶅崰浣嶏紙IsPickingPoint=false锛?
+=== 鏍囧畾閰嶇疆瑙嗗浘鍐掔儫锛氬叏閮ㄩ€氳繃 ===

@@ -1,0 +1,26 @@
+# 文档编写 Skill
+# 业务需求：保持代码、接口、架构、部署步骤的完整、可搜索文档，适配商业级项目。
+# 功能细分：
+#   1. API 文档生成（DocFX / Sandcastle）
+#   2. 设计说明书与架构图自动生成（PlantUML、Mermaid）
+#   3. 代码说明与注释检查（SonarQube / Roslyn Analyzers）
+#   4. 部署手册（Docker/K8s、CI/CD Pipeline）
+#   5. 变更日志 & 里程碑追踪（GitHub Releases）
+# 触发方式：
+#   - event: "doc_generate" – 触发官方文档推送。
+#   - event: "doc_review" – 触发可访问性 & 一致性检查。
+# 处理流程：
+#   1. 调用项目内的 DocFX 配置，自动扫描 */*.csproj，生成 Markdown + HTML。
+#   2. 通过 `analyze_plantuml` 读取源代码注解或设计图，自动生成 Mermaid 章节。
+#   3. 使用 `lint_analysis` 工具检查代码注释覆盖情况，生成报告。
+#   4. 生成 Docker Compose / Helm Chart 文档，并推送到 `docs/ops/`。
+#   5. 将变更历史整合到 `CHANGELOG.md` 与 GitHub Releases 页面。
+# 触发示例：
+#   ```yaml
+#   - event: "doc_generate"
+#     payload: { "project": "VM.Core" }
+#   - event: "doc_review"
+#     payload: { "project": "VM.Core" }
+#   ```
+# 说明：此 Skill 形成闭环，从代码生成到上线文档的全链路自动化。
+# 版本：1.0.0

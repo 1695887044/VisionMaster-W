@@ -248,8 +248,8 @@ namespace Plugin.BeadInspect
         /// <summary>
         /// 运行段：find_planar_uncalib_deformable_model → hom_mat2d_invert + translate(RowT, ColT)
         /// → projective_trans_image，把图搬回参考位姿。
-        /// find 参数照抄范例（P2）：angleStart=-0.39, angleExtent=0.78, 缩放 1:1, numMatches=1,
-        /// maxOverlap=1, greediness=0.9；minScore/numLevels 由插件参数给。
+        /// 角度/缩放范围由调用方传入（[StepConfig] 可配置，换工位不改代码）；
+        /// minScore/numLevels 也由插件参数给。
         /// 未命中（score &lt; minScore）返回 false，error 按 §5.2 话术。
         /// </summary>
         public static bool AlignImage(
@@ -259,6 +259,10 @@ namespace Plugin.BeadInspect
             double colT,
             double minScore,
             int numLevels,
+            double angleStart,
+            double angleExtent,
+            double scaleRMin, double scaleRMax,
+            double scaleCMin, double scaleCMax,
             out HObject? aligned,
             out double score,
             out string error)
@@ -270,7 +274,7 @@ namespace Plugin.BeadInspect
             {
                 HOperatorSet.FindPlanarUncalibDeformableModel(
                     image, planarModel,
-                    -0.39, 0.78, 1, 1, 1, 1,
+                    angleStart, angleExtent, scaleRMin, scaleRMax, scaleCMin, scaleCMax,
                     minScore, 1, 1, numLevels, 0.9,
                     new HTuple(), new HTuple(),
                     out HTuple hom, out HTuple foundScore);

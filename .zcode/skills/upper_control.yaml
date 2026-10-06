@@ -1,13 +1,30 @@
 # 上位机开发 Skill
-# 特色：代码生成、单元测试、架构审查、文档编写
-# 触发：
-#  - game: "receive_code_request"
-#  - game: "run_unit_test"
-#  - game: "generate_architect_review"
-#  - game: "produce_documentation"
-# 示例：
-#  ```json
-#  {"code": "public class Foo {}"}
-#  ```
-# 使用方式：在开发流程中通过钉钉或 GitHub Action 触发，自动生成脚本并报告结果。
-# 说明：该 Skill 依赖 CodeBuddy 内置的代码生成器及单元测试框架，适用于 C#/.NET Core 项目。
+# 主要功能：
+#  * 代码生成（C# .NET Core）
+#  * 单元测试（xUnit）
+#  * 架构审查（UML 生成 + 静态分析）
+#  * 文档编写（Markdown、DocsFX）
+# 触发方式：
+#  * `event: "code_request"` – 由前端或命令行发起的代码生成请求。
+#  * `event: "unit_test"` – 触发测试套件执行。
+#  * `event: "architect_review"` – 触发自动架构审查（图形、依赖分析）。
+#  * `event: "doc_generate"` – 自动生成 API 文档与技术说明。
+# 处理流程：
+#  1. 读取传入的 **model** 或 **template** 位置。若缺失，使用默认模板。
+#  2. 通过 CodeBuddy 内置的 `generate_code` MPC 调用生成 README/类文件。
+#  3. 运行 `dotnet test` 并收集报告。
+#  4. 调用 `generate_arch_arch` 与 `analyze_dependencies` 工具完成架构审查。
+#  5. 生成 Markdown 文档，并推送至 `docs/api/` 目录。
+#  * 适用场景：商业化 C# 业务模块快速迭代。
+# 触发示例：
+# ```yaml
+#   - event: "code_request"
+#     payload: { "template": "OrderService", "data": { ... } }
+# ```
+#   - event: "unit_test"
+#     payload: { "projects": ["VM.Core", "VM.Services"] }
+#   - 其他事件同理
+# 说明：此 Skill 与 .zcode/agents/architect、documentation 角色共同工作，形成闭环。
+# 依赖：CodeBuddy MPC 某些插件（generate_code、architect_review 等）
+# 备注：所有生成文件需要使用 UTF‑8、无 BOM 编码；如有其他编码需求请自行处理。
+# 版本：1.0.0

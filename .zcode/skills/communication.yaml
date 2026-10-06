@@ -1,0 +1,26 @@
+# 通信开发 Skill
+# 目标：统一网络协议、服务代理与消息队列的实现与维护，支持商业化分布式系统。
+# 功能模块：
+#   1. 代码生成（gRPC、WebSocket、MQTT 中间层）
+#   2. 单元测试（嵌入式 mock + MSTest）
+#   3. 架构审查（服务依赖、消息流、负载均衡）
+#   4. 文档编写（API 文档、协议说明、部署手册）
+# 触发方式：
+#   - event: "comm_task" – 触发网络层实现或协议迁移。
+#   - event: "comm_test" – 触发连通性与性能测试。
+# 处理流程：
+#   1. 解析 communication.yaml 配置（proto 文件、MQTT topic、WebSocket endpoint）
+#   2. 使用 CodeBuddy 的 `generate_code` 生成 stub 与实现。
+#   3. 生成 MSTest 或 NUnit 测试项目（mock 连接、延迟模拟）。
+#   4. 调用 `architect_review` 生成依赖图与服务拓扑。
+#   5. 通过 DocsFX 自动生成 API 文档，推送至 `docs/communication/`。
+#   6. 对于高并发或微服务，需要自动生成 Dockerfile、K8s YAML。
+# 触发示例：
+#   ```yaml
+#   - event: "comm_task"
+#     payload: { "service": "PaymentGateway", "protocol": "gRPC", "proto": "payment.proto" }
+#   - event: "comm_test"
+#     payload: { "project": "VM.Communication" }
+#   ```
+# 说明：支持商业化云服务与边缘设备的通信实现。
+# 版本：1.0.0

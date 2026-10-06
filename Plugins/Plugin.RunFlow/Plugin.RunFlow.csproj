@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      无自定义配置视图：参数面全部由**端口**表达（流程名 / 超时 / 结果三组），
+      宿主发现没有 IPluginCustomViewProvider 时会自动包一层参数面板（AutoPortConfigView），
+      所以本工程既不需要 WPF，也不需要 Core.Controls。
+      产物按 Plugins\Directory.Build.targets 的约定投递到仓库根 Modules\。
+    -->
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+  </ItemGroup>
+
+</Project>

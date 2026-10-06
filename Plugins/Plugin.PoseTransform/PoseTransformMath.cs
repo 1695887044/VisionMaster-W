@@ -29,7 +29,7 @@ namespace Plugin.PoseTransform
 
         /// <summary>PixelScale 标定没有机械坐标系：当机械坐标用时必须明确失败。</summary>
         public const string PixelScaleCannotMapMessage =
-            "当前标定只有像素当量、不含机械坐标：坐标换算请用九点标定或透视标定（像素当量模式只给 mm/px）";
+            "当前标定只有像素当量、不含机械坐标：坐标换算请用九点标定 / 透视标定 / 网格标定（像素当量模式只给 mm/px）";
 
         /// <summary>标定缺失/类型不对/矩阵损坏 → false（失配第一、二类；按 Kind 分支，未知类型绝不静默放行）。</summary>
         public static bool CheckCalibrationUsable(CalibrationTransform? t, out string? error)
@@ -62,6 +62,17 @@ namespace Plugin.PoseTransform
                     if (!IsUsableProjective(t.ProjectiveMatrix))
                     {
                         error = "标定数据损坏（投影矩阵缺失或退化）：请重新运行「标定」步骤";
+                        return false;
+                    }
+                    return true;
+
+                case CalibrationKind.Mesh:
+                    // 网格的三角化/插值规则放契约程序集（Core.Interfaces.CalibrationMesh）：
+                    // 生产端与消费端必须是同一份实现，分叉 = 同一份标定算出两套坐标。
+                    // 文案尾巴由 CalibrationMesh 自带（含"重新运行「标定」步骤"），这里不追加、避免重复。
+                    if (!CalibrationMesh.IsUsable(t.MeshNodes, t.MeshSize, out error))
+                    {
+                        error ??= "标定数据损坏（网格缺失或退化）：请重新运行「标定」步骤";
                         return false;
                     }
                     return true;
@@ -170,6 +181,12 @@ namespace Plugin.PoseTransform
                 return true;
             }
 
+            if (tc.Kind == CalibrationKind.Mesh)
+            {
+                // 分段仿射：定位所在三角形后重心插值（节点处精确通过）；**网格外明确失败，不外推**
+                return CalibrationMesh.TryMapPixelToXY(tc.MeshNodes!, tc.MeshSize, row, col, out x, out y, out error);
+            }
+
             var m = tc.Matrix;
             x = m[0] * row + m[1] * col + m[4];
             y = m[2] * row + m[3] * col + m[5];
@@ -219,6 +236,17 @@ namespace Plugin.PoseTransform
                 row = pr / pw;
                 col = pc / pw;
                 return true;
+            }
+
+            if (tc.Kind == CalibrationKind.Mesh)
+            {
+                // 反向同样是分段仿射（机械空间定位 + 重心插值）——与正向严格互逆（同一三角形内是同一个仿射）
+                if (!IsFinite(x) || !IsFinite(y))
+                {
+                    error = "机械坐标无效（NaN/Inf）：请检查上游（或标定数据）";
+                    return false;
+                }
+                return CalibrationMesh.TryMapXYToPixel(tc.MeshNodes!, tc.MeshSize, x, y, out row, out col, out error);
             }
 
             var m = tc.Matrix;
@@ -281,24 +309,40 @@ namespace Plugin.PoseTransform
             double dx0, dy0, dx, dy;
 
             var tc = t!;
-            if (tc.Kind == CalibrationKind.Perspective)
+            if (tc.Kind is CalibrationKind.Perspective or CalibrationKind.Mesh)
             {
-                // 透视：角度与位置相关——基准与对象方向都用**同一点 p** 的局部雅可比 J(p)
+                // 透视/网格：角度与位置相关——基准与对象方向都用**同一点 p** 的局部雅可比 J(p)
                 if (!IsFinite(row) || !IsFinite(col))
                 {
-                    error = "像素位置无效（NaN/Inf）：透视角度换算需要有效位置（局部雅可比随点变化）";
-                    return false;
-                }
-                if (!JacobianAt(tc.ProjectiveMatrix!, row, col, out double a, out double b, out double c, out double d))
-                {
-                    error = "标定矩阵退化（局部雅可比取不到，投影退化线上）：请重新标定";
+                    error = "像素位置无效（NaN/Inf）：透视/网格角度换算需要有效位置（局部雅可比随点变化）";
                     return false;
                 }
 
-                dx0 = b;                  // 基准方向 = 图像 x 轴经 J(p) 的像
-                dy0 = d;
-                dx = a * sin + b * cos;   // 转 θ 后的方向向量经同一 J(p) 的像
-                dy = c * sin + d * cos;
+                double ja, jb, jc, jd;
+                if (tc.Kind == CalibrationKind.Perspective)
+                {
+                    if (!JacobianAt(tc.ProjectiveMatrix!, row, col, out ja, out jb, out jc, out jd))
+                    {
+                        error = "标定矩阵退化（局部雅可比取不到，投影退化线上）：请重新标定";
+                        return false;
+                    }
+                }
+                else
+                {
+                    // 网格：所在三角形的仿射雅可比（与点换算用同一套定位）
+                    if (!CalibrationMesh.TryLocalAffine(
+                            tc.MeshNodes!, tc.MeshSize, row, col,
+                            out ja, out jb, out jc, out jd, out _, out _, out var meshAngleError))
+                    {
+                        error = meshAngleError;
+                        return false;
+                    }
+                }
+
+                dx0 = jb;                  // 基准方向 = 图像 x 轴经 J(p) 的像
+                dy0 = jd;
+                dx = ja * sin + jb * cos;  // 转 θ 后的方向向量经同一 J(p) 的像
+                dy = jc * sin + jd * cos;
             }
             else
             {

@@ -124,6 +124,27 @@
                                         CommandParameter="{x:Static enums:FlowAction.Compile}"
                                         Header="编译本流程"
                                         Icon="&#xf0e7;" />
+                                    <Separator />
+                                    <!--
+                                        单流程运行/停止（非调试路径：与 HTTP 触发同口径，断点不生效）。
+                                        停止放在运行下面：先跑后停的阅读顺序，与主界面停机键的位置无关，
+                                        这里只服务于"我就想单独把这条流程跑起来看看"的场景。
+                                    -->
+                                    <MenuItem
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.RunOnce}"
+                                        Header="运行一次"
+                                        Icon="&#xf04b;" />
+                                    <MenuItem
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.RunContinuous}"
+                                        Header="循环运行"
+                                        Icon="&#xf021;" />
+                                    <MenuItem
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.Stop}"
+                                        Header="停止本流程"
+                                        Icon="&#xf04d;" />
                                 </MenuItem>
                                 <MenuItem
                                     Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"

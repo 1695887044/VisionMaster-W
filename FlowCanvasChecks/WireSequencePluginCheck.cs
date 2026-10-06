@@ -75,10 +75,17 @@ namespace FlowCanvasChecks
             if (!loaded.Success || loaded.Data == null) return;
 
             var solution = loaded.Data;
-            var flow = solution.Flows.FirstOrDefault();
-            Check("方案里只有一条流程，且名为「线序检测」",
-                solution.Flows.Count == 1 && flow?.FlowName == FlowName,
-                $"流程数={solution.Flows.Count} 名称={flow?.FlowName}");
+            var flow = solution.Flows.FirstOrDefault(f => f.FlowName == FlowName);
+            Check("方案里能找到目标流程「线序检测」",
+                flow != null,
+                $"流程数={solution.Flows.Count} 流程={string.Join(",", solution.Flows.Select(f => f.FlowName))}");
+            // 加载器补齐强制骨架（Home/Main/End）后为 1 + 3；骨架是追加——目标流程按名查找仍命中
+            Check("加载后补齐三条骨架流程，原有流程保留（1 + 3 = 4）",
+                solution.Flows.Count == 4
+                && MandatoryFlows.FindByRole(solution, FlowRole.Home) != null
+                && MandatoryFlows.FindByRole(solution, FlowRole.Main) != null
+                && MandatoryFlows.FindByRole(solution, FlowRole.End) != null,
+                $"流程数={solution.Flows.Count}: {string.Join(",", solution.Flows.Select(f => f.FlowName))}");
             if (flow == null) return;
 
             Check("主干只有两步：图像采集 → 颜色序列检查（一条节点顶掉脚本版那六个）",

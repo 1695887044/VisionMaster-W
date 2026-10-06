@@ -226,7 +226,17 @@ namespace VisionMaster
         EditComment,
         Manager,
         ToggleEnabled,
-        Compile
+        Compile,
+
+        /// <summary>
+        /// 手动运行单条流程（程序栏右键；与非调试的"运行全部"走同一条引擎路径）。
+        /// 追加在末尾——本枚举只作 UI 命令参数、不存盘，但保持"只许末尾追加"的统一习惯
+        /// </summary>
+        RunOnce,
+        /// <summary>循环运行单条流程（直到"停止本流程"）</summary>
+        RunContinuous,
+        /// <summary>停止单条流程（按流程名找会话；未运行则提示）</summary>
+        Stop
     }
 
     /// <summary>

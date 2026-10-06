@@ -89,6 +89,33 @@ namespace Plugin.BeadInspect
 
         partial void OnPlanarNumLevelsChanging(ref int value) => value = Math.Clamp(value, 1, 10);
 
+        /// <summary>
+        /// 平面匹配起始角（**度**，仓库约定：插件面向用户用度，只在调 HALCON 处换算弧度）。
+        /// 默认 -22.35° ≈ 范例 -0.39rad；换工位/相机角度范围不同时调大。
+        /// </summary>
+        [StepConfig, DefaultValue(-22.35)]
+        public partial double FindAngleStartDeg { get; set; }
+
+        /// <summary>平面匹配角度范围（**度**）。默认 44.69° ≈ 范例 0.78rad；与起始角合起来确定搜索窗口</summary>
+        [StepConfig, DefaultValue(44.69)]
+        public partial double FindAngleExtentDeg { get; set; }
+
+        /// <summary>平面匹配行向最小缩放（1 = 不允许缩放；相机远近/工件大小有变化时设成如 0.9~1.1）</summary>
+        [StepConfig, DefaultValue(1.0)]
+        public partial double FindScaleRMin { get; set; }
+
+        /// <summary>平面匹配行向最大缩放</summary>
+        [StepConfig, DefaultValue(1.0)]
+        public partial double FindScaleRMax { get; set; }
+
+        /// <summary>平面匹配列向最小缩放</summary>
+        [StepConfig, DefaultValue(1.0)]
+        public partial double FindScaleCMin { get; set; }
+
+        /// <summary>平面匹配列向最大缩放</summary>
+        [StepConfig, DefaultValue(1.0)]
+        public partial double FindScaleCMax { get; set; }
+
         /// <summary>运行显示窗口：把标注图发布到主界面几号视图窗口（1~9），0 = 不发布</summary>
         [StepConfig]
         public int DisplayViewIndex { get; set; } = 1;
@@ -119,6 +146,9 @@ namespace Plugin.BeadInspect
         public int PlanarModelRebuildCount { get; private set; }
 
         private readonly OffscreenRenderer _renderer = new();
+
+        /// <summary>度→弧度换算（仓库约定：插件面向用户用「度」，只在调 HALCON 算子处换算弧度）</summary>
+        private const double DegToRad = Math.PI / 180.0;
 
         // ==================================================================
         //  端口（§3 契约：端口名一经发布即契约）
@@ -305,7 +335,10 @@ namespace Plugin.BeadInspect
                     }
                     if (!BeadInspectHalcon.AlignImage(
                             src, entry.RuntimePlanarModel!, entry.RuntimeRowT, entry.RuntimeColT,
-                            MinScore, PlanarNumLevels, out HObject? alignedImg, out double score, out string alignError))
+                            MinScore, PlanarNumLevels,
+                            FindAngleStartDeg * DegToRad, FindAngleExtentDeg * DegToRad,
+                            FindScaleRMin, FindScaleRMax, FindScaleCMin, FindScaleCMax,
+                            out HObject? alignedImg, out double score, out string alignError))
                     {
                         Fail(alignError);
                         context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");

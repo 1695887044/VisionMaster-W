@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using Core.Interfaces;
 using HalconDotNet;
+using Plugin.Calibration;
 using Plugin.PoseTransform;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -20,7 +21,7 @@ namespace FlowCanvasChecks
     ///     全部用**手算常量**钉住方向与符号（转置/轴交换这类静默错误只有手算常量能抓）；
     ///   · **HALCON 层**（<see cref="PoseTransformHalcon"/>，真算子）：姿态敏感（90° 换宽高）、
     ///     模板态自洽（面积相对差 &lt; 1e-6）、对齐图方向（T⁻¹，不是被推远两倍）；
-    ///   · **插件层**：真跑 RunAlgorithm（真 ExecutionContext）——三类失配必须失败且带"下一步"，
+    ///   · **插件层**：真跑 RunAlgorithm（真 ExecutionContext）——四类失配必须失败且带"下一步"，
     ///     成功要产出什么、失败不留残留、角度"接了才输出"。
     ///
     /// 为什么要单测"对齐图方向"：方案 §六 的公式块把区域与图像都写成同一方向的正变换——
@@ -30,7 +31,7 @@ namespace FlowCanvasChecks
     {
         public static void Run()
         {
-            Section("[PT] 坐标变换插件：正反变换 / 角度 / 三类失配 / 位姿跟随 / 透视联动 / 端口面");
+            Section("[PT] 坐标变换插件：正反变换 / 角度 / 四类失配 / 位姿跟随 / 透视联动 / 网格联动 / 端口面");
 
             // ================= 数学层 =================
 
@@ -223,6 +224,43 @@ namespace FlowCanvasChecks
             plugin.SrcImage.Value = null!;
             bigImage.Dispose();
 
+            // ---- 8b) 插件级失配④：相机身份不符（多相机共线防"拿错相机的标定"） ----
+            var tSerial = NinePoint(new[] { 0d, 2, 3, 0, 5, 7 });
+            tSerial.CameraSerial = "CAM-A";
+            plugin.Transform.Value = tSerial;
+            plugin.PixelPointRow.Value = 100;
+            plugin.PixelPointCol.Value = 200;
+
+            plugin.SourceSerial.Value = "CAM-B";
+            plugin.RunAlgorithm(ctx);
+            Check("[PT] 失配④相机身份不符 → 失败、两台相机都在文案里",
+                plugin.Success.Value is false && Err(plugin).Contains("相机身份不符")
+                && Err(plugin).Contains("CAM-A") && Err(plugin).Contains("CAM-B"),
+                Err(plugin));
+
+            plugin.SourceSerial.Value = "cam-a";   // 大小写不敏感
+            plugin.RunAlgorithm(ctx);
+            Check("[PT] 身份相符（忽略大小写）→ 正常成功（手算 (405,307)）",
+                plugin.Success.Value is true
+                && Math.Abs(plugin.MechanicalX.TypedValue - 405) < 1e-9
+                && Math.Abs(plugin.MechanicalY.TypedValue - 307) < 1e-9,
+                $"({plugin.MechanicalX.TypedValue}, {plugin.MechanicalY.TypedValue}) {Err(plugin)}");
+
+            plugin.SourceSerial.Value = "";
+            plugin.RunAlgorithm(ctx);
+            Check("[PT] 上游序列号为空 → 不查身份（离线/单相机不打扰）",
+                plugin.Success.Value is true, Err(plugin));
+
+            // 反向：标定没记录序列号（旧文件）时，上游给了也不拦
+            var tNoSerial = NinePoint(new[] { 0d, 2, 3, 0, 5, 7 });
+            tNoSerial.CameraSerial = string.Empty;
+            plugin.Transform.Value = tNoSerial;
+            plugin.SourceSerial.Value = "CAM-B";
+            plugin.RunAlgorithm(ctx);
+            Check("[PT] 标定未记录序列号 → 放行（旧标定文件不误拦）",
+                plugin.Success.Value is true, Err(plugin));
+            plugin.SourceSerial.Value = null!;
+
             // ---- 9) 插件级：成功路径（手算常量 + 回显自校验 + 角度"接了才输出"） ----
             plugin.Transform.Value = tSwap;
             plugin.PixelPointRow.Value = 100;
@@ -348,7 +386,7 @@ namespace FlowCanvasChecks
                 {
                     "SrcImage", "BaseRegion", "TemplateRefRow", "TemplateRefCol",
                     "PoseRow", "PoseCol", "PoseAngle", "Transform",
-                    "PixelPointRow", "PixelPointCol", "PixelAngle"
+                    "PixelPointRow", "PixelPointCol", "PixelAngle", "SourceSerial"
                 }.All(inputs.Contains),
                 string.Join(",", inputs));
 
@@ -493,6 +531,157 @@ namespace FlowCanvasChecks
             bool pSizeOk = PoseTransformMath.CheckImageSizeMatch(tProjSized, 2448, 2048, out _);
             Check("[PT] 尺寸失配（透视）：两个尺寸都进文案；相符放行",
                 pSizeBad && pSizeOk, psErr ?? "（竟然通过）");
+
+            // ================= 网格标定联动（二期②） =================
+
+            // ---- 21) 仿射等价网格：分段仿射必须与原仿射**处处相等**（三角化/重心插值的精确正确性断言） ----
+            var tAffineForMesh = NinePoint(new[] { 0.0, 0.02, 0.02, 0.0, 100.0, 50.0 });   // X=0.02·Col+100, Y=0.02·Row+50
+            (double x, double y) AffineAt(double row, double col) => (
+                tAffineForMesh.Matrix[0] * row + tAffineForMesh.Matrix[1] * col + tAffineForMesh.Matrix[4],
+                tAffineForMesh.Matrix[2] * row + tAffineForMesh.Matrix[3] * col + tAffineForMesh.Matrix[5]);
+
+            var meshNodes = new double[3 * 3 * 4];
+            for (int r = 0; r < 3; r++)
+            {
+                for (int c = 0; c < 3; c++)
+                {
+                    double pr = 100 + r * 100, pc = 50 + c * 100;
+                    var (mx, my) = AffineAt(pr, pc);
+                    int k = (r * 3 + c) * 4;
+                    meshNodes[k] = pr;
+                    meshNodes[k + 1] = pc;
+                    meshNodes[k + 2] = mx;
+                    meshNodes[k + 3] = my;
+                }
+            }
+            var tMeshAffine = Mesh(meshNodes, 3);
+
+            bool meshUsable = PoseTransformMath.CheckCalibrationUsable(tMeshAffine, out string? meshUseErr);
+            double worstMeshDelta = 0;
+            foreach (var (pr, pc) in new[] { (150.0, 100.0), (250.0, 200.0), (200.0, 150.0), (101.0, 51.0) })
+            {
+                PoseTransformMath.TryMapPixelToMechanical(tMeshAffine, pr, pc, out double mx, out double my, out _);
+                var (ax0, ay0) = AffineAt(pr, pc);
+                worstMeshDelta = Math.Max(worstMeshDelta, Math.Max(Math.Abs(mx - ax0), Math.Abs(my - ay0)));
+            }
+            Check("[PT] 网格（节点取自同一仿射）：映射与仿射处处一致（< 1e-9，含节点与格内点）",
+                meshUsable && worstMeshDelta < 1e-9, meshUseErr ?? $"{worstMeshDelta:0.###e+0}");
+
+            // 反向互逆：像素 (200,150) 的机械坐标 = (103, 54)（手算）
+            bool meshInv = PoseTransformMath.TryMapMechanicalToPixel(tMeshAffine, 103.0, 54.0, out double invRow, out double invCol, out string? meshInvErr)
+                           && Math.Abs(invRow - 200) < 1e-9 && Math.Abs(invCol - 150) < 1e-9;
+            Check("[PT] 网格反向：机械 → 像素 回到原像素（< 1e-9）",
+                meshInv, meshInvErr ?? $"({invRow:0.######},{invCol:0.######})");
+
+            // 角度：仿射等价网格下，网格角度换算（局部雅可比）必须与九点角度换算一致
+            bool meshAngleCallOk = PoseTransformMath.TryPixelAngleToMechanical(
+                tMeshAffine, 30.0, 200.0, 150.0, out double meshAngle, out string? meshAngleErr);
+            bool affineAngleCallOk = PoseTransformMath.TryPixelAngleToMechanical(
+                tAffineForMesh, 30.0, 200.0, 150.0, out double affineAngle, out _);
+            Check("[PT] 网格角度：与九点角度换算一致（局部雅可比口径正确）",
+                meshAngleCallOk && affineAngleCallOk && Math.Abs(meshAngle - affineAngle) < 1e-9,
+                meshAngleErr ?? $"网格 {meshAngle:0.####}° ≠ 九点 {affineAngle:0.####}°");
+
+            // ---- 22) 畸变网格：消费侧映射必须比全局仿射准一倍以上（与 [CAL] 同一份共享数学） ----
+            const double ptMmPerPixel = 0.2;
+            const double ptSpacing = 40.0;
+            const double ptK = 0.05;
+            const double ptCx = 200.0, ptCy = 150.0;
+            const double ptCenterRow = 240.0, ptCenterCol = 320.0;
+            double ptRMax = Math.Sqrt(2) * ptSpacing / ptMmPerPixel;
+            (double Row, double Col) PtObserved(double x, double y)
+            {
+                double u = (x - ptCx) / ptMmPerPixel;
+                double v = (y - ptCy) / ptMmPerPixel;
+                double rho = Math.Sqrt(u * u + v * v) / ptRMax;
+                double s = 1 + ptK * rho * rho;
+                return (ptCenterRow + u * s, ptCenterCol + v * s);
+            }
+
+            var distNodes = new double[9 * 4];
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    double x = ptCx + (i - 1) * ptSpacing;
+                    double y = ptCy + (j - 1) * ptSpacing;
+                    var (pr, pc) = PtObserved(x, y);
+                    int k = (i * 3 + j) * 4;
+                    distNodes[k] = pr;
+                    distNodes[k + 1] = pc;
+                    distNodes[k + 2] = x;
+                    distNodes[k + 3] = y;
+                }
+            }
+            var tMeshDist = Mesh(distNodes, 3);
+
+            var (por, poc) = PtObserved(ptCx + ptSpacing / 2, ptCy + ptSpacing / 2);
+            PoseTransformMath.TryMapPixelToMechanical(tMeshDist, por, poc, out double dmx, out double dmy, out _);
+            double dMeshErr = Math.Sqrt(
+                (dmx - (ptCx + ptSpacing / 2)) * (dmx - (ptCx + ptSpacing / 2))
+                + (dmy - (ptCy + ptSpacing / 2)) * (dmy - (ptCy + ptSpacing / 2)));
+
+            var dRows = new double[9]; var dCols = new double[9];
+            var dXs = new double[9]; var dYs = new double[9];
+            for (int idx = 0; idx < 9; idx++)
+            {
+                dRows[idx] = distNodes[idx * 4];
+                dCols[idx] = distNodes[idx * 4 + 1];
+                dXs[idx] = distNodes[idx * 4 + 2];
+                dYs[idx] = distNodes[idx * 4 + 3];
+            }
+            CalibrationMath.TrySolveAffine(dRows, dCols, dXs, dYs, out var dBaseline, out _, out _, out _, out _, out _);
+            CalibrationMath.TryMapPixelToXY(dBaseline!, por, poc, out double dax, out double day);
+            double dAffineErr = Math.Sqrt(
+                (dax - (ptCx + ptSpacing / 2)) * (dax - (ptCx + ptSpacing / 2))
+                + (day - (ptCy + ptSpacing / 2)) * (day - (ptCy + ptSpacing / 2)));
+
+            Check("[PT] 畸变网格：格内点误差 ＜ 全局仿射的一半（消费侧确实在吸收畸变）",
+                dMeshErr < dAffineErr / 2.0,
+                $"网格 {dMeshErr:0.####}mm vs 仿射 {dAffineErr:0.####}mm");
+
+            // ---- 23) 网格失败面：损坏网格 / 网格外 必须明确失败，绝不放行也不外推 ----
+            bool meshBrokenRejected = !PoseTransformMath.CheckCalibrationUsable(
+                Mesh(new double[20], 3), out string? meshBrokenErr)
+                && (meshBrokenErr ?? "").Contains("网格")
+                && (meshBrokenErr ?? "").Contains("重新运行「标定」步骤");   // 文案契约：损坏必须给下一步
+            bool meshNullRejected = !PoseTransformMath.CheckCalibrationUsable(
+                Mesh(null, 3), out string? meshNullErr)
+                && (meshNullErr ?? "").Contains("网格")
+                && (meshNullErr ?? "").Contains("重新运行「标定」步骤");
+            Check("[PT] 网格损坏（长度不符 / 缺失）→ 明确失败、文案含「网格」与「重新运行「标定」步骤」",
+                meshBrokenRejected && meshNullRejected,
+                meshBrokenErr ?? meshNullErr ?? "（竟然通过）");
+
+            bool meshOutside = !PoseTransformMath.TryMapPixelToMechanical(
+                tMeshDist, 5, 5, out _, out _, out string? meshOutsideErr)
+                && (meshOutsideErr ?? "").Contains("不在网格覆盖范围内");
+            bool meshOutsideInv = !PoseTransformMath.TryMapMechanicalToPixel(
+                tMeshDist, 9999, 9999, out _, out _, out string? meshOutsideInvErr)
+                && (meshOutsideInvErr ?? "").Contains("不在网格覆盖范围内");
+            Check("[PT] 网格外（正向像素 / 反向机械）→ 明确失败（不外推）",
+                meshOutside && meshOutsideInv, meshOutsideInvErr ?? meshOutsideErr ?? "（竟然通过）");
+
+            // ---- 24) 插件级：网格标定走真 RunAlgorithm（机械坐标 = 手算、反向回显、Kind 标注） ----
+            var meshPlugin = new PoseTransformPlugin();
+            try
+            {
+                meshPlugin.Mode = TransformMode.ToMechanical;
+                meshPlugin.Transform.Value = tMeshAffine;
+                meshPlugin.PixelPointRow.Value = 200;
+                meshPlugin.PixelPointCol.Value = 150;
+                meshPlugin.RunAlgorithm(ctx);
+                Check("[PT] 插件级网格：机械坐标 = 手算 (103, 54)，Success=true、回显自校验通过",
+                    meshPlugin.Success.Value is true
+                    && Math.Abs(meshPlugin.MechanicalX.TypedValue - 103) < 1e-9
+                    && Math.Abs(meshPlugin.MechanicalY.TypedValue - 54) < 1e-9
+                    && Math.Abs(meshPlugin.PixelEchoRow.TypedValue - 200) < 1e-9,
+                    $"({meshPlugin.MechanicalX.TypedValue}, {meshPlugin.MechanicalY.TypedValue}) {Err(meshPlugin)}");
+            }
+            finally
+            {
+                meshPlugin.Dispose();
+            }
         }
 
         /// <summary>构造"透视"标定（本套断言只关心矩阵语义，MmPerPixel 不参与计算）。</summary>
@@ -515,6 +704,19 @@ namespace FlowCanvasChecks
             Matrix = matrix,
             SourceImageWidth = width,
             SourceImageHeight = height,
+            SourceTag = "合成",
+            CameraSerial = "SYNTH-PT"
+        };
+
+        /// <summary>构造"网格"标定（分段仿射；节点 [Row,Col,X,Y] 行主序，与契约一致）。</summary>
+        private static CalibrationTransform Mesh(double[]? nodes, int n) => new()
+        {
+            Kind = CalibrationKind.Mesh,
+            MmPerPixel = 0.02,
+            MeshNodes = nodes,
+            MeshSize = n,
+            SourceImageWidth = 640,
+            SourceImageHeight = 480,
             SourceTag = "合成",
             CameraSerial = "SYNTH-PT"
         };

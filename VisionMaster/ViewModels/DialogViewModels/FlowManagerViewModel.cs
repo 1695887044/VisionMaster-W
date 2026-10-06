@@ -265,16 +265,76 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public FlowModel Flow => _flow;
 
         /// <summary>
-        /// 调用类型文本
+        /// 调用方式文本（领域层单一口径：无自动触发显示「手动」，否则按勾选拼接）
         /// </summary>
-        public string InvokeTypeText => _flow.InvokeType switch
+        public string InvokeTypeText => _flow.InvokeType.DisplayText();
+
+        // ------------------------------------------------------------------
+        //  调用方式：多选勾选（直接改流程模型，落盘为位集）
+        //  四位全部接通：HTTP（/flow/ 门禁）、定时（FlowTimerScheduler）、变量（上升沿触发）、
+        //  子程序（「调用流程」插件 + FlowInvoker）。
+        //  PendingReasonText 仍保留：将来加位而运行侧没跟上时，它把"哪一位还没接通"显示出来，
+        //  避免"勾了没反应 = 软件坏了"（当前四位全接通 → 返回空串，界面自动收起那一行）。
+        // ------------------------------------------------------------------
+
+        public bool IsTimerInvoke
         {
-            FlowInvokeType.Manual => "手动",
-            FlowInvokeType.Timer => "定时",
-            FlowInvokeType.Variable => "变量",
-            FlowInvokeType.Subroutine => "子程序",
-            _ => "未知"
-        };
+            get => HasFlag(FlowInvokeType.Timer);
+            set => SetFlag(FlowInvokeType.Timer, value);
+        }
+
+        public bool IsVariableInvoke
+        {
+            get => HasFlag(FlowInvokeType.Variable);
+            set => SetFlag(FlowInvokeType.Variable, value);
+        }
+
+        public bool IsSubroutineInvoke
+        {
+            get => HasFlag(FlowInvokeType.Subroutine);
+            set => SetFlag(FlowInvokeType.Subroutine, value);
+        }
+
+        /// <summary>HTTP 外部调用：唯一带门禁的位——没勾这里，/flow/{流程名} 一律 403</summary>
+        public bool IsHttpInvoke
+        {
+            get => HasFlag(FlowInvokeType.Http);
+            set => SetFlag(FlowInvokeType.Http, value);
+        }
+
+        /// <summary>
+        /// 已勾选但运行侧还没接通的调用位的一句话原因（全部接通或没勾时为"[]"）。
+        /// 界面把它挂在勾选框的行尾，用户看到"待接通"就不会误以为勾了没生效是坏了。
+        /// </summary>
+        public string PendingReasonText
+        {
+            get
+            {
+                var reasons = new System.Collections.Generic.List<string>(3);
+                foreach (var flag in new[] { FlowInvokeType.Timer, FlowInvokeType.Variable, FlowInvokeType.Subroutine })
+                {
+                    if (HasFlag(flag) && flag.PendingReason() is { } reason)
+                        reasons.Add(reason);
+                }
+                return reasons.Count == 0 ? string.Empty : string.Join("；", reasons);
+            }
+        }
+
+        private bool HasFlag(FlowInvokeType flag) => (_flow.InvokeType & flag) != 0;
+
+        private void SetFlag(FlowInvokeType flag, bool on)
+        {
+            _flow.InvokeType = on
+                ? (_flow.InvokeType | flag)
+                : (_flow.InvokeType & ~flag);
+            Refresh();
+            // 四个勾选框互相独立，但显示文本 / 待接通提示由整体位集派生：一次改动一并重发
+            RaisePropertyChanged(nameof(IsTimerInvoke));
+            RaisePropertyChanged(nameof(IsVariableInvoke));
+            RaisePropertyChanged(nameof(IsSubroutineInvoke));
+            RaisePropertyChanged(nameof(IsHttpInvoke));
+            RaisePropertyChanged(nameof(PendingReasonText));
+        }
 
         /// <summary>
         /// 状态文本
@@ -310,14 +370,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _flow.PropertyChanged += (s, e) => Refresh();
         }
 
-        /// <summary>
-        /// 刷新显示
-        /// </summary>
+        /// <summary>刷新显示（流程模型任何一处变更都会走到这里：勾选框 / 状态 / 汇总文本一起重发）</summary>
         public void Refresh()
         {
             RaisePropertyChanged(nameof(InvokeTypeText));
             RaisePropertyChanged(nameof(StatusText));
             RaisePropertyChanged(nameof(EnabledText));
+            RaisePropertyChanged(nameof(IsTimerInvoke));
+            RaisePropertyChanged(nameof(IsVariableInvoke));
+            RaisePropertyChanged(nameof(IsSubroutineInvoke));
+            RaisePropertyChanged(nameof(IsHttpInvoke));
+            RaisePropertyChanged(nameof(PendingReasonText));
         }
     }
 }

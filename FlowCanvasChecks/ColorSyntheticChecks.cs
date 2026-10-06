@@ -129,7 +129,7 @@ namespace FlowCanvasChecks
             var flowModel = new FlowModel { FlowName = FlowName };
             foreach (var s in steps) flowModel.Steps.Add(s);
             var solution = new SolutionModel();
-            solution.Flows.Clear();   // SolutionModel 自带两个默认空流程：不清掉会一起落盘/切换，方案里多出空流程
+            solution.Flows.Clear();   // SolutionModel 自带三条默认骨架流程（Home/Main/End）：不清掉会一起落盘/切换
             solution.Flows.Add(flowModel);
             string vmsPath = Path.Combine(repoRoot, "解决方案", "合成颜色验证.vms");
             File.WriteAllText(vmsPath, SolutionService.Serialize(solution));
@@ -249,7 +249,7 @@ namespace FlowCanvasChecks
             var flowModel = new FlowModel { FlowName = FlowName };
             foreach (var s in steps) flowModel.Steps.Add(s);
             var solution = new SolutionModel();
-            solution.Flows.Clear();   // SolutionModel 自带两个默认空流程：不清掉会一起落盘/切换，方案里多出空流程
+            solution.Flows.Clear();   // SolutionModel 自带三条默认骨架流程（Home/Main/End）：不清掉会一起落盘/切换
             solution.Flows.Add(flowModel);
 
             var workspace = new WorkspaceContext();

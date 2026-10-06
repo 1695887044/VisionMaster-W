@@ -82,10 +82,18 @@ namespace FlowCanvasChecks
             if (!loaded.Success || loaded.Data == null) return;
 
             var solution = loaded.Data;
-            var flow = solution.Flows.FirstOrDefault();
-            Check("方案里只有一条流程，且名为「线序检测」",
-                solution.Flows.Count == 1 && flow?.FlowName == FlowName,
-                $"流程数={solution.Flows.Count} 名称={flow?.FlowName}");
+            var flow = solution.Flows.FirstOrDefault(f => f.FlowName == FlowName);
+            Check("方案里能找到目标流程「线序检测」",
+                flow != null,
+                $"流程数={solution.Flows.Count} 流程={string.Join(",", solution.Flows.Select(f => f.FlowName))}");
+            // 加载器现在会补齐强制骨架（Home/Main/End，用户决策）：老方案文件里只有 1 条流程，
+            // 打开后应为 1 + 3。这条同时钉住"补齐是**追加**、没有覆盖或改动原有流程"（目标流程按名查找仍在）
+            Check("加载后补齐三条骨架流程，原有流程保留（1 + 3 = 4）",
+                solution.Flows.Count == 4
+                && MandatoryFlows.FindByRole(solution, FlowRole.Home) != null
+                && MandatoryFlows.FindByRole(solution, FlowRole.Main) != null
+                && MandatoryFlows.FindByRole(solution, FlowRole.End) != null,
+                $"流程数={solution.Flows.Count}: {string.Join(",", solution.Flows.Select(f => f.FlowName))}");
             if (flow == null) return;
 
             // ---- W3 流程骨架 ----

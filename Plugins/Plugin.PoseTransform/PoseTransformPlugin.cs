@@ -85,6 +85,18 @@ namespace Plugin.PoseTransform
             "标定（接「标定」插件的 Transform 输出）")
         { IsRequired = false };
 
+        /// <summary>
+        /// 图像来源相机序列号（可选）：接「图像采集」的 SourceSerial 输出。
+        /// 与标定自带的 <see cref="CalibrationTransform.CameraSerial"/> 不符时明确失败——
+        /// 多相机共线时"拿错相机的标定"是静默错位的经典来源，这里让它当场暴露。
+        /// 两端任一为空视为"不检查"（离线/单相机场景不打扰）。
+        /// </summary>
+        public InputPort<string> SourceSerial { get; } = new(
+            "SourceSerial",
+            "",
+            "图像相机序列号（可选，接图像采集 SourceSerial；与标定记录的相机不符则明确失败）")
+        { IsRequired = false };
+
         /// <summary>待换算的像素点 Row（接 Matching.Row，即目标中心）</summary>
         public InputPort<double> PixelPointRow { get; } = new(
             "PixelPointRow", 0, "待换算的像素点 Row（接模板匹配 Row）")
@@ -261,6 +273,7 @@ namespace Plugin.PoseTransform
             PoseAngle.ValueChanged += (_, _) => RefreshConfigState();
             Transform.ValueChanged += (_, _) => RefreshConfigState();
             SrcImage.ValueChanged += (_, _) => RefreshConfigState();
+            SourceSerial.ValueChanged += (_, _) => RefreshConfigState();
         }
 
         #region IPluginCustomViewProvider
@@ -444,7 +457,7 @@ namespace Plugin.PoseTransform
                 + $"（{areaChange:+0.##;-0.##;0}%）");
         }
 
-        /// <summary>像素 ↔ 机械：三类失配必须明确失败，成功时输出机械坐标 + 反向回显自校验。</summary>
+        /// <summary>像素 ↔ 机械：四类失配必须明确失败，成功时输出机械坐标 + 反向回显自校验。</summary>
         private void RunToMechanical(IExecutionContext context)
         {
             var t = Transform.ActualValue;
@@ -474,6 +487,17 @@ namespace Plugin.PoseTransform
                     Fail($"读取图像尺寸失败：{ex.Message}（SrcImage 是否有效？）");
                     return;
                 }
+            }
+
+            // 失配第四类：相机身份不符（两端都填了序列号才查——离线/单相机场景不打扰）
+            string imageSerial = (SourceSerial.ActualValue ?? string.Empty).Trim();
+            string calibSerial = (t!.CameraSerial ?? string.Empty).Trim();
+            if (imageSerial.Length > 0 && calibSerial.Length > 0 &&
+                !string.Equals(imageSerial, calibSerial, StringComparison.OrdinalIgnoreCase))
+            {
+                Fail($"相机身份不符：这份标定属于「{calibSerial}」，但当前图像来自「{imageSerial}」；"
+                    + "请换用该相机的标定文件（或检查 SourceSerial 接线）");
+                return;
             }
 
             double pixelRow = PixelPointRow.ActualValue;
@@ -529,7 +553,8 @@ namespace Plugin.PoseTransform
             context.Logger?.Info(
                 $"{InstanceName} 像素 ({pixelRow:0.##}, {pixelCol:0.##}) → 机械 ({x:0.###}, {y:0.###})mm"
                 + (hasAngle ? $"，机械角 {MechanicalAngle.Value:0.###}°" : "")
-                + (t!.Kind == CalibrationKind.Perspective ? "（透视）" : ""));
+                + (t!.Kind is CalibrationKind.Perspective or CalibrationKind.Mesh
+                    ? $"（{CalibrationKindText(t.Kind)}）" : ""));
         }
 
         #endregion
@@ -794,6 +819,7 @@ namespace Plugin.PoseTransform
             CalibrationKind.PixelScale => "像素当量",
             CalibrationKind.NinePoint => "九点",
             CalibrationKind.Perspective => "透视",
+            CalibrationKind.Mesh => "网格（分段仿射）",
             _ => kind.ToString()
         };
 

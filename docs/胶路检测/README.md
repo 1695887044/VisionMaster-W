@@ -3,7 +3,7 @@
 本目录是**胶路检测插件（`Plugin.BeadInspect`）**的专题文档目录。
 
 > ✅ **插件已实现（2026-10-05）**：`Plugins\Plugin.BeadInspect\` 与 `FlowCanvasChecks\BeadInspectChecks.cs` 已落地，
-> 胶路断言 60 项全绿；改动记录见 [`../code-changes/2026-10-05-胶路检测插件（BeadInspect）两批实现与审查修复.md`](../code-changes/2026-10-05-胶路检测插件（BeadInspect）两批实现与审查修复.md)。
+> 胶路断言 **64 项全绿**（含 2026-10-05 通用性改进的断言 16）；改动记录见 [`../code-changes/2026-10-05-胶路检测插件（BeadInspect）两批实现与审查修复.md`](../code-changes/2026-10-05-胶路检测插件（BeadInspect）两批实现与审查修复.md)。
 > 本目录仍是主文档所在专题目录（AGENTS.md R8：现行设计文档**不进归档**），持续维护。
 > 步骤 5 的 **UI 人工验收待用户**（WPF 鼠标管线无法自动化断言，见主文档 §8.2 / §11）。
 >
@@ -28,7 +28,7 @@
 | 四 | 配置参数（`[StepConfig]` 三选一写法逐项标注；`TargetWidth` 含下限钩子） |
 | 五 | **运行语义**：执行流程、失配强制失败表、模型生命周期（缓存与指纹）、**mm 换算与失配** |
 | 六 | 配置界面：布局 + **不改共享控件的逐点拾取** + 矫正四边形 + **自动提取中心线算法链（已实测）** |
-| 七 | **验证计划**：**§7.1 探针实测结论 P1~P12（已完成）** + 15 条断言（**已落地：60 项全绿，2026-10-05**）+ 端到端组合 |
+| 七 | **验证计划**：**§7.1 探针实测结论 P1~P12（已完成）** + 16 条断言（**已落地：64 项全绿，2026-10-05**）+ 端到端组合 |
 | 八 | 文件清单与实施步骤（9 步，**步骤 2~9 已完成（2026-10-05）**；步骤 5 的 UI 人工验收待用户）+ 工程纪律（四条红线） |
 | 九 | 二期路线（接口先留位） |
 | 十 | **通用性分析** + **10 条硬约束（全部实测确认）** |
@@ -45,6 +45,7 @@
 4. **mm 失配必须失败**：接了标定插件 `Transform` 但图像尺寸不符 → 直接 `Fail`，**绝不静默用旧标定**（口径照抄 `PoseTransform`）。
 5. **`target_thickness` 下限是 6**（探针 P10 实测，<6 报 #3716）→ 插件必须做下限保护，别把英文算子错误抛给操作员。
 6. **骨架必须按「树直径」合并**（探针 P6 实测：只取最长一条只覆盖 68.9%，未覆盖处误判缺胶）→ 提取算法照抄探针已验证的实现，别自己重新设计。
+7. **换工位/相机 → 调配置界面「③ 平面匹配搜索范围」，不要改代码**（2026-10-05 提成 `[StepConfig]`，见主文档 §4.4）；但**默认值是范例实测口径，不许随手调**——调默认 = 改已验证行为（真值表断言用弧度字面量直呼算子层，与默认值解耦）。
 
 ---
 
@@ -78,12 +79,12 @@
 | `../../Plugins/Plugin.BeadInspect/BeadInspectHalcon.cs` | 纯算子层：折线路径 / bead 模型 / 平面可变形对齐 / 参考图差分与 black-hat 提取 / 树直径合并 / 托管等距抽稀 / 有向 Hausdorff（探针三方法已移植在位） |
 | `../../Plugins/Plugin.BeadInspect/BeadInspectEnums.cs` | 对齐模式 / 单位 / 极性等枚举 |
 | `../../Plugins/Plugin.BeadInspect/Models/BeadRecipeEntry.cs` | 配方条目（落盘 DTO）+ `BuildBeadSignature` 指纹**唯一出处** |
-| `../../Plugins/Plugin.BeadInspect/BeadInspectView.xaml(.cs)` | 配置界面（左配方 + 右画布 + 点列表格） |
+| `../../Plugins/Plugin.BeadInspect/BeadInspectView.xaml(.cs)` | 配置界面（⓪输入绑定 + ①配方库 + ②运行参数 + ③平面匹配搜索范围 + ④怎么用 + 右画布/点列表格）。⓪卡是 2026-10-05 补的（最初缺 `LinkableValueEditor`，上游图绑不了）；③卡是同日**通用性改进**补的（搜索范围提成 `[StepConfig]`，换工位不用改代码，见主文档 §4.4） |
 | `../../Plugins/Plugin.BeadInspect/BeadInspectPluginConfigView.cs` | `IPluginCustomViewProvider` partial 实现 |
 | `../../Plugins/Plugin.BeadInspect/BeadPathEditor.cs` | 画布插点 / 删点 / 命中几何——**界面与断言 12 共用同一份** |
 | `../../Plugins/Plugin.BeadInspect/BeadViewModels.cs` | 配方 / 点列行 ViewModel |
 | `../../Plugins/Plugin.BeadInspect/EnumDisplayNameConverter.cs` | 枚举显示名（中文化）转换器 |
-| `../../FlowCanvasChecks/BeadInspectChecks.cs` | 回归断言（**已创建**）：§7.2 断言 1~15 + UI 样式契约，共 60 项；真值表 = 探针 P4 实测，容差 8 |
+| `../../FlowCanvasChecks/BeadInspectChecks.cs` | 回归断言（**已创建**）：§7.2 断言 1~16 + UI 样式契约 + UI 绑定卡运行时断言，共 64 项；真值表 = 探针 P4 实测，容差 8 |
 | `../../tools/BeadProbe/` | ✅ **探针工程（使命完成，可删）**——`SegmentBeadByRefDiff` / `LongestPathThroughTree` / `Downsample` 三个方法已移植进 `BeadInspectHalcon`；`probe_result.txt` 是原始实测输出 |
 | `../../tools/SolutionProbe/` | ✅ **方案生成与验证台（使命完成，可删）**——用宿主 `SolutionService` 生成演示方案并走 `LoadAsync→FlowCompiler→Run` 全链路验证（7/7 真值一致）；改演示方案参数时可在删除前复用 |
 | `../../Image/bead/` | HALCON 官方范例与 7 张样图（`apply_bead_inspection_model.hdev` + `adhesive_bead_01..07` + `_ref`） |
@@ -128,4 +129,4 @@
 4. **HALCON 新坑追加到主文档** §10.2 硬约束表或第十一章风险表，注明「现象 → 原因 → 修法」；探针里已记两条（`distance_cc` 的 max 语义、`gen_polygons_xld` 不可用）。
 5. **端口名一经发布即是对外契约**，改名 = 断链；确需改名须同步 `FlowCanvasChecks` 断言（7.2 节断言 8 就是为此设的锁）。
 6. **重建纪律**：改插件源码后必须重建插件工程；`Modules\` 不由宿主工程带出（红线③）。
-7. **探针工程处置**：`tools\BeadProbe\` 不在 `Plugins\` 下、不进 .sln，不影响主构建；**断言已落地并跑通（2026-10-05，60 项全绿），探针工程可删**——删除前确认 `BeadInspectHalcon.cs` 已含 `SegmentBeadByRefDiff` / `LongestPathThroughTree` / `Downsample` 三个移植方法（现已全部在位）。
+7. **探针工程处置**：`tools\BeadProbe\` 不在 `Plugins\` 下、不进 .sln，不影响主构建；**断言已落地并跑通（2026-10-05，64 项全绿），探针工程可删**——删除前确认 `BeadInspectHalcon.cs` 已含 `SegmentBeadByRefDiff` / `LongestPathThroughTree` / `Downsample` 三个移植方法（现已全部在位）。
