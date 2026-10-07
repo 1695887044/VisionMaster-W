@@ -24,6 +24,8 @@
         <ResourceDictionary Source="/UI;component/Themes/Controls/Input.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Controls/Selection.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Controls/List.xaml" />
+        <!--  ListView+GridView 的"让路"样式（App.xaml 合并的 Fluent 主题会把列头/列布局顶掉）  -->
+        <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Controls/DataGrid.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Controls/Navigation.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Controls/Layout.xaml" />

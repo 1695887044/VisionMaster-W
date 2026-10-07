@@ -67,6 +67,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      软件自带手册：编进宿主程序集（HelpCatalogService 按 "<程序集名>.Help." 前缀约定发现）。
+      为什么编进程序集而不是随目录投放：部署面只有程序目录这一份，手册与程序同生共死——
+      不会出现"换了台机器手册没拷过去"（与插件手册走内嵌资源同一口径）。
+      新增/改名手册页 = 改这个目录下的 md 文件即可，目录顺序按文件名（01-/02-…）。
+    -->
+    <EmbeddedResource Include="Help\*.md" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Page Update="Shell.xaml">
       <Generator>MSBuild:Compile</Generator>
       <XamlRuntime>$(DefaultXamlRuntime)</XamlRuntime>

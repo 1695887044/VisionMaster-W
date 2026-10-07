@@ -6,5 +6,89 @@
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="clr-namespace:UI.CustomControl;assembly=UI"
     prism:ViewModelLocator.AutoWireViewModel="True">
-    <ui:LogConsole ItemsSource="{Binding SystemLogs}" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <!--  日志区：MaxItems 限制面板保留条数（超出裁掉最旧的），完整历史以 Logs\yyyy-MM-dd.log 为准  -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            过滤工具条：搜索 / 等级 / 跟随最新 —— 这三个控件是 LogConsole 三个依赖属性
+            （SearchText / FilterLevel / AutoScroll）的界面入口；没有它们，
+            控件里那套过滤与"智能滚动"在真机上根本没路可走。
+            配色取本控件自己的亮色系（面板 #FAFAFA / 分组表头 #E9EEF5 / 边框 #E5E5E5），
+            写法与 MonitorView 的工具条一致（浅底 + 细边 + 透明 TextBox）。
+        -->
+        <Border
+            Grid.Row="0"
+            Padding="10,6"
+            Background="#F1F4F8"
+            BorderBrush="#DCE3EB"
+            BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    Margin="0,0,8,0"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    FontWeight="SemiBold"
+                    Foreground="#5A6472"
+                    Text="搜索:" />
+
+                <TextBox
+                    Grid.Column="1"
+                    Margin="0,0,12,0"
+                    VerticalContentAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    FontSize="13"
+                    Foreground="#333333"
+                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                    ToolTip="匹配日志正文与来源，忽略大小写；输入停顿 200ms 后刷新列表" />
+
+                <TextBlock
+                    Grid.Column="2"
+                    Margin="0,0,6,0"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    FontWeight="SemiBold"
+                    Foreground="#5A6472"
+                    Text="等级:" />
+
+                <ComboBox
+                    Grid.Column="3"
+                    MinWidth="86"
+                    VerticalAlignment="Center"
+                    DisplayMemberPath="Text"
+                    ItemsSource="{Binding LevelOptions}"
+                    SelectedItem="{Binding LevelOption}"
+                    ToolTip="按日志等级筛选（「全部」= 不限等级）" />
+
+                <CheckBox
+                    Grid.Column="4"
+                    Margin="14,0,0,0"
+                    VerticalAlignment="Center"
+                    Content="跟随最新"
+                    IsChecked="{Binding AutoScroll}"
+                    ToolTip="勾选时贴着最新日志滚动；你往上翻会自动暂停，翻回底部自动恢复" />
+            </Grid>
+        </Border>
+
+        <ui:LogConsole
+            Grid.Row="1"
+            AutoScroll="{Binding AutoScroll}"
+            FilterLevel="{Binding FilterLevel}"
+            ItemsSource="{Binding SystemLogs}"
+            MaxItems="2000"
+            SearchText="{Binding SearchText}" />
+    </Grid>
 </UserControl>

@@ -286,6 +286,13 @@ namespace FlowCanvasChecks
             var outcome = new RunOutcome();
 
             var collect = flow.Steps[0];
+            // 夹具：这份 .vms 里采集步骤配的是「相机采集」（要 VIRTUAL-001 虚拟相机，跑批环境里没有）。
+            // 强制改成「指定单张图像」——本检查验的是线序逻辑，采集通路不是被测对象。
+            // （早先只设 FilePath 不设 Mode，采集仍走相机通路 → 每次跑都报"找不到相机"，
+            //   把整组断言连带跑红，掩盖了 C# 脚本编译失败那条真缺陷。）
+            var modeType = Type.GetType("Plugin.ImageAcquisition.AcquisitionMode, Plugin.ImageAcquisition", throwOnError: false);
+            if (modeType != null)
+                collect.SetInputValue("Mode", Enum.ToObject(modeType, 0));   // 0 = SingleFile
             collect.SetInputValue("FilePath", imagePath);
 
             if (elseIfExpr != null && flow.Steps[2] is ConditionStep pickStep && pickStep.Children.Count >= 2)
@@ -295,6 +302,9 @@ namespace FlowCanvasChecks
 
             var workspace = new WorkspaceContext();
             workspace.SwitchSolution(solution);
+            // 夹具：正式软件加载方案时会把 VariableSnapshots 重建进 GlobalVariables
+            // （流程里的「变量赋值」步骤要用其中的 Img）；检查宿主只 SwitchSolution 不会重建 → 手动补一步
+            VariablePersistenceService.Restore(solution, workspace);
 
             var steps = flow.Steps.ToArray();
             var compiled = new FlowCompiler(workspace).Compile(steps, FlowName);

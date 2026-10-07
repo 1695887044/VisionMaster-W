@@ -1,0 +1,16 @@
+# Repository-wide diagnostic policy.
+# Keep this file pure ASCII: this machine's legacy codepage is GBK and a
+# mis-decoded comment can swallow the next rule line (see AGENTS.md section 1).
+root = true
+
+[*.cs]
+# CS8618 "non-nullable field must contain a non-null value when exiting constructor".
+# Fires ~164 times across this codebase (590 distinct warnings, 94% nullable family).
+# The flagged fields are mostly WPF dependency properties / HALCON handles assigned
+# after construction, or legitimately null when HalconRuntime is unavailable, so
+# this warning is annotation noise here, not a defect.
+# Genuinely useful nullable checks (CS8602 / CS8603 / CS8604 / CS8625 possible null
+# dereference and friends) stay ON.
+# Flip the value to "suggestion" to keep an IDE breadcrumb, or delete the line to
+# restore the warning.
+dotnet_diagnostic.CS8618.severity = none

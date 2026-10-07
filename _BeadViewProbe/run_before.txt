@@ -1,0 +1,56 @@
+=== 行为自检 ===
+  [FAIL] D1① 无参考图 + 输入图 → 底图 = 输入图  ((空))
+  [FAIL] D3① 底图=输入图 → Warning 级提示 + 文案点名输入图  ([Info] )
+  [PASS] D1 有图时画布不是空态  (IsCanvasEmpty=False)
+  [FAIL] D1② 有参考图 → 底图 = 参考图（优先于输入图）  ([Info] )
+  [FAIL] D1④ 无参考图且无输入图 → 底图空 + 空态  (IsCanvasEmpty=False)
+  [FAIL] D1④ 空态文案（画布中央提示用同一句）
+  [FAIL] D4 无底图时 AddPoint 被拒（点列不增 + 红字）  (点列=1 [Info] 已加点 #1（自动插到最近线段之间）：共 1 点)
+  [PASS] D4 无底图时 DeleteNearestPoint 被拒  (点列=0)
+  [FAIL] D4 无底图时 BeginPointDrag 被拒  (drag=False [Info] 已删除点 #1：剩 0 点)
+  [PASS] D2 非 UI 线程给 SrcImage 赋值不抛
+  [FAIL] D2 投入 UI 线程后底图更新为输入图  ((空))
+  [FAIL] D5 AlignMode=None + 无参考图 → 学习不被参考图检查拦下  (参考图不存在：。请先填有效路径再学习)
+  [FAIL] D5 学习走到建模型并写入指纹  ((空))
+  [PASS] D5 反证：平面可变形 + 无参考图 → 仍拒绝学习（提示参考图）  (参考图不存在：。请先填有效路径再学习)
+>> 已存 D:\C#\VM\_BeadViewProbe\before_620x640_input.png
+   [620x640_input] 工具栏按钮 17 个 / 占 9 行；文字裁切 0 处；省略号截断 4 处
+     [TRIM] "配方名 RecipeName（多产品…" actual=112.0 need=244.3
+     [TRIM] "对齐图 AlignedImage（仅…" actual=112.0 need=263.8
+     [TRIM] "检测区域 RoiRegion（可选，…" actual=112.0 need=218.7
+     [TRIM] "标定 Transform（mm 输出…" actual=112.0 need=184.2
+   [620x640_input] 画布标题 (367,104,224x22) / 提示 (134,104,457x22) → 重叠=True
+   [620x640_input] 空态提示 TextBlock=无
+   [620x640_input] ListBox 高=110 条目=2
+   [620x640_input] 底部提示 (367,480,424x16) 高=16 在视口内=True
+>> 已存 D:\C#\VM\_BeadViewProbe\before_1100x900_input.png
+   [1100x900_input] 工具栏按钮 17 个 / 占 9 行；文字裁切 0 处；省略号截断 4 处
+     [TRIM] "配方名 RecipeName（多产品…" actual=112.0 need=244.3
+     [TRIM] "对齐图 AlignedImage（仅…" actual=112.0 need=263.8
+     [TRIM] "检测区域 RoiRegion（可选，…" actual=112.0 need=218.7
+     [TRIM] "标定 Transform（mm 输出…" actual=112.0 need=184.2
+   [1100x900_input] 画布标题 (367,104,704x22) / 提示 (614,104,457x22) → 重叠=True
+   [1100x900_input] 空态提示 TextBlock=无
+   [1100x900_input] ListBox 高=110 条目=2
+   [1100x900_input] 底部提示 (367,674,424x16) 高=16 在视口内=True
+>> 已存 D:\C#\VM\_BeadViewProbe\before_620x640_empty.png
+   [620x640_empty] 工具栏按钮 17 个 / 占 9 行；文字裁切 0 处；省略号截断 4 处
+     [TRIM] "配方名 RecipeName（多产品…" actual=112.0 need=244.3
+     [TRIM] "对齐图 AlignedImage（仅…" actual=112.0 need=263.8
+     [TRIM] "检测区域 RoiRegion（可选，…" actual=112.0 need=218.7
+     [TRIM] "标定 Transform（mm 输出…" actual=112.0 need=184.2
+   [620x640_empty] 画布标题 (367,104,224x22) / 提示 (134,104,457x22) → 重叠=True
+   [620x640_empty] 空态提示 TextBlock=无
+   [620x640_empty] ListBox 高=110 条目=2
+   [620x640_empty] 底部提示 (367,480,424x16) 高=16 在视口内=True
+>> 已存 D:\C#\VM\_BeadViewProbe\before_1100x900_ref.png
+   [1100x900_ref] 工具栏按钮 17 个 / 占 9 行；文字裁切 0 处；省略号截断 4 处
+     [TRIM] "配方名 RecipeName（多产品…" actual=112.0 need=244.3
+     [TRIM] "对齐图 AlignedImage（仅…" actual=112.0 need=263.8
+     [TRIM] "检测区域 RoiRegion（可选，…" actual=112.0 need=218.7
+     [TRIM] "标定 Transform（mm 输出…" actual=112.0 need=184.2
+   [1100x900_ref] 画布标题 (367,104,704x22) / 提示 (614,104,457x22) → 重叠=True
+   [1100x900_ref] 空态提示 TextBlock=无
+   [1100x900_ref] ListBox 高=110 条目=2
+   [1100x900_ref] 底部提示 (367,674,424x16) 高=16 在视口内=True
+### PROBE: 14 项失败

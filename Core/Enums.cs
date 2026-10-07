@@ -210,7 +210,13 @@ namespace VisionMaster
         MotionBoard,
 
         /// <summary>轴点位表（每轴 16 点：位置/速度/加减速/曲线 + 走此点）</summary>
-        AxisPoints
+        AxisPoints,
+
+        /// <summary>
+        /// 帮助手册：把"软件自带手册 + 各插件自带手册"合并成一本打开（含未写手册插件的自动生成页）。
+        /// 追加在末尾——理由见 <see cref="RuntimeWindowSettings"/>（枚举整数值可能已落盘）。
+        /// </summary>
+        Help
     }
 
     /// <summary>
@@ -240,16 +246,22 @@ namespace VisionMaster
     }
 
     /// <summary>
-    /// 步骤状态枚举
+    /// 步骤运行状态。
+    ///
+    /// 纯运行期语义：每轮开跑前 <c>StepModel.ResetState()</c> 会把它清回 <see cref="Idle"/>，
+    /// 界面的红/绿/灰全部由它驱动；**不是业务结论的载体**（业务结论看步骤的输出端口与日志）。
+    /// 因此增删成员只影响界面的临时显示，不需要任何数据迁移。
+    ///
+    /// 2026-10-05：删掉了从未被赋值的 <c>Warning</c> / <c>Cancel</c> 两个死值（项目未落地，
+    /// 无历史 .vms 依赖它们的数值；仓库既有 .vms 里残留的旧数字会在首次运行时被 ResetState 抹平）。
+    /// 保留的 5 个值对应引擎里真实存在的五种结局：待跑 / 运行中 / 成功 / 失败 / 跳过（被禁或未进入分支）。
     /// </summary>
     public enum StepState
     {
         Idle,
         Running,
         Success,
-        Warning,
         Failed,
-        Cancel,
         Skipped
     }
 

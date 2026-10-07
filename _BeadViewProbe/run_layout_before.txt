@@ -1,0 +1,404 @@
+=== 行为自检 ===
+  [PASS] D1① 无参考图 + 输入图 → 底图 = 输入图  (1280x1024)
+  [PASS] D3① 底图=输入图 → Warning 级提示 + 文案点名输入图  ([Warning] 底图：输入图（尚未设参考图）——若用「平面可变形」对齐，请先设参考图并点「载入」；固定相机模式可直接拾取)
+  [PASS] D1 有图时画布不是空态  (IsCanvasEmpty=False)
+  [PASS] D1② 有参考图 → 底图 = 参考图（优先于输入图）  ([Info] 底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标)
+  [PASS] D1④ 无参考图且无输入图 → 底图空 + 空态  (IsCanvasEmpty=True)
+  [PASS] D1④ 空态文案（画布中央提示用同一句）  (尚未载入图像：绑定上游输入图，或在 ①配方库 填参考图路径后点「载入」)
+  [PASS] D4 无底图时 AddPoint 被拒（点列不增 + 红字）  (点列=0 [Error] 请先载入图像（绑定输入图或填参考图路径）再拾取点)
+  [PASS] D4 无底图时 DeleteNearestPoint 被拒  (点列=0)
+  [PASS] D4 无底图时 BeginPointDrag 被拒  (drag=False [Error] 请先载入图像（绑定输入图或填参考图路径）再拾取点)
+  [PASS] D2 非 UI 线程给 SrcImage 赋值不抛
+  [PASS] D2 投入 UI 线程后底图更新为输入图  (1280x1024)
+  [PASS] D5 AlignMode=None + 无参考图 → 学习不被参考图检查拦下  (配方「配方1」学习完成：胶宽 15.3 / 容差 8 / 位置容差 30 / 极性 dark。改参数后需重学（列表会显示「参数已变」）)
+  [PASS] D5 学习走到建模型并写入指纹  (已写指纹)
+  [PASS] D5 反证：平面可变形 + 无参考图 → 仍拒绝学习（提示参考图）  (参考图不存在：。平面可变形对齐需要参考图（模板 + 坐标系基准），请先填有效路径再学习)
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_620x640_input.png
+   [620x640_input] 工具栏按钮 7 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_input] 结果横幅 = (空：尚未点过「学习」)
+   [620x640_input] 画布标题 (367,202,224x22) / 提示 (367,228,252x16) → 重叠=False
+   [620x640_input] 画布空态提示 TextBlock=无
+   [620x640_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=224x22 desired=112x22 bounds=(367,202,224x22)
+     [CHAIN·画布标题] StackPanel actual=224x58 desired=224x58 bounds=(367,202,224x58)
+     [CHAIN·画布标题] Border actual=224x64 desired=224x64 bounds=(367,202,224x64)
+     [CHAIN·画布标题] DockPanel actual=224x178 desired=224x90 bounds=(367,202,224x178)
+     [CHAIN·画布标题] Border actual=258x212 desired=258x132 bounds=(350,186,258x212)
+     [CHAIN·画布标题] Grid actual=258x874 desired=266x616 bounds=(350,12,258x874)
+        rows=[166,220,306,183] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=620x640 bounds=(12,12,596x616)
+        cols=[330,266] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_input] 右列 可用=258x874 rows=[166,220,306,183] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=874 溢出=0
+   [620x640_input] 卡·工具条 bounds=(0,0,258x166) 高=166 在右列内=True
+   [620x640_input] 卡·画布卡 bounds=(0,174,258x212) 高=212 在右列内=True
+   [620x640_input] 卡·参数/点列卡 bounds=(0,394,258x298) 高=298 在右列内=True
+   [620x640_input] 卡·状态面板（第4行） bounds=(0,700,138x175) 高=175 在右列内=True
+   [620x640_input] 卡·预览卡（第4行） bounds=(146,700,112x175) 高=175 在右列内=True
+   [620x640_input] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [620x640_input] 工具条 可用宽=224 一行所需=630 实占=3 行 按钮=7
+   [620x640_input] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [620x640_input] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=616 左列可滚=678
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_620x900_input.png
+   [620x900_input] 工具栏按钮 7 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x900_input] 结果横幅 = (空：尚未点过「学习」)
+   [620x900_input] 画布标题 (367,202,224x22) / 提示 (367,228,252x16) → 重叠=False
+   [620x900_input] 画布空态提示 TextBlock=无
+   [620x900_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=224x22 desired=112x22 bounds=(367,202,224x22)
+     [CHAIN·画布标题] StackPanel actual=224x58 desired=224x58 bounds=(367,202,224x58)
+     [CHAIN·画布标题] Border actual=224x64 desired=224x64 bounds=(367,202,224x64)
+     [CHAIN·画布标题] DockPanel actual=224x180 desired=224x90 bounds=(367,202,224x180)
+     [CHAIN·画布标题] Border actual=258x214 desired=258x132 bounds=(350,186,258x214)
+     [CHAIN·画布标题] Grid actual=258x876 desired=266x874 bounds=(350,12,258x876)
+        rows=[166,222,306,183] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=596x876 desired=620x900 bounds=(12,12,596x876)
+        cols=[330,266] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x900 desired=620x900 bounds=(0,0,620x900)
+     [CHAIN·画布标题] Border actual=620x900 desired=620x900 bounds=(0,0,620x900)
+     [CHAIN·画布标题] BeadInspectView actual=620x900 desired=620x900 bounds=(0,0,620x900)
+   [620x900_input] 右列 可用=258x876 rows=[166,222,306,183] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=876 溢出=0
+   [620x900_input] 卡·工具条 bounds=(0,0,258x166) 高=166 在右列内=True
+   [620x900_input] 卡·画布卡 bounds=(0,174,258x214) 高=214 在右列内=True
+   [620x900_input] 卡·参数/点列卡 bounds=(0,395,258x298) 高=298 在右列内=True
+   [620x900_input] 卡·状态面板（第4行） bounds=(0,701,138x175) 高=175 在右列内=True
+   [620x900_input] 卡·预览卡（第4行） bounds=(146,701,112x175) 高=175 在右列内=True
+   [620x900_input] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [620x900_input] 工具条 可用宽=224 一行所需=630 实占=3 行 按钮=7
+   [620x900_input] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [620x900_input] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=876 左列可滚=418
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_1100x900_input.png
+   [1100x900_input] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x900_input] 结果横幅 = (空：尚未点过「学习」)
+   [1100x900_input] 画布标题 (367,130,704x22) / 提示 (367,155,704x16) → 重叠=False
+   [1100x900_input] 画布空态提示 TextBlock=无
+   [1100x900_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=704x22 desired=112x22 bounds=(367,130,704x22)
+     [CHAIN·画布标题] StackPanel actual=704x58 desired=252x58 bounds=(367,130,704x58)
+     [CHAIN·画布标题] Border actual=704x64 desired=252x64 bounds=(367,130,704x64)
+     [CHAIN·画布标题] DockPanel actual=704x346 desired=252x90 bounds=(367,130,704x346)
+     [CHAIN·画布标题] Border actual=738x380 desired=286x132 bounds=(350,112,738x380)
+     [CHAIN·画布标题] Grid actual=738x876 desired=728x708 bounds=(350,12,738x876)
+        rows=[92,388,306,89] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1076x876 desired=1082x900 bounds=(12,12,1076x876)
+        cols=[330,746] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] Border actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] BeadInspectView actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+   [1100x900_input] 右列 可用=738x876 rows=[92,388,306,89] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=876 溢出=0
+   [1100x900_input] 卡·工具条 bounds=(0,0,738x92) 高=92 在右列内=True
+   [1100x900_input] 卡·画布卡 bounds=(0,100,738x380) 高=380 在右列内=True
+   [1100x900_input] 卡·参数/点列卡 bounds=(0,489,738x298) 高=298 在右列内=True
+   [1100x900_input] 卡·状态面板（第4行） bounds=(0,795,461x81) 高=81 在右列内=True
+   [1100x900_input] 卡·预览卡（第4行） bounds=(469,795,269x81) 高=81 在右列内=True
+   [1100x900_input] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [1100x900_input] 工具条 可用宽=704 一行所需=630 实占=1 行 按钮=7
+   [1100x900_input] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [1100x900_input] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=876 左列可滚=418
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_620x640_empty.png
+   [620x640_empty] 工具栏按钮 7 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_empty] 结果横幅 = (空：尚未点过「学习」)
+   [620x640_empty] 画布标题 (367,202,224x22) / 提示 (367,228,252x16) → 重叠=False
+   [620x640_empty] 画布空态提示 Visible actual=118x62 bounds=(360,786,118x62)
+     [CLIP] 画布空态提示超出视口
+   [620x640_empty] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=224x22 desired=112x22 bounds=(367,202,224x22)
+     [CHAIN·画布标题] StackPanel actual=224x58 desired=224x58 bounds=(367,202,224x58)
+     [CHAIN·画布标题] Border actual=224x64 desired=224x64 bounds=(367,202,224x64)
+     [CHAIN·画布标题] DockPanel actual=224x178 desired=224x144 bounds=(367,202,224x178)
+     [CHAIN·画布标题] Border actual=258x212 desired=258x186 bounds=(350,186,258x212)
+     [CHAIN·画布标题] Grid actual=258x844 desired=266x616 bounds=(350,12,258x844)
+        rows=[166,220,306,152] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=620x640 bounds=(12,12,596x616)
+        cols=[330,266] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_empty] 右列 可用=258x844 rows=[166,220,306,152] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=844 溢出=0
+   [620x640_empty] 卡·工具条 bounds=(0,0,258x166) 高=166 在右列内=True
+   [620x640_empty] 卡·画布卡 bounds=(0,174,258x212) 高=212 在右列内=True
+   [620x640_empty] 卡·参数/点列卡 bounds=(0,394,258x298) 高=298 在右列内=True
+   [620x640_empty] 卡·状态面板（第4行） bounds=(0,700,138x144) 高=144 在右列内=True
+   [620x640_empty] 卡·预览卡（第4行） bounds=(146,700,112x144) 高=144 在右列内=True
+   [620x640_empty] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [620x640_empty] 工具条 可用宽=224 一行所需=630 实占=3 行 按钮=7
+   [620x640_empty] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [620x640_empty] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=616 左列可滚=678
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_1100x900_ref.png
+   [1100x900_ref] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x900_ref] 结果横幅 = (空：尚未点过「学习」)
+   [1100x900_ref] 画布标题 (367,130,704x22) / 提示 (367,155,704x16) → 重叠=False
+   [1100x900_ref] 画布空态提示 TextBlock=无
+   [1100x900_ref] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=704x22 desired=112x22 bounds=(367,130,704x22)
+     [CHAIN·画布标题] StackPanel actual=704x58 desired=252x58 bounds=(367,130,704x58)
+     [CHAIN·画布标题] Border actual=704x64 desired=252x64 bounds=(367,130,704x64)
+     [CHAIN·画布标题] DockPanel actual=704x346 desired=252x90 bounds=(367,130,704x346)
+     [CHAIN·画布标题] Border actual=738x380 desired=286x132 bounds=(350,112,738x380)
+     [CHAIN·画布标题] Grid actual=738x876 desired=728x708 bounds=(350,12,738x876)
+        rows=[92,388,306,90] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1076x876 desired=1082x900 bounds=(12,12,1076x876)
+        cols=[330,746] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] Border actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] BeadInspectView actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+   [1100x900_ref] 右列 可用=738x876 rows=[92,388,306,90] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=876 溢出=0
+   [1100x900_ref] 卡·工具条 bounds=(0,0,738x92) 高=92 在右列内=True
+   [1100x900_ref] 卡·画布卡 bounds=(0,100,738x380) 高=380 在右列内=True
+   [1100x900_ref] 卡·参数/点列卡 bounds=(0,488,738x298) 高=298 在右列内=True
+   [1100x900_ref] 卡·状态面板（第4行） bounds=(0,794,461x82) 高=82 在右列内=True
+   [1100x900_ref] 卡·预览卡（第4行） bounds=(469,794,269x82) 高=82 在右列内=True
+   [1100x900_ref] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [1100x900_ref] 工具条 可用宽=704 一行所需=630 实占=1 行 按钮=7
+   [1100x900_ref] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [1100x900_ref] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=876 左列可滚=418
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_1490x880_learn_fail.png
+   [1490x880_learn_fail] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1490x880_learn_fail] 结果横幅（Error） bounds=(377,102,1074x16) 视口=1490x880 在视口内=True
+   [1490x880_learn_fail] 横幅文字 = "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请在「① 配方库」填参考图路径并点「载入」，或把「对齐模式」改成「固定相机」"
+   [1490x880_learn_fail] 画布标题 (367,167,1094x22) / 提示 (367,192,1094x16) → 重叠=False
+   [1490x880_learn_fail] 画布空态提示 TextBlock=无
+   [1490x880_learn_fail] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=1094x22 desired=112x22 bounds=(367,167,1094x22)
+     [CHAIN·画布标题] StackPanel actual=1094x58 desired=252x58 bounds=(367,167,1094x58)
+     [CHAIN·画布标题] Border actual=1094x64 desired=252x64 bounds=(367,167,1094x64)
+     [CHAIN·画布标题] DockPanel actual=1094x289 desired=252x90 bounds=(367,167,1094x289)
+     [CHAIN·画布标题] Border actual=1128x323 desired=286x132 bounds=(350,150,1128x323)
+     [CHAIN·画布标题] Grid actual=1128x856 desired=984x745 bounds=(350,12,1128x856)
+        rows=[130,331,306,89] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1466x856 desired=1338x880 bounds=(12,12,1466x856)
+        cols=[330,1136] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1490x880 desired=1338x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] Border actual=1490x880 desired=1338x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] BeadInspectView actual=1490x880 desired=1338x880 bounds=(0,0,1490x880)
+   [1490x880_learn_fail] 右列 可用=1128x856 rows=[130,331,306,89] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=856 溢出=0
+   [1490x880_learn_fail] 卡·工具条 bounds=(0,0,1128x130) 高=130 在右列内=True
+   [1490x880_learn_fail] 卡·画布卡 bounds=(0,138,1128x323) 高=323 在右列内=True
+   [1490x880_learn_fail] 卡·参数/点列卡 bounds=(0,469,1128x298) 高=298 在右列内=True
+   [1490x880_learn_fail] 卡·状态面板（第4行） bounds=(0,775,788x81) 高=81 在右列内=True
+   [1490x880_learn_fail] 卡·预览卡（第4行） bounds=(796,775,332x81) 高=81 在右列内=True
+   [1490x880_learn_fail] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [1490x880_learn_fail] 工具条 可用宽=1094 一行所需=630 实占=1 行 按钮=7
+   [1490x880_learn_fail] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [1490x880_learn_fail] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=856 左列可滚=438
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_1490x880_learn_ok.png
+   [1490x880_learn_ok] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1490x880_learn_ok] 结果横幅（Info） bounds=(377,102,1074x16) 视口=1490x880 在视口内=True
+   [1490x880_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1490x880_learn_ok] 画布标题 (367,167,1094x22) / 提示 (367,192,1094x16) → 重叠=False
+   [1490x880_learn_ok] 画布空态提示 TextBlock=无
+   [1490x880_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=1094x22 desired=112x22 bounds=(367,167,1094x22)
+     [CHAIN·画布标题] StackPanel actual=1094x58 desired=252x58 bounds=(367,167,1094x58)
+     [CHAIN·画布标题] Border actual=1094x64 desired=252x64 bounds=(367,167,1094x64)
+     [CHAIN·画布标题] DockPanel actual=1094x289 desired=252x90 bounds=(367,167,1094x289)
+     [CHAIN·画布标题] Border actual=1128x323 desired=286x132 bounds=(350,150,1128x323)
+     [CHAIN·画布标题] Grid actual=1128x856 desired=954x745 bounds=(350,12,1128x856)
+        rows=[130,331,306,89] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1466x856 desired=1308x880 bounds=(12,12,1466x856)
+        cols=[330,1136] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1490x880 desired=1308x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] Border actual=1490x880 desired=1308x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] BeadInspectView actual=1490x880 desired=1308x880 bounds=(0,0,1490x880)
+   [1490x880_learn_ok] 右列 可用=1128x856 rows=[130,331,306,89] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=856 溢出=0
+   [1490x880_learn_ok] 卡·工具条 bounds=(0,0,1128x130) 高=130 在右列内=True
+   [1490x880_learn_ok] 卡·画布卡 bounds=(0,138,1128x323) 高=323 在右列内=True
+   [1490x880_learn_ok] 卡·参数/点列卡 bounds=(0,469,1128x298) 高=298 在右列内=True
+   [1490x880_learn_ok] 卡·状态面板（第4行） bounds=(0,775,788x81) 高=81 在右列内=True
+   [1490x880_learn_ok] 卡·预览卡（第4行） bounds=(796,775,332x81) 高=81 在右列内=True
+   [1490x880_learn_ok] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [1490x880_learn_ok] 工具条 可用宽=1094 一行所需=630 实占=1 行 按钮=7
+   [1490x880_learn_ok] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [1490x880_learn_ok] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=856 左列可滚=438
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_1100x800_learn_ok.png
+   [1100x800_learn_ok] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x800_learn_ok] 结果横幅（Info） bounds=(377,102,684x31) 视口=1100x800 在视口内=True
+   [1100x800_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1100x800_learn_ok] 画布标题 (367,182,704x22) / 提示 (367,208,704x16) → 重叠=False
+   [1100x800_learn_ok] 画布空态提示 TextBlock=无
+   [1100x800_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=704x22 desired=112x22 bounds=(367,182,704x22)
+     [CHAIN·画布标题] StackPanel actual=704x58 desired=252x58 bounds=(367,182,704x58)
+     [CHAIN·画布标题] Border actual=704x64 desired=252x64 bounds=(367,182,704x64)
+     [CHAIN·画布标题] DockPanel actual=704x192 desired=252x90 bounds=(367,182,704x192)
+     [CHAIN·画布标题] Border actual=738x226 desired=286x132 bounds=(350,166,738x226)
+     [CHAIN·画布标题] Grid actual=738x776 desired=740x762 bounds=(350,12,738x776)
+        rows=[146,234,306,90] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1076x776 desired=1094x800 bounds=(12,12,1076x776)
+        cols=[330,746] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x800 desired=1094x800 bounds=(0,0,1100x800)
+     [CHAIN·画布标题] Border actual=1100x800 desired=1094x800 bounds=(0,0,1100x800)
+     [CHAIN·画布标题] BeadInspectView actual=1100x800 desired=1094x800 bounds=(0,0,1100x800)
+   [1100x800_learn_ok] 右列 可用=738x776 rows=[146,234,306,90] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=776 溢出=0
+   [1100x800_learn_ok] 卡·工具条 bounds=(0,0,738x146) 高=146 在右列内=True
+   [1100x800_learn_ok] 卡·画布卡 bounds=(0,154,738x226) 高=226 在右列内=True
+   [1100x800_learn_ok] 卡·参数/点列卡 bounds=(0,388,738x298) 高=298 在右列内=True
+   [1100x800_learn_ok] 卡·状态面板（第4行） bounds=(0,694,461x82) 高=82 在右列内=True
+   [1100x800_learn_ok] 卡·预览卡（第4行） bounds=(469,694,269x82) 高=82 在右列内=True
+   [1100x800_learn_ok] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [1100x800_learn_ok] 工具条 可用宽=704 一行所需=630 实占=1 行 按钮=7
+   [1100x800_learn_ok] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [1100x800_learn_ok] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=776 左列可滚=518
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_1200x664_learn_ok.png
+   [1200x664_learn_ok] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1200x664_learn_ok] 结果横幅（Info） bounds=(377,102,784x16) 视口=1200x664 在视口内=True
+   [1200x664_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1200x664_learn_ok] 画布标题 (367,167,804x22) / 提示 (367,192,804x16) → 重叠=False
+   [1200x664_learn_ok] 画布空态提示 TextBlock=无
+   [1200x664_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=804x22 desired=112x22 bounds=(367,167,804x22)
+     [CHAIN·画布标题] StackPanel actual=804x58 desired=252x58 bounds=(367,167,804x58)
+     [CHAIN·画布标题] Border actual=804x64 desired=252x64 bounds=(367,167,804x64)
+     [CHAIN·画布标题] DockPanel actual=804x178 desired=252x90 bounds=(367,167,804x178)
+     [CHAIN·画布标题] Border actual=838x212 desired=286x132 bounds=(350,150,838x212)
+     [CHAIN·画布标题] Grid actual=838x746 desired=788x640 bounds=(350,12,838x746)
+        rows=[130,220,306,90] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1176x640 desired=1142x664 bounds=(12,12,1176x640)
+        cols=[330,846] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1200x664 desired=1142x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] Border actual=1200x664 desired=1142x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] BeadInspectView actual=1200x664 desired=1142x664 bounds=(0,0,1200x664)
+   [1200x664_learn_ok] 右列 可用=838x746 rows=[130,220,306,90] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=746 溢出=0
+   [1200x664_learn_ok] 卡·工具条 bounds=(0,0,838x130) 高=130 在右列内=True
+   [1200x664_learn_ok] 卡·画布卡 bounds=(0,138,838x212) 高=212 在右列内=True
+   [1200x664_learn_ok] 卡·参数/点列卡 bounds=(0,358,838x298) 高=298 在右列内=True
+   [1200x664_learn_ok] 卡·状态面板（第4行） bounds=(0,664,524x82) 高=82 在右列内=True
+   [1200x664_learn_ok] 卡·预览卡（第4行） bounds=(532,664,306x82) 高=82 在右列内=True
+   [1200x664_learn_ok] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [1200x664_learn_ok] 工具条 可用宽=804 一行所需=630 实占=1 行 按钮=7
+   [1200x664_learn_ok] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [1200x664_learn_ok] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=640 左列可滚=654
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_1200x664_learn_fail.png
+   [1200x664_learn_fail] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1200x664_learn_fail] 结果横幅（Error） bounds=(377,102,784x31) 视口=1200x664 在视口内=True
+   [1200x664_learn_fail] 横幅文字 = "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请在「① 配方库」填参考图路径并点「载入」，或把「对齐模式」改成「固定相机」"
+   [1200x664_learn_fail] 画布标题 (367,182,804x22) / 提示 (367,208,804x16) → 重叠=False
+   [1200x664_learn_fail] 画布空态提示 TextBlock=无
+   [1200x664_learn_fail] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=804x22 desired=112x22 bounds=(367,182,804x22)
+     [CHAIN·画布标题] StackPanel actual=804x58 desired=252x58 bounds=(367,182,804x58)
+     [CHAIN·画布标题] Border actual=804x64 desired=252x64 bounds=(367,182,804x64)
+     [CHAIN·画布标题] DockPanel actual=804x178 desired=252x90 bounds=(367,182,804x178)
+     [CHAIN·画布标题] Border actual=838x212 desired=286x132 bounds=(350,166,838x212)
+     [CHAIN·画布标题] Grid actual=838x760 desired=840x640 bounds=(350,12,838x760)
+        rows=[146,220,306,89] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1176x640 desired=1194x664 bounds=(12,12,1176x640)
+        cols=[330,846] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1200x664 desired=1194x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] Border actual=1200x664 desired=1194x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] BeadInspectView actual=1200x664 desired=1194x664 bounds=(0,0,1200x664)
+   [1200x664_learn_fail] 右列 可用=838x760 rows=[146,220,306,89] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=760 溢出=0
+   [1200x664_learn_fail] 卡·工具条 bounds=(0,0,838x146) 高=146 在右列内=True
+   [1200x664_learn_fail] 卡·画布卡 bounds=(0,154,838x212) 高=212 在右列内=True
+   [1200x664_learn_fail] 卡·参数/点列卡 bounds=(0,374,838x298) 高=298 在右列内=True
+   [1200x664_learn_fail] 卡·状态面板（第4行） bounds=(0,680,524x81) 高=81 在右列内=True
+   [1200x664_learn_fail] 卡·预览卡（第4行） bounds=(532,680,306x81) 高=81 在右列内=True
+   [1200x664_learn_fail] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [1200x664_learn_fail] 工具条 可用宽=804 一行所需=630 实占=1 行 按钮=7
+   [1200x664_learn_fail] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [1200x664_learn_fail] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=640 左列可滚=654
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_620x640_learn_ok.png
+   [620x640_learn_ok] 工具栏按钮 7 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_learn_ok] 结果横幅（Info） bounds=(377,174,204x62) 视口=620x640 在视口内=True
+   [620x640_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [620x640_learn_ok] 画布标题 (367,286,224x22) / 提示 (367,312,252x16) → 重叠=False
+   [620x640_learn_ok] 画布空态提示 TextBlock=无
+   [620x640_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=224x22 desired=112x22 bounds=(367,286,224x22)
+     [CHAIN·画布标题] StackPanel actual=224x58 desired=224x58 bounds=(367,286,224x58)
+     [CHAIN·画布标题] Border actual=224x64 desired=224x64 bounds=(367,286,224x64)
+     [CHAIN·画布标题] DockPanel actual=224x178 desired=224x90 bounds=(367,286,224x178)
+     [CHAIN·画布标题] Border actual=258x212 desired=258x132 bounds=(350,270,258x212)
+     [CHAIN·画布标题] Grid actual=258x990 desired=266x616 bounds=(350,12,258x990)
+        rows=[250,220,306,214] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=620x640 bounds=(12,12,596x616)
+        cols=[330,266] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_learn_ok] 右列 可用=258x990 rows=[250,220,306,214] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=990 溢出=0
+   [620x640_learn_ok] 卡·工具条 bounds=(0,0,258x250) 高=250 在右列内=True
+   [620x640_learn_ok] 卡·画布卡 bounds=(0,258,258x212) 高=212 在右列内=True
+   [620x640_learn_ok] 卡·参数/点列卡 bounds=(0,478,258x298) 高=298 在右列内=True
+   [620x640_learn_ok] 卡·状态面板（第4行） bounds=(0,784,138x206) 高=206 在右列内=True
+   [620x640_learn_ok] 卡·预览卡（第4行） bounds=(146,784,112x206) 高=206 在右列内=True
+   [620x640_learn_ok] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [620x640_learn_ok] 工具条 可用宽=224 一行所需=630 实占=3 行 按钮=7
+   [620x640_learn_ok] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [620x640_learn_ok] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=616 左列可滚=678
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_shell_1490x1030_learn_ok.png
+   [shell_1490x1030_learn_ok] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [shell_1490x1030_learn_ok] 结果横幅（Info） bounds=(397,190,1034x16) 视口=1490x1030 在视口内=True
+   [shell_1490x1030_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [shell_1490x1030_learn_ok] 画布标题 (387,255,1054x22) / 提示 (387,280,1054x16) → 重叠=False
+   [shell_1490x1030_learn_ok] 画布空态提示 TextBlock=无
+   [shell_1490x1030_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=1054x22 desired=112x22 bounds=(387,255,1054x22)
+     [CHAIN·画布标题] StackPanel actual=1054x58 desired=252x58 bounds=(387,255,1054x58)
+     [CHAIN·画布标题] Border actual=1054x64 desired=252x64 bounds=(387,255,1054x64)
+     [CHAIN·画布标题] DockPanel actual=1054x279 desired=252x90 bounds=(387,255,1054x279)
+     [CHAIN·画布标题] Border actual=1088x313 desired=286x132 bounds=(370,238,1088x313)
+     [CHAIN·画布标题] Grid actual=1088x846 desired=954x745 bounds=(370,100,1088x846)
+        rows=[130,321,306,89] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1426x846 desired=1308x870 bounds=(32,100,1426x846)
+        cols=[330,1096] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1450x870 desired=1308x870 bounds=(20,88,1450x870)
+     [CHAIN·画布标题] Border actual=1450x870 desired=1308x870 bounds=(20,88,1450x870)
+     [CHAIN·画布标题] BeadInspectView actual=1450x870 desired=1308x870 bounds=(20,88,1450x870)
+     [CHAIN·画布标题] Grid actual=1450x870 desired=1348x902 bounds=(20,88,1450x870)
+   [shell_1490x1030_learn_ok] 右列 可用=1088x846 rows=[130,321,306,89] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=846 溢出=0
+   [shell_1490x1030_learn_ok] 卡·工具条 bounds=(0,0,1088x130) 高=130 在右列内=True
+   [shell_1490x1030_learn_ok] 卡·画布卡 bounds=(0,138,1088x313) 高=313 在右列内=True
+   [shell_1490x1030_learn_ok] 卡·参数/点列卡 bounds=(0,459,1088x298) 高=298 在右列内=True
+   [shell_1490x1030_learn_ok] 卡·状态面板（第4行） bounds=(0,765,748x81) 高=81 在右列内=True
+   [shell_1490x1030_learn_ok] 卡·预览卡（第4行） bounds=(756,765,332x81) 高=81 在右列内=True
+   [shell_1490x1030_learn_ok] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [shell_1490x1030_learn_ok] 工具条 可用宽=1054 一行所需=630 实占=1 行 按钮=7
+   [shell_1490x1030_learn_ok] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [shell_1490x1030_learn_ok] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=846 左列可滚=448
+>> 已存 D:\C#\VM\_BeadViewProbe\before_layout_shell_1192x824_learn_ok.png
+   [shell_1192x824_learn_ok] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [shell_1192x824_learn_ok] 结果横幅（Info） bounds=(397,190,736x16) 视口=1192x824 在视口内=True
+   [shell_1192x824_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [shell_1192x824_learn_ok] 画布标题 (387,255,756x22) / 提示 (387,280,756x16) → 重叠=False
+   [shell_1192x824_learn_ok] 画布空态提示 TextBlock=无
+   [shell_1192x824_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=756x22 desired=112x22 bounds=(387,255,756x22)
+     [CHAIN·画布标题] StackPanel actual=756x58 desired=252x58 bounds=(387,255,756x58)
+     [CHAIN·画布标题] Border actual=756x64 desired=252x64 bounds=(387,255,756x64)
+     [CHAIN·画布标题] DockPanel actual=756x178 desired=252x90 bounds=(387,255,756x178)
+     [CHAIN·画布标题] Border actual=790x212 desired=286x132 bounds=(370,238,790x212)
+     [CHAIN·画布标题] Grid actual=790x746 desired=764x640 bounds=(370,100,790x746)
+        rows=[130,220,306,90] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1128x640 desired=1118x664 bounds=(32,100,1128x640)
+        cols=[330,798] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1152x664 desired=1118x664 bounds=(20,88,1152x664)
+     [CHAIN·画布标题] Border actual=1152x664 desired=1118x664 bounds=(20,88,1152x664)
+     [CHAIN·画布标题] BeadInspectView actual=1152x664 desired=1118x664 bounds=(20,88,1152x664)
+     [CHAIN·画布标题] Grid actual=1152x664 desired=1158x696 bounds=(20,88,1152x664)
+   [shell_1192x824_learn_ok] 右列 可用=790x746 rows=[130,220,306,90] heights=[Auto,*,Auto,Auto] min=[0,220,0,0] max=[∞,∞,∞,∞] 合计=746 溢出=0
+   [shell_1192x824_learn_ok] 卡·工具条 bounds=(0,0,790x130) 高=130 在右列内=True
+   [shell_1192x824_learn_ok] 卡·画布卡 bounds=(0,138,790x212) 高=212 在右列内=True
+   [shell_1192x824_learn_ok] 卡·参数/点列卡 bounds=(0,358,790x298) 高=298 在右列内=True
+   [shell_1192x824_learn_ok] 卡·状态面板（第4行） bounds=(0,664,494x82) 高=82 在右列内=True
+   [shell_1192x824_learn_ok] 卡·预览卡（第4行） bounds=(502,664,288x82) 高=82 在右列内=True
+   [shell_1192x824_learn_ok] 参数卡分解 卡高=298 左列=242 右列=242 DataGrid=150 Expander=48 末行提示=16
+   [shell_1192x824_learn_ok] 工具条 可用宽=756 一行所需=630 实占=1 行 按钮=7
+   [shell_1192x824_learn_ok] ③卡提示 实际=988x16 应需高=32 MaxWidth=250 上级可用宽=271 被裁=True 提前换行=False
+     [CLIP] ③卡提示有整行未渲染（高度不足）
+   [shell_1192x824_learn_ok] 「怎么用」卡 高=104 左列内容高=1294 左列视口高=640 左列可滚=654
+### PROBE: 13 项失败

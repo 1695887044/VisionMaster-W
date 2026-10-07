@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="http://schemas.UI.com/ui"
     MinWidth="820"
     MinHeight="480"
@@ -26,9 +27,19 @@
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
-            <Setter Property="Width" Value="1000" />
+            <!--
+                尺寸（2026-10-07 复核）：
+                本表的"调用方式"单元格要横排四个勾选框 + 汇总文本 + 待接通提示，
+                窗口窄到 1100 以下时右侧两列（描述 / 状态）会被挤着裁字，故加宽。
+                Width=1180：实测内容区 1168（无边框窗口仍有 12 的非客户区），
+                  五列 = 名称 248（星号）+ 300 + 200 + 150 + 230，样例行全部不裁。
+                MinWidth=1060：这个数不是拍脑袋——内容区 = 1060-12 = 1048，表格扣掉左右边距 40 = 1008，
+                  刚好 ≥ 名称列下限 120 + 四列固定宽 880 = 1000。再小就会挤着裁列（实测 1000 时
+                  四列各窄 14px，"🔒 已锁定（禁止运行）"尾巴和长描述会被切掉）。
+            -->
+            <Setter Property="Width" Value="1180" />
             <Setter Property="Height" Value="620" />
-            <Setter Property="MinWidth" Value="820" />
+            <Setter Property="MinWidth" Value="1060" />
             <Setter Property="MinHeight" Value="480" />
         </Style>
     </prism:Dialog.WindowStyle>
@@ -96,7 +107,7 @@
                         VerticalAlignment="Center"
                         FontSize="11.5"
                         Foreground="{StaticResource DialogTextMutedBrush}"
-                        Text="流程的加密、解密、启停与调用方式" />
+                        Text="流程的锁定、解锁、启停与调用方式" />
                 </StackPanel>
 
                 <Button
@@ -165,11 +176,31 @@
             Grid.Row="2"
             Margin="20,0"
             ItemsSource="{Binding Flows}"
+            MinRowHeight="46"
+            RowHeight="{x:Static sys:Double.NaN}"
             SelectedItem="{Binding SelectedFlow}"
             Style="{StaticResource DialogDataGrid}">
+            <!--
+                RowHeight = NaN（"按内容自适应"）+ MinRowHeight="46"（2026-10-07 修）：
+                皮肤层（DialogDataGrid）给的是固定 RowHeight=46。本表的"调用方式"单元格是
+                多行块（勾选框 + 汇总文本 + 将来可能出现的"待接通"提示），固定 46 会把最后一行
+                沿着行底裁掉——实测汇总文本底边 205.6 越过单元格底边 203.8（就是"汇总那行被裁成一条线"）。
+                改成自适应后行会跟着内容长；MinRowHeight=46 保住与其它弹窗一致的行密度
+                （勾选框 20 + 间距 4 + 汇总 15 = 39 < 46，正常两行内容时行高仍是 46，外观不变）。
+
+                写法必须是 {x:Static sys:Double.NaN}：DataGrid.RowHeight 是 double 属性，
+                XAML 里写 RowHeight="Auto" **能过 BAML 编译**、但构造视图时抛
+                ArgumentException「Auto is not a valid value for Double」（离屏渲染探针实测）。
+            -->
             <DataGrid.Columns>
+                <!--
+                    MinWidth="120"：窗口拖到最小宽度时，固定列（300+200+150+230=880）会把这列
+                    星号列挤到 64px 以下——"GoHome" 变成 "GoHom" 这种右侧被裁的名字，比多一条横向
+                    滚动条难查得多。给了下限后，宽度不够时表格改为横向滚动，而不是把名字切掉。
+                -->
                 <DataGridTextColumn
                     Width="*"
+                    MinWidth="120"
                     Binding="{Binding Flow.FlowName}"
                     Header="流程名称"
                     IsReadOnly="True" />
@@ -181,48 +212,65 @@
                     「变量」= 指定变量由假变真时跑（上升沿）；「子程序」= 允许被「调用流程」步骤调用。
                     行尾的"待接通"提示来自领域层（FlowInvokeTypeExtensions.PendingReason）：
                     现在四位都返回 null → 该行自动收起；将来加位没接通时它会把原因显示出来。
+
+                    【勾选框必须显式挂 DialogCheckBox（2026-10-07 修）】不写 Style 的 CheckBox 会接上
+                    App.xaml 最后合并的 Fluent 隐式样式，那支样式带 MinWidth=120 / MinHeight=32
+                    （触摸目标尺寸）。四个勾选框 = 4×130 = 520px，而本列可视区只有 288px：
+                    实测「子程序」右边界 552 越过单元格右边界 480 只露出方框、「HTTP」右边界 682
+                    整只落在单元格之外——HTTP 位（唯一带门禁的调用位）用户根本点不到。
+                    DialogCheckBox 是这套弹窗自己的复选框令牌（15px 方框 + FontSize 12，无最小尺寸），
+                    四个合计约 242px，本列放得下。
                 -->
-                <DataGridTemplateColumn Width="320" Header="调用方式（多选）">
+                <DataGridTemplateColumn Width="300" Header="调用方式（多选）">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal">
+                                <!--
+                                    WrapPanel 而不是横向 StackPanel：窗口拖到 MinWidth、或将来再加调用位时，
+                                    勾选框折行而不是被单元格右边界裁掉——裁掉的勾选框等于点不到，开关就不存在。
+                                    上下各留 2：折行时两排之间才有 4px 缝（单排时这 4px 落在行内容里，不影响 46 行高）。
+                                -->
+                                <WrapPanel Orientation="Horizontal">
                                     <CheckBox
-                                        Margin="0,0,10,0"
+                                        Margin="0,2,10,2"
                                         Content="定时"
-                                        FontSize="12"
                                         IsChecked="{Binding IsTimerInvoke}"
+                                        Style="{StaticResource DialogCheckBox}"
                                         ToolTip="按「定时间隔」周期自动执行（下限 20ms；拍精度取决于生效的节拍源，启动日志会写明）" />
                                     <CheckBox
-                                        Margin="0,0,10,0"
+                                        Margin="0,2,10,2"
                                         Content="变量"
-                                        FontSize="12"
                                         IsChecked="{Binding IsVariableInvoke}"
+                                        Style="{StaticResource DialogCheckBox}"
                                         ToolTip="指定变量由假变真时触发一次（变量名见流程模型 TriggerVariable）" />
                                     <CheckBox
-                                        Margin="0,0,10,0"
+                                        Margin="0,2,10,2"
                                         Content="子程序"
-                                        FontSize="12"
                                         IsChecked="{Binding IsSubroutineInvoke}"
+                                        Style="{StaticResource DialogCheckBox}"
                                         ToolTip="允许被其它流程的「调用流程」步骤调用（勾了才放行）" />
                                     <CheckBox
+                                        Margin="0,2,10,2"
                                         Content="HTTP"
-                                        FontSize="12"
                                         IsChecked="{Binding IsHttpInvoke}"
+                                        Style="{StaticResource DialogCheckBox}"
                                         ToolTip="勾选后才允许经 /flow/{流程名} 接口触发（唯一门禁位）" />
-                                </StackPanel>
+                                </WrapPanel>
+                                <!--  TextWrapping：列宽被拖窄时汇总文本折行，而不是被单元格右边界裁断  -->
                                 <TextBlock
                                     x:Name="InvokeSummary"
                                     Margin="0,4,0,0"
                                     FontSize="11"
                                     Foreground="{StaticResource DialogTextMutedBrush}"
-                                    Text="{Binding InvokeTypeText}" />
+                                    Text="{Binding InvokeTypeText}"
+                                    TextWrapping="Wrap" />
                                 <TextBlock
                                     x:Name="PendingNote"
                                     Margin="0,2,0,0"
                                     FontSize="11"
                                     Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                    Text="{Binding PendingReasonText}" />
+                                    Text="{Binding PendingReasonText}"
+                                    TextWrapping="Wrap" />
                             </StackPanel>
                             <!--  仓库实测：DataTemplate.Triggers 里的 DataTrigger 可靠；空串时收起"待接通"行  -->
                             <DataTemplate.Triggers>
@@ -234,14 +282,20 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
+                <!--
+                    描述 200 / 状态 150（2026-10-07 加宽）：实测"回原点（开机与换产的安全位姿）"
+                    单行要 180px、状态列"🔒 已锁定（禁止运行）"单行要 128px，原来 160 / 110 都会
+                    在单元格右边界被裁（状态列实测越界 32px）。两列都是单行文本、不会折行，
+                    所以宽度必须按最长文案给够。
+                -->
                 <DataGridTextColumn
-                    Width="160"
+                    Width="200"
                     Binding="{Binding Flow.Description}"
                     Header="描述"
                     IsReadOnly="True" />
 
                 <DataGridTextColumn
-                    Width="110"
+                    Width="150"
                     Binding="{Binding StatusText}"
                     Header="状态"
                     IsReadOnly="True" />
@@ -261,21 +315,21 @@
                                 <Button
                                     Command="{Binding DataContext.EncryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                     CommandParameter="{Binding}"
-                                    Content="加密"
+                                    Content="锁定"
                                     Style="{StaticResource DialogChipButton}"
                                     Background="{StaticResource DialogAccentLightBrush}"
                                     Foreground="{StaticResource DialogAccentTextBrush}"
-                                    ToolTip="加密流程内容，未授权者无法查看" />
+                                    ToolTip="锁定后该流程禁止运行（任何触发源都拦）；注意：不改变文件内容，不提供机密性保护" />
 
                                 <Button
                                     Margin="8,0,0,0"
                                     Command="{Binding DataContext.DecryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                     CommandParameter="{Binding}"
-                                    Content="解密"
+                                    Content="解锁"
                                     Style="{StaticResource DialogChipButton}"
                                     Background="{StaticResource DialogDangerSubtleBrush}"
                                     Foreground="{StaticResource DialogDangerBrush}"
-                                    ToolTip="解除加密，恢复为可编辑状态" />
+                                    ToolTip="解除锁定，恢复可运行" />
 
                                 <Button
                                     Margin="8,0,0,0"
@@ -293,7 +347,18 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!--  底部说明：三条口径写清楚，省得使用者去翻文档  -->
+        <!--
+            底部说明：四条口径写清楚，省得使用者去翻文档。
+
+            【四条都显式写 TextWrapping="Wrap"（2026-10-07 修）】看着与
+            DialogHintText 重复，其实不是：本仓 App.xaml 最后合并的 Fluent 主题里，
+            FluentAliases 又把 DialogHintText 覆盖成了 BasedOn FluentTextCaptionStyle 的版本
+            （资源字典后合并者优先），那一版**没有** TextWrapping。于是第 3 行（单行自然宽 950px）
+            既不回行、又把说明面板顶宽到 978px，越过弹窗右边界被裁掉尾巴
+            （"子程序 = 允许被其它流程的「调用流程」步骤调用"只剩前半句）。
+            在视图里显式给 Wrap 是唯一不动公共令牌就能让长句回行的写法；
+            DialogHintText 令牌本身补 Wrap 会波及全仓所有弹窗，另行评估。
+        -->
         <Border
             Grid.Row="3"
             Margin="20,14,20,16"
@@ -307,19 +372,23 @@
                 <TextBlock
                     Margin="0,6,0,0"
                     Style="{StaticResource DialogHintText}"
-                    Text="· 启用/禁用：控制流程是否参与自动调用" />
+                    Text="· 启用/禁用：控制流程是否参与自动调用"
+                    TextWrapping="Wrap" />
                 <TextBlock
                     Margin="0,3,0,0"
                     Style="{StaticResource DialogHintText}"
-                    Text="· 加密/解密：保护流程内容不被未授权访问" />
+                    Text="· 锁定/解锁：锁定后该流程禁止运行（HTTP / 定时 / 变量 / 子程序 / 界面五条入口统一拦）；锁定不改变文件内容，不是机密性保护"
+                    TextWrapping="Wrap" />
                 <TextBlock
                     Margin="0,3,0,0"
                     Style="{StaticResource DialogHintText}"
-                    Text="· 调用方式（多选）：HTTP = 允许经 /flow/{流程名} 触发；定时 = 按间隔周期跑（下限 20ms）；变量 = 指定变量由假变真时跑；子程序 = 允许被其它流程的「调用流程」步骤调用" />
+                    Text="· 调用方式（多选）：HTTP = 允许经 /flow/{流程名} 触发；定时 = 按间隔周期跑（下限 20ms）；变量 = 指定变量由假变真时跑；子程序 = 允许被其它流程的「调用流程」步骤调用"
+                    TextWrapping="Wrap" />
                 <TextBlock
                     Margin="0,3,0,0"
                     Style="{StaticResource DialogHintText}"
-                    Text="· 强制流程：Home / Main / End 三条骨架流程每个方案都必须保留，不允许删除（可改名）" />
+                    Text="· 强制流程：Home / Main / End 三条骨架流程每个方案都必须保留，不允许删除（可改名）"
+                    TextWrapping="Wrap" />
             </StackPanel>
         </Border>
     </Grid>

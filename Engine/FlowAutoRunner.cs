@@ -51,23 +51,11 @@ namespace VisionMaster.Services
                     return;
                 }
 
-                if (session == null || flow.Version > session.CompiledVersion)
+                // 会话准备：单点收口（查会话 → 判新鲜度[FlowID+Version] → 必要时重编译 → 注册）
+                if (!FlowSessionFactory.TryEnsureSession(runtime, compiler, flow, out session, out var sessionError, log))
                 {
-                    var compiled = compiler.Compile(flow.Steps, flow.FlowName);
-                    if (!compiled.Success)
-                    {
-                        log?.Error($"[{reason}] 流程「{flow.FlowName}」编译失败：{string.Join("；", compiled.Errors.Select(e => e.Message))}");
-                        return;
-                    }
-
-                    session = new FlowSession
-                    {
-                        FlowName = flow.FlowName,
-                        ExecutionEngine = compiled.Data,
-                        CompiledVersion = flow.Version,
-                    };
-                    session.AddBlueprintsDeep(flow.Steps);
-                    runtime.RegisterSession(session);
+                    log?.Error($"[{reason}] {sessionError}");
+                    return;
                 }
 
                 _ = RunObservedAsync(engine, session, flow.FlowName, reason, log);

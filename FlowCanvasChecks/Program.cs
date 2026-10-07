@@ -99,6 +99,15 @@ namespace FlowCanvasChecks
             // 调用方式运行侧三位：定时调度 / 变量触发 / 子程序调用（含「调用流程」插件端到端）
             FlowAutomationChecks.Run();
 
+            // 引擎全面审查·第一批修复的断言（收图槽回收 / 退出链超时 / 绑定写回 / 脚本引用过滤 / 运行中守卫）
+            FlowEngineFixChecks.Run();
+
+            // 引擎全面审查·第二批修复的断言（条件变量未绑定 / FlowID 新鲜度 / 锁定门禁 / 会话准备收口）
+            FlowEngineFix2Checks.Run();
+
+            // 逻辑分支容器四项修复（For 上限 / 容器失败上浮 / Break 状态 / 循环体分支数校验）
+            FlowContainerChecks.Run();
+
             // DWV 第 1 期：断点 / 单步 / 暂停继续（调试门；断点不落盘、HTTP / 试运行豁免）
             DebugChecks.Run();
 

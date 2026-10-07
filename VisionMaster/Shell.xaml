@@ -607,7 +607,10 @@
                                 <TextBlock Text="&#xf4ad;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
-                            <MenuItem Header="帮助文档"  >
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.Help}"
+                                Header="帮助文档"  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf02d;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>

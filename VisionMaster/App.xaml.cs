@@ -16,6 +16,7 @@ using VisionMaster.Engine;
 using VisionMaster.Lifetime;
 using VisionMaster.Lifetime.Checks;
 using VisionMaster.Services;
+using VisionMaster.Services.Help;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
 using VisionMaster.ViewModels;
@@ -93,6 +94,11 @@ namespace VisionMaster
             _lifetime.RegisterCheck(new PluginScanCheck(
                 () => Container.Resolve<PluginService>(),
                 () => Container.Resolve<IPluginProvider>(),
+                Container.Resolve<ILogService>()));
+            // 帮助手册合并：必须排在插件扫描之后——它按插件的注册元数据分组，
+            // 且此刻插件程序集已加载，读内嵌手册不必二次 LoadFrom（见 HelpCatalogCheck 注释）。
+            _lifetime.RegisterCheck(new HelpCatalogCheck(
+                () => Container.Resolve<HelpCatalogService>(),
                 Container.Resolve<ILogService>()));
             _lifetime.RegisterCheck(new CommunicationCheck(
                 () => Container.Resolve<AdvancedCommunicationManager>(),
@@ -354,6 +360,13 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<ScadaLoginView, ScadaLoginViewModel>("ScadaLoginView");
             containerRegistry.RegisterDialog<ScadaUserManagerView, ScadaUserManagerViewModel>("ScadaUserManagerView");
             containerRegistry.RegisterDialog<PluginConfigShellView, PluginConfigShellViewModel>("PluginConfigShell");
+            // 帮助手册：目录由启动自检链合并（HelpCatalogCheck 调 HelpCatalogService.Build），
+            // 这里提供服务与弹窗两件事。服务走工厂显式传依赖，与上面几处"可选参数显式传"同一手法——
+            // 交给容器去猜的结果是编译能过、运行起来目录永远空着（Build 没人调）。
+            containerRegistry.RegisterSingleton<HelpCatalogService>(c => new HelpCatalogService(
+                c.Resolve<IPluginProvider>(),
+                c.Resolve<ILogService>()));
+            containerRegistry.RegisterDialog<HelpView, HelpViewModel>("HelpView");
             containerRegistry.RegisterDialog<SolutionListView, SolutionListViewModel>("SolutionListView");
             // 方案清单弹窗的审计注入：与上面两个弹窗同一手法（理由见「配置类弹窗的审计注入」段）。
             // 这一项改的是"开机自动打开哪份方案"，改错了要到第二天开机才发现，更需要留凭证。

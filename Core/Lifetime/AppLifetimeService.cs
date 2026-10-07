@@ -195,7 +195,10 @@ namespace VisionMaster.Lifetime
                 {
                     using var per = CancellationTokenSource.CreateLinkedTokenSource(watchdog.Token);
                     per.CancelAfter(task.TimeoutMs);
-                    var exec = task.Execute();
+                    // 同步 action 必须放进后台任务里跑：直接调 task.Execute() 会在 await 之前
+                    // **同步跑完** —— CancelAfter 与 30s 看门狗都插不进去，任一设备 Dispose 卡住
+                    // 就等于整个退出链挂死（连带草稿转存/日志落盘都做不成）
+                    var exec = Task.Run(task.Execute);
                     var winner = await Task.WhenAny(exec, Task.Delay(Timeout.Infinite, per.Token));
                     _log.Info(winner == exec
                         ? $"[退出链] ✓ {task.Name}"

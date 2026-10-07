@@ -61,8 +61,10 @@ namespace VisionMaster
                 container.Resolve<ILogService>().Error($"[NetworkCameraServer] 启动失败，本次按无网络相机服务运行：{ex.Message}");
             }
 
-            lifetime.RegisterExitTask(ExitTask.Of("停止网络相机收图服务", () => server.Dispose()));
+            // 退出链按注册逆序执行：**后注册的先跑**。所以这里先注册"断开相机"、后注册"停止收图服务"，
+            // 实际执行顺序才是"先停服务、再断设备"——反过来会让收帧线程用着已释放的设备句柄
             lifetime.RegisterExitTask(ExitTask.Of("断开全部相机", () => provider.Dispose()));
+            lifetime.RegisterExitTask(ExitTask.Of("停止网络相机收图服务", () => server.Dispose()));
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Data;
+using Core.Interfaces;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -156,6 +157,10 @@ namespace VisionMaster.Services
                 StopSessionGracefully(existing);
                 if (existing != null)
                     RemoveAndDispose(existing);
+
+                // 会话重建 = 之前推给这条流程的图都是"旧图纸时代"的帧：留着会被下一轮取走，
+                // 结果张冠李戴（清槽是 ImageHub.Clear 的既定语义：重编译/换方案就该清）
+                ImageHub.Clear(session.FlowName);
 
                 lock (_lock)
                 {

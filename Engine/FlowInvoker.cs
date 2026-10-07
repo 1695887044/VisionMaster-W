@@ -73,27 +73,13 @@ namespace VisionMaster.Services
             if (flow.StepsEncrypted)
                 return FlowInvokeResult.Fail($"流程「{name}」步序已加密，无法编译调用", (int)sw.ElapsedMilliseconds);
 
-            var session = _runtime.GetSessionByName(name);
-            if (session?.IsRunning == true)
+            // 目标正在跑 → 直接失败（门禁的第一道，语义与文案都是"调用侧"的；重建守卫在会话准备单点里）
+            if (_runtime.GetSessionByName(name)?.IsRunning == true)
                 return FlowInvokeResult.Fail($"流程「{name}」正在运行中，本次子程序调用未执行（避免成环等待）", (int)sw.ElapsedMilliseconds);
 
-            if (session == null || flow.Version > session.CompiledVersion)
-            {
-                var compiled = _compiler.Compile(flow.Steps, flow.FlowName);
-                if (!compiled.Success)
-                    return FlowInvokeResult.Fail(
-                        $"流程「{name}」编译失败：{string.Join("；", compiled.Errors.Select(e => e.Message))}",
-                        (int)sw.ElapsedMilliseconds);
-
-                session = new FlowSession
-                {
-                    FlowName = flow.FlowName,
-                    ExecutionEngine = compiled.Data,
-                    CompiledVersion = flow.Version,
-                };
-                session.AddBlueprintsDeep(flow.Steps);
-                _runtime.RegisterSession(session);
-            }
+            // 会话准备：单点收口（查会话 → 判新鲜度[FlowID+Version] → 必要时重编译 → 注册）
+            if (!FlowSessionFactory.TryEnsureSession(_runtime, _compiler, flow, out var session, out var sessionError, _log))
+                return FlowInvokeResult.Fail(sessionError, (int)sw.ElapsedMilliseconds);
 
             var task = _engine.TryRunSessionOnceAsync(session);
 

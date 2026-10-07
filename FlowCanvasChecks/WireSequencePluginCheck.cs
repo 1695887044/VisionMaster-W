@@ -179,10 +179,17 @@ namespace FlowCanvasChecks
             var check = steps[1];
 
             collect.SetInputValue("FilePath", imagePath);
+            // 夹具：同 WireSequenceCheck —— 把采集从"相机采集"改成"指定单张图像"，
+            // 并重建方案里的变量快照（见下方 Restore），让流程能在无相机环境里跑完
+            var modeType = Type.GetType("Plugin.ImageAcquisition.AcquisitionMode, Plugin.ImageAcquisition", throwOnError: false);
+            if (modeType != null)
+                collect.SetInputValue("Mode", Enum.ToObject(modeType, 0));   // 0 = SingleFile
             if (recipeOverride != null) check.SetInputValue("RecipeText", recipeOverride);
 
             var workspace = new WorkspaceContext();
             workspace.SwitchSolution(solution);
+            // 夹具：正式软件加载方案时会重建变量快照（流程里的「变量赋值」步骤要用其中的 Img）
+            VariablePersistenceService.Restore(solution, workspace);
 
             var compiled = new FlowCompiler(workspace).Compile(steps, FlowName);
             outcome.Compiled = compiled.Success;

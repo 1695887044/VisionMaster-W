@@ -227,23 +227,27 @@ namespace VisionMaster.Services
                 return Fail(req, 400, $"图片解码失败：{ex.Message}");
             }
 
-            // 会话来源：优先复用界面/启动时已编译好的会话，只有在"没有"或"图纸已改过"时才补编译
-            var session = _runtimeManager.GetSessionByName(flowName);
-            if (session == null || IsOutdated(session, flowName))
-            {
-                if (!TryBuildSession(flowName, requestId, out session, out var buildError, out var buildStatus))
-                    return Fail(req, buildStatus, buildError);
-            }
-
-            // 单次执行抢不到会话锁时会静默吞单（FlowEngineService.TryOccupySession 失败只记 Warn），
-            // 所以这里必须先自己判一次，把"没跑"明确告诉客户端，而不是让它收到一个空结果
-            if (session.IsRunning)
+            // 会话在跑 → 当场拒绝（不推图、不抢锁）：真正的互斥在引擎的会话锁，
+            // 这一步只负责把"没跑上"尽早、明确地告诉客户端；抢锁失败的兜底在下面 Try* 的 false 分支
+            if (_runtimeManager.GetSessionByName(flowName)?.IsRunning == true)
                 return Fail(req, 409, $"流程「{flowName}」正在运行中，本次请求未受理");
+
+            // 会话准备：收口到单点（查会话 → 判新鲜度[流程身份 FlowID + 版本] → 必要时重编译 → 注册）。
+            // ⚠「正在跑」的会话**绝不能被替换**：重建走 RegisterSession，它会先停掉同名运行会话
+            // （最长等 3s）——收图频率高于流程节拍时，这一停就是把上一张图正在跑的那一轮杀掉。
+            if (!FlowSessionFactory.TryEnsureSession(_runtimeManager, _flowCompiler, flowModel, out var session, out var sessionError, _log))
+            {
+                var status = sessionError != null && sessionError.Contains("正在运行") ? 409 : 404;
+                return Fail(req, status, sessionError);
+            }
 
             ImageHub.Push(item);
 
             var stopwatch = Stopwatch.StartNew();
-            var runTask = _flowEngine.RunSessionOnceAsync(session);
+
+            // ★ 用 Try 版本：抢不到会话锁 = **本次根本没跑**。旧写法（丢 bool 的 RunSessionOnceAsync）
+            // 会把这次静默漏跑读成"跑完了"，随后把别人/上一轮的端口值当本次结果回 200（假成功）
+            var runTask = _flowEngine.TryRunSessionOnceAsync(session);
             var timeout = TimeSpan.FromMilliseconds(Math.Max(1000, _config.RequestTimeoutMs));
 
             if (await Task.WhenAny(runTask, Task.Delay(timeout)).ConfigureAwait(false) != runTask)
@@ -257,14 +261,32 @@ namespace VisionMaster.Services
 
             stopwatch.Stop();
 
+            bool ran;
             try
             {
-                await runTask.ConfigureAwait(false);
+                ran = await runTask.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
                 _log.Error($"[HttpImageServer] 请求 {requestId} 流程「{flowName}」执行抛出异常：{ex.Message}");
                 return Fail(req, 500, $"流程「{flowName}」执行异常：{ex.Message}");
+            }
+
+            if (!ran)
+            {
+                // 没跑上：把自己那一帧**精确收回**（不能整槽清——槽里可能有别人推的图），
+                // 并如实回 409。绝不回 200：那等于把别人/上一轮的结果当成本次请求的答案
+                ImageHub.TryRemove(item.RequestId);
+                _log.Warn($"[HttpImageServer] 请求 {requestId} 未受理：流程「{flowName}」被其它执行占用（本帧已丢弃）");
+                return Fail(req, 409, $"流程「{flowName}」被其它执行占用，本次请求未受理（本帧已丢弃）");
+            }
+
+            // 引擎把执行期异常记进 State=Faulted 之后是**正常返回**的：这种"跑挂了"必须报错，
+            // 否则 success=true 会把一次失败执行包装成成功（而且收集到的还是上一轮的值）
+            if (session.State == SessionState.Faulted)
+            {
+                _log.Error($"[HttpImageServer] 请求 {requestId} 流程「{flowName}」执行失败（State=Faulted）");
+                return Fail(req, 500, $"流程「{flowName}」执行失败（详见运行日志）");
             }
 
             var outputs = _collector.Collect(session, outputsSpec);
@@ -301,13 +323,6 @@ namespace VisionMaster.Services
 
         #region 会话准备
 
-        private bool IsOutdated(FlowSession session, string flowName)
-        {
-            var flow = FindFlow(flowName);
-            // 图纸改过（Version 涨了）就重编译：否则拿旧图纸跑新图，结果对不上用户看到的设计
-            return flow != null && flow.Version > session.CompiledVersion;
-        }
-
         private FlowModel FindFlow(string flowName)
         {
             var flows = _workspace?.CurrentSolution?.Flows;
@@ -319,57 +334,10 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 按 HTTP 侧需要补编译并注册会话。骨架与 ShellViewModel.RunAllEnabledOnce 完全一致，
-        /// 区别只有一处：这里必须传 flowName（与界面侧"编译全部"同口径），
-        /// 否则插件 InstanceName 少一截，排查日志时对不上是哪条流程。
-        ///
-        /// statusCode：失败时给客户端的 HTTP 状态码——缺流程 404、禁用 403。
-        /// 「禁用」在这里虽然正常顺序下不可达（门禁先判），但"门禁判过之后、编译之前被并发禁用"
-        /// 这个窄窗口仍会走到，状态码必须与门禁同语义（同一种错给两种码，客户端就没法统一处理）。
+        /// 建会话这件事已收口到 <see cref="FlowSessionFactory.TryEnsureSession"/>（第二批）：
+        /// 门禁（存在/启用/在跑不换）在会话准备单点内，这里不再保留第二份实现——
+        /// 两份实现就是下一个"同一语义两套口径"的种子。
         /// </summary>
-        private bool TryBuildSession(string flowName, string requestId, out FlowSession session, out string error, out int statusCode)
-        {
-            session = null;
-            error = null;
-            statusCode = 404;
-
-            var flow = FindFlow(flowName);
-            if (flow == null)
-            {
-                error = $"当前方案中没有名为「{flowName}」的流程";
-                return false;
-            }
-
-            if (!flow.IsEnabled)
-            {
-                error = $"流程「{flowName}」已被禁用（IsEnabled=false）";
-                statusCode = 403;
-                return false;
-            }
-
-            var result = _flowCompiler.Compile(flow.Steps, flow.FlowName);
-            if (!result.Success)
-            {
-                error = $"流程「{flowName}」编译失败：{string.Join("；", result.Errors.Select(e => e.Message))}";
-                _log.Error($"[HttpImageServer] 请求 {requestId} {error}");
-                return false;
-            }
-
-            session = new FlowSession
-            {
-                FlowName = flow.FlowName,
-                ExecutionEngine = result.Data,
-                CompiledVersion = flow.Version
-            };
-            session.AddBlueprintsDeep(flow.Steps);
-
-            // 注意副作用：同名会话已存在时，RegisterSession 会先停旧循环（最长等 3s）再挂新实例。
-            // 走到这里说明旧会话要么不存在、要么已过期，停下来是预期行为
-            _runtimeManager.RegisterSession(session);
-            _log.Info($"[HttpImageServer] 请求 {requestId} 已为流程「{flowName}」补编译并注册会话");
-            return true;
-        }
-
         #endregion
 
         #region 图像解码（编码字节 → 原始像素）

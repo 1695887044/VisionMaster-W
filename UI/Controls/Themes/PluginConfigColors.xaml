@@ -162,6 +162,20 @@
     <sys:Double x:Key="PluginCardShadowOpacity">0.05</sys:Double>
     <sys:Double x:Key="PluginCardShadowDepth">2</sys:Double>
 
+    <!--
+        ==================== 布局：右列"画布 + 参数卡"两根 * 的最小/最大值（2026-10-07）====================
+        起因：胶路检测配置视图右列原来三行 Auto + 一根 MinHeight=220 的 *（画布）——
+        窗口一矮，Grid 的行高之和就超过可用高度，而 Grid 不滚动：参数卡被窗口下沿裁断、
+        第 4 行（状态 + 预览）整个掉出可视区（用户实测截图；此时"点学习"的结论正好落在看不见的地方）。
+        改成：画布与参数卡各占一根 *，参数卡下限 + 内部 ScrollViewer（压到自身滚），上限防止把余量全吃掉。
+        数值口径（实渲染度量，1490 宽窗口）：
+          画布 150 —— 再小拾取没手感；参数卡 130 —— 还能露出标题 + 点列表格首行；
+          参数卡上限 320 —— 自然高 298（DataGrid 150 + 左列表单 242）+ 22 余量，避免字体/DPI 微差就冒出滚动条。
+    -->
+    <sys:Double x:Key="PluginCanvasMinHeight">150</sys:Double>
+    <sys:Double x:Key="PluginParamsCardMinHeight">130</sys:Double>
+    <sys:Double x:Key="PluginParamsCardMaxHeight">320</sys:Double>
+
     <!--  ==================== 布局：两栏参数面板 ====================  -->
     <sys:Double x:Key="PluginViewMinWidth">620</sys:Double>
     <sys:Double x:Key="PluginViewMinHeight">360</sys:Double>

@@ -7,6 +7,64 @@
     Background="#1E1E22">
 
     <UserControl.Resources>
+        <ResourceDictionary>
+            <!--  就地合并：断言宿主（ScadaChecks 直连 new 视图）没有 Application，取不到 App 级主题字典，
+                 而本视图引用了 GridListViewStyle —— 合并进自身 Resources 后引用只走自身链，
+                 与 App.xaml 的合并顺序无关（同 List.xaml / FluentAliases 的既有模式）。
+                 注意用相对 pack 写法：pack://application:,,,/ 那种要靠 Application.ResourceAssembly，
+                 没有 Application 时会静默回落成"找不到资源"。  -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        <!--  行容器：整行可点，选中/悬停沿用本对话框的深色系（#2A2A31 / #33334A + 蓝紫描边）。
+             为什么必须自带（不能只靠全局样式）：
+             App.xaml 合并的 Fluent 主题给 ListViewItem 留了一条**隐式样式**，行模板是裸
+             ContentPresenter —— 列布局整体丢失，屏幕上就是一行行的类型全名
+             VisionMaster.Models.AppSolutionEntry（2026-10-06 真机缺陷）。
+             隐式样式按类型作键，优先级高于框架默认样式，所以 GridView 视图必须自带行容器样式。  -->
+        <Style x:Key="SolutionRowStyle" TargetType="ListViewItem">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="#DDD" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border
+                            x:Name="RowBorder"
+                            Padding="4,6"
+                            Background="Transparent"
+                            BorderBrush="#2A2A31"
+                            BorderThickness="0,0,0,1">
+                            <!--  ★ 必须是 GridViewRowPresenter，不能用裸 ContentPresenter ★
+                                  四列（序号/名称/注释/路径）的摆位全靠它按 Columns 排；
+                                  换成 ContentPresenter 后列布局整体丢失（上面那条真机缺陷）。  -->
+                            <!--  ★ 行容器左右内边距取 4 而不是 8：GridViewRowPresenter 会给每个单元格
+                                  再内置 6px 水平外边距，4 + 6 = 10，正好与列头 Padding 8（列头元素自身
+                                  比行容器右移 2px）落在同一条竖线上。对齐破了就是"表头压在数据上"。  -->
+                            <GridViewRowPresenter
+                                Columns="{TemplateBinding GridView.ColumnCollection}"
+                                Content="{TemplateBinding Content}"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                SnapsToDevicePixels="True"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#2A2A31" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="#33334A" />
+                                <Setter TargetName="RowBorder" Property="BorderBrush" Value="#6B6BEF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!--  右侧操作按钮（蓝紫圆角，对照方案列表原型）  -->
         <Style x:Key="ActionButton" TargetType="Button">
             <Setter Property="Background" Value="#6B6BEF" />
@@ -55,6 +113,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid Margin="14">
@@ -76,9 +135,11 @@
                 Background="#252529"
                 BorderBrush="#3A3A44"
                 BorderThickness="1"
+                ItemContainerStyle="{StaticResource SolutionRowStyle}"
                 ItemsSource="{Binding Solutions}"
                 SelectedItem="{Binding SelectedSolution}"
-                SelectionMode="Single">
+                SelectionMode="Single"
+                Style="{StaticResource GridListViewStyle}">
 
                 <ListView.View>
                     <GridView>
@@ -88,6 +149,11 @@
                                 <Setter Property="Foreground" Value="#DDD" />
                                 <Setter Property="BorderBrush" Value="#3A3A44" />
                                 <Setter Property="Padding" Value="8,6" />
+                                <!--  列头左对齐：框架默认是居中，四列文字会飘在各列中间，与左对齐的
+                                      单元格正文对不上（四个组态弹窗的列头样式同样这么写）。
+                                      实测本对话框两边文字都落在 x=12：列头 = 元素 x4 + 这里的 Padding 8；
+                                      单元格 = 行容器内边距 4 + GridViewRowPresenter 给单元格内置的 6。  -->
+                                <Setter Property="HorizontalContentAlignment" Value="Left" />
                             </Style>
                         </GridView.ColumnHeaderContainerStyle>
                         <GridViewColumn DisplayMemberBinding="{Binding Index}" Header="序号" Width="50" />

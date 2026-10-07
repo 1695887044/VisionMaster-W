@@ -498,6 +498,10 @@ namespace VisionMaster
                 {
                     loadResult.Data.SolutionFilePath = dialog.FileName;
                     Workspace.SwitchSolution(loadResult.Data);
+
+                    // 换方案 = 上一份方案的会话全部作废（会话按流程名索引，同名不同源会串车）；
+                    // 顺带把插件实例/HImage 释放掉，别让上一份方案常驻
+                    _runtimeManager.ClearAll();
                     Services.SolutionConfigApplier.Restore(loadResult.Data.Config);
                     // 按快照重建变量集合 + 重新接线网络变量（轮询镜像链路）
                     VariablePersistenceService.Restore(loadResult.Data, Workspace);
@@ -638,6 +642,23 @@ namespace VisionMaster
             RunState = MainRunState.NotStarted;
         }
 
+        /// <summary>
+        /// 观察"单次运行是否真的启动"：引擎抢不到会话锁时返回 false（本次没跑），
+        /// 这里补一条"未启动"的提示——否则界面刚宣布"已启动"，用户却在等一个永远不会来的结果。
+        /// </summary>
+        private async Task TrackStartRejectedAsync(Task<bool> runTask, string flowName)
+        {
+            try
+            {
+                if (!await runTask)
+                    Notifier.ShowWarning($"流程 [{flowName}] 未启动：会话正被其它触发占用（HTTP / 定时 / 手动）");
+            }
+            catch
+            {
+                // 结局由引擎侧反映（日志 / 状态事件），这里只负责如实提示"启动与否"
+            }
+        }
+
         private void OnExecutionAction(ExecutionAction? action)
         {
             switch (action)
@@ -707,6 +728,12 @@ namespace VisionMaster
                     // ② 它需要"有打开的方案"才有内容——没有方案时弹窗内是空清单并给出提示，
                     //    而不是在这里拦一道"请先打开方案"（拦一道的结果是菜单点下去毫无反应）。
                     dialogService.ShowDialog("ScadaVariableEventDialogView");
+                    break;
+                case SystemAction.Help:
+                    // 帮助手册：内容由启动自检链合并好（宿主自带 + 各插件自带 + 自动生成页），
+                    // 这里只负责开窗——弹窗自己从 HelpCatalogService 现取目录，宿主不传快照
+                    //（不传参数的理由与「变量事件」同款：传了就要在这里判"合没合过"）。
+                    dialogService.ShowDialog("HelpView");
                     break;
             }
         }
@@ -887,6 +914,7 @@ namespace VisionMaster
                 FlowName = CurrentFlowName,
                 ExecutionEngine = result.Data,
                 CompiledVersion = Workspace.CurrentFlow.Version,
+                CompiledFlowId = Workspace.CurrentFlow?.FlowID ?? string.Empty,
             };
 
             // 蓝图必须填充（含嵌套步骤）：否则编译出的会话运行时步骤状态无法回写 UI
@@ -939,6 +967,7 @@ namespace VisionMaster
                         FlowName = flow.FlowName,
                         ExecutionEngine = result.Data,
                         CompiledVersion = flow.Version,
+                        CompiledFlowId = flow.FlowID ?? string.Empty,
                     };
 
                     newSession.AddBlueprintsDeep(flow.Steps);
@@ -1011,6 +1040,7 @@ namespace VisionMaster
                         FlowName = flow.FlowName,
                         ExecutionEngine = result.Data,
                         CompiledVersion = flow.Version,
+                        CompiledFlowId = flow.FlowID ?? string.Empty,
                     };
 
                     session.AddBlueprintsDeep(flow.Steps);
@@ -1023,7 +1053,9 @@ namespace VisionMaster
                     // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
                     // 调试态不在这里预置：由引擎抢到会话锁后按此参数置位——预置的话，本次若被 HTTP
                     // 抢到锁而拒绝，true 会残留给那次非界面运行（P2）；per-run 清回 false 在引擎收尾
-                    tasks.Add(flowEngine.RunSessionOnceAsync(session, debugSession: true));
+                    // 用 Try 版本：抢不到锁（HTTP / 定时恰好占着）时引擎返回 false，
+                    // 由跟随任务立刻给一条"未启动"的提示——旧写法会把"没跑上"静默包装成"已启动"
+                    tasks.Add(TrackStartRejectedAsync(flowEngine.TryRunSessionOnceAsync(session, debugSession: true), flow.FlowName));
                     runCount++;
                 }
             }
@@ -1083,6 +1115,7 @@ namespace VisionMaster
                         FlowName = flow.FlowName,
                         ExecutionEngine = result.Data,
                         CompiledVersion = flow.Version,
+                        CompiledFlowId = flow.FlowID ?? string.Empty,
                     };
 
                     session.AddBlueprintsDeep(flow.Steps);
@@ -1095,8 +1128,15 @@ namespace VisionMaster
                     // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
                     // 调试态不在这里预置（理由同单次运行入口：抢锁后才置位，防 P2 泄漏）
                     // 循环会话的任务只有被"停止"取消后才会结束，因此这里绝不能 await 它
-                    tasks.Add(flowEngine.RunSessionAsync(session, debugSession: true));
+                    var continuousTask = flowEngine.RunSessionAsync(session, debugSession: true);
+                    // 连续运行的"抢不到锁"没有返回值可判：引擎的抢锁与 IsRunning 置位都在首个 await
+                    // 之前**同步**完成，所以调用返回后立刻取快照就是准的（不猜时序）
+                    bool startedNow = session.IsRunning;
+                    tasks.Add(continuousTask);
                     runCount++;
+
+                    if (!startedNow)
+                        Notifier.ShowWarning($"流程 [{flow.FlowName}] 未启动：会话正被其它触发占用（HTTP / 定时 / 手动）");
                 }
             }
 

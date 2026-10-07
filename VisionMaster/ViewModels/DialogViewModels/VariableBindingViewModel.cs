@@ -60,7 +60,10 @@ namespace VisionMaster.ViewModels
             {
                 if (port == null || _isSingleBindMode)
                     return;
-                _targetStep?.LinkedSources.Remove(port.Definition.Name);
+                // 必须走 RemoveLink（内部 RaisePropertyChanged(LinkedSources)）而不是直改字典：
+                // FlowModel 的版本递增唯一来源是步骤 PropertyChanged，裸写字典会让"解绑"看不见 →
+                // 已编译会话继续用旧连线跑（静默错结果）
+                _targetStep?.RemoveLink(port.Definition.Name);
                 port.LinkedAddress = null;
             });
 
@@ -416,7 +419,10 @@ namespace VisionMaster.ViewModels
         private void DoFinalBind(PortDefinition port, int index = -1)
         {
             Guid targetId = SelectedNode.Id;
-            string targetPort = port.Name;
+            // ★ 下标必须写进 TargetPortName：协议规定它就是"端口名（可带 [索引]）"，
+            //   编译器只从那里解析下标并生成 ArrayIndexProxyPort。此前下标只进显示串 →
+            //   "数组取元素"要么编译报类型不匹配，要么（目标端口是 object 时）把整个数组静默传下去。
+            string targetPort = index >= 0 ? $"{port.Name}[{index}]" : port.Name;
             // 连线类型由候选节点自带（FlowQueryHelper 构造时指定），不再靠 Id 是否为空反推
             LinkKind kind = SelectedNode.DefaultLinkKind;
             string displayName;
@@ -455,7 +461,10 @@ namespace VisionMaster.ViewModels
                     bindKey = SelectedInputPort.Definition.Name;
                 }
 
-                _targetStep.LinkedSources[bindKey] = linkRef;
+                // 走 SetLink（内部 RaisePropertyChanged(LinkedSources)）：FlowModel 的版本递增
+                // 唯一来自步骤 PropertyChanged，裸写字典会让"刚绑的线"看不见 → 复用的已编译会话
+                // 继续跑旧连线（用户侧症状：绑了不生效，界面看起来却是好的）
+                _targetStep.SetLink(bindKey, linkRef);
             }
             SelectedInputPort.LinkedAddress = displayName;
 
@@ -474,9 +483,10 @@ namespace VisionMaster.ViewModels
                 string bindKey = ResolveBindKey(SelectedInputPort.Definition);
                 string displayName = $"{LinkProtocol.ConstantDisplayPrefix}{ConstantValue}";
                 var linkRef = new LinkReference(LinkKind.Constant, Guid.Empty, ConstantValue, displayName);
-                // P0-③：同 DoFinalBind，单绑模式下常量也只回传、不写活模型
+                // P0-③：同 DoFinalBind，单绑模式下常量也只回传、不写活模型；
+                // 写活模型时走 SetLink（直改字典不递增版本 → 复用的已编译会话看不到这次修改）
                 if (!_isSingleBindMode && _targetStep != null)
-                    _targetStep.LinkedSources[bindKey] = linkRef;
+                    _targetStep.SetLink(bindKey, linkRef);
                 SelectedInputPort.LinkedAddress = displayName;
                 _lastBoundLink = linkRef;
                 _lastBoundPort = new PortDefinition

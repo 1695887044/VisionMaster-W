@@ -720,8 +720,16 @@ namespace FlowCanvasChecks
                     ? $"已扫 {seen.Count} 个键，全部唯一"
                     : "重复：" + string.Join("；", duplicated));
 
-            int dialogKeys = seen.Keys.Count(k => k.StartsWith("Dialog", StringComparison.Ordinal));
-            Check("Dialog* 公共键已成体系（界面只需引用，不再各写一份）",
+            // Dialog* 键的"成体系"统计必须**递归**：令牌已按域拆进 Themes\Dialog\ 子目录，
+            // 非递归只扫得到 Themes 根目录的那几个（2026-10-05 界面修复时发现本断言因此过期）。
+            // 重复键检查刻意保持非递归——Fluent\ 别名目录里的"重定义"是有意的覆盖，不是缺陷。
+            int dialogKeys = Directory
+                .GetFiles(themesDir, "*.xaml", SearchOption.AllDirectories)
+                .SelectMany(f => Regex.Matches(File.ReadAllText(f), @"x:Key=""(Dialog[A-Za-z0-9_]*)""")
+                    .Select(m => m.Groups[1].Value))
+                .Distinct(StringComparer.Ordinal)
+                .Count();
+            Check("Dialog* 公共键已成体系（界面只需引用，不再各写一份；递归统计子目录）",
                 dialogKeys >= 40, $"共 {dialogKeys} 个 Dialog* 键");
         }
 

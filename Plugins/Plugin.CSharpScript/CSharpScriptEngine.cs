@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
 using System.Text;
@@ -114,6 +115,17 @@ namespace Plugin.CSharpScript
                     if (string.IsNullOrEmpty(path)) return;
                     if (!path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) return;
                     if (!seen.Add(path)) return;
+
+                    // ★ 必须先判"是不是托管程序集"再引用：
+                    // 宿主输出目录里会有插件带来的**原生 DLL**（典型：Yolo 插件的
+                    // DeployOnnxRuntimeToHost 会把 onnxruntime*.dll 拷进 VisionMaster\bin）。
+                    // MetadataReference.CreateFromFile 对原生 DLL **不会抛异常**，
+                    // 真正的失败推迟到脚本 Compile：整次编译报
+                    //   CS0009 Metadata file '...onnxruntime_providers_shared.dll' could not be opened
+                    // —— 于是"C# 脚本"在任何构建过 Yolo 的宿主里必然不可用，而报错文案与业务毫不相干。
+                    // 判据用 AssemblyName.GetAssemblyName：原生 DLL 会抛 BadImageFormatException。
+                    if (!IsManagedAssembly(path)) return;
+
                     try
                     {
                         refs.Add(MetadataReference.CreateFromFile(path));
@@ -205,6 +217,28 @@ namespace Plugin.CSharpScript
         private static void Audit(ExternalLibSeverity sev, string msg)
         {
             lock (AuditLock) ExternalAudit.Add((sev, msg));
+        }
+
+        /// <summary>
+        /// 是不是**托管**程序集（有 CLR 元数据）。
+        ///
+        /// 为什么必须有这道判据：宿主输出目录里存在插件带来的原生 DLL（Yolo 的 onnxruntime 等），
+        /// 而 <c>MetadataReference.CreateFromFile</c> 对原生 DLL 不抛异常——失败会推迟到脚本 Compile，
+        /// 报成 CS0009「PE image doesn't contain managed metadata」，整份脚本编译不出来。
+        /// 判据用 <see cref="AssemblyName.GetAssemblyName(string)"/>：原生 DLL 会抛 BadImageFormatException。
+        /// 任何异常都按"不可引用"处理——少一项引用顶多脚本里用不了它，误引一项会让整次编译失败。
+        /// </summary>
+        private static bool IsManagedAssembly(string path)
+        {
+            try
+            {
+                AssemblyName.GetAssemblyName(path);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>

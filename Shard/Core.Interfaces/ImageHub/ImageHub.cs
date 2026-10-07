@@ -169,6 +169,43 @@ namespace Core.Interfaces
                 Clear(key);
         }
 
+        /// <summary>
+        /// 按请求标识精确收回某一帧：用于"请求最终未被受理"时把**自己那一帧**去掉，
+        /// 避免它被下一次触发取走（A 请求推的图成了 B 运行的结果——静默张冠李戴）。
+        ///
+        /// 为什么不是 Clear(flowName)：同一流程槽里可能有别人的帧（并发推图），
+        /// 整槽清空会把别人的图也丢掉。这里用"逐项搬移 + 命中则丢弃"保序且不误伤；
+        /// 与取图者并发时若帧已被取走，返回 false（那时它已经不是"我们的帧"了）。
+        /// </summary>
+        /// <returns>true = 找到并移除；false = 已被取走或从未入槽</returns>
+        public static bool TryRemove(string requestId)
+        {
+            if (string.IsNullOrEmpty(requestId)) return false;
+
+            foreach (var queue in _slots.Values)
+            {
+                int count = queue.Count;
+                bool removed = false;
+
+                for (int i = 0; i < count; i++)
+                {
+                    if (!queue.TryDequeue(out var item)) break;
+
+                    if (!removed && string.Equals(item?.RequestId, requestId, StringComparison.Ordinal))
+                    {
+                        removed = true;
+                        continue;   // 命中：丢掉这一帧，其余原样放回
+                    }
+
+                    queue.Enqueue(item);
+                }
+
+                if (removed) return true;
+            }
+
+            return false;
+        }
+
         /// <summary>流程名归一化：null/空白统一成空串，保证 Push 与 TryPop 落在同一个槽上</summary>
         private static string Normalize(string flowName)
             => string.IsNullOrWhiteSpace(flowName) ? string.Empty : flowName;

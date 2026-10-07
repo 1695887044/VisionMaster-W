@@ -35,6 +35,57 @@ namespace VisionMaster.Models
         private int _compiledVersion;
 
         /// <summary>
+        /// 回合收尾的**容器状态上浮**：递归整棵蓝图树，只要有子孙步骤 State==Failed，
+        /// 就把对应容器也标 Failed（只改状态报告，不动控制流）。
+        ///
+        /// 为什么放在回合收尾、而不是容器节点内部：If 容器在"选出分支"那一刻就返回了，
+        /// 分支体由上层序列执行器（RunSequence）接着跑——容器自己根本没有"子步骤跑完"的时刻。
+        /// 收尾统一上浮既覆盖 If/For/While 三种容器，又完全不碰执行顺序（零控制流风险）。
+        ///
+        /// 为什么必须上浮：子步骤业务失败而容器报绿，上位机/HTTP 若按容器状态判 OK 就会放行不良品——
+        /// "绿着错了"比"红着停下"危险得多（本仓库既定判词）。
+        /// State 是 [RuntimeState]，标 Failed 不递增 Version、不落盘。
+        /// </summary>
+        public void EscalateContainerFailures()
+        {
+            foreach (var step in Blueprints)
+                EscalateOne(step);
+        }
+
+        /// <summary>自底向上：先处理孙辈，再决定本级容器是否标 Failed；返回本级（含子树）是否有失败</summary>
+        private static bool EscalateOne(StepModel step)
+        {
+            if (step is not IContainerStep container || container.Children == null)
+                return step?.State == StepState.Failed;
+
+            bool anyFailed = false;
+            foreach (var branch in container.Children)
+            {
+                if (branch?.Steps == null) continue;
+                foreach (var child in branch.Steps)
+                {
+                    if (child == null) continue;
+                    if (EscalateOne(child)) anyFailed = true;
+                }
+            }
+
+            if (anyFailed && step.State != StepState.Failed)
+                step.State = StepState.Failed;
+
+            return step.State == StepState.Failed;
+        }
+
+        /// <summary>
+        /// 这份编译产物属于哪个流程身份（<see cref="FlowModel.FlowID"/>）。
+        ///
+        /// 为什么除了 Version 还要它：Version 是**流程自己**的版本号，两份不同方案里的
+        /// 同名流程各自完全可能都是 Version=3——只比 Version 会让"切换方案后，
+        /// 同名流程复用上一份方案的编译产物"（静默跑别的方案的图纸）。
+        /// 空串 = 老调用方未填：判据退化为只比 Version（兼容既有行为）。
+        /// </summary>
+        public string CompiledFlowId { get; set; } = string.Empty;
+
+        /// <summary>
         /// 会话唯一标识
         /// </summary>
         public string SessionID { get; } = Guid.NewGuid().ToString("N");

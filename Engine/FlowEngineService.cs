@@ -81,6 +81,27 @@ namespace VisionMaster.Services
         public IFlowInvoker FlowInvoker { get; set; } = NullFlowInvoker.Instance;
 
         /// <summary>
+        /// 统一门禁：被锁定（<see cref="FlowModel.StepsEncrypted"/>）的流程一律不许运行。
+        ///
+        /// 为什么把这道门禁放到引擎这一层（而不是各入口自查）：此前的检查散在定时/变量/子程序/单流程
+        /// 四条链上，HTTP 与界面"运行全部"两条链漏判——"同一语义两套口径"正是审查点名的结构性问题。
+        /// 放在引擎入口后，任何触发源（含将来新增的）自动受同一道闸。
+        /// </summary>
+        private bool IsFlowLocked(string flowName)
+        {
+            var flows = _workspaceManager?.CurrentSolution?.Flows;
+            if (flows == null) return false;
+
+            foreach (var flow in flows)
+            {
+                if (flow == null || !flow.StepsEncrypted) continue;
+                if (string.Equals(flow.FlowName, flowName, StringComparison.Ordinal)) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 构造函数
         /// </summary>
         /// <param name="runtimeManager">运行时管理器</param>
@@ -277,6 +298,12 @@ namespace VisionMaster.Services
             if (session == null || session.ExecutionEngine == null)
                 throw new ArgumentException("Session 或底层执行引擎不能为空，请先编译！");
 
+            if (IsFlowLocked(session.FlowName))
+            {
+                _logService.Warn($"流程 {session.FlowName} 已被锁定（禁止运行），本次连续运行请求被拒绝");
+                return;
+            }
+
             // A3：抢锁即"检查+置位"，抢到才继续；抢不到说明这个会话已经在跑
             var sessionLock = TryOccupySession(session);
             if (sessionLock == null)
@@ -342,6 +369,9 @@ namespace VisionMaster.Services
 
                         session.ExecutionEngine.Run(context);
 
+                        // 容器状态上浮（理由见单次执行路径的同名调用）
+                        session.EscalateContainerFailures();
+
                         // 这一轮跑完即广播（图像集按"每轮"采集，见 FlowRunCompleted 的注释）
                         NotifyFlowRunCompleted(session);
 
@@ -353,6 +383,12 @@ namespace VisionMaster.Services
             catch (OperationCanceledException)
             {
                 // 正常取消，无需处理
+            }
+            catch (ObjectDisposedException)
+            {
+                // 与单次执行同一口径：启动准备期间会话被并发释放 = 本次连续运行根本没开始
+                // （不置 Faulted——这不是流程的错，界面上不该出现一条"执行失败"）
+                _logService.Warn($"流程 {session.FlowName} 的会话在启动准备期间被释放（并发替换），本次连续运行未开始");
             }
             catch (Exception ex)
             {
@@ -444,6 +480,12 @@ namespace VisionMaster.Services
         {
             if (session == null || session.ExecutionEngine == null) return false;
 
+            if (IsFlowLocked(session.FlowName))
+            {
+                _logService.Warn($"流程 {session.FlowName} 已被锁定（禁止运行），本次单次执行请求被拒绝");
+                return false;
+            }
+
             // A3：抢到锁才继续，抢不到说明这个会话已经在跑
             var sessionLock = TryOccupySession(session);
             if (sessionLock == null)
@@ -496,9 +538,22 @@ namespace VisionMaster.Services
 
                     session.ExecutionEngine.Run(context);
 
+                    // 容器状态上浮：子步骤有失败 → 容器如实标 Failed（只改状态报告，不动控制流）。
+                    // 放在广播之前：UI / 图像集 / HTTP 收集到的状态才是自洽的
+                    session.EscalateContainerFailures();
+
                     // 单次运行跑完即广播（与连续运行同一语义：一轮结束）
                     NotifyFlowRunCompleted(session);
                 }, token);
+            }
+            catch (ObjectDisposedException)
+            {
+                // 会话在本轮启动准备期间被并发替换/释放（RegisterSession / ClearAll 的 RemoveAndDispose）：
+                // 这一单**一个节点都没跑**，不能算"跑过"——如实返回 false，让调用方（HTTP 收图 / 子程序调用）
+                // 按"未执行"回错，而不是拿着别人/上一轮的端口值报成功。
+                // finally 照常执行（ReleaseSession 归还这把锁定）
+                _logService.Warn($"流程 {session.FlowName} 的会话在启动准备期间被释放（并发替换），本次执行未开始");
+                return false;
             }
             catch (OperationCanceledException)
             {

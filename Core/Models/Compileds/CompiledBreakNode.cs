@@ -19,8 +19,15 @@ namespace VisionMaster.Models
         /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
+            // A2 口径：控制流节点也要上报状态与耗时——否则画布上这几步永远不亮、没有耗时，
+            // 现场"循环为什么提前退出"时看不出是这一步干的（第二批审查修复）
+            context.CurrentNodeId = Id;
+            UpdateStepRuntimeState(context, StepRuntimeState.Running);
+
             context.CurrentFlowState = FlowControlState.Break;
             context.Logger.Info("执行 Break，准备跳出循环...");
+
+            UpdateStepRuntimeState(context, StepRuntimeState.Success);
             return null;
         }
     }
@@ -37,7 +44,12 @@ namespace VisionMaster.Models
         /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
+            context.CurrentNodeId = Id;
+            UpdateStepRuntimeState(context, StepRuntimeState.Running);
+
             context.CurrentFlowState = FlowControlState.Continue;
+
+            UpdateStepRuntimeState(context, StepRuntimeState.Success);
             return null;
         }
     }
@@ -54,8 +66,15 @@ namespace VisionMaster.Models
         /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {
+            context.CurrentNodeId = Id;
+            UpdateStepRuntimeState(context, StepRuntimeState.Running);
+
             context.CurrentFlowState = FlowControlState.Return;
             context.Logger.Warn("执行 Return，主流程即将终止！");
+
+            // Return 是"按指令终止"的正常出口（不是失败）：标成功，把它与"流程异常"区分开——
+            // 现场要看得出这是设计里的收尾，而不是崩了
+            UpdateStepRuntimeState(context, StepRuntimeState.Success);
             return null;
         }
     }

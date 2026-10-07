@@ -1,0 +1,102 @@
+=== 行为自检 ===
+  [PASS] D1① 无参考图 + 输入图 → 底图 = 输入图  (1280x1024)
+  [PASS] D3① 底图=输入图 → Warning 级提示 + 文案点名输入图  ([Warning] 底图：输入图（尚未设参考图）——若用「平面可变形」对齐，请先设参考图并点「载入」；固定相机模式可直接拾取)
+  [PASS] D1 有图时画布不是空态  (IsCanvasEmpty=False)
+  [PASS] D1② 有参考图 → 底图 = 参考图（优先于输入图）  ([Info] 底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标)
+  [PASS] D1④ 无参考图且无输入图 → 底图空 + 空态  (IsCanvasEmpty=True)
+  [PASS] D1④ 空态文案（画布中央提示用同一句）  (尚未载入图像：绑定上游输入图，或在 ①配方库 填参考图路径后点「载入」)
+  [PASS] D4 无底图时 AddPoint 被拒（点列不增 + 红字）  (点列=0 [Error] 请先载入图像（绑定输入图或填参考图路径）再拾取点)
+  [PASS] D4 无底图时 DeleteNearestPoint 被拒  (点列=0)
+  [PASS] D4 无底图时 BeginPointDrag 被拒  (drag=False [Error] 请先载入图像（绑定输入图或填参考图路径）再拾取点)
+  [PASS] D2 非 UI 线程给 SrcImage 赋值不抛
+  [PASS] D2 投入 UI 线程后底图更新为输入图  (1280x1024)
+  [PASS] D5 AlignMode=None + 无参考图 → 学习不被参考图检查拦下  (配方「配方1」学习完成：胶宽 15.3 / 容差 8 / 位置容差 30 / 极性 dark。改参数后需重学（列表会显示「参数已变」）)
+  [PASS] D5 学习走到建模型并写入指纹  (已写指纹)
+  [PASS] D5 反证：平面可变形 + 无参考图 → 仍拒绝学习（提示参考图）  (参考图不存在：。平面可变形对齐需要参考图（模板 + 坐标系基准），请先填有效路径再学习)
+>> 已存 D:\C#\VM\_BeadViewProbe\after_620x640_input.png
+   [620x640_input] 工具栏按钮 7 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_input] 画布标题 (367,202,224x22) / 提示 (367,228,457x16) → 重叠=False
+   [620x640_input] 空态提示 Collapsed actual=0x0 max=200 单行文字宽=379 bounds=(379,308,0x0)
+   [620x640_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=224x22 desired=112x22 bounds=(367,202,224x22)
+     [CHAIN·画布标题] StackPanel actual=224x42 desired=224x42 bounds=(367,202,224x42)
+     [CHAIN·画布标题] Border actual=224x48 desired=224x48 bounds=(367,202,224x48)
+     [CHAIN·画布标题] DockPanel actual=224x178 desired=224x74 bounds=(367,202,224x178)
+     [CHAIN·画布标题] Border actual=258x212 desired=258x116 bounds=(350,186,258x212)
+     [CHAIN·画布标题] Grid actual=258x874 desired=266x616 bounds=(350,12,258x874)
+        rows=[166,220,306,183] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=620x640 bounds=(12,12,596x616)
+        cols=[330,266] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+>> 已存 D:\C#\VM\_BeadViewProbe\after_620x900_input.png
+   [620x900_input] 工具栏按钮 7 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x900_input] 画布标题 (367,202,224x22) / 提示 (367,228,457x16) → 重叠=False
+   [620x900_input] 空态提示 Collapsed actual=0x0 max=200 单行文字宽=379 bounds=(379,324,0x0)
+   [620x900_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=224x22 desired=112x22 bounds=(367,202,224x22)
+     [CHAIN·画布标题] StackPanel actual=224x42 desired=224x42 bounds=(367,202,224x42)
+     [CHAIN·画布标题] Border actual=224x48 desired=224x48 bounds=(367,202,224x48)
+     [CHAIN·画布标题] DockPanel actual=224x180 desired=224x74 bounds=(367,202,224x180)
+     [CHAIN·画布标题] Border actual=258x214 desired=258x116 bounds=(350,186,258x214)
+     [CHAIN·画布标题] Grid actual=258x876 desired=266x874 bounds=(350,12,258x876)
+        rows=[166,222,306,183] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=596x876 desired=620x900 bounds=(12,12,596x876)
+        cols=[330,266] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x900 desired=620x900 bounds=(0,0,620x900)
+     [CHAIN·画布标题] Border actual=620x900 desired=620x900 bounds=(0,0,620x900)
+     [CHAIN·画布标题] BeadInspectView actual=620x900 desired=620x900 bounds=(0,0,620x900)
+>> 已存 D:\C#\VM\_BeadViewProbe\after_1100x900_input.png
+   [1100x900_input] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x900_input] 画布标题 (367,130,704x22) / 提示 (367,155,704x16) → 重叠=False
+   [1100x900_input] 空态提示 Collapsed actual=0x0 max=200 单行文字宽=379 bounds=(619,319,0x0)
+   [1100x900_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=704x22 desired=112x22 bounds=(367,130,704x22)
+     [CHAIN·画布标题] StackPanel actual=704x42 desired=457x42 bounds=(367,130,704x42)
+     [CHAIN·画布标题] Border actual=704x48 desired=457x48 bounds=(367,130,704x48)
+     [CHAIN·画布标题] DockPanel actual=704x346 desired=457x74 bounds=(367,130,704x346)
+     [CHAIN·画布标题] Border actual=738x380 desired=491x116 bounds=(350,112,738x380)
+     [CHAIN·画布标题] Grid actual=738x876 desired=728x708 bounds=(350,12,738x876)
+        rows=[92,388,306,89] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1076x876 desired=1082x900 bounds=(12,12,1076x876)
+        cols=[330,746] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] Border actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] BeadInspectView actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+>> 已存 D:\C#\VM\_BeadViewProbe\after_620x640_empty.png
+   [620x640_empty] 工具栏按钮 7 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_empty] 画布标题 (367,202,224x22) / 提示 (367,228,457x16) → 重叠=False
+   [620x640_empty] 空态提示 Visible actual=379x16 max=200 单行文字宽=379 bounds=(379,308,379x16)
+     [CLIP] 空态提示超出画布/视口或未换行
+   [620x640_empty] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=224x22 desired=112x22 bounds=(367,202,224x22)
+     [CHAIN·画布标题] StackPanel actual=224x42 desired=224x42 bounds=(367,202,224x42)
+     [CHAIN·画布标题] Border actual=224x48 desired=224x48 bounds=(367,202,224x48)
+     [CHAIN·画布标题] DockPanel actual=224x178 desired=224x96 bounds=(367,202,224x178)
+     [CHAIN·画布标题] Border actual=258x212 desired=258x138 bounds=(350,186,258x212)
+     [CHAIN·画布标题] Grid actual=258x844 desired=266x616 bounds=(350,12,258x844)
+        rows=[166,220,306,152] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=620x640 bounds=(12,12,596x616)
+        cols=[330,266] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=620x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+>> 已存 D:\C#\VM\_BeadViewProbe\after_1100x900_ref.png
+   [1100x900_ref] 工具栏按钮 7 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x900_ref] 画布标题 (367,130,704x22) / 提示 (367,155,704x16) → 重叠=False
+   [1100x900_ref] 空态提示 Collapsed actual=0x0 max=200 单行文字宽=379 bounds=(619,319,0x0)
+   [1100x900_ref] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=704x22 desired=112x22 bounds=(367,130,704x22)
+     [CHAIN·画布标题] StackPanel actual=704x42 desired=457x42 bounds=(367,130,704x42)
+     [CHAIN·画布标题] Border actual=704x48 desired=457x48 bounds=(367,130,704x48)
+     [CHAIN·画布标题] DockPanel actual=704x346 desired=457x74 bounds=(367,130,704x346)
+     [CHAIN·画布标题] Border actual=738x380 desired=491x116 bounds=(350,112,738x380)
+     [CHAIN·画布标题] Grid actual=738x876 desired=728x708 bounds=(350,12,738x876)
+        rows=[92,388,306,90] heights=[Auto,*,Auto,Auto]
+     [CHAIN·画布标题] Grid actual=1076x876 desired=1082x900 bounds=(12,12,1076x876)
+        cols=[330,746] widths=[330,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] Border actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] BeadInspectView actual=1100x900 desired=1082x900 bounds=(0,0,1100x900)
+=== PROBE: 全部通过 ===

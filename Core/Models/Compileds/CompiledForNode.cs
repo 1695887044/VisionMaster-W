@@ -27,6 +27,12 @@ namespace VisionMaster.Models
         public int DefaultLoopCount { get; set; }
 
         /// <summary>
+        /// 运行期迭代次数上限（与 <c>CompiledWhileNode.MaxIterations</c> 同口径）：
+        /// LoopCount 可接运行时变量，写错量级就会变成不可中断的长循环。
+        /// </summary>
+        public const int MaxIterations = 9999;
+
+        /// <summary>
         /// 循环体步骤列表
         /// </summary>
         public List<CompiledNode> LoopBody { get; set; } = new();
@@ -84,6 +90,18 @@ namespace VisionMaster.Models
             {
                 context.Logger.Warn($"For节点 '{Name}' 循环次数为负 ({targetCount})，按 0 次处理");
                 targetCount = 0;
+            }
+
+            // ★ 迭代上限：LoopCount 可以来自运行时变量（上游算子/上位机给的量），
+            //   写错量级就是**不可中断的长循环**（只能靠停止/急停掐），与 While 的 MaxIterations 同口径。
+            //   刻意"拒绝执行 + 报错"而不是夹到上限——夹取会静默少跑，比报错难查得多；
+            //   抛出去由 RunAndGetNext 标 Failed 并由引擎置 Faulted（与前例"条件求值失败"同一纪律）。
+            if (targetCount > MaxIterations)
+            {
+                context.Logger.Error(
+                    $"For节点 '{Name}' 的循环次数 {targetCount} 超过上限 {MaxIterations}，已拒绝执行（请检查 LoopCount 的来源与量纲）");
+                throw new InvalidOperationException(
+                    $"For 循环次数 {targetCount} 超过上限 {MaxIterations}（节点 '{Name}'）");
             }
 
             for (int i = 0; i < targetCount; i++)

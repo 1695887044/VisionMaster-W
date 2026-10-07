@@ -26,6 +26,13 @@
     </prism:Dialog.WindowStyle>
 
     <UserControl.Resources>
+        <ResourceDictionary>
+            <!--  就地合并 GridListViewStyle：本视图的 ListView 靠它让 Fluent 的隐式样式让位；
+                 断言宿主没有 Application（ScadaChecks 直连 new 视图），只能用相对 pack 写法自合并，
+                 不能依赖 App.xaml 那本主题字典（见 SolutionListView.xaml 同一段注释）。  -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+            </ResourceDictionary.MergedDictionaries>
         <!--  行容器：整行可点，选中态与变量绑定弹窗同一套配色（#ECF5FF + #409EFF）  -->
         <Style x:Key="UserRowStyle" TargetType="ListViewItem">
             <Setter Property="OverridesDefaultStyle" Value="True" />
@@ -105,6 +112,7 @@
             <Setter Property="CornerRadius" Value="5" />
             <Setter Property="Padding" Value="10,8" />
         </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid Margin="15">
@@ -179,7 +187,8 @@
                                     ItemsSource="{Binding Users}"
                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                     SelectedItem="{Binding SelectedUser}"
-                                    SelectionMode="Single">
+                                    SelectionMode="Single"
+                                    Style="{StaticResource GridListViewStyle}">
                                     <ListView.View>
                                         <!--  列宽预算（左列 280）：
                                                 280 − 2（外框）− 17（竖滚动条）− 8（行容器 4×2）

@@ -495,7 +495,9 @@ namespace UIThemeSmokeTest
                 window.UpdateLayout();
                 Console.WriteLine($"=== OK: Shell.xaml 全树模板实例化无异常 (Fluent={_withFluent}) ===");
                 RunPaneLayoutChecks();
-                return 0;
+                int gridFailures = RunGridViewChecks();
+                int logConsoleFailures = RunLogConsoleChecks();
+                return gridFailures + logConsoleFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -563,7 +565,17 @@ namespace UIThemeSmokeTest
                 "<ResourceDictionary>",
                 "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" " +
                 "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">");
-            merged.Add((ResourceDictionary)XamlReader.Parse(inline));
+            var inlineDict = (ResourceDictionary)XamlReader.Parse(inline);
+            // 上面那条正则把 App.xaml 的 <ResourceDictionary.MergedDictionaries> 块一起吃进来了
+            // （贪婪匹配到最后一个 </ResourceDictionary>）。不剥掉的话，无论 --no-fluent 与否，
+            // Fluent 主题都会从这条路径再合并一次 —— "--no-fluent" 就成了摆设
+            // （2026-10-06 排查方案列表表格缺陷时实测：去掉 Fluent 的对照组里 Fluent 仍在生效）。
+            if (inlineDict.MergedDictionaries.Count > 0)
+            {
+                Console.WriteLine($">> App.xaml 内联块里夹带的合并字典 {inlineDict.MergedDictionaries.Count} 个已剥掉（否则 --no-fluent 无效）");
+                inlineDict.MergedDictionaries.Clear();
+            }
+            merged.Add(inlineDict);
         }
 
         private static Window ParseShell()
@@ -1221,6 +1233,398 @@ namespace UIThemeSmokeTest
             }
 
             Console.WriteLine(failures == 0 ? "=== 多格布局：全部通过 ===" : $"### 多格布局：{failures} 项失败");
+        }
+
+        /// <summary>
+        /// 表格（ListView + GridView）回归闸。
+        ///
+        /// 为什么单独钉它：App.xaml 把 PresentationFramework.Fluent 合并进全局资源，它自带两条
+        /// **隐式样式**（按类型作键，落点就是应用级，优先级高于框架主题样式）——
+        ///   · 隐式 ListView 样式换成自家模板，模板里没有 GridViewHeaderRowPresenter → 列头全没了；
+        ///   · 隐式 ListViewItem 样式行模板用裸 ContentPresenter → 列布局塌成一列，只剩类型全名。
+        /// 2026-10-06 真机缺陷（方案列表弹窗一行行 VisionMaster.Models.AppSolutionEntry）就是这两条
+        /// 合起来的产物，而且只读 XAML 看不出来（视图源码一直是好的）。
+        ///
+        /// 所以这里按"视图实际会怎么挂样式"渲染一遍：ListView 挂主题里的 GridListViewStyle
+        /// （空样式，作用是让回框架默认模板），行挂自带 ItemContainerStyle（模板里是
+        /// GridViewRowPresenter）。再配一条静态扫描，钉住"凡用 GridView 的视图三件套必须齐"。
+        /// </summary>
+        private static int RunGridViewChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                var listStyle = Application.Current.TryFindResource("GridListViewStyle") as Style;
+                Check("取到 GridListViewStyle（UI 主题里那份给 GridView 让路的样式）",
+                    listStyle != null,
+                    listStyle == null ? "找不到键 /UI;component/Themes/Controls/GridView.xaml" : "已解析");
+
+                // 行容器照 Scada 范式写（模板里必须是 GridViewRowPresenter）：这里只验结构，不带配色
+                var rowStyle = (Style)XamlReader.Parse(@"
+<Style xmlns=""http://schemas.microsoft.com/winfx/2006/xaml/presentation""
+       xmlns:x=""http://schemas.microsoft.com/winfx/2006/xaml"" TargetType=""ListViewItem"">
+  <Setter Property=""OverridesDefaultStyle"" Value=""True"" />
+  <Setter Property=""HorizontalContentAlignment"" Value=""Stretch"" />
+  <Setter Property=""Padding"" Value=""0"" />
+  <Setter Property=""Template"">
+    <Setter.Value>
+      <ControlTemplate TargetType=""ListViewItem"">
+        <Border Padding=""4,6"" Background=""Transparent"">
+          <GridViewRowPresenter Columns=""{TemplateBinding GridView.ColumnCollection}""
+                                Content=""{TemplateBinding Content}""
+                                HorizontalAlignment=""{TemplateBinding HorizontalContentAlignment}"" />
+        </Border>
+      </ControlTemplate>
+    </Setter.Value>
+  </Setter>
+</Style>
+");
+
+                ListView BuildTable(Style listStyleOrNull)
+                {
+                    var grid = new GridView();
+                    AddColumn(grid, "Index", 50);
+                    AddColumn(grid, "Name", 150);
+                    AddColumn(grid, "Path", 220);
+                    var table = new ListView
+                    {
+                        ItemContainerStyle = rowStyle,
+                        View = grid,
+                        ItemsSource = new ObservableCollection<GridViewProbeRow>
+                        {
+                            new GridViewProbeRow { Index = "1", Name = "方案A", Path = "D:\\A\\Main.vms" },
+                            new GridViewProbeRow { Index = "2", Name = "方案B", Path = "D:\\B\\Main.vms" },
+                        },
+                    };
+                    // 注意：不挂样式时**不能写 table.Style = null** —— 那是往本地值里写 null，
+                    // 照样会把隐式样式顶掉（等于变相"修好了"），量出来的就不是真实现象。
+                    if (listStyleOrNull != null) table.Style = listStyleOrNull;
+                    var host = new Border { Width = 560, Height = 200, Child = table };
+                    host.Measure(new Size(560, 200));
+                    host.Arrange(new Rect(0, 0, 560, 200));
+                    host.UpdateLayout();
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    return table;
+                }
+
+                var table = BuildTable(listStyle);
+                var headers = Descendants<GridViewColumnHeader>(table)
+                    .Where(h => h.Content != null)
+                    .OrderBy(h => h.TranslatePoint(new Point(0, 0), table).X)
+                    .Select(h => h.Content!.ToString() ?? string.Empty).ToList();
+                Check("三列列头都画出来了（Fluent 的隐式样式在位时这里是 0 个）",
+                    string.Join("/", headers) == "Index/Name/Path",
+                    "列头=[" + string.Join("/", headers) + "]");
+                Check("列头由 GridViewHeaderRowPresenter 摆放（模板里没有它就没有上面那三个列头）",
+                    Descendants<GridViewHeaderRowPresenter>(table).Any(p => p.Visibility == Visibility.Visible),
+                    $"headerPresenters={Descendants<GridViewHeaderRowPresenter>(table).Count()}");
+
+                var rows = Descendants<ListViewItem>(table).ToList();
+                Check("每行都挂着 GridViewRowPresenter（列布局靠它；退化成 ContentPresenter 就是类型全名）",
+                    rows.Count == 2 && rows.All(r => Descendants<GridViewRowPresenter>(r).Any()),
+                    $"行数={rows.Count}，带列渲染器的行={rows.Count(r => Descendants<GridViewRowPresenter>(r).Any())}");
+
+                var texts = Descendants<TextBlock>(table).Select(t => t.Text ?? string.Empty).ToList();
+                Check("整棵树里没有任何一处渲染出类型全名",
+                    !texts.Any(t => t.Contains("GridViewProbeRow", StringComparison.Ordinal)),
+                    texts.FirstOrDefault(t => t.Contains("GridViewProbeRow", StringComparison.Ordinal)) ?? "（没有）");
+                Check("每一列都真的接上了数据（序号 / 名称 / 路径三列各自有值）",
+                    texts.Contains("1") && texts.Contains("方案A") && texts.Contains("D:\\A\\Main.vms"),
+                    string.Join(" | ", texts.Where(t => t.Length > 0)));
+
+                // 参考信息（不作断言）：同一张表不挂样式的样子 —— Fluent 在位时列头会被顶掉，
+                // 这就是"为什么必须有 GridListViewStyle"。若哪天 App.xaml 去掉了 Fluent 合并，
+                // 这行会变成 3 —— 那不是失败，只是说明根因不在了。
+                var bare = BuildTable(null);
+                int bareHeaders = Descendants<GridViewColumnHeader>(bare).Count(h => h.Content != null);
+                Console.WriteLine($"        （参考：不挂 GridListViewStyle 时列头 = {bareHeaders} 个；行容器样式仍是自带的，故行不受影响）");
+
+                // ---- 静态扫描：用 GridView 的视图，三件套必须在同一个文件里齐 ----
+                // 少任何一件，屏幕上就是"列头没了 / 一行行类型全名"，而这两种错只读 XAML 看不出来。
+                string repoRoot = @"d:\C#\VM";
+                var offenders = new List<string>();
+                int scanned = 0;
+                foreach (var file in Directory.GetFiles(repoRoot, "*.xaml", SearchOption.AllDirectories))
+                {
+                    if (file.Contains(@"\obj\") || file.Contains(@"\bin\")
+                        || file.Contains(@"WPF-Halcon-流程拖拉")) continue;
+                    string text = File.ReadAllText(file);
+                    if (!text.Contains("<GridView", StringComparison.Ordinal)) continue;
+                    scanned++;
+                    string name = Path.GetFileName(file);
+                    if (!text.Contains("GridListViewStyle", StringComparison.Ordinal))
+                        offenders.Add(name + ": 没挂 GridListViewStyle（列头会被 Fluent 的隐式 ListView 样式顶掉）");
+                    if (!text.Contains("GridViewRowPresenter", StringComparison.Ordinal))
+                        offenders.Add(name + ": 行模板缺 GridViewRowPresenter（列布局会塌成一行行类型全名）");
+                }
+                Check($"凡用 GridView 的视图都带齐三件套（扫过 {scanned} 个含 GridView 的 xaml）",
+                    offenders.Count == 0,
+                    offenders.Count == 0 ? "全部齐全" : string.Join(" | ", offenders.Take(6)));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("### 表格（GridView）断言抛出异常:");
+                Print(ex);
+                failures++;
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 表格（GridView）冒烟：全部通过 ==="
+                : $"### 表格（GridView）冒烟：{failures} 项失败");
+            return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 日志控制台（LogConsole）回归闸。
+        ///
+        /// 钉的是几处"只读 XAML 看不出来、只有真跑才暴露"的行为：
+        ///   · GroupBy 常写在 ItemsSource 之前（XAML 的属性顺序就是这样），分组必须补应用一次；
+        ///   · 过滤挂在集合的**默认视图**上（WPF 的 ItemsControl 就是从那里取数据），换源时若不摘掉，
+        ///     旧集合会被"幽灵过滤"，控件也回收不掉；
+        ///   · 搜索走 200ms 防抖（防抖窗口内不得重算视图），等级过滤立即生效；
+        ///   · MaxItems 的裁剪必须排到 Dispatcher 上执行（ObservableCollection 在派发
+        ///     CollectionChanged 的过程中禁止再改自己）。
+        /// 另配一条静态扫描：分组表头不得回退成深色底（亮色日志列表上就是黑条压白列表）。
+        /// </summary>
+        private static int RunLogConsoleChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            // 把 Dispatcher 上排队的活（Background 优先级）跑完：Background(4) > ApplicationIdle(2)
+            void Pump(UI.CustomControl.LogConsole console)
+                => console.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+            try
+            {
+                // ---- 静态扫描：分组表头配色 ----
+                // 只扫非注释内容：注释里写着"以前是 #252526"是说明，不是缺陷
+                const string logConsoleTheme = @"d:\C#\VM\UI\Controls\Themes\LogConsole.xaml";
+                string themeText = File.Exists(logConsoleTheme) ? File.ReadAllText(logConsoleTheme) : string.Empty;
+                string themeCode = Regex.Replace(themeText, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+                Check("分组表头不再用深色底（#252526 压在亮色日志列表上）",
+                    themeCode.Length > 0 && !themeCode.Contains("#252526", StringComparison.OrdinalIgnoreCase),
+                    themeCode.Length == 0 ? "找不到 " + logConsoleTheme : "已扫过主题文件（注释除外）");
+
+                // ---- GroupBy 先于 ItemsSource ----
+                var grouped = new ObservableCollection<UI.Models.LogItem>();
+                var groupedConsole = new UI.CustomControl.LogConsole { GroupBy = "Source" };
+                groupedConsole.ItemsSource = grouped;
+                var groupedView = System.Windows.Data.CollectionViewSource.GetDefaultView(grouped);
+                Check("GroupBy 先于 ItemsSource 赋值也能生效（XAML 的属性顺序就是这个顺序）",
+                    groupedView.GroupDescriptions.Count == 1,
+                    $"GroupDescriptions={groupedView.GroupDescriptions.Count}");
+
+                // ---- 换源：旧集合默认视图上的过滤委托必须摘掉 ----
+                var oldSource = new ObservableCollection<UI.Models.LogItem>
+                {
+                    new UI.Models.LogItem(UI.Models.LogLevel.Info, "old")
+                };
+                var oldView = System.Windows.Data.CollectionViewSource.GetDefaultView(oldSource);
+                var switchConsole = new UI.CustomControl.LogConsole { ItemsSource = oldSource };
+                bool attached = oldView.Filter != null;
+                switchConsole.ItemsSource = new ObservableCollection<UI.Models.LogItem>();
+                Check("换源后旧集合默认视图上的过滤委托被摘掉（不摘 = 旧集合被幽灵过滤 + 控件回收不掉）",
+                    attached && oldView.Filter == null,
+                    $"换源前 attached={attached}，换源后 filter={(oldView.Filter == null ? "null" : "仍在")}");
+
+                // ---- 过滤：等级立即生效，关键字走防抖 ----
+                var logs = new ObservableCollection<UI.Models.LogItem>
+                {
+                    new UI.Models.LogItem(UI.Models.LogLevel.Info, "alpha 一条"),
+                    new UI.Models.LogItem(UI.Models.LogLevel.Error, "beta 一条"),
+                    new UI.Models.LogItem(UI.Models.LogLevel.Error, "alpha 报错"),
+                };
+                var filterConsole = new UI.CustomControl.LogConsole { ItemsSource = logs };
+                var filterView = System.Windows.Data.CollectionViewSource.GetDefaultView(logs);
+
+                filterConsole.FilterLevel = UI.Models.LogLevel.Error;
+                Check("等级过滤立即生效（不走防抖）", CountView(filterView) == 2, $"命中 {CountView(filterView)}/3");
+
+                filterConsole.SearchText = "alpha";
+                // 此刻仍在 Dispatcher 线程上同步执行，计时器没机会跑 —— 防抖窗口内视图必须还没变
+                int beforeDebounce = CountView(filterView);
+                System.Threading.Thread.Sleep(320);   // 越过 200ms 防抖窗口（Sleep 期间消息泵停摆，醒来才补跑计时器）
+                Pump(filterConsole);
+                int afterDebounce = CountView(filterView);
+                Check("关键字过滤：防抖窗口内不重算，窗口过后命中 1 条",
+                    beforeDebounce == 2 && afterDebounce == 1,
+                    $"防抖窗口内 {beforeDebounce}/3（等级=Error），窗口过后 {afterDebounce}/3（Error+alpha）");
+
+                // ---- MaxItems 裁剪 ----
+                var capped = new ObservableCollection<UI.Models.LogItem>();
+                var capConsole = new UI.CustomControl.LogConsole { MaxItems = 3, ItemsSource = capped };
+                for (int i = 0; i < 10; i++)
+                    capped.Add(new UI.Models.LogItem(UI.Models.LogLevel.Info, "m" + i));
+                Pump(capConsole);
+                Check("MaxItems 生效：超出后从头部裁掉最旧的",
+                    capped.Count == 3 && capped[0].Message == "m7",
+                    $"count={capped.Count}，首条={(capped.Count > 0 ? capped[0].Message : "（空）")}");
+
+                // ---- 自动滚动：首屏贴底 / 用户上翻后不抢镜 / 翻回底部后恢复 ----
+                // 说明：这里用 ScrollToVerticalOffset 模拟"用户往上翻"，它与拖拽/滚轮产生的
+                // ScrollChanged 签名一致（ExtentHeightChange=0、VerticalChange≠0），状态机走同一条路；
+                // 差别只在触发源是真手还是代码。真正只在"滚轮与新增落在同一次布局"时才分得出的那处
+                // 判定差异（旧写法看 ExtentHeightChange、新写法看 VerticalChange），公开 API 无法稳定造出。
+                var feed = new ObservableCollection<UI.Models.LogItem>();
+                for (int i = 0; i < 100; i++)
+                    feed.Add(new UI.Models.LogItem(UI.Models.LogLevel.Info, "line " + i));
+                var console = new UI.CustomControl.LogConsole { ItemsSource = feed };
+                var host = new Border { Width = 400, Height = 200, Child = console };
+                host.Measure(new Size(400, 200));
+                host.Arrange(new Rect(0, 0, 400, 200));
+
+                // 先让布局把新增的项算进 ExtentHeight，再跑排队的 ScrollToBottom ——
+                // 顺序反了的话 ScrollToBottom 拿的是上一轮的 ScrollableHeight，会差一项。
+                void Settle()
+                {
+                    host.UpdateLayout();
+                    Pump(console);
+                }
+
+                Settle();
+                var sv = FindDescendant<ScrollViewer>(console);
+                Check("拿到模板里的 PART_ScrollViewer", sv != null,
+                    sv == null ? "模板里没有 ScrollViewer" : "已拿到");
+
+                if (sv != null)
+                {
+                    bool AtBottom() => sv.VerticalOffset >= sv.ScrollableHeight - 0.5;
+
+                    Check("AutoScroll 默认开启：首屏就贴在底部（逻辑滚动，ScrollableHeight 以项为单位）",
+                        AtBottom(), $"offset={sv.VerticalOffset}/{sv.ScrollableHeight}");
+
+                    sv.ScrollToVerticalOffset(0);   // 模拟用户往上翻
+                    feed.Add(new UI.Models.LogItem(UI.Models.LogLevel.Info, "user is reading history"));
+                    Settle();
+                    Check("用户上翻后新日志不抢镜（粘底策略：不把正在看的位置拽回底部）",
+                        sv.VerticalOffset <= 0.5, $"新日志到达后 offset={sv.VerticalOffset}/{sv.ScrollableHeight}");
+
+                    sv.ScrollToBottom();            // 翻回底部
+                    feed.Add(new UI.Models.LogItem(UI.Models.LogLevel.Info, "back to bottom"));
+                    Settle();
+                    Check("翻回底部后自动滚动恢复", AtBottom(), $"offset={sv.VerticalOffset}/{sv.ScrollableHeight}");
+                }
+
+                // ---- LogView 的接线：绑的点必须在 VM 上真的存在 ----
+                // 属性名写错时 XAML 照样编译通过、运行时绑定静默失效 —— 下拉/搜索框会"看着有，其实没用"。
+                const string logViewPath = @"d:\C#\VM\VisionMaster\Views\LogView.xaml";
+                string viewText = File.Exists(logViewPath) ? File.ReadAllText(logViewPath) : string.Empty;
+                var vmType = typeof(VisionMaster.ViewModels.LogViewModel);
+                var wires = new (string Snippet, string Property)[]
+                {
+                    ("SearchText=\"{Binding SearchText}\"", "SearchText"),
+                    ("FilterLevel=\"{Binding FilterLevel}\"", "FilterLevel"),
+                    ("AutoScroll=\"{Binding AutoScroll}\"", "AutoScroll"),
+                    ("ItemsSource=\"{Binding LevelOptions}\"", "LevelOptions"),
+                    ("SelectedItem=\"{Binding LevelOption}\"", "LevelOption"),
+                };
+                var wireProblems = new List<string>();
+                foreach (var wire in wires)
+                {
+                    if (!viewText.Contains(wire.Snippet, StringComparison.Ordinal))
+                        wireProblems.Add(wire.Property + "：视图里没有 " + wire.Snippet);
+                    else if (vmType.GetProperty(wire.Property) == null)
+                        wireProblems.Add(wire.Property + "：LogViewModel 上没有这个属性");
+                }
+                if (viewText.Length > 0
+                    && (!viewText.Contains("DisplayMemberPath=\"Text\"", StringComparison.Ordinal)
+                        || typeof(VisionMaster.ViewModels.LogLevelFilterOption).GetProperty("Text") == null))
+                    wireProblems.Add("等级下拉的 DisplayMemberPath=Text 对不上 LogLevelFilterOption.Text");
+                Check("LogView 的三处过滤/开关接线 + 等级下拉都点到点（写错只会静默失效，不报编译错）",
+                    viewText.Length > 0 && wireProblems.Count == 0,
+                    viewText.Length == 0 ? "找不到 " + logViewPath
+                        : (wireProblems.Count == 0 ? "5 处绑定 + DisplayMemberPath 全部对得上" : string.Join(" | ", wireProblems)));
+
+                // ---- 端到端：真视图 + 真 VM，验证值真的落到了依赖属性上 ----
+                // 上面那条只证明"名字对得上"，这条证明"值真的会传过去"（OneWay/TwoWay 方向、
+                // 派生属性 FilterLevel 的通知链）。构造 LogView 会走 Prism 的自动装配（本工程没有容器），
+                // 万一装配失败也不该让整段检查炸掉 —— 退化成一行参考说明。
+                try
+                {
+                    var logVm = new VisionMaster.ViewModels.LogViewModel(null);   // null 服务：不订阅日志，只测接线
+                    var logView = new VisionMaster.Views.LogView { DataContext = logVm };
+                    var probe = new Border { Width = 600, Height = 300, Child = logView };
+                    probe.Measure(new Size(600, 300));
+                    probe.Arrange(new Rect(0, 0, 600, 300));
+                    probe.UpdateLayout();
+                    probe.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                    var wiredConsole = FindDescendant<UI.CustomControl.LogConsole>(logView);
+                    var levelBox = FindDescendant<ComboBox>(logView);
+                    var followBox = FindDescendant<CheckBox>(logView);
+
+                    Check("端到端：真视图 + 真 VM，控件的 AutoScroll/FilterLevel/SearchText 与下拉/勾选初值都对",
+                        wiredConsole != null && wiredConsole.AutoScroll && wiredConsole.FilterLevel == null
+                            && string.IsNullOrEmpty(wiredConsole.SearchText)
+                            && levelBox != null && ReferenceEquals(levelBox.SelectedItem, logVm.LevelOptions[0])
+                            && followBox != null && followBox.IsChecked == true,
+                        wiredConsole == null ? "视图里没找到 LogConsole"
+                            : $"AutoScroll={wiredConsole.AutoScroll} FilterLevel={(wiredConsole.FilterLevel?.ToString() ?? "null")} "
+                              + $"SearchText='{wiredConsole.SearchText}' 下拉选中={levelBox?.SelectedItem} 勾选={followBox?.IsChecked}");
+
+                    logVm.SearchText = "abc";
+                    logVm.LevelOption = logVm.LevelOptions[4];   // 错误
+                    logVm.AutoScroll = false;
+                    probe.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                    Check("端到端：改 VM 后控件三个依赖属性跟着变，搜索框也显示出新词（派生属性通知链通）",
+                        wiredConsole != null && wiredConsole.SearchText == "abc"
+                            && wiredConsole.FilterLevel == UI.Models.LogLevel.Error && !wiredConsole.AutoScroll
+                            && Descendants<TextBox>(logView).Any(t => t.Text == "abc"),
+                        wiredConsole == null ? "视图里没找到 LogConsole"
+                            : $"SearchText='{wiredConsole.SearchText}' FilterLevel={(wiredConsole.FilterLevel?.ToString() ?? "null")} "
+                              + $"AutoScroll={wiredConsole.AutoScroll} 搜索框文本={Descendants<TextBox>(logView).FirstOrDefault(t => t.Text == "abc")?.Text ?? "（没有 abc）"}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"        （参考：端到端接线检查未执行 —— {ex.GetType().Name}: {ex.Message}）");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("### 日志控制台断言抛出异常:");
+                Print(ex);
+                failures++;
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 日志控制台（LogConsole）冒烟：全部通过 ==="
+                : $"### 日志控制台（LogConsole）冒烟：{failures} 项失败");
+            return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>数视图里过滤后还剩几条（枚举视图只会走过滤后的项）</summary>
+        private static int CountView(System.ComponentModel.ICollectionView view)
+        {
+            int n = 0;
+            foreach (var _ in view) n++;
+            return n;
+        }
+
+        private static void AddColumn(GridView grid, string path, double width)
+        {
+            var col = new GridViewColumn { Header = path, Width = width };
+            col.DisplayMemberBinding = new System.Windows.Data.Binding(path);
+            grid.Columns.Add(col);
+        }
+
+        /// <summary>表格冒烟的数据行：名字只用于"整棵树里不得出现类型全名"这条断言</summary>
+        private sealed class GridViewProbeRow
+        {
+            public string Index { get; set; }
+            public string Name { get; set; }
+            public string Path { get; set; }
         }
 
         private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject

@@ -104,6 +104,7 @@ namespace FlowCanvasChecks
             CheckUI_ViewContract();
             CheckUI_BindingCard();
             Check16_FindRangeConfigurable();
+            Check17_LearnFeedback();
         }
 
         // ==================================================================
@@ -1131,6 +1132,143 @@ namespace FlowCanvasChecks
                 $"Success={plugin.Success.Value} IsOk={plugin.IsOk.Value} Err='{plugin.LastError}'");
 
             img.Dispose();
+        }
+
+        // ==================================================================
+        //  断言 17：点「学习」必有可见结论（用户实测 2026-10-07：「点学习没有任何反应」）
+        //  链路本身是通的（按钮 → BeadInspectView.OnLearnClick → LearnRecipe），坏在结论只写进
+        //  底部状态栏 / 右列预览 / 左侧配方库行 —— 三处都在用户当前视口之外，画布又不变，
+        //  于是"看起来没反应"。修复 = 每条返回路径同时写「操作结果横幅」
+        //  （右列第 0 行工具栏卡 = Auto 行高、按钮正下方，任何窗口尺寸下都在视口内）。
+        //  本断言锁四件事：
+        //    ① 结构面：横幅是视图里真实的绑定（把横幅删了 = 结论又掉出视口）；
+        //    ② 两条前置失败路径都写横幅且含义可执行（无参考图的「平面可变形」/ 点数不足）；
+        //    ③ 可学路径：成功横幅 + 配方库行「已学习」+ 学习预览非空（三处同时到位）；
+        //    ④ 「平面可变形」+ 输入图兜底 的拾取风险当场可见，且底图切回参考图后自动折叠。
+        // ==================================================================
+        private static void Check17_LearnFeedback()
+        {
+            // ① 结构面：XAML 里必须有横幅（文字 / 可见性 / 级别 三个绑定齐全）
+            string? xamlPath = ResolveRepoFile(@"Plugins\Plugin.BeadInspect\BeadInspectView.xaml");
+            if (xamlPath != null)
+            {
+                string xaml = File.ReadAllText(xamlPath);
+                var missing = new[] { "Binding ActionBanner", "Binding HasActionBanner", "Binding ActionBannerLevel" }
+                    .Where(k => !xaml.Contains(k)).ToArray();
+                Check("17a 配置视图有常驻结果横幅（文字/可见性/级别三个绑定齐全）", missing.Length == 0,
+                    missing.Length == 0
+                        ? "ActionBanner + HasActionBanner + ActionBannerLevel"
+                        : "缺失：" + string.Join(",", missing));
+            }
+
+            // ②-a 前置不满足（用户现场形态）：平面可变形 + 没设参考图 + 在输入图上拾取 3 点。
+            // 注意必须走 AddPoint（= 画布拾取）：直接写 entry.RefPointsJson 不会更新拾取缓存，
+            // 「学习」按钮的 IsEnabled（HasEnoughPoints）也就还是 0 点——这与用户实测的现场不符。
+            var p1 = new BeadInspectPlugin { InstanceName = "胶路_学习横幅_无参考图" };
+            try
+            {
+                p1.Initialize(new FakeStepData());
+                p1.AlignMode = BeadAlignMode.PlanarDeformable;
+                using var input = LoadImage(1);
+                p1.SrcImage.Value = input; // 没设参考图 → 底图退到输入图兜底（用户截图的现场）
+                p1.AddPoint(RefRows[2], RefCols[2]);
+                p1.AddPoint(RefRows[5], RefCols[5]);
+                p1.AddPoint(RefRows[8], RefCols[8]);
+                Check("17b 现场形态：在输入图兜底上拾取 3 点 → 「学习」按钮可用（IsEnabled 绑的就是 HasEnoughPoints）",
+                    p1.HasEnoughPoints && p1.PointRows.Count == 3, p1.PointCountText);
+
+                p1.LearnRecipe();
+                Check("17b 平面可变形缺参考图 → 横幅从拾取警告换成「学习失败」/ 红级 / 点名参考图 + 两条对策",
+                    p1.HasActionBanner && p1.ActionBannerLevel == StatusLevel.Error
+                    && p1.ActionBanner.Contains("学习失败") && p1.ActionBanner.Contains("参考图")
+                    && p1.ActionBanner.Contains("固定相机"),
+                    $"[{p1.ActionBannerLevel}] {p1.ActionBanner}");
+            }
+            finally
+            {
+                p1.Dispose();
+            }
+
+            // ②-b 另两条前置失败：点数不足 / 点列 JSON 为空（横幅口径不能让用户去猜）
+            var p2 = new BeadInspectPlugin { InstanceName = "胶路_学习横幅_点数不足" };
+            try
+            {
+                p2.Initialize(new FakeStepData());
+                var e2 = p2.EditingEntry!;
+                p2.AlignMode = BeadAlignMode.None; // 固定相机：不设参考图也能走到点数检查
+                e2.RefPointsJson = PointsJson(new[] { 400.0 }, new[] { 300.0 });
+                p2.LearnRecipe();
+                Check("17c 点数不足（1 点）→ 横幅说明「至少需要 2 个点」",
+                    p2.HasActionBanner && p2.ActionBannerLevel == StatusLevel.Warning
+                    && p2.ActionBanner.Contains("至少需要 2 个点"),
+                    $"[{p2.ActionBannerLevel}] {p2.ActionBanner}");
+
+                e2.RefPointsJson = "[]";
+                p2.LearnRecipe();
+                Check("17c 点列为空 → 横幅给出「先拾取至少 2 个点」的去处",
+                    p2.HasActionBanner && p2.ActionBannerLevel == StatusLevel.Error
+                    && p2.ActionBanner.Contains("学习失败") && p2.ActionBanner.Contains("拾取"),
+                    $"[{p2.ActionBannerLevel}] {p2.ActionBanner}");
+            }
+            finally
+            {
+                p2.Dispose();
+            }
+
+            // ③ 可学路径：参考图 + 画布拾取 5 点 + 「学习」→ 成功横幅 / 行「已学习」/ 预览非空
+            var p3 = new BeadInspectPlugin { InstanceName = "胶路_学习横幅_可学" };
+            try
+            {
+                p3.Initialize(new FakeStepData());
+                var e3 = p3.EditingEntry!;
+                e3.RefImagePath = Path.Combine(BeadDir, "adhesive_bead_ref.png");
+                p3.LoadRefImage(); // = 用户点「载入」
+                p3.AlignMode = BeadAlignMode.PlanarDeformable;
+                for (int i = 0; i < 5; i++)
+                    p3.AddPoint(RefRows[i], RefCols[i]); // = 用户在画布上逐点拾取
+                Check("17e 前置：画布拾取 5 点（点列缓存与点列表格同步、按钮可用）",
+                    p3.PointRows.Count == 5 && p3.HasEnoughPoints,
+                    $"{p3.PointCountText} / 表格 {p3.PointRows.Count} 行");
+
+                p3.LearnRecipe();
+                var row = p3.RecipeRows.FirstOrDefault(r => ReferenceEquals(r.Entry, e3));
+                bool preview = p3.PreviewImage is HImage pv && pv.IsInitialized();
+                Check("17e 可学：成功横幅 + 配方库行「已学习」+ 学习预览非空",
+                    p3.HasActionBanner && p3.ActionBannerLevel == StatusLevel.Info
+                    && p3.ActionBanner.Contains("学习成功") && p3.ActionBanner.Contains("5 点")
+                    && row != null && row.LearnedText == "已学习" && preview,
+                    $"[{p3.ActionBannerLevel}] {p3.ActionBanner} / 行={row?.LearnedText} / 预览={(preview ? "非空" : "空")}");
+                Check("17e 学习指纹已写入条目（配置态「已学习」与运行态缓存键同口径）",
+                    !string.IsNullOrEmpty(e3.LearnedSignature), e3.LearnedSignature);
+            }
+            finally
+            {
+                p3.Dispose();
+            }
+
+            // ④ 语义风险可见化：平面可变形 + 底图=输入图兜底 → 拾取后横幅警告；底图切回参考图 → 自动折叠
+            var p4 = new BeadInspectPlugin { InstanceName = "胶路_学习横幅_输入图兜底" };
+            try
+            {
+                p4.Initialize(new FakeStepData());
+                p4.AlignMode = BeadAlignMode.PlanarDeformable;
+                using var input = LoadImage(1);
+                p4.SrcImage.Value = input; // 没设参考图 → 底图退到输入图（用户实测的现场形态）
+                p4.AddPoint(RefRows[0], RefCols[0]);
+                Check("17f 平面可变形 + 输入图兜底 → 拾取后横幅警告坐标系风险（「可拾取」的设计不变）",
+                    p4.PointRows.Count == 1 && p4.HasActionBanner && p4.ActionBannerLevel == StatusLevel.Warning
+                    && p4.ActionBanner.Contains("参考图") && p4.ActionBanner.Contains("坐标系"),
+                    $"点列={p4.PointRows.Count} [{p4.ActionBannerLevel}] {p4.ActionBanner}");
+
+                p4.EditingEntry!.RefImagePath = Path.Combine(BeadDir, "adhesive_bead_ref.png");
+                p4.LoadRefImage(); // 底图切到参考图：坐标系提示必须自动折叠（留着就自相矛盾）
+                Check("17f 底图切回参考图 → 坐标系警告横幅自动折叠",
+                    !p4.HasActionBanner, p4.HasActionBanner ? p4.ActionBanner : "(已折叠)");
+            }
+            finally
+            {
+                p4.Dispose();
+            }
         }
     }
 }

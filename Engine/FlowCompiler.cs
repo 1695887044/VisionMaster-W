@@ -126,6 +126,16 @@ namespace VisionMaster.Services
 
             foreach (var localVar in localVariables)
             {
+                // ★ 条件变量必须真的绑了数据源：声明了却没有连线时，求值会静默取类型默认值
+                //   （double=0 → 条件恒假走 Else、While 立即退出），而步骤仍标成功——
+                //   "绿着走错分支"比红着崩溃危险（本仓库既定判词）。这里做编译期反向检查。
+                if (!HasLinkedSource(owner, localVar))
+                {
+                    errors.Add(Err(owner,
+                        $"[条件变量未绑定] 变量 '{localVar.Name}' 没有绑定数据源（请在条件编辑器里绑定上游端口，或删除该行）"));
+                    continue;
+                }
+
                 Type varType = typeof(double);
                 try
                 {
@@ -165,6 +175,45 @@ namespace VisionMaster.Services
             }
 
             return (delegateParams, compiledVarTypes, compiledVarIds);
+        }
+
+        /// <summary>
+        /// 取循环体并校验分支数：While/For 语义上**只有一个循环体**（构造器就只建一个）。
+        /// 多于一个只可能来自手改的 .vms —— 旧实现用 FirstOrDefault 把多余分支静默丢弃
+        /// （画布上有、跑起来没有），而 FlowTopology 侧的检查会遍历全部分支，两处口径不一致。
+        /// 这里如实报错（坏数据防御），控制流仍取第一个分支交给既有的空值检查处理。
+        /// </summary>
+        private static StepCollection SelectLoopBody(StepModel owner, string kind, List<CompilationError> errors)
+        {
+            if (owner is not IContainerStep container || container.Children == null)
+                return null;
+
+            if (container.Children.Count > 1)
+                errors.Add(Err(owner,
+                    $"[容器分支数错误] {kind} 的循环体只能有一个分支（当前 {container.Children.Count} 个），多余的不会被编译——请删除多余分支"));
+
+            return container.Children.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// 条件变量是否已在步骤连线里出现。
+        /// 键口径：条件编辑器写回时用**变量 Id 的字符串**当键（见 CompiledIfNode 侧按 Guid 解析）；
+        /// 为兼容旧数据，按变量名做键的写法也认。
+        /// </summary>
+        private static bool HasLinkedSource(StepModel owner, LocalVariableItem localVar)
+        {
+            var links = owner?.LinkedSources;
+            if (links == null || links.Count == 0) return false;
+
+            var idKey = localVar.Id.ToString();
+            foreach (var key in links.Keys)
+            {
+                if (string.Equals(key, idKey, StringComparison.OrdinalIgnoreCase)) return true;
+                if (!string.IsNullOrEmpty(localVar.Name)
+                    && string.Equals(key, localVar.Name, StringComparison.Ordinal)) return true;
+            }
+
+            return false;
         }
 
         public CompilationResult Compile(IEnumerable<StepModel> blueprints, string? flowName = null)
@@ -251,7 +300,7 @@ namespace VisionMaster.Services
                         model, whileModel.RuntimeVariableRefs, delegateParams, errors);
 
                     // 3. 提取唯一的循环分支
-                    var loopCollection = whileModel.Children.FirstOrDefault();
+                    var loopCollection = SelectLoopBody(whileModel, "While", errors);
                     var compiledBranch = new CompiledBranch
                     {
                         LocalVarIds = compiledVarIds,
@@ -428,7 +477,7 @@ namespace VisionMaster.Services
                     forNode.DefaultLoopCount = forModel.DefaultLoopCount;
                     nodeLookup.Add(model.StepID, forNode);
 
-                    var loopCollection = forModel.Children.FirstOrDefault();
+                    var loopCollection = SelectLoopBody(forModel, "For", errors);
                     if (loopCollection != null && loopCollection.Steps != null)
                     {
                         forNode.LoopBody = CompileSteps(

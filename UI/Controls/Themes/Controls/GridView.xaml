@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--  ==========================================================================
+        表格视图（ListView + GridView）的"让路"样式
+        ==========================================================================
+
+        为什么有它（2026-10-06 真机缺陷：方案列表弹窗整片数据变成一行行类型全名
+        VisionMaster.Models.AppSolutionEntry，列头也整体消失）：
+
+        App.xaml 把 PresentationFramework.Fluent（.NET 9 的 Fluent 主题）合并进了全局资源，
+        它自带两条**隐式样式**（隐式样式按类型作键，落在应用级）：
+          · Styles/ListView.xaml     换成自家模板，模板里没有 GridViewHeaderRowPresenter
+                                     → 所有 GridView 的列头一个都出不来；
+          · Styles/ListViewItem.xaml 行模板用裸 ContentPresenter
+                                     → 列布局塌成一列，数据对象只能 ToString() 兜底。
+        应用级隐式样式优先于框架主题样式（Aero2 那份是支持 GridView 的），
+        于是"凡 GridView 必坏"，与视图自己写没写对无关（视图源码里这些 ListView 一直是好的）。
+
+        修法：给 ListView 显式挂这个**不含任何 Setter 的空样式**。
+        WPF 的隐式样式按类型唯一键查，局部 Style 一旦挂上，Fluent 那条隐式样式整条让位，
+        模板就回到框架主题里那份带列头的。这里一个属性都不设是有意的——
+        不是漏写，"让回框架默认"这个动作本身就是内容。
+
+        边界（改这里的人务必看懂，三条都是实测结论）：
+          · 只对**挂了这个样式的 ListView** 生效，不做隐式覆盖：实测改成像 Fluent 那样隐式生效时，
+            没有 GridView 的普通 ListView 会凭空多出一条空表头（GridViewScrollViewer 会摆表头栏），
+            420×200 的弹窗列表有 22% 的画面被顶下去（像素级对比 18505/84000 个点不同）。
+            所以 GridView 视图必须显式挂——本仓由 UIThemeSmokeTest 的静态扫描兜住
+            （"凡 .xaml 里出现 GridView 就必须挂本样式且行模板带 GridViewRowPresenter"）。
+          · 它只管列头。行的列布局是 ListViewItem 的事，得由视图自带 ItemContainerStyle，
+            且模板里必须是 GridViewRowPresenter（范式见 ScadaUserManagerView.xaml 的 UserRowStyle
+            与那两条 ★ 注释：内边距 4 是为了和列头左对齐）。
+          · 它靠"框架主题字典里有支持 GridView 的模板"生效。若将来改成
+            Application.ThemeMode=Fluent（连主题字典一起换），这里会再次失效，
+            那时必须改成显式写一份带 GridViewHeaderRowPresenter 的模板。
+          · 用它的视图必须**就地合并本字典**（`<UserControl.Resources>` 里加一条
+            MergedDictionaries，相对 pack 写法 `/UI;component/Themes/Controls/GridView.xaml`）：
+            断言宿主（ScadaChecks 直连 `new 视图()`）没有 Application，App 级字典取不到，
+            只挂 `{StaticResource GridListViewStyle}` 会在解析期抛
+            "无法找到名为 GridListViewStyle 的资源"（2026-10-06 实测复现，5 个视图已按此办）。
+    -->
+  <Style x:Key="GridListViewStyle" TargetType="ListView" />
+
+</ResourceDictionary>

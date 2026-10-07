@@ -10,6 +10,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      插件自带帮助手册：编进本程序集（宿主 HelpCatalogService 按 "<程序集名>.Help." 前缀约定发现，
+      文件名顺序即手册页序，页标题取正文第一个一级标题）。
+      为什么走内嵌资源而不是随目录投放：插件 DLL 由构建约定统一投递到 Modules\，
+      手册跟着 DLL 走就不会出现"换了台机器手册没拷过去"；图片同样放 Help\ 下（如 Help\images\*.png）。
+      改手册 = 重建本插件工程（与原代码改动同一口径，见 AGENTS.md 红线③）。
+    -->
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Core.Halcon：显示/渲染基建（下一批配置界面用）；Core.Interfaces：端口与插件基类契约 -->
     <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
     <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows.Threading;
 using Core.Halcon.Extensions;
 using Core.Halcon.Models;
 using Core.Interfaces;
@@ -30,7 +31,49 @@ namespace Plugin.BeadInspect
 
         private bool _isConfigInstance;
 
-        private void MarkAsConfigInstance() => _isConfigInstance = true;
+        /// <summary>
+        /// 标记为配置态实例（幂等）。输入图变化的订阅动作也在这里完成——只有配置实例才收得到
+        /// "上游每帧新图"；运行实例只被调 ApplyConfigValues、从不经过这里，因此从不订阅
+        /// （BlobDetect / CaliperMeasure 同款范式）。
+        /// </summary>
+        private void MarkAsConfigInstance()
+        {
+            if (_isConfigInstance)
+                return;
+            _isConfigInstance = true;
+            // 绑定了上游输入图却什么都看不见 = 纯 bug（用户实测反馈）。订阅后：没参考图时
+            // 画布会用输入图兜底当底图（ShowPathBase 的四级优先，见 D1）。
+            SrcImage.ValueChanged += OnConfigSrcImageChanged;
+        }
+
+        /// <summary>输入图变化（换图 / 刚接上上游）→ 按四级优先重铺底图；可能发生在流程线程，先投递回 UI</summary>
+        private void OnConfigSrcImageChanged(object? sender, EventArgs e)
+        {
+            if (!_isConfigInstance)
+                return;
+            var dispatcher = UiDispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(RefreshBaseFromInput));
+                return;
+            }
+            RefreshBaseFromInput();
+        }
+
+        /// <summary>
+        /// 上游图换了 → 重铺底图。
+        /// 矫正四点拾取中不动底图：那一步的源四点吃的是「原始参考图」坐标系（ToggleQuadPick 口径），
+        /// 中途把底图换成输入图会让点选坐标与记录坐标对不上。
+        /// </summary>
+        private void RefreshBaseFromInput()
+        {
+            if (!_isConfigInstance || QuadPicking)
+                return;
+            ShowPathBase();
+        }
+
+        /// <summary>UI 线程调度器；没有 Application（单元测试/离线跑流程）时为 null，此时按"就在 UI 线程"处理</summary>
+        private static Dispatcher? UiDispatcher => System.Windows.Application.Current?.Dispatcher;
 
         /// <summary>
         /// 配置态入口：宿主打开配置界面走 GetConfigView → Initialize。
@@ -96,9 +139,63 @@ namespace Plugin.BeadInspect
             StatusLevel = level;
         }
 
+        // ── 操作结果横幅（「学习」这类关键动作的结论必须落在**不滚动就能看见**的地方）──
+        // 起因（用户实测 2026-10-07：「点学习没有任何反应」）：链路本身是通的（按钮 → 视图转发 →
+        // LearnRecipe），但每条返回路径只把结论写进底部状态栏 / 右列预览 / 左侧配方库行——
+        // 三处都在用户当前视口之外，画布又不变，于是"看起来没反应"。
+        // 横幅挂在右列第 0 行（工具栏卡，Auto 行高、按钮正下方）：任何窗口尺寸下都在视口内。
+        // 文案口径：先说结论（学习失败/成功），再说可执行的下一步；空串 = 整块折叠不占位。
+
+        private string _actionBanner = string.Empty;
+
+        /// <summary>操作结果横幅文字（空 = 不显示）。「学习」的**每条**返回路径（含成功）都必须写它</summary>
+        public string ActionBanner
+        {
+            get => _actionBanner;
+            private set
+            {
+                if (!SetProperty(ref _actionBanner, value))
+                    return;
+                OnPropertyChanged(nameof(HasActionBanner));
+            }
+        }
+
+        /// <summary>横幅是否显示（供 Visibility 绑定；空串折叠）</summary>
+        public bool HasActionBanner => _actionBanner.Length > 0;
+
+        private StatusLevel _actionBannerLevel = StatusLevel.Info;
+
+        /// <summary>
+        /// 横幅级别（着色复用 <see cref="StatusLevel"/>）。刻意与状态栏的 <see cref="StatusLevel"/> 分开：
+        /// 后续拾取/切图等动作会调 SetStatus 改状态栏级别，若共用会把横幅颜色一起改掉
+        /// （红字结论 + 绿框自相矛盾）。
+        /// </summary>
+        public StatusLevel ActionBannerLevel
+        {
+            get => _actionBannerLevel;
+            private set => SetProperty(ref _actionBannerLevel, value);
+        }
+
+        /// <summary>写横幅（关键动作结论的唯一出口；同时抬到视口内，不需要用户滚动）</summary>
+        private void SetActionBanner(string message, StatusLevel level = StatusLevel.Info)
+        {
+            ActionBanner = message;
+            ActionBannerLevel = level;
+        }
+
+        /// <summary>折叠横幅（换配方/底图坐标系切换等"上下文变了"的场合）</summary>
+        private void ClearActionBanner()
+        {
+            ActionBanner = string.Empty;
+            ActionBannerLevel = StatusLevel.Info;
+        }
+
         private HImage? _displayImage;
 
-        /// <summary>画布底图（原始参考图或矫正后的参考图，随模式切换；setter 负责释放上一张）</summary>
+        /// <summary>
+        /// 画布底图。来源按四级优先取（见 <see cref="ShowPathBase"/>）：矫正后参考图 → 原始参考图
+        /// → 输入图兜底 → 空态。setter 负责释放上一张（复制进来的副本，上游图不算在内）。
+        /// </summary>
         public HImage? DisplayImage
         {
             get => _displayImage;
@@ -204,11 +301,12 @@ namespace Plugin.BeadInspect
             {
                 _pathRows.Clear();
                 _pathCols.Clear();
-                DisplayImage = null;
+                SetBaseImage(null, BaseImageSource.None);
                 SyncPointRowsFromCache();
                 RefreshOverlay();
                 RefreshRecipeRows();
                 RaisePointCount();
+                ClearActionBanner(); // 换上下文了：上一条配方的学习结论不能留在这
                 return;
             }
 
@@ -236,6 +334,7 @@ namespace Plugin.BeadInspect
             RefreshOverlay();
             RefreshRecipeRows();
             RaisePointCount();
+            ClearActionBanner(); // 换配方：上一条的学习结论/坐标系提示都不再适用
             SetStatus(
                 $"配方「{entry.Name}」：左键加点（自动插到最近线段之间）、右键删最近点、拖动改坐标；改完点「学习」");
         }
@@ -253,11 +352,21 @@ namespace Plugin.BeadInspect
             var path = EditingEntry?.RefImagePath;
             if (string.IsNullOrWhiteSpace(path))
             {
+                // 该条目没填参考图路径：丢掉上一张缓存（否则切到空路径条目时画布还糊着别人的参考图），
+                // 底图退到输入图兜底/空态
+                _rawRefImage?.Dispose();
+                _rawRefImage = null;
+                _rawRefPath = null;
+                ShowPathBase();
                 SetStatus("还没有参考图路径：先在左侧填入参考图，再拾取胶路中心线", StatusLevel.Warning);
                 return;
             }
             if (!File.Exists(path))
             {
+                _rawRefImage?.Dispose();
+                _rawRefImage = null;
+                _rawRefPath = null;
+                ShowPathBase();
                 SetStatus($"参考图不存在：{path}", StatusLevel.Error);
                 return;
             }
@@ -279,11 +388,62 @@ namespace Plugin.BeadInspect
             }
         }
 
+        // ==================================================================
+        //  画布底图（四级优先）与来源可见化
+        // ==================================================================
+
+        /// <summary>画布底图来源（四级优先的判定结果；状态栏文案与空态提示都由它派生）</summary>
+        private enum BaseImageSource
+        {
+            None,
+            RectifiedRef,
+            RawRef,
+            InputImage,
+        }
+
+        private BaseImageSource _baseImageSource = BaseImageSource.None;
+
+        /// <summary>画布是否无图（空态：中央给"尚未载入图像"提示，且拒绝一切拾取）</summary>
+        public bool IsCanvasEmpty => DisplayImage == null;
+
+        /// <summary>底图来源文案（状态栏常驻提示；空态那句与画布中央提示同一句）</summary>
+        public string BaseImageHint => _baseImageSource switch
+        {
+            BaseImageSource.RectifiedRef => "底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标",
+            BaseImageSource.RawRef => "底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标",
+            BaseImageSource.InputImage => "底图：输入图（尚未设参考图）——若用「平面可变形」对齐，请先设参考图并点「载入」；固定相机模式可直接拾取",
+            _ => "尚未载入图像：绑定上游输入图，或在 ①配方库 填参考图路径后点「载入」",
+        };
+
+        /// <summary>底图来源级别（输入图兜底 = Warning：那是"还没设参考图"的信号，不是错误）</summary>
+        public StatusLevel BaseImageLevel =>
+            _baseImageSource == BaseImageSource.InputImage ? StatusLevel.Warning : StatusLevel.Info;
+
         /// <summary>
-        /// 铺「路径拾取」底图。关键坐标系纪律（BeadRecipeEntry 注释口径）：
-        /// 参考路径点列存的是**矫正后**参考坐标系的坐标——所以设了矫正四点且平面准备成功时，
-        /// 底图必须切到矫正后的参考图，画布拾取才与点列、运行期检测在同一坐标系。
-        /// 无矫正四点（RectifyQuadJson 空 = 跳过矫正）或非平面对齐模式 → 用原始参考图。
+        /// 铺底图并记来源（唯一出口）：底图 / 空态 / 来源文案三者必须同时更新，
+        /// 否则会出现"画布有图但状态栏还写着尚未载入"这类自相矛盾。
+        /// </summary>
+        private void SetBaseImage(HImage? image, BaseImageSource source)
+        {
+            _baseImageSource = source;
+            DisplayImage = image; // setter：先通知绑定、再释放旧图
+            OnPropertyChanged(nameof(IsCanvasEmpty));
+            OnPropertyChanged(nameof(BaseImageHint));
+            OnPropertyChanged(nameof(BaseImageLevel));
+            // 坐标系提示随之折叠：底图一旦不是"输入图兜底"，拾取坐标就回到参考图坐标系，
+            // 上一轮的 PlanarOnInputBaseWarning 留着会自相矛盾
+            if (source != BaseImageSource.InputImage && _actionBanner == PlanarOnInputBaseWarning)
+                ClearActionBanner();
+        }
+
+        /// <summary>
+        /// 铺「路径拾取」底图，四级优先（用户实测反馈的修复）：
+        /// ① 参考图（矫正后）：坐标系基准（BeadRecipeEntry 口径：点列存矫正后坐标）——设了矫正四点
+        ///    且平面准备成功时优先，画布拾取与点列、运行期检测始终同坐标系；
+        /// ② 参考图（原始）：未设矫正四点（跳过矫正）或非平面对齐模式；
+        /// ③ 输入图（SrcImage.ActualValue）兜底：**没参考图时的底图**。固定相机场景直接在输入图上
+        ///    拾取本来就是正确用法（以前这条缺失 → 绑了图也永远黑屏）；
+        /// ④ 都没有 → 空态：画布中央文字提示 + 拒绝拾取（没有图就没有坐标系，拾了也没意义）。
         /// </summary>
         private void ShowPathBase()
         {
@@ -293,19 +453,74 @@ namespace Plugin.BeadInspect
                 && EnsurePlanarModel(EditingEntry, out _)
                 && EditingEntry.RuntimeRectifiedRef is HObject rect && rect.IsInitialized())
             {
-                DisplayImage = new HImage(rect);
+                SetBaseImage(new HImage(rect), BaseImageSource.RectifiedRef);
                 return;
             }
             ShowRawBase();
         }
 
-        /// <summary>铺原始参考图（矫正四点拾取模式用：源四点在原始参考图坐标系）</summary>
+        /// <summary>② 原始参考图（矫正四点拾取模式用：源四点在原始参考图坐标系）；没有就退到输入图/空态</summary>
         private void ShowRawBase()
         {
             if (_rawRefImage != null && _rawRefImage.IsInitialized())
-                DisplayImage = new HImage(_rawRefImage);
-            else
-                DisplayImage = null;
+            {
+                SetBaseImage(new HImage(_rawRefImage), BaseImageSource.RawRef);
+                return;
+            }
+            ShowInputOrEmptyBase();
+        }
+
+        /// <summary>
+        /// ③④ 输入图兜底 / 空态。
+        /// 上游图（SrcImage.ActualValue）的生命周期归流程轮次回收——这里**只读复制一份**交给
+        /// DisplayImage setter 管理，绝不 Dispose 上游那张。
+        /// </summary>
+        private void ShowInputOrEmptyBase()
+        {
+            try
+            {
+                var upstream = SrcImage.ActualValue;
+                if (upstream != null && upstream.IsInitialized())
+                {
+                    SetBaseImage(new HImage(upstream), BaseImageSource.InputImage);
+                    return;
+                }
+            }
+            catch
+            {
+                // 上游图刚好被回收（流程轮次结束）/取值失败：退回空态，不抛
+            }
+            SetBaseImage(null, BaseImageSource.None);
+        }
+
+        /// <summary>无底图时拒绝一切拾取（没有图就没有坐标系）：红字提示，返回 false</summary>
+        private bool EnsureBaseImageForPick()
+        {
+            if (DisplayImage is HImage img && img.IsInitialized())
+                return true;
+            SetStatus("请先载入图像（绑定输入图或填参考图路径）再拾取点", StatusLevel.Error);
+            return false;
+        }
+
+        /// <summary>
+        /// 语义风险文案（唯一出处）：底图是「输入图兜底」时拾取的点落在**输入图坐标系**上，
+        /// 而「平面可变形」模型要的是参考图坐标系（模板 + 基准）——这组合下学习必被拒、点列不可信。
+        /// 拾取与底图切换两处都引用它（SetBaseImage 里据此折叠横幅）。
+        /// </summary>
+        private const string PlanarOnInputBaseWarning =
+            "注意：底图是输入图而非参考图——「平面可变形」的点列必须落在参考图坐标系上。"
+            + "请先在「① 配方库」填参考图路径并点「载入」后重新拾取，否则点「学习」会被拒绝";
+
+        /// <summary>
+        /// 拾取时的语义守卫（只提示、不推翻既有设计）：固定相机场景在输入图上拾取本来就是正确用法，
+        /// 所以不放行禁令；但「平面可变形」+ 输入图兜底这个组合必须让用户当场看见风险
+        /// （横幅在按钮正下方，画布上点一下就能看到，不必翻状态栏）。
+        /// </summary>
+        private void WarnIfPlanarPickOnInputBase()
+        {
+            if (AlignMode != BeadAlignMode.PlanarDeformable || _baseImageSource != BaseImageSource.InputImage)
+                return;
+            SetActionBanner(PlanarOnInputBaseWarning, StatusLevel.Warning);
         }
 
         /// <summary>把画布点击坐标夹回图像范围内（点到黑边外也不产生界外点）</summary>
@@ -409,6 +624,8 @@ namespace Plugin.BeadInspect
                 SetStatus("先选择或新建一个配方再拾取", StatusLevel.Warning);
                 return;
             }
+            if (!EnsureBaseImageForPick()) // 无底图禁止拾取：点了也是往黑屏上瞎记坐标
+                return;
             ClampToImage(ref row, ref col);
             PushUndo();
             if (!BeadPathEditor.InsertNearest(
@@ -423,12 +640,15 @@ namespace Plugin.BeadInspect
             _pathCols = nc.ToList();
             AfterPathChanged();
             SetStatus($"已加点 #{idx + 1}（自动插到最近线段之间）：共 {_pathRows.Count} 点");
+            WarnIfPlanarPickOnInputBase(); // 「平面可变形」+ 输入图兜底：当场把坐标系风险顶到横幅
         }
 
         /// <summary>右键删点：删离点击处最近的点（50px 内，防误触）</summary>
         public void DeleteNearestPoint(double row, double col)
         {
             if (EditingEntry == null)
+                return;
+            if (!EnsureBaseImageForPick()) // 无底图禁止拾取（含删点）：黑屏上点不出"最近的点"
                 return;
             if (_pathRows.Count == 0)
             {
@@ -453,6 +673,8 @@ namespace Plugin.BeadInspect
         public bool BeginPointDrag(double row, double col)
         {
             if (EditingEntry == null || _pathRows.Count == 0)
+                return false;
+            if (!EnsureBaseImageForPick()) // 无底图禁止拾取（含拖动）
                 return false;
             int idx = BeadPathEditor.NearestPointIndex(
                 _pathRows.ToArray(), _pathCols.ToArray(), row, col, out double dist);
@@ -642,21 +864,32 @@ namespace Plugin.BeadInspect
             if (entry == null)
             {
                 SetStatus("请先选择一个配方", StatusLevel.Warning);
+                SetActionBanner("学习失败：没有可学习的配方条目——先在「① 配方库」选一条，或点「新增」", StatusLevel.Warning);
                 return;
             }
-            if (string.IsNullOrWhiteSpace(entry.RefImagePath) || !File.Exists(entry.RefImagePath))
+            if (AlignMode == BeadAlignMode.PlanarDeformable
+                && (string.IsNullOrWhiteSpace(entry.RefImagePath) || !File.Exists(entry.RefImagePath)))
             {
-                SetStatus($"参考图不存在：{entry.RefImagePath}。请先填有效路径再学习", StatusLevel.Error);
+                // 只有「平面可变形」才需要参考图（它是平面模型的模板 + 坐标系基准）。
+                // 「固定相机」（None）与「匹配位姿」（PoseFromMatching，对齐图由上游给）都不需要——
+                // 以前这里无条件要求参考图，把"绑定输入图 → 拾取 → 学习"这条最自然的用户流堵死了。
+                SetStatus($"参考图不存在：{entry.RefImagePath}。平面可变形对齐需要参考图（模板 + 坐标系基准），请先填有效路径再学习", StatusLevel.Error);
+                SetActionBanner(
+                    "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。"
+                    + "请在「① 配方库」填参考图路径并点「载入」，或把「对齐模式」改成「固定相机」",
+                    StatusLevel.Error);
                 return;
             }
             if (!BeadRecipeEntry.TryParsePoints(entry.RefPointsJson, out var rows, out var cols, out _))
             {
                 SetStatus("参考路径点列为空或格式无效：请在画布拾取、自动提取或表格录入至少 2 个点", StatusLevel.Error);
+                SetActionBanner("学习失败：参考路径点列为空或格式无效——请在画布上左键拾取至少 2 个点（或点「自动提取」）", StatusLevel.Error);
                 return;
             }
             if (rows.Length < 2)
             {
                 SetStatus($"参考路径至少需要 2 个点（当前 {rows.Length} 个）：继续在画布上拾取", StatusLevel.Warning);
+                SetActionBanner($"学习失败：参考路径至少需要 2 个点（当前 {rows.Length} 个）——继续在画布上左键拾取", StatusLevel.Warning);
                 return;
             }
 
@@ -669,40 +902,54 @@ namespace Plugin.BeadInspect
             if (!EnsureBeadModel(entry, effTarget, effTol, effPos, effPolarity, out string beadErr))
             {
                 SetStatus($"学习失败：{beadErr}", StatusLevel.Error);
+                SetActionBanner($"学习失败：{beadErr}", StatusLevel.Error);
                 return;
             }
             if (AlignMode == BeadAlignMode.PlanarDeformable && !EnsurePlanarModel(entry, out string planarErr))
             {
                 SetStatus($"学习失败：{planarErr}", StatusLevel.Error);
+                SetActionBanner($"学习失败：{planarErr}", StatusLevel.Error);
                 return;
             }
 
             entry.LearnedSignature = CurrentBeadSignature(entry);
             RefreshRecipeRows();
-            RenderLearnPreview(entry);
+            string? previewErr = RenderLearnPreview(entry);
             SetStatus(
                 $"配方「{entry.Name}」学习完成：胶宽 {effTarget:0.#} / 容差 {effTol:0.#} / 位置容差 {effPos:0.#} / 极性 {effPolarity}。"
                 + "改参数后需重学（列表会显示「参数已变」）");
+            string success =
+                $"学习成功：配方「{entry.Name}」已学习（{rows.Length} 点 / 胶宽 {effTarget:0.#}px / 容差 {effTol:0.#} / 极性 {effPolarity}）。"
+                + "配方库该行已显示「已学习」，可以直接试运行";
+            SetActionBanner(
+                previewErr == null ? success : $"{success}（注意：学习预览未渲染——{previewErr}）",
+                previewErr == null ? StatusLevel.Info : StatusLevel.Warning);
         }
 
-        /// <summary>学习后的预览图：当前底图 + 参考路径叠加（离屏渲染，复用运行期的渲染器）</summary>
-        private void RenderLearnPreview(BeadRecipeEntry entry)
+        /// <summary>
+        /// 学习后的预览图：当前底图 + 参考路径叠加（离屏渲染，复用运行期的渲染器）。
+        /// 返回 null = 正常渲染；非 null = 失败原因（学习本身已成功，但横幅要如实说明预览为什么是空的，
+        /// 不能只写状态栏——那行同样在视口之外）。
+        /// </summary>
+        private string? RenderLearnPreview(BeadRecipeEntry entry)
         {
             try
             {
                 if (DisplayImage is not HImage baseImg || !baseImg.IsInitialized())
-                    return;
+                    return "底图为空（未载入参考图/输入图）";
                 if (entry.RuntimeContour is not HObject contour || !contour.IsInitialized())
-                    return;
+                    return "参考路径轮廓为空";
                 var rendered = _renderer.Render(
                     baseImg, contour, null, null,
                     new[] { $"配方「{entry.Name}」参考路径已学习（{_pathRows.Count} 点）" }, true);
                 if (rendered != null)
                     PreviewImage = rendered;
+                return rendered == null ? "渲染器返回空图" : null;
             }
             catch (Exception ex)
             {
                 SetStatus($"学习预览渲染失败：{ex.Message}", StatusLevel.Warning);
+                return ex.Message;
             }
         }
 
@@ -1134,9 +1381,11 @@ namespace Plugin.BeadInspect
 
         private void DisposeConfigState()
         {
+            SrcImage.ValueChanged -= OnConfigSrcImageChanged;
             AnnotatedImage.ValueChanged -= OnRunAnnotatedImageChanged;
             DisplayImage = null;
             PreviewImage = null;
+            ClearActionBanner();
             _rawRefImage?.Dispose();
             _rawRefImage = null;
             _rawRefPath = null;

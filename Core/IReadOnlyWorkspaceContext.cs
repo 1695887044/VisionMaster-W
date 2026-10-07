@@ -160,6 +160,10 @@ namespace VisionMaster.Services
         /// </summary>
         public void SwitchSolution(SolutionModel solution)
         {
+            // 切方案 = 整套流程都换了：跨方案残留的收图帧没有归属，必须清掉
+            // （否则同名流程的下一轮会把上一份方案的图当成本轮输入）
+            ImageHub.ClearAll();
+
             SetProperty(ref _currentSolution, solution, nameof(CurrentSolution));
             SwitchFlow(null);
         }

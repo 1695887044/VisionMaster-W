@@ -69,3 +69,16 @@
 | R16 | **改动 `Shard\Core.PluginGenerators` 后必须重建全部插件工程**——生成物（属性实现/钩子声明）在插件 DLL 里编译期展开，不重建则运行的是旧 DLL（与红线③"产物陈旧"同一类坑）。改钩子命名/字段规则/诊断、升级 Roslyn 引用，都算"改动"。 |
 | R17 | **生成器工程与产物不得进入 `Plugins\` 或 `Modules\`**：放 `Plugins\` 下会被构建约定当插件投递；`Modules\` 只放 `Plugin*.dll`。生成器以 `OutputItemType=Analyzer` + `ReferenceOutputAssembly=false` 挂接（`Plugins\Directory.Build.props`），不进任何输出目录。 |
 | R18 | **`[StepConfig]` 属性统一走「三选一」写法**（自动属性 / partial property + 钩子 / 保持手写），写法与钩子契约见 `docs\新插件端口速查.md` 对应章节；partial 属性所在类必须声明 `partial`，钩子**只写实现、不写声明**（声明由生成器产出）；不满足约定报编译错误 CPG0001~CPG0005。 |
+
+---
+
+## 6. WPF 表格视图（ListView + GridView，2026-10-06）
+
+**起因**：2026-10-06 真机「方案列表」弹窗的数据行整片渲染成类型全名 `VisionMaster.Models.AppSolutionEntry`、四个列头（序号/名称/注释/路径）整体消失。根因是 `VisionMaster\App.xaml:68` 把 .NET 9 Fluent 主题合并进**应用级**资源，它自带的隐式 `ListView` / `ListViewItem` 样式顶掉了框架里支持 GridView 的那份（应用级隐式样式优先于框架主题样式，故"**凡 GridView 必坏**"，与视图源码写没写对无关；同时坏了 4 个组态弹窗视图）。细节与证据见 `docs\code-changes\2026-10-06-方案列表GridView被Fluent隐式样式顶掉.md`。
+
+| # | 规则 |
+| --- | --- |
+| R19 | **`ListView + GridView` 视图必须给 ListView 挂 `Style="{StaticResource GridListViewStyle}"`**（定义在 `UI\Controls\Themes\Controls\GridView.xaml` 的空样式，作用是让 Fluent 的隐式 `ListView` 样式整条让位、模板回到框架原装那份）。不挂 = **列头整体消失**；**不要把它改成隐式样式** = 没有 GridView 的普通 ListView 会凭空多出空表头。 |
+| R20 | **同一视图必须自带 `ItemContainerStyle`，且行模板里必须是 `GridViewRowPresenter`**（`Columns="{TemplateBinding GridView.ColumnCollection}"`），不能用裸 `ContentPresenter`——否则列布局塌成一列，数据对象只能 `ToString()`，屏幕上就是**一行行类型全名**。 |
+| R21 | **行容器内边距取 4**（列头元素 x4 + 列头 Padding 8，与行 4 + `GridViewRowPresenter` 内置的 6 落在同一条竖线）；范式照 `ScadaUserManagerView.xaml` / `SolutionListView.xaml`。守门人是 `UIThemeSmokeTest` 的静态扫描——"凡 `.xaml` 里出现 `GridView` 就必须挂 `GridListViewStyle` 且行模板带 `GridViewRowPresenter`"。 |
+| R22 | **引用了 `GridListViewStyle` 的视图必须就地合并 `UI\Controls\Themes\Controls\GridView.xaml`**（`<UserControl.Resources>` → `<ResourceDictionary>` → `<ResourceDictionary.MergedDictionaries>`，用相对 pack 写法 `/UI;component/...`；范式照 `SolutionListView.xaml` / `ScadaUserManagerView.xaml`）。只挂 `{StaticResource GridListViewStyle}` 而不自合并：在没有 `Application` 的断言宿主（`ScadaChecks` 直连 `new 视图()`，`Application` 那档资源取不到）里会在 **XAML 解析期**抛"无法找到名为 `GridListViewStyle` 的资源"——2026-10-06 实测让 `ScadaChecks` 多红 4 条渲染断言。`pack://application:,,,/...` 的绝对写法在这里同样不可用，必须用相对写法。 |

@@ -194,7 +194,7 @@ namespace FlowCanvasChecks
             // ---- S5~S12 真发 HTTP ----
             try
             {
-                RunHttpChecks(server, runtime, flow, notOpenFlow).GetAwaiter().GetResult();
+                RunHttpChecks(server, runtime, engine, log, flow, notOpenFlow).GetAwaiter().GetResult();
             }
             finally
             {
@@ -317,7 +317,7 @@ namespace FlowCanvasChecks
                  + log.Warns.ToArray().Count(w => w.Contains(fragment));
         }
 
-        private static async Task RunHttpChecks(HttpImageServer server, RuntimeManager runtime, FlowModel flow, FlowModel notOpenFlow)
+        private static async Task RunHttpChecks(HttpImageServer server, RuntimeManager runtime, FlowEngineService engine, StubLog log, FlowModel flow, FlowModel notOpenFlow)
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
             var url = $"http://127.0.0.1:{Port}/flow/{Uri.EscapeDataString(FlowName)}";
@@ -495,6 +495,54 @@ namespace FlowCanvasChecks
             Check("[S12] 流程结束后 Hub 槽已排空",
                 ImageHub.Count(FlowName) == 0,
                 $"Count={ImageHub.Count(FlowName)}");
+
+            // ---- S14 真竞态：会话被别的执行占着时，HTTP 必须 409 并把**自己那一帧**收回 ----
+            // 复刻"前置检查通过、抢会话锁失败"那一瞬：先用一次真运行把会话占住（图像采集会阻塞等图），
+            // 再把 IsRunning 假置 false 骗过前置检查。旧实现（丢 bool 的 RunSessionOnceAsync）会把
+            // 这次静默漏跑读成"跑完了"，拿别人/上一轮的端口值回 200——这条断言在旧实现下必红
+            if (session != null)
+            {
+                ImageHub.Clear(FlowName);
+                var baseWaitLog = CountLog(log, "槽内暂无图像");
+
+                var inflight = engine.RunSessionOnceAsync(session);
+                bool waiting = WaitForLog(log, "槽内暂无图像", baseWaitLog, 5000);
+                Check("[S14] 造出「会话被占」窗口（真运行正阻塞在等图）",
+                    waiting && session.IsRunning, $"waiting={waiting} IsRunning={session.IsRunning}");
+
+                if (waiting)
+                {
+                    session.IsRunning = false;   // 骗过前置检查（真实的竞态窗口在检查与抢锁之间）
+
+                    var raced = await Post(http, url, BuildPng(gray: true), Token);
+                    Check("[S14] ★抢不到会话锁 → 409 如实拒绝（不得回 200 假成功）",
+                        raced.Status == 409
+                            && GetString(TryParse(raced.Body), "message")?.Contains("被其它执行占用") == true,
+                        $"HTTP {raced.Status} body={Clip(raced.Body)}");
+                    Check("[S14] ★被拒请求的帧已精确收回（不留给下一次触发张冠李戴）",
+                        ImageHub.Count(FlowName) == 0, $"Count={ImageHub.Count(FlowName)}");
+
+                    // 放行在飞的那一轮：推一帧让它取走并跑完（证明这次 HTTP 请求没有把它杀掉）
+                    ImageHub.Push(BuildHubItem(FlowName, gray: true));
+                    try
+                    {
+                        inflight.GetAwaiter().GetResult();
+                        Check("[S14] 在飞的那一轮未被 HTTP 请求打断，正常跑完",
+                            flow.Steps[0].State == StepState.Success, $"State={flow.Steps[0].State}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Check("[S14] 在飞的那一轮未被 HTTP 请求打断，正常跑完", false,
+                            $"任务异常：{ex.GetBaseException().Message}");
+                    }
+                }
+                else
+                {
+                    // 没造出窗口也要把在飞任务放行，免得后续用例被它挡住
+                    ImageHub.Push(BuildHubItem(FlowName, gray: true));
+                    inflight.GetAwaiter().GetResult();
+                }
+            }
         }
 
         // ==================================================================

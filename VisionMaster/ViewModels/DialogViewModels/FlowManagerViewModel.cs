@@ -185,7 +185,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (item.Flow.StepsEncrypted)
             {
-                Notifier.ShowWarning("该流程步序已加密");
+                Notifier.ShowWarning("该流程已锁定（禁止运行）");
                 return;
             }
 
@@ -195,8 +195,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 item.Flow.EncryptedKey = key;
                 item.Flow.StepsEncrypted = true;
                 item.Refresh();
-                
-                Notifier.ShowSuccess($"流程 [{item.Flow.FlowName}] 已加密");
+
+                // 如实说明：这里的"锁定"只表达"禁止运行"，步序内容仍以明文随方案落盘
+                // （真正的机密性保护另立一期：落盘加密 + 密钥管理）
+                Notifier.ShowSuccess($"流程 [{item.Flow.FlowName}] 已锁定：禁止运行（注意：文件内容仍是明文）");
             }
             catch (Exception ex)
             {
@@ -213,7 +215,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (!item.Flow.StepsEncrypted)
             {
-                Notifier.ShowWarning("该流程步序未加密");
+                Notifier.ShowWarning("该流程未锁定");
                 return;
             }
 
@@ -223,7 +225,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 item.Flow.StepsEncrypted = false;
                 item.Refresh();
                 
-                Notifier.ShowSuccess($"流程 [{item.Flow.FlowName}] 已解密");
+                Notifier.ShowSuccess($"流程 [{item.Flow.FlowName}] 已解锁：恢复可运行");
             }
             catch (Exception ex)
             {
@@ -344,7 +346,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get
             {
                 if (_flow.StepsEncrypted)
-                    return "🔒 步序已加密";
+                    return "🔒 已锁定（禁止运行）";
                 
                 if (_flow.RunState == FlowRunState.Running)
                     return "▶ 运行中";

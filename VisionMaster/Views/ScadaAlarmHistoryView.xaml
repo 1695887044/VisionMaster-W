@@ -35,6 +35,13 @@
     <!--  ============================================================  -->
 
     <UserControl.Resources>
+        <ResourceDictionary>
+            <!--  就地合并 GridListViewStyle：本视图的 ListView 靠它让 Fluent 的隐式样式让位；
+                 断言宿主没有 Application（ScadaChecks 直连 new 视图），只能用相对 pack 写法自合并，
+                 不能依赖 App.xaml 那本主题字典（见 SolutionListView.xaml 同一段注释）。  -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+            </ResourceDictionary.MergedDictionaries>
         <SolidColorBrush x:Key="PanelBrush" Color="#FF1B1F24" />
         <SolidColorBrush x:Key="PanelBarBrush" Color="#FF22262C" />
         <SolidColorBrush x:Key="PanelLineBrush" Color="#FF33383F" />
@@ -279,6 +286,7 @@
             <Setter Property="Foreground" Value="{StaticResource PanelTextBrush}" />
             <Setter Property="CaretBrush" Value="{StaticResource PanelTextBrush}" />
         </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Border
@@ -427,7 +435,8 @@
                         ItemsSource="{Binding Rows}"
                         SelectedItem="{Binding SelectedRow}"
                         SelectionMode="Single"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        Style="{StaticResource GridListViewStyle}">
                         <ListView.View>
                             <GridView ColumnHeaderContainerStyle="{StaticResource AlarmHeaderStyle}">
                                 <GridViewColumn Header="激活时间" Width="96">
