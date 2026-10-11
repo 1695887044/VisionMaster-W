@@ -1,0 +1,309 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                    xmlns:h="https://github.com/G"
+                    xmlns:lb="clr-namespace:G.VisionMaster.NodeData.Base"
+                    xmlns:lh="clr-namespace:G.VisionMaster.NodeData.HelpPresenters"
+                    xmlns:local="clr-namespace:G.VisionMaster.NodeData"
+                    xmlns:lr="clr-namespace:G.VisionMaster.NodeData.ResultImages"
+                    xmlns:lroi="clr-namespace:G.VisionMaster.NodeData.ROIPresenters">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/G.VisionMaster.NodeData;component/Base/Conditions/VisionPropertyConditionsPrensenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.VisionMaster.NodeData;component/ImageColorPickerPresenter.xaml" />
+
+    </ResourceDictionary.MergedDictionaries>
+
+    <DataTemplate DataType="{x:Type lb:StyleNodeDataBase}">
+        <Border Margin="2"
+                BorderThickness="1"
+                TextBlock.Foreground="Black">
+            <Border.Style>
+                <Style BasedOn="{StaticResource {x:Static h:DiagramKeys.StateBorder}}"
+                       TargetType="Border">
+                    <Setter Property="Background" Value="White" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static h:BrushKeys.Foreground}}" />
+                            <Setter Property="Background" Value="{DynamicResource {x:Static h:BrushKeys.LightGray}}" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding IsSelected}"
+                                     Value="True">
+                            <Setter Property="BorderBrush" Value="{DynamicResource {x:Static h:BrushKeys.Orange}}" />
+                            <Setter Property="Background" Value="{DynamicResource {x:Static h:BrushKeys.LightGray}}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <b:Interaction.Triggers>
+                <b:EventTrigger EventName="Loaded">
+                    <b:InvokeCommandAction Command="{Binding LoadedCommand}"
+                                           CommandParameter="{Binding DiagramData}" />
+                </b:EventTrigger>
+            </b:Interaction.Triggers>
+            <DockPanel>
+                <Grid>
+                    <Border Width="30"
+                            Margin="-1"
+                            HorizontalAlignment="Left"
+                            Background="{Binding RelativeSource={RelativeSource AncestorType=Border}, Path=BorderBrush}"
+                            BorderThickness="0"
+                            CornerRadius="{Binding CornerRadius, Converter={x:Static h:Converter.GetDoubleToCornerRadiusLeft}}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Hidden" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding State}"
+                                                 Value="Running">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}"
+                                                 Value="Success">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding State}"
+                                                 Value="Error">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <FontIconTextBlock x:Name="icon"
+                                       Margin="0,0"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding Icon}"
+                                       ToolTip="{Binding Description}" />
+                </Grid>
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Text="{Binding Text}"
+                           TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding State}"
+                         Value="Running">
+                <Setter TargetName="icon" Property="Foreground" Value="White" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding State}"
+                         Value="Success">
+                <Setter TargetName="icon" Property="Foreground" Value="White" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding State}"
+                         Value="Error">
+                <Setter TargetName="icon" Property="Foreground" Value="White" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+
+    <DataTemplate DataType="{x:Type lr:VisionResultImageBase}">
+        <TextBlock Text="{Binding Name}" />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type lroi:InputROI}">
+        <TextBox MinWidth="300"
+                 Text="{Binding Rect}" />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type lroi:DrawROI}">
+        <DockPanel>
+            <TextBox DockPanel.Dock="Top"
+                     IsReadOnly="False"
+                     Style="{DynamicResource {x:Static TextBoxKeys.Attach}}"
+                     Text="{Binding Rect, Converter={GetRectToIntStringConverter}, UpdateSourceTrigger=PropertyChanged}"
+                     WindowChrome.IsHitTestVisibleInChrome="True">
+
+                <Cattach.Attach>
+                    <DockPanel>
+                        <Button Height="Auto"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Stretch"
+                                Command="{Binding ResetCommand}"
+                                Content="重置" />
+                        <Button x:Name="btn_fullscreen"
+                                Height="Auto"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Stretch"
+                                Command="{Binding ShowFullScreenCommand}"
+                                Content="全屏绘制" />
+                    </DockPanel>
+                </Cattach.Attach>
+            </TextBox>
+            <Grid x:Name="g"
+                  Width="300"
+                  Height="200">
+                <h:Zoombox x:Name="zoomview1"
+                           Background="{DynamicResource {x:Static BrushKeys.Tile25}}"
+                           DragModifiers=""
+                           Focusable="True"
+                           IsTabStop="True"
+                           MinScale="0.1"
+                           NavigateOnPreview="False"
+                           RelativeZoomModifiers=""
+                           ViewStackIndex="0"
+                           ZoomOn="Content">
+                    <b:Interaction.Behaviors>
+                        <h:ZoomBoxFitOnLoadedBehavior />
+                        <h:ZoomBoxFitOnSizeChangedBehavior />
+                    </b:Interaction.Behaviors>
+                    <h:Zoombox.ViewStack>
+                        <h:ZoomboxView>Fit</h:ZoomboxView>
+                    </h:Zoombox.ViewStack>
+                    <b:Interaction.Triggers>
+                        <h:MouseTrigger ClickCount="2"
+                                        Mode="Right"
+                                        MouseButton="Left"
+                                        UseHandle="False">
+                            <h:CallMethodActionEx MethodName="FitToBounds"
+                                                  TargetObject="{Binding ElementName=zoomview1}" />
+                        </h:MouseTrigger>
+                        <h:MouseTrigger ClickCount="2"
+                                        Mode="Left"
+                                        MouseButton="Left"
+                                        UseHandle="False">
+                            <h:CallMethodActionEx MethodName="FitToBounds"
+                                                  TargetObject="{Binding ElementName=zoomview1}" />
+                        </h:MouseTrigger>
+                        <b:EventTrigger EventName="MouseDoubleClick">
+                            <b:InvokeCommandAction Command="{ShowZoomViewImageCommand}"
+                                                   CommandParameter="{Binding ImageSource}" />
+                        </b:EventTrigger>
+                    </b:Interaction.Triggers>
+                    <Border>
+                        <ROIBox x:Name="roibox"
+                                HandleLength="16"
+                                ImageSource="{Binding ImageSource}"
+                                Rect="{Binding Rect, Mode=TwoWay}"
+                                StrokeThickness="2">
+                            <ROIBox.Fill>
+                                <SolidColorBrush Opacity="0.8"
+                                                 Color="Black" />
+                            </ROIBox.Fill>
+                        </ROIBox>
+                    </Border>
+                </h:Zoombox>
+            </Grid>
+        </DockPanel>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsFullScreen}"
+                         Value="True">
+                <Setter TargetName="btn_fullscreen" Property="Visibility" Value="Collapsed" />
+                <Setter TargetName="g" Property="Width" Value="Auto" />
+                <Setter TargetName="g" Property="Height" Value="Auto" />
+                <Setter TargetName="roibox" Property="HandleLength" Value="8" />
+                <Setter TargetName="roibox" Property="StrokeThickness" Value="1" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type lroi:FromROI}">
+        <TextBox MinWidth="300"
+                 IsReadOnly="True"
+                 Text="{Binding Rect, Mode=OneWay}" />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type lh:HelpPresenter}">
+        <DockPanel>
+            <TextBlock Margin="5"
+                       DockPanel.Dock="Top"
+                       Text="{Binding Name}" />
+            <TextBlock Margin="5"
+                       ToolTip="{Binding Url}">
+                <Hyperlink Command="{ProcessCommand}"
+                           CommandParameter="{Binding Url}"
+                           NavigateUri="{Binding Url}">
+                    <Run Text="{Binding Content}" />
+                </Hyperlink>
+            </TextBlock>
+        </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type lb:CropImagePropertyPresenter}">
+        <Border BorderBrush="{DynamicResource {x:Static BrushKeys.BorderBrush}}"
+                BorderThickness="1"
+                CornerRadius="2">
+            <Grid>
+                <FontIconTextBlock x:Name="icon"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="200"
+                                   Opacity="0.6"
+                                   Text="{x:Static FontIcons.Photo2}"
+                                   Visibility="Hidden" />
+                <Image Width="200"
+                       Height="200"
+                       HorizontalAlignment="Center"
+                       Source="{Binding Base64String, Converter={GetImageSourceFromBase64Converter DecodePixel=300}}"
+                       Stretch="Uniform" />
+                <DockPanel HorizontalAlignment="Right"
+                           VerticalAlignment="Top">
+                    <Button Command="{Binding DeleteCommand}"
+                            Content="删除" />
+                    <Button Command="{Binding CropCommand}"
+                            Content="裁剪" />
+                </DockPanel>
+
+            </Grid>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Base64String}"
+                         Value="{x:Null}">
+                <Setter TargetName="icon" Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type lb:CropImagePresenter}">
+        <Grid>
+            <h:Zoombox x:Name="zoomview1"
+                       Background="{DynamicResource {x:Static BrushKeys.Tile25}}"
+                       DragModifiers=""
+                       Focusable="True"
+                       IsTabStop="True"
+                       MinScale="0.1"
+                       NavigateOnPreview="False"
+                       RelativeZoomModifiers=""
+                       ViewStackIndex="0"
+                       ZoomOn="Content">
+                <b:Interaction.Behaviors>
+                    <h:ZoomBoxFitOnLoadedBehavior />
+                    <h:ZoomBoxFitOnSizeChangedBehavior />
+                </b:Interaction.Behaviors>
+                <h:Zoombox.ViewStack>
+                    <h:ZoomboxView>Fit</h:ZoomboxView>
+                </h:Zoombox.ViewStack>
+                <b:Interaction.Triggers>
+                    <h:MouseTrigger ClickCount="2"
+                                    Mode="Right"
+                                    MouseButton="Left"
+                                    UseHandle="False">
+                        <h:CallMethodActionEx MethodName="FitToBounds"
+                                              TargetObject="{Binding ElementName=zoomview1}" />
+                    </h:MouseTrigger>
+                    <h:MouseTrigger ClickCount="2"
+                                    Mode="Left"
+                                    MouseButton="Left"
+                                    UseHandle="False">
+                        <h:CallMethodActionEx MethodName="FitToBounds"
+                                              TargetObject="{Binding ElementName=zoomview1}" />
+                    </h:MouseTrigger>
+                    <!--<b:EventTrigger EventName="MouseDoubleClick">
+                        <b:InvokeCommandAction Command="{ShowZoomViewImageCommand}"
+                                               CommandParameter="{Binding ResultImageSource}" />
+                    </b:EventTrigger>-->
+                </b:Interaction.Triggers>
+                <Border>
+                    <ROIBox ImageSource="{Binding ImageSource}"
+                            Rect="{Binding Rect, Mode=TwoWay}">
+                        <ROIBox.Fill>
+                            <SolidColorBrush Opacity="0.8"
+                                             Color="Black" />
+                        </ROIBox.Fill>
+                    </ROIBox>
+                </Border>
+            </h:Zoombox>
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>
+

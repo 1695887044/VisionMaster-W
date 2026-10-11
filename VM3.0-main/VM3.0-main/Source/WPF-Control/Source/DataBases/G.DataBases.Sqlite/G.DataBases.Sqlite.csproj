@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Controls\G.Controls.Form\G.Controls.Form.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.ProgressButton\G.Controls.ProgressButton.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.AppPath\G.Extensions.AppPath.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.DataBase\G.Extensions.DataBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Dialog\G.Windows.Dialog.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore">
+      <Version>8.0.16</Version>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.16" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.16">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="8.0.16" />
+  </ItemGroup>
+  <Import Project="..\G.DataBases.Share\G.DataBases.Share.projitems" Label="Shared" />
+</Project>

@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Color\G.Extensions.Color.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup>
+</Project>

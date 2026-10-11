@@ -1,0 +1,6 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\WPF-Control\Source\Controls\G.Controls.Diagram.Presenter\G.Controls.Diagram.Presenter.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Extensions\G.Extensions.Behvaiors\G.Extensions.Behvaiors.csproj" />
+  </ItemGroup>
+</Project>

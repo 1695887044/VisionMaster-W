@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Controls\G.Controls.Form.PropertyItem\G.Controls.Form.PropertyItem.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Styles.Bootstrap\G.Styles.Bootstrap.csproj" />
+  </ItemGroup>
+</Project>

@@ -55,6 +55,7 @@ namespace Plugin.ColorCheck
         Description = "在采样区里取一维颜色序列（线序 / 色带 / 排线通用），后续与配方比对",
         ShortName = "\uf53f"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public class ColorCheckPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================

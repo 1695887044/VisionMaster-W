@@ -1,0 +1,106 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+ <ItemGroup>
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.6.0.20220608" />
+    <PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.6.0.20220608" />
+  </ItemGroup>
+ <ItemGroup>
+   <ProjectReference Include="..\..\WPF-Control\Source\Controls\G.Controls.ImageColorPicker\G.Controls.ImageColorPicker.csproj" />
+   <ProjectReference Include="..\..\WPF-Control\Source\Services\G.Services.AppPath\G.Services.AppPath.csproj" />
+   <ProjectReference Include="..\G.VisionMaster.DiagramData\G.VisionMaster.DiagramData.csproj" />
+   <ProjectReference Include="..\G.VisionMaster.NodeData\G.VisionMaster.NodeData.csproj" />
+   <ProjectReference Include="..\G.VisionMaster.NodeGroup\G.VisionMaster.NodeGroup.csproj" />
+   <ProjectReference Include="..\G.VisionMaster.ResultPresenter\G.VisionMaster.ResultPresenter.csproj" />
+ </ItemGroup>
+ <ItemGroup>
+   <None Update="Data\Cascade\haarcascades\haarcascade_eye.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_eye_tree_eyeglasses.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_frontalcatface.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_frontalcatface_extended.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_frontalface_alt.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_frontalface_alt2.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_frontalface_alt_tree.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_frontalface_default.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_fullbody.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_lefteye_2splits.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_licence_plate_rus_16stages.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_lowerbody.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_profileface.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_righteye_2splits.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_russian_plate_number.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_smile.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Cascade\haarcascades\haarcascade_upperbody.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Model\FSRCNN_x4.pb">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\agaricus-lepiota.data">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\bvlc_googlenet.prototxt">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\camera.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\cat.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\haarcascade_eye_tree_eyeglasses.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\haarcascade_frontalface_alt.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\haarcascade_frontalface_default.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\lbpcascade_frontalface.xml">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\letter-recognition.data">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Text\synset_words.txt">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Yolov3\coco.names">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+   <None Update="Data\Yolov3\yolov3-tiny.cfg">
+     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </None>
+ </ItemGroup>
+</Project>

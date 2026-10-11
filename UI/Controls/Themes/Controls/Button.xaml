@@ -146,52 +146,12 @@
       </Setter.Value>
     </Setter>
   </Style>
-  <Style x:Key="ExpandCollapseToggleStyle" TargetType="ToggleButton">
-    <Setter Property="Focusable" Value="False" />
-    <Setter Property="Width" Value="16" />
-    <Setter Property="Height" Value="16" />
-    <Setter Property="Cursor" Value="Hand" />
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="ToggleButton">
-          <Border Padding="2" Background="Transparent">
-            <Path x:Name="ExpandPath" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 0 8" RenderTransformOrigin="0.5,0.5" Stroke="#8B8B8B" StrokeEndLineCap="Round" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeThickness="1.5">
-              <Path.RenderTransform>
-                <RotateTransform x:Name="ArrowRotate" Angle="0" />
-              </Path.RenderTransform>
-            </Path>
-          </Border>
-          <ControlTemplate.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="ExpandPath" Property="Stroke" Value="#333333" />
-            </Trigger>
-            <Trigger Property="IsChecked" Value="True">
-              <Trigger.EnterActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="ArrowRotate" Storyboard.TargetProperty="Angle" To="90" Duration="0:0:0.15">
-                      <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
-                      </DoubleAnimation.EasingFunction>
-                    </DoubleAnimation>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.EnterActions>
-              <Trigger.ExitActions>
-                <BeginStoryboard>
-                  <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="ArrowRotate" Storyboard.TargetProperty="Angle" To="0" Duration="0:0:0.15">
-                      <DoubleAnimation.EasingFunction>
-                        <CubicEase EasingMode="EaseOut" />
-                      </DoubleAnimation.EasingFunction>
-                    </DoubleAnimation>
-                  </Storyboard>
-                </BeginStoryboard>
-              </Trigger.ExitActions>
-            </Trigger>
-          </ControlTemplate.Triggers>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
-  </Style>
+  <!--
+      ExpandCollapseToggleStyle 已搬到 List.xaml —— 它唯一的分册消费方在那里
+      （TreeViewItem 模板里的展开箭头）。留在本文件时那是**跨分册引用**：
+      模板内的 {StaticResource} 只在「声明它的分册 + 它自己 merge 的子树」里找，
+      找不到会静默落回框架主题字典里的同名键（.NET 9 那支箭头）——
+      界面上是"箭头换了个样"而不是报错，属最难发现的一类。
+      视图侧（ProcessView.xaml）仍在用这个键，它走元素链 → App 资源，照样查得到。
+  -->
 </ResourceDictionary>

@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.FontIcon\G.Extensions.FontIcon.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Style\G.Modules.Style.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Theme\G.Modules.Theme.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Accent\G.Themes.Colors.Accent.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Blue\G.Themes.Colors.Blue.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Copper\G.Themes.Colors.Copper.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Gray\G.Themes.Colors.Gray.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Industrial\G.Themes.Colors.Industrial.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Mineral\G.Themes.Colors.Mineral.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Platform\G.Themes.Colors.Platform.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Purple\G.Themes.Colors.Purple.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Solid\G.Themes.Colors.Solid.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Technology\G.Themes.Colors.Technology.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Web\G.Themes.Colors.Web.csproj" />
+  </ItemGroup>
+</Project>

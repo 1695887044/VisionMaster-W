@@ -1,0 +1,20 @@
+﻿global using G.Controls.Diagram.Presenter.Provider;
+global using G.Extensions.Common;
+global using G.Extensions.TypeConverter;
+global using G.Themes;
+global using System;
+global using System.Collections;
+global using System.Collections.Generic;
+global using System.Collections.ObjectModel;
+global using System.ComponentModel;
+global using System.ComponentModel.DataAnnotations;
+global using System.Linq;
+global using System.Reflection;
+global using System.Threading;
+global using System.Threading.Tasks;
+global using System.Windows;
+global using System.Windows.Controls;
+global using System.Windows.Media;
+global using System.Windows.Threading;
+global using System.Xml.Serialization;
+

@@ -195,6 +195,12 @@ namespace UI.CustomControl
                              };
             var divider = TryResource<Brush>("FluentDividerBrush")
                           ?? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EBEEF5"));
+            // 字色也走令牌：原来标题/正文是硬编码 #303133 / #606266，
+            // 导致"改了令牌全项目都变、只有弹窗不变"——正是上面那段注释要避免的不一致
+            var titleBrush = TryResource<Brush>("FluentTextPrimaryBrush")
+                             ?? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#303133"));
+            var messageBrush = TryResource<Brush>("FluentTextSecondaryBrush")
+                               ?? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#606266"));
 
             // 主卡片背景 (带弥散阴影)
             var card = new Border
@@ -221,7 +227,7 @@ namespace UI.CustomControl
                 Text = title,
                 FontSize = 18,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#303133")),
+                Foreground = titleBrush,
                 Margin = new Thickness(0, 0, 0, 12),
             };
             Grid.SetRow(txtTitle, 0);
@@ -250,7 +256,7 @@ namespace UI.CustomControl
                 {
                     Text = message,
                     FontSize = 14,
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#606266")),
+                    Foreground = messageBrush,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 0, 0, 24),
                 };
@@ -278,7 +284,10 @@ namespace UI.CustomControl
             cancelContent.Children.Add(new System.Windows.Shapes.Path
             {
                 Data = Geometry.Parse("M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"), // 专业的“取消”图标
-                Fill = (SolidColorBrush)Application.Current.FindResource("TextRegular"),
+                // ★ 这一处原来直接 FindResource（同文件其它 8 处都走 TryResource）：
+                //   键一旦不在（换主题 / 宿主没合并那本字典）就是 KeyNotFoundException，
+                //   整个弹窗引擎当场崩 —— "少一个图标色"远没有"弹窗打不开"严重。
+                Fill = TryResource<Brush>("TextRegular") ?? Brushes.DimGray,
                 Width = 12,
                 Height = 12,
                 Stretch = Stretch.Uniform,
@@ -335,14 +344,34 @@ namespace UI.CustomControl
             {
                 var frame = new DispatcherFrame();
                 T result = default!;
+                Exception? failure = null;
 
                 _ = asyncMethod().ContinueWith(t =>
                 {
-                    result = t.Result;
-                    frame.Continue = false;
+                    // ★ frame.Continue 必须放在 finally 里放行。
+                    //   原来写成 `result = t.Result; frame.Continue = false;`：一旦任务失败，
+                    //   t.Result 会在这里抛出，后面那行永远执行不到 —— UI 线程就永久卡死在
+                    //   下面的 PushFrame 里，整个弹窗系统死锁（连"取消失败"都弹不出来）。
+                    try
+                    {
+                        result = t.Result;
+                    }
+                    catch (Exception ex)
+                    {
+                        failure = ex;
+                    }
+                    finally
+                    {
+                        frame.Continue = false;
+                    }
                 }, TaskScheduler.Default);
 
                 Dispatcher.PushFrame(frame);
+
+                // 保持原来的 AggregateException 语义：失败照常往外抛，只是不再把 UI 卡住
+                if (failure != null)
+                    throw failure;
+
                 return result;
             }
             return asyncMethod().GetAwaiter().GetResult();
@@ -384,7 +413,8 @@ namespace UI.CustomControl
                     Margin = new Thickness(0, 5, 0, 5),
                     MinWidth = 300,
                     VerticalContentAlignment = VerticalAlignment.Center,
-                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DCDFE6")),
+                    BorderBrush = TryResource<Brush>("FluentBorderStrongBrush")
+                                  ?? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DCDFE6")),
                 };
                 tb.Loaded += (s, e) => { tb.SelectAll(); tb.Focus(); };
                 return tb;

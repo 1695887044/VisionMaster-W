@@ -382,5 +382,30 @@ namespace VisionMaster.Models
         /// 与"文件里写了默认值"走同一条路。
         /// </summary>
         public ImageGallerySettings ImageGallery { get; set; } = new();
+
+        /// <summary>
+        /// 并行执行全局设置（流程引擎真并行二期），见 <see cref="ParallelExecutionSettings"/>。
+        ///
+        /// <b>不能为 null</b>：与上面三节同一理由——运行时会被直接点着用
+        /// （<c>Current.ParallelExecution.FailFastByDefault</c>），而老版本的 AppConfig.json
+        /// 里没有这个节，Newtonsoft 遇到缺失的引用类型只留 null 不会自动 new。
+        /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路（AppConfigModel.cs 三次踩坑史）。
+        /// </summary>
+        public ParallelExecutionSettings ParallelExecution { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 并行执行全局设置（二期）。装配链：AppSettingsService.Load()/Save() 末尾把
+    /// FailFastByDefault 灌进静态 <c>GlobalParallelConfig</c>（运行期解析，改配置下一轮生效）。
+    /// </summary>
+    public class ParallelExecutionSettings
+    {
+        /// <summary>
+        /// 并行分支业务失败（步骤 Success=false）时默认是否取消其余分支
+        /// （FailFastMode=Inherit 的容器取此值）。默认 false = 一期行为。
+        /// FailFast 语义（评审高危 3 定死）：只做提前取消 + 容器终态标 Failed，
+        /// 不产生异常、不上抛、不置会话 Faulted。
+        /// </summary>
+        public bool FailFastByDefault { get; set; } = false;
     }
 }

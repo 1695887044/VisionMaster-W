@@ -84,8 +84,9 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
-        /// 构建本分支的条件实参：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames）。
-        /// 顺序必须与 FlowCompiler 生成 delegateParams 的顺序严格一致，否则参数会整体错位。
+        /// 构建本分支的条件实参：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames），
+        /// 最后是编译期注入的常量（Case 匹配值）。顺序必须与 FlowCompiler 生成 delegateParams
+        /// 的顺序严格一致，否则参数会整体错位。
         ///
         /// 取值一律经 CoerceConditionArg 按声明类型归一（P0-2）：编译期 IsLinkable 按
         /// ValueConverter.Convert 的口径放行"数值族互转"，运行期不补这一步就会
@@ -93,7 +94,8 @@ namespace VisionMaster.Models
         /// </summary>
         private object[] BuildBranchArgs(CompiledBranch branch, IExecutionContext context)
         {
-            var args = new object[branch.LocalVarIds.Count + branch.RuntimeVarNames.Count];
+            bool hasConstant = branch.ConstantArgument != null;
+            var args = new object[branch.LocalVarIds.Count + branch.RuntimeVarNames.Count + (hasConstant ? 1 : 0)];
 
             for (int i = 0; i < branch.LocalVarIds.Count; i++)
             {
@@ -116,6 +118,10 @@ namespace VisionMaster.Models
                 else
                     args[branch.LocalVarIds.Count + i] = DefaultForConditionArg(expectedType);
             }
+
+            // Case 分支的匹配值：编译期已按判据声明类型归一（类型与判据一致），运行期原样注入即可
+            if (hasConstant)
+                args[^1] = branch.ConstantArgument;
 
             return args;
         }

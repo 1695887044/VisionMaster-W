@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Controls\G.Controls.GridSplitterBox\G.Controls.GridSplitterBox.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.FontIcon\G.Extensions.FontIcon.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Setting\G.Services.Setting.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup>
+</Project>

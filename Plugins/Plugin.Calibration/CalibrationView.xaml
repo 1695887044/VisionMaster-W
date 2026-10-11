@@ -91,10 +91,10 @@
                                     VerticalAlignment="Center"
                                     Style="{StaticResource PluginFieldLabel}"
                                     Text="已知长度(mm)" />
-                                <TextBox
+                                <ui:NumericBox
                                     Width="90"
                                     Style="{StaticResource PluginNumericBox}"
-                                    Text="{Binding KnownLengthMm}"
+                                    Value="{Binding KnownLengthMm}"
                                     IsEnabled="{Binding IsEditable}" />
                                 <Button
                                     Margin="10,0,0,0"
@@ -140,44 +140,44 @@
                                         VerticalAlignment="Center"
                                         Style="{StaticResource PluginFieldLabel}"
                                         Text="A.Row" />
-                                    <TextBox
+                                    <ui:NumericBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
                                         IsEnabled="{Binding IsEditable}"
-                                        Text="{Binding ScaleARow, TargetNullValue=''}" />
+                                        Value="{Binding ScaleARow, TargetNullValue=''}" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
                                         VerticalAlignment="Center"
                                         Style="{StaticResource PluginFieldLabel}"
                                         Text="A.Col" />
-                                    <TextBox
+                                    <ui:NumericBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
                                         IsEnabled="{Binding IsEditable}"
-                                        Text="{Binding ScaleACol, TargetNullValue=''}" />
+                                        Value="{Binding ScaleACol, TargetNullValue=''}" />
                                 </StackPanel>
                                 <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
                                     <TextBlock
                                         VerticalAlignment="Center"
                                         Style="{StaticResource PluginFieldLabel}"
                                         Text="B.Row" />
-                                    <TextBox
+                                    <ui:NumericBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
                                         IsEnabled="{Binding IsEditable}"
-                                        Text="{Binding ScaleBRow, TargetNullValue=''}" />
+                                        Value="{Binding ScaleBRow, TargetNullValue=''}" />
                                 </StackPanel>
                                 <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
                                     <TextBlock
                                         VerticalAlignment="Center"
                                         Style="{StaticResource PluginFieldLabel}"
                                         Text="B.Col" />
-                                    <TextBox
+                                    <ui:NumericBox
                                         Width="66"
                                         Style="{StaticResource PluginNumericBox}"
                                         IsEnabled="{Binding IsEditable}"
-                                        Text="{Binding ScaleBCol, TargetNullValue=''}" />
+                                        Value="{Binding ScaleBCol, TargetNullValue=''}" />
                                 </StackPanel>
                             </UniformGrid>
                         </StackPanel>
@@ -307,26 +307,26 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <TextBox
+                                            <ui:NumericBox
                                                 Grid.Column="1"
                                                 Margin="0,0,4,0"
                                                 Style="{StaticResource PluginNumericBox}"
-                                                Text="{Binding MachineX}" />
-                                            <TextBox
+                                                Value="{Binding MachineX}" />
+                                            <ui:NumericBox
                                                 Grid.Column="2"
                                                 Margin="0,0,4,0"
                                                 Style="{StaticResource PluginNumericBox}"
-                                                Text="{Binding MachineY}" />
-                                            <TextBox
+                                                Value="{Binding MachineY}" />
+                                            <ui:NumericBox
                                                 Grid.Column="3"
                                                 Margin="0,0,4,0"
                                                 Style="{StaticResource PluginNumericBox}"
-                                                Text="{Binding ImageRow}" />
-                                            <TextBox
+                                                Value="{Binding ImageRow}" />
+                                            <ui:NumericBox
                                                 Grid.Column="4"
                                                 Margin="0,0,4,0"
                                                 Style="{StaticResource PluginNumericBox}"
-                                                Text="{Binding ImageCol}" />
+                                                Value="{Binding ImageCol}" />
                                             <Button
                                                 Grid.Column="5"
                                                 MinWidth="36"
@@ -457,30 +457,30 @@
                                 VerticalAlignment="Center"
                                 Style="{StaticResource PluginFieldLabel}"
                                 Text="残差阈值(px)" />
-                            <TextBox
+                            <ui:NumericBox
                                 Width="70"
                                 Style="{StaticResource PluginNumericBox}"
-                                Text="{Binding ResidualThresholdPx}"
+                                Value="{Binding ResidualThresholdPx}"
                                 ToolTip="残差 RMS 超过它 → 本步骤失败：标定不合格必须是看得见的失败，而不是静默放行" />
                             <TextBlock
                                 Margin="12,0,0,0"
                                 VerticalAlignment="Center"
                                 Style="{StaticResource PluginFieldLabel}"
                                 Text="当量下限" />
-                            <TextBox
+                            <ui:NumericBox
                                 Width="64"
                                 Style="{StaticResource PluginNumericBox}"
-                                Text="{Binding MmPerPixelMin}"
+                                Value="{Binding MmPerPixelMin}"
                                 ToolTip="当量合理性护栏下限（mm/px）：低于它判失败——防 µm 当 mm、防标定物量错一个数量级" />
                             <TextBlock
                                 Margin="12,0,0,0"
                                 VerticalAlignment="Center"
                                 Style="{StaticResource PluginFieldLabel}"
                                 Text="上限" />
-                            <TextBox
+                            <ui:NumericBox
                                 Width="64"
                                 Style="{StaticResource PluginNumericBox}"
-                                Text="{Binding MmPerPixelMax}"
+                                Value="{Binding MmPerPixelMax}"
                                 ToolTip="当量合理性护栏上限（mm/px）：高于它判失败" />
                         </StackPanel>
                     </StackPanel>
@@ -517,11 +517,12 @@
                 <h:ImageEdit
                     x:Name="Canvas"
                     ActiveRoi="{Binding CanvasActiveRoi, Mode=TwoWay}"
+                    Annotations="{Binding ResidualAnnotations}"
                     DrawObjectList="{Binding CanvasMarkers}"
                     HImage="{Binding CanvasImage, Mode=OneWay}"
                     IsPickMode="{Binding IsPickingPoint}"
                     ImagePicked="OnImagePicked"
-                    ToolTip="滑轮缩放 / 右键菜单可适应图片；点中标记可拖动（拖完自动回写表格）；点行上的「取点」后，在图上点一下即可回填坐标；接了实时图时画布优先显示实时图" />
+                    ToolTip="滑轮缩放 / 右键菜单可适应图片；点中标记可拖动（拖完自动回写表格）；点行上的「取点」后，在图上点一下即可回填坐标；接了实时图时画布优先显示实时图；求解后绿/红箭头=各点残差方向与大小（红=超阈值，箭头放大 50 倍）" />
             </Border>
             <Border
                 Grid.Row="2"

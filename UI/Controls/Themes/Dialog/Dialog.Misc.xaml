@@ -4,10 +4,18 @@
     <!--  源码串必须与 Generic.xaml 里的写法逐字一致，避免被当成两个不同 URI 反复加载  -->
     <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
   </ResourceDictionary.MergedDictionaries>
-  <Style x:Key="DialogInputInGroup" BasedOn="{StaticResource DialogInput}" TargetType="TextBox">
-    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
-  </Style>
+  <!--
+      ============================================================================
+      纪律：本文件里的 {StaticResource K}，K 必须在「本文件 或 本文件自己 merge 的子树」里
+      ============================================================================
+      分册之间互相看不见 —— DialogCombo 定义在 Dialog.Input.xaml（兄弟分册），
+      在本文件里写 {StaticResource DialogCombo} 就是断链：BasedOn / 模板内 / Freezable 内
+      三种落脚点会抛 XamlParseException（弹窗直接打不开），普通 Setter.Value 则静默不生效。
+      2026-10-10「变量管理」弹窗崩在 DialogComboInGroup 的 BasedOn 上，就是这条。
+      所以本文件只引用自己定义的键 + Colors.xaml 的令牌（Colors 已就地 merge）；
+      要引用别的分册，按"能同文件就同文件、否则把键挪到第一层令牌字典 Colors.xaml"处理，
+      别改成 DynamicResource 绕过——那是把编译期问题推迟成运行期噪音。
+  -->
   <DataTemplate x:Key="DialogDisplayNameTemplate">
     <TextBlock VerticalAlignment="Center" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
   </DataTemplate>
@@ -17,10 +25,11 @@
       <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource DialogTextMutedBrush}" Text="{Binding Protocol}" />
     </StackPanel>
   </DataTemplate>
-  <Style x:Key="DialogComboInGroup" BasedOn="{StaticResource DialogCombo}" TargetType="ComboBox">
-    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
-  </Style>
+  <!--
+      DialogInputInGroup / DialogComboInGroup 两支「组内变体」已搬回 Dialog.Input.xaml
+      （紧挨着它们的 BasedOn 基类 DialogInput / DialogCombo，同文件引用才稳）。
+      本文件不要再定义同名键：空壳会被当成真样式返回，界面上是"样式静默失效"。
+  -->
   <DataTemplate x:Key="DialogSourceNodeTemplate">
     <Border x:Name="NodeBorder" Height="38" Margin="6,2" Padding="10,0" Background="Transparent" CornerRadius="8">
       <Grid>

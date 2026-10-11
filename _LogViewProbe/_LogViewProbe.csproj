@@ -11,5 +11,17 @@
   <ItemGroup>
     <!-- 真视图 + 真 VM + UI 主题（与 UIThemeSmokeTest 同样的引用口径） -->
     <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
+    <!-- 卡片式布局开关：要跑真 PreProcessingView + 真插件 VM -->
+    <ProjectReference Include="..\Plugins\Plugin.PreProcessing\Plugin.PreProcessing.csproj" />
+    <!-- A 项落点：BlobDetect 视图的 19 个手写数值框已换成 NumericBox，要渲染核对 -->
+    <ProjectReference Include="..\Plugins\Plugin.BlobDetect\Plugin.BlobDetect.csproj" />
+    <!-- 迁移批：Matching / Calibration / CaliperMeasure 三个视图的数值框同口径核对 -->
+    <ProjectReference Include="..\Plugins\Plugin.Matching\Plugin.Matching.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.Calibration\Plugin.Calibration.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.CaliperMeasure\Plugin.CaliperMeasure.csproj" />
+    <!-- Core.Halcon 用的是原始 Reference，不随工程引用传递（同 UIThemeSmokeTest 的说明） -->
+    <Reference Include="halcondotnet">
+      <HintPath>..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

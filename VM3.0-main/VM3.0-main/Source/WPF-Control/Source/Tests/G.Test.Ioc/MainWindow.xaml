@@ -1,0 +1,18 @@
+﻿<Window x:Class="G.Test.Ioc.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:local="clr-namespace:G.Test.Ioc"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        Title="MainWindow"
+        Width="800"
+        Height="450"
+        Style="{StaticResource {x:Static WindowKeys.Default}}"
+        mc:Ignorable="d">
+    <UniformGrid>
+        <Button Click="Button_Click"
+                Content="测试" />
+        <Button Command="{ShowIocCommand Type={x:Type IAboutViewPresenter}}"
+                Content="关于" />
+    </UniformGrid>
+</Window>

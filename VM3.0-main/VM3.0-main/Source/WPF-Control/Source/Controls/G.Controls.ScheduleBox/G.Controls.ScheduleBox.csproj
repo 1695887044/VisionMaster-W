@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.14.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Base\G.Attach\G.Attach.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Behvaiors\G.Extensions.Behvaiors.csproj" />
+    <ProjectReference Include="..\..\Presenters\G.Presenters.Common\G.Presenters.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Logger\G.Services.Logger.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\G.Controls.Form.PropertyItem\G.Controls.Form.PropertyItem.csproj" />
+    <ProjectReference Include="..\G.Controls.Form\G.Controls.Form.csproj" />
+  </ItemGroup>
+</Project>

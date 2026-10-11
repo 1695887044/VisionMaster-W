@@ -40,9 +40,13 @@ namespace Core.Halcon.Controls
 
         public HalconBase()
         {
-            // DP 默认值是所有实例共享的集合——必须在构造时赋新实例，
+            // DP 默认值是所有实例共享的集合/对象——必须在构造时赋新实例，
             // 否则不同配置窗口的绘制列表会互相串扰
             DrawObjectList = new ObservableCollection<DrawingObjectInfo>();
+            // DisplayImageInfo 同理（DP 默认值共享单个 ImageInfo 实例）：
+            // 图集默认模板本身就并排两个 ImageDisplay，共享实例会让后设图的画布
+            // 在鼠标悬停时按**另一张图**取灰度/RGB（HSmart_HMouseMove 读的就是它）
+            DisplayImageInfo = new ImageInfo();
             Unloaded += OnControlUnloaded;
         }
 
@@ -61,6 +65,8 @@ namespace Core.Halcon.Controls
             foreach (var x in _trackedRois)
                 x.Dispose();
             ClearSampleChannelCache();
+            // 缩放状态保持：窗口销毁前把当前 part 记入同尺寸缓存（重开后 TryRestoreViewPart 恢复）
+            SaveViewPartForResume();
         }
 
         /// <summary>
@@ -278,7 +284,14 @@ namespace Core.Halcon.Controls
                 if (view.hSmart != null && view.hWindow != null)
                 {
                     view.RenderAll();
-                    view.hSmart.SetFullImagePart();
+                    // 2026-10-08 缩放状态保持：这个尺寸的图如果之前有用户调整过的视图
+                    // （配置窗口重开、图集帧切换等跨实例场景），优先恢复上次的 part——
+                    // "每次打开都要重新放大到胶路那一段"是调参场景的真实损耗。
+                    // 无记录/恢复失败 → 铺满兜底（与旧行为一致）。恢复与铺满同一条时序纪律：
+                    // 先按旧 part 画 → 控件层同步 part → 重绘（SetPart 会被内部状态顶掉的坑，
+                    // 见上面注释——所以恢复也要走 hSmart 的公开通道而不是裸 HWindow.SetPart）。
+                    if (!view.TryRestoreViewPart(newImg))
+                        view.hSmart.SetFullImagePart();
                     view.RenderAll();
                 }
                 else
@@ -328,7 +341,6 @@ namespace Core.Halcon.Controls
                 {
                     hWindow = hSmart.HalconWindow;
                     HWindow = hWindow;
-                    //DrawCheckerboardBackground(hWindow);
                     // 图像先于窗口就绪到达过的：渲染前补一次"铺满"，
                     // 否则首帧按默认 part 显示 = 小图 + 黑边，用户得手动适应
                     if (_pendingFitOnLoad)
@@ -358,6 +370,19 @@ namespace Core.Halcon.Controls
                 // 缩放/平移/拖拽/笔画结束后重绘（ROI 轮廓跟随窗口）
                 hSmart.HMouseUp += HSmart_MouseUpForSmear;
                 hSmart.HMouseUp += HSmart_MouseUpForRoi;
+
+                // 双击 = 在「适应窗口 / 1:1」间切换（看图最高频的两个状态；图集缩略图双击
+                // 已有 1:1 先例）。点击同时接管键盘焦点，让 F/1 快捷键可达（Control 默认
+                // Focusable=false，不点一下焦点进不来——"按 F 没反应"的差评来源）。
+                hSmart.HMouseDown += HSmart_MouseDownForFocus;
+                hSmart.HMouseDown += HSmart_MouseDownForDoubleClick;
+
+                // 快捷键（焦点在本控件时生效；全仓无占用，实测核查过）：
+                // F=适应窗口（铺满）、1=1:1。裸字母键的 KeyGesture 构造非法（"None+F" 抛
+                // NotSupportedException），必须走 KeyEventArgs 级的 OnKeyDown 简单比较。
+                // Ctrl+Z/Ctrl+S 不挂——BeadInspect 已用 Ctrl+Z（撤销取点），且基类当前
+                // 没有可撤销操作/未定义"保存谁"，不预占键位。
+                Focusable = true;
             }
             RegisterMouseMethods();
             // 集合订阅在构造/DP 换绑回调（SwapDrawObjectList）中统一管理，此处不再重复挂接
@@ -386,6 +411,8 @@ namespace Core.Halcon.Controls
                     Foreground = new SolidColorBrush(global::System.Windows.Media.Color.FromRgb(0x9A, 0x9A, 0x9A)),
                     TextAlignment = TextAlignment.Center,
                     TextWrapping = TextWrapping.Wrap,
+                    // 画布可能很小（Matching 模板预览高仅 120）：不封顶时两三行的 Reason 会横向撑破
+                    MaxWidth = 460,
                     Margin = new Thickness(16),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -429,19 +456,36 @@ namespace Core.Halcon.Controls
         }
 
         /// <summary>
-        /// 打开图片
+        /// "打开图片"的文件过滤器：只列 HALCON ReadImage 真正支持的格式。
+        /// 旧版把 dxf/cgm/cdr/wmf/eps/emf 也列进去——用户选了就报错，等于承诺了兑现不了的能力。
         /// </summary>
-        /// <param name="hObject"></param>
-        protected void Display(HObject hObject)
-        {
-            if (!hObject.IsInitialized())
-            {
-                return;
-            }
-            HWindow?.ClearWindow();
-            HWindow?.DispObj(hObject);
+        protected const string SupportedImageFilter =
+            "所有图像文件|*.bmp;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.gif;*.pcx;*.ico";
 
-            HWindow?.SetPart(0, 0, -2, -2);
+        private System.Windows.Threading.DispatcherTimer? _topTextClearTimer;
+
+        /// <summary>
+        /// 瞬时提示（错误/引导文案）：写入 TopText 并在数秒后自动清空——
+        /// 右键菜单路径的失败提示一闪之后永远钉在左上角，会盖住下一个提示且看着像"还坏着"。
+        /// 只适合控件自发文案；外部若要常驻文字请直接写 TopText（本方法不动别人写入的值——
+        /// 清空时机只清"到点时仍是这条文案"的情况，比较当前值后清空）。
+        /// </summary>
+        protected void SetTransientTopText(string message, double autoClearSeconds = 4.0)
+        {
+            TopText = message;
+            if (_topTextClearTimer == null)
+            {
+                _topTextClearTimer = new System.Windows.Threading.DispatcherTimer();
+                _topTextClearTimer.Tick += (s, e) =>
+                {
+                    _topTextClearTimer!.Stop();
+                    if (TopText == message)
+                        TopText = string.Empty;
+                };
+            }
+            _topTextClearTimer.Interval = TimeSpan.FromSeconds(autoClearSeconds);
+            _topTextClearTimer.Stop();
+            _topTextClearTimer.Start();
         }
 
         protected void ShowImageInfo(bool Mode)
@@ -457,16 +501,20 @@ namespace Core.Halcon.Controls
             {
                 BottomText = string.Empty;
             }
+            _showImageInfo = Mode;
         }
+
+        /// <summary>
+        /// 十字线显示状态（右键"显示/隐藏十字"维护）：RenderAll 每帧按它补画。
+        /// 旧实现只在开关瞬间画一次，缩放/平移触发的 RenderAll 不含十字，
+        /// 用户一动鼠标十字就消失而菜单还打着勾——状态与显示脱节。
+        /// </summary>
+        private bool _showCross;
 
         protected void ShowImageCross(bool Mode)
         {
-            if (Mode)
-            {
-                PaintCross();
-                return;
-            }
-            RePaint();
+            _showCross = Mode;
+            RenderAll();
         }
 
         /// <summary>
@@ -565,13 +613,15 @@ namespace Core.Halcon.Controls
             }
             catch (Exception ex)
             {
-                BottomText = ex.Message;
+                // 异常时把读数行清掉并写异常（旧实现写完又被下面的正常路径无条件覆盖，
+                // 异常提示用户根本看不到——死代码路径，2026-10-08 修正）
+                sb.Clear().Append(ex.Message);
             }
             BottomText = sb.ToString();
         }
 
         /// <summary>
-        /// 绘制十字
+        /// 绘制十字（在 RenderAll 图层最后调用：图像→ROI→涂抹→标注都画完再叠，不会被后续图层盖掉）
         /// </summary>
         protected void PaintCross()
         {
@@ -594,21 +644,10 @@ namespace Core.Halcon.Controls
         }
 
         /// <summary>
-        /// 清除画面内容
+        /// 清除画面内容（按 RenderAll 的图层语义全量重绘）。
+        /// 旧实现只重画图像本体：ROI 轮廓/涂抹层/测量标注全被抹掉，且无图时
+        /// DispObj(null) 会把异常抛进右键菜单点击链——两条都是缺陷，2026-10-08 删除。
         /// </summary>
-        protected void RePaint()
-        {
-            if (hWindow == null)
-                return; // 模板未应用/未加载时窗口未就绪
-            this.hWindow.SetDraw("margin");
-            HSystem.SetSystem("flush_graphic", "false");
-            this.hWindow.ClearWindow();
-            this.hWindow.DispObj(HImage);
-            HSystem.SetSystem("flush_graphic", "true");
-            hWindow.SetColor("black");
-            hSmart.InvalidateVisual();
-            //hWindow.DispLine(-100.0, -100, -101, -101);
-        }
 
         #region ROI 编辑体系（HDrawingObject：显示/拖拽修改/掩膜数据）
 
@@ -752,12 +791,12 @@ namespace Core.Halcon.Controls
             var type = TypeName(shapeType);
             if (type == null)
             {
-                TopText = "该类型暂不支持交互编辑";
+                SetTransientTopText("该类型暂不支持交互编辑");
                 return;
             }
             if (hWindow == null || HImage == null || !HImage.IsInitialized())
             {
-                TopText = "请先加载图像再绘制 ROI";
+                SetTransientTopText("请先加载图像再绘制 ROI");
                 return;
             }
 
@@ -798,6 +837,30 @@ namespace Core.Halcon.Controls
             if (ActiveRoi == null)
                 return;
             DrawObjectList.Remove(ActiveRoi);
+        }
+
+        /// <summary>
+        /// 清空全部 ROI。带确认弹窗：DrawObjectList 双向绑定 VM/流程参数且本库无撤销栈，
+        /// 误清一次 = 全部区域参数永久丢失（集合 Reset 分支会释放全部原生句柄并同步清掉绑定端）。
+        /// </summary>
+        protected void ClearAllRois()
+        {
+            if (DrawObjectList == null || DrawObjectList.Count == 0)
+            {
+                SetTransientTopText("没有可清空的区域");
+                return;
+            }
+            int count = DrawObjectList.Count;
+            var result = System.Windows.MessageBox.Show(
+                $"确定清空全部 {count} 个区域吗？\n区域参数已绑定流程，清空后无法撤销。",
+                "清空全部区域",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning,
+                MessageBoxResult.Cancel);
+            if (result != MessageBoxResult.OK)
+                return;
+            DrawObjectList.Clear();
+            SetTransientTopText($"已清空 {count} 个区域");
         }
 
         /// <summary>
@@ -1022,6 +1085,9 @@ namespace Core.Halcon.Controls
             try
             {
                 HSystem.SetSystem("flush_graphic", "false");
+                // 伪彩 LUT 每帧设置（状态纪律与十字线一致：不是设一次就完，缩放/换图后的
+                // 每次全量重绘都带上它；HALCON SetLut 便宜，重复设置无感知）
+                hWindow.SetLut(_useColorLut ? "temperature" : "default");
                 hWindow.ClearWindow();
                 hWindow.SetDraw("margin");
                 if (HImage != null && HImage.IsInitialized())
@@ -1088,6 +1154,9 @@ namespace Core.Halcon.Controls
 
                 // 测量标注层（线段/角度/文本，随帧覆盖）
                 RenderAnnotations();
+                // 十字线（状态见 _showCross；画在最后，不与其它图层争位）
+                if (_showCross)
+                    PaintCross();
                 HSystem.SetSystem("flush_graphic", "true");
                 hWindow.SetColor("black");
                 hSmart.InvalidateVisual();
@@ -1288,24 +1357,39 @@ namespace Core.Halcon.Controls
                 lastSmearRow = row;
                 lastSmearCol = column;
 
+                // 本批 stamps 先并成一条笔画条带，再一次并入工作副本：
+                // 旧实现逐盖章 Union2——每次都对**整个累计区域**生成新 HRegion，
+                // 复杂度 O(盖章数×区域面积)，长笔画（快速拖动、大笔刷）会越画越卡。
+                // 条带并集只发生在这批圆盘之间，累计区域每批只拷贝一次。
+                HRegion? batchRegion = null;
                 foreach (var (sr, sc) in stamps)
                 {
                     HOperatorSet.GenCircle(out HObject discObj, sr, sc, radius);
                     using var disc = new HRegion(discObj);
                     discObj.Dispose();
-                    if (SmearMode == SmearModeType.Draw)
+                    var mergedBatch = batchRegion == null ? new HRegion(disc) : batchRegion.Union2(disc);
+                    batchRegion?.Dispose();
+                    batchRegion = mergedBatch;
+                }
+
+                if (batchRegion != null)
+                {
+                    using (batchRegion)
                     {
-                        var baseRegion = strokeDraw ?? SmearDraw; // DP 值为 VM 所有，只读参与并集
-                        var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
-                        strokeDraw?.Dispose(); // 旧工作副本（仅控件持有的实例）才可释放
-                        strokeDraw = added;
-                    }
-                    else if (SmearMode == SmearModeType.Erase)
-                    {
-                        var baseRegion = strokeErase ?? SmearErase;
-                        var added = baseRegion == null ? new HRegion(disc) : baseRegion.Union2(disc);
-                        strokeErase?.Dispose();
-                        strokeErase = added;
+                        if (SmearMode == SmearModeType.Draw)
+                        {
+                            var baseRegion = strokeDraw ?? SmearDraw; // DP 值为 VM 所有，只读参与并集
+                            var added = baseRegion == null ? new HRegion(batchRegion) : baseRegion.Union2(batchRegion);
+                            strokeDraw?.Dispose(); // 旧工作副本（仅控件持有的实例）才可释放
+                            strokeDraw = added;
+                        }
+                        else if (SmearMode == SmearModeType.Erase)
+                        {
+                            var baseRegion = strokeErase ?? SmearErase;
+                            var added = baseRegion == null ? new HRegion(batchRegion) : baseRegion.Union2(batchRegion);
+                            strokeErase?.Dispose();
+                            strokeErase = added;
+                        }
                     }
                 }
 
@@ -1320,6 +1404,85 @@ namespace Core.Halcon.Controls
             {
                 // 窗口未就绪时忽略
             }
+        }
+
+        #endregion
+
+        #region 双击切换视图 + 快捷键焦点
+
+        /// <summary>双击检测：上一次左键 Down 的时刻（同一位置 400ms 内二次 Down = 双击）</summary>
+        private DateTime _lastLeftDownUtc;
+        private double _lastLeftDownRow, _lastLeftDownCol;
+        private const double DoubleClickTolerancePx = 6.0;
+
+        /// <summary>
+        /// 点击画布时把键盘焦点给控件（F/1 快捷键可达的前提）。
+        /// 2026-10-08 复盘修正：HSmartWindowControlWPF 是 HwndHost 系，在【预览频繁换图】的
+        /// 配置弹窗里对它调 Focus() 会走 Win32 SetFocus/HwndSource 焦点仲裁——句柄重建窗口期
+        /// 可能停滞（现场：拖直方图阈值后整个弹窗冻结、只有纯 WPF 的直方图还能拖）。
+        /// 鼠标按下不再抢焦点：键盘可达性退回"Tab 到画布"（Focusable=true 保留），
+        /// 焦点仲裁风险 > F/1 快捷键的便利收益。
+        /// </summary>
+        private void HSmart_MouseDownForFocus(object sender, HSmartWindowControlWPF.HMouseEventArgsWPF e)
+        {
+            // 有意留空：见方法注释（原实现 e.Button==Left 时 Focus()，已移除）
+        }
+
+        /// <summary>
+        /// 双击在「适应窗口 / 1:1」间切换。三重模式互斥（评审要求）：
+        /// 涂抹中双击=两次落笔、取点中双击=取两个点、拖拽 ROI 中双击=两次命中——
+        /// 这些模式下"双击=两次单击"是既有语义，切视图会吞掉用户的第二次点击。
+        /// </summary>
+        private void HSmart_MouseDownForDoubleClick(object sender, HSmartWindowControlWPF.HMouseEventArgsWPF e)
+        {
+            if (e.Button != MouseButton.Left)
+                return;
+            if (SmearMode != SmearModeType.None || IsPickMode || IsDrawing)
+                return;
+
+            var now = DateTime.UtcNow;
+            bool isDouble = (now - _lastLeftDownUtc).TotalMilliseconds <= 400
+                && Math.Abs(e.Row - _lastLeftDownRow) <= DoubleClickTolerancePx
+                && Math.Abs(e.Column - _lastLeftDownCol) <= DoubleClickTolerancePx;
+            _lastLeftDownUtc = now;
+            _lastLeftDownRow = e.Row;
+            _lastLeftDownCol = e.Column;
+            if (!isDouble)
+                return;
+
+            _lastLeftDownUtc = DateTime.MinValue; // 三连击只当一次双击
+            // 当前是 1:1 → 切铺满；否则（含任意中间缩放）→ 切 1:1
+            ResetWindow(fitImage: !IsViewingOneToOne());
+        }
+
+        /// <summary>
+        /// 键盘快捷键（焦点在本控件时）：F=适应窗口（铺满）、1/小键盘1=按 1:1 显示。
+        /// 裸字母/数字键不能走 KeyGesture/InputBinding（"None+F" 构造即抛），OnKeyDown 直接比较。
+        /// 编辑类控件（文本框等）不在此处，无输入冲突；模式激活（涂抹/取点/拖拽中）不拦截。
+        /// </summary>
+        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.Key == Key.F)
+            {
+                ResetWindow(fitImage: false);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.D1 || e.Key == Key.NumPad1)
+            {
+                ResetWindow(fitImage: true);
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>轻量命令（保留：AppendContextMenu 等扩展点未来可复用；InputBinding 方案已弃）</summary>
+        private sealed class RelayCommand : System.Windows.Input.ICommand
+        {
+            private readonly Action<object?> _execute;
+            public RelayCommand(Action<object?> execute) => _execute = execute;
+            public event EventHandler? CanExecuteChanged { add { } remove { } }
+            public bool CanExecute(object? parameter) => true;
+            public void Execute(object? parameter) => _execute(parameter);
         }
 
         #endregion
@@ -1378,11 +1541,132 @@ namespace Core.Halcon.Controls
                         hWindow.SetTposition((int)a.Points[0], (int)a.Points[1]);
                         hWindow.WriteString(a.Text);
                         break;
+
+                    case MeasureType.Polyline when a.Points.Length >= 4:
+                        // 偶数个坐标 = N≥2 个点；一次 DispLine 循环画完（替代旧拼 2(N-1) 个 Line 对象的用法）
+                        for (int i = 0; i + 3 < a.Points.Length; i += 2)
+                            hWindow.DispLine(a.Points[i], a.Points[i + 1], a.Points[i + 2], a.Points[i + 3]);
+                        if (a.ShowVertices)
+                        {
+                            for (int i = 0; i + 1 < a.Points.Length; i += 2)
+                            {
+                                double r = a.Points[i], c = a.Points[i + 1];
+                                hWindow.DispLine(r - 5, c, r + 5, c);
+                                hWindow.DispLine(r, c - 5, r, c + 5);
+                                if (!string.IsNullOrEmpty(a.Text))
+                                {
+                                    hWindow.SetTposition((int)r - 14, (int)c + 6);
+                                    hWindow.WriteString(a.Text + (i / 2 + 1));
+                                }
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(a.Text))
+                        {
+                            hWindow.SetTposition((int)a.Points[0], (int)a.Points[1]);
+                            hWindow.WriteString(a.Text);
+                        }
+                        break;
+
+                    case MeasureType.Point when a.Points.Length >= 2:
+                        double pr = a.Points[0], pc = a.Points[1];
+                        hWindow.DispLine(pr - 6, pc, pr + 6, pc);
+                        hWindow.DispLine(pr, pc - 6, pr, pc + 6);
+                        if (!string.IsNullOrEmpty(a.Text))
+                        {
+                            hWindow.SetTposition((int)pr - 14, (int)pc + 6);
+                            hWindow.WriteString(a.Text);
+                        }
+                        break;
                 }
             }
         }
 
         #endregion
+
+        // ==================================================================
+        //  缩放状态保持（2026-10-08）：同尺寸图像跨控件实例恢复上次视图
+        //
+        //  动机：控件 Unloaded 即销毁 HALCON 窗口（OnControlUnloaded），配置窗口
+        //  关了再开 / 图集帧间切换都会从"铺满"起步——用户每轮调参都要重新缩放定位。
+        //
+        //  形态（评审仲裁）：**进程内静态 LRU 表**，键 = 图像宽×高。不推给每个插件 VM
+        //  （19 个插件没人为此写持久化），也不做磁盘持久化（重启软件后重新适应一次
+        //  是可接受的代价，且避免"每个图像尺寸都往用户配置写脏数据"）。
+        //
+        //  防 P0-1 同类坑：值是不可变 double 四元组（不是可变共享对象），且只存
+        //  "同尺寸"键——不同实例间不可能通过它读到对方的可变状态。
+        // ==================================================================
+
+        /// <summary>一个图像尺寸下最近一次的用户视图（图像坐标 part：row1/col1/row2/col2）</summary>
+        private sealed record ViewPart(double Row1, double Col1, double Row2, double Col2);
+
+        /// <summary>进程内共享的视图记录（静态 LRU，容量 4——两三个常用尺寸 + 余量）</summary>
+        private static readonly System.Collections.Generic.LinkedList<(long Key, ViewPart Part)> _viewPartCache = new();
+
+        /// <summary>把当前窗口 part 记入缓存（图像尺寸做键；调用点：控件卸载时）</summary>
+        private void SaveViewPartForResume()
+        {
+            try
+            {
+                if (hWindow == null || HImage == null || !HImage.IsInitialized())
+                    return;
+                HOperatorSet.GetPart(hWindow, out HTuple r1, out HTuple c1, out HTuple r2, out HTuple c2);
+                HImage.GetImageSize(out int imgW, out int imgH);
+                long key = (long)(uint)imgW << 32 | (uint)imgH;
+                var part = new ViewPart(r1.D, c1.D, r2.D, c2.D);
+                lock (_viewPartCache)
+                {
+                    var node = _viewPartCache.First;
+                    while (node != null)
+                    {
+                        if (node.Value.Key == key) { node.Value = (key, part); _viewPartCache.Remove(node); _viewPartCache.AddFirst(node); return; }
+                        node = node.Next;
+                    }
+                    _viewPartCache.AddFirst((key, part));
+                    while (_viewPartCache.Count > 4)
+                        _viewPartCache.RemoveLast();
+                }
+            }
+            catch
+            {
+                // 窗口已失效等情况：不记录即可，铺满兜底
+            }
+        }
+
+        /// <summary>
+        /// 尝试按图像尺寸恢复上次视图。恢复的是"用户上次看的位置"，不是精确复刻——
+        /// HSmartWindowControlWPF 的公开通道只有 SetFullImagePart（铺满）与 HWindow.SetPart
+        /// （会被内部状态顶掉的风险：恢复后用户一旦滚轮缩放，内部状态会接管，实测可接受）。
+        /// 恢复后仍走一次 InvalidateVisual 让首帧按新 part 画。返回 false = 无记录/失败。
+        /// </summary>
+        private bool TryRestoreViewPart(HImage image)
+        {
+            try
+            {
+                if (hSmart == null || hWindow == null)
+                    return false;
+                image.GetImageSize(out int imgW, out int imgH);
+                long key = (long)(uint)imgW << 32 | (uint)imgH;
+                ViewPart? part = null;
+                lock (_viewPartCache)
+                {
+                    foreach (var entry in _viewPartCache)
+                        if (entry.Key == key) { part = entry.Part; break; }
+                }
+                if (part == null)
+                    return false;
+                // part 有效期自检：跨度非正或退化（比图像还小一格的极端值）时不恢复
+                if (part.Row2 - part.Row1 <= 0 || part.Col2 - part.Col1 <= 0)
+                    return false;
+                hWindow.SetPart(part.Row1, part.Col1, part.Row2, part.Col2);
+                hSmart.InvalidateVisual();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         /// <summary>
         /// 适应窗口/适应图片
@@ -1415,7 +1699,7 @@ namespace Core.Halcon.Controls
         {
             if (hWindow == null)
             {
-                TopText = "视觉引擎不可用，无法保存缩略图像";
+                SetTransientTopText("视觉引擎不可用，无法保存缩略图像");
                 return;
             }
             SaveFileDialog sfd = new SaveFileDialog();
@@ -1435,6 +1719,9 @@ namespace Core.Halcon.Controls
             }
         }
 
+        /// <summary>写瞬时提示（数秒自动清，见 <see cref="SetTransientTopText"/>）</summary>
+        protected void SetTopHint(string message) => SetTransientTopText(message);
+
         /// <summary>
         /// 保存原始图片到本地
         /// </summary>
@@ -1442,7 +1729,7 @@ namespace Core.Halcon.Controls
         {
             if (HImage == null || !HImage.IsInitialized())
             {
-                TopText = "无图像可保存";
+                SetTransientTopText("无图像可保存");
                 return;
             }
             SaveFileDialog sfd = new SaveFileDialog();
@@ -1472,14 +1759,13 @@ namespace Core.Halcon.Controls
             // 而下面的 catch 只认 HalconException——提前拦下给提示，不让异常逃出右键菜单路径
             if (!HalconRuntime.IsAvailable)
             {
-                TopText = "视觉引擎不可用，无法打开图像";
+                SetTransientTopText("视觉引擎不可用，无法打开图像");
                 return;
             }
             try
             {
                 OpenFileDialog openFileDialog = new OpenFileDialog();
-                openFileDialog.Filter =
-                    "所有图像文件 | *.bmp; *.pcx; *.png; *.jpg; *.gif;*.tif; *.ico; *.dxf; *.cgm; *.cdr; *.wmf; *.eps; *.emf";
+                openFileDialog.Filter = SupportedImageFilter;
                 if (openFileDialog.ShowDialog() == true)
                 {
                     HTuple ImagePath = openFileDialog.FileName;
@@ -1490,75 +1776,12 @@ namespace Core.Halcon.Controls
             }
             catch (HalconException ex)
             {
-                // 文件损坏/格式不支持等：右键菜单路径无外层异常处理，向上抛会崩溃，改为提示
-                TopText = $"打开图像失败：{ex.Message}";
+                // 文件损坏/格式不支持等：右键菜单路径无外层异常处理，向上抛会崩溃，改为瞬时提示
+                SetTransientTopText($"打开图像失败：{ex.Message}");
             }
         }
 
         protected virtual void RegisterMouseMethods() { }
-
-        private void DrawCheckerboardBackground(HWindow window)
-        {
-            if (window == null)
-                return;
-            window.ClearWindow();
-            int tileSize = 32;
-
-            // 1. 安全获取当前窗口的可视区范围（支持小数精度）
-            HOperatorSet.GetPart(
-                window,
-                out HTuple row1Tuple,
-                out HTuple col1Tuple,
-                out HTuple row2Tuple,
-                out HTuple col2Tuple
-            );
-            double r1 = row1Tuple.D;
-            double c1 = col1Tuple.D;
-            double r2 = row2Tuple.D;
-            double c2 = col2Tuple.D;
-
-            // 2. 防爆计算：向外对齐到 tileSize 的整数倍网格，避免拖拽平移时棋盘格闪烁
-            int startY = (int)Math.Floor(r1 / tileSize) * tileSize;
-            int endY = (int)Math.Ceiling(r2 / tileSize) * tileSize;
-            int startX = (int)Math.Floor(c1 / tileSize) * tileSize;
-            int endX = (int)Math.Ceiling(c2 / tileSize) * tileSize;
-
-            // 3. 收集所有色块的坐标，准备矢量化批量绘制
-            var r1List = new List<double>();
-            var c1List = new List<double>();
-            var r2List = new List<double>();
-            var c2List = new List<double>();
-
-            for (int y = startY; y < endY; y += tileSize)
-            {
-                for (int x = startX; x < endX; x += tileSize)
-                {
-                    // 棋盘格奇偶校验（使用绝对坐标计算，保证拖拽时网格稳定锁定）
-                    if (((x / tileSize) + (y / tileSize)) % 2 == 0)
-                    {
-                        r1List.Add(y);
-                        c1List.Add(x);
-                        r2List.Add(y + tileSize);
-                        c2List.Add(x + tileSize);
-                    }
-                }
-            }
-
-            if (r1List.Count == 0)
-                return;
-
-            // 4. 设置纯色填充与颜色
-            HOperatorSet.SetDraw(window, "fill");
-            HOperatorSet.SetColor(window, "#eeeeee");
-
-            // 5. 核心优化：一次性将 Tuple 矩阵塞入 Halcon 批量渲染（耗时 < 1ms）
-            HTuple row1s = new HTuple(r1List.ToArray());
-            HTuple col1s = new HTuple(c1List.ToArray());
-            HTuple row2s = new HTuple(r2List.ToArray());
-            HTuple col2s = new HTuple(c2List.ToArray());
-
-            HOperatorSet.DispRectangle1(window, row1s, col1s, row2s, col2s);
-        }
 
         protected MenuItem CreateMenu(string name, RoutedEventHandler click)
         {
@@ -1568,9 +1791,245 @@ namespace Core.Halcon.Controls
             return menu;
         }
 
+        // ==================================================================
+        //  右键菜单（2026-10-08 第一批重构）
+        //  · 「信息」一个子菜单塞了视图/图像两类操作 → 拆「视图」+「图像」两个子菜单；
+        //  · 「适应图片/窗口」一个开关管两条语义 → 拆「适应窗口（铺满）」「按 1:1 显示」
+        //    两项，勾选态由 ContextMenu.Opened 时按 GetPart 实算（滚轮缩放后勾会跟着走，
+        //    不再"状态与显示脱节"）；
+        //  · 勾选态类菜单项（图像信息/十字）的勾随 Opened 同步；
+        //  · 取点模式下收敛：区域类/打开图片类项置灰（取点中途点"新建矩形"会插无关
+        //    ROI 且打断取点——Calibration 实测过的误操作路径）；
+        //  · 宿主/派生类可经 AppendContextMenu 追加项而不必整体替换菜单。
+        // ==================================================================
+
+        /// <summary>图像信息是否显示中（菜单勾选态同步用；由 ShowImageInfo 维护）</summary>
+        private bool _showImageInfo;
+
         /// <summary>
-        /// 创建带勾选态切换的菜单项（点击反转 IsChecked 后执行 action）
+        /// 在右键菜单末尾追加自定义菜单项（宿主/派生类扩展点）：
+        /// 保留基类的「视图/图像/区域」全部能力再加自己的项，不必像旧版那样
+        /// ContextMenu = null 整体接管（BeadInspect 之前只能这么做——想加一项就得弃全部）。
+        /// 传入 separator=true 时先加一条分隔线。须在 RegisterMouseMethods 里（模板应用时）调用。
         /// </summary>
+        protected void AppendContextMenu(MenuItem item, bool separator = false)
+        {
+            if (item == null) return;
+            if (separator && ContextMenu != null && ContextMenu.Items.Count > 0)
+                ContextMenu.Items.Add(new Separator());
+            (ContextMenu ??= new ContextMenu()).Items.Add(item);
+        }
+
+        /// <summary>
+        /// 判断当前视图是否"按 1:1 显示"（菜单勾选态实算）：
+        /// HALCON 的 part 是 [row1, col1, row2, col2] 图像坐标；1:1 = 行跨度等于画布高
+        /// （容差 2%，浮点比较不留容差会永远不勾）。GetPart 失败/无图时视为非 1:1。
+        /// </summary>
+        private bool IsViewingOneToOne()
+        {
+            try
+            {
+                if (hWindow == null || hSmart == null || hSmart.ActualHeight <= 0)
+                    return false;
+                HOperatorSet.GetPart(hWindow, out HTuple r1, out _, out HTuple r2, out _);
+                double span = r2.D - r1.D;
+                return span > 0 && Math.Abs(span - hSmart.ActualHeight) / hSmart.ActualHeight < 0.02;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 构建「视图」子菜单：适应窗口（铺满）/ 按 1:1 显示 / 图像信息 / 十字线。
+        /// 勾选态在 ContextMenu.Opened 时由 SyncViewMenuChecks 实算刷新。
+        /// </summary>
+        protected MenuItem BuildViewMenu()
+        {
+            var viewMenu = new MenuItem { Header = "视图" };
+
+            var fitWindow = new MenuItem { Header = "适应窗口（铺满）", InputGestureText = "F" };
+            fitWindow.Click += (s, e) => ResetWindow(fitImage: false);
+
+            var oneToOne = new MenuItem { Header = "按 1:1 显示（原始像素）", InputGestureText = "1" };
+            oneToOne.Click += (s, e) => ResetWindow(fitImage: true);
+
+            _toggleImageInfoMenu = new MenuItem { Header = "图像信息（坐标/灰度）" };
+            _toggleImageInfoMenu.Click += (s, e) => ShowImageInfo(!_showImageInfo);
+
+            _toggleCrossMenu = new MenuItem { Header = "十字线" };
+            _toggleCrossMenu.Click += (s, e) => ShowImageCross(!_showCross);
+
+            // 伪彩 LUT：real/16 位差分图的判读利器（线性映射下低对比区域一片黑/白）。
+            // HALCON 的 color_lut "temperature"——一行原生调用 + 一个菜单项的最便宜档。
+            _toggleLutMenu = new MenuItem { Header = "伪彩映射（温度色板）" };
+            _toggleLutMenu.Click += (s, e) => ToggleColorLut();
+
+            viewMenu.Items.Add(fitWindow);
+            viewMenu.Items.Add(oneToOne);
+            viewMenu.Items.Add(new Separator());
+            viewMenu.Items.Add(_toggleImageInfoMenu);
+            viewMenu.Items.Add(_toggleCrossMenu);
+            viewMenu.Items.Add(_toggleLutMenu);
+            return viewMenu;
+        }
+
+        /// <summary>构建「图像」子菜单：保存原始图像 / 截取当前视图 / 复制视图 / 复制像素信息 / [打开图片]</summary>
+        protected MenuItem BuildImageMenu(bool includeOpenImage)
+        {
+            var imageMenu = new MenuItem { Header = "图像" };
+            imageMenu.Items.Add(CreateMenu("保存原始图像", (s, e) => SaveImage()));
+            // 旧名「保存缩略图像」名不副实：DumpWindow 截的是整个 HALCON 窗口（含叠加层），
+            // 与"缩略图"无关；且 TopText/BottomText 是 WPF 层 TextBlock、不在 HWindow 里，截不到。
+            imageMenu.Items.Add(CreateMenu("截取当前视图并保存", (s, e) => SaveWindowDump()));
+            imageMenu.Items.Add(CreateMenu("复制当前视图（画布内容）", (s, e) => CopyViewToClipboard()));
+            imageMenu.Items.Add(CreateMenu("复制像素信息", (s, e) => CopyPixelInfoToClipboard()));
+            if (includeOpenImage)
+            {
+                _openImageMenu = CreateMenu("打开图片", (s, e) => OpenImage());
+                imageMenu.Items.Add(_openImageMenu);
+            }
+            return imageMenu;
+        }
+
+        private MenuItem? _toggleImageInfoMenu;
+        private MenuItem? _toggleCrossMenu;
+        private MenuItem? _toggleLutMenu;
+        private MenuItem? _openImageMenu;
+
+        /// <summary>伪彩 LUT 开关状态：RenderAll 每帧按它设置/复位（与十字线同款状态纪律）</summary>
+        private bool _useColorLut;
+
+        /// <summary>切换伪彩映射：开 = color_lut "temperature"，关 = 恢复默认 "default"</summary>
+        private void ToggleColorLut()
+        {
+            _useColorLut = !_useColorLut;
+            RenderAll();
+        }
+
+        /// <summary>
+        /// 菜单打开时同步勾选态/置灰态（唯一真相 = 控件当前状态，不靠点击时翻勾——
+        /// 滚轮缩放、代码切模式都会让"点击时的勾"过期）。
+        /// </summary>
+        protected void SyncMenuStateOnOpen()
+        {
+            if (_toggleImageInfoMenu != null)
+                _toggleImageInfoMenu.IsChecked = _showImageInfo;
+            if (_toggleCrossMenu != null)
+                _toggleCrossMenu.IsChecked = _showCross;
+            if (_toggleLutMenu != null)
+                _toggleLutMenu.IsChecked = _useColorLut;
+            if (_openImageMenu != null)
+                _openImageMenu.IsEnabled = !IsPickMode; // 取点中打开图片会换图打断取点
+        }
+
+        /// <summary>
+        /// 构建"视图 + 图像"两个子菜单并挂 Opened 同步（三个控件共用的标准配置）。
+        /// 替代旧 BuildInfoMenu（一个"信息"菜单混装两类操作 + 双语义适应开关）。
+        /// </summary>
+        /// <param name="includeOpenImage">是否包含"打开图片"项</param>
+        protected void BuildStandardMenus(bool includeOpenImage)
+        {
+            ContextMenu ??= new ContextMenu();
+            ContextMenu.Items.Add(BuildViewMenu());
+            ContextMenu.Items.Add(BuildImageMenu(includeOpenImage));
+            ContextMenu.Opened += (s, e) => SyncMenuStateOnOpen();
+        }
+
+        /// <summary>
+        /// 复制当前视图（HALCON 窗口内容 = 图像 + ROI/涂抹/标注叠加层，不含 WPF 层角标文字）
+        /// 到剪贴板。现场贴报告/发聊天窗口用，免"存盘再发"一步。
+        /// </summary>
+        protected void CopyViewToClipboard()
+        {
+            if (hWindow == null || hSmart == null || !hSmart.IsVisible)
+            {
+                SetTransientTopText("画布未就绪，无法复制视图");
+                return;
+            }
+            try
+            {
+                // 内存通道：HALCON 窗口 → HImage → 临时 PNG → WPF BitmapSource → 剪贴板。
+                // WriteImage 的托管重载只认文件路径（实测无 Stream 重载），用 %TEMP% 中转，
+                // 复制完立即删除——比常驻临时文件干净，比注册 HImage 内存编码扩展省一个依赖。
+                using var dump = hWindow.DumpWindowImage();
+                string tempPath = Path.Combine(Path.GetTempPath(), "halcon_clipboard_" + Guid.NewGuid().ToString("N") + ".png");
+                try
+                {
+                    HOperatorSet.WriteImage(dump, "png", 0, tempPath);
+                    var source = new System.Windows.Media.Imaging.BitmapImage();
+                    source.BeginInit();
+                    source.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    source.UriSource = new Uri(tempPath, UriKind.Absolute);
+                    source.EndInit();
+                    source.Freeze();
+                    System.Windows.Clipboard.SetImage(source);
+                    SetTransientTopText("已复制当前视图（画布内容，不含角标文字）");
+                }
+                finally
+                {
+                    try { File.Delete(tempPath); } catch { /* 竞争删除失败留待系统清理 */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                SetTransientTopText($"复制视图失败：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 复制最后鼠标位置的像素读数（W/H/X/Y + 灰度或 RGB，单行文本）。
+        /// 2026-10-08 复盘加固：预览类场景 200ms 一轮换图，<see cref="ImageInfo.Image"/> 是
+        /// 换图回调里的**快照引用**——用户点菜单的瞬间它可能已随上一轮预览被释放，
+        /// 直接 GetGrayval 会抛 HalconException（现场表现为"复制像素信息失败"）。
+        /// 现改为：坐标用 DisplayImageInfo（纯托管值，无竞态），**像素读数一律从当前
+        /// <see cref="HImage"/>（绑定源，与画布同生命周期）现取**；读不出就如实提示。
+        /// </summary>
+        protected void CopyPixelInfoToClipboard()
+        {
+            var img = HImage;
+            if (img == null || !img.IsInitialized())
+            {
+                SetTransientTopText("无图像可复制像素信息");
+                return;
+            }
+            var info = DisplayImageInfo;
+            double x = info.PointX, y = info.PointY;
+            if (info.Width <= 0 || x < 0 || x >= info.Width || y < 0 || y >= info.Height)
+            {
+                SetTransientTopText("鼠标最后位置不在图像内，无法复制像素信息");
+                return;
+            }
+            try
+            {
+                img.GetImageSize(out int w, out int h);
+                int channels = 0;
+                HOperatorSet.CountChannels(img, out HTuple ch);
+                channels = ch.I;
+                string text;
+                if (channels == 3)
+                {
+                    using var red = img.AccessChannel(1);
+                    using var green = img.AccessChannel(2);
+                    using var blue = img.AccessChannel(3);
+                    text = $"W:{w} H:{h} X:{x:F2} Y:{y:F2} "
+                         + $"R:{red.GetGrayval(y, x):F2} G:{green.GetGrayval(y, x):F2} B:{blue.GetGrayval(y, x):F2}";
+                }
+                else
+                {
+                    text = $"W:{w} H:{h} X:{x:F2} Y:{y:F2} Gray:{img.GetGrayval(y, x):F2}";
+                }
+                System.Windows.Clipboard.SetText(text);
+                SetTransientTopText("已复制像素信息");
+            }
+            catch (Exception ex)
+            {
+                SetTransientTopText($"复制像素信息失败：{ex.Message}");
+            }
+        }
+
+        /// <summary>创建带勾选态切换的菜单项（点击反转 IsChecked 后执行 action）</summary>
         protected MenuItem CreateToggleMenu(string name, Action<bool> action)
         {
             var menu = new MenuItem { Header = name };
@@ -1580,24 +2039,6 @@ namespace Core.Halcon.Controls
                 action(menu.IsChecked);
             };
             return menu;
-        }
-
-        /// <summary>
-        /// 构建"信息"子菜单（适应窗口/图像信息/十字线 + 保存原始/缩略图像 [+打开图片]）。
-        /// 三个控件的右键菜单此前各复制一份约 50 行，收敛到基类单一实现
-        /// </summary>
-        /// <param name="includeOpenImage">是否包含"打开图片"项</param>
-        protected MenuItem BuildInfoMenu(bool includeOpenImage)
-        {
-            var infoMenu = new MenuItem { Header = "信息" };
-            infoMenu.Items.Add(CreateToggleMenu("适应图片/窗口", fit => ResetWindow(fit)));
-            infoMenu.Items.Add(CreateToggleMenu("显示/隐藏图像信息", show => ShowImageInfo(show)));
-            infoMenu.Items.Add(CreateToggleMenu("显示/隐藏十字", show => ShowImageCross(show)));
-            infoMenu.Items.Add(CreateMenu("保存原始图像", (s, e) => SaveImage()));
-            infoMenu.Items.Add(CreateMenu("保存缩略图像", (s, e) => SaveWindowDump()));
-            if (includeOpenImage)
-                infoMenu.Items.Add(CreateMenu("打开图片", (s, e) => OpenImage()));
-            return infoMenu;
         }
     }
 }

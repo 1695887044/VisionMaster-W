@@ -18,6 +18,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
     {
         private ConditionStep _targetNode;
         private ForStep _targetForNode;
+
+        /// <summary>分支匹配靶节点（IsCaseMode 时的活模型引用；判据写回用）</summary>
+        private CaseStep _targetCaseNode;
         private readonly IDialogService dialogService;
         private readonly IWorkspaceManager _workspace;
 
@@ -31,6 +34,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // P1-⑤：当前选中分支是否需要写条件——驱动表达式编辑区/Else 灰条的显隐，
                 // UI 与 FlowCompiler"Else/Default 强制 true"的规则共用同一判定源，不再各说各话
                 RaisePropertyChanged(nameof(SelectedBranchNeedsExpression));
+                // 分支匹配模式：切换分支要同时刷新"匹配值框 / 布尔编辑器 / 标题"三处显隐与文案
+                RaisePropertyChanged(nameof(ShowBooleanEditor));
+                RaisePropertyChanged(nameof(ShowCaseValueEditor));
+                RaisePropertyChanged(nameof(EditorTitle));
                 BranchChanged?.Invoke(this, value);
             }
         }
@@ -42,6 +49,73 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// P1-⑥：For 节点并入本弹窗——为 true 时隐藏"变量+表达式"区，显示"循环次数"卡片
         /// </summary>
         public bool IsForMode { get => field; set => SetProperty(ref field, value); }
+
+        // ------------------------------------------------------------------
+        //  分支匹配（Case）模式：与 If/While 共用"草稿→校验→写回→Version++"事务管线，
+        //  只是分支编辑区从"布尔表达式"换成"匹配值"，并在顶部多一个判据输入。
+        //  判据一次只写一次（容器级），匹配值按分支各写各的——编译期把它们合成「判据 == 匹配值」。
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 分支匹配模式（靶节点是 CaseStep）：表达式区换成"判据 + 匹配值"。
+        /// </summary>
+        public bool IsCaseMode
+        {
+            get => field;
+            set
+            {
+                if (!SetProperty(ref field, value))
+                    return;
+                RaisePropertyChanged(nameof(Title));
+                RaisePropertyChanged(nameof(EditorTitle));
+                RaisePropertyChanged(nameof(ShowBooleanEditor));
+                RaisePropertyChanged(nameof(ShowCaseValueEditor));
+                // 兜底分支灰条的文案随模式切换（“该分支无需编写条件” ↔ “该分支是默认分支”）：
+                // 漏发这两条，宿主复用同一视图时灰条会停在非 Case 措辞（review 2026-10-10 低危 2）
+                RaisePropertyChanged(nameof(NoConditionTitle));
+                RaisePropertyChanged(nameof(NoConditionHintText));
+            }
+        }
+
+        /// <summary>
+        /// 判据草稿（事务：弹窗期间只改草稿，点"保存并应用"才写回活模型，取消即丢弃）。
+        /// 内容 = 变量表里的一个别名，或一个运行时变量名。
+        /// </summary>
+        public string JudgeExpressionDraft
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
+
+        /// <summary>
+        /// 布尔表达式编辑器（AvalonEdit + 快捷插入面板）的显隐。
+        /// 分支匹配模式下一律隐藏——那里的输入是"匹配值"，不是布尔表达式
+        ///（让用户在表达式框里写 1，只会换来一句看不懂的类型错）。
+        /// </summary>
+        public bool ShowBooleanEditor => !IsCaseMode && SelectedBranchNeedsExpression;
+
+        /// <summary>匹配值输入框的显隐：分支匹配模式下、非兜底分支（Case 分支）。</summary>
+        public bool ShowCaseValueEditor =>
+            IsCaseMode && SelectedBranch != null && SelectedBranch.RequiresExpression;
+
+        /// <summary>分支编辑区标题：普通模式写"逻辑判断表达式"，分支匹配模式写"匹配值"。</summary>
+        public string EditorTitle
+            => IsCaseMode
+                ? (ShowCaseValueEditor ? $"为分支 [ {SelectedBranch.StepName} ] 填写匹配值" : "匹配值")
+                : (
+                    SelectedBranchNeedsExpression
+                        ? $"为分支 [ {SelectedBranch.StepName} ] 编写逻辑判断表达式"
+                        : "逻辑判断表达式"
+                );
+
+        /// <summary>兜底分支灰条的标题：两种模式的措辞不同（Else 分支 / 默认分支）。</summary>
+        public string NoConditionTitle => IsCaseMode ? "该分支是默认分支" : "该分支无需编写条件";
+
+        /// <summary>兜底分支灰条的说明文案（措辞随模式切换）。</summary>
+        public string NoConditionHintText
+            => IsCaseMode
+                ? "系统自动将其视为“真”：只有其他 Case 的匹配值都不命中时，才会执行本分支的步骤。"
+                : "系统自动将其视为“真”：只有其他分支的条件都不满足时，才会执行本分支的步骤。";
 
         /// <summary>
         /// 循环次数草稿（字符串承载：输入中途非数字也不会被绑定引擎吞掉，保存时统一 TryParse）
@@ -74,7 +148,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>For 模式：解除循环次数连线（只清草稿，保存时才动活模型）</summary>
         public DelegateCommand UnlinkLoopCountCommand { get; }
 
-        public string Title => IsForMode ? "For 循环配置" : "条件逻辑配置中心";
+        public string Title => IsForMode ? "For 循环配置" : (IsCaseMode ? "分支匹配配置" : "条件逻辑配置中心");
         public DialogCloseListener RequestClose { get; set; }
         public event EventHandler<StepCollection> BranchChanged;
 
@@ -85,6 +159,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (!parameters.TryGetValue<StepModel>("Node", out var nodeModel) || nodeModel == null)
                 return;
+
+            // 模式先归零：Prism 一般每弹一次给一个新实例，但宿主复用同一实例时
+            // 上一轮的 Case/For 模式会残留（标题、编辑区显隐全错），这里显式复位
+            IsCaseMode = false;
+            _targetCaseNode = null;
 
             // P1-⑥：For 节点并入——同一弹窗、同一套"草稿→校验→写回→Version++"事务管线，只是编辑内容换成循环次数
             if (nodeModel is ForStep forStep)
@@ -105,6 +184,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             IsForMode = false;
             _targetNode = node;
+
+            // 分支匹配（Case）容器：同一套草稿管线，编辑器切成"判据 + 匹配值"模式。
+            // 判据从活模型抄进草稿——弹窗期间打字只落草稿，取消即丢弃（与分支表达式同一条事务）。
+            if (node is CaseStep caseStep)
+            {
+                _targetCaseNode = caseStep;
+                IsCaseMode = true;
+                JudgeExpressionDraft = caseStep.JudgeExpression;
+            }
 
             // P0-②（事务草稿）：Branches 不再是活模型 node.Children 的引用，
             // 而是分支"表头"（分支名/类型/表达式）的深拷贝草稿；分支下的步骤列表不属于本弹窗职责，不拷贝。
@@ -315,26 +403,33 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             // 条件必填判定统一走 StepCollection.RequiresExpression（与流程栏红灯、弹窗灰条同一标准）：
             // If/ElseIf/Case/WhileLoop 必须有表达式；Else/Default(For 循环体) 由编译器强制视为 true
-            for (int i = 0; i < Branches.Count; i++)
+            if (IsCaseMode)
             {
-                var br = Branches[i];
+                ValidateCaseBranches(errors);
+            }
+            else
+            {
+                for (int i = 0; i < Branches.Count; i++)
+                {
+                    var br = Branches[i];
 
-                if (string.IsNullOrWhiteSpace(br.Expression))
-                {
-                    if (br.RequiresExpression)
-                        errors.Add($"分支 '{br.StepName}' 的条件表达式为空（空条件在编译时是硬错误，流程将无法运行）");
-                    continue;
-                }
+                    if (string.IsNullOrWhiteSpace(br.Expression))
+                    {
+                        if (br.RequiresExpression)
+                            errors.Add($"分支 '{br.StepName}' 的条件表达式为空（空条件在编译时是硬错误，流程将无法运行）");
+                        continue;
+                    }
 
-                // 与 FlowCompiler 完全同款的解析：DynamicExpresso + Math 引用 + bool 返回类型
-                try
-                {
-                    new Interpreter().Reference(typeof(Math))
-                        .Parse(br.Expression, typeof(bool), delegateParams.ToArray());
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"分支 '{br.StepName}' 表达式语法错误：{ex.Message}");
+                    // 与 FlowCompiler 完全同款的解析：DynamicExpresso + Math 引用 + bool 返回类型
+                    try
+                    {
+                        new Interpreter().Reference(typeof(Math))
+                            .Parse(br.Expression, typeof(bool), delegateParams.ToArray());
+                    }
+                    catch (Exception ex)
+                    {
+                        errors.Add($"分支 '{br.StepName}' 表达式语法错误：{ex.Message}");
+                    }
                 }
             }
 
@@ -354,6 +449,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _targetNode.Children[i].Expression =
                     Branches[i].RequiresExpression ? Branches[i].Expression : string.Empty;
             }
+
+            // 分支匹配：判据写回（走 setter → FlowModel 版本链自动递增；末尾还有一次手动 Version++
+            // 兜底，与分支表达式的既有口径一致）
+            if (_targetCaseNode != null)
+                _targetCaseNode.JudgeExpression = (JudgeExpressionDraft ?? string.Empty).Trim();
 
             _targetNode.LocalVariables.Clear();
             _targetNode.LinkedSources.Clear();
@@ -383,6 +483,82 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _workspace.CurrentFlow.Version++;
 
             RequestClose.Invoke(new DialogResult(ButtonResult.OK));
+        }
+
+        /// <summary>
+        /// 分支匹配（Case）模式的保存前校验：判据必须是已声明变量、类型可匹配；
+        /// 每条 Case 分支的匹配值按判据类型归一，重复值直接拦下（编译器同样报"不可达分支"，
+        /// 这里先拦是为了让用户停在弹窗里改，而不是保存后拿一句编译错误）。
+        /// 值的转换口径与编译器共用 CaseValueHelper —— 单一判据，不各写一份。
+        /// </summary>
+        private void ValidateCaseBranches(List<string> errors)
+        {
+            string judgeText = JudgeExpressionDraft?.Trim();
+            Type judgeType = null;
+
+            if (string.IsNullOrEmpty(judgeText))
+            {
+                errors.Add("判据表达式为空：请填写“拿哪个变量去比对”（用变量表里的别名，或运行时变量名）");
+            }
+            else
+            {
+                // 判据来源与编译器一致：LocalVariables 的别名，或 RuntimeVariableRefs 的变量名
+                var judgeVar = Variables.FirstOrDefault(
+                    v => string.Equals((v.AliasName ?? "").Trim(), judgeText, StringComparison.Ordinal)
+                );
+
+                if (judgeVar != null)
+                {
+                    judgeType = TypeHelper.GetActualTypeFromLink(judgeVar.DataTypeName);
+                }
+                else
+                {
+                    var runtimeVar = _targetNode.RuntimeVariableRefs.FirstOrDefault(
+                        r => string.Equals((r?.Name ?? "").Trim(), judgeText, StringComparison.Ordinal)
+                    );
+
+                    if (runtimeVar != null)
+                        judgeType = TypeHelper.GetActualTypeFromLink(runtimeVar.DataTypeName);
+                    else
+                        errors.Add($"判据 '{judgeText}' 不是本容器已声明的变量（请在上方变量表里新增该变量，或改用运行时变量名）");
+                }
+            }
+
+            if (judgeType != null && !CaseValueHelper.IsSupportedJudgeType(judgeType))
+            {
+                errors.Add($"判据 '{judgeText}' 的类型 [{judgeType.Name}] 不支持等于匹配（仅支持数值 / 布尔 / 字符串等值类型）");
+                judgeType = null;
+            }
+
+            var seenValues = new HashSet<object>();
+            foreach (var br in Branches)
+            {
+                if (br.BranchType != BranchType.Case)
+                {
+                    // 混装是编译器硬错误，这里提前告知（弹窗内不能新增/改造分支类型，只可能来自手改数据）
+                    if (br.RequiresExpression)
+                        errors.Add($"分支 '{br.StepName}' 不是 Case 分支，分支匹配容器里不能混用其它分支类型");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(br.Expression))
+                {
+                    errors.Add($"分支 '{br.StepName}' 的匹配值为空（空值在编译时是硬错误，流程将无法运行）");
+                    continue;
+                }
+
+                if (judgeType == null)
+                    continue; // 判据本身有问题时已统一报错，不再连带刷屏
+
+                if (!CaseValueHelper.TryConvert(br.Expression, judgeType, out var value, out var convertError))
+                {
+                    errors.Add($"分支 '{br.StepName}' {convertError}");
+                    continue;
+                }
+
+                if (!seenValues.Add(value))
+                    errors.Add($"分支 '{br.StepName}' 的匹配值与前面某条 Case 分支重复，永远不会被执行");
+            }
         }
 
         /// <summary>

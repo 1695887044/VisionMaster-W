@@ -15,6 +15,7 @@ namespace VisionMaster.Plugins.Util
         Description = "使当前流程暂停指定的时间，支持急停信号中断",
         ShortName = "\uf017"
     )]
+    [ParallelSafe] // 二期真并行：chun jisuan lei (50ms bujin shi xiezuo quxiao fanshi)
     public class DelayPlugin : VisionPluginBase
     {
         /// <summary>

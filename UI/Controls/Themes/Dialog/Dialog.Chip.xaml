@@ -8,6 +8,14 @@
          UnsetValue，模板应用时抛 "{DependencyProperty.UnsetValue} 不是 Foreground 的有效值"。
          自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
     <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+    <!--
+        2026-10-09 补：本字典的状态胶囊模板里用了 DialogIconFont（"出过错"那个 ⚠ 字形），
+        而该键定义在兄弟字典 Themes/Dialog/Dialog.Text.xaml —— 与上面 Colors.xaml 同一个问题：
+        跨兄弟字典的引用在宿主合并链与 App 不一致时会解析失败，且失败点在**模板实例化**时
+        （离屏渲染探针里实测抛"无法找到名为 DialogIconFont 的资源"，整条模板一起打不开）。
+        按本文件既有的做法自合并，引用只走自身链。
+    -->
+    <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Text.xaml" />
   </ResourceDictionary.MergedDictionaries>
   <Style x:Key="DialogStatusDot" TargetType="Ellipse">
     <Setter Property="Width" Value="8" />
@@ -16,11 +24,25 @@
     <Setter Property="SnapsToDevicePixels" Value="True" />
     <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
   </Style>
+  <!--
+      通讯连接状态胶囊。
+      2026-10-09 改造：圆点 / 文案 / 悬停详情这三件事原先在**本模板里手搓**
+      （四套 DataTrigger × 圆点填充 / 文字颜色 / 文案，再加 HasError 角标与 ToolTip，100 多行），
+      现在收进控件 ui:StatusIndicator（那枚控件此前"保留但零消费"，这里就是它的归宿）。
+      本模板只剩两件事：
+        · 状态 → 档位/文案 的映射（通信域枚举 ConnectionState 不进 UI 库，映射留在宿主侧）；
+        · 胶囊底色与"出过错"角标（这两件是"行"的外观，不属于灯本身）。
+  -->
   <DataTemplate x:Key="DialogStatusPillTemplate">
-    <Border x:Name="Pill" Padding="9,3" HorizontalAlignment="Left" Background="{StaticResource DialogRowHoverBrush}" CornerRadius="11" ToolTipService.ShowDuration="30000">
+    <Border
+      x:Name="Pill"
+      Padding="9,3"
+      HorizontalAlignment="Left"
+      Background="{StaticResource DialogRowHoverBrush}"
+      CornerRadius="11"
+      ToolTipService.ShowDuration="30000">
       <Border.Style>
         <Style TargetType="Border">
-          <Setter Property="ToolTip" Value="{x:Null}" />
           <Style.Triggers>
             <DataTrigger Binding="{Binding State}" Value="Connected">
               <Setter Property="Background" Value="#E8F5E9" />
@@ -34,63 +56,20 @@
             <DataTrigger Binding="{Binding State}" Value="Reconnecting">
               <Setter Property="Background" Value="#FFF4E5" />
             </DataTrigger>
-            <!--  只有真的有错误文案才挂 ToolTip，否则空字符串会弹出一个空框  -->
-            <DataTrigger Binding="{Binding HasError}" Value="True">
-              <Setter Property="ToolTip" Value="{Binding LastError}" />
-            </DataTrigger>
           </Style.Triggers>
         </Style>
       </Border.Style>
       <StackPanel Orientation="Horizontal">
-        <Ellipse Width="7" Height="7" VerticalAlignment="Center">
-          <Ellipse.Style>
-            <Style TargetType="Ellipse">
-              <Setter Property="Fill" Value="#98A2B3" />
-              <Style.Triggers>
-                <DataTrigger Binding="{Binding State}" Value="Connected">
-                  <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding State}" Value="Error">
-                  <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding State}" Value="Connecting">
-                  <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding State}" Value="Reconnecting">
-                  <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
-                </DataTrigger>
-              </Style.Triggers>
-            </Style>
-          </Ellipse.Style>
-        </Ellipse>
-        <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12">
-          <TextBlock.Style>
-            <Style TargetType="TextBlock">
-              <Setter Property="Text" Value="离线" />
-              <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
-              <Style.Triggers>
-                <DataTrigger Binding="{Binding State}" Value="Connected">
-                  <Setter Property="Text" Value="在线" />
-                  <Setter Property="Foreground" Value="#15803D" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding State}" Value="Error">
-                  <Setter Property="Text" Value="错误" />
-                  <Setter Property="Foreground" Value="#B91C1C" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding State}" Value="Connecting">
-                  <Setter Property="Text" Value="连接中" />
-                  <Setter Property="Foreground" Value="#B45309" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding State}" Value="Reconnecting">
-                  <Setter Property="Text" Value="重连中" />
-                  <Setter Property="Foreground" Value="#B45309" />
-                </DataTrigger>
-              </Style.Triggers>
-            </Style>
-          </TextBlock.Style>
-        </TextBlock>
+        <!--  默认（Disconnected）= Off / 离线，不必写触发器  -->
+        <ui:StatusIndicator x:Name="Lamp" />
         <!--  有错误时追加 ⚠：一眼能看出"这条不只是离线，是出过错"  -->
-        <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource DialogIconFont}" FontSize="11" Foreground="{StaticResource DialogDangerBrush}" Text="">
+        <TextBlock
+          Margin="5,0,0,0"
+          VerticalAlignment="Center"
+          FontFamily="{StaticResource DialogIconFont}"
+          FontSize="11"
+          Foreground="{StaticResource DialogDangerBrush}"
+          Text="">
           <TextBlock.Style>
             <Style TargetType="TextBlock">
               <Setter Property="Visibility" Value="Collapsed" />
@@ -104,6 +83,34 @@
         </TextBlock>
       </StackPanel>
     </Border>
+
+    <DataTemplate.Triggers>
+      <DataTrigger Binding="{Binding State}" Value="Connected">
+        <Setter TargetName="Lamp" Property="Level" Value="Ok" />
+        <Setter TargetName="Lamp" Property="StatusText" Value="在线" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="Connecting">
+        <Setter TargetName="Lamp" Property="Level" Value="Busy" />
+        <Setter TargetName="Lamp" Property="StatusText" Value="连接中" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="Reconnecting">
+        <Setter TargetName="Lamp" Property="Level" Value="Busy" />
+        <Setter TargetName="Lamp" Property="StatusText" Value="重连中" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="Error">
+        <Setter TargetName="Lamp" Property="Level" Value="Error" />
+        <Setter TargetName="Lamp" Property="StatusText" Value="错误" />
+      </DataTrigger>
+      <!--  Disconnected → Off / 离线  -->
+      <DataTrigger Binding="{Binding State}" Value="Disconnected">
+        <Setter TargetName="Lamp" Property="Level" Value="Off" />
+        <Setter TargetName="Lamp" Property="StatusText" Value="离线" />
+      </DataTrigger>
+      <!--  悬停详情只在真有错误文案时才挂（控件侧对空串不挂 ToolTip，空框问题在控件里解决了）  -->
+      <DataTrigger Binding="{Binding HasError}" Value="True">
+        <Setter TargetName="Lamp" Property="Detail" Value="{Binding LastError}" />
+      </DataTrigger>
+    </DataTemplate.Triggers>
   </DataTemplate>
   <Style x:Key="DialogChip" TargetType="Border">
     <Setter Property="Padding" Value="7,2" />

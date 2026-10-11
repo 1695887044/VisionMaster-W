@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <Compile Remove="Commands\**" />
+    <Compile Remove="Controls\**" />
+    <Compile Remove="Presenters\**" />
+    <Compile Remove="ServicePresenters\**" />
+    <EmbeddedResource Remove="Commands\**" />
+    <EmbeddedResource Remove="Controls\**" />
+    <EmbeddedResource Remove="Presenters\**" />
+    <EmbeddedResource Remove="ServicePresenters\**" />
+    <None Remove="Commands\**" />
+    <None Remove="Controls\**" />
+    <None Remove="Presenters\**" />
+    <None Remove="ServicePresenters\**" />
+    <Page Remove="Commands\**" />
+    <Page Remove="Controls\**" />
+    <Page Remove="Presenters\**" />
+    <Page Remove="ServicePresenters\**" />
+    <Resource Remove="Commands\**" />
+    <Resource Remove="Controls\**" />
+    <Resource Remove="Presenters\**" />
+    <Resource Remove="ServicePresenters\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+  </ItemGroup>
+</Project>

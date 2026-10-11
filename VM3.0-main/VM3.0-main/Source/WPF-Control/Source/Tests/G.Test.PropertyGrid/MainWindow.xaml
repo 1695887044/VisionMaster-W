@@ -1,0 +1,28 @@
+﻿<Window x:Class="G.Test.PropertyGrid.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:h="https://github.com/G"
+        xmlns:local="clr-namespace:G.Test.PropertyGrid"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        Title="MainWindow"
+        Width="800"
+        Height="650"
+        Style="{StaticResource {x:Static WindowKeys.Default}}"
+        mc:Ignorable="d">
+    <DockPanel>
+        <h:PropertyGrid Width="350"
+                        DockPanel.Dock="Right"
+                        FilterWatermark="搜索"
+                        HideInheritedProperties="False"
+                        SelectedObject="{Binding ElementName=btn}"
+                        ShowAdvancedOptions="True"
+                        ShowDescriptionByTooltip="True"
+                        ShowPreview="True"
+                        ShowSummary="True"
+                        ShowTitle="True" />
+        <Button x:Name="btn"
+                Content="我是按钮" />
+    </DockPanel>
+</Window>
+

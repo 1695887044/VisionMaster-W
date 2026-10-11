@@ -1,0 +1,988 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Resource Remove="Assets\BaseImages\a01.png" />
+    <Resource Remove="Assets\BaseImages\alpha1.png" />
+    <Resource Remove="Assets\BaseImages\alpha2.png" />
+    <Resource Remove="Assets\BaseImages\angio-part.png" />
+    <Resource Remove="Assets\BaseImages\atoms.png" />
+    <Resource Remove="Assets\BaseImages\audi2.png" />
+    <Resource Remove="Assets\BaseImages\autobahn.png" />
+    <Resource Remove="Assets\BaseImages\b5_1.png" />
+    <Resource Remove="Assets\BaseImages\bga_14x14_defects.png" />
+    <Resource Remove="Assets\BaseImages\bga_14x14_model.png" />
+    <Resource Remove="Assets\BaseImages\bk45.png" />
+    <Resource Remove="Assets\BaseImages\bottle2.png" />
+    <Resource Remove="Assets\BaseImages\brycecanyon1.png" />
+    <Resource Remove="Assets\BaseImages\cable1.png" />
+    <Resource Remove="Assets\BaseImages\cable2.png" />
+    <Resource Remove="Assets\BaseImages\caltab.png" />
+    <Resource Remove="Assets\BaseImages\can.png" />
+    <Resource Remove="Assets\BaseImages\can_with_grid.png" />
+    <Resource Remove="Assets\BaseImages\circle_plate.png" />
+    <Resource Remove="Assets\BaseImages\circular_barcode.png" />
+    <Resource Remove="Assets\BaseImages\claudia.png" />
+    <Resource Remove="Assets\BaseImages\clip.png" />
+    <Resource Remove="Assets\BaseImages\combine.png" />
+    <Resource Remove="Assets\BaseImages\crystal.png" />
+    <Resource Remove="Assets\BaseImages\die_on_chip.png" />
+    <Resource Remove="Assets\BaseImages\die_pads.png" />
+    <Resource Remove="Assets\BaseImages\dot_print_slanted.png" />
+    <Resource Remove="Assets\BaseImages\double_circle.png" />
+    <Resource Remove="Assets\BaseImages\earth.png" />
+    <Resource Remove="Assets\BaseImages\ed_g.png" />
+    <Resource Remove="Assets\BaseImages\egypt1.png" />
+    <Resource Remove="Assets\BaseImages\engraved.png" />
+    <Resource Remove="Assets\BaseImages\fabrik.png" />
+    <Resource Remove="Assets\BaseImages\fin1.png" />
+    <Resource Remove="Assets\BaseImages\fin2.png" />
+    <Resource Remove="Assets\BaseImages\fin3.png" />
+    <Resource Remove="Assets\BaseImages\fingerprint.png" />
+    <Resource Remove="Assets\BaseImages\for5.png" />
+    <Resource Remove="Assets\BaseImages\for6.png" />
+    <Resource Remove="Assets\BaseImages\forest_air1.png" />
+    <Resource Remove="Assets\BaseImages\forest_road.png" />
+    <Resource Remove="Assets\BaseImages\fuse.png" />
+    <Resource Remove="Assets\BaseImages\glasses_polarized.png" />
+    <Resource Remove="Assets\BaseImages\graph_paper.png" />
+    <Resource Remove="Assets\BaseImages\green-dot.png" />
+    <Resource Remove="Assets\BaseImages\green-dots.png" />
+    <Resource Remove="Assets\BaseImages\horses.png" />
+    <Resource Remove="Assets\BaseImages\hull.png" />
+    <Resource Remove="Assets\BaseImages\ic.png" />
+    <Resource Remove="Assets\BaseImages\ic0.png" />
+    <Resource Remove="Assets\BaseImages\ic1.png" />
+    <Resource Remove="Assets\BaseImages\ic2.png" />
+    <Resource Remove="Assets\BaseImages\ic3.png" />
+    <Resource Remove="Assets\BaseImages\ic_pin.png" />
+    <Resource Remove="Assets\BaseImages\keypad.png" />
+    <Resource Remove="Assets\BaseImages\landmarks.png" />
+    <Resource Remove="Assets\BaseImages\letters.png" />
+    <Resource Remove="Assets\BaseImages\lynx.png" />
+    <Resource Remove="Assets\BaseImages\lynx_mask.png" />
+    <Resource Remove="Assets\BaseImages\marks.png" />
+    <Resource Remove="Assets\BaseImages\meningg5.png" />
+    <Resource Remove="Assets\BaseImages\meningg6.png" />
+    <Resource Remove="Assets\BaseImages\monkey.png" />
+    <Resource Remove="Assets\BaseImages\montery.png" />
+    <Resource Remove="Assets\BaseImages\mreut.png" />
+    <Resource Remove="Assets\BaseImages\mreut4_3.png" />
+    <Resource Remove="Assets\BaseImages\mreut_hill.png" />
+    <Resource Remove="Assets\BaseImages\mreut_y.png" />
+    <Resource Remove="Assets\BaseImages\multiple_dies_01.png" />
+    <Resource Remove="Assets\BaseImages\multiple_dies_02.png" />
+    <Resource Remove="Assets\BaseImages\mvtec_logo.png" />
+    <Resource Remove="Assets\BaseImages\needle1.png" />
+    <Resource Remove="Assets\BaseImages\numbers_scale.png" />
+    <Resource Remove="Assets\BaseImages\olympic_stadium.png" />
+    <Resource Remove="Assets\BaseImages\pads.png" />
+    <Resource Remove="Assets\BaseImages\particle.png" />
+    <Resource Remove="Assets\BaseImages\patras.png" />
+    <Resource Remove="Assets\BaseImages\pcb.png" />
+    <Resource Remove="Assets\BaseImages\pcb_color.png" />
+    <Resource Remove="Assets\BaseImages\pcb_layout.png" />
+    <Resource Remove="Assets\BaseImages\pellets.png" />
+    <Resource Remove="Assets\BaseImages\pioneer.png" />
+    <Resource Remove="Assets\BaseImages\plan_01.png" />
+    <Resource Remove="Assets\BaseImages\plan_02.png" />
+    <Resource Remove="Assets\BaseImages\plit2.png" />
+    <Resource Remove="Assets\BaseImages\progres.png" />
+    <Resource Remove="Assets\BaseImages\pumpe.png" />
+    <Resource Remove="Assets\BaseImages\punched_holes.png" />
+    <Resource Remove="Assets\BaseImages\razors1.png" />
+    <Resource Remove="Assets\BaseImages\razors2.png" />
+    <Resource Remove="Assets\BaseImages\rim.png" />
+    <Resource Remove="Assets\BaseImages\rings_and_nuts.png" />
+    <Resource Remove="Assets\BaseImages\screw_thread.png" />
+    <Resource Remove="Assets\BaseImages\surface_scratch.png" />
+    <Resource Remove="Assets\BaseImages\tooth_rim.png" />
+    <Resource Remove="Assets\BaseImages\traffic1.png" />
+    <Resource Remove="Assets\BaseImages\traffic2.png" />
+    <Resource Remove="Assets\BaseImages\vessel.png" />
+    <Resource Remove="Assets\BaseImages\woodring.png" />
+    <Resource Remove="Assets\BaseImages\wood_knots.png" />
+    <Resource Remove="Assets\BaseImages\zeiss1.png" />
+    <Resource Remove="Assets\board\board-01.png" />
+    <Resource Remove="Assets\board\board-02.png" />
+    <Resource Remove="Assets\board\board-03.png" />
+    <Resource Remove="Assets\board\board-04.png" />
+    <Resource Remove="Assets\board\board-05.png" />
+    <Resource Remove="Assets\board\board-06.png" />
+    <Resource Remove="Assets\board\board-07.png" />
+    <Resource Remove="Assets\board\board-08.png" />
+    <Resource Remove="Assets\board\board-09.png" />
+    <Resource Remove="Assets\board\board-10.png" />
+    <Resource Remove="Assets\board\board-11.png" />
+    <Resource Remove="Assets\board\board-12.png" />
+    <Resource Remove="Assets\board\board-13.png" />
+    <Resource Remove="Assets\board\board-14.png" />
+    <Resource Remove="Assets\board\board-15.png" />
+    <Resource Remove="Assets\board\board-16.png" />
+    <Resource Remove="Assets\board\board-17.png" />
+    <Resource Remove="Assets\board\board-18.png" />
+    <Resource Remove="Assets\board\board-19.png" />
+    <Resource Remove="Assets\board\board-20.png" />
+    <Resource Remove="Assets\board\board_01.png" />
+    <Resource Remove="Assets\board\board_02.png" />
+    <Resource Remove="Assets\board\board_03.png" />
+    <Resource Remove="Assets\board\board_04.png" />
+    <Resource Remove="Assets\board\board_05.png" />
+    <Resource Remove="Assets\board\board_06.png" />
+    <Resource Remove="Assets\board\board_07.png" />
+    <Resource Remove="Assets\board\board_08.png" />
+    <Resource Remove="Assets\board\board_09.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_01.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_02.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_03.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_04.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_05.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_06.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_07.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_08.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_09.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_10.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_11.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_12.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_13.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_14.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_15.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_16.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_17.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_18.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_19.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_20.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_21.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_22.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_23.png" />
+    <Resource Remove="Assets\bottle_crate\bottle_crate_24.png" />
+    <Resource Remove="Assets\box.bmp" />
+    <Resource Remove="Assets\car_door\car_door_01.png" />
+    <Resource Remove="Assets\car_door\car_door_02.png" />
+    <Resource Remove="Assets\car_door\car_door_03.png" />
+    <Resource Remove="Assets\car_door\car_door_04.png" />
+    <Resource Remove="Assets\car_door\car_door_05.png" />
+    <Resource Remove="Assets\car_door\car_door_06.png" />
+    <Resource Remove="Assets\car_door\car_door_07.png" />
+    <Resource Remove="Assets\car_door\car_door_08.png" />
+    <Resource Remove="Assets\car_door\car_door_09.png" />
+    <Resource Remove="Assets\car_door\car_door_10.png" />
+    <Resource Remove="Assets\car_door\car_door_11.png" />
+    <Resource Remove="Assets\car_door\car_door_12.png" />
+    <Resource Remove="Assets\car_door\car_door_13.png" />
+    <Resource Remove="Assets\car_door\car_door_14.png" />
+    <Resource Remove="Assets\car_door\car_door_15.png" />
+    <Resource Remove="Assets\car_door\car_door_16.png" />
+    <Resource Remove="Assets\car_door\car_door_17.png" />
+    <Resource Remove="Assets\car_door\car_door_18.png" />
+    <Resource Remove="Assets\car_door\car_door_19.png" />
+    <Resource Remove="Assets\car_door\car_door_20.png" />
+    <Resource Remove="Assets\car_door\car_door_21.png" />
+    <Resource Remove="Assets\car_door\car_door_calib_plate.png" />
+    <Resource Remove="Assets\car_door\car_door_init_pose.png" />
+    <Resource Remove="Assets\green.jpg" />
+    <Resource Remove="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_1.png" />
+    <Resource Remove="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_10.png" />
+    <Resource Remove="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_2.png" />
+    <Resource Remove="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_3.png" />
+    <Resource Remove="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_4.png" />
+    <Resource Remove="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_7.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_01.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_02.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_03.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_04.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_05.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_06.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_07.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_08.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_09.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_10.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_11.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_12.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_13.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_14.png" />
+    <Resource Remove="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_15.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_001.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_002.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_003.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_004.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_005.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_006.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_007.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_008.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_009.png" />
+    <Resource Remove="Assets\pill_bag\pill_bag_010.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_280.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_281.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_282.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_283.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_284.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_285.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_286.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_287.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_288.png" />
+    <Resource Remove="Assets\pill_magnesium_crack\pill_magnesium_crack_289.png" />
+    <Resource Remove="Assets\p_green.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-00.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-01.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-02.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-03.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-04.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-05.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-06.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-07.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-08.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-09.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-10.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-11.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-12.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-13.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-14.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-15.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-16.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-17.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-18.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-19.png" />
+    <Resource Remove="Assets\radius-gauges\radius-gauges-20.png" />
+    <Resource Remove="Assets\rice.png" />
+    <Resource Remove="Assets\zhifang_ball.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Assets\BaseImages\a01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\alpha1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\alpha2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\angio-part.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\atoms.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\audi2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\autobahn.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\b5_1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\bga_14x14_defects.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\bga_14x14_model.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\bitrot.tif">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\bk45.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\bottle2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\brycecanyon1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\cable1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\cable2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\caltab.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\can.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\can_with_grid.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\circle_plate.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\circular_barcode.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\claudia.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\clip.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\combine.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\crystal.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\die_on_chip.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\die_pads.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\dot_print_slanted.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\double_circle.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\earth.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\ed_g.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\egypt1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\engraved.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\fabrik.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\fin1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\fin2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\fin3.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\fingerprint.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\for5.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\for6.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\forest_air1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\forest_road.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\fuse.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\glasses_polarized.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\graph_paper.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\green-dot.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\green-dots.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\horses.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\hull.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\ic.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\ic0.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\ic1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\ic2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\ic3.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\ic_pin.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\keypad.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\landmarks.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\largebw1.tif">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\letters.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\lynx.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\lynx_mask.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\marks.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\meningg5.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\meningg6.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\monkey.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\montery.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\mreut.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\mreut4_3.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\mreut_dgm_2.0.tif">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\mreut_hill.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\mreut_y.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\multiple_dies_01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\multiple_dies_02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\mvtec_logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\needle1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\numbers_scale.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\olympic_stadium.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\pads.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\particle.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\patras.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\pcb.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\pcb_color.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\pcb_layout.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\pellets.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\pioneer.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\plan_01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\plan_02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\plit2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\progres.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\pumpe.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\punched_holes.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\razors1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\razors2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\rim.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\rings_and_nuts.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\screw_thread.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\surface_scratch.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\tooth_rim.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\traffic1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\traffic2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\vessel.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\woodring.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\wood_knots.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\BaseImages\zeiss1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-03.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-04.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-05.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-06.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-07.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-08.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-09.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-10.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-11.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-12.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-13.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-14.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-15.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-16.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-17.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-18.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-19.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board-20.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_03.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_04.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_05.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_06.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_07.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_08.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\board\board_09.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_03.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_04.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_05.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_06.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_07.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_08.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_09.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_10.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_11.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_12.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_13.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_14.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_15.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_16.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_17.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_18.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_19.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_20.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_21.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_22.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_23.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\bottle_crate\bottle_crate_24.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\box.bmp">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_03.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_04.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_05.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_06.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_07.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_08.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_09.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_10.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_11.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_12.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_13.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_14.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_15.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_16.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_17.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_18.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_19.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_20.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_21.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_calib_plate.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\car_door\car_door_init_pose.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\green.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_1.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_10.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_2.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_3.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_4.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_bitholder_cam\multi_view_bitholder_cam_0_7.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_03.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_04.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_05.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_06.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_07.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_08.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_09.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_10.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_11.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_12.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_13.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_14.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\multi_view_pipe_joints_cam\multi_view_pipe_joints_cam_0_15.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_001.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_002.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_003.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_004.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_005.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_006.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_007.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_008.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_009.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_bag\pill_bag_010.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_280.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_281.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_282.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_283.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_284.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_285.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_286.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_287.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_288.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\pill_magnesium_crack\pill_magnesium_crack_289.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-00.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-01.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-02.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-03.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-04.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-05.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-06.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-07.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-08.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-09.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-10.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-11.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-12.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-13.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-14.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-15.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-16.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-17.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-18.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-19.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\radius-gauges\radius-gauges-20.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\rice.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\zhifang_ball.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

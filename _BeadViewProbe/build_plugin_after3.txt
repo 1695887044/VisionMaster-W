@@ -1,0 +1,16 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  Core.PluginGenerators -> D:\C#\VM\Shard\Core.PluginGenerators\bin\Debug\netstandard2.0\Core.PluginGenerators.dll
+  Core.Interfaces -> D:\C#\VM\Shard\Core.Interfaces\bin\Debug\net9.0\Core.Interfaces.dll
+  VM.Scada -> D:\C#\VM\Scada\bin\Debug\net9.0\VM.Scada.dll
+  Core.Halcon -> D:\C#\VM\Services\Core.Halcon\bin\Debug\net9.0-windows\Core.Halcon.dll
+  Core.Controls -> D:\C#\VM\Shard\Core.Controls\bin\Debug\net9.0-windows\Core.Controls.dll
+  VM.Core -> D:\C#\VM\Core\bin\Debug\net9.0-windows\VM.Core.dll
+  UI -> D:\C#\VM\UI\Controls\bin\Debug\net9.0-windows\UI.dll
+  Plugin.BeadInspect -> D:\C#\VM\Plugins\Plugin.BeadInspect\bin\Debug\net9.0-windows\Plugin.BeadInspect.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:00:01.11

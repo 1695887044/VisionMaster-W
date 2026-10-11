@@ -116,7 +116,7 @@
 
 | 落点 | 内容 |
 | --- | --- |
-| `VisionMaster\Views\LogView.xaml` | 日志列表上方一条工具条（浅底 `#F1F4F8` + 底边 `#DCE3EB`，与本控件亮色面板 `#FAFAFA` / 分组表头 `#E9EEF5` 同系；写法照 `MonitorView.xaml:50-86` 的"标签 + 透明 TextBox"）：① 搜索框（`:92` 绑 `SearchText="{Binding SearchText}"`，`UpdateSourceTrigger=PropertyChanged`）；② 等级下拉（`:72` `ItemsSource="{Binding LevelOptions}"`、`:73` `SelectedItem="{Binding LevelOption}"`、`DisplayMemberPath="Text"`）；③「跟随最新」勾选框（`:81` `IsChecked="{Binding AutoScroll}"`）。控件侧对应 `AutoScroll` / `FilterLevel` / `SearchText` 三个绑定（`:87-92`），`MaxItems="2000"` 保留（`:91`） |
+| `VisionMaster\Views\LogView.xaml` | 日志列表上方一条工具条（浅底 `#F1F4F8` + 底边 `#DCE3EB`，与本控件亮色面板 `#FAFAFA` / 分组表头 `#E9EEF5` 同系）：① 搜索框（`:133` `x:Name="SearchBox"`，绑 `SearchText="{Binding SearchText}"` + `UpdateSourceTrigger=PropertyChanged`，外观由 `SearchBoxStyle`（`:19`）给，含占位提示）；② 等级筛选 —— **第一版是 `ComboBox` 下拉框，当日第二轮按用户选择改成筹码条**（`x:Name="LevelChips"` `:174`、`ItemsSource="{Binding LevelOptions}"` `:183`、`SelectedItem="{Binding LevelOption}"` `:184`、容器样式 `LevelChipHostStyle` `:65`，详见 7.7）；③「跟随最新」勾选框（`IsChecked="{Binding AutoScroll}"`）。控件侧对应 `AutoScroll` / `FilterLevel` / `SearchText` 三个绑定（`:322-328`），`MaxItems="2000"` 保留（`:327`）。**首版搜索框的写法是错的**（照 `MonitorView.xaml:50-86` 抄的"透明 TextBox"，那套只在四周都有边框的工具条里成立），真机截图暴露后改成自带白底描边的 `SearchBoxStyle`，见 7.5 |
 | `VisionMaster\ViewModels\LogViewModel.cs` | 新增 `SearchText`（`:28`）、`LevelOptions`（`:35-42`，`LogLevelFilterOption` 对象列表：全部/信息/成功/警告/错误）、`LevelOption`（`:45`）与派生只读属性 `FilterLevel`（`:57`）、`AutoScroll`（`:61`，默认 true） |
 
 为什么用"对象 + `DisplayMemberPath`"而不是裸 `LogLevel?` 列表：`LogLevel?` 里的 `null` 在下拉里没有可显示的文字，要显示"全部"就得引一个值转换器；对象列表免转换器，且与 `ScadaAlarmHistoryView` 的 `StateFilters` / `SeverityFilters` 是同一套做法。`FilterLevel` 是派生属性，所以 `LevelOption` 的 setter 里必须 `RaisePropertyChanged(nameof(FilterLevel))` —— 少这一句，下拉能选、控件那边的依赖属性不会动。
@@ -130,30 +130,70 @@
 
 **顺带记一笔（未修）**：`GetSource()` 的 `[CallerMemberName]` 只有在 `Info/Success/Warn/Error` 里调用才有意义（在 `PublishLog` 里调会得到 `LogService.PublishLog`）；真要填上 source，得在这 5 个方法里各调一次再传下去。那会改日志内容与展示（行里的胶囊会冒出 `LogService.Info` 这类文本），属另一件事，留给决定。
 
-### 7.3 新增断言（`RunLogConsoleChecks` 内）
+### 7.3 新增断言（`RunLogConsoleChecks` 内，函数在 `Program.cs:1456`）
 
 | 断言 | 位置 | 钉什么 |
 | --- | --- | --- |
-| 接线点到点 | `Program.cs:1521-1549` | `LogView.xaml` 必须出现 `SearchText="{Binding SearchText}"` / `FilterLevel="{Binding FilterLevel}"` / `AutoScroll="{Binding AutoScroll}"` / `ItemsSource="{Binding LevelOptions}"` / `SelectedItem="{Binding LevelOption}"` **共 5 处**（逐字体匹配，不是只查属性名），且这些名字在 `LogViewModel` 上真的存在；外加 `DisplayMemberPath="Text"` 要落在 `LogLevelFilterOption.Text` 上。属性名写错时 XAML 照样编译通过、运行时绑定静默失效——这条就是钉这个 |
-| 端到端初值 | `Program.cs:1553-1574` | 真 `LogView` + 真 `LogViewModel`（构造传 `null` 服务 → 不订阅日志，只测接线）：控件 `AutoScroll=True` / `FilterLevel=null` / `SearchText=''`，下拉选中「全部」、勾选框 True |
-| 端到端联动 | `Program.cs:1576-1588` | 改 VM（`SearchText="abc"`、`LevelOption=错误`、`AutoScroll=false`）→ 控件三个依赖属性跟着变，且搜索框文本显示 `abc`（证明 TwoWay 方向与派生属性通知链都通） |
+| 接线点到点 | `Program.cs:1582-1611` | `LogView.xaml` 必须出现 `SearchText="{Binding SearchText}"` / `FilterLevel="{Binding FilterLevel}"` / `AutoScroll="{Binding AutoScroll}"` / `ItemsSource="{Binding LevelOptions}"` / `SelectedItem="{Binding LevelOption}"` **共 5 处**（逐字体匹配，不是只查属性名），且这些名字在 `LogViewModel` 上真的存在；外加 `DisplayMemberPath="Text"` 要落在 `LogLevelFilterOption.Text` 上。属性名写错时 XAML 照样编译通过、运行时绑定静默失效——这条就是钉这个 |
+| 来源胶囊不留灰块 | `Program.cs:1613-1628` | 真渲染一个 `LogConsole`（两条日志：一条 `Source=null`、一条 `Source="MainTask"`），可视树里"背景 = `#E9ECEF` 且可见"的 Border **必须恰好 1 个**（就是那条有来源的）。修前是 2 个——空胶囊也照画，屏幕上就是每行时间右边一个灰方块 |
+| 端到端初值 | `Program.cs:1635-1654` | 真 `LogView` + 真 `LogViewModel`（构造传 `null` 服务 → 不订阅日志，只测接线）：控件 `AutoScroll=True` / `FilterLevel=null` / `SearchText=''`，下拉选中「全部」、勾选框 True |
+| 端到端联动 | `Program.cs:1656-1669` | 改 VM（`SearchText="abc"`、`LevelOption=错误`、`AutoScroll=false`）→ 控件三个依赖属性跟着变，且搜索框文本显示 `abc`（证明 TwoWay 方向与派生属性通知链都通） |
+| 搜索框真外形 | `Program.cs:1671-1680` | 从视图里取 `x:Name="SearchBox"`，其模板里必须存在"白底（不透明）+ 非零描边"的 Border。Fluent 的隐式 TextBox 样式只画一条 6% 黑的底线，浅色工具条上等于看不见——这条钉"真的像输入框" |
 
-构造 `LogView` 会走 Prism 的 `ViewModelLocator` 自动装配（检查工程里没有容器），所以端到端那段包了 try/catch：万一装配炸了，退化成打印一行参考说明、**不算失败**（本次实跑装配没有抛异常）。
+构造 `LogView` 会走 Prism 的 `ViewModelLocator` 自动装配，端到端那段包了 try/catch（装配炸了就打印一行参考说明、不算失败）。**注意这里依赖检查工程已有的 `ViewModelLocationProvider.SetDefaultViewModelFactory(_ => null)`（`Program.cs:148`）**：没有这一句时，`new LogView()` 会因默认工厂 `Activator.CreateInstance(LogViewModel)`（无参构造不存在）抛 `XamlParseException` —— 这是写离屏探针时实测到的（见 7.6）。
 
 ### 7.4 验证证据
 
 - **构建**：Debug 与 Release 均 `Build succeeded. 0 Error(s)`；`LogView` / `LogViewModel` / `LogConsole` 相关告警 **0 条**。
-- **冒烟** `UIThemeSmokeTest.exe`：`EXIT=ZERO`、无 `[FAIL]`；`=== OK: Shell.xaml 全树模板实例化无异常 (Fluent=True) ===` —— `Shell.xaml:878` 就挂着 `<views:LogView />`，所以新工具条随"全树模板实例化"一起被验到（渲染层没炸）；日志控制台 **13 条断言全 PASS**，新增三条的实际输出：
+- **冒烟** `UIThemeSmokeTest.exe`：`EXIT=ZERO`、无 `[FAIL]`；`=== OK: Shell.xaml 全树模板实例化无异常 (Fluent=True) ===` —— `Shell.xaml:878` 就挂着 `<views:LogView />`，所以工具条（含后来改的筹码条）随"全树模板实例化"一起被验到（渲染层没炸）；日志控制台 **17 条断言全 PASS**（Debug），其中与本轮相关/新增的实际输出：
   ```
-  [PASS] LogView 的三处过滤/开关接线 + 等级下拉都点到点  5 处绑定 + DisplayMemberPath 全部对得上
-  [PASS] 端到端：真视图 + 真 VM，控件的 AutoScroll/FilterLevel/SearchText 与下拉/勾选初值都对  AutoScroll=True FilterLevel=null SearchText='' 下拉选中=LogLevelFilterOption 勾选=True
+  [PASS] LogView 的三处过滤/开关接线 + 等级筹码都点到点（写错只会静默失效，不报编译错）  5 处绑定 + 筹码 Text/Count 全部对得上
+  [PASS] 来源为空的行不再留一个灰块（有来源的行照旧显示来源胶囊）  可见来源块=1（期望 1：只有那条有来源的）
+  [PASS] 等级筹码的计数跟着日志走（新增 +1、裁剪 -1，且「全部」= 总条数）  加三条后 全部/信息/成功/警告/错误 = 3/2/0/0/1，裁掉一条信息后 = 2/1/0/0/1
+  [PASS] 端到端：真视图 + 真 VM，控件的 AutoScroll/FilterLevel/SearchText 与筹码/勾选初值都对  AutoScroll=True FilterLevel=null SearchText='' 等级选中=LogLevelFilterOption 勾选=True
   [PASS] 端到端：改 VM 后控件三个依赖属性跟着变，搜索框也显示出新词  SearchText='abc' FilterLevel=Error AutoScroll=False 搜索框文本=abc
+  [PASS] 搜索框有真外形（白底 + 非零描边）—— Fluent 那条 6% 黑底线在浅色条上等于看不见  外框厚=1px bg=#FFFFFFFF
   ```
-- **编码自检**：`LogView.xaml`（保留 BOM，95 行）/ `LogViewModel.cs`（85 行）/ `Program.cs`（1812 行）严格 UTF-8 解码通过、中文回读正常。
-- **产物**：宿主 Debug 与 Release（`VisionMaster\bin\Release\net9.0-windows\VisionMaster.dll`，10:35）都已重建。
+- **离屏渲染**（`_LogViewProbe`，见 7.6）：`logview.png`（宽 1000）/ `logview_narrow.png`（窄 560）/ `logview_typed.png`（输入关键字）/ `levelfilter_variants.png`（A/B/C 三形态对照）逐张肉眼核对（落盘时回看过）：搜索框白底圆角描边 + 占位提示；筹码条 5 枚一行放全、等级色圆点与计数正确、"全部"选中填强调色；窄 560px 仍是两行不裁内容；输入后占位让位且列表真被过滤到 1 条；来源为空的行不再有灰块。
+- **编码自检**：`LogView.xaml`（保留 BOM）/ `LogViewModel.cs` / `Program.cs` / `LogConsole.xaml` 严格 UTF-8 解码通过、中文回读正常。
+- **产物**：宿主 Debug 与 Release 都已重建（`VisionMaster\bin\Release\net9.0-windows\VisionMaster.dll`，22:08）。
 
-### 7.5 仍未验的
+### 7.5 真机截图暴露的两个观感缺陷（已修）
 
-- **真机观感**：工具条在真机上是否与周围 Dock 面板协调（浅色条嵌在可能深色的外壳里），只有截图能定；本次只有无窗口渲染断言。
-- **交互手感**：等级下拉的宽度（`MinWidth=86`）与文案（全部/信息/成功/警告/错误）是照 `LogLevel` 枚举顺序写的，没做 i18n；
-- **分组那条路**：`GroupBy` 至今仍然只在检查工程里被验过（`GroupDescriptions==1`），没有界面入口，也就没有真机使用路径（原因见 7.2）。
+用户 2026-10-07 给了真机截图，判定"筛选 UI 效果不行"。截图里能读出的两个硬伤：
+
+1. **搜索框完全看不出是输入框**：`搜索:` 后面是一大片空白 + 一条几乎看不见的线。根因：Fluent 的**隐式 TextBox 样式**把输入框画成"透明底 + 一条 6% 黑的底线"（探针 dump 实测：`bg=#00FFFFFF`、下边框 `#0F000000`），我首版又照 `MonitorView.xaml` 抄了"`Background=Transparent` + `BorderThickness=0`"——那套写法只在**四周都有边框**的工具条里成立（MonitorView 的条有 `BorderThickness=1`），我这条只有底边，于是输入区没有任何参照物。**修法**：`SearchBoxStyle`（`LogView.xaml:18-56`）——`OverridesDefaultStyle=True` + 自带模板（白底 `#FFFFFF` / 1px 描边 `#D0D7DE` / 圆角 4 / 悬停 `#8A94A6` / 聚焦 `#005FB8`）+ 占位提示"正文或来源"；定宽 200 钉在左侧，宽屏时"等级/跟随最新"留在右侧（2 号列为弹簧，窄屏先吃弹簧）。
+2. **每行时间右边一个灰方块**：来源胶囊在 `Source == null` 时仍然照画（`Padding="6,2"` + 圆角底 → 一个约 20×20 的灰块）。根因是 7.2 查到的"`LogItem.Source` 恒为 null"。**修法**：`LogConsole.xaml` 行模板里给来源 Border 加两条 DataTrigger（`Source` 为 `{x:Null}` 或 `""` → `Visibility=Collapsed`）；列宽仍是固定 90，所以"有来源/没来源"的行正文起点保持一致（渲染图上两行正文同 x）。
+
+### 7.6 离屏渲染探针 `_LogViewProbe`（本轮新增的工具）
+
+延续 `_StyleProbe` 的做法：`Application.Resources` 合并 `UI/Themes/Generic.xaml` + `PresentationFramework.Fluent`（真机的主题口径）→ 造真 `LogView` + 真 `LogViewModel`（假日志：含 `Source=null` 与有来源两种）→ `Window` 里 Measure/Arrange + 泵 Dispatcher → `RenderTargetBitmap` 打 1.25 倍 PNG → 再看图。附带 dump 工具条可视树的宽高/边距（本轮就是靠它量出"搜索框实际 140/200px、高 33、Fluent 那层 Border 是透明的"这些数）。
+
+**它踩出来的一个坑（值得记）**：探针里 `new LogView()` 直接抛 `XamlParseException`（内层 `MissingMethodException: Cannot dynamically create an instance of type 'VisionMaster.ViewModels.LogViewModel'`）——因为 `prism:ViewModelLocator.AutoWireViewModel="True"` 在没有 Prism 容器时回落到默认工厂 `Activator.CreateInstance`，而 `LogViewModel` 没有无参构造。检查工程没这个问题，是因为它在 `Program.cs:148` 统一设了 `ViewModelLocationProvider.SetDefaultViewModelFactory(_ => null)`。**凡是"新建一个宿主去直连真视图"的场合，都要先设这一句。**（真机不受影响：容器在位，能正常解析 VM。）
+
+产物：`_LogViewProbe\logview.png` / `logview_narrow.png` / `logview_typed.png`。该项目是临时探针（与 `_StyleProbe` / `_BeadViewProbe` 同类，不在任何 .sln 里），不想留可直接删目录。
+
+### 7.7 续做（当日第二轮）：等级筛选由下拉框改成筹码条（等级色 + 实时计数）
+
+起因：真机截图后用户问"可以不使用下拉框吗，还有没有其它的显示方法"。先把三种替代形态离屏渲染出来对照（`_LogViewProbe\levelfilter_variants.png`）：**A** 纯筹码（单选、无计数）、**B** 等级色圆点 + 计数（单选）、**C** 多选（可同时"信息 + 错误"）。用户选了 **B**。
+
+| 落点 | 内容 |
+| --- | --- |
+| `VisionMaster\Views\LogView.xaml` | 工具条改两行：第一行"搜索 + 跟随最新"，第二行"等级筹码"独占整行。筹码 = `ListBox`（`x:Name="LevelChips"`、`SelectedItem="{Binding LevelOption}"`、`ItemsPanel=WrapPanel`）+ 容器样式 `LevelChipHostStyle`（`OverridesDefaultStyle=True`——不写的话 Fluent 的隐式 `ListBoxItem` 选中高亮会和筹码自己的着色叠在一起）；筹码外观（等级色圆点 / 计数 / 选中整枚填本级色）全在 `ItemTemplate` 的触发器里，等级色沿用日志行那套（信息 `#0078D4` / 成功 `#107C10` / 警告 `#D83B01` / 错误 `#D13438`） |
+| `VisionMaster\ViewModels\LogViewModel.cs` | `LogLevelFilterOption` 增 `Count`（`BindableBase` 通知）；VM 订阅 `SystemLogs.CollectionChanged` 维护每级条数：**增量**更新（Add/Remove 各只动一格），只有 Reset 才全量重算——每条日志都全量重数就是 O(n²)。"全部"那项 = 总条数 |
+| `UIThemeSmokeTest\Program.cs` | 接线门改成钉"筹码模板绑 `{Binding Text}` / `{Binding Count}`，且 `LogLevelFilterOption` 上真有这两个属性"；端到端把 `FindDescendant<ComboBox>` 换成 `FindName("LevelChips")`；**新增计数断言**：加 3 条（2 信息 + 1 错误）→ 全部/信息/成功/警告/错误 = `3/2/0/0/1`，再删一条（走 Remove，正是面板 `MaxItems` 裁剪走的路径）→ `2/1/0/0/1` |
+
+**两条实测坑（都值得记）**：
+
+1. **`ListBox` 里的 `WrapPanel` 不设 `ScrollViewer.HorizontalScrollBarVisibility="Disabled"` 就不会换行**：ListBox 内部那层 ScrollViewer 会把无限宽度交给 WrapPanel，筹码既不折行又被裁掉——窄面板下最后一枚筹码整块看不见（截图实测）。disabled 才会把宽度约束下去。
+2. **单行放不下**：5 枚筹码约 380px，跟搜索框挤一行时 560px 面板会把筹码**一格一行竖排成 5 行**（试过，很丑）。改两行后：1000px 一行放全；560px 仍是一行（筹码独占整行宽度）；再窄才折两行。代价是工具条从 45px 变 74px。
+
+**为什么不做多选（C）**：那要给控件加"等级集合"过滤入口（新增 DP + 改 `FilterLogic`），属控件契约变更；本次按用户选定先做单选，A/C 两种形态的渲染图留在 `levelfilter_variants.png` 备查。
+
+**过程中撞到一次 Debug 构建失败**：`VisionMaster.exe` 被正在运行的实例（PID 23640）锁住 → `MSB3027/MSB3021`。没有去杀那个进程，改用 Release 完成验证；等实例关闭后再补跑 Debug（已补跑 ✓）。以后凡是要重建宿主 Debug 产物，先确认没有在跑的实例。
+
+### 7.8 仍未验的
+
+- **筹码的点击手感与真机观感**：筹码条只在离屏渲染里核过（宽 1000 / 窄 560 两张图），点击切换筛选的手感要真机试；工具条两行后与 Dock 标题栏"日志信息"的整体观感也还要看一眼截图。
+- **更窄的面板（<520px）**：筹码会折成两行（工具条约 97px），可接受但不算好看；多选（C）与"窄面板把筹码压成只有圆点"这类自适应都没做。
+- **分组那条路**：`GroupBy` 至今只在检查工程里被验过（`GroupDescriptions==1`），没有界面入口，也就没有真机使用路径（原因见 7.2）。

@@ -1,0 +1,47 @@
+﻿global using G.Extensions.Mvvm.ViewModels.Base;
+global using G.Mvvm.ViewModels.Base;
+
+namespace G.Modules.License
+{
+    public interface ILicenseFlagViewPresenter
+    {
+        void Refresh();
+    }
+
+    public class LicenseFlagViewPresenter : BindableBase, ILicenseFlagViewPresenter
+    {
+        public LicenseFlagViewPresenter()
+        {
+            this.Refresh();
+        }
+
+        private DateTime _time;
+        public DateTime Time
+        {
+            get { return _time; }
+            private set
+            {
+                _time = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        private bool _isTrail;
+        public bool IsTrail
+        {
+            get { return _isTrail; }
+            private set
+            {
+                _isTrail = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public void Refresh()
+        {
+            var option = Ioc<ILicenseService>.Instance?.IsVail(out string message);
+            this.Time = option.EndTime;
+            this.IsTrail = option.Level == -1;
+        }
+    }
+}

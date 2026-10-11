@@ -96,7 +96,8 @@
             -->
             <ColumnDefinition Width="240" />
             <ColumnDefinition Width="*" MinWidth="300" />
-            <ColumnDefinition Width="360" />
+            <!--  参数列：宽度由"表格 / 卡片"布局切换（360 ⇄ 540），见 PreProcessingView.UseCardLayout 的注释  -->
+            <ColumnDefinition x:Name="ParamColumn" Width="360" />
         </Grid.ColumnDefinitions>
 
         <!--  ================= 左：图像输入 + 算子库 =================  -->
@@ -379,7 +380,20 @@
                             Style="{StaticResource PluginHintText}"
                             Text="{Binding SelectedOperator.DisplayName, TargetNullValue='在上方选中一个算子', FallbackValue='在上方选中一个算子'}" />
                     </DockPanel>
-                    <ui:FlatPropertyGrid BindingObject="{Binding SelectedOperator}" />
+                    <!--
+                        参数网格：两种布局叠在同一格，按插件配置壳的"卡片式"开关切可见性。
+                        两个都建出来的代价可以忽略（算子参数就 2~6 项，且 Tab 内容本来就是懒加载），
+                        换来的是不用在代码里搬 BindingObject —— 双份网格各自绑同一个 SelectedOperator，
+                        选中项一变两边一起重建。
+                    -->
+                    <Grid>
+                        <ui:FlatPropertyGrid
+                            BindingObject="{Binding SelectedOperator}"
+                            Visibility="{Binding IsFlatLayout, Converter={ui:BooleanToVisibilityConverter}}" />
+                        <ui:CardPropertyGrid
+                            BindingObject="{Binding SelectedOperator}"
+                            Visibility="{Binding IsCardLayout, Converter={ui:BooleanToVisibilityConverter}}" />
+                    </Grid>
                 </DockPanel>
             </Border>
         </Grid>

@@ -366,6 +366,7 @@ namespace FlowCanvasChecks
 
             RunWindowStyleSetterContract();
             RunMissingResourceKeyContract();
+            RunDictionaryScopeContract();
             RunDialogChromeContract();
             RunCollectedViewStyleContract();
         }
@@ -592,6 +593,225 @@ namespace FlowCanvasChecks
                 offenders.Count == 0
                     ? "已扫全部弹窗：只有 WindowStyle / ResizeMode / SizeToContent / Width / Height / MinWidth / MinHeight 这类 DP"
                     : "会炸：打开弹窗时抛 ArgumentNullException('property') —— " + string.Join(", ", offenders));
+        }
+
+        /// <summary>
+        /// 全局资源字典「跨分册断链」：写在字典里的 <c>{StaticResource K}</c>，作用域只有
+        /// 「本文件 + 本文件自己 merge 的子树」——**兄弟分册互相看不见**（哪怕对方在全仓确实定义了这个键）。
+        ///
+        /// 【三次实测事故，同一族】2026-09-23 两次：<c>DialogShadowColor</c>（Freezable 内）、
+        /// 模板里的 <c>Icon</c>；2026-10-10 第三次：「变量管理」弹窗一打开就闪退
+        ///     XamlParseException「在 StaticResourceHolder 上提供值时引发了异常。行号 20，位置 4」
+        ///     内层：无法找到名为 "DialogCombo" 的资源
+        /// 行号指向 <c>Dialog.Misc.xaml:20</c>（<c>DialogComboInGroup</c> 的 BasedOn），而
+        /// <c>DialogCombo</c> 定义在兄弟分册 <c>Dialog.Input.xaml</c> —— 键全仓存在，
+        /// 所以「键有没有定义」的扫描（RunMissingResourceKeyContract）与编译期都拦不住，
+        /// 只有运行期把分册条目真正实例化才炸。
+        ///
+        /// 【落脚点与后果】BasedOn / 模板内容 / Freezable → 抛 XamlParseException（弹窗打不开）；
+        /// 普通 <c>Setter.Value</c> → 不抛，值静默不生效（典型：图标字体拿不到 → 图标变豆腐块）。
+        ///
+        /// 【本断言怎么判】从 App.xaml 出发递归走合并链，对链上每个字典文件：
+        /// 可解析键集 = 本文件定义的键 ∪ 递归它自己的 MergedDictionaries；引用不在集合里 = 违规。
+        /// 【三类豁免】① 视图（非 ResourceDictionary 根）—— 按元素链能爬到 App 资源，一直正常；
+        /// ② <c>{StaticResource {x:Type X}}</c>（隐式样式键）—— 由框架主题兜底，不是断链；
+        /// ③ DynamicResource —— 语义就是运行期再找。注释先剥掉再扫（注释里写示例是文档）。
+        /// 【已知盲区】合并链指向外部程序集、磁盘上读不到的字典（PresentationFramework.Fluent）
+        /// 不参与键集累积，将来若有分册引用那里的键会误报 —— 目前没有这样的引用。
+        /// 另两条口径（2026-10-10 复核提出，当前仓内零实例）：
+        /// ① **同文件"后置键"不判** —— <c>&lt;Style x:Key="A" BasedOn="{StaticResource B}"/&gt;</c>
+        ///    而 B 定义在 A 之后时，WPF 在 BasedOn 这条**即时求值**路径上同样抛「无法找到 B」
+        ///    （复核者内存内实测复现）。本断言按"整文件键并集"判，会把这种写序问题放过去；
+        ///    要根治得给 BasedOn 单独加"引用必须晚于同文件定义"的顺序判据，当时无实例故先记账。
+        /// ② **同行开标签** —— 一行里先出现引用、该行又开启模板/Setter.Value 时，该引用被归成
+        ///    SILENT 而非 CRASH。两个桶都必须为空，所以不影响红绿，只是归类口径。
+        /// 另：框架主题字典里也有少量同名键（如 ExpandCollapseToggleStyle），引用它们**不报错**
+        /// 而是静默落到主题那支（2026-10-10 就是这样"箭头换了个样"）。本断言会把这种引用判红，
+        /// 这是**故意**的：要求写引用的人把键定义到本分册（那天就是这么治的），
+        /// 而不是让它去撞主题里的同名键。
+        /// 运行期对照探针：<c>_ResProbe</c>（真合并 App 字典 + 落地全部模板 + 布局真弹窗视图）。
+        /// </summary>
+        private static void RunDictionaryScopeContract()
+        {
+            var root = RepoRoot();
+            string? appXaml = root == null ? null : Path.Combine(root, "VisionMaster", "App.xaml");
+            if (root == null || appXaml == null || !File.Exists(appXaml))
+            {
+                Check("【资源断链】全局字典无跨分册引用", true, "跳过：定位不到仓库根 / App.xaml");
+                return;
+            }
+
+            // pack URI 的 component 根 → 磁盘目录（与 tools/audit_resource_scope.ps1 同一张表）
+            var assemblyDirs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Core.Halcon"] = @"Services\Core.Halcon",
+                ["UI"] = @"UI\Controls",
+                ["VisionMaster"] = @"VisionMaster",
+                ["VM.Core"] = @"Core",
+                ["VM.Scada"] = @"Scada",
+                ["VM.Scada.Controls"] = @"Scada.Controls",
+                ["Core.Controls"] = @"Shard\Core.Controls",
+                ["VM.Communication"] = @"Communication",
+                ["VM.FlowEngine"] = @"Engine",
+            };
+
+            string? ResolveSource(string source, string currentDir)
+            {
+                var m = Regex.Match(source, @"^(?:pack://application:,,,)?/([^;]+);component/(.+)$");
+                if (m.Success)
+                {
+                    if (!assemblyDirs.TryGetValue(m.Groups[1].Value, out var dir)) return null;   // 外部程序集：读不到
+                    var path = Path.Combine(root, dir, m.Groups[2].Value.Replace('/', '\\'));
+                    return File.Exists(path) ? path : null;
+                }
+                var relative = Path.Combine(currentDir, source.Replace('/', '\\'));
+                return File.Exists(relative) ? relative : null;
+            }
+
+            // 合并链（按 App.xaml 出现顺序，去重防环）
+            var files = new List<string>();
+            var seenFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void Walk(string file)
+            {
+                if (!seenFiles.Add(file)) return;
+                files.Add(file);
+                foreach (var source in MergedSources(file))
+                {
+                    var child = ResolveSource(source, Path.GetDirectoryName(file)!);
+                    if (child != null) Walk(child);
+                }
+            }
+            Walk(appXaml);
+
+            var ownKeyCache = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> OwnKeys(string file)
+            {
+                if (ownKeyCache.TryGetValue(file, out var cached)) return cached;
+                var keys = new HashSet<string>(StringComparer.Ordinal);
+                if (File.Exists(file))
+                {
+                    var text = StripComments(File.ReadAllText(file));
+                    foreach (Match m in Regex.Matches(text, "x:Key=\"([^\"]+)\"")) keys.Add(m.Groups[1].Value.Trim());
+                    // 隐式样式：TargetType 就是键（前缀可省）
+                    foreach (Match m in Regex.Matches(text, "<Style[^>]*TargetType=\"(?:\\{x:Type )?(?:[A-Za-z0-9_.]+:)?([A-Za-z0-9_.]+)\\}?\""))
+                        keys.Add(m.Groups[1].Value);
+                }
+                ownKeyCache[file] = keys;
+                return keys;
+            }
+
+            HashSet<string> ScopeKeys(string file, HashSet<string> visiting)
+            {
+                var keys = new HashSet<string>(OwnKeys(file), StringComparer.Ordinal);
+                if (!visiting.Add(file)) return keys;
+                foreach (var source in MergedSources(file))
+                {
+                    var child = ResolveSource(source, Path.GetDirectoryName(file)!);
+                    if (child != null) keys.UnionWith(ScopeKeys(child, visiting));
+                }
+                return keys;
+            }
+
+            var crashOffenders = new List<string>();
+            var silentOffenders = new List<string>();
+            int refCount = 0;
+
+            foreach (var file in files)
+            {
+                var scope = ScopeKeys(file, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                var lines = StripCommentsKeepingLines(File.ReadAllText(file)).Split('\n');
+                var shortName = Path.GetFileName(file);
+                int templateDepth = 0, setterValueDepth = 0, freezableDepth = 0;
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i];
+                    foreach (var key in StaticResourceRefs(line))
+                    {
+                        refCount++;
+                        if (key.Length == 0 || key[0] == '{') continue;      // {x:Type X}：隐式样式键，框架主题兜底
+                        if (scope.Contains(key)) continue;
+
+                        var where = $"{shortName}:{i + 1} KEY={key}";
+                        bool crashClass = line.Contains("BasedOn")
+                                          || templateDepth > 0
+                                          || setterValueDepth > 0
+                                          || freezableDepth > 0;
+                        (crashClass ? crashOffenders : silentOffenders).Add(where);
+                    }
+
+                    templateDepth += TagOpens(line, "ControlTemplate|DataTemplate|ItemsPanelTemplate|HierarchicalDataTemplate");
+                    templateDepth -= Regex.Matches(line, "</(?:ControlTemplate|DataTemplate|ItemsPanelTemplate|HierarchicalDataTemplate)>").Count;
+                    setterValueDepth += TagOpens(line, "Setter\\.Value");
+                    setterValueDepth -= Regex.Matches(line, "</Setter\\.Value>").Count;
+                    freezableDepth += TagOpens(line, "DropShadowEffect|SolidColorBrush|LinearGradientBrush|RadialGradientBrush|BlurEffect");
+                    freezableDepth -= Regex.Matches(line, "</(?:DropShadowEffect|SolidColorBrush|LinearGradientBrush|RadialGradientBrush|BlurEffect)>").Count;
+                }
+            }
+
+            Check("【资源断链】全局字典里没有「跨分册且会抛异常」的引用（BasedOn / 模板内 / Freezable 内）",
+                crashOffenders.Count == 0,
+                crashOffenders.Count == 0
+                    ? $"已扫 {files.Count} 个链上字典、{refCount} 处 {{StaticResource}}（豁免：{{x:Type …}} / DynamicResource / 视图）"
+                    : "会炸：弹窗打开即抛「无法找到名为 X 的资源」—— " + string.Join("；", crashOffenders.Take(8)));
+
+            Check("【资源断链】全局字典里没有「跨分册且静默失效」的引用（Setter.Value → 值不生效）",
+                silentOffenders.Count == 0,
+                silentOffenders.Count == 0
+                    ? "同上（无静默失效项）"
+                    : "观感 bug：值退回默认（典型：图标字体拿不到 → 图标变豆腐块）—— " + string.Join("；", silentOffenders.Take(8)));
+        }
+
+        /// <summary>某行里「非自闭合」的开启标签数（自闭合 &lt;X ... /&gt; 不该算进嵌套深度）</summary>
+        private static int TagOpens(string line, string tagAlternation)
+            => Regex.Matches(line, $"<(?:{tagAlternation})(?=[\\s>])").Count
+             - Regex.Matches(line, $"<(?:{tagAlternation})\\b[^>]*/>").Count;
+
+        /// <summary>取一行里所有 <c>{StaticResource …}</c> 的键（括号感知，能认出 {StaticResource {x:Type Button}} 这种嵌套）</summary>
+        private static IEnumerable<string> StaticResourceRefs(string line)
+        {
+            const string token = "{StaticResource ";
+            for (int i = line.IndexOf(token, StringComparison.Ordinal); i >= 0; i = line.IndexOf(token, i + token.Length, StringComparison.Ordinal))
+            {
+                int start = i + token.Length;
+                int depth = 0, j = start;
+                for (; j < line.Length; j++)
+                {
+                    if (line[j] == '{') depth++;
+                    else if (line[j] == '}')
+                    {
+                        if (depth == 0) break;
+                        depth--;
+                    }
+                }
+                yield return line.Substring(start, Math.Min(j, line.Length) - start).Trim();
+            }
+        }
+
+        /// <summary>剥掉 XML 注释（注释里写示例是文档，不该判违规）</summary>
+        private static string StripComments(string text)
+            => Regex.Replace(text, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+        /// <summary>同上，但保留行数（行号要指向原文件）</summary>
+        private static string StripCommentsKeepingLines(string text)
+            => Regex.Replace(text, "<!--.*?-->", m => new string('\n', m.Value.Count(c => c == '\n')), RegexOptions.Singleline);
+
+        /// <summary>本文件里 &lt;ResourceDictionary Source="…" /&gt; 的源码串（按出现顺序）</summary>
+        private static IEnumerable<string> MergedSources(string file)
+        {
+            if (!File.Exists(file)) yield break;
+            // Source 允许写在其它属性之后（[^>]* 不跨标签，不会把子标签的 Source 误当本条）
+            foreach (Match m in Regex.Matches(StripComments(File.ReadAllText(file)), "<ResourceDictionary[^>]*?Source=\"([^\"]+)\""))
+                yield return m.Groups[1].Value;
+        }
+
+        /// <summary>仓库根（以 AGENTS.md 为锚；定位不到返回 null）</summary>
+        private static string? RepoRoot()
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
+                if (File.Exists(Path.Combine(dir.FullName, "AGENTS.md"))) return dir.FullName;
+            return null;
         }
 
         /// <summary>从输出目录往上找仓库根，再拼相对路径（定位不到返回 null，由调用方跳过）</summary>

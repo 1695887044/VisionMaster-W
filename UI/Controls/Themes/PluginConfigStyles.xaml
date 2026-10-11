@@ -145,6 +145,17 @@
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PluginErrorBrush}" />
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginInputErrorBackgroundBrush}" />
                         </Trigger>
+                        <!--
+                            ui:NumericBox 专用（2026-10-10 加）：本样式是 TextBox 样式，而 NumericBox 继承自 TextBox
+                            —— 同一份样式同时服务两者，所以别的插件视图不用改一个字。
+                            NumericBox 的"非法输入"不走 WPF 校验（它把文本退回上一个有效值并置 IsInvalid），
+                            补这条把它也画成红框。用 DataTrigger 而不是 Trigger：TextBox 没有 IsInvalid 属性，
+                            Trigger 会在解析期因找不到属性报错，DataTrigger 只是永不命中。
+                        -->
+                        <DataTrigger Binding="{Binding IsInvalid, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PluginErrorBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PluginInputErrorBackgroundBrush}" />
+                        </DataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

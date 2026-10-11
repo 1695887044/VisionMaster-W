@@ -1,0 +1,6 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\G.Services.Mail\G.Services.Mail.csproj" />
+    <ProjectReference Include="..\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+  </ItemGroup>
+</Project>

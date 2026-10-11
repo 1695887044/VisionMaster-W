@@ -1,0 +1,76 @@
+﻿<Window x:Class="G.Test.RepositoryPresenter.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Behaviors="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:h="https://github.com/G"
+        xmlns:local="clr-namespace:G.Test.RepositoryPresenter"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        Title="MainWindow"
+        Width="800"
+        Height="450"
+        Style="{StaticResource {x:Static WindowKeys.Default}}"
+        mc:Ignorable="d">
+    <TabControl>
+        <TabItem Header="RepositoryPresenter">
+            <ContentPresenter Content="{RepositoryPresenter Type={x:Type local:mbc_dv_image}}" />
+        </TabItem>
+        <TabItem Header="RepositoryGrid">
+            <RepositoryGrid Type="{x:Type local:mbc_dv_image}"
+                            UseCheckAll="True"
+                            UseDeleteChecked="True"
+                            UseExport="True"
+                            UseNextPage="True"
+                            UsePreviousPage="True"
+                            UseSave="True"
+                            UseView="True">
+                <Behaviors:Interaction.Behaviors>
+                    <h:DataGridAutoColumnBehavior BindingPath="Model.{0}"
+                                                  DataGridLength="*"
+                                                  Type="{Binding ModelType}">
+                        <h:DataGridAutoColumnBehavior.HomeColumns>
+                            <DataGridTemplateColumn>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.HeaderTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding RelativeSource={RelativeSource AncestorType=DataGrid},Path=DataContext.CheckedAll}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.HeaderTemplate>
+                            </DataGridTemplateColumn>
+                        </h:DataGridAutoColumnBehavior.HomeColumns>
+                    </h:DataGridAutoColumnBehavior>
+                </Behaviors:Interaction.Behaviors>
+            </RepositoryGrid>
+        </TabItem>
+        <TabItem Header="RepositoryBox">
+            <RepositoryBox h:Cattach.ItemHeight="Auto"
+                           Type="{x:Type local:mbc_dv_image}"
+                           UseCheckAll="True"
+                           UseDeleteChecked="True"
+                           UseExport="True"
+                           UseNextPage="True"
+                           UsePreviousPage="True"
+                           UseSave="True"
+                           UseView="True">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Form SelectObject="{Binding Model}"
+                              UsePropertyNames="Name,Url"
+                              UsePropertyView="True" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid VerticalAlignment="Top"
+                                     Columns="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </RepositoryBox>
+        </TabItem>
+    </TabControl>
+</Window>
+

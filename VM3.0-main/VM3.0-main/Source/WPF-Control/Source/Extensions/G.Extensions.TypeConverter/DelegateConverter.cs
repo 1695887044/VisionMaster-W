@@ -1,0 +1,26 @@
+﻿//using G.Common.Expression;
+//using System;
+//using System.ComponentModel;
+//using System.Globalization;
+
+//namespace G.Extensions.TypeConverter
+//{
+//    public class DelegateConverter<TDelegate> : System.ComponentModel.TypeConverter where TDelegate : Delegate
+//    {
+//        public override object ConvertTo(ITypeDescriptorContext context, CultureInfo culture, object value, Type destinationType)
+//        {
+//            if (destinationType == typeof(string))
+//            {
+//                if (value == null) return null;
+
+//                return ExpressionService.ParseDelegate<TDelegate>(value.ToString());
+//            }
+//            return base.ConvertTo(context, culture, value, destinationType);
+//        }
+
+//        public override object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, object value)
+//        {
+//            return ExpressionService.ParseDelegate<TDelegate>(value.ToString());
+//        }
+//    }
+//}

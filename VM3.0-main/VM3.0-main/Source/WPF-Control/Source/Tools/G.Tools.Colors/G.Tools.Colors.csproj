@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Base\G.Mvvm\G.Mvvm.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Color\G.Extensions.Color.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup>
+
+</Project>

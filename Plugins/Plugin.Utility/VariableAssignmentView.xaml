@@ -79,11 +79,34 @@
                     FontSize="12"
                     Foreground="#606266"
                     Text="变量名" />
-                <cv:LinkableValueEditor
+                <!--
+                    这一行是**名字编辑器**：可手填，也可从右侧箭头下拉的候选里选
+                    （作用域=全局变量 → 变量管理里那些名字；作用域=运行时变量 → 上游「变量定义」声明的名字）。
+
+                    为什么这一行不给链接按钮：本行要的是"名字"，而通用变量绑定弹窗给的是"值" ——
+                    在弹窗里选中全局变量，落下来的是一条 GlobalVariable 连线（运行期把那个变量的**值**
+                    当名字用）。真机 2026-10-10 反馈的"选了全局变量之后编译不过 / 写不进去"就是它。
+                    「值」那一行才需要链接（引用上游结果），所以它仍然用 LinkableValueEditor。
+
+                    IsTextSearchEnabled="False"：可编辑 ComboBox 的"输入即补全"会把键到一半的 `OK`
+                    补成候选里的 `OKCount` —— 正是本次要消灭的那类"静默写错变量"。候选照常下拉可选。
+                -->
+                <ComboBox
+                    x:Name="NameBox"
                     Grid.Column="1"
-                    Port="{Binding VariableName}"
-                    StepData="{Binding StepData}" />
+                    IsEditable="True"
+                    IsTextSearchEnabled="False"
+                    ItemsSource="{Binding NameCandidates}"
+                    Text="{Binding VariableName.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    ToolTip="填要写入的变量名；点右侧箭头可从变量管理（或上游「变量定义」）里选一个" />
             </Grid>
+
+            <TextBlock
+                Margin="72,4,0,0"
+                FontSize="11"
+                Foreground="#909399"
+                TextWrapping="Wrap"
+                Text="{Binding NameHint}" />
 
             <Grid Margin="0,10,0,0">
                 <Grid.ColumnDefinitions>
@@ -114,7 +137,7 @@
                 FontSize="11"
                 Foreground="#909399"
                 TextWrapping="Wrap"
-                Text="「值」填常量文本，要引用上游步骤的结果就点该行尾部的链接图标。作用域选「全局变量」时，该变量必须先在变量管理里建好（类型要与写入的值匹配）——运行期找不到会明确报错，不会静默新建。" />
+                Text="「变量名」可直接填，也可点右侧箭头从变量管理（作用域=全局变量）或上游「变量定义」声明的名字里选；「值」填常量文本，要引用上游步骤的结果就点该行尾部的链接图标。作用域=全局变量时，变量必须先在变量管理里建好（值的文本会按它的类型解析，如 Int32 填 21）——运行期找不到会明确报错，不会静默新建。" />
         </StackPanel>
     </Border>
 </UserControl>

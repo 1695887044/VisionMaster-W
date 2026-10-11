@@ -1,0 +1,6 @@
+MSBUILD : error MSB1008: 只能指定一个项目。
+    完整命令行:“C:\Program Files\dotnet\sdk\9.0.318\MSBuild.dll -maxcpucount -verbosity:m -tlp:default=auto -nologo -restore -consoleloggerparameters:Summary -verbosity:m _BeadViewProbe.csproj ; echo EXIT=$?; powershell -NoProfile -Command $c=[IO.File]::ReadAllLines('D:\C#\VM\_BeadViewProbe\build_before3.txt',[Text.Encoding]::UTF8); ($c | Where-Object { $_ -match 'error|Error|警告 CS|已成功|Build succeeded|生成成功|MSB' }) -join "`n" -distributedlogger:Microsoft.DotNet.Tools.MSBuild.MSBuildLogger,C:\Program Files\dotnet\sdk\9.0.318\dotnet.dll*Microsoft.DotNet.Tools.MSBuild.MSBuildForwardingLogger,C:\Program Files\dotnet\sdk\9.0.318\dotnet.dll”
+  响应文件追加的开关: 
+开关:;
+
+若要显示开关的语法，请键入“MSBuild -help”

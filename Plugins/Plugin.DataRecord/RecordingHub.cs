@@ -403,7 +403,9 @@ namespace Plugin.DataRecord
 
         private static void Shutdown()
         {
-            if (_started == 0) return;
+            // Volatile.Read（二期真并行顺手项，评审低危 15）：_started 由 CAS(:195) 写入，
+            // 裸读在释放语义上没有栅栏——本处在进程退出钩子里，防御性补上全屏障读
+            if (Volatile.Read(ref _started) == 0) return;
             _stopping = true;
             var deadline = DateTime.Now.AddSeconds(3); // 退出冲刷预算 3 秒，超时放弃不死等
             while ((DataQueue.Count > 0 || ImageQueue.Count > 0) && DateTime.Now < deadline)

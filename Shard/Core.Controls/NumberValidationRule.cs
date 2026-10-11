@@ -33,14 +33,40 @@ namespace Core.Controls
 
         public override ValidationResult Validate(object value, CultureInfo cultureInfo)
         {
-            var text = (value as string ?? string.Empty).Trim();
+            // ★ 2026-10-10：绑定目标可能是 Text（字符串，老写法），也可能换成 NumericBox 的 Value（double）。
+            //   目标是 Text 时这里是用户输入的原始文本；目标是 Value 时是**已转换过的数值**。
+            //   只按字符串处理（value as string ?? ""）会让数值目标恒判"不能为空" ——
+            //   界面全红，而且校验拒绝写回源、用户输入进不了模型（Plugin.Matching 迁移时踩到过）。
+            double number;
+            string display;
 
-            if (text.Length == 0)
+            if (value is string raw)
+            {
+                display = raw.Trim();
+                if (display.Length == 0)
+                    return new ValidationResult(false, $"{FieldName}不能为空");
+
+                // 用当前界面区域解析：中文系统下小数点就是 "."，与既有插件的手工输入习惯一致
+                if (!double.TryParse(display, NumberStyles.Float, cultureInfo, out number))
+                    return new ValidationResult(false, $"{FieldName}必须是数字，当前输入：{display}");
+            }
+            else if (value is IConvertible convertible)
+            {
+                try
+                {
+                    number = convertible.ToDouble(cultureInfo);
+                }
+                catch
+                {
+                    return new ValidationResult(false, $"{FieldName}不是有效数值");
+                }
+
+                display = number.ToString(cultureInfo);
+            }
+            else
+            {
                 return new ValidationResult(false, $"{FieldName}不能为空");
-
-            // 用当前界面区域解析：中文系统下小数点就是 "."，与既有插件的手工输入习惯一致
-            if (!double.TryParse(text, NumberStyles.Float, cultureInfo, out var number))
-                return new ValidationResult(false, $"{FieldName}必须是数字，当前输入：{text}");
+            }
 
             if (double.IsNaN(number) || double.IsInfinity(number))
                 return new ValidationResult(false, $"{FieldName}不是有效数值");
@@ -49,7 +75,7 @@ namespace Core.Controls
                 return new ValidationResult(false, $"{FieldName}必须是整数");
 
             if (number < Min || number > Max)
-                return new ValidationResult(false, $"{FieldName}应在 {Min}~{Max} 之间，当前：{number}");
+                return new ValidationResult(false, $"{FieldName}应在 {Min}~{Max} 之间，当前：{display}");
 
             return ValidationResult.ValidResult;
         }

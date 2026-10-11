@@ -1,0 +1,9 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+    <ProjectReference Include="..\..\Base\G.ValueConverter\G.ValueConverter.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Serializable\G.Services.Serializable.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup></Project>

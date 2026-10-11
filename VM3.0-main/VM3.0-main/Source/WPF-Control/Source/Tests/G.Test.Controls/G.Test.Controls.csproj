@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <GeneratePackageOnBuild>Flase</GeneratePackageOnBuild>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
+    <ApplicationIcon>logo.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- icon injected via Directory.Build.targets -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Datas\G.Data.Test\G.Data.Test.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.AppPath\G.Extensions.AppPath.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Geometry\G.Extensions.Geometry.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Validation\G.Extensions.Validation.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Style\G.Modules.Style.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Setting\G.Modules.Setting.csproj" />
+     <ProjectReference Include="..\..\Modules\G.Modules.Messages.Snack\G.Modules.Messages.Snack.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Dialog\G.Modules.Messages.Dialog.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Behvaiors\G.Extensions.Behvaiors.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.FontIcon\G.Extensions.FontIcon.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Geometry\G.Extensions.Geometry.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Mvvm\G.Extensions.Mvvm.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.TextJsonable\G.Extensions.TextJsonable.csproj" />
+    <ProjectReference Include="..\..\Base\G.ValueConverter\G.ValueConverter.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup>
+</Project>

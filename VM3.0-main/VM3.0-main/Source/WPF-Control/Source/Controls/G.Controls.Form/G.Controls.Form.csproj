@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Base\G.Attach\G.Attach.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Behvaiors\G.Extensions.Behvaiors.csproj" />
+    <ProjectReference Include="..\..\Base\G.ValueConverter\G.ValueConverter.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Mvvm\G.Extensions.Mvvm.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup>
+</Project>

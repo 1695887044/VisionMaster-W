@@ -6,6 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:controls="clr-namespace:VisionMaster.Views.Controls"
+    xmlns:ui="clr-namespace:UI.CustomControl;assembly=UI"
     d:DesignHeight="600"
     d:DesignWidth="260"
     prism:ViewModelLocator.AutoWireViewModel="True"
@@ -59,13 +60,48 @@
                     </Style.Triggers>
                 </Style>
 
-                <!--  Text / Number 同模板：现在两者都只是一个文本框。  -->
-                <!--  将来给数值加上下调节按钮时再拆出去，那时才是真的不同  -->
+                <!--  Text 类：普通文本框（数值类见下面的 EditNumber）  -->
                 <DataTemplate x:Key="EditText">
                     <TextBox
                         Style="{StaticResource ValueBox}"
                         ToolTip="{Binding ErrorText}"
                         Text="{Binding Value, UpdateSourceTrigger=LostFocus}" />
+                </DataTemplate>
+
+                <!--
+                    数值编辑器（2026-10-10 加）。原本文本与数值共用 EditText（那句注释写着"将来给数值加上下
+                    调节按钮时再拆出去"，这次就是那一刻）。拆出去之后拿到：上下键/滚轮步进、区域设置容错解析、
+                    以及（行 VM 给范围时）越界钳制。
+
+                    ★ 非法文本**不退回**（RevertOnInvalid=False）：本面板的校验归行 VM（IsValid / ErrorText），
+                      它要留住用户敲的内容好让人在原处改 —— 所以控件只负责标红，退回与否由面板决定。
+                    ★ 文本仍绑 Value（行的编辑缓冲，字符串），提交 / 撤销 / 回填规范值那条链路一字未动；
+                      控件自身的解析只用于步进与钳制，写回仍走 Text → Value。
+                -->
+                <Style x:Key="ScadaNumberBox" TargetType="{x:Type ui:NumericBox}">
+                    <Setter Property="RevertOnInvalid" Value="False" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                    <Setter Property="FontSize" Value="12" />
+                    <Setter Property="BorderBrush" Value="{StaticResource ScadaPanelBorderBrush}" />
+                    <Style.Triggers>
+                        <!--  行 VM 的校验（打了字母、越界）  -->
+                        <DataTrigger Binding="{Binding IsValid}" Value="False">
+                            <Setter Property="BorderBrush" Value="{StaticResource ScadaDangerBrush}" />
+                            <Setter Property="Background" Value="{StaticResource ScadaInvalidBackgroundBrush}" />
+                        </DataTrigger>
+                        <!--  控件自身的非法态（解析不出数字）—— 与上面同色，两条路都标红  -->
+                        <DataTrigger Binding="{Binding IsInvalid, RelativeSource={RelativeSource Self}}" Value="True">
+                            <Setter Property="BorderBrush" Value="{StaticResource ScadaDangerBrush}" />
+                            <Setter Property="Background" Value="{StaticResource ScadaInvalidBackgroundBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+
+                <DataTemplate x:Key="EditNumber">
+                    <ui:NumericBox
+                        Style="{StaticResource ScadaNumberBox}"
+                        Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                        ToolTip="{Binding ErrorText}" />
                 </DataTemplate>
 
                 <!--  多行：文本框属性（内容）要能换行写，高度给两行起  -->
@@ -401,7 +437,7 @@
                             <Setter Property="ContentTemplate" Value="{StaticResource EditText}" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Kind}" Value="Number">
-                            <Setter Property="ContentTemplate" Value="{StaticResource EditText}" />
+                            <Setter Property="ContentTemplate" Value="{StaticResource EditNumber}" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Kind}" Value="MultilineText">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditMultiline}" />

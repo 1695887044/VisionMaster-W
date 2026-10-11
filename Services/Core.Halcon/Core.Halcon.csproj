@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFrameworks>net9.0-windows</TargetFrameworks>
@@ -7,6 +7,16 @@
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 	<ItemGroup>
+		<!-- 断言工程要驱动 internal 测试辅助（EnsureContextMenuForTest 等），比反射稳 -->
+		<InternalsVisibleTo Include="FlowCanvasChecks" />
+	</ItemGroup>
+	<ItemGroup>
+		<!--
+			System.Drawing.Common 不是代码依赖（库内零使用），但**不能删**：
+			XAML 编译器（wpftmp）解析模板引用闭包时要经它把 halcondotnet 的
+			老式 System.Drawing v2.0.0.0 引用解析掉，删了三个主题 XAML 全部 MC1000
+			（2026-10-08 实测）。留着，标明原因防止后人再当垃圾清掉。
+		-->
 		<PackageReference Include="System.Drawing.Common" Version="8.0.15" />
 	</ItemGroup>
 	<ItemGroup>

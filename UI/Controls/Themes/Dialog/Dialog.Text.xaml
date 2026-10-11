@@ -9,7 +9,10 @@
          自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
     <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
   </ResourceDictionary.MergedDictionaries>
-  <FontFamily x:Key="DialogIconFont">pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid</FontFamily>
+  <!--
+      DialogIconFont 已挪到第一层令牌字典 Colors.xaml（本文件与 Container/Input/Misc 都消费它，
+      而分册之间互相看不见 —— 详见该处注释）。这里不再定义，避免出现两份字体串。
+  -->
   <Style x:Key="DialogCardTitle" TargetType="TextBlock">
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="FontSize" Value="14" />

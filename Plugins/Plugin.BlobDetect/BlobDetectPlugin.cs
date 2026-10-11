@@ -1,5 +1,6 @@
 using Core.Commands;
 using Core.Events;
+using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
 using System;
@@ -27,6 +28,7 @@ namespace Plugin.BlobDetect
         Description = "阈值分割 + 连通域分析，检出划痕/暗斑等缺陷并按个数与面积判定 OK/NG；支持固定/自动/动态阈值与亮暗同检，支持检测/排除区域，输出逐缺陷面积、圆度、长宽比、方向等特征",
         ShortName = "\uf002"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public partial class BlobDetectPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 输入 / 输出端口（名字即连线名，编译期就存在，供按名连线）

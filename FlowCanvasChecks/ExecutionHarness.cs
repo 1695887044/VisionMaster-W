@@ -113,7 +113,10 @@ namespace FlowCanvasChecks
 
     /// <summary>
     /// 计数桩算子：跑一次记一笔。
+    /// [ParallelSafe]：本桩被并行执行断言（ParallelExecutionChecks）用作分支内计数器，
+    /// 无 static 可变状态（Runs 经 Interlocked），标注后可进 Parallel 分支。
     /// </summary>
+    [ParallelSafe]
     internal class CountingPlugin : VisionPluginBase
     {
         /// <summary>累计执行次数（用例开始前调 Reset 清零）</summary>

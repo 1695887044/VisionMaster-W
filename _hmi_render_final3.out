@@ -1,0 +1,21 @@
+[render][diag] flowcanvas-render-A.png 数据线=1 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] C:\Users\16958\AppData\Local\Temp\flowcanvas-render-A.png
+[render][diag] flowcanvas-render-B.png 数据线=2 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] C:\Users\16958\AppData\Local\Temp\flowcanvas-render-B.png
+[render][diag] flowcanvas-render-C-expand.png 数据线=7 顺序链=4 非法=1 降级=0 折叠隐藏=0
+[render] C:\Users\16958\AppData\Local\Temp\flowcanvas-render-C-expand.png
+[render][diag] flowcanvas-render-C-collapse.png 数据线=5 顺序链=4 非法=0 降级=0 折叠隐藏=1
+[render] C:\Users\16958\AppData\Local\Temp\flowcanvas-render-C-collapse.png
+[render][diag] flowcanvas-render-D-10levels.png 数据线=7 顺序链=6 非法=0 降级=0 折叠隐藏=0
+[render] C:\Users\16958\AppData\Local\Temp\flowcanvas-render-D-10levels.png
+[render][diag] flowcanvas-render-E-parallel.png 数据线=6 顺序链=4 非法=2 降级=0 折叠隐藏=0
+[render] C:\Users\16958\AppData\Local\Temp\flowcanvas-render-E-parallel.png
+[render][check] 分支卡片被拦截=True（期望 True）；分支箭头被拦截=False（期望 False）；算子卡片被拦截=False（期望 False）
+[render][check] 分支胶囊菜单=True（期望 True：项=2 靶绑定=PlacementTarget.DataContext DataContext=非空）；右键胶囊被拦截=False（期望 False，放行开胶囊菜单）；右键非并行分支被拦截=True（期望 True）
+[render][check] 组头菜单「添加分支」=True（期望 True：命令=AddParallelBranchCommand 靶=SelectStep 可见性=IsParallelNodeSelected）
+[render] C:\Users\16958\AppData\Local\Temp\process-tree-render-F.png
+[render] C:\Users\16958\AppData\Local\Temp\parallel-group-config-render-G.png
+[render][diag] flowcanvas-render-H-parallel-nested.png 数据线=3 顺序链=6 非法=0 降级=0 折叠隐藏=0
+[render] C:\Users\16958\AppData\Local\Temp\flowcanvas-render-H-parallel-nested.png
+[render][check] 嵌套框 ZOrder=6 > 兄弟泳道 ZOrder=4（期望 True）= True
+[render][check] 节点容器=16；Panel.ZIndex 与 VM.ZOrder 一致=True（不一致 0 个）；items 宿主=NodifyCanvas（Panel 才吃 Panel.ZIndex）

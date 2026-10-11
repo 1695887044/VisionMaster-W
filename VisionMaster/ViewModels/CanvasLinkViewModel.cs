@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nodify;
 using Prism.Mvvm;
 
 namespace VisionMaster.ViewModels
@@ -50,7 +51,24 @@ namespace VisionMaster.ViewModels
             set => SetProperty(ref field, value);
         }
 
-        /// <summary>绑定条数角标文本；1 条时不画角标（一根线一对绑定不用解释）</summary>
+        /// <summary>
+        /// 连线进出边（主 VM 在重算锚点时按两端几何选：消费方在生产方右侧 → 右出左入；
+        /// 在左侧 → 左出右入——让 StepConnection 的绕行始终走就近一侧，而不是横穿大半张画布）。
+        /// 顺序链固定 Bottom→Top（自上而下流动）。
+        /// </summary>
+        public ConnectorPosition SourcePosition
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = ConnectorPosition.Right;
+
+        public ConnectorPosition TargetPosition
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = ConnectorPosition.Left;
+
+        /// <summary>绑定条数角标文本；1 条时不画角标（一根线一对绑定不用解释，空串=模板不画）</summary>
         public string BindingCountLabel => Bindings.Count > 1 ? $"×{Bindings.Count}" : string.Empty;
 
         /// <summary>
@@ -58,6 +76,12 @@ namespace VisionMaster.ViewModels
         /// 供连线右键菜单直达——菜单的 DataContext 是本类，够不到 UserControl 资源树。
         /// </summary>
         public DelegateCommand<CanvasLinkBinding?> UnbindCommand { get; set; }
+
+        /// <summary>连线右键菜单「编辑绑定…」入口：主 VM 构建连线时注入（闭包 Target.Model）</summary>
+        public DelegateCommand? OpenBindingCommand { get; set; }
+
+        /// <summary>连线右键菜单「断开全部绑定」入口：整批解绑打包成一个撤销单元，主 VM 注入</summary>
+        public DelegateCommand? UnbindAllCommand { get; set; }
 
         /// <summary>悬停提示：顺序链显示执行次序；数据线逐行列出承载的绑定，附非法原因</summary>
         public string Tooltip

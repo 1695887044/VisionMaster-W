@@ -1,0 +1,176 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:h="https://github.com/G"
+                    xmlns:lc="clr-namespace:G.Modules.Setting.Commands"
+                    xmlns:local="clr-namespace:G.Modules.Setting"
+                    xmlns:system="clr-namespace:System;assembly=netstandard">
+
+    <DataTemplate DataType="{x:Type local:SettingViewPresenter}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TabControl ItemsSource="{Binding Groups}"
+                        SelectedItem="{Binding SelectedGroup}">
+                <TabControl.ContentTemplate>
+                    <DataTemplate>
+                        <h:NavigationBox Margin="0"
+                                         Padding="0,0,0,0"
+                                         HorizontalContentAlignment="Stretch"
+                                         BorderBrush="{DynamicResource {x:Static h:BrushKeys.Dark0_1}}"
+                                         BorderThickness="1"
+                                         HitTestPoint="55 10"
+                                         ItemsSource="{Binding Collection}"
+                                         NavigationSource="{Binding Collection}"
+                                         ScrollViewer.CanContentScroll="False"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         SelectedItem="{Binding SelectedSettable, Mode=TwoWay}">
+                            <h:NavigationBox.NavigationDataTemplate>
+                                <DataTemplate>
+                                    <TextBlock MinWidth="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=NavigationiTitleWidth}"
+                                               Margin="10,0"
+                                               Text="{Binding Name}" />
+                                </DataTemplate>
+                            </h:NavigationBox.NavigationDataTemplate>
+
+                            <h:NavigationBox.NavigationStyle>
+                                <Style BasedOn="{StaticResource {x:Static ListBoxKeys.Default}}"
+                                       TargetType="{x:Type ListBox}">
+                                    <!--<Setter Property="ItemContainerStyle">
+                                        <Setter.Value>
+                                            <Style BasedOn="{StaticResource {x:Static ListBoxItemKeys.Default}}"
+                                                   TargetType="ListBoxItem">
+                                                <Setter Property="h:Cattach.GuideTitle" Value="{Binding Name}" />
+                                                <Setter Property="h:Cattach.GuideData" Value="{Binding Description}" />
+                                                <Setter Property="h:Cattach.UseGuide" Value="True" />
+                                                <Setter Property="h:Cattach.GuideParentTitle" Value="{Binding RelativeSource={RelativeSource AncestorType=TabItem}, Path=DataContext.Key}" />
+                                            </Style>
+                                        </Setter.Value>
+                                    </Setter>-->
+                                    <!--<Setter Property="Width" Value="150" />
+                                    <Setter Property="BorderThickness" Value="0,0,0,0" />
+                                    <Setter Property="Margin" Value="5" />
+                                    <Setter Property="ToolTip" Value="{Binding Description}" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="SelectedItem" Value="{Binding}" />
+                                    <Setter Property="h:Cattach.GuideTitle" Value="{Binding Name}" />
+                                    <Setter Property="h:Cattach.GuideData" Value="{Binding Description}" />
+                                    <Setter Property="h:Cattach.UseGuide" Value="True" />-->
+                                    <!--<Setter Property="h:Cattach.GuideParentTitle" Value="{Binding RelativeSource={RelativeSource AncestorType=TabItem}, Path=DataContext.Key}" />-->
+                                </Style>
+                            </h:NavigationBox.NavigationStyle>
+
+                            <h:NavigationBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type h:ISettable}">
+                                    <GroupBox Margin="1,0,0,1"
+                                              Header="{Binding}">
+                                        <GroupBox.HeaderTemplate>
+                                            <DataTemplate>
+                                                <DockPanel>
+                                                    <TextBlock Margin="0,0,0,0"
+                                                               VerticalAlignment="Bottom"
+                                                               Text="{Binding Name}"
+                                                               ToolTip="{Binding Description}" />
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </GroupBox.HeaderTemplate>
+                                        <h:Cattach.CaptionRightTemplate>
+                                            <ControlTemplate>
+                                                <TextBlock Margin="5,0"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="{DynamicResource {x:Static h:FontSizeKeys.Header7}}"
+                                                           Opacity="0.6"
+                                                           Text="{Binding Description}" />
+                                            </ControlTemplate>
+                                        </h:Cattach.CaptionRightTemplate>
+                                        <h:Form Margin="2,0,0,0"
+                                                ExceptPropertyNames="{Binding ExceptPropertyNames}"
+                                                ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                                SelectObject="{Binding}"
+                                                TitleWidth="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=TitleWidth}"
+                                                UseArray="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseArray}"
+                                                UseAsync="False"
+                                                UseBoolen="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseBoolen}"
+                                                UseClass="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseClass}"
+                                                UseCommand="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseCommand}"
+                                                UseCommandOnly="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseCommandOnly}"
+                                                UseDateTime="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseDateTime}"
+                                                UseDeclaredOnly="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseDeclaredOnly}"
+                                                UseDisplayOnly="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseDisplayOnly}"
+                                                UseEnum="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseEnum}"
+                                                UseEnumerator="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseEnumerator}"
+                                                UseGroup="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseGroup}"
+                                                UseGroupNames="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseGroupNames}"
+                                                UseInterface="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseInterface}"
+                                                UseNull="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseNull}"
+                                                UseOrder="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseOrder}"
+                                                UseOrderByName="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseOrderByName}"
+                                                UseOrderByType="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseOrderByType}"
+                                                UsePresenter="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UsePresenter}"
+                                                UsePrimitive="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UsePrimitive}"
+                                                UsePropertyView="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UsePropertyView}"
+                                                UseString="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseString}"
+                                                UseTypeConverter="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseTypeConverter}"
+                                                UseTypeConverterOnly="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=FormOption.UseTypeConverterOnly}" />
+                                    </GroupBox>
+                                </DataTemplate>
+                            </h:NavigationBox.ItemTemplate>
+                        </h:NavigationBox>
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+                <TabControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Margin="10,0"
+                                   Text="{Binding Name}" />
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+                <!--<TabControl.ItemContainerStyle>
+                <Style TargetType="TabItem">
+                -->
+                <!--<Setter Property="h:Cattach.GuideData" Value="{Binding Descption}" />-->
+                <!--<Setter Property="h:Cattach.GuideTitle" Value="{Binding Key}" />
+                    <Setter Property="h:Cattach.GuideUseClick" Value="True" />
+                    <Setter Property="h:Cattach.UseGuide" Value="True" />-->
+                <!--
+                </Style>
+            </TabControl.ItemContainerStyle>-->
+            </TabControl>
+
+            <DockPanel Grid.Row="1"
+                       Margin="0,5,0,0"
+                       Background="Transparent"
+                       DockPanel.Dock="Bottom"
+                       LastChildFill="False">
+                <Button Margin="0"
+                        BorderBrush="{DynamicResource {x:Static h:BrushKeys.BorderBrush}}"
+                        Command="{lc:SettingDefaultCommand}"
+                        DockPanel.Dock="Left"
+                        Style="{DynamicResource {x:Static ButtonKeys.Command}}"
+                        Visibility="{Binding Source={x:Static local:SettingViewOptions.Instance}, Path=UseSetDefault, Converter={GetTrueToVisibleConverter}}" />
+
+                <!--<Button Margin="5,0"
+                        BorderBrush="{DynamicResource {x:Static h:BrushKeys.BorderBrush}}"
+                        Command="{lc:ClearSettingDataCommand}"
+                        Content="初始化配置(重启生效)"
+                        DockPanel.Dock="Left"
+                        ToolTip="此功能会清空配置文件，重启后重新加载" />-->
+
+                <Button MinWidth="100"
+                        Margin="2,0"
+                        Command="{SumitDialogCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource Mode=Self}}"
+                        Content="确定"
+                        DockPanel.Dock="Right" />
+
+                <Button MinWidth="100"
+                        Margin="2,0"
+                        Command="{lc:CancelSettingDataCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource Mode=Self}}"
+                        Content="取消"
+                        DockPanel.Dock="Right" />
+            </DockPanel>
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>

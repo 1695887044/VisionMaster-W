@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <PackageReference Include="NModbus" Version="3.0.81" />
+    <PackageReference Include="IoTClient" Version="1.0.42" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\G.VisionMaster.NodeData\G.VisionMaster.NodeData.csproj" />
+    <ProjectReference Include="..\G.VisionMaster.NodeGroup\G.VisionMaster.NodeGroup.csproj" />
+  </ItemGroup>
+</Project>

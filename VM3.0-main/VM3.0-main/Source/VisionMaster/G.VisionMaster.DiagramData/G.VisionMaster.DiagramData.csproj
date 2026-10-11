@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\WPF-Control\Source\Controls\G.Controls.Diagram.Presenter\G.Controls.Diagram.Presenter.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Controls\G.Controls.ZoomBox.Extension\G.Controls.ZoomBox.Extension.csproj" />
+    <ProjectReference Include="..\G.VisionMaster.NodeData\G.VisionMaster.NodeData.csproj" />
+    <ProjectReference Include="..\G.VisionMaster.NodeGroup\G.VisionMaster.NodeGroup.csproj" />
+  </ItemGroup>
+</Project>

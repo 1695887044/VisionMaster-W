@@ -193,17 +193,28 @@
                                 TextTrimming="CharacterEllipsis" />
                         </StackPanel>
 
-                        <!--  执行中指示  -->
-                        <Border
+                        <!--  参数面板布局开关（仅当承载的视图实现了 IPropertyGridLayoutSwitch 才亮）+ 执行中指示  -->
+                        <StackPanel
                             Grid.Column="2"
-                            Margin="8,0"
-                            Style="{StaticResource StatusChipStyle}"
-                            Visibility="{Binding IsExecuting, Converter={ui:BooleanToVisibilityConverter}}">
-                            <TextBlock
-                                FontSize="12"
-                                Foreground="{StaticResource DialogAccentTextBrush}"
-                                Text="⏳ 执行中" />
-                        </Border>
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                            <CheckBox
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                Content="卡片式"
+                                IsChecked="{Binding UseCardLayout}"
+                                ToolTip="参数面板改用卡片式（标签右对齐 + 左侧分组页签）；表格更紧凑，卡片更宽松"
+                                Visibility="{Binding CanSwitchLayout, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <Border
+                                Margin="8,0"
+                                Style="{StaticResource StatusChipStyle}"
+                                Visibility="{Binding IsExecuting, Converter={ui:BooleanToVisibilityConverter}}">
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogAccentTextBrush}"
+                                    Text="⏳ 执行中" />
+                            </Border>
+                        </StackPanel>
 
                         <!--  关闭：等价于取消（取消逻辑里含"正在执行则先停"的处理）  -->
                         <Button

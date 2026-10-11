@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.FontIcon\G.Extensions.FontIcon.csproj" />
+    <ProjectReference Include="..\..\Presenters\G.Presenters.Common\G.Presenters.Common.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+  </ItemGroup>
+</Project>

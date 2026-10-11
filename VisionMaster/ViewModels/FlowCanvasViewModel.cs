@@ -6,7 +6,10 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Windows;
+using System.Windows.Threading;
 using Core.Interfaces;
+using Prism.Dialogs;
+using Prism.Ioc;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -46,23 +49,38 @@ namespace VisionMaster.ViewModels
     /// </summary>
     public class FlowCanvasViewModel : BindableBase
     {
+        // ------------------------------------------------------------------
+        //  画布渲染的几何常量：**数值源在 Core\Models\FlowLayoutStore**
+        //  （布局器与渲染器必须逐一相等，否则"框 ⊆ 泳道、同级列不相交"直接击穿）
+        //
+        //  Core 不引 VM，别名引用只能是 VM → Core 这个方向：本组常量全是
+        //  FlowLayoutStore 同名常量的别名，改数值只改 Core 那一处。
+        //  2026-10-09 审查 #3：此前是两处各自字面量、靠注释提醒同步，已改成单向引用。
+        // ------------------------------------------------------------------
+
         /// <summary>模块盒标称尺寸（真实渲染随内容浮动，此处用于几何估算与锚点兜底）</summary>
-        public const double NodeWidth = 210;
-        public const double NodeHeight = 62;
+        public const double NodeWidth = FlowLayoutStore.NodeWidth;
+        public const double NodeHeight = FlowLayoutStore.NodeHeight;
 
         /// <summary>折叠容器的框体尺寸（只剩头带，等高一个普通模块盒）</summary>
-        public const double CollapsedFrameWidth = 230;
-        public const double CollapsedFrameHeight = 64;
+        public const double CollapsedFrameWidth = FlowLayoutStore.CollapsedFrameWidth;
+        public const double CollapsedFrameHeight = FlowLayoutStore.CollapsedFrameHeight;
 
         /// <summary>泳道/框体的内边距与头带高度</summary>
-        public const double LanePadding = 14;
-        public const double LaneHeaderHeight = 26;
-        public const double FramePadding = 16;
-        public const double FrameHeaderHeight = 36;
+        public const double LanePadding = FlowLayoutStore.LanePadding;
+        public const double LaneHeaderHeight = FlowLayoutStore.LaneHeaderHeight;
+        public const double FramePadding = FlowLayoutStore.FramePadding;
+        public const double FrameHeaderHeight = FlowLayoutStore.FrameHeaderHeight;
+
+        /// <summary>
+        /// 分支列距：上一列泳道右缘 + ColumnGap = 下一列泳道左缘。
+        /// 只在空分支泳道的列序回推里用到（有内容列以内容实位为准）
+        /// </summary>
+        public const double ColumnGap = FlowLayoutStore.ColumnGap;
 
         /// <summary>空分支泳道的占位尺寸</summary>
-        public const double EmptyLaneWidth = 150;
-        public const double EmptyLaneHeight = 88;
+        public const double EmptyLaneWidth = FlowLayoutStore.EmptyLaneWidth;
+        public const double EmptyLaneHeight = FlowLayoutStore.EmptyLaneHeight;
 
         private readonly IWorkspaceManager _workspace;
         private readonly IPluginProvider _pluginProvider;
@@ -110,6 +128,13 @@ namespace VisionMaster.ViewModels
         /// <summary>撤销/重做执行期间置位：逆操作的写回不应再压栈</summary>
         private bool _suppressUndoRedo;
 
+        /// <summary>
+        /// 画布自身命令写回步骤集合（改序/移分支 Redo）期间的嵌套计数。
+        /// 与 _suppressUndoRedo 一起告诉 OnFlowStepsChanged：这次集合变化是画布自己的命令刚做的，
+        /// 栈里那条命令就是它——不能当作"外部结构变化"清掉撤销栈。
+        /// </summary>
+        private int _internalWriteback;
+
         /// <summary>拖拽开始快照：每个被拖节点的 (Owner, IndexInOwner, OriginalLocation)</summary>
         private List<DragSnapshot>? _dragStartedSnapshot;
 
@@ -135,6 +160,7 @@ namespace VisionMaster.ViewModels
             RedoCommand = new DelegateCommand(Redo, () => _redoStack.Count > 0);
             ItemsDragStartedCommand = new DelegateCommand<object>(OnItemsDragStarted);
             ItemsDragCompletedCommand = new DelegateCommand<object>(OnItemsDragCompleted);
+            DeleteSelectionCommand = new DelegateCommand(OnDeleteSelection);
 
             PendingConnection.PropertyChanged += OnPendingConnectionChanged;
 
@@ -176,7 +202,11 @@ namespace VisionMaster.ViewModels
         //  视图绑定面
         // ==================================================================
 
-        /// <summary>画布节点（Z 序 = 集合序：容器框与泳道先入垫底，步骤后入置顶）</summary>
+        /// <summary>
+        /// 画布节点。集合序 = 容器框与泳道先入垫底、步骤后入置顶（构造期兜底序）；
+        /// 真正的叠放层次是 <see cref="CanvasNodeViewModel.ZOrder"/>（绑 Panel.ZIndex）——
+        /// 它按拓扑深度恒定，不受分支加入顺序影响，后入分支的泳道盖不住先入分支里的嵌套框
+        /// </summary>
         public ObservableCollection<CanvasNodeViewModel> Nodes { get; } = new();
 
         /// <summary>模块级聚合连线（数据依赖 + 执行顺序链，视觉与语义以 IsOrderLink 区分）</summary>
@@ -228,6 +258,15 @@ namespace VisionMaster.ViewModels
         /// <summary>拖拽抬起：按几何位置判定改序/移分支并提交命令</summary>
         public DelegateCommand<object> ItemsDragCompletedCommand { get; }
 
+        /// <summary>
+        /// 删除画布选中的模块（Delete 键 / 节点右键菜单共用）：连容器子树一起移出图纸。
+        /// 数据连线的删除走连线右键菜单（编辑绑定/逐条/整批解绑）——
+        /// Nodify 7.3 的连线选中机制（SelectedConnections 集合语义与选中视觉）未取证，不盲绑。
+        /// 删除会使撤销栈里改序/移分支命令的下标快照失效，统一清栈——
+        /// 宁可失去撤销能力，也不给出错乱的回滚。
+        /// </summary>
+        public DelegateCommand DeleteSelectionCommand { get; }
+
         public int UndoStackSize => _undoStack.Count;
         public int RedoStackSize => _redoStack.Count;
 
@@ -278,11 +317,64 @@ namespace VisionMaster.ViewModels
             ? $"⚠ {IllegalLinkCount} 条连线结构非法（编译会报致命错），已按红色虚线显示；另有 {DeferredLinkCount} 条连线的上游已不在图纸上"
             : string.Empty;
 
-        /// <summary>状态栏提示：拒绝连线/折叠提示等一次性文案；无提示时为 null</summary>
+        /// <summary>状态栏提示：拒绝连线/折叠提示等一次性文案；无提示时为 null。
+        /// 一次性文案 5 秒后自动收起——旧提示长期驻留会与新状态互相矛盾、误导操作。
+        /// headless 断言环境无消息泵，定时器不 tick，StatusHint 保持可查。</summary>
         public string? StatusHint
         {
             get => field;
-            set => SetProperty(ref field, value);
+            set
+            {
+                if (!SetProperty(ref field, value)) return;
+
+                if (value == null)
+                {
+                    _statusHintTimer?.Stop();
+                    return;
+                }
+
+                _statusHintTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                _statusHintTimer.Tick -= OnStatusHintTimerTick;
+                _statusHintTimer.Tick += OnStatusHintTimerTick;
+                _statusHintTimer.Stop();
+                _statusHintTimer.Start();
+            }
+        }
+
+        private DispatcherTimer? _statusHintTimer;
+
+        private void OnStatusHintTimerTick(object? sender, EventArgs e)
+        {
+            _statusHintTimer?.Stop();
+            StatusHint = null;
+        }
+
+        /// <summary>是否显示执行顺序链（工具条开关）</summary>
+        public bool ShowOrderLinks
+        {
+            get => field;
+            set
+            {
+                if (SetProperty(ref field, value))
+                    RebuildInPlace();
+            }
+        } = true;
+
+        /// <summary>
+        /// 是否显示端口数据线（工具条开关，**默认关**——用户口径："端口之间的连线默认不显示，
+        /// 只显示执行顺序"）。
+        ///
+        /// 隐藏只针对普通数据线：非法数据线（红虚线）是要用户去修的错误提示，不随开关隐藏
+        ///（警告条与 Illegal/Deferred 计数同样照常）。全局变量/常量角标不受影响。
+        /// </summary>
+        public bool ShowDataLinks
+        {
+            get => field;
+            set
+            {
+                if (SetProperty(ref field, value))
+                    RebuildInPlace();
+            }
         }
 
         /// <summary>统一刷新派生状态</summary>
@@ -414,6 +506,26 @@ namespace VisionMaster.ViewModels
         private void OnFlowStepsChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             if (_rebuilding) return;
+
+            if (_internalWriteback > 0 || _suppressUndoRedo)
+            {
+                // 画布自己的命令写回（改序/移分支 Redo、删除）：栈里那条命令就是本次变化的作者，只重画不清栈
+                RebuildInPlace();
+                return;
+            }
+
+            // 外部结构变化只对"会塌陷下标"的动作清栈（Remove/Replace/Reset）：
+            // 撤销栈里命令记录的 owner+下标快照在删除后会指错元素，撤销会移错步骤甚至越界。
+            // Add/Move 不塌陷既有下标，不清——"先写回、后压栈"的既有模式（撤销栈测试、
+            // 潜在的流程栏联动写回）依赖这一点；代价是外部 Add/Move 后撤销可能回滚到
+            // 略有偏移的顺序，最坏是顺序偏移、不崩溃不丢步骤，可接受。
+            bool structuralBreak = e.Action
+                is NotifyCollectionChangedAction.Remove
+                or NotifyCollectionChangedAction.Replace
+                or NotifyCollectionChangedAction.Reset;
+            if (structuralBreak)
+                ClearUndoStacks();
+
             RebuildInPlace();
         }
 
@@ -546,6 +658,8 @@ namespace VisionMaster.ViewModels
             CollectSteps(flow.Steps, allSteps);
 
             if (flow.Layout.HasMissing(allSteps))
+                // 不传 collapseOverride：首次渲染保持既有行为——新布局的深容器按
+                // AutoCollapseDepth 默认折叠，用户手动展开后坐标已在库、不会被折回去
                 flow.Layout.AutoLayout(flow.Steps);
 
             // 2. 建/复用节点（扁平，含折叠祖先内的步骤——它们进池不进画布）
@@ -593,7 +707,6 @@ namespace VisionMaster.ViewModels
             ObservableCollection<StepModel> list,
             List<ObservableCollection<StepModel>> into)
         {
-            Console.WriteLine("[trace] CollectCollections add=[" + string.Join(",", list.Select(x => x.StepName)) + "] intoCount=" + into.Count);
             into.Add(list);
             foreach (var step in list)
             {
@@ -657,6 +770,17 @@ namespace VisionMaster.ViewModels
             node.Inputs.Add(new CanvasConnectorViewModel(node, "__flow_in", typeof(object), isInput: true));
             node.Outputs.Add(new CanvasConnectorViewModel(node, "__flow_out", typeof(object), isInput: false));
 
+            // 节点右键菜单的命令入口：菜单的 DataContext 是节点 VM（弹层够不到 UserControl 资源树），
+            // 与连线 VM 的 UnbindCommand 同一模式——主 VM 在这里注入闭包命令
+            node.OpenBindingCommand = new DelegateCommand(() =>
+            {
+                if (node.Model != null) ModuleLinkRequested?.Invoke(node.Model);
+            });
+            node.OpenModuleParametersCommand = new DelegateCommand(() => OpenModuleParameters(node));
+            node.ToggleBreakpointCommand = new DelegateCommand(() => OnToggleBreakpoint(node));
+            node.ToggleDisableCommand = new DelegateCommand(() => OnToggleDisable(node));
+            node.DeleteCommand = new DelegateCommand(() => OnDeleteNode(node));
+
             node.PropertyChanged += OnNodePropertyChanged;
             node.PropertyChanged += OnNodeSelectionChanged;
             _nodePool[step.StepID] = node;
@@ -670,7 +794,9 @@ namespace VisionMaster.ViewModels
             var model = node.Model;
             if (model == null) return;
 
-            node.OrderIndex = _topology.TryGet(model.StepID, out var pos) ? pos.IndexInOwner + 1 : 0;
+            node.OrderIndex = _topology.TryGet(model.StepID, out var pos) ? pos!.IndexInOwner + 1 : 0;
+            // 叠放层次按拓扑深度：父框 < 父泳道 < 子框 < 子泳道 < 子内容（见 CanvasNodeViewModel.ZOrder）
+            node.Depth = pos?.Depth ?? 0;
 
             if (TryGetLayout(model.StepID, out var x, out var y, out var collapsed))
             {
@@ -758,102 +884,49 @@ namespace VisionMaster.ViewModels
 
             // 各分支的内容矩形（先递归嵌套容器，保证祖先能拿到子孙框的最终矩形）。
             // 泳道每帧新建：它没有任何需要跨帧保留的状态，池化反而会在折叠后吐出脏泳道
-            var branchRects = new List<Rect>();
             var branchNodes = new List<CanvasNodeViewModel>();
             foreach (var branch in container.Children)
             {
                 if (branch?.Steps == null) continue;
                 var laneNode = CanvasNodeViewModel.CreateLane(branch);
+                laneNode.Depth = node.Depth;   // 泳道与所属容器同层：父框 < 父泳道 < 子内容
                 _lanes.Add(laneNode);
                 branchNodes.Add(laneNode);
             }
 
             var contentRects = new List<Rect>();
-            int laneIndex = 0;
             foreach (var branch in container.Children)
             {
                 if (branch?.Steps == null) continue;
-                var laneNode = branchNodes[laneIndex];
-
-                Rect contentRect;
-                if (branch.Steps.Count == 0)
-                {
-                    // 空分支：占位矩形，位置稍后统一贴到内容区左上
-                    contentRect = Rect.Empty;
-                    laneNode.IsLaneEmpty = true;
-                }
-                else
-                {
-                    contentRect = ComputeGeometry(branch.Steps);
-                    laneNode.IsLaneEmpty = false;
-                }
-
-                contentRects.Add(contentRect);
-                branchRects.Add(contentRect);
-                laneIndex++;
+                contentRects.Add(branch.Steps.Count == 0 ? Rect.Empty : ComputeGeometry(branch.Steps));
             }
 
-            // 非空内容并集（用于定位空分支占位与框体）
-            var populated = branchRects.Where(r => !r.IsEmpty).ToList();
-            Rect contentUnion;
-            bool allEmpty = populated.Count == 0;
-            if (!allEmpty)
+            // 畸形容器（一条分支都没有）：渲染不出泳道，框体锚在存储坐标上兜底
+            if (contentRects.Count == 0)
             {
-                double left = populated.Min(r => r.Left);
-                double top = populated.Min(r => r.Top);
-                double right = populated.Max(r => r.Right);
-                double bottom = populated.Max(r => r.Bottom);
-                contentUnion = new Rect(left, top, right - left, bottom - top);
-            }
-            else
-            {
-                // 全空分支：框体锚在容器的存储坐标上（与普通节点同位），内容区从头铺
-                contentUnion = new Rect(node.Location.X, node.Location.Y, 0, 0);
+                var bare = new Rect(node.Location.X, node.Location.Y, CollapsedFrameWidth, CollapsedFrameHeight);
+                node.LaneWidth = bare.Width;
+                node.LaneHeight = bare.Height;
+                _frameRects[containerStep.StepID] = bare;
+                return bare;
             }
 
-            // 泳道几何 = 本分支内容外接框 + 内边距。
-            // 空分支泳道贴内容区左上角：混合场景与有内容泳道的"内容顶"对齐，
-            // 全空场景按框内横向铺开——绝不让泳道顶进框头带
-            double emptyLaneY = allEmpty
-                ? contentUnion.Top + FrameHeaderHeight + FramePadding
-                : populated.Count > 0
-                    ? branchNodes.Where((_, i) => !branchRects[i].IsEmpty).Min(l => l.Location.Y)
-                    : contentUnion.Top;
-            double emptyLaneX = allEmpty
-                ? contentUnion.Left + FramePadding
-                : contentUnion.Left;
+            var laneRects = ComputeLaneRects(contentRects, node.Location);
 
             for (int i = 0; i < branchNodes.Count; i++)
             {
                 var laneNode = branchNodes[i];
-                var contentRect = branchRects[i];
-
-                double lx, ly, lw, lh;
-                if (contentRect.IsEmpty)
-                {
-                    lx = emptyLaneX;
-                    ly = emptyLaneY;
-                    lw = EmptyLaneWidth;
-                    lh = EmptyLaneHeight;
-                }
-                else
-                {
-                    lx = contentRect.Left - LanePadding;
-                    ly = contentRect.Top - LanePadding - LaneHeaderHeight;
-                    lw = contentRect.Width + LanePadding * 2;
-                    lh = contentRect.Height + LanePadding * 2 + LaneHeaderHeight;
-                }
-
-                laneNode.Location = new Point(lx, ly);
-                laneNode.LaneWidth = lw;
-                laneNode.LaneHeight = lh;
+                laneNode.IsLaneEmpty = contentRects[i].IsEmpty;
+                laneNode.Location = laneRects[i].Location;
+                laneNode.LaneWidth = laneRects[i].Width;
+                laneNode.LaneHeight = laneRects[i].Height;
             }
 
             // 框体 = 泳道并集 + 框内边距 + 头带
-            var laneUnionLeft = branchNodes.Min(l => l.Location.X);
-            var laneUnionTop = branchNodes.Min(l => l.Location.Y);
-            var laneUnionRight = branchNodes.Max(l => l.Location.X + l.LaneWidth);
-            var laneUnionBottom = branchNodes.Max(l => l.Location.Y + l.LaneHeight);
+            var laneUnionLeft = laneRects.Min(r => r.Left);
+            var laneUnionTop = laneRects.Min(r => r.Top);
+            var laneUnionRight = laneRects.Max(r => r.Right);
+            var laneUnionBottom = laneRects.Max(r => r.Bottom);
 
             var frame = new Rect(
                 laneUnionLeft - FramePadding,
@@ -869,7 +942,70 @@ namespace VisionMaster.ViewModels
             return frame;
         }
 
-        /// <summary>Z 序组装：容器框 → 其各分支泳道 → 分支内容（嵌套容器递归）</summary>
+        /// <summary>
+        /// 各分支的泳道矩形：有内容列 = 内容外接框 ± 内边距；空分支列 = 占位泳道按列序插位。
+        ///
+        /// 空泳道的列序规则与布局器（Core\Models\FlowLayoutStore.PlaceExpanded）同一条：
+        /// 列左缘 = 上一列泳道右缘 + ColumnGap，首列 = 容器框左缘 + FramePadding。
+        /// 有内容列以内容实位为准（用户拖过的坐标不会被硬拉回列起点），它前面的空列向左回推——
+        /// 多条空泳道不再同址、也不再压到内容/嵌套容器框上
+        ///（2026-10-09 真机"流程画布太乱"里那条半透明蓝块就是它）。
+        /// </summary>
+        private static List<Rect> ComputeLaneRects(List<Rect> contentRects, Point anchor)
+        {
+            var lanes = new List<Rect>(contentRects.Count);
+            for (int i = 0; i < contentRects.Count; i++)
+                lanes.Add(Rect.Empty);
+
+            int firstPopulated = contentRects.FindIndex(r => !r.IsEmpty);
+            if (firstPopulated < 0)
+            {
+                // 全空：框体锚在容器存储坐标上，空泳道自框内左上按列依次铺开
+                double x = anchor.X + FramePadding;
+                double y = anchor.Y + FrameHeaderHeight + FramePadding;
+                for (int i = 0; i < lanes.Count; i++)
+                {
+                    lanes[i] = new Rect(x, y, EmptyLaneWidth, EmptyLaneHeight);
+                    x += EmptyLaneWidth + ColumnGap;
+                }
+                return lanes;
+            }
+
+            // 空泳道的顶（含头带）与有内容列对齐——并列/混合场景下泳道头带在同一横带
+            double laneTop = contentRects.Where(r => !r.IsEmpty)
+                .Min(r => r.Top - LanePadding - LaneHeaderHeight);
+
+            // 首个有内容列定盘，向右按列距推进
+            double cursorX = contentRects[firstPopulated].Left - LanePadding;
+            for (int i = firstPopulated; i < lanes.Count; i++)
+            {
+                var content = contentRects[i];
+                lanes[i] = content.IsEmpty
+                    ? new Rect(cursorX, laneTop, EmptyLaneWidth, EmptyLaneHeight)
+                    : new Rect(
+                        content.Left - LanePadding,
+                        content.Top - LanePadding - LaneHeaderHeight,
+                        content.Width + LanePadding * 2,
+                        content.Height + LanePadding * 2 + LaneHeaderHeight);
+
+                cursorX = lanes[i].Right + ColumnGap;
+            }
+
+            // 它前面的空列向左回推（都是占位宽，不与首个有内容列相交）
+            for (int i = firstPopulated - 1; i >= 0; i--)
+            {
+                lanes[i] = new Rect(
+                    lanes[i + 1].Left - ColumnGap - EmptyLaneWidth,
+                    laneTop, EmptyLaneWidth, EmptyLaneHeight);
+            }
+
+            return lanes;
+        }
+
+        /// <summary>
+        /// Z 序组装：容器框 → 其各分支泳道 → 分支内容（嵌套容器递归）。
+        /// 只决定集合序（无 Panel.ZIndex 时的兜底序）；视觉层次以节点 ZOrder 为准（见 Nodes 的说明）
+        /// </summary>
         private void AppendInZOrder(ObservableCollection<StepModel> list)
         {
             foreach (var step in list)
@@ -1033,6 +1169,7 @@ namespace VisionMaster.ViewModels
                 var node = _nodePool[id];
                 node.PropertyChanged -= OnNodePropertyChanged;
                 node.PropertyChanged -= OnNodeSelectionChanged;
+                node.UnhookModel();
                 _nodePool.Remove(id);
             }
         }
@@ -1152,9 +1289,17 @@ namespace VisionMaster.ViewModels
                     {
                         linkVm = new CanvasLinkViewModel(producer, consumer)
                         {
-                            // 右键菜单的解绑项走这里：菜单的 DataContext 是连线，够不到主 VM
+                            // 连线右键菜单的 DataContext 是连线 VM（弹层够不到主 VM），
+                            // 命令入口在这里注入——与节点 VM 的菜单命令同一模式
                             UnbindCommand = new DelegateCommand<CanvasLinkBinding?>(OnUnbindBinding),
                         };
+                        var unbindAllTarget = linkVm;
+                        linkVm.OpenBindingCommand = new DelegateCommand(() =>
+                        {
+                            if (unbindAllTarget.Target.Model != null)
+                                ModuleLinkRequested?.Invoke(unbindAllTarget.Target.Model);
+                        });
+                        linkVm.UnbindAllCommand = new DelegateCommand(() => UnbindAllBindings(unbindAllTarget));
                         byPair[pairKey] = linkVm;
                         Links.Add(linkVm);
                         producer.Outputs[0].IsConnected = true;
@@ -1172,6 +1317,20 @@ namespace VisionMaster.ViewModels
                 linkVm.NotifyBindingsChanged();
             }
 
+            // 数据线隐藏（默认态）：聚合完成后**按整条线**定去留——普通线不渲染，
+            // 非法线（红虚线）照常渲染（它是要用户去修的错误提示，不是噪声）。
+            // 过滤必须晚于聚合与合法性判定：同一对模块的多条绑定先合并成一根线、再由
+            // "有没有非法绑定"决定这根线画不画；若在"加进 Links"的地方提前过滤，
+            // 后到的非法绑定会挂在一根从未渲染过的线上——同一对模块换个绑定顺序行为就变了。
+            if (!ShowDataLinks)
+            {
+                for (int i = Links.Count - 1; i >= 0; i--)
+                {
+                    if (!Links[i].IsIllegal)
+                        Links.RemoveAt(i);
+                }
+            }
+
             // 顺序链在 Render 里于 BuildLinks 之后统一构建（需要全量集合清单）
             UpdateLinkAnchors();
         }
@@ -1183,7 +1342,8 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private void BuildOrderLinks(IReadOnlyList<ObservableCollection<StepModel>> collections)
         {
-            Console.WriteLine("[trace] BuildOrderLinks collections=" + string.Join(" || ", collections.Select(c => string.Join(",", c.Select(x => x.StepName)))));
+            if (!ShowOrderLinks) return;
+
             foreach (var list in collections)
             {
                 CanvasNodeViewModel? prev = null;
@@ -1217,11 +1377,30 @@ namespace VisionMaster.ViewModels
                 {
                     link.SourceAnchor = EdgeMidpoint(link.Source, OrderEdge.Bottom);
                     link.TargetAnchor = EdgeMidpoint(link.Target, OrderEdge.Top);
+                    link.SourcePosition = Nodify.ConnectorPosition.Bottom;
+                    link.TargetPosition = Nodify.ConnectorPosition.Top;
                 }
                 else
                 {
                     link.SourceAnchor = EdgeMidpoint(link.Source, OrderEdge.Right);
                     link.TargetAnchor = EdgeMidpoint(link.Target, OrderEdge.Left);
+
+                    // 进出边按「节点中心」几何选：消费方中心明显错开到生产方中心左侧
+                    // （超过半个模块宽）→ 左出右入，让正交走线绕就近一侧；
+                    // 垂直对齐/略偏 → 维持右出左入（右侧绕行）。
+                    // 判据不能用锚点差——Right/Left 锚点天然差一个模块宽，
+                    // 竖排同列会被误判成"消费方在左侧"，线从左缘出被节点盖住。
+                    double sourceCenterX = link.Source.Location.X
+                        + (link.Source.Kind == CanvasNodeKind.Container ? link.Source.LaneWidth : NodeWidth) / 2;
+                    double targetCenterX = link.Target.Location.X
+                        + (link.Target.Kind == CanvasNodeKind.Container ? link.Target.LaneWidth : NodeWidth) / 2;
+                    bool targetFarLeft = targetCenterX < sourceCenterX - NodeWidth / 2;
+                    link.SourcePosition = targetFarLeft
+                        ? Nodify.ConnectorPosition.Left
+                        : Nodify.ConnectorPosition.Right;
+                    link.TargetPosition = targetFarLeft
+                        ? Nodify.ConnectorPosition.Right
+                        : Nodify.ConnectorPosition.Left;
                 }
             }
         }
@@ -1234,10 +1413,16 @@ namespace VisionMaster.ViewModels
             double h = node.Kind == CanvasNodeKind.Container ? node.LaneHeight : NodeHeight;
             double x = node.Location.X, y = node.Location.Y;
 
+            // 容器框的左右脚锚在头带高度（框顶 + 头带中心），而不是框缘垂直中点——
+            // 框体随内容增高后，中点锚会飘到离头带/内容很远的地方（2026-10-07 真机反馈）
+            double sideY = node.Kind == CanvasNodeKind.Container
+                ? y + (node.IsCollapsed ? CollapsedFrameHeight : FrameHeaderHeight) / 2
+                : y + h / 2;
+
             switch (edge)
             {
-                case OrderEdge.Left: return new Point(x, y + h / 2);
-                case OrderEdge.Right: return new Point(x + w, y + h / 2);
+                case OrderEdge.Left: return new Point(x, sideY);
+                case OrderEdge.Right: return new Point(x + w, sideY);
                 case OrderEdge.Top: return new Point(x + w / 2, y);
                 case OrderEdge.Bottom: return new Point(x + w / 2, y + h);
                 default: return new Point(x, y);
@@ -1263,7 +1448,8 @@ namespace VisionMaster.ViewModels
         {
             LinkLegality.SameListReversed => "生产方排在消费方之后（执行顺序倒序）",
             LinkLegality.ProducerAfterEnclosingContainer => "生产方排在包住消费方的容器之后，消费时它还没执行",
-            LinkLegality.CrossBranch => "跨分支取数：该分支本轮可能不执行，或取到上一轮陈旧值",
+            LinkLegality.CrossBranch => "跨分支取数：该分支本轮可能不执行，或取到上一轮陈旧值"
+                + "（并行分支之间同样禁止互取：即使将来真并行，时序也不确定；需要共享的数据请在并行分组之前定义）",
             LinkLegality.Unknown => "连线端点不在图纸里（步骤已被删除）",
             _ => "结构非法连线",
         };
@@ -1288,28 +1474,85 @@ namespace VisionMaster.ViewModels
             return legality is LinkLegality.SameListBefore or LinkLegality.ProducerIsAncestor;
         }
 
+        /// <summary>
+        /// 拖线源端快照。Nodify 7.3 真实时序（IL 取证）：控件在 Execute(CompletedCommand) **之前**
+        /// 先置 IsVisible=false，且该 DP 默认 TwoWay——回流会触发 OnPendingConnectionChanged
+        /// 把 PendingConnection.Source/Target 清空，建线时从 PendingConnection 读源端必是 null。
+        /// 源端一律取本字段（OnStartConnection 时存入），绝不在 IsVisible=false 的通知里清它。
+        /// </summary>
+        private CanvasConnectorViewModel? _pendingSourceConnector;
+
         private void OnStartConnection(object? parameter)
         {
             if (parameter is CanvasConnectorViewModel connector)
+            {
+                _pendingSourceConnector = connector;
                 PendingConnection.Source = connector;
+                UpdateConnectableFeedback(connector);
+            }
 
             PendingConnection.IsVisible = true;
         }
 
+        /// <summary>
+        /// 拖线中按拓扑把"能作为另一端"的端口亮出来、其余压灰（CanvasConnectorViewModel.IsConnectable）。
+        /// 画布比编译器只严不松的口径见 CanLinkSteps 注释；结束时统一复位（见 ResetConnectableFeedback）。
+        /// </summary>
+        private void UpdateConnectableFeedback(CanvasConnectorViewModel source)
+        {
+            if (source.Owner == null) return;
+
+            foreach (var node in _nodeMap.Values)
+            {
+                bool connectable = node.Model != null
+                    && (source.IsInput
+                        ? CanLinkSteps(node, source.Owner)      // 从输入脚起拖：候选节点是生产方
+                        : CanLinkSteps(source.Owner, node));    // 从输出脚起拖：候选节点是消费方
+
+                foreach (var input in node.Inputs)
+                {
+                    input.IsConnectable = connectable;
+                    input.IsDragInProgress = true;
+                }
+                foreach (var output in node.Outputs)
+                {
+                    output.IsConnectable = connectable;
+                    output.IsDragInProgress = true;
+                }
+            }
+        }
+
+        private void ResetConnectableFeedback()
+        {
+            foreach (var node in _nodeMap.Values)
+            {
+                foreach (var input in node.Inputs)
+                {
+                    input.IsConnectable = true;
+                    input.IsDragInProgress = false;
+                }
+                foreach (var output in node.Outputs)
+                {
+                    output.IsConnectable = true;
+                    output.IsDragInProgress = false;
+                }
+            }
+        }
+
         private void OnCompleteConnection(object? parameter)
         {
+            // Nodify 7.3 取证（PendingConnection::OnPendingConnectionCompleted 的 IL）：
+            // 实参 = 目标连接器（Execute(get_Target)），且控件在 Execute 之前已置 IsVisible=false
+            // （TwoWay 回流清空了 PendingConnection.Source/Target）——源端取拖线开始时的快照字段。
+            var target = parameter as CanvasConnectorViewModel ?? PendingConnection.Target;
+            var source = _pendingSourceConnector ?? PendingConnection.Source;
+
+            // 收场：正常时序下控件已先置 IsVisible（此处幂等兜底），快照字段必须在这里清——
+            // 不能挪进 OnPendingConnectionChanged（那里在 Execute 前就会跑，会把源端清掉）
+            _pendingSourceConnector = null;
             PendingConnection.IsVisible = false;
 
-            var source = PendingConnection.Source;
-            var target = PendingConnection.Target;
-
-            if (parameter is Tuple<object, object> tuple)
-            {
-                source = tuple.Item1 as CanvasConnectorViewModel;
-                target = tuple.Item2 as CanvasConnectorViewModel;
-            }
-
-            if (source?.Owner == null || target?.Owner == null) return;
+            if (source?.Owner == null || target?.Owner == null) return;   // 拖线落空/取消：静默收场
 
             // 方向归一：拖线允许从任一端开始（从输入脚往回拖也是建线）
             var producer = source.Owner;
@@ -1340,7 +1583,30 @@ namespace VisionMaster.ViewModels
             {
                 PendingConnection.Source = null;
                 PendingConnection.Target = null;
+                ResetConnectableFeedback();
             }
+        }
+
+        /// <summary>断开一根聚合连线承载的全部端口绑定（连线右键菜单，整批一个撤销单元）</summary>
+        private void UnbindAllBindings(CanvasLinkViewModel link)
+        {
+            if (_attachedFlow == null) return;
+
+            var commands = new List<IUndoCommand>();
+            foreach (var binding in link.Bindings)
+            {
+                if (binding.Consumer == null || binding.OriginalLink == null) continue;
+                if (!_topology.TryGet(binding.Consumer.StepID, out _)) continue;
+
+                binding.Consumer.RemoveLink(binding.Key);
+                commands.Add(new DisconnectCommand(binding.Consumer, binding.Key, binding.OriginalLink));
+            }
+
+            if (commands.Count == 0) return;
+
+            PushUndo(new MultiUndoCommand(commands));
+            StatusHint = $"已断开 {commands.Count} 条绑定（Ctrl+Z 可整批撤销）";
+            RebuildInPlace();
         }
 
         private void OnUnbindBinding(CanvasLinkBinding? binding)
@@ -1388,13 +1654,136 @@ namespace VisionMaster.ViewModels
         }
 
         // ==================================================================
+        //  禁用 / 删除
+        // ==================================================================
+
+        /// <summary>启用/禁用切换（节点右键菜单）。与流程栏同一写法：翻转 IsDisEnable，禁用语义由执行引擎解释</summary>
+        private void OnToggleDisable(CanvasNodeViewModel? node)
+        {
+            if (node?.Model == null || node.IsDecorator) return;
+
+            node.Model.IsDisEnable = !node.Model.IsDisEnable;
+            node.RefreshHeader();
+            StatusHint = node.Model.IsDisEnable
+                ? $"已禁用「{node.Model.StepName}」"
+                : $"已启用「{node.Model.StepName}」";
+        }
+
+        /// <summary>节点右键菜单「删除」：把该节点单选化后走统一删除</summary>
+        private void OnDeleteNode(CanvasNodeViewModel node)
+        {
+            if (_attachedFlow == null || node.Model == null || node.IsDecorator) return;
+
+            foreach (var other in _nodeMap.Values.Where(n => n.IsSelected && !ReferenceEquals(n, node)))
+                other.IsSelected = false;
+            node.IsSelected = true;
+
+            OnDeleteSelection();
+        }
+
+        /// <summary>Delete 键 / 右键菜单的统一删除入口：移除选中的模块节点（含容器子树）</summary>
+        private void OnDeleteSelection()
+        {
+            if (_attachedFlow == null) return;
+
+            int removed = DeleteSelectedNodesCore();
+            if (removed == 0) return;
+
+            // 删除改变了集合构成，撤销栈里改序/移分支命令记录的下标快照已不可信
+            ClearUndoStacks();
+            StatusHint = $"已删除 {removed} 个模块（含子步骤）";
+            RebuildInPlace();
+        }
+
+        /// <summary>把选中的模块（含容器子树）移出图纸。返回删除个数。期间抑制逐个 Remove 触发的重建</summary>
+        private int DeleteSelectedNodesCore()
+        {
+            int removed = 0;
+            var targets = _nodeMap.Values
+                .Where(n => n.IsSelected && !n.IsDecorator && n.Model != null)
+                .Select(n => n.Model!)
+                .Where(m => _topology.TryGet(m.StepID, out _))
+                .ToList();
+            if (targets.Count == 0) return 0;
+
+            _rebuilding = true;
+            try
+            {
+                foreach (var step in targets)
+                {
+                    if (!_topology.TryGet(step.StepID, out var pos) || pos!.Owner == null) continue;
+
+                    // IndexOf 按引用现查：快照里的 IndexInOwner 可能已被同批次删除挤动
+                    int index = pos.Owner.IndexOf(step);
+                    if (index >= 0)
+                    {
+                        pos.Owner.RemoveAt(index);
+                        removed++;
+                    }
+                }
+            }
+            finally
+            {
+                _rebuilding = false;
+            }
+
+            return removed;
+        }
+
+        // ==================================================================
+        //  模块参数（画布双击节点 / 节点右键菜单）
+        // ==================================================================
+
+        /// <summary>
+        /// 「模块参数」共享入口（画布双击节点 / 节点右键菜单共用）——与流程栏右键、断点命中窗
+        /// 走同一个 StepParameterDialog.Open 分派（ActionStep→插件参数 / ConditionStep·ForStep→
+        /// 条件编辑器 / ParallelStep→EasyDialog 并行属性面板；返回 false = 该靶没有参数面板）。
+        ///
+        /// 泳道没有 Model：空跑（与折叠/禁用/删除的守卫同口径）。
+        /// dialogService 从 Prism 容器按需解析：视图那边也是这么拿的（FlowCanvasView.OnModuleLinkRequested）；
+        /// headless 断言宿主没有容器，解析失败按"没有服务 = 打不开窗"静默空跑——这是纯 UI 动作，
+        /// 不需要为它伪造失败路径。
+        /// </summary>
+        public void OpenModuleParameters(CanvasNodeViewModel? node)
+        {
+            var model = node?.Model;
+            if (model == null) return;
+
+            var dialogService = TryResolveDialogService();
+            if (dialogService == null) return;
+
+            if (!StepParameterDialog.Open(model, dialogService, _workspace))
+                StatusHint = $"「{model.StepName}」没有模块参数面板";
+        }
+
+        /// <summary>按需解析宿主对话框服务；容器未初始化（断言宿主 / 设计器）返回 null</summary>
+        private static IDialogService? TryResolveDialogService()
+        {
+            try
+            {
+                return ContainerLocator.Container?.Resolve<IDialogService>();
+            }
+            catch
+            {
+                // ContainerLocator 未初始化会抛：无宿主即无弹窗能力，调用方按"打不开"处理
+                return null;
+            }
+        }
+
+        // ==================================================================
         //  整理布局
         // ==================================================================
 
         /// <summary>
         /// 清空全部节点坐标后按正交规则重排。
-        /// 折叠标记必须保留：先记下哪些容器是折叠的，重排完成后再逐一置回——
-        /// 否则"展开/折叠触发的重排"会顺手把折叠状态抹掉。
+        ///
+        /// 折叠现场（每个容器的折叠标记）在**排位期**就交给布局器：清库重排后每个容器在
+        /// FlowLayoutStore 眼里都是"新项"，若不声明最终态，深于 AutoCollapseDepth 的容器会按
+        /// 自动折叠的 230×64 足迹参与父级行/列推进，而重排后它们要渲染成展开——框体远大于
+        /// 父级预留：同级泳道互压、后续兄弟被吞进框内（2026-10-09 审查 #1，十层图式实测外层框
+        /// 2092 高而排位只预留 700）。
+        /// 因此这里把"重排前记录的折叠集"作为 collapseOverride 传进 AutoLayout：足迹与标记
+        /// 同源（见 FlowLayoutStore.PlaceContainer），重排后不需要再逐个 SetCollapsed 恢复现场。
         /// </summary>
         private void TidyLayoutCore()
         {
@@ -1410,10 +1799,11 @@ namespace VisionMaster.ViewModels
             foreach (var step in all)
                 _attachedFlow.Layout.Remove(step.StepID);
 
-            _attachedFlow.Layout.AutoLayout(_attachedFlow.Steps);
-
-            foreach (var id in collapsedIds)
-                _attachedFlow.Layout.ToggleCollapsed(id);
+            // override 里没有的容器 = 本次应展开（含阈值内与阈值外的），
+            // 排位足迹与最终折叠标记都由它一次定死，不再事后翻标记
+            _attachedFlow.Layout.AutoLayout(
+                _attachedFlow.Steps,
+                collapseOverride: id => collapsedIds.Contains(id));
         }
 
         private void OnTidyLayout()
@@ -1471,7 +1861,15 @@ namespace VisionMaster.ViewModels
 
             if (_attachedFlow == null) return;
 
+            // Nodify 7.3 取证（NodifyEditor::OnItemsDragStarted/Completed 的 IL：Execute(get_DataContext)）：
+            // 命令实参是编辑器自身的 DataContext（= 本 VM），不是被拖容器列表——
+            // 只靠参数提取会永远拿到空快照，拖拽改序/跨分支提交随之断链。
+            // 主路径改用选中集：Nodify 在拖动手势开始前已把被拖容器置选中（框选多拖时全体已选中）；
+            // 参数提取保留，兼容测试直喂列表的旧形态。
             var dragged = ExtractDraggedNodes(parameter);
+            if (dragged.Count == 0)
+                dragged = _nodeMap.Values.Where(n => n.IsSelected && n.IsDraggable).ToList();
+
             if (dragged.Count == 0) return;
 
             _dragStartedSnapshot = new List<DragSnapshot>(dragged.Count);
@@ -1495,37 +1893,54 @@ namespace VisionMaster.ViewModels
             var primaryNode = primary.Node;
             if (primaryNode.Model == null) return;
 
+            // 已知取舍（刻意）：多选拖动的语义提交只认首个节点（改序/换分支按它的几何落点算），
+            // 其余被拖节点只随拖动挪坐标。整批换 owner 的插入顺序有歧义，留待后续轮设计。
+
             double centerX = primaryNode.Location.X + NodeWidth / 2;
             double centerY = primaryNode.Location.Y + NodeHeight / 2;
 
-            // 1. 落点所属集合：泳道 > 无（框内非泳道） > 顶层
-            var targetOwner = ResolveOwnerByPoint(centerX, centerY);
-
-            if (targetOwner != null && !ReferenceEquals(targetOwner, primary.Owner))
+            // 本次拖动可能以 Move/Reorder 收尾——集合写回是画布自己的命令做的，
+            // OnFlowStepsChanged 不能把它当外部变化清掉刚压栈的命令
+            _internalWriteback++;
+            try
             {
-                int toIndex = ComputeInsertIndexByY(targetOwner, centerY, primaryNode.Model);
-                int actualToIndex = Math.Min(toIndex, targetOwner.Count);
+                // 1. 落点所属集合：泳道 > 无（框内非泳道） > 顶层
+                var targetOwner = ResolveOwnerByPoint(centerX, centerY);
 
-                var cmd = new MoveBranchCommand(
-                    primaryNode.Model,
-                    primary.Owner, primary.OriginalIndex,
-                    targetOwner, actualToIndex);
-                cmd.Redo();
-                PushUndo(cmd);
-                return;
+                if (targetOwner != null && !ReferenceEquals(targetOwner, primary.Owner))
+                {
+                    int toIndex = ComputeInsertIndexByY(targetOwner, centerY, primaryNode.Model);
+                    int actualToIndex = Math.Min(toIndex, targetOwner.Count);
+
+                    var cmd = new MoveBranchCommand(
+                        primaryNode.Model,
+                        primary.Owner, primary.OriginalIndex,
+                        targetOwner, actualToIndex);
+                    cmd.Redo();
+                    PushUndo(cmd);
+                    return;
+                }
+
+                // 2. 改序：原 Owner 内按中心 Y 算新下标
+                int newIndex = ComputeInsertIndexByY(primary.Owner, centerY, primaryNode.Model);
+                if (newIndex != primary.OriginalIndex
+                    && newIndex >= 0 && newIndex < primary.Owner.Count)
+                {
+                    var cmd = new ReorderCommand(primary.Owner, primary.OriginalIndex, newIndex);
+                    cmd.Redo();
+                    PushUndo(cmd);
+                }
+
+                // 否则：只坐标移动，不入栈
+            }
+            finally
+            {
+                _internalWriteback--;
             }
 
-            // 2. 改序：原 Owner 内按中心 Y 算新下标
-            int newIndex = ComputeInsertIndexByY(primary.Owner, centerY, primaryNode.Model);
-            if (newIndex != primary.OriginalIndex
-                && newIndex >= 0 && newIndex < primary.Owner.Count)
-            {
-                var cmd = new ReorderCommand(primary.Owner, primary.OriginalIndex, newIndex);
-                cmd.Redo();
-                PushUndo(cmd);
-            }
-
-            // 否则：只坐标移动，不入栈
+            // 拖拽收尾：容器框/泳道几何按内容新位置贴合（拖动中不实时重算是已知取舍，抬手一次重建）；
+            // 提交路径里集合变化已经触发过一次重建，这里幂等
+            RebuildInPlace();
         }
 
         /// <summary>
@@ -1563,11 +1978,90 @@ namespace VisionMaster.ViewModels
             return _attachedFlow?.Steps;
         }
 
+        // ==================================================================
+        //  工具箱拖入（画布 = 主编辑面）
+        // ==================================================================
+
+        /// <summary>
+        /// 按画布坐标找**最深**的容器框（点在哪个框里就取哪个；嵌套时取内层）。
+        /// 判据用渲染期算好的框体矩形（_frameRects，含折叠态框）——泳道不算落点，
+        /// 落进容器的步骤一律进第一条分支（与流程栏 Drop 的"落进容器 = 第一条分支末尾"同口径）。
+        /// </summary>
+        public CanvasNodeViewModel? FindDeepestContainerAt(Point position)
+        {
+            CanvasNodeViewModel? best = null;
+            double bestArea = double.MaxValue;
+
+            foreach (var node in _steps)
+            {
+                if (node.Kind != CanvasNodeKind.Container) continue;
+                if (!_frameRects.TryGetValue(node.StepId, out var rect)) continue;
+                if (!rect.Contains(position)) continue;
+
+                // 深度优先；同深取面积更小者（框体重叠只有"祖先—子孙"一种情形，深度已够，
+                // 面积是并列时的确定性兜底）
+                double area = rect.Width * rect.Height;
+                if (best == null || node.Depth > best.Depth
+                    || (node.Depth == best.Depth && area < bestArea))
+                {
+                    best = node;
+                    bestArea = area;
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// 画布拖放：把工具箱模板造出的步骤插到落点（ToolItemModel → 模型走 StepFactory，
+        /// 与流程栏 Drop 同一份工厂）。
+        /// 落点规则（与流程栏 Drop 的可见结果对齐）：
+        ///  · 容器框内（取最深）→ 该容器第一条分支末尾；
+        ///  · 其余 → 顶层：插入下标 = 顶层步骤里"节点中心 Y 小于落点 Y"的条数（画布坐标）。
+        /// 结构变更通知图纸（Version++，触发重编译）；不做撤销（与流程栏 Drop 同口径）。
+        /// </summary>
+        public bool DropToolAt(ToolItemModel tool, Point position)
+        {
+            if (_attachedFlow == null || tool == null) return false;
+
+            var container = FindDeepestContainerAt(position);
+            ObservableCollection<StepModel> owner;
+            int insertIndex;
+            string targetName;
+
+            // 畸形容器（模型层构造保证不会出现）没有分支可落：退化按顶层插入，不让拖放"无声失败"
+            if (container?.Model is IContainerStep target && target.Children is { Count: > 0 })
+            {
+                owner = target.Children[0].Steps;
+                insertIndex = owner.Count;   // 容器内一律追加到第一条分支末尾
+                targetName = $"「{container.Model.StepName}」";
+            }
+            else
+            {
+                owner = _attachedFlow.Steps;
+                insertIndex = ComputeInsertIndexByY(owner, position.Y, null);
+                targetName = "主流程";
+            }
+
+            string stepName = StepFactory.NextStepName(_attachedFlow, tool);
+            var step = StepFactory.CreateFromTool(tool, stepName);
+
+            if (insertIndex < 0) insertIndex = 0;
+            if (insertIndex > owner.Count) insertIndex = owner.Count;
+            owner.Insert(insertIndex, step);
+
+            // 结构变更：通知图纸重编译（口径同流程栏 Drop）；集合 Add 已触发一次画布重建，这里幂等兜底
+            _attachedFlow.Version++;
+            RebuildInPlace();
+            StatusHint = $"已添加「{stepName}」到{targetName}";
+            return true;
+        }
+
         /// <summary>在 owner 内按中心 Y 升序排（含被拖节点），算出被拖节点应处的下标</summary>
         private int ComputeInsertIndexByY(
             ObservableCollection<StepModel> owner,
             double draggedCenterY,
-            StepModel draggedStep)
+            StepModel? draggedStep)
         {
             int count = 0;
             foreach (var s in owner)
@@ -1620,6 +2114,9 @@ namespace VisionMaster.ViewModels
 
         /// <summary>右键菜单项文本：解绑动作 + 绑定描述 + 非法标记</summary>
         public string MenuHeader => (IsIllegal ? "⚠ " : string.Empty) + $"断开「{Display}」";
+
+        /// <summary>兜底显示：万一菜单没走显式 Header 绑定，也不能把类型全名刷到屏幕上（R20 同款病）</summary>
+        public override string ToString() => MenuHeader;
     }
 
     /// <summary>

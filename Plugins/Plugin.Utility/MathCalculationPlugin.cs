@@ -31,6 +31,7 @@ namespace VisionMaster.Plugins.Util
         Description = "支持多种数学运算：加减乘除、幂次、开方、三角函数等",
         ShortName = "\uf1ec"
     )]
+    [ParallelSafe] // 二期真并行：chun jisuan lei
     public class MathCalculationPlugin : VisionPluginBase
     {
         public InputPort<MathOperationType> Operation { get; } = new InputPort<MathOperationType>("Operation", MathOperationType.Add, "运算类型");

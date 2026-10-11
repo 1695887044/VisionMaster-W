@@ -41,10 +41,12 @@ namespace VisionMaster.Services
                 if (!File.Exists(ConfigPath))
                 {
                     Current = new AppConfigModel();
-                    return;
                 }
-                var json = File.ReadAllText(ConfigPath, Encoding.UTF8);
-                Current = JsonConvert.DeserializeObject<AppConfigModel>(json, JsonOptions) ?? new AppConfigModel();
+                else
+                {
+                    var json = File.ReadAllText(ConfigPath, Encoding.UTF8);
+                    Current = JsonConvert.DeserializeObject<AppConfigModel>(json, JsonOptions) ?? new AppConfigModel();
+                }
             }
             catch (Exception ex)
             {
@@ -52,6 +54,8 @@ namespace VisionMaster.Services
                 Console.WriteLine($"软件配置加载失败，使用默认配置。原因：{ex.Message}");
                 Current = new AppConfigModel();
             }
+
+            SyncParallelConfig();
         }
 
         /// <summary>
@@ -72,6 +76,20 @@ namespace VisionMaster.Services
                 Console.WriteLine($"软件配置保存失败：{ex.Message}");
                 throw;
             }
+
+            SyncParallelConfig();
+        }
+
+        /// <summary>
+        /// 【二期真并行】把 ParallelExecution 节灌进静态策略 GlobalParallelConfig（与 RunWindowMode 同口径）。
+        /// 为什么运行期装配：编译期读配置会传染全部 new FlowCompiler 调用点，且断言宿主会在
+        /// bin 写 AppConfig.json 破坏密闭性；运行期装配 = 改配置下一轮生效、无需重编译。
+        /// null 防御：老配置缺节时 ParallelExecution 带 = new() 初始化器不会为 null，双保险取 false。
+        /// </summary>
+        private void SyncParallelConfig()
+        {
+            VisionMaster.Models.GlobalParallelConfig.FailFastByDefault
+                = Current?.ParallelExecution?.FailFastByDefault ?? false;
         }
     }
 }

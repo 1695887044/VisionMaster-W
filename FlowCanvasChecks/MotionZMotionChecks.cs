@@ -123,18 +123,15 @@ namespace FlowCanvasChecks
                 addressLeftovers.Count == 0,
                 addressLeftovers.Count == 0 ? "" : "仍有残留：" + string.Join("、", addressLeftovers));
 
-            var panelPaths = new[]
-            {
-                @"UI\Controls\CustomControl\PropertyGrid\CardPropertyGrid.cs",
-                @"UI\Controls\CustomControl\PropertyGrid\FlatPropertyGrid.cs",
-            };
-            bool registered = panelPaths.All(path =>
-            {
-                var f = ResolveRepoFile(path);
-                return f != null && File.ReadAllText(f).Contains("new OptionSourceGenerator()");
-            });
-            Check("★两个属性面板都注册了动态候选生成器（漏一个就有一半场景仍是文本框）",
-                registered, "");
+            // 生成器清单已抽到 PropertyGridDefaults（Card/Flat 共用一份，结构上不可能再"漏一边"）：
+            // 断言改扫公共清单文本 + 两个子类继承基类管线（各自 new 生成器的那份旧断言随抽取而过时）。
+            var defaultsFile = ResolveRepoFile(@"UI\Controls\CustomControl\PropertyGrid\Core\PropertyGridDefaults.cs");
+            string defaultsText = defaultsFile != null ? File.ReadAllText(defaultsFile) : string.Empty;
+            bool generatorsInherited = typeof(UI.CustomControl.FlatPropertyGrid).BaseType == typeof(UI.CustomControl.PropertyGridBase)
+                && typeof(UI.CustomControl.CardPropertyGrid).BaseType == typeof(UI.CustomControl.PropertyGridBase);
+            Check("★属性面板共用生成器清单里注册了动态候选生成器（抽到 Defaults 后不可能漏一边）",
+                defaultsText.Contains("new OptionSourceGenerator()") && generatorsInherited,
+                "漏了不会报错，只会静默退回成手打文本框");
 
             var boardView = ResolveRepoFile(@"VisionMaster\Views\DialogViews\MotionBoardView.xaml");
             Check("板卡窗口最小高 680（否则默认尺寸下页签内容显示不全）",
@@ -189,9 +186,14 @@ namespace FlowCanvasChecks
 
             var motionModule = ResolveRepoFile(@"VisionMaster\Modules\MotionModule.cs");
             string moduleText = motionModule != null ? File.ReadAllText(motionModule) : string.Empty;
-            Check("★卡候选的**值**仍是地址（显示可以带设备名，但写进流程的必须是稳定的地址键）",
-                moduleText.Contains("new StepConfigOption(") && moduleText.Contains("c.Address"),
-                "值一旦改成显示文本，用户改设备名就会让已配流程全部失效");
+            // 卡寻址口径已换：流程里按**卡名**寻址（见 MotionModule.RegisterStepConfigOptions 的
+            // MotionCardName 分支），"值必须是稳定键"的不变量由下一条守——值=卡名本体（解析按卡名找设备），
+            // 同名卡只列一项 + 启动体检报重名（卡名是稳定键，设备名/IP 不是）。
+            Check("★卡候选的值仍是稳定键（按卡名寻址；显示可以带设备名，但写进流程的必须能解析回设备）",
+                moduleText.Contains("new StepConfigOption(")
+                && moduleText.Contains("StepConfigOptionKind.MotionCardName")
+                && moduleText.Contains("g.Key.Trim()"),
+                "值一旦改成显示文本或地址，用户改设备名/换网段就会让已配流程全部失效");
 
             Check("候选的显示名只在设备名非空时才加括号（否则显示成「127.0.0.1（127.0.0.1）」更乱）",
                 moduleText.Contains("string.IsNullOrWhiteSpace(c.DisplayName)"), "");

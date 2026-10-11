@@ -41,10 +41,17 @@
                 <DataTrigger Binding="{Binding Model.State}" Value="Skipped">
                     <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasSkippedBrush}" />
                 </DataTrigger>
-                <!--  调试命中（DWV 第 1 期）：停在断点/单步位置 = 橙色描边（评审建议色 #E6A23C）。
+                <!--  Warning / Cancel：枚举里有、此前漏画——Warning 与 Idle 同色会掩盖告警  -->
+                <DataTrigger Binding="{Binding Model.State}" Value="Warning">
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasWarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Model.State}" Value="Cancel">
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasCanceledBrush}" />
+                </DataTrigger>
+                <!--  调试命中（DWV 第 1 期）：停在断点/单步位置 = 橙色描边（评审建议色 #E6A23C，收口为令牌）。
                       停的位置在节点执行前，橙色描边一眼看出"就停在这"。  -->
                 <DataTrigger Binding="{Binding Model.IsDebugStopped}" Value="True">
-                    <Setter Property="BorderBrush" Value="#E6A23C" />
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasWarningBrush}" />
                     <Setter Property="BorderThickness" Value="2" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Model.IsDisEnable}" Value="True">
@@ -54,20 +61,72 @@
         </Style>
 
         <!--  连接点（每节点左入右出各一枚，骑在盒子边缘上）：
-              DataContext 切到连接器 VM（IsConnected 驱动实心/空心外观）；
+              DataContext 切到连接器 VM——实心/空心的颜色旋钮是 BorderBrush：
+              已连线 = 亮蓝实心常显；未连线默认隐藏，悬停节点浮现淡灰空心（拖线入口不丢），
+              拖线手势中全部现形（可达性由 IsConnectable 压灰提示）。
+              Padding 必须归零：Nodify 的 NodeInput/NodeOutput 默认 Padding=4,2，
+              在小控件盒内溢出会把可见圆环挤成残弧（2026-10-07 审查实测）。
               Anchor 不在这里回报——连线端点由主 VM 按盒子边缘中点直接算（确定性）。  -->
         <Style x:Key="FlowConnectorStyle" TargetType="Control">
-            <Setter Property="Width" Value="14" />
-            <Setter Property="Height" Value="14" />
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasNodeSubTextBrush}" />
             <Setter Property="Focusable" Value="False" />
+            <Setter Property="Opacity" Value="0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasNodeIconBrush}" />
+                    <Setter Property="Opacity" Value="1" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsConnected}" Value="False" />
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type nodify:ItemContainer}}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Opacity" Value="0.85" />
+                </MultiDataTrigger>
+                <DataTrigger Binding="{Binding IsDragInProgress}" Value="True">
+                    <Setter Property="Opacity" Value="0.85" />
+                </DataTrigger>
+                <!--  拖线中的不可达端口：显示但压灰（放最后覆盖前两条的透明度）  -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsDragInProgress}" Value="True" />
+                        <Condition Binding="{Binding IsConnectable}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Opacity" Value="0.25" />
+                </MultiDataTrigger>
+            </Style.Triggers>
         </Style>
 
         <!--  ====================  模块盒（真实步骤，固定 210×62）  ====================  -->
         <DataTemplate x:Key="StepNodeTemplate" DataType="{x:Type vm:CanvasNodeViewModel}">
-            <Grid Width="210" Height="62">
-                <Border Style="{StaticResource StepCardStyle}">
+            <!--  两行结构：Row0 = 模块卡片（NodeWidth/NodeHeight 锚点几何基准），Row1 = 算子注释行
+                  （卡片下缘外的灰色小字，海康式；有注释才显示，向下超出不影响锚点几何）  -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="62" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Width="210" Height="62" Grid.Row="0">
+                <!--  节点右键菜单：模板内联 = 每节点一份实例，DataContext 即节点 VM，命令走注入的闭包  -->
+                <Grid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Command="{Binding OpenBindingCommand}" Header="编辑绑定…（打开变量绑定）" />
+                        <MenuItem Command="{Binding OpenModuleParametersCommand}" Header="模块参数…" />
+                        <Separator />
+                        <MenuItem
+                            Command="{Binding ToggleBreakpointCommand}"
+                            Header="切换断点"
+                            Visibility="{Binding BreakpointMenuVisibility}" />
+                        <MenuItem Command="{Binding ToggleDisableCommand}" Header="{Binding DisableMenuHeader}" />
+                        <Separator />
+                        <MenuItem Command="{Binding DeleteCommand}" Header="删除（Delete，连同子步骤）" />
+                    </ContextMenu>
+                </Grid.ContextMenu>
+                <Border Style="{StaticResource StepCardStyle}" ToolTip="{Binding CardTooltip}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -85,7 +144,7 @@
                             Foreground="{StaticResource FlowCanvasNodeIconBrush}"
                             Text="{Binding IconGlyph}" />
 
-                        <!--  名称 + 插件名  -->
+                        <!--  名称 + 插件名（悬停明细统一在卡片 ToolTip：名称/插件名/注释）  -->
                         <StackPanel
                             Grid.Column="1"
                             Margin="10,0,4,0"
@@ -95,14 +154,12 @@
                                 FontWeight="SemiBold"
                                 Foreground="{StaticResource FlowCanvasNodeTextBrush}"
                                 Text="{Binding Header}"
-                                TextTrimming="CharacterEllipsis"
-                                ToolTip="{Binding Header}" />
+                                TextTrimming="CharacterEllipsis" />
                             <TextBlock
                                 FontSize="10.5"
                                 Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
                                 Text="{Binding SubTitle}"
-                                TextTrimming="CharacterEllipsis"
-                                ToolTip="{Binding SubTitle}" />
+                                TextTrimming="CharacterEllipsis" />
                         </StackPanel>
 
                         <!--  外链角标：全局变量/常量绑定数（悬停看明细）  -->
@@ -136,10 +193,13 @@
                 </Border>
 
                 <!--  断点圆点（DWV 第 1 期）：右上角小圆点 = 断点开关，点击即切换。
-                      平时浅灰空心的克制可见态；IsBreakpoint=true 变实心红（#F56C6C）。
-                      外层 Border 只负责加大命中区 + 手型 + 提示，圆点本体 8px。  -->
+                      平时浅灰空心的克制可见态；IsBreakpoint=true 变实心红；悬停描边加深提示可点。
+                      外层 Border 给 20×20 的实际命中区（此前无 Padding，命中区只有圆点本体 8×8）。  -->
                 <Border
-                    Margin="0,4,8,0"
+                    x:Name="NodeBreakpointDot"
+                    MinWidth="20"
+                    MinHeight="20"
+                    Margin="0,2,4,0"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top"
                     Background="Transparent"
@@ -155,12 +215,16 @@
                         <Ellipse.Style>
                             <Style TargetType="Ellipse">
                                 <Setter Property="Fill" Value="Transparent" />
-                                <Setter Property="Stroke" Value="#C0C4CC" />
+                                <Setter Property="Stroke" Value="{StaticResource FlowCanvasCanceledBrush}" />
                                 <Setter Property="StrokeThickness" Value="1.2" />
                                 <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Stroke" Value="{StaticResource FlowCanvasBreakpointBrush}" />
+                                        <Setter Property="StrokeThickness" Value="2" />
+                                    </Trigger>
                                     <DataTrigger Binding="{Binding Model.IsBreakpoint}" Value="True">
-                                        <Setter Property="Fill" Value="#F56C6C" />
-                                        <Setter Property="Stroke" Value="#F56C6C" />
+                                        <Setter Property="Fill" Value="{StaticResource FlowCanvasBreakpointBrush}" />
+                                        <Setter Property="Stroke" Value="{StaticResource FlowCanvasBreakpointBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -191,34 +255,61 @@
                         Text="{Binding OrderLabel}" />
                 </Border>
 
-                <!--  连接点：左入右出（DataContext 切到连接器 VM）  -->
+                <!--  连接点：左入右出（DataContext 切到连接器 VM；拖线中按 IsConnectable 压灰）  -->
                 <nodify:NodeInput
-                    Margin="-7,0,0,0"
+                    Margin="-6,0,0,0"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
-                    Background="Transparent"
-                    BorderThickness="0"
                     DataContext="{Binding Inputs[0]}"
                     IsConnected="{Binding IsConnected}"
                     Style="{StaticResource FlowConnectorStyle}"
                     ToolTip="目标脚：从其它模块的圆点拖到这里建立连线" />
                 <nodify:NodeOutput
-                    Margin="0,0,-7,0"
+                    Margin="0,0,-6,0"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
-                    Background="Transparent"
-                    BorderThickness="0"
                     DataContext="{Binding Outputs[0]}"
                     IsConnected="{Binding IsConnected}"
                     Style="{StaticResource FlowConnectorStyle}"
                     ToolTip="源脚：按住拖到目标模块建立连线" />
+                </Grid>
+
+                <!--  算子注释行：卡片下缘外的灰色小字（StepModel.Description，有注释才占位）  -->
+                <TextBlock
+                    Grid.Row="1"
+                    Width="210"
+                    Margin="0,2,0,0"
+                    HorizontalAlignment="Left"
+                    FontSize="10.5"
+                    Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
+                    Text="{Binding Comment}"
+                    TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding Comment}"
+                    Visibility="{Binding CommentVisibility}" />
             </Grid>
         </DataTemplate>
 
         <!--  ====================  容器框（If / While / For，可折叠）  ====================  -->
         <DataTemplate x:Key="ContainerNodeTemplate" DataType="{x:Type vm:CanvasNodeViewModel}">
-            <Grid Width="{Binding LaneWidth}" Height="{Binding LaneHeight}">
+            <!--  两行结构：Row0 = 容器框体（几何由子孙外接框算出），Row1 = 算子注释行（有注释才显示）  -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="{Binding LaneHeight}" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Width="{Binding LaneWidth}" Height="{Binding LaneHeight}" Grid.Row="0">
+                <Grid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Command="{Binding OpenBindingCommand}" Header="编辑绑定…（打开变量绑定）" />
+                        <MenuItem Command="{Binding OpenModuleParametersCommand}" Header="模块参数…" />
+                        <Separator />
+                        <MenuItem Command="{Binding ToggleDisableCommand}" Header="{Binding DisableMenuHeader}" />
+                        <Separator />
+                        <MenuItem Command="{Binding DeleteCommand}" Header="删除（Delete，连同子步骤）" />
+                    </ContextMenu>
+                </Grid.ContextMenu>
                 <Border
+                    ToolTip="{Binding CardTooltip}"
                     Background="{StaticResource FlowCanvasFrameTintBrush}"
                     BorderBrush="{StaticResource FlowCanvasFrameBorderBrush}"
                     BorderThickness="1.5"
@@ -240,8 +331,10 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <!--  折叠 / 展开  -->
+                                <!--  折叠 / 展开。x:Name 是双击豁免的判据（见 FlowCanvasView.xaml.cs
+                                     的 IsInteractivePart）：双击落在折叠钮上不许弹参数窗  -->
                                 <Border
+                                    x:Name="ContainerCollapseToggle"
                                     Grid.Column="0"
                                     Margin="0,0,6,0"
                                     Background="{StaticResource FlowCanvasCollapseBrush}"
@@ -288,8 +381,7 @@
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource FlowCanvasFrameHeaderTextBrush}"
                                     Text="{Binding Header}"
-                                    TextTrimming="CharacterEllipsis"
-                                    ToolTip="{Binding Header}" />
+                                    TextTrimming="CharacterEllipsis" />
 
                                 <TextBlock
                                     Grid.Column="3"
@@ -326,27 +418,38 @@
                         Text="{Binding OrderLabel}" />
                 </Border>
 
-                <!--  连接点：容器框左右缘中点（For.Index 这类产出从这里连出）  -->
+                <!--  连接点：容器框左右缘、锚在头带中心（SideConnectorMargin 与连线锚点同一点，
+                      框体增高后端口不再飘到框中部）  -->
                 <nodify:NodeInput
-                    Margin="-7,0,0,0"
+                    Margin="{Binding SideConnectorMarginLeft}"
                     HorizontalAlignment="Left"
-                    VerticalAlignment="Center"
-                    Background="Transparent"
-                    BorderThickness="0"
+                    VerticalAlignment="Top"
                     DataContext="{Binding Inputs[0]}"
                     IsConnected="{Binding IsConnected}"
                     Style="{StaticResource FlowConnectorStyle}"
                     ToolTip="目标脚：从其它模块的圆点拖到这里建立连线" />
                 <nodify:NodeOutput
-                    Margin="0,0,-7,0"
+                    Margin="{Binding SideConnectorMarginRight}"
                     HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Background="Transparent"
-                    BorderThickness="0"
+                    VerticalAlignment="Top"
                     DataContext="{Binding Outputs[0]}"
                     IsConnected="{Binding IsConnected}"
                     Style="{StaticResource FlowConnectorStyle}"
                     ToolTip="源脚：按住拖到目标模块建立连线" />
+                </Grid>
+
+                <!--  算子注释行：容器框下缘外的灰色小字（容器同样是算子，注释一并显示）  -->
+                <TextBlock
+                    Grid.Row="1"
+                    Width="{Binding LaneWidth}"
+                    Margin="0,2,0,0"
+                    HorizontalAlignment="Left"
+                    FontSize="10.5"
+                    Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
+                    Text="{Binding Comment}"
+                    TextTrimming="CharacterEllipsis"
+                    ToolTip="{Binding Comment}"
+                    Visibility="{Binding CommentVisibility}" />
             </Grid>
         </DataTemplate>
 
@@ -389,59 +492,67 @@
             </Border>
         </DataTemplate>
 
-        <!--  数据线的右键菜单（顺序链没有绑定语义，不挂菜单）  -->
-        <ContextMenu x:Key="DataLinkMenu">
-            <MenuItem
-                Command="{Binding DataContext.OpenBindingCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
-                CommandParameter="{Binding Target.Model}"
-                Header="编辑绑定…（打开变量绑定）" />
-            <Separator />
-            <ItemsControl ItemsSource="{Binding Bindings}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <MenuItem
-                            Command="{Binding DataContext.UnbindCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
-                            CommandParameter="{Binding}"
-                            Header="{Binding MenuHeader}" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ContextMenu>
-
         <!--  ====================  模块级聚合连线（端点 = 主 VM 算好的盒子边缘中点）  ====================  -->
-        <!--  数据线：横向（右缘出 → 左缘入）；执行顺序链：纵向（底缘出 → 顶缘入），细虚线、无菜单  -->
+        <!--  数据线：横向（右缘出 → 左缘入）；执行顺序链：纵向（底缘出 → 顶缘入），细虚线、无菜单。
+              StepConnection = 台阶式正交走线（海康式直角折线），替换此前 LineConnection——
+              直线斜穿大半张画布；CircuitConnection 的中段是 45° 斜线，两端接近同列时斜线拉得很长。
+              StepConnection 按 SourcePosition/TargetPosition 四边枚举走纯直角。
+              OffsetMode 必须显式 None：端点贴锚点，杜绝 Nodify 默认 offset 的端外"横杆"。
+              右键菜单内联在模板里 = 每连线一份实例（DataContext 就是连线 VM）——
+              绝不能改回 StaticResource 共享或属性元素本地值：本地值会压掉样式触发器
+              （2026-10-07 事故：数据线弹出类型全名行、顺序链弹空菜单）。
+              Fill 必须给：Nodify 的箭头由 Fill 填充，漏了就是描边色空芯三角。  -->
         <DataTemplate x:Key="ModuleLinkTemplate" DataType="{x:Type vm:CanvasLinkViewModel}">
-            <nodify:LineConnection
+            <nodify:StepConnection
+                ContextMenuOpening="OnConnectionContextMenuOpening"
                 Source="{Binding SourceAnchor}"
+                SourceOffsetMode="None"
+                SourcePosition="{Binding SourcePosition}"
                 Target="{Binding TargetAnchor}"
+                TargetOffsetMode="None"
+                TargetPosition="{Binding TargetPosition}"
+                Text="{Binding BindingCountLabel}"
                 ToolTip="{Binding Tooltip}">
-                <nodify:LineConnection.ContextMenu>
-                    <ContextMenu
-                        ItemsSource="{Binding Bindings}"
-                        Visibility="{Binding ContextMenuVisibility, Converter={x:Null}}" />
-                </nodify:LineConnection.ContextMenu>
-                <nodify:LineConnection.Style>
-                    <Style TargetType="{x:Type nodify:LineConnection}">
-                        <Setter Property="ContextMenu" Value="{StaticResource DataLinkMenu}" />
+                <nodify:StepConnection.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Command="{Binding OpenBindingCommand}" Header="编辑绑定…（打开变量绑定）" />
+                        <Separator />
+                        <MenuItem Command="{Binding UnbindAllCommand}" Header="断开全部绑定（整批可撤销）" />
+                        <MenuItem Header="断开单条绑定" ItemsSource="{Binding Bindings}">
+                            <MenuItem.ItemContainerStyle>
+                                <Style TargetType="MenuItem">
+                                    <Setter Property="Header" Value="{Binding MenuHeader}" />
+                                    <Setter Property="Command" Value="{Binding DataContext.UnbindCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}" />
+                                    <Setter Property="CommandParameter" Value="{Binding}" />
+                                </Style>
+                            </MenuItem.ItemContainerStyle>
+                        </MenuItem>
+                    </ContextMenu>
+                </nodify:StepConnection.ContextMenu>
+                <nodify:StepConnection.Style>
+                    <Style TargetType="{x:Type nodify:StepConnection}">
                         <Setter Property="Stroke" Value="{StaticResource FlowCanvasLinkBrush}" />
-                        <Setter Property="StrokeThickness" Value="2" />
+                        <Setter Property="Fill" Value="{StaticResource FlowCanvasLinkBrush}" />
+                        <Setter Property="StrokeThickness" Value="1.5" />
                         <Style.Triggers>
-                            <!--  执行顺序链：细灰虚线自上而下（与数据线区分）  -->
+                            <!--  执行顺序链：自上而下流动（底缘出、顶缘进），细灰虚线与数据线区分；
+                                  进出边（Bottom/Top）由主 VM 按连线语义写入，不在样式里覆盖  -->
                             <DataTrigger Binding="{Binding IsOrderLink}" Value="True">
-                                <Setter Property="ContextMenu" Value="{x:Null}" />
                                 <Setter Property="Stroke" Value="{StaticResource FlowCanvasOrderLinkBrush}" />
-                                <Setter Property="StrokeDashArray" Value="3,3" />
-                                <Setter Property="StrokeThickness" Value="1.5" />
+                                <Setter Property="Fill" Value="{StaticResource FlowCanvasOrderLinkBrush}" />
+                                <Setter Property="StrokeDashArray" Value="2.5,2.5" />
+                                <Setter Property="StrokeThickness" Value="1.2" />
                             </DataTrigger>
                             <!--  结构非法的线：红色虚线，编译会报致命错  -->
                             <DataTrigger Binding="{Binding IsIllegal}" Value="True">
                                 <Setter Property="Stroke" Value="{StaticResource FlowCanvasLinkIllegalBrush}" />
+                                <Setter Property="Fill" Value="{StaticResource FlowCanvasLinkIllegalBrush}" />
                                 <Setter Property="StrokeDashArray" Value="4,3" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </nodify:LineConnection.Style>
-            </nodify:LineConnection>
+                </nodify:StepConnection.Style>
+            </nodify:StepConnection>
         </DataTemplate>
 
         <!--  小地图项：一个点代表一个模块  -->
@@ -455,6 +566,16 @@
                     RadiusY="1.5" />
             </nodify:MinimapItem>
         </DataTemplate>
+
+        <!--  拖线橡皮筋：显式样式整条替换 Nodify 主题默认（无法 BasedOn——默认样式在主题字典里，
+              编译期 StaticResource 查不到），描边收口到画布色板（默认是 DodgerBlue）  -->
+        <Style
+            x:Key="FlowPendingConnectionStyle"
+            TargetType="{x:Type nodify:PendingConnection}">
+            <Setter Property="Stroke" Value="{StaticResource FlowCanvasNodeIconBrush}" />
+            <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="StrokeDashArray" Value="4,4" />
+        </Style>
 
         <!--  缩放工具条按钮  -->
         <Style x:Key="ZoomToolButtonStyle" TargetType="Button">
@@ -487,6 +608,22 @@
             </Setter>
         </Style>
     </UserControl.Resources>
+
+    <!--  画布快捷键挂 UserControl 级：挂 NodifyEditor 上时焦点一旦落到工具条/流程栏（编辑器子树外），
+          Ctrl+Z / Delete 就静默失效（元素级 InputBindings 沿焦点链路由）。挂这里覆盖整个视图子树。  -->
+    <UserControl.InputBindings>
+        <KeyBinding
+            Key="Z"
+            Command="{Binding UndoCommand}"
+            Modifiers="Control" />
+        <KeyBinding
+            Key="Y"
+            Command="{Binding RedoCommand}"
+            Modifiers="Control" />
+        <KeyBinding
+            Key="Delete"
+            Command="{Binding DeleteSelectionCommand}" />
+    </UserControl.InputBindings>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -521,13 +658,26 @@
                         VerticalAlignment="Center"
                         FontSize="11"
                         Foreground="{StaticResource FlowCanvasNodeSubTextBrush}"
-                        Text="拖动节点改布局 · 从模块圆点拖线连接 · 右键连线编辑绑定 · 点框头折叠容器" />
+                        Text="拖动模块排序 · 双击/右键开参数 · 圆点拖线连接 · 数据线默认隐藏" />
                 </StackPanel>
 
                 <StackPanel
                     Grid.Column="1"
                     Orientation="Horizontal"
                     VerticalAlignment="Center">
+                    <!--  数据线开关：默认关（只显示执行顺序）；非法连线（红虚线）不受开关影响，始终显示  -->
+                    <CheckBox
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="数据线"
+                        IsChecked="{Binding ShowDataLinks}"
+                        ToolTip="显示/隐藏端口之间的数据绑定连线（非法连线始终显示）" />
+                    <CheckBox
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Content="顺序链"
+                        IsChecked="{Binding ShowOrderLinks}"
+                        ToolTip="显示/隐藏执行顺序（节点间的细虚线箭头）" />
                     <Button
                         Command="{Binding ZoomCommand}"
                         CommandParameter="{x:Static vm:FlowCanvasZoomCommand.ZoomIn}"
@@ -565,7 +715,7 @@
         <Border
             Grid.Row="1"
             Padding="10,4"
-            Background="{StaticResource ScadaInvalidBackgroundBrush}"
+            Background="{StaticResource FlowCanvasWarningBackgroundBrush}"
             BorderThickness="0"
             Visibility="{Binding WarningVisibility}">
             <TextBlock
@@ -575,29 +725,49 @@
                 TextWrapping="Wrap" />
         </Border>
 
+        <!--  点阵背景：DrawingBrush 平铺 24×24 一个圆点，与 GridCellSize 对齐（吸附格 = 可见格）。
+              NodifyEditor 不自带网格绘制，只设 GridCellSize 是看不见格子的。
+              AllowDrop + 三个事件 = 工具箱拖入（主编辑面）与双击开参数：
+              拖放坐标用 NodifyEditor.GetLocationInsideEditor(e) 换算成图坐标（与节点 Location 同一坐标系）。  -->
         <nodify:NodifyEditor
             x:Name="Editor"
             Grid.Row="2"
-            Background="{StaticResource FlowCanvasBackgroundBrush}"
+            AllowDrop="True"
             Connections="{Binding Links}"
             ConnectionTemplate="{StaticResource ModuleLinkTemplate}"
+            DisplayConnectionsOnTop="False"
+            DragOver="OnEditorDragOver"
+            Drop="OnEditorDrop"
             GridCellSize="24"
             ItemsSource="{Binding Nodes}"
             ItemsDragStartedCommand="{Binding ItemsDragStartedCommand}"
             ItemsDragCompletedCommand="{Binding ItemsDragCompletedCommand}"
+            MouseDoubleClick="OnEditorMouseDoubleClick"
             PendingConnection="{Binding PendingConnection}">
-
-            <!--  撤销 / 重做 快捷键（栈空时 CanExecute=false 自动屏蔽）  -->
-            <nodify:NodifyEditor.InputBindings>
-                <KeyBinding
-                    Key="Z"
-                    Command="{Binding UndoCommand}"
-                    Modifiers="Control" />
-                <KeyBinding
-                    Key="Y"
-                    Command="{Binding RedoCommand}"
-                    Modifiers="Control" />
-            </nodify:NodifyEditor.InputBindings>
+            <nodify:NodifyEditor.Background>
+                <DrawingBrush
+                    TileMode="Tile"
+                    Viewport="0,0,24,24"
+                    ViewportUnits="Absolute">
+                    <DrawingBrush.Drawing>
+                        <DrawingGroup>
+                            <!--  底色图层 + 24×24 一个圆点：吸附格 = 可见格  -->
+                            <GeometryDrawing
+                                Brush="{StaticResource FlowCanvasBackgroundBrush}"
+                                Geometry="F0 M0,0 H24 V24 H0 Z" />
+                            <GeometryDrawing Geometry="M 12 12 L 12.01 12">
+                                <GeometryDrawing.Pen>
+                                    <Pen
+                                        Brush="{StaticResource FlowCanvasGridDotBrush}"
+                                        EndLineCap="Round"
+                                        StartLineCap="Round"
+                                        Thickness="1.4" />
+                                </GeometryDrawing.Pen>
+                            </GeometryDrawing>
+                        </DrawingGroup>
+                    </DrawingBrush.Drawing>
+                </DrawingBrush>
+            </nodify:NodifyEditor.Background>
 
             <nodify:NodifyEditor.ItemContainerStyle>
                 <Style BasedOn="{StaticResource {x:Type nodify:ItemContainer}}" TargetType="{x:Type nodify:ItemContainer}">
@@ -607,8 +777,14 @@
                     <!--  泳道与容器框钉死：框体坐标每次渲染由内容算出，拖了没地方存 -->
                     <Setter Property="IsDraggable" Value="{Binding IsDraggable}" />
                     <Setter Property="IsSelectable" Value="{Binding IsSelectable}" />
+                    <!--  叠放层次：同层"框 < 泳道 < 内容"、跨层按拓扑深度抬高。
+                          此前靠 Nodes 集合加入顺序叠放，后入分支的泳道会盖住先入分支里的嵌套容器框  -->
+                    <Setter Property="Panel.ZIndex" Value="{Binding ZOrder}" />
                     <Setter Property="SelectedBrush" Value="{StaticResource FlowCanvasNodeSelectedGlowBrush}" />
                     <Setter Property="SelectedBorderThickness" Value="1.5" />
+                    <!--  覆盖 Nodify 默认的常驻 DodgerBlue 1px 外框：未选中无框，选中态走 SelectedBrush  -->
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
                 </Style>
             </nodify:NodifyEditor.ItemContainerStyle>
 
@@ -644,6 +820,7 @@
                         IsVisible="{Binding IsVisible}"
                         Source="{Binding Source, Mode=OneWayToSource}"
                         StartedCommand="{Binding DataContext.StartConnectionCommand, RelativeSource={RelativeSource AncestorType={x:Type nodify:NodifyEditor}}}"
+                        Style="{StaticResource FlowPendingConnectionStyle}"
                         Target="{Binding Target, Mode=OneWayToSource}"
                         TargetAnchor="{Binding TargetLocation, Mode=OneWayToSource}" />
                 </DataTemplate>
@@ -670,6 +847,7 @@
                     ShadowDepth="1" />
             </Border.Effect>
             <nodify:Minimap
+                Background="{StaticResource FlowCanvasToolbarBrush}"
                 ItemsSource="{Binding Nodes}"
                 ItemTemplate="{StaticResource MinimapItemTemplate}"
                 ViewportLocation="{Binding ViewportLocation, ElementName=Editor, Mode=TwoWay}"

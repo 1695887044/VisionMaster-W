@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <GeneratePackageOnBuild>Flase</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Controls\G.Controls.Diagram.Presenters.Workflow\G.Controls.Diagram.Presenters.Workflow.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.PropertyGrid\G.Controls.PropertyGrid.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.ZoomBox\G.Controls.ZoomBox.csproj" />
+    <ProjectReference Include="..\..\Datas\G.Data.Test\G.Data.Test.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.BackgroundImage\G.Extensions.BackgroundImage.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Geometry\G.Extensions.Geometry.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup>
+
+</Project>

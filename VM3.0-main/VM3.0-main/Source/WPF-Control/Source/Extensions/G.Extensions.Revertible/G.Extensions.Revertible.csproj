@@ -1,0 +1,6 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\G.Services.Revertible\G.Services.Revertible.csproj" />
+    <ProjectReference Include="..\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+  </ItemGroup>
+</Project>

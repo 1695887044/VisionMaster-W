@@ -1,0 +1,22 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:G.Presenters.Common">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/StringPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/PercentPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/WaitPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/MessagePresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/TextBoxPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/PasswordBoxPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/FilePathTextBoxPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/ImageFilePathPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/ImageViewPresenter.xaml" />
+
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/ListBoxPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/ItemsControlPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/DataGridPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/TreeViewPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/CommandsPresenter.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Presenters.Common;component/CommandsBindablePresenter.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

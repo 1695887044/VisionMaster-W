@@ -1,0 +1,52 @@
+<Project>
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+    <PackageIcon>logo.png</PackageIcon>
+    <!--<TargetFrameworks>net6.0-windows;net7.0-windows;</TargetFrameworks>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>-->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>10.0</LangVersion>
+    <Version>1.0.5</Version>
+    <FileVersion>1.0.5</FileVersion>
+    <AssemblyVersion>1.0.5</AssemblyVersion>
+    <Copyright>Copyright © G 2023-2025</Copyright>
+    <Authors>G</Authors>
+    <!--nuget-->
+    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+    <RepositoryUrl>https://github.com/G/WPF-Control</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/G/WPF-Control</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Product>WPF-Control</Product>
+    <Description>WPF-Control 是一个基于 .NET 7+ 的高性能 WPF 控件库，提供丰富的轻量级 UI 组件、多套现代化皮肤主题，并整合了精选的第三方开源控件，同时内置数据库仓储模型和模块化封装的通用功能，适用于企业级应用开发，帮助开发者快速构建高效、美观的桌面应用程序。</Description>
+    <PackageTags>WPF;Control;Theme;DataBase;Project;Style;Module;IOC;</PackageTags>
+    <PackageReleaseNotes>https://github.com/G/WPF-Control/releases</PackageReleaseNotes>
+    <UseRidGraph>true</UseRidGraph>
+    <NoWarn>$(NoWarn);NETSDK1206;CS8981;SYSLIB0003;SYSLIB0004;SYSLIB0050;SYSLIB0014;CS0105</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="**\*.png" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.jpg" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.cur" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.ico" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.bmp" Exclude="bin\**;obj\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\..\Document\logo.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+  <!--<ItemGroup>
+    <Resource Include="..\..\..\Document\logo.ico"/>
+  </ItemGroup>-->
+</Project>

@@ -42,6 +42,7 @@ namespace Plugin.CaliperMeasure
         Description = "阵列式卡尺测量：自动均布 N 把卡尺做亚像素找边，支持宽度/间隙、两点距、点到线距、圆直径与角度；输出物理值、偏差与 OK/NG",
         ShortName = "\uf545"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public partial class CaliperMeasurePlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 出厂默认值（唯一真相）

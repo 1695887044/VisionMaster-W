@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Base\G.Attach\G.Attach.csproj" />
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Identity\G.Services.Identity.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Logger\G.Services.Logger.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Operation\G.Services.Operation.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Setting\G.Services.Setting.csproj" />
+    <ProjectReference Include="..\G.Extensions.AppPath\G.Extensions.AppPath.csproj" />
+  </ItemGroup>
+</Project>

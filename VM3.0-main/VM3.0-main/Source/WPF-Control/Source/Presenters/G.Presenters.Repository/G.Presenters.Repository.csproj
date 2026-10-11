@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Behvaiors\G.Extensions.Behvaiors.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.DataBase.Repository\G.Extensions.DataBase.Repository.csproj" />
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+  </ItemGroup>
+
+</Project>

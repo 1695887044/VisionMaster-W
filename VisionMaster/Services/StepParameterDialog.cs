@@ -29,7 +29,13 @@ namespace VisionMaster.Services
     /// 分支口径：
     ///  · ActionStep → 插件实例 + 插件视图（有自定义视图用插件的；没有则框架兜底 AutoPortConfigView）
     ///    +「PluginConfigShell」；
-    ///  · 其余（ConditionStep 容器等）→「ConditionEditor」+ Node。
+    ///  · ConditionStep（含 WhileStep）/ ForStep →「ConditionEditor」+ Node；
+    ///  · ParallelStep → EasyDialog 属性网格弹窗（执行模式 / 失败聚合 / 汇合超时；
+    ///    2026-10-09 起从专属视图面板 ParallelGroupConfigView 收编为标准属性面板：
+    ///    FlatPropertyGrid 反射渲染 ParallelGroupEditModel 草稿，不占用 Prism 弹窗注册名）；
+    ///  · 其余（分支卡片 StepCollection、null）→ **不弹窗**并返回 false，
+    ///    由调用方决定要不要给非模态提示（2026-10-09 真机事故：此前"其余全弹 ConditionEditor"，
+    ///    而编辑器只认 ConditionStep/ForStep，拿不到 Node 直接早退——用户看到空的「条件逻辑配置中心」）。
     /// </summary>
     public static class StepParameterDialog
     {
@@ -38,7 +44,13 @@ namespace VisionMaster.Services
         /// </summary>
         /// <param name="selectStep">目标步骤（流程栏当前选中步骤 / 命中窗的命中步骤）。原实现即传 SelectStep，含 null 情形。</param>
         /// <param name="dialogService">对话框服务（调用方的依赖，不在此处解析，保证与调用方看到同一实例）</param>
-        public static void Open(object selectStep, IDialogService dialogService)
+        /// <param name="workspace">
+        /// 工作区（可选）：并行分组面板保存成功后推进 CurrentFlow.Version 用（口径同旧面板 OnSave）。
+        /// 不传则该步跳过——超时/模式仍可改，只是"版本号兜底推进"没有（三个语义属性走 setter
+        /// 本来就会各自触发一次版本链，这里多推一次只是"打开又直接确认"也必然重编译的保险）。
+        /// </param>
+        /// <returns>是否真的弹了参数窗（false = 该对象没有参数面板）</returns>
+        public static bool Open(object selectStep, IDialogService dialogService, IWorkspaceManager workspace = null)
         {
             if (selectStep is ActionStep stepModel)
             {
@@ -69,13 +81,48 @@ namespace VisionMaster.Services
                 parameters.Add("PluginView", view);
                 parameters.Add("Plugin", pluginInstance);
                 dialogService.ShowDialog("PluginConfigShell", parameters);
+                return true;
             }
-            else
+
+            // 条件编辑器认哪些节点，口径与 ConditionEditorViewModel.OnDialogOpened 的类型判定逐字对齐
+            // （多一种进来就是"窗口打开了但里面一片空白"）。
+            if (selectStep is ConditionStep || selectStep is ForStep)
             {
                 var parameters = new DialogParameters();
                 parameters.Add("Node", selectStep);
                 dialogService.ShowDialog("ConditionEditor", parameters);
+                return true;
             }
+
+            // 并行分组：标准属性面板（FlatPropertyGrid 反射渲染 ParallelGroupEditModel 草稿）。
+            // 弹窗壳走 EasyDialog.ShowPropertyGridSync（静态弹窗，不经 IDialogService ——
+            // RecordingDialogService 那类形状桩不会记录到它，断言口径见 ProcessTreeInteractionChecks V1）。
+            // 面板只编辑三个语义属性，分组名归右键「重命名分组」、分支增删改名归流程栏右键命令；
+            // 真并发的执行语义归 FlowCompiler / CompiledParallelNode，本出口不参与。
+            if (selectStep is ParallelStep parallel)
+            {
+                var edit = new ParallelGroupEditModel(parallel);
+                // 无 WPF 应用上下文（headless 断言宿主 / 设计器 / 已关机）：EasyDialog 内部
+                // 的 InternalExecuteAsync 有"Application.Current == null → 返回 false"的保护分支，
+                // 但它的前置步骤（Dispatcher.InvokeAsync 建 FlatPropertyGrid）没有——直接调会 NRE。
+                // 这里**前置判空走同一口径**：无应用上下文 = 弹不出去 = 按"用户取消"处理（草稿丢弃、
+                // 不写回），分派本身仍返回 true（该靶有参数面板这一事实不因宿主形态而变）。
+                if (Application.Current != null && EasyDialog.ShowPropertyGridSync("并行分组参数", edit))
+                {
+                    // 弹窗"确认"才写回活模型（走 setter）；取消 = 草稿丢弃。
+                    // 汇合超时越界值按草稿原样写回，≤0 由引擎回落默认（P32 断言守），
+                    // 这里不做二次夹取——行内 RangeValidation 已经提示过了。
+                    edit.ApplyToModel();
+
+                    // 版本号兜底推进（口径同旧面板 OnSave：三个语义属性各自会触发一次版本链，
+                    // 这里多推一次只是让"打开又直接确认"也必然重编译的保险）。
+                    if (workspace?.CurrentFlow is { } currentFlow)
+                        currentFlow.Version++;
+                }
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

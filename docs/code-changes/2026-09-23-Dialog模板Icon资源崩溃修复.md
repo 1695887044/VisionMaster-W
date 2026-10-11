@@ -192,3 +192,5 @@ pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid
 5. **实机点验仍待完成**：探针证明的是「资源能解析、字体族正确」，
    不等于「图标码点在该字体里有字形」。三张弹窗里的图标是否显示为正确图形
    （而非方框）仍需人工点验，重点看 `f05a` / `f201` / `f0e4` 这几个新码位。
+
+> 〔2026-10-10 订正：`DialogIconFont` 现定义在第一层令牌字典 `UI\Controls\Themes\Colors.xaml`（:186）——它随 2026-10-01 分册拆分迁到 `Dialog.Text.xaml`，2026-10-10 又按「分册作用域」整改上移至 Colors；各消费分册经自身就地 merge 的 `Colors.xaml` 解析。见 `docs\code-changes\2026-10-10-变量管理弹窗打不开（Dialog分册跨册BasedOn断链）.md`〕

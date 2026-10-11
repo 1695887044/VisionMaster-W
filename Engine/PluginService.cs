@@ -63,7 +63,7 @@ namespace VisionMaster.Services
 
         /// <summary>
         /// 注册内置节点
-        /// 包括 If、While、For、Break、Continue、Return 等控制流节点
+        /// 包括 If、分支匹配（Case）、While、For、Break、Continue、Return 等控制流节点
         /// </summary>
         private void RegisterBuiltInNodes()
         {
@@ -86,6 +86,27 @@ namespace VisionMaster.Services
                 },
             };
             _registry.RegisterModule(ifToolItem);
+
+            // 分支匹配（Case）：If 家族的判据型容器——判据只写一次，每条 Case 分支填匹配值，
+            // 编译期合成「判据 == 匹配值」（见 CaseStep / FlowCompiler 的 Case 编译段）
+            _registry.RegisterModule(new ToolItemModel
+            {
+                Category = "逻辑控制",
+                Description = "取一个变量当判据，按匹配值选择要执行的分支（命中第一条即执行，未命中走默认分支）",
+                Name = "分支匹配",
+                Icon = "\uf126",
+                ModuleTypeName = "BuiltIn_Case",
+                IsContainer = true,
+                InputDefinitions = new()
+                {
+                    new PortDefinition
+                    {
+                        Name = "虚拟变量",
+                        DataTypeName = "System.Object",
+                        Description = "中间变量",
+                    },
+                },
+            });
 
             var whileToolItem = new ToolItemModel
             {
@@ -135,6 +156,19 @@ namespace VisionMaster.Services
                 },
             };
             _registry.RegisterModule(forToolItem);
+
+            // 二期真并行：并行分组容器（一期已有模型/编译/画布泳道，此处补工具箱注册——
+            // 一期拖入落点按 IsContainer 兜底成 If，用户拿不到并行容器；ModuleTypeName 与
+            // ParallelStep 匹配（ProcessViewModel 的 Copy 分支按它实例化））
+            _registry.RegisterModule(new ToolItemModel
+            {
+                Category = "逻辑控制",
+                Description = "多条分支并列执行（顺序模式=逐分支跑完汇合；并行模式=分支真并发，失败按规则取消兄弟并汇合裁决）",
+                Name = "并行分组",
+                Icon = "\uf0f7",
+                ModuleTypeName = "BuiltIn_Parallel",
+                IsContainer = true,
+            });
 
             _registry.RegisterModule(new ToolItemModel
             {

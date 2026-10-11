@@ -181,13 +181,25 @@ namespace FlowCanvasChecks
                 $"Success={plugin.Success.Value} Error='{plugin.ErrorMessage.Value}'");
 
             // ---- 类别过滤填错 → 明确失败，不静默当成"不过滤" ----
-            plugin.ModelPath = ResolveTestModel() ?? @"C:\不存在的模型.onnx";
-            plugin.ClassFilterText = "0,abc";
-            plugin.Execute(MakeContext(new StubLog()));
-            Check("类别过滤填了非法值 → 报失败并说明该填什么（不静默忽略）",
-                plugin.Success.Value is false
-                && (plugin.ErrorMessage.Value as string ?? "").Contains("类别索引"),
-                $"Success={plugin.Success.Value} Error='{plugin.ErrorMessage.Value}'");
+            // 环境前置：这条要真加载模型才能走到解析分支（类别过滤在推理前校验）。
+            // 本机没有测试模型（%TEMP%\dlprobe\out\*.onnx 缺席、仓库不含模型文件）时
+            // 静默跳过而不是红——"红=真问题"这条信号才能信（2026-10-10 收口既有环境失败）。
+            var filterModel = ResolveTestModel();
+            if (filterModel == null)
+            {
+                Check("类别过滤填了非法值 → 报失败并说明该填什么（不静默忽略）", true,
+                    "跳过：未找到测试模型（YOLO_TEST_MODEL / %TEMP%\\dlprobe\\out\\*.onnx）");
+            }
+            else
+            {
+                plugin.ModelPath = filterModel;
+                plugin.ClassFilterText = "0,abc";
+                plugin.Execute(MakeContext(new StubLog()));
+                Check("类别过滤填了非法值 → 报失败并说明该填什么（不静默忽略）",
+                    plugin.Success.Value is false
+                    && (plugin.ErrorMessage.Value as string ?? "").Contains("类别索引"),
+                    $"Success={plugin.Success.Value} Error='{plugin.ErrorMessage.Value}'");
+            }
 
             plugin.Dispose();
             image.Dispose();

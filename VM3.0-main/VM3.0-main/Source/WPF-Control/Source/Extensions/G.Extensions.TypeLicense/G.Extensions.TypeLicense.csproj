@@ -1,0 +1,6 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\G.Extensions.Setting\G.Extensions.Setting.csproj" />
+  </ItemGroup>
+</Project>

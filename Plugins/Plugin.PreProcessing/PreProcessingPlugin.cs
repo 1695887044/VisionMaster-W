@@ -41,6 +41,7 @@ namespace Plugin.PreProcessing
         Description = "串接色彩/几何/滤波/形态学/增强/二值化算子，支持逐步预览与单步启停",
         ShortName = "\uf085"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public partial class PreProcessingPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 存盘配置（[StepConfig] 由基类统一读写 InputValues）
@@ -226,6 +227,31 @@ namespace Plugin.PreProcessing
                 ApplyPreviewState(PreviewTarget.Output, index >= 0 ? index : Operators.Count - 1);
             }
         }
+
+        private bool _isCardLayout;
+
+        /// <summary>
+        /// 参数面板是否用卡片式（插件配置壳的"卡片式"开关驱动，见 UI.CustomControl.IPropertyGridLayoutSwitch）。
+        ///
+        /// 状态放插件（VM）这边、列宽留在视图那边：状态是数据，布局归视图
+        /// （PreProcessingView.UseCardLayout 在写本属性的同时把参数列 360 → 540）。
+        /// 默认表格式 —— 卡片式自带左侧分组页签条，不给够宽度反而比表格式还挤。
+        /// </summary>
+        public bool IsCardLayout
+        {
+            get => _isCardLayout;
+            set
+            {
+                if (SetProperty(ref _isCardLayout, value))
+                    OnPropertyChanged(nameof(IsFlatLayout));
+            }
+        }
+
+        /// <summary>
+        /// 表格态可见性开关：两个属性网格各绑一个，避免为"取反"再引一个转换器。
+        /// 派生属性，随 <see cref="IsCardLayout"/> 一起通知。
+        /// </summary>
+        public bool IsFlatLayout => !_isCardLayout;
 
         /// <summary>ImageEdit 绑定源</summary>
         public HImage? DisplayImage

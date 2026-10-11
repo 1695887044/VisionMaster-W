@@ -1,0 +1,10 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:odc="clr-namespace:G.Controls.OutlookBar">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/G.Controls.OutlookBar;Component/OdcExpander.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Controls.OutlookBar;Component/OdcExpanderHeader.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Controls.OutlookBar;Component/OutlookBar.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/G.Controls.OutlookBar;Component/OutlookSection.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

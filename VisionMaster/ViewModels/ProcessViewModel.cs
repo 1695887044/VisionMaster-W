@@ -25,6 +25,13 @@ namespace VisionMaster.ViewModels
         // 判据统一收在 ConditionStep.IsIfLike，避免这里再写一份 Contains 造成口径漂移
         public bool IsIfNodeSelected => SelectStep is ConditionStep step && step.IsIfLike;
 
+        /// <summary>
+        /// 右键菜单「添加 Case 分支」的可见性判据：当前选中的是不是分支匹配容器。
+        /// 用具体类型而不是"含 Case 分支"的内容嗅探——CaseStep 的身份由类本身定，与 IsIfLike 同一口径。
+        /// 刷新点：选中步骤变化（SelectStep setter）。
+        /// </summary>
+        public bool IsCaseNodeSelected => SelectStep is CaseStep;
+
         /// <summary>右键菜单「禁用/启用」的标题：跟随当前选中步骤的禁用状态</summary>
         public string DisableToggleHeader => CurrentSelectedStepModel?.IsDisEnable == true ? "启用" : "禁用";
 
@@ -43,19 +50,56 @@ namespace VisionMaster.ViewModels
         private readonly INotifyPropertyChanged? _workspaceChanged;
 
         public AsyncDelegateCommand<ModuleCommandAction?> ModuleActionCommand { get; init; }
+
+        // ------------------------------------------------------------------
+        //  并行分组：分支结构动作（增 / 删 / 改名）
+        //  2026-10-09 用户裁决：分支结构编辑从参数面板下沉到流程栏右键菜单，就地单步完成。
+        //  三个命令刻意**不进 ModuleActionCommand** 那条"按当前选中项取参"的链：
+        //  分支胶囊不是算子（R25：不可选中、左键被拦、双击不派发），命令靶由 CommandParameter
+        //  明确给出——组头菜单带 SelectStep，胶囊菜单带"命中的那条分支"。
+        // ------------------------------------------------------------------
+
+        /// <summary>组头右键「添加分支」的命令靶 = 当前选中的并行分组（选中组头时才出该项）。
+        /// 刻意用 object 而不是 ParallelStep：CommandParameter 绑 SelectStep（object），
+        /// WPF 的 CanExecute 会把任何当前选中对象（ActionStep / ConditionStep / null）塞进来——
+        /// 强类型泛型命令当场 InvalidCastException（2026-10-10 真机：选中算子时炸在
+        /// SelectStep setter 的属性通知链里），判型收在处理器里。</summary>
+        public DelegateCommand<object?> AddParallelBranchCommand { get; init; }
+
+        /// <summary>分支胶囊右键「删除本条分支」的命令靶 = 命中的那条分支（不是当前选中项）。
+        /// 同上用 object：胶囊菜单的 CommandParameter 绑 PlacementTarget.DataContext，
+        /// XAML 编译器不检查类型，运行期才判。</summary>
+        public DelegateCommand<object?> RemoveParallelBranchCommand { get; init; }
+
+        /// <summary>分支胶囊右键「重命名本条分支」的命令靶 = 命中的那条分支（不是当前选中项）</summary>
+        public DelegateCommand<object?> RenameParallelBranchCommand { get; init; }
+
+        /// <summary>组头右键「重命名分组」的命令靶 = 当前选中的并行分组（2026-10-09：随参数面板收编 FlatPropertyGrid，分组名改走右键）。同 AddParallelBranchCommand 用 object。</summary>
+        public DelegateCommand<object?> RenameParallelGroupCommand { get; init; }
+
+        /// <summary>组头菜单「添加分支」的可见性判据（刷新点同 IsIfNodeSelected：SelectStep setter）</summary>
+        public bool IsParallelNodeSelected => SelectStep is ParallelStep;
+
         public object SelectStep
         {
             get => field;
             set
             {
+                // 分支卡片（StepCollection：分支 1/分支 2/If/Else/循环体）不是算子——它没有自己的参数，
+                // 条件在容器上配置、名字改不改由容器面板负责。这里**清空选中**而不是保留旧值：
+                // 保留旧值的后果是"界面上看着选中了分支，模块参数/删除等命令却打在旧算子上"（错靶）。
+                // 视图侧还有一道拦截（ProcessView 预览鼠标事件），两道合起来保证分支卡片进不了命令链。
                 if (value is StepCollection)
                 {
+                    SelectStep = null;
                     return;
                 }
 
                 SetProperty(ref field, value);
                 CurrentSelectedStepModel = value as StepModel;
                 RaisePropertyChanged(nameof(IsIfNodeSelected));
+                RaisePropertyChanged(nameof(IsCaseNodeSelected));
+                RaisePropertyChanged(nameof(IsParallelNodeSelected));
                 RaisePropertyChanged(nameof(DisableToggleHeader));
                 RaisePropertyChanged(nameof(BreakpointToggleHeader));
 
@@ -81,6 +125,9 @@ namespace VisionMaster.ViewModels
         private MainRunState _runState = MainRunState.NotStarted;
         private bool IsRunLocked => _runState != MainRunState.NotStarted;
 
+        /// <summary>运行锁拦截的提示文案（ModuleActionCommand / Drop / 三个分支结构命令共用一份，别各写各的）</summary>
+        private const string RunLockedMessage = "流程运行中，禁止编辑；如需修改请先点击“停止”";
+
         /// <summary>
         /// 运行时间实时刷新定时器：
         /// 引擎只记录步骤起始时间戳（LastRunStartTimestamp），运行中耗时由 UI 定时器计算写入 CurrentRunTimeMs，
@@ -93,6 +140,10 @@ namespace VisionMaster.ViewModels
             this.Workspace = workspace;
             this.dialogService = dialogService;
             ModuleActionCommand = new(ModuleActionAsync);
+            AddParallelBranchCommand = new(AddParallelBranch);
+            RemoveParallelBranchCommand = new(RemoveParallelBranch);
+            RenameParallelBranchCommand = new(RenameParallelBranch);
+            RenameParallelGroupCommand = new(RenameParallelGroup);
 
             _workspaceChanged = workspace as INotifyPropertyChanged;
 
@@ -256,13 +307,18 @@ namespace VisionMaster.ViewModels
             // DWV 第 1 期两处豁免见 IsRunLockExempt：切换断点任何运行态放行；模块参数仅"已暂停"放行。
             if (action.HasValue && IsRunLocked && !IsRunLockExempt(action.Value))
             {
-                Notifier.ShowWarning("流程运行中，禁止编辑；如需修改请先点击“停止”");
+                Notifier.ShowWarning(RunLockedMessage);
                 return;
             }
 
             switch (action)
             {
                 case ModuleCommandAction.Rename:
+                {
+                    // 拿不到算子（未选中，或选中项不是 StepModel）就什么都不做——
+                    // 这条命令是 async 的，空引用冒出去就是 UI 线程上的未处理异常
+                    if (CurrentSelectedStepModel == null)
+                        break;
                     var data = await EasyDialog.ShowTextInputAsync(
                         "步序重命名",
                         CurrentSelectedStepModel.StepName
@@ -270,7 +326,11 @@ namespace VisionMaster.ViewModels
                     if (data.IsConfirmed)
                         CurrentSelectedStepModel.StepName = data.Value;
                     break;
+                }
                 case ModuleCommandAction.EditComment:
+                {
+                    if (CurrentSelectedStepModel == null)
+                        break;
                     var data1 = await EasyDialog.ShowTextInputAsync(
                         "注释重命名",
                         CurrentSelectedStepModel.Description
@@ -278,10 +338,14 @@ namespace VisionMaster.ViewModels
                     if (data1.IsConfirmed)
                         CurrentSelectedStepModel.Description = data1.Value;
                     break;
+                }
                 case ModuleCommandAction.ModuleParameters:
                     // 打开逻辑原样搬到 StepParameterDialog（DWV 第 1 期）：
                     // 命中窗「打开模块参数」与流程栏右键共用同一实现，杜绝第二份口径漂移。
-                    StepParameterDialog.Open(SelectStep, dialogService);
+                    // 2026-10-09：返回值 false = 该对象没有参数面板（分支卡片），不再兜底弹"空白条件编辑器"；
+                    // 并行分组的参数面板是 EasyDialog 属性网格（静态弹窗），分派同样在那一处，这里不再给提示。
+                    // workspace 传下去：并行面板保存成功后推进 CurrentFlow.Version（口径同旧面板 OnSave）。
+                    StepParameterDialog.Open(SelectStep, dialogService, Workspace);
                     break;
                 case ModuleCommandAction.ToggleBreakpoint:
                     // 纯运行期标记：取反 IsBreakpoint（不落盘、不递增 Version）。
@@ -352,8 +416,266 @@ namespace VisionMaster.ViewModels
                     }
                     break;
                 }
+                case ModuleCommandAction.AddCase:
+                {
+                    // 分支匹配（Case）容器专用：插一条 Case 分支，位置在兜底分支（Else）之前——
+                    // 兜底分支之后的分支编译器会按"不可达分支"报错，插在前面才是有意义的顺序。
+                    // 结构变更只动 Children → FlowModel 版本链自动递增（同 AddElseIf，无需手动 Version++）。
+                    if (SelectStep is CaseStep caseNode)
+                    {
+                        int insertIndex = caseNode.Children.Count;
+                        var lastBranch = caseNode.Children.LastOrDefault();
+
+                        if (lastBranch != null && lastBranch.BranchType == BranchType.Else)
+                        {
+                            insertIndex = caseNode.Children.Count - 1;
+                        }
+
+                        caseNode.Children.Insert(
+                            insertIndex,
+                            new StepCollection
+                            {
+                                BranchType = BranchType.Case,
+                                StepName = caseNode.NextCaseBranchName(),
+                            }
+                        );
+                    }
+                    break;
+                }
             }
         }
+
+        #region 并行分组：分支结构动作（增 / 删 / 改名）
+        //  2026-10-09：这三个动作原来在「并行分组配置」面板里（草稿 → 校验 → 写回）。
+        //  用户裁决"右键直接添加"后下沉到流程栏右键菜单：就地生效、单步，面板只留参数与只读总览。
+        //  版本号纪律：增/删分支**不用手动 Version++**——FlowModel 盯着每个容器的 Children 集合
+        //  （CollectSubscriptions 会订阅它），结构变更自己会递增；只有"分支改名"必须手动推进，
+        //  因为 StepCollection.StepName 不在 FlowModel 的监听面里（它盯的是集合结构与 StepModel 的属性）。
+
+        /// <summary>
+        /// 三个结构命令的反馈出口：message + 是否"成功"档（成功=绿泡，否则=黄警示）。
+        /// 默认实现走 UI 库弹泡；离屏断言宿主没有 WPF Application（Notifier.Show 内部直接取
+        /// Application.Current.Dispatcher，headless 里会 NRE），所以默认实现先过一道空判，
+        /// 断言宿主注入收集器就能读回文案（与 ConfirmDeleteParallelBranch 同一"可注入出口"手法）。
+        /// </summary>
+        public Action<string, bool> ShowFeedback { get; set; } = (message, success) =>
+        {
+            if (Application.Current == null)
+                return;
+
+            if (success)
+                Notifier.ShowSuccess(message);
+            else
+                Notifier.ShowWarning(message);
+        };
+
+        /// <summary>
+        /// 删除分支的二次确认出口。默认走 EasyDialog；断言宿主注入 (t, m) =&gt; false/true 就不弹真窗
+        /// （与 StepParameterDialog 的"可注入出口"同一手法）。
+        /// </summary>
+        public Func<string, string, bool> ConfirmDeleteParallelBranch { get; set; } =
+            (title, message) => EasyDialog.ShowSync(title, message);
+
+        /// <summary>
+        /// 分支改名的输入出口。默认走 EasyDialog 的**同步**版：ShowTextInputAsync() 在 UI 线程上
+        /// 直接 GetAwaiter().GetResult() 会死锁——弹窗创建被排到 DispatcherPriority.Background，
+        /// 阻塞的线程等不到它；ShowTextInputSync 内部压 DispatcherFrame，弹窗期间消息循环照常推动。
+        /// 断言宿主注入固定值即可（(true, "新名字") / (false, "")）。
+        /// </summary>
+        public Func<string, string, (bool IsConfirmed, string Value)> ConfirmRenameParallelBranch { get; set; } =
+            (title, defaultValue) => EasyDialog.ShowTextInputSync(title, defaultValue);
+
+        /// <summary>
+        /// 分组改名的输入出口（组头右键「重命名分组」）。与 ConfirmRenameParallelBranch 同一手法：
+        /// 默认走 EasyDialog 的**同步**版（Async 版在 UI 线程上 GetAwaiter().GetResult() 会死锁），
+        /// 断言宿主注入固定值即可（(true, "新名字") / (false, "")）。
+        /// </summary>
+        public Func<string, string, (bool IsConfirmed, string Value)> ConfirmRenameParallelGroup { get; set; } =
+            (title, defaultValue) => EasyDialog.ShowTextInputSync(title, defaultValue);
+
+        /// <summary>
+        /// 添加一条并行分支（流程栏组头右键「添加分支」）。
+        /// 名字在"分支 N"里挑第一个未占用的 N：用户可能已经改过名（"左工位"），
+        /// 按"当前条数 + 1"命名会撞出两条"分支 3"。
+        /// </summary>
+        private void AddParallelBranch(object? target)
+        {
+            // 命令靶是绑定给过来的：没选中组头 / 选中的不是并行分组时什么都不做
+            if (target is not ParallelStep group)
+                return;
+
+            if (IsRunLocked)
+            {
+                ShowFeedback(RunLockedMessage, false);
+                return;
+            }
+
+            if (group.Children.Count >= ParallelStep.RecommendedMaxBranches)
+            {
+                ShowFeedback(
+                    $"并行分支已达上限 {ParallelStep.RecommendedMaxBranches} 条（并列泳道再宽一屏就放不下）",
+                    false);
+                return;
+            }
+
+            string name = NextBranchName(group);
+            group.Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = name });
+
+            ShowFeedback($"已添加「{name}」到「{group.StepName}」（可在分支上右键改名）", true);
+        }
+
+        /// <summary>
+        /// 删除一条并行分支（流程栏分支胶囊右键「删除本条分支」）。
+        /// 分支只有一个属主：递归找到所属容器就定稿，找不到（或不属于并行分组）什么都不做。
+        /// </summary>
+        private void RemoveParallelBranch(object? target)
+        {
+            if (target is not StepCollection branch)
+                return;
+
+            if (IsRunLocked)
+            {
+                ShowFeedback(RunLockedMessage, false);
+                return;
+            }
+
+            var group = FindOwningParallelGroup(Workspace?.CurrentFlow?.Steps, branch);
+            if (group == null || group.Children.Count <= 1)
+            {
+                ShowFeedback("至少保留一条分支（只有一条分支时：等价顺序执行）", false);
+                return;
+            }
+
+            // 有算子的分支删掉会连带丢掉分支内的步骤，先二次确认；取消即什么都不做
+            if (branch.Steps.Count > 0)
+            {
+                bool confirmed = ConfirmDeleteParallelBranch?.Invoke(
+                    "删除分支",
+                    $"分支「{branch.StepName}」内还有 {branch.Steps.Count} 个算子，删除分支会一并移除，确定？") ?? false;
+                if (!confirmed)
+                    return;
+            }
+
+            group.Children.Remove(branch);
+        }
+
+        /// <summary>
+        /// 重命名一条并行分支（流程栏分支胶囊右键「重命名本条分支」）。
+        /// 写 StepName 后必须手动 Version++：StepCollection.StepName 不在 FlowModel 的监听面里
+        /// （它盯的是集合结构与 StepModel 属性），漏了就是"试运行对、正式跑错"。
+        /// </summary>
+        private void RenameParallelBranch(object? target)
+        {
+            if (target is not StepCollection branch)
+                return;
+
+            if (IsRunLocked)
+            {
+                ShowFeedback(RunLockedMessage, false);
+                return;
+            }
+
+            var data = ConfirmRenameParallelBranch("分支重命名", branch.StepName);
+            if (!data.IsConfirmed)
+                return;
+
+            string name = (data.Value ?? string.Empty).Trim();
+            if (name.Length == 0)
+            {
+                ShowFeedback("分支名不能为空", false);
+                return;
+            }
+
+            // 名字没变就别白推一次版本号（口径同面板 TryApplyToModel 的"只写不同值"）
+            if (name == branch.StepName)
+                return;
+
+            branch.StepName = name;
+            if (Workspace?.CurrentFlow != null)
+                Workspace.CurrentFlow.Version++;
+        }
+
+        /// <summary>
+        /// 重命名并行分组（流程栏组头右键「重命名分组」，与分支重命名同款体验）。
+        /// 与 RenameParallelBranch 的**版本号口径不同**：分组名写的是
+        /// ParallelStep.StepName —— 它是 StepModel 的语义属性，setter 自带通知，
+        /// FlowModel 版本链会自己递增，**不需要手动 Version++**（分支名 StepCollection.StepName
+        /// 不在监听面里才要手动推，别把两处搞混，W5 断言对照着守）。
+        /// </summary>
+        private void RenameParallelGroup(object? target)
+        {
+            if (target is not ParallelStep group)
+                return;
+
+            if (IsRunLocked)
+            {
+                ShowFeedback(RunLockedMessage, false);
+                return;
+            }
+
+            var data = ConfirmRenameParallelGroup("分组重命名", group.StepName);
+            if (!data.IsConfirmed)
+                return;
+
+            string name = (data.Value ?? string.Empty).Trim();
+            if (name.Length == 0)
+            {
+                ShowFeedback("分组名不能为空", false);
+                return;
+            }
+
+            // 名字没变就什么都不做（语义属性 setter 通知也不发，避免白刷一次版本链）
+            if (name == group.StepName)
+                return;
+
+            // 走 setter：ParallelStep.StepName 是语义属性，Version 由 FlowModel 版本链自动递增
+            group.StepName = name;
+        }
+
+        /// <summary>
+        /// 在"分支 N"里挑第一个未被占用的 N（分支数有上限、名字空间无限，循环必然找到空位）。
+        /// </summary>
+        private static string NextBranchName(ParallelStep group)
+        {
+            for (int n = 1; ; n++)
+            {
+                string candidate = $"分支 {n}";
+                if (!group.Children.Any(c => c.StepName == candidate))
+                    return candidate;
+            }
+        }
+
+        /// <summary>
+        /// 从流程树里找某条分支的所属并行分组（找不到 / 不属于并行分组都返回 null，不抛）。
+        /// 递归口径统一走 IContainerStep（与 RemoveStepRecursively / StepFactory.CountStepsDeep 一致）：
+        /// 分支可能挂在并行分组下，也可能在别处的 If/For 里——只有属主是并行分组时才认，
+        /// 免得"删并行分组的分支"误伤别处同名分支。
+        /// </summary>
+        private static ParallelStep FindOwningParallelGroup(IEnumerable<StepModel>? steps, StepCollection branch)
+        {
+            if (steps == null || branch == null)
+                return null;
+
+            foreach (var step in steps)
+            {
+                if (step is not IContainerStep container || container.Children == null)
+                    continue;
+
+                foreach (var child in container.Children)
+                {
+                    // 分支只有一个属主：命中即定稿（不是并行分组的分支 → 返回 null）
+                    if (ReferenceEquals(child, branch))
+                        return container as ParallelStep;
+
+                    var nested = FindOwningParallelGroup(child.Steps, branch);
+                    if (nested != null)
+                        return nested;
+                }
+            }
+
+            return null;
+        }
+        #endregion
 
         #region 控件拖拽
         /// <summary>
@@ -395,6 +717,11 @@ namespace VisionMaster.ViewModels
             else if (dropInfo.TargetItem is ForStep forStep) // 🌟 新增：识别 For 循环容器
             {
                 destinationName = $"循环: {forStep.StepName}";
+                isHoveringContainer = true;
+            }
+            else if (dropInfo.TargetItem is ParallelStep parallel) // 并行分组：与 If/For 同款（落进第一条分支）
+            {
+                destinationName = $"并行: {parallel.StepName}";
                 isHoveringContainer = true;
             }
 
@@ -439,7 +766,7 @@ namespace VisionMaster.ViewModels
             // 运行锁：从工具箱拖入、卡片间拖拽排序，都会走到这里，一并拦下
             if (IsRunLocked)
             {
-                Notifier.ShowWarning("流程运行中，禁止编辑；如需修改请先点击“停止”");
+                Notifier.ShowWarning(RunLockedMessage);
                 return;
             }
 
@@ -471,6 +798,13 @@ namespace VisionMaster.ViewModels
                         insertIndex = forStep.Children[0].Steps.Count;
                         break;
 
+                    // 并行分组：与 If/For 同款落进第一条分支（分支卡片本身是独立落点；
+                    // 2026-10-09 前这里没有 Parallel 分支 → 拖到组头上会静默掉到主流程末尾）
+                    case ParallelStep parallel when parallel.Children.Count > 0:
+                        targetList = parallel.Children[0].Steps;
+                        insertIndex = parallel.Children[0].Steps.Count;
+                        break;
+
                     default:
                         targetList = Workspace.CurrentFlow.Steps;
                         insertIndex = Workspace.CurrentFlow.Steps.Count;
@@ -486,32 +820,10 @@ namespace VisionMaster.ViewModels
             // ==========================================
             if (args.Effects == DragDropEffects.Copy && args.Data is ToolItemModel node)
             {
-                var totalIndex = CountStepsDeep(Workspace.CurrentFlow.Steps, node.ModuleTypeName);
-                string stepName = $"{node.Name}_{totalIndex}";
-
-                StepModel newStep = null;
-
-                // 🌟 核心修改：根据 ModuleTypeName 精准实例化原生节点
-                if (node.IsContainer)
-                {
-                    if (node.ModuleTypeName == "BuiltIn_While")
-                    {
-                        newStep = new WhileStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
-                    }
-                    else if (node.ModuleTypeName == "BuiltIn_For")
-                    {
-                        newStep = new ForStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
-                    }
-                    else // 默认兜底是 If
-                    {
-                        newStep = new ConditionStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
-                    }
-                }
-                else
-                {
-                    // 普通算子
-                    newStep = new ActionStep(node.Icon, node.Name, node.ModuleTypeName, stepName);
-                }
+                // 造模型（类型分派）与自动命名统一走 StepFactory —— 画布 Drop 用同一份，
+                // 改口径只改一处；落点命中 / 运行锁 / 版本推进留在本方法（两处落点规则不同）
+                string stepName = StepFactory.NextStepName(Workspace.CurrentFlow, node);
+                StepModel newStep = StepFactory.CreateFromTool(node, stepName);
 
                 targetList.Insert(insertIndex, newStep);
 
@@ -566,33 +878,6 @@ namespace VisionMaster.ViewModels
             }
         }
 
-        private int CountStepsDeep(IEnumerable<StepModel> steps, string pluginTypeName)
-        {
-            int count = 0;
-            if (steps == null)
-                return count;
-
-            foreach (var step in steps)
-            {
-                // 1. 如果名字匹配，计数 +1
-                if (step.PluginTypeName == pluginTypeName)
-                {
-                    count++;
-                }
-
-                // 2. 如果遇到容器节点，钻进它的每一个分支里继续找
-                if (step is ConditionStep conditionNode)
-                {
-                    foreach (var branch in conditionNode.Children)
-                    {
-                        count += CountStepsDeep(branch.Steps, pluginTypeName);
-                    }
-                }
-            }
-
-            return count;
-        }
-
         private bool RemoveStepRecursively(
             ObservableCollection<StepModel> steps,
             StepModel targetToRemove
@@ -608,13 +893,14 @@ namespace VisionMaster.ViewModels
                 return true;
             }
 
-            // 2. 如果不在当前层，遍历当前层里的所有“容器算子”（比如 If/While）
+            // 2. 如果不在当前层，遍历当前层里的所有“容器算子”（If/While/For/并行分组）。
+            //    判据统一走 IContainerStep：2026-10-09 前只认 ConditionStep，
+            //    For 与并行分支里的算子"删除模块"静默无效（命令看着像没反应）。
             foreach (var step in steps)
             {
-                if (step is ConditionStep conditionNode)
+                if (step is IContainerStep container)
                 {
-                    // 钻进容器的每一个分支里去找（比如 If分支、Else分支）
-                    foreach (var branch in conditionNode.Children)
+                    foreach (var branch in container.Children)
                     {
                         // 递归调用！如果在深层找到了并删除了，立刻顺着调用栈返回 true 终止搜索
                         if (RemoveStepRecursively(branch.Steps, targetToRemove))

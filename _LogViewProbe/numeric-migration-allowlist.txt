@@ -1,0 +1,48 @@
+# NumericBox 迁移允许清单（一行一处： 文件|绑定路径[|int]）
+#
+# 只列**确认是数值**的绑定。三处刻意排除（见 2026-10-10 记录）：
+#   Plugins\Plugin.Calibration\CalibrationView.xaml|CameraSerial      设备序列号，是字符串
+#   Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|Value        结果列表里的可编辑值，语义不明（保守排除）
+#   Plugins\Plugin.PoseTransform\PoseTransformView.xaml|PreviewImagePath  图片路径，只是套了同一个样式
+#
+# 第四段列 int = 该参数是整数类型（生成 DecimalPlaces="0"），类型已逐个核对过声明。
+
+# ── Plugin.Matching（12 处全迁）──
+Plugins\Plugin.Matching\MatchingView.xaml|BrushSize
+Plugins\Plugin.Matching\MatchingView.xaml|EditingEntry.MinAngleDeg
+Plugins\Plugin.Matching\MatchingView.xaml|EditingEntry.MaxAngleDeg
+Plugins\Plugin.Matching\MatchingView.xaml|EditingEntry.AngleStepDeg
+Plugins\Plugin.Matching\MatchingView.xaml|EditingEntry.GradientThreshold
+Plugins\Plugin.Matching\MatchingView.xaml|EditingEntry.ScaleMin
+Plugins\Plugin.Matching\MatchingView.xaml|EditingEntry.ScaleMax
+Plugins\Plugin.Matching\MatchingView.xaml|EditingEntry.NumLevels|int
+Plugins\Plugin.Matching\MatchingView.xaml|MinScore
+Plugins\Plugin.Matching\MatchingView.xaml|MaxMatches|int
+Plugins\Plugin.Matching\MatchingView.xaml|MaxOverlap
+Plugins\Plugin.Matching\MatchingView.xaml|Greediness
+
+# ── Plugin.CaliperMeasure（11 处迁 10，排除 Value）──
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|CaliperCount|int
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|Sigma
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|EdgeThreshold
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|FitMaxError
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|FitMinPoints|int
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|AnnulusWidth
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|StandardValue
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|UpperTolerance
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|LowerTolerance
+Plugins\Plugin.CaliperMeasure\CaliperMeasureView.xaml|PixelSizeMm
+
+# ── Plugin.Calibration（13 处迁 12，排除 CameraSerial）──
+Plugins\Plugin.Calibration\CalibrationView.xaml|KnownLengthMm
+Plugins\Plugin.Calibration\CalibrationView.xaml|ScaleARow
+Plugins\Plugin.Calibration\CalibrationView.xaml|ScaleACol
+Plugins\Plugin.Calibration\CalibrationView.xaml|ScaleBRow
+Plugins\Plugin.Calibration\CalibrationView.xaml|ScaleBCol
+Plugins\Plugin.Calibration\CalibrationView.xaml|MachineX
+Plugins\Plugin.Calibration\CalibrationView.xaml|MachineY
+Plugins\Plugin.Calibration\CalibrationView.xaml|ImageRow
+Plugins\Plugin.Calibration\CalibrationView.xaml|ImageCol
+Plugins\Plugin.Calibration\CalibrationView.xaml|ResidualThresholdPx
+Plugins\Plugin.Calibration\CalibrationView.xaml|MmPerPixelMin
+Plugins\Plugin.Calibration\CalibrationView.xaml|MmPerPixelMax

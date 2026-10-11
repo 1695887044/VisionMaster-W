@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Threading;
-using Core.Halcon.Extensions;
+using Core.Halcon.Controls;
+using Core.Halcon.Geometry;
 using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
@@ -12,7 +13,7 @@ namespace Plugin.BeadInspect
     /// <summary>
     /// BeadInspectPlugin 的配置界面部分（方案说明书 §6.1~§6.4，第二批）：
     /// · 配方列表 + 当前编辑条目（照抄 Matching 的「条目即编辑态」范式）；
-    /// · 画布逐点拾取（左键插到最近线段之间 / 右键删最近点 / 拖动改坐标 / 撤销，几何在 <see cref="BeadPathEditor"/>）；
+    /// · 画布逐点拾取（左键插到最近线段之间 / 右键删最近点 / 拖动改坐标 / 撤销，几何在 <see cref="PathEditor"/>）；
     /// · 参数面板与点列表格双向同步；
     /// · 学习（PrepareAlignment + create_bead_inspection_model + 写 LearnedSignature）；
     /// · 自动提取中心线（§6.4：差分 → 树直径 → 抽稀，覆盖前先确认，失败不写空点列）；
@@ -358,7 +359,7 @@ namespace Plugin.BeadInspect
                 _rawRefImage = null;
                 _rawRefPath = null;
                 ShowPathBase();
-                SetStatus("还没有参考图路径：先在左侧填入参考图，再拾取胶路中心线", StatusLevel.Warning);
+                SetStatus("还没有参考图路径：点「① 配方库」的「载入」选择参考图文件，再拾取胶路中心线", StatusLevel.Warning);
                 return;
             }
             if (!File.Exists(path))
@@ -411,8 +412,8 @@ namespace Plugin.BeadInspect
         {
             BaseImageSource.RectifiedRef => "底图：参考图（矫正后）——路径点列存的就是该坐标系的坐标",
             BaseImageSource.RawRef => "底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标",
-            BaseImageSource.InputImage => "底图：输入图（尚未设参考图）——若用「平面可变形」对齐，请先设参考图并点「载入」；固定相机模式可直接拾取",
-            _ => "尚未载入图像：绑定上游输入图，或在 ①配方库 填参考图路径后点「载入」",
+            BaseImageSource.InputImage => "底图：输入图（尚未设参考图）——若用「平面可变形」对齐，请点「① 配方库」的「载入」选择参考图文件；固定相机模式可直接拾取",
+            _ => "尚未载入图像：绑定上游输入图，或在 ①配方库 点「载入」选择参考图文件",
         };
 
         /// <summary>底图来源级别（输入图兜底 = Warning：那是"还没设参考图"的信号，不是错误）</summary>
@@ -498,7 +499,7 @@ namespace Plugin.BeadInspect
         {
             if (DisplayImage is HImage img && img.IsInitialized())
                 return true;
-            SetStatus("请先载入图像（绑定输入图或填参考图路径）再拾取点", StatusLevel.Error);
+                SetStatus("请先载入图像（绑定输入图，或点「① 配方库」的「载入」选参考图）再拾取点", StatusLevel.Error);
             return false;
         }
 
@@ -509,7 +510,7 @@ namespace Plugin.BeadInspect
         /// </summary>
         private const string PlanarOnInputBaseWarning =
             "注意：底图是输入图而非参考图——「平面可变形」的点列必须落在参考图坐标系上。"
-            + "请先在「① 配方库」填参考图路径并点「载入」后重新拾取，否则点「学习」会被拒绝";
+            + "请点「① 配方库」的「载入」选择参考图文件后重新拾取，否则点「学习」会被拒绝";
 
         /// <summary>
         /// 拾取时的语义守卫（只提示、不推翻既有设计）：固定相机场景在输入图上拾取本来就是正确用法，
@@ -530,9 +531,9 @@ namespace Plugin.BeadInspect
             {
                 if (DisplayImage != null && DisplayImage.IsInitialized())
                 {
-                    var size = DisplayImage.GetImageSize(); // [width, height]
-                    row = Math.Clamp(row, 0, size[1] - 1);
-                    col = Math.Clamp(col, 0, size[0] - 1);
+                    DisplayImage.GetImageSize(out int w, out int h);
+                    row = Math.Clamp(row, 0, h - 1);
+                    col = Math.Clamp(col, 0, w - 1);
                 }
             }
             catch
@@ -542,7 +543,7 @@ namespace Plugin.BeadInspect
         }
 
         // ==================================================================
-        //  路径点列缓存 + 画布交互（几何实现见 BeadPathEditor，断言 12 共用）
+        //  路径点列缓存 + 画布交互（几何实现见 PathEditor，断言 12 共用）
         // ==================================================================
 
         private List<double> _pathRows = new();
@@ -628,7 +629,7 @@ namespace Plugin.BeadInspect
                 return;
             ClampToImage(ref row, ref col);
             PushUndo();
-            if (!BeadPathEditor.InsertNearest(
+            if (!PathEditor.InsertNearest(
                     _pathRows.ToArray(), _pathCols.ToArray(), row, col,
                     out var nr, out var nc, out int idx, out string err))
             {
@@ -655,8 +656,8 @@ namespace Plugin.BeadInspect
                 SetStatus("点列为空：没有可删除的点", StatusLevel.Warning);
                 return;
             }
-            if (!BeadPathEditor.DeleteNearest(
-                    _pathRows.ToArray(), _pathCols.ToArray(), row, col, BeadPathEditor.DefaultDeleteTolerance,
+            if (!PathEditor.DeleteNearest(
+                    _pathRows.ToArray(), _pathCols.ToArray(), row, col, PathEditor.DefaultDeleteTolerance,
                     out var nr, out var nc, out int idx, out string err))
             {
                 SetStatus(err, StatusLevel.Warning);
@@ -676,9 +677,9 @@ namespace Plugin.BeadInspect
                 return false;
             if (!EnsureBaseImageForPick()) // 无底图禁止拾取（含拖动）
                 return false;
-            int idx = BeadPathEditor.NearestPointIndex(
+            int idx = PathEditor.NearestPointIndex(
                 _pathRows.ToArray(), _pathCols.ToArray(), row, col, out double dist);
-            if (idx < 0 || dist > BeadPathEditor.DefaultDragTolerance)
+            if (idx < 0 || dist > PathEditor.DefaultDragTolerance)
                 return false;
             _dragIndex = idx;
             _dragUndoPushed = false;
@@ -876,7 +877,7 @@ namespace Plugin.BeadInspect
                 SetStatus($"参考图不存在：{entry.RefImagePath}。平面可变形对齐需要参考图（模板 + 坐标系基准），请先填有效路径再学习", StatusLevel.Error);
                 SetActionBanner(
                     "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。"
-                    + "请在「① 配方库」填参考图路径并点「载入」，或把「对齐模式」改成「固定相机」",
+                    + "请点「① 配方库」的「载入」选择参考图文件，或把「对齐模式」改成「固定相机」",
                     StatusLevel.Error);
                 return;
             }
@@ -1159,7 +1160,7 @@ namespace Plugin.BeadInspect
             }
             if (EditingEntry == null || _rawRefImage == null)
             {
-                SetStatus("请先填参考图路径并载入，再拾取矫正四点", StatusLevel.Warning);
+                SetStatus("请先点「① 配方库」的「载入」选择参考图，再拾取矫正四点", StatusLevel.Warning);
                 return;
             }
             QuadPicking = true;
@@ -1310,7 +1311,7 @@ namespace Plugin.BeadInspect
             Library.Add(entry);
             RefreshRecipeRows();
             EditingEntry = entry;
-            SetStatus($"已新增配方「{entry.Name}」：填参考图路径，拾取/提取路径后点「学习」");
+            SetStatus($"已新增配方「{entry.Name}」：点「载入」选择参考图，拾取/提取路径后点「学习」");
         }
 
         /// <summary>删除当前编辑条目（释放模型句柄；默认配方随之顺延）</summary>

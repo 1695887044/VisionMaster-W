@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Base\G.Mvvm\G.Mvvm.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\G.Extensions.Common\G.Extensions.Common.csproj" />
+  </ItemGroup>
+</Project>

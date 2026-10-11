@@ -35,6 +35,7 @@ namespace Plugin.PoseTransform
         Description = "位姿跟随与像素↔机械换算：把定位位姿变成下游能用的跟随 ROI 与机械坐标",
         ShortName = "\uf047"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public partial class PoseTransformPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 输入端口

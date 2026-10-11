@@ -19,6 +19,7 @@ namespace VisionMaster.Plugins.Util
         Description = "在不同数据类型之间进行转换，支持多种常见类型转换",
         ShortName = "\uf044"
     )]
+    [ParallelSafe] // 二期真并行：chun jisuan lei
     public class DataConversionPlugin : VisionPluginBase
     {
         public InputPort<object> InputValue { get; } = new InputPort<object>("Input", null, "输入值");

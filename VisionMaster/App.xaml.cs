@@ -276,6 +276,9 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
+            // 并行分组参数已收编为标准属性面板（EasyDialog.ShowPropertyGridSync + FlatPropertyGrid，
+            // 2026-10-09 用户裁决"没必要新建一个视图"）：不再注册专属弹窗 ParallelGroupConfigView，
+            // 分派点在 StepParameterDialog（命中窗的「打开模块参数」与流程栏共用同一处）。
             containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
             containerRegistry.RegisterDialog<CommunicationSettingsView, CommunicationSettingsViewModel>("CommunicationSettingsView");
             // 相机设置：方案级相机资源（增删相机 / 连接 / 采流 / 参数 / 溢出计数 / 预览）。

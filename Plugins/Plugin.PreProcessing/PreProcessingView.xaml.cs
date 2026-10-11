@@ -23,9 +23,9 @@ namespace Plugin.PreProcessing
     /// <summary>
     /// 预处理配置视图 —— 纯绑定层（MVVM）：
     /// 算子库、处理链、参数面板、图像预览全部由 <see cref="PreProcessingPlugin"/> 提供数据与命令，
-    /// 本文件只剩一件事：视图就绪后通知 ViewModel 去取输入图像。
+    /// 本文件只剩两件事：视图就绪后通知 ViewModel 去取输入图像；按插件配置壳的开关切换参数面板布局。
     /// </summary>
-    public partial class PreProcessingView : UserControl
+    public partial class PreProcessingView : UserControl, UI.CustomControl.IPropertyGridLayoutSwitch
     {
         /// <summary>
         /// 三栏布局（算子库 210 + 预览 + 链与参数 360）舒适展开所需的内容区尺寸。
@@ -37,6 +37,35 @@ namespace Plugin.PreProcessing
         // 内容区之外的固定开销：外壳标题栏 50 + 底部按钮栏 50 + ContentPresenter 上下各 8 边距
         private const double ShellChromeHeight = 50 + 50 + 8 + 8;
         private const double ShellChromeWidth = 8 + 8;
+
+        /// <summary>参数列宽度：表格式 360（现状）</summary>
+        private const double FlatParamColumnWidth = 360;
+
+        /// <summary>
+        /// 卡片式的参数列宽度 540。为什么要多这 180：
+        /// 卡片式自带左侧分组页签条 + 卡片留白，固定开销约 196px（表格式几乎没有），
+        /// 540 − 196 ≈ 344，才与表格式的 360 全宽基本等价（未减重前只有 248，比表格式还窄）。
+        /// 宽度是算得出来的：内容区 1120 − 算子库 240 − 参数列 540 − 三处边距 32 = 308，
+        /// 预览列 MinWidth=300 兜得住 —— 正好卡在线上，所以这三个数改动前要先重算一遍。
+        /// </summary>
+        private const double CardParamColumnWidth = 540;
+
+        private PreProcessingPlugin? Plugin => DataContext as PreProcessingPlugin;
+
+        /// <summary>
+        /// 参数面板布局（插件配置壳的"卡片式"开关写这里）。
+        /// 状态存插件那边（两个网格的可见性绑它的 IsCardLayout / IsFlatLayout），
+        /// 列宽留视图这边 —— 布局归视图。
+        /// </summary>
+        public bool UseCardLayout
+        {
+            get => Plugin?.IsCardLayout ?? false;
+            set
+            {
+                if (Plugin is { } plugin) plugin.IsCardLayout = value;
+                ParamColumn.Width = new GridLength(value ? CardParamColumnWidth : FlatParamColumnWidth);
+            }
+        }
 
         public PreProcessingView()
         {

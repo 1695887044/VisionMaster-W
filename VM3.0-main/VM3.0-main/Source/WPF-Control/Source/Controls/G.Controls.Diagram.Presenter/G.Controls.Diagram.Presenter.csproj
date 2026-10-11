@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.FontIcon\G.Extensions.FontIcon.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Geometry\G.Extensions.Geometry.csproj" />
+    <ProjectReference Include="..\..\Presenters\G.Presenters.Common\G.Presenters.Common.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+    <ProjectReference Include="..\G.Controls.Adorner\G.Controls.Adorner.csproj" />
+    <ProjectReference Include="..\G.Controls.Diagram\G.Controls.Diagram.csproj" />
+    <ProjectReference Include="..\G.Controls.Form.PropertyItem\G.Controls.Form.PropertyItem.csproj" />
+  </ItemGroup>
+</Project>

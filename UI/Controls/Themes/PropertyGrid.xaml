@@ -146,7 +146,15 @@
                                 <ControlTemplate TargetType="TabControl">
                                     <Grid IsItemsHost="False">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="180" />
+                                            <!--
+                                                页签条宽度：原先写死 180，加上内容区 24×2 与卡片 32,24×2 的留白，
+                                                卡片式的固定开销是 292px —— 放不宽的地方（如插件配置壳 540 的参数列）
+                                                参数区只剩 248px，比表格式的 360 全宽还窄，切过去只会更难看。
+                                                这里减重到 128 + 14×2 + 20,16×2 = 196px：
+                                                同一处能剩 344px，与表格式基本等价（实测见 2026-10-09 记录）。
+                                                128 对 2~4 字的组名（算子/编辑框/连接…）依然宽松。
+                                            -->
+                                            <ColumnDefinition Width="128" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
@@ -230,11 +238,11 @@
                             <TabControl.ContentTemplate>
                                 <DataTemplate>
                                     <ScrollViewer
-                                        Padding="24"
+                                        Padding="14"
                                         HorizontalScrollBarVisibility="Disabled"
                                         VerticalScrollBarVisibility="Auto">
                                         <Border
-                                            Padding="32,24"
+                                            Padding="20,16"
                                             Background="{StaticResource CardBg}"
                                             BorderBrush="Transparent"
                                             BorderThickness="0"

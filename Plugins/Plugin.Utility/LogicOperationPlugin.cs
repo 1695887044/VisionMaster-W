@@ -19,6 +19,7 @@ namespace VisionMaster.Plugins.Util
         Description = "支持布尔逻辑运算：AND、OR、NOT、XOR等",
         ShortName = "\uf1b2"
     )]
+    [ParallelSafe] // 二期真并行：chun jisuan lei
     public class LogicOperationPlugin : VisionPluginBase
     {
         public InputPort<LogicOperationType> Operation { get; } = new InputPort<LogicOperationType>("Operation", LogicOperationType.And, "逻辑运算类型");

@@ -44,6 +44,7 @@ namespace Plugin.Calibration
         Description = "像素当量 / 九点标定 / 透视标定：产出「像素 → 毫米 / 机械坐标」的变换，供下游坐标换算与引导使用",
         ShortName = "\uf05b"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public partial class CalibrationPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         /// <summary>画布标记半径的下限（图像像素）：大图上按图幅比例放大，小图上不至于变成一坨</summary>
@@ -437,6 +438,72 @@ namespace Plugin.Calibration
         /// <summary>画布标记集合（绑定 ImageEdit.DrawObjectList）</summary>
         public ObservableCollection<DrawingObjectInfo> CanvasMarkers { get; } = new();
 
+        // ── 标定残差箭头（2026-10-08）：把"每点残差多大、往哪偏"画上画布 ──
+        // 旧版只有质量区的 RMS/最大值文本，"哪个点拖后腿"全靠猜；箭头 = 图像点 →
+        // 变换反推的"理想点"连线（放大固定倍数，残差是亚像素级、不放大看不见），
+        // 超阈值点标红点名。走基类 Annotations 通道（随帧覆盖渲染），不新增绘制机制。
+        private List<MeasureAnnotation>? _residualAnnotations;
+
+        /// <summary>残差箭头标注（绑定 ImageEdit.Annotations）；null = 未求解</summary>
+        public List<MeasureAnnotation>? ResidualAnnotations
+        {
+            get => _residualAnnotations;
+            private set { _residualAnnotations = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>残差箭头的固定放大倍数：残差本身亚像素级，×50 才可见；与阈值同色系判定</summary>
+        private const double ResidualArrowScale = 50.0;
+
+        /// <summary>
+        /// 由"图像点 → 变换反推回图像的理想点"重建每点残差箭头。
+        /// 方向口径：箭头从实际图像点指向**理想点**（"应该在哪"），长度 = 残差 × 50。
+        /// 残差阈值内的点画绿色短线，超阈值的红色 + 行名点名。
+        /// </summary>
+        private void RebuildResidualAnnotations()
+        {
+            var t = Transform.TypedValue as CalibrationTransform;
+            var matrix = t?.Kind == CalibrationKind.Mesh ? _meshAffineBaseline : t?.Matrix;
+            if (t == null || !CalibrationMath.IsUsableMatrix(matrix))
+            {
+                ResidualAnnotations = null;
+                return;
+            }
+
+            double threshold = ResidualThresholdPx > 0 ? ResidualThresholdPx : double.MaxValue;
+            var list = new List<MeasureAnnotation>();
+            foreach (var row in PointRows)
+            {
+                if (row == null || !row.IsFilled || row.ResidualPx <= 0)
+                    continue;
+
+                // 图像点 → 机械（经变换）→ 机械理想值 → 反变换回图像 = 理想图像点。
+                // 仿射下"反推"与"正向映射的偏差"等价；网格模式的矩阵是全局仿射基线（与
+                // ApplyRowResidualsFromMatrix 同口径），箭头展示的就是它所度量的畸变。
+                double r = row.ImageRow!.Value, c = row.ImageCol!.Value;
+                if (!CalibrationMath.TryMapPixelToXY(matrix, r, c, out double mx, out double my))
+                    continue;
+                if (!CalibrationMath.TryMapXYToPixel(matrix, row.MachineX!.Value, row.MachineY!.Value, out double ir, out double ic))
+                    continue;
+
+                double dr = ir - r, dc = ic - c;   // 理想 − 实际 = 应修正的方向
+                bool over = row.ResidualPx > threshold;
+                list.Add(new MeasureAnnotation
+                {
+                    Type = MeasureType.Line,
+                    Points = new[] { r, c, r + dr * ResidualArrowScale, c + dc * ResidualArrowScale },
+                    Color = over ? "red" : "green",
+                });
+                list.Add(new MeasureAnnotation
+                {
+                    Type = MeasureType.Point,
+                    Points = new[] { r, c },
+                    Text = over ? $"{row.Name} {row.ResidualPx:0.#}px" : row.Name,
+                    Color = over ? "red" : "green",
+                });
+            }
+            ResidualAnnotations = list.Count > 0 ? list : null;
+        }
+
         private string _scaleSpanText = string.Empty;
         /// <summary>
         /// 像素当量模式的标定线跨度提示（A–B 距离占视野对角线的百分比）。
@@ -710,6 +777,7 @@ namespace Plugin.Calibration
             ResidualMaxPx.Value = t.MaxResidualPx;
 
             ApplyRowResiduals(t);
+            RebuildResidualAnnotations();   // 运行求解后同样刷新（图集标注随帧渲染）
 
             var hint = CalibrationMath.DiagnoseRadialBands(
                 t.ResidualByRadiusBands, t.ResidualBandCounts, MinEdgeResidualForHint());
@@ -1330,6 +1398,7 @@ namespace Plugin.Calibration
             {
                 // 配置态残差回写：表格残差列不再是"要跑一次流程才填"，调点时立即可见
                 ApplyRowResiduals(t);
+                RebuildResidualAnnotations();   // 残差箭头同步刷新（画布 Annotations 通道）
 
                 var anisotropy = 0d;
                 if (t.Kind == CalibrationKind.NinePoint)

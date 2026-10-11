@@ -1,0 +1,13 @@
+﻿// Copyright © 2024 By G(https://github.com/G) https://github.com/G/WPF-Control
+
+namespace G.Controls.PropertyGrid
+{
+    public enum MaskFormat
+    {
+        ExcludePromptAndLiterals,
+        IncludeLiterals,
+        IncludePrompt,
+        IncludePromptAndLiterals
+    }
+}
+

@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="NModbus" Version="3.0.81" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Common\G.Extensions.Common.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.FontIcon\G.Extensions.FontIcon.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.NewtonsoftJson\G.Extensions.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.StoryBoard\G.Extensions.StoryBoard.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Validation\G.Extensions.Validation.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Serializable\G.Services.Serializable.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+  </ItemGroup>
+</Project>

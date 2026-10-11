@@ -1,0 +1,13 @@
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+D:\C#\VM\VisionMaster\Views\ProcessView.xaml(534,15): error MC3000: “An XML comment cannot contain '--', and '-' cannot be the last character. Line 534, position 15.”XML 无效。 [D:\C#\VM\VisionMaster\VisionMaster.csproj]
+D:\C#\VM\VisionMaster\Views\DialogViews\ConditionEditorView.xaml(607,38): error MC3000: “'”' is an unexpected token. The expected token is '"' or '''. Line 607, position 38.”XML 无效。 [D:\C#\VM\VisionMaster\VisionMaster.csproj]
+
+生成失败。
+
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+D:\C#\VM\VisionMaster\Views\ProcessView.xaml(534,15): error MC3000: “An XML comment cannot contain '--', and '-' cannot be the last character. Line 534, position 15.”XML 无效。 [D:\C#\VM\VisionMaster\VisionMaster.csproj]
+D:\C#\VM\VisionMaster\Views\DialogViews\ConditionEditorView.xaml(607,38): error MC3000: “'”' is an unexpected token. The expected token is '"' or '''. Line 607, position 38.”XML 无效。 [D:\C#\VM\VisionMaster\VisionMaster.csproj]
+    1 个警告
+    2 个错误
+
+已用时间 00:00:02.54

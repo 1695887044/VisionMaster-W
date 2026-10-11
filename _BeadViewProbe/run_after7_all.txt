@@ -1,0 +1,2078 @@
+=== 行为自检 ===
+  [PASS] D1① 无参考图 + 输入图 → 底图 = 输入图  (1280x1024)
+  [PASS] D3① 底图=输入图 → Warning 级提示 + 文案点名输入图  ([Warning] 底图：输入图（尚未设参考图）——若用「平面可变形」对齐，请点「① 配方库」的「载入」选择参考图文件；固定相机模式可直接拾取)
+  [PASS] D1 有图时画布不是空态  (IsCanvasEmpty=False)
+  [PASS] D1② 有参考图 → 底图 = 参考图（优先于输入图）  ([Info] 底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标)
+  [PASS] D1④ 无参考图且无输入图 → 底图空 + 空态  (IsCanvasEmpty=True)
+  [PASS] D1④ 空态文案（画布中央提示用同一句）  (尚未载入图像：绑定上游输入图，或在 ①配方库 点「载入」选择参考图文件)
+  [PASS] D4 无底图时 AddPoint 被拒（点列不增 + 红字）  (点列=0 [Error] 请先载入图像（绑定输入图，或点「① 配方库」的「载入」选参考图）再拾取点)
+  [PASS] D4 无底图时 DeleteNearestPoint 被拒  (点列=0)
+  [PASS] D4 无底图时 BeginPointDrag 被拒  (drag=False [Error] 请先载入图像（绑定输入图，或点「① 配方库」的「载入」选参考图）再拾取点)
+  [PASS] D2 非 UI 线程给 SrcImage 赋值不抛
+  [PASS] D2 投入 UI 线程后底图更新为输入图  (1280x1024)
+  [PASS] D5 AlignMode=None + 无参考图 → 学习不被参考图检查拦下  (配方「配方1」学习完成：胶宽 15.3 / 容差 8 / 位置容差 30 / 极性 dark。改参数后需重学（列表会显示「参数已变」）)
+  [PASS] D5 学习走到建模型并写入指纹  (已写指纹)
+  [PASS] D5 反证：平面可变形 + 无参考图 → 仍拒绝学习（提示参考图）  (参考图不存在：。平面可变形对齐需要参考图（模板 + 坐标系基准），请先填有效路径再学习)
+=== P1「载入」文件选择自检 ===
+  [PASS] P1-a 视图里能定位「载入」按钮（Click 接线的真实入口）  (实际宽=54)
+     [PICK] 替身被调用（第 1 次，传入路径 = (空)）→ 返回 D:\C#\VM\Image\bead\adhesive_bead_ref.png
+  [PASS] P1① 空路径点「载入」→ 走文件选择分支（1 次）  (pickCalls=1)
+  [PASS] P1① 选中路径写回 EditingEntry.RefImagePath（路径框随之刷新）  (D:\C#\VM\Image\bead\adhesive_bead_ref.png)
+  [PASS] P1① 参考图真的上了画布（底图 = 参考图）  (底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标)
+     [PICK] 替身被调用（第 2 次，传入路径 = (空)）→ 返回 (取消)
+  [PASS] P1② 取消选文件 → 选择分支确实被走到（2 次）  (pickCalls=2)
+  [PASS] P1② 取消 → 路径仍为空（不写回）
+  [PASS] P1② 取消 → 状态栏仍是「还没有参考图路径」那条（没被当成载入成功）  (还没有参考图路径：点「① 配方库」的「载入」选择参考图文件，再拾取胶路中心线)
+  [PASS] P1③ 路径有效点「载入」→ 不弹框（pickCalls 仍为 2）  (pickCalls=2)
+  [PASS] P1③ 路径有效 → 直接载入画布（底图 = 参考图）  (底图：参考图（原始）——未设矫正四点（或非「平面可变形」模式），点列存原始参考图坐标)
+     [PICK] 替身被调用（第 3 次，传入路径 = D:\C#\VM\Image\bead\not_exist_2026.png）→ 返回 (取消)
+  [PASS] P1④ 路径失效点「载入」→ 走文件选择分支（3 次）  (pickCalls=3)
+  [PASS] P1⑤ 「载入」的 ToolTip 说明了弹框行为（悬停可自证）  (载入参考图（平面可变形对齐的模板 + 坐标系基准）：路径为空或文件不存在时弹文件选择框，选定后自动写入路径并载入画布；路径有效时直接载入（选择配方时会自动载入）)
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_620x640_input.png
+   [620x640_input] 工具栏按钮 6 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_input] 结果横幅 = (空：尚未点过「学习」)
+   [620x640_input] 画布标题 (363,128,112x22) / 提示 (363,196,234x32) → 重叠=False
+   [620x640_input] 画布空态提示 TextBlock=无
+   [620x640_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,128,112x22)
+     [CHAIN·画布标题] WrapPanel actual=234x66 desired=174x72 bounds=(363,128,234x66)
+     [CHAIN·画布标题] DockPanel actual=234x479 desired=226x330 bounds=(363,21,234x479)
+     [CHAIN·画布标题] Border actual=256x497 desired=248x348 bounds=(352,12,256x497)
+     [CHAIN·画布标题] Grid actual=256x616 desired=256x466 bounds=(352,12,256x616)
+        rows=[497,119] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=616x640 bounds=(12,12,596x616)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_input] 画布可视区 (363,230,234x270) 高=270 宽=234 → 按高适配后图宽=337（比例 1.25） 横幅=无
+     [INFO] 视图 620x640 小于用户尺寸，画布 270 高仅记录（验收线只在 ≥900x540 生效）
+   [620x640_input] 右列 可用=256x616 rows=[497,119] heights=[*,Auto] min=[200,0] 合计=616
+   [620x640_input] 块·工作区卡 bounds=(0,0,256x497) 视图内y=12..509 高=497 在右列内=True 在视图内=True
+   [620x640_input] 块·状态条 bounds=(0,503,256x113) 视图内y=515..628 高=113 在右列内=True 在视图内=True
+   [620x640_input] 状态文案 (362,523,236x31) 高=31 在视口内=True
+   [620x640_input] 工具条 可用宽=234 一行实际占宽=482（预算=518） 实占=3 行 按钮=6 最宽按钮=106
+   [620x640_input]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [620x640_input]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [620x640_input]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [620x640_input]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=36
+   [620x640_input]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=36
+   [620x640_input]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=69
+   [620x640_input] ③卡提示命中 1 个 TextBlock
+   [620x640_input] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x616 desired=309x616 bounds=(12,12,309x616)
+     [CHAIN·③提示] Grid actual=326x616 desired=326x616 bounds=(12,12,326x616)
+        cols=[309,17] widths=[*,Auto]
+        rows=[616,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x616 desired=330x616 bounds=(12,12,326x616)
+     [CHAIN·③提示] Grid actual=596x616 desired=616x640 bounds=(12,12,596x616)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·③提示] Border actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·③提示] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_input] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=616 左列可滚=1272
+   [620x640_input] 左列 视口=309x616 内容高=1888 可滚=1272
+   [620x640_input] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [620x640_input] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [620x640_input] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [620x640_input] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [620x640_input] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [620x640_input] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [620x640_input] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [620x640_input] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [620x640_input] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [620x640_input] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [620x640_input] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [620x640_input] 配方参数·胶宽(px) 控件高=36
+   [620x640_input] 配方参数·容差(px) 控件高=36
+   [620x640_input] 配方参数·位置(px) 控件高=36
+   [620x640_input] 配方参数·极性 控件高=32
+   [620x640_input] 平面匹配搜索参数 可见且自然高 6/6
+   [620x640_input] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_620x900_input.png
+   [620x900_input] 工具栏按钮 6 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x900_input] 结果横幅 = (空：尚未点过「学习」)
+   [620x900_input] 画布标题 (363,128,112x22) / 提示 (363,196,234x32) → 重叠=False
+   [620x900_input] 画布空态提示 TextBlock=无
+   [620x900_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,128,112x22)
+     [CHAIN·画布标题] WrapPanel actual=234x66 desired=174x72 bounds=(363,128,234x66)
+     [CHAIN·画布标题] DockPanel actual=234x739 desired=226x330 bounds=(363,21,234x739)
+     [CHAIN·画布标题] Border actual=256x757 desired=248x348 bounds=(352,12,256x757)
+     [CHAIN·画布标题] Grid actual=256x876 desired=256x466 bounds=(352,12,256x876)
+        rows=[757,119] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=596x876 desired=616x900 bounds=(12,12,596x876)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x900 desired=616x900 bounds=(0,0,620x900)
+     [CHAIN·画布标题] Border actual=620x900 desired=616x900 bounds=(0,0,620x900)
+     [CHAIN·画布标题] BeadInspectView actual=620x900 desired=620x900 bounds=(0,0,620x900)
+   [620x900_input] 画布可视区 (363,230,234x530) 高=530 宽=234 → 按高适配后图宽=662（比例 1.25） 横幅=无
+     [INFO] 视图 620x900 小于用户尺寸，画布 530 高仅记录（验收线只在 ≥900x540 生效）
+   [620x900_input] 右列 可用=256x876 rows=[757,119] heights=[*,Auto] min=[200,0] 合计=876
+   [620x900_input] 块·工作区卡 bounds=(0,0,256x757) 视图内y=12..769 高=757 在右列内=True 在视图内=True
+   [620x900_input] 块·状态条 bounds=(0,763,256x113) 视图内y=775..888 高=113 在右列内=True 在视图内=True
+   [620x900_input] 状态文案 (362,783,236x31) 高=31 在视口内=True
+   [620x900_input] 工具条 可用宽=234 一行实际占宽=482（预算=518） 实占=3 行 按钮=6 最宽按钮=106
+   [620x900_input]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [620x900_input]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [620x900_input]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [620x900_input]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=36
+   [620x900_input]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=36
+   [620x900_input]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=69
+   [620x900_input] ③卡提示命中 1 个 TextBlock
+   [620x900_input] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x876 desired=309x876 bounds=(12,12,309x876)
+     [CHAIN·③提示] Grid actual=326x876 desired=326x876 bounds=(12,12,326x876)
+        cols=[309,17] widths=[*,Auto]
+        rows=[876,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x876 desired=330x876 bounds=(12,12,326x876)
+     [CHAIN·③提示] Grid actual=596x876 desired=616x900 bounds=(12,12,596x876)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=620x900 desired=616x900 bounds=(0,0,620x900)
+     [CHAIN·③提示] Border actual=620x900 desired=616x900 bounds=(0,0,620x900)
+     [CHAIN·③提示] BeadInspectView actual=620x900 desired=620x900 bounds=(0,0,620x900)
+   [620x900_input] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=876 左列可滚=1012
+   [620x900_input] 左列 视口=309x876 内容高=1888 可滚=1012
+   [620x900_input] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [620x900_input] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [620x900_input] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [620x900_input] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [620x900_input] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [620x900_input] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [620x900_input] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [620x900_input] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [620x900_input] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [620x900_input] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [620x900_input] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [620x900_input] 配方参数·胶宽(px) 控件高=36
+   [620x900_input] 配方参数·容差(px) 控件高=36
+   [620x900_input] 配方参数·位置(px) 控件高=36
+   [620x900_input] 配方参数·极性 控件高=32
+   [620x900_input] 平面匹配搜索参数 可见且自然高 6/6
+   [620x900_input] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1100x900_input.png
+   [1100x900_input] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x900_input] 结果横幅 = (空：尚未点过「学习」)
+   [1100x900_input] 画布标题 (363,67,112x22) / 提示 (363,94,714x16) → 重叠=False
+   [1100x900_input] 画布空态提示 TextBlock=无
+   [1100x900_input] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,67,112x22)
+     [CHAIN·画布标题] WrapPanel actual=714x28 desired=376x34 bounds=(363,64,714x28)
+     [CHAIN·画布标题] DockPanel actual=714x786 desired=482x211 bounds=(363,21,714x786)
+     [CHAIN·画布标题] Border actual=736x804 desired=504x229 bounds=(352,12,736x804)
+     [CHAIN·画布标题] Grid actual=736x876 desired=738x302 bounds=(352,12,736x876)
+        rows=[804,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1076x876 desired=1098x900 bounds=(12,12,1076x876)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] Border actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] BeadInspectView actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+   [1100x900_input] 画布可视区 (363,112,714x694) 高=694 宽=714 → 按高适配后图宽=868（比例 1.25） 横幅=无
+   [1100x900_input] 右列 可用=736x876 rows=[804,72] heights=[*,Auto] min=[200,0] 合计=876
+   [1100x900_input] 块·工作区卡 bounds=(0,0,736x804) 视图内y=12..816 高=804 在右列内=True 在视图内=True
+   [1100x900_input] 块·状态条 bounds=(0,810,736x66) 视图内y=822..888 高=66 在右列内=True 在视图内=True
+   [1100x900_input] 状态文案 (362,830,716x16) 高=16 在视口内=True
+   [1100x900_input] 工具条 可用宽=714 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1100x900_input]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1100x900_input]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1100x900_input]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1100x900_input]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x900_input]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1100x900_input]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x900_input] ③卡提示命中 1 个 TextBlock
+   [1100x900_input] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x876 desired=309x876 bounds=(12,12,309x876)
+     [CHAIN·③提示] Grid actual=326x876 desired=326x876 bounds=(12,12,326x876)
+        cols=[309,17] widths=[*,Auto]
+        rows=[876,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x876 desired=330x876 bounds=(12,12,326x876)
+     [CHAIN·③提示] Grid actual=1076x876 desired=1098x900 bounds=(12,12,1076x876)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·③提示] Border actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·③提示] BeadInspectView actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+   [1100x900_input] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=876 左列可滚=1012
+   [1100x900_input] 左列 视口=309x876 内容高=1888 可滚=1012
+   [1100x900_input] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1100x900_input] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1100x900_input] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [1100x900_input] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [1100x900_input] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [1100x900_input] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [1100x900_input] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [1100x900_input] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [1100x900_input] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [1100x900_input] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [1100x900_input] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [1100x900_input] 配方参数·胶宽(px) 控件高=36
+   [1100x900_input] 配方参数·容差(px) 控件高=36
+   [1100x900_input] 配方参数·位置(px) 控件高=36
+   [1100x900_input] 配方参数·极性 控件高=32
+   [1100x900_input] 平面匹配搜索参数 可见且自然高 6/6
+   [1100x900_input] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_620x640_empty.png
+   [620x640_empty] 工具栏按钮 6 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_empty] 结果横幅 = (空：尚未点过「学习」)
+   [620x640_empty] 画布标题 (363,128,112x22) / 提示 (363,196,234x32) → 重叠=False
+   [620x640_empty] 画布空态提示 TextBlock=无
+   [620x640_empty] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,128,112x22)
+     [CHAIN·画布标题] WrapPanel actual=234x66 desired=174x72 bounds=(363,128,234x66)
+     [CHAIN·画布标题] DockPanel actual=234x510 desired=226x330 bounds=(363,21,234x510)
+     [CHAIN·画布标题] Border actual=256x528 desired=248x348 bounds=(352,12,256x528)
+     [CHAIN·画布标题] Grid actual=256x616 desired=256x436 bounds=(352,12,256x616)
+        rows=[528,88] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=616x640 bounds=(12,12,596x616)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_empty] 画布可视区 (363,230,234x300) 高=300 宽=234 → 按高适配后图宽=376（比例 1.25） 横幅=无
+     [INFO] 视图 620x640 小于用户尺寸，画布 300 高仅记录（验收线只在 ≥900x540 生效）
+   [620x640_empty] 右列 可用=256x616 rows=[528,88] heights=[*,Auto] min=[200,0] 合计=616
+   [620x640_empty] 块·工作区卡 bounds=(0,0,256x528) 视图内y=12..540 高=528 在右列内=True 在视图内=True
+   [620x640_empty] 块·状态条 bounds=(0,534,256x82) 视图内y=546..628 高=82 在右列内=True 在视图内=True
+   [620x640_empty] 状态文案 (362,554,236x31) 高=31 在视口内=True
+   [620x640_empty] 工具条 可用宽=234 一行实际占宽=482（预算=518） 实占=3 行 按钮=6 最宽按钮=106
+   [620x640_empty]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [620x640_empty]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [620x640_empty]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [620x640_empty]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=36
+   [620x640_empty]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=36
+   [620x640_empty]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=69
+   [620x640_empty] ③卡提示命中 1 个 TextBlock
+   [620x640_empty] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x616 desired=309x616 bounds=(12,12,309x616)
+     [CHAIN·③提示] Grid actual=326x616 desired=326x616 bounds=(12,12,326x616)
+        cols=[309,17] widths=[*,Auto]
+        rows=[616,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x616 desired=330x616 bounds=(12,12,326x616)
+     [CHAIN·③提示] Grid actual=596x616 desired=616x640 bounds=(12,12,596x616)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·③提示] Border actual=620x640 desired=616x640 bounds=(0,0,620x640)
+     [CHAIN·③提示] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_empty] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=616 左列可滚=1272
+   [620x640_empty] 左列 视口=309x616 内容高=1888 可滚=1272
+   [620x640_empty] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [620x640_empty] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [620x640_empty] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [620x640_empty] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [620x640_empty] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [620x640_empty] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [620x640_empty] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [620x640_empty] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [620x640_empty] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [620x640_empty] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [620x640_empty] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [620x640_empty] 配方参数·胶宽(px) 控件高=36
+   [620x640_empty] 配方参数·容差(px) 控件高=36
+   [620x640_empty] 配方参数·位置(px) 控件高=36
+   [620x640_empty] 配方参数·极性 控件高=32
+   [620x640_empty] 平面匹配搜索参数 可见且自然高 6/6
+   [620x640_empty] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1100x900_ref.png
+   [1100x900_ref] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x900_ref] 结果横幅 = (空：尚未点过「学习」)
+   [1100x900_ref] 画布标题 (363,67,112x22) / 提示 (363,94,714x16) → 重叠=False
+   [1100x900_ref] 画布空态提示 TextBlock=无
+   [1100x900_ref] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,67,112x22)
+     [CHAIN·画布标题] WrapPanel actual=714x28 desired=376x34 bounds=(363,64,714x28)
+     [CHAIN·画布标题] DockPanel actual=714x801 desired=482x211 bounds=(363,21,714x801)
+     [CHAIN·画布标题] Border actual=736x819 desired=504x229 bounds=(352,12,736x819)
+     [CHAIN·画布标题] Grid actual=736x876 desired=559x286 bounds=(352,12,736x876)
+        rows=[819,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1076x876 desired=919x900 bounds=(12,12,1076x876)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x900 desired=919x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] Border actual=1100x900 desired=919x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] BeadInspectView actual=1100x900 desired=919x900 bounds=(0,0,1100x900)
+   [1100x900_ref] 画布可视区 (363,112,714x710) 高=710 宽=714 → 按高适配后图宽=888（比例 1.25） 横幅=无
+   [1100x900_ref] 右列 可用=736x876 rows=[819,57] heights=[*,Auto] min=[200,0] 合计=876
+   [1100x900_ref] 块·工作区卡 bounds=(0,0,736x819) 视图内y=12..831 高=819 在右列内=True 在视图内=True
+   [1100x900_ref] 块·状态条 bounds=(0,825,736x51) 视图内y=837..888 高=51 在右列内=True 在视图内=True
+   [1100x900_ref] 状态文案 (362,845,716x16) 高=16 在视口内=True
+   [1100x900_ref] 工具条 可用宽=714 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1100x900_ref]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1100x900_ref]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1100x900_ref]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1100x900_ref]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x900_ref]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1100x900_ref]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x900_ref] ③卡提示命中 1 个 TextBlock
+   [1100x900_ref] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x876 desired=309x876 bounds=(12,12,309x876)
+     [CHAIN·③提示] Grid actual=326x876 desired=326x876 bounds=(12,12,326x876)
+        cols=[309,17] widths=[*,Auto]
+        rows=[876,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x876 desired=330x876 bounds=(12,12,326x876)
+     [CHAIN·③提示] Grid actual=1076x876 desired=919x900 bounds=(12,12,1076x876)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1100x900 desired=919x900 bounds=(0,0,1100x900)
+     [CHAIN·③提示] Border actual=1100x900 desired=919x900 bounds=(0,0,1100x900)
+     [CHAIN·③提示] BeadInspectView actual=1100x900 desired=919x900 bounds=(0,0,1100x900)
+   [1100x900_ref] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=876 左列可滚=1012
+   [1100x900_ref] 左列 视口=309x876 内容高=1888 可滚=1012
+   [1100x900_ref] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1100x900_ref] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1100x900_ref] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [1100x900_ref] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [1100x900_ref] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [1100x900_ref] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [1100x900_ref] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [1100x900_ref] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [1100x900_ref] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [1100x900_ref] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [1100x900_ref] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [1100x900_ref] 配方参数·胶宽(px) 控件高=36
+   [1100x900_ref] 配方参数·容差(px) 控件高=36
+   [1100x900_ref] 配方参数·位置(px) 控件高=36
+   [1100x900_ref] 配方参数·极性 控件高=32
+   [1100x900_ref] 平面匹配搜索参数 可见且自然高 6/6
+   [1100x900_ref] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1490x880_learn_fail.png
+   [1490x880_learn_fail] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1490x880_learn_fail] 结果横幅（Error） bounds=(373,64,1084x16) 视口=1490x880 在视口内=True
+   [1490x880_learn_fail] 横幅文字 = "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请点「① 配方库」的「载入」选择参考图文件，或把「对齐模式」改成「固定相机」"
+   [1490x880_learn_fail] 画布标题 (363,92,112x22) / 提示 (363,120,1104x16) → 重叠=False
+   [1490x880_learn_fail] 画布空态提示 TextBlock=无
+   [1490x880_learn_fail] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,92,112x22)
+     [CHAIN·画布标题] WrapPanel actual=1104x28 desired=376x34 bounds=(363,89,1104x28)
+     [CHAIN·画布标题] DockPanel actual=1104x781 desired=942x236 bounds=(363,21,1104x781)
+     [CHAIN·画布标题] Border actual=1126x799 desired=964x254 bounds=(352,12,1126x799)
+     [CHAIN·画布标题] Grid actual=1126x856 desired=968x312 bounds=(352,12,1126x856)
+        rows=[799,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1466x856 desired=1328x880 bounds=(12,12,1466x856)
+        cols=[330,6,1130] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1490x880 desired=1328x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] Border actual=1490x880 desired=1328x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] BeadInspectView actual=1490x880 desired=1328x880 bounds=(0,0,1490x880)
+   [1490x880_learn_fail] 画布可视区 (363,138,1104x664) 高=664 宽=1104 → 按高适配后图宽=831（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 664（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1490x880_learn_fail] 右列 可用=1126x856 rows=[799,57] heights=[*,Auto] min=[200,0] 合计=856
+   [1490x880_learn_fail] 块·工作区卡 bounds=(0,0,1126x799) 视图内y=12..811 高=799 在右列内=True 在视图内=True
+   [1490x880_learn_fail] 块·状态条 bounds=(0,805,1126x51) 视图内y=817..868 高=51 在右列内=True 在视图内=True
+   [1490x880_learn_fail] 状态文案 (362,825,1106x16) 高=16 在视口内=True
+   [1490x880_learn_fail] 工具条 可用宽=1104 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1490x880_learn_fail]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1490x880_learn_fail]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1490x880_learn_fail]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1490x880_learn_fail]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1490x880_learn_fail]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1490x880_learn_fail]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1490x880_learn_fail] ③卡提示命中 1 个 TextBlock
+   [1490x880_learn_fail] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x856 desired=309x856 bounds=(12,12,309x856)
+     [CHAIN·③提示] Grid actual=326x856 desired=326x856 bounds=(12,12,326x856)
+        cols=[309,17] widths=[*,Auto]
+        rows=[856,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x856 desired=330x856 bounds=(12,12,326x856)
+     [CHAIN·③提示] Grid actual=1466x856 desired=1328x880 bounds=(12,12,1466x856)
+        cols=[330,6,1130] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1490x880 desired=1328x880 bounds=(0,0,1490x880)
+     [CHAIN·③提示] Border actual=1490x880 desired=1328x880 bounds=(0,0,1490x880)
+     [CHAIN·③提示] BeadInspectView actual=1490x880 desired=1328x880 bounds=(0,0,1490x880)
+   [1490x880_learn_fail] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=856 左列可滚=1032
+   [1490x880_learn_fail] 左列 视口=309x856 内容高=1888 可滚=1032
+   [1490x880_learn_fail] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1490x880_learn_fail] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1490x880_learn_fail] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [1490x880_learn_fail] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [1490x880_learn_fail] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [1490x880_learn_fail] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [1490x880_learn_fail] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [1490x880_learn_fail] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [1490x880_learn_fail] 点列 DataGrid 高=140 行=3 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1490x880_learn_fail] 点列 可见行（网格内）= 3/3 文本单元格=12 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,82,26x21) 高=21 在网格宽内=True
+   [1490x880_learn_fail] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [1490x880_learn_fail] 配方参数·胶宽(px) 控件高=36
+   [1490x880_learn_fail] 配方参数·容差(px) 控件高=36
+   [1490x880_learn_fail] 配方参数·位置(px) 控件高=36
+   [1490x880_learn_fail] 配方参数·极性 控件高=32
+   [1490x880_learn_fail] 平面匹配搜索参数 可见且自然高 6/6
+   [1490x880_learn_fail] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1490x880_learn_ok.png
+   [1490x880_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1490x880_learn_ok] 结果横幅（Info） bounds=(373,64,1084x16) 视口=1490x880 在视口内=True
+   [1490x880_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1490x880_learn_ok] 画布标题 (363,92,112x22) / 提示 (363,120,1104x16) → 重叠=False
+   [1490x880_learn_ok] 画布空态提示 TextBlock=无
+   [1490x880_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,92,112x22)
+     [CHAIN·画布标题] WrapPanel actual=1104x28 desired=376x34 bounds=(363,89,1104x28)
+     [CHAIN·画布标题] DockPanel actual=1104x781 desired=722x236 bounds=(363,21,1104x781)
+     [CHAIN·画布标题] Border actual=1126x799 desired=744x254 bounds=(352,12,1126x799)
+     [CHAIN·画布标题] Grid actual=1126x856 desired=748x312 bounds=(352,12,1126x856)
+        rows=[799,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1466x856 desired=1108x880 bounds=(12,12,1466x856)
+        cols=[330,6,1130] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1490x880 desired=1108x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] Border actual=1490x880 desired=1108x880 bounds=(0,0,1490x880)
+     [CHAIN·画布标题] BeadInspectView actual=1490x880 desired=1108x880 bounds=(0,0,1490x880)
+   [1490x880_learn_ok] 画布可视区 (363,138,1104x664) 高=664 宽=1104 → 按高适配后图宽=831（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 664（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1490x880_learn_ok] 右列 可用=1126x856 rows=[799,57] heights=[*,Auto] min=[200,0] 合计=856
+   [1490x880_learn_ok] 块·工作区卡 bounds=(0,0,1126x799) 视图内y=12..811 高=799 在右列内=True 在视图内=True
+   [1490x880_learn_ok] 块·状态条 bounds=(0,805,1126x51) 视图内y=817..868 高=51 在右列内=True 在视图内=True
+   [1490x880_learn_ok] 状态文案 (362,825,1106x16) 高=16 在视口内=True
+   [1490x880_learn_ok] 工具条 可用宽=1104 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1490x880_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1490x880_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1490x880_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1490x880_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1490x880_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1490x880_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1490x880_learn_ok] ③卡提示命中 1 个 TextBlock
+   [1490x880_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x856 desired=309x856 bounds=(12,12,309x856)
+     [CHAIN·③提示] Grid actual=326x856 desired=326x856 bounds=(12,12,326x856)
+        cols=[309,17] widths=[*,Auto]
+        rows=[856,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x856 desired=330x856 bounds=(12,12,326x856)
+     [CHAIN·③提示] Grid actual=1466x856 desired=1108x880 bounds=(12,12,1466x856)
+        cols=[330,6,1130] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1490x880 desired=1108x880 bounds=(0,0,1490x880)
+     [CHAIN·③提示] Border actual=1490x880 desired=1108x880 bounds=(0,0,1490x880)
+     [CHAIN·③提示] BeadInspectView actual=1490x880 desired=1108x880 bounds=(0,0,1490x880)
+   [1490x880_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=856 左列可滚=1330
+   [1490x880_learn_ok] 左列 视口=309x856 内容高=2186 可滚=1330
+   [1490x880_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [1490x880_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1490x880_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [1490x880_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [1490x880_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [1490x880_learn_ok] 配方参数·容差(px) 控件高=36
+   [1490x880_learn_ok] 配方参数·位置(px) 控件高=36
+   [1490x880_learn_ok] 配方参数·极性 控件高=32
+   [1490x880_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [1490x880_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1100x800_learn_ok.png
+   [1100x800_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x800_learn_ok] 结果横幅（Info） bounds=(373,64,694x31) 视口=1100x800 在视口内=True
+   [1100x800_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1100x800_learn_ok] 画布标题 (363,108,112x22) / 提示 (363,135,714x16) → 重叠=False
+   [1100x800_learn_ok] 画布空态提示 TextBlock=无
+   [1100x800_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=714x28 desired=376x34 bounds=(363,104,714x28)
+     [CHAIN·画布标题] DockPanel actual=714x701 desired=710x252 bounds=(363,21,714x701)
+     [CHAIN·画布标题] Border actual=736x719 desired=732x270 bounds=(352,12,736x719)
+     [CHAIN·画布标题] Grid actual=736x776 desired=736x327 bounds=(352,12,736x776)
+        rows=[719,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1076x776 desired=1096x800 bounds=(12,12,1076x776)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x800 desired=1096x800 bounds=(0,0,1100x800)
+     [CHAIN·画布标题] Border actual=1100x800 desired=1096x800 bounds=(0,0,1100x800)
+     [CHAIN·画布标题] BeadInspectView actual=1100x800 desired=1096x800 bounds=(0,0,1100x800)
+   [1100x800_learn_ok] 画布可视区 (363,153,714x569) 高=569 宽=714 → 按高适配后图宽=711（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 569（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1100x800_learn_ok] 右列 可用=736x776 rows=[719,57] heights=[*,Auto] min=[200,0] 合计=776
+   [1100x800_learn_ok] 块·工作区卡 bounds=(0,0,736x719) 视图内y=12..731 高=719 在右列内=True 在视图内=True
+   [1100x800_learn_ok] 块·状态条 bounds=(0,725,736x51) 视图内y=737..788 高=51 在右列内=True 在视图内=True
+   [1100x800_learn_ok] 状态文案 (362,745,716x16) 高=16 在视口内=True
+   [1100x800_learn_ok] 工具条 可用宽=714 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1100x800_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1100x800_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1100x800_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1100x800_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x800_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1100x800_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x800_learn_ok] ③卡提示命中 1 个 TextBlock
+   [1100x800_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x776 desired=309x776 bounds=(12,12,309x776)
+     [CHAIN·③提示] Grid actual=326x776 desired=326x776 bounds=(12,12,326x776)
+        cols=[309,17] widths=[*,Auto]
+        rows=[776,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x776 desired=330x776 bounds=(12,12,326x776)
+     [CHAIN·③提示] Grid actual=1076x776 desired=1096x800 bounds=(12,12,1076x776)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1100x800 desired=1096x800 bounds=(0,0,1100x800)
+     [CHAIN·③提示] Border actual=1100x800 desired=1096x800 bounds=(0,0,1100x800)
+     [CHAIN·③提示] BeadInspectView actual=1100x800 desired=1096x800 bounds=(0,0,1100x800)
+   [1100x800_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=776 左列可滚=1410
+   [1100x800_learn_ok] 左列 视口=309x776 内容高=2186 可滚=1410
+   [1100x800_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [1100x800_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1100x800_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [1100x800_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [1100x800_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [1100x800_learn_ok] 配方参数·容差(px) 控件高=36
+   [1100x800_learn_ok] 配方参数·位置(px) 控件高=36
+   [1100x800_learn_ok] 配方参数·极性 控件高=32
+   [1100x800_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [1100x800_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1200x664_learn_ok.png
+   [1200x664_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1200x664_learn_ok] 结果横幅（Info） bounds=(373,64,794x16) 视口=1200x664 在视口内=True
+   [1200x664_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1200x664_learn_ok] 画布标题 (363,92,112x22) / 提示 (363,120,814x16) → 重叠=False
+   [1200x664_learn_ok] 画布空态提示 TextBlock=无
+   [1200x664_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,92,112x22)
+     [CHAIN·画布标题] WrapPanel actual=814x28 desired=376x34 bounds=(363,89,814x28)
+     [CHAIN·画布标题] DockPanel actual=814x565 desired=722x236 bounds=(363,21,814x565)
+     [CHAIN·画布标题] Border actual=836x583 desired=744x254 bounds=(352,12,836x583)
+     [CHAIN·画布标题] Grid actual=836x640 desired=748x312 bounds=(352,12,836x640)
+        rows=[583,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1176x640 desired=1108x664 bounds=(12,12,1176x640)
+        cols=[330,6,840] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1200x664 desired=1108x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] Border actual=1200x664 desired=1108x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] BeadInspectView actual=1200x664 desired=1108x664 bounds=(0,0,1200x664)
+   [1200x664_learn_ok] 画布可视区 (363,138,814x448) 高=448 宽=814 → 按高适配后图宽=561（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 448（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1200x664_learn_ok] 右列 可用=836x640 rows=[583,57] heights=[*,Auto] min=[200,0] 合计=640
+   [1200x664_learn_ok] 块·工作区卡 bounds=(0,0,836x583) 视图内y=12..595 高=583 在右列内=True 在视图内=True
+   [1200x664_learn_ok] 块·状态条 bounds=(0,589,836x51) 视图内y=601..652 高=51 在右列内=True 在视图内=True
+   [1200x664_learn_ok] 状态文案 (362,609,816x16) 高=16 在视口内=True
+   [1200x664_learn_ok] 工具条 可用宽=814 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1200x664_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1200x664_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1200x664_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1200x664_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1200x664_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1200x664_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1200x664_learn_ok] ③卡提示命中 1 个 TextBlock
+   [1200x664_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(12,12,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(12,12,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(12,12,326x640)
+     [CHAIN·③提示] Grid actual=1176x640 desired=1108x664 bounds=(12,12,1176x640)
+        cols=[330,6,840] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1200x664 desired=1108x664 bounds=(0,0,1200x664)
+     [CHAIN·③提示] Border actual=1200x664 desired=1108x664 bounds=(0,0,1200x664)
+     [CHAIN·③提示] BeadInspectView actual=1200x664 desired=1108x664 bounds=(0,0,1200x664)
+   [1200x664_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=640 左列可滚=1546
+   [1200x664_learn_ok] 左列 视口=309x640 内容高=2186 可滚=1546
+   [1200x664_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [1200x664_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1200x664_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [1200x664_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [1200x664_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [1200x664_learn_ok] 配方参数·容差(px) 控件高=36
+   [1200x664_learn_ok] 配方参数·位置(px) 控件高=36
+   [1200x664_learn_ok] 配方参数·极性 控件高=32
+   [1200x664_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [1200x664_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1200x664_learn_fail.png
+   [1200x664_learn_fail] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1200x664_learn_fail] 结果横幅（Error） bounds=(373,64,794x31) 视口=1200x664 在视口内=True
+   [1200x664_learn_fail] 横幅文字 = "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请点「① 配方库」的「载入」选择参考图文件，或把「对齐模式」改成「固定相机」"
+   [1200x664_learn_fail] 画布标题 (363,108,112x22) / 提示 (363,135,814x16) → 重叠=False
+   [1200x664_learn_fail] 画布空态提示 TextBlock=无
+   [1200x664_learn_fail] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=814x28 desired=376x34 bounds=(363,104,814x28)
+     [CHAIN·画布标题] DockPanel actual=814x565 desired=810x252 bounds=(363,21,814x565)
+     [CHAIN·画布标题] Border actual=836x583 desired=832x270 bounds=(352,12,836x583)
+     [CHAIN·画布标题] Grid actual=836x640 desired=836x327 bounds=(352,12,836x640)
+        rows=[583,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1176x640 desired=1196x664 bounds=(12,12,1176x640)
+        cols=[330,6,840] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1200x664 desired=1196x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] Border actual=1200x664 desired=1196x664 bounds=(0,0,1200x664)
+     [CHAIN·画布标题] BeadInspectView actual=1200x664 desired=1196x664 bounds=(0,0,1200x664)
+   [1200x664_learn_fail] 画布可视区 (363,153,814x433) 高=433 宽=814 → 按高适配后图宽=541（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 433（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1200x664_learn_fail] 右列 可用=836x640 rows=[583,57] heights=[*,Auto] min=[200,0] 合计=640
+   [1200x664_learn_fail] 块·工作区卡 bounds=(0,0,836x583) 视图内y=12..595 高=583 在右列内=True 在视图内=True
+   [1200x664_learn_fail] 块·状态条 bounds=(0,589,836x51) 视图内y=601..652 高=51 在右列内=True 在视图内=True
+   [1200x664_learn_fail] 状态文案 (362,609,816x16) 高=16 在视口内=True
+   [1200x664_learn_fail] 工具条 可用宽=814 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1200x664_learn_fail]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1200x664_learn_fail]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1200x664_learn_fail]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1200x664_learn_fail]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1200x664_learn_fail]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1200x664_learn_fail]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1200x664_learn_fail] ③卡提示命中 1 个 TextBlock
+   [1200x664_learn_fail] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(12,12,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(12,12,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(12,12,326x640)
+     [CHAIN·③提示] Grid actual=1176x640 desired=1196x664 bounds=(12,12,1176x640)
+        cols=[330,6,840] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1200x664 desired=1196x664 bounds=(0,0,1200x664)
+     [CHAIN·③提示] Border actual=1200x664 desired=1196x664 bounds=(0,0,1200x664)
+     [CHAIN·③提示] BeadInspectView actual=1200x664 desired=1196x664 bounds=(0,0,1200x664)
+   [1200x664_learn_fail] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=640 左列可滚=1248
+   [1200x664_learn_fail] 左列 视口=309x640 内容高=1888 可滚=1248
+   [1200x664_learn_fail] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1200x664_learn_fail] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1200x664_learn_fail] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [1200x664_learn_fail] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [1200x664_learn_fail] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [1200x664_learn_fail] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [1200x664_learn_fail] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [1200x664_learn_fail] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [1200x664_learn_fail] 点列 DataGrid 高=140 行=3 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1200x664_learn_fail] 点列 可见行（网格内）= 3/3 文本单元格=12 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,82,26x21) 高=21 在网格宽内=True
+   [1200x664_learn_fail] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [1200x664_learn_fail] 配方参数·胶宽(px) 控件高=36
+   [1200x664_learn_fail] 配方参数·容差(px) 控件高=36
+   [1200x664_learn_fail] 配方参数·位置(px) 控件高=36
+   [1200x664_learn_fail] 配方参数·极性 控件高=32
+   [1200x664_learn_fail] 平面匹配搜索参数 可见且自然高 6/6
+   [1200x664_learn_fail] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1152x664_learn_ok.png
+   [1152x664_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1152x664_learn_ok] 结果横幅（Info） bounds=(373,64,746x16) 视口=1152x664 在视口内=True
+   [1152x664_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1152x664_learn_ok] 画布标题 (363,92,112x22) / 提示 (363,120,766x16) → 重叠=False
+   [1152x664_learn_ok] 画布空态提示 TextBlock=无
+   [1152x664_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,92,112x22)
+     [CHAIN·画布标题] WrapPanel actual=766x28 desired=376x34 bounds=(363,89,766x28)
+     [CHAIN·画布标题] DockPanel actual=766x565 desired=722x236 bounds=(363,21,766x565)
+     [CHAIN·画布标题] Border actual=788x583 desired=744x254 bounds=(352,12,788x583)
+     [CHAIN·画布标题] Grid actual=788x640 desired=748x312 bounds=(352,12,788x640)
+        rows=[583,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1128x640 desired=1108x664 bounds=(12,12,1128x640)
+        cols=[330,6,792] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1152x664 desired=1108x664 bounds=(0,0,1152x664)
+     [CHAIN·画布标题] Border actual=1152x664 desired=1108x664 bounds=(0,0,1152x664)
+     [CHAIN·画布标题] BeadInspectView actual=1152x664 desired=1108x664 bounds=(0,0,1152x664)
+   [1152x664_learn_ok] 画布可视区 (363,138,766x448) 高=448 宽=766 → 按高适配后图宽=561（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 448（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1152x664_learn_ok] 右列 可用=788x640 rows=[583,57] heights=[*,Auto] min=[200,0] 合计=640
+   [1152x664_learn_ok] 块·工作区卡 bounds=(0,0,788x583) 视图内y=12..595 高=583 在右列内=True 在视图内=True
+   [1152x664_learn_ok] 块·状态条 bounds=(0,589,788x51) 视图内y=601..652 高=51 在右列内=True 在视图内=True
+   [1152x664_learn_ok] 状态文案 (362,609,768x16) 高=16 在视口内=True
+   [1152x664_learn_ok] 工具条 可用宽=766 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1152x664_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1152x664_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1152x664_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1152x664_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1152x664_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1152x664_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1152x664_learn_ok] ③卡提示命中 1 个 TextBlock
+   [1152x664_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(12,12,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(12,12,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(12,12,326x640)
+     [CHAIN·③提示] Grid actual=1128x640 desired=1108x664 bounds=(12,12,1128x640)
+        cols=[330,6,792] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1152x664 desired=1108x664 bounds=(0,0,1152x664)
+     [CHAIN·③提示] Border actual=1152x664 desired=1108x664 bounds=(0,0,1152x664)
+     [CHAIN·③提示] BeadInspectView actual=1152x664 desired=1108x664 bounds=(0,0,1152x664)
+   [1152x664_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=640 左列可滚=1546
+   [1152x664_learn_ok] 左列 视口=309x640 内容高=2186 可滚=1546
+   [1152x664_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [1152x664_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1152x664_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [1152x664_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [1152x664_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [1152x664_learn_ok] 配方参数·容差(px) 控件高=36
+   [1152x664_learn_ok] 配方参数·位置(px) 控件高=36
+   [1152x664_learn_ok] 配方参数·极性 控件高=32
+   [1152x664_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [1152x664_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1152x664_learn_fail.png
+   [1152x664_learn_fail] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1152x664_learn_fail] 结果横幅（Error） bounds=(373,64,746x31) 视口=1152x664 在视口内=True
+   [1152x664_learn_fail] 横幅文字 = "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请点「① 配方库」的「载入」选择参考图文件，或把「对齐模式」改成「固定相机」"
+   [1152x664_learn_fail] 画布标题 (363,108,112x22) / 提示 (363,135,766x16) → 重叠=False
+   [1152x664_learn_fail] 画布空态提示 TextBlock=无
+   [1152x664_learn_fail] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=766x28 desired=376x34 bounds=(363,104,766x28)
+     [CHAIN·画布标题] DockPanel actual=766x565 desired=762x252 bounds=(363,21,766x565)
+     [CHAIN·画布标题] Border actual=788x583 desired=784x270 bounds=(352,12,788x583)
+     [CHAIN·画布标题] Grid actual=788x640 desired=788x327 bounds=(352,12,788x640)
+        rows=[583,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1128x640 desired=1148x664 bounds=(12,12,1128x640)
+        cols=[330,6,792] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1152x664 desired=1148x664 bounds=(0,0,1152x664)
+     [CHAIN·画布标题] Border actual=1152x664 desired=1148x664 bounds=(0,0,1152x664)
+     [CHAIN·画布标题] BeadInspectView actual=1152x664 desired=1148x664 bounds=(0,0,1152x664)
+   [1152x664_learn_fail] 画布可视区 (363,153,766x433) 高=433 宽=766 → 按高适配后图宽=541（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 433（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1152x664_learn_fail] 右列 可用=788x640 rows=[583,57] heights=[*,Auto] min=[200,0] 合计=640
+   [1152x664_learn_fail] 块·工作区卡 bounds=(0,0,788x583) 视图内y=12..595 高=583 在右列内=True 在视图内=True
+   [1152x664_learn_fail] 块·状态条 bounds=(0,589,788x51) 视图内y=601..652 高=51 在右列内=True 在视图内=True
+   [1152x664_learn_fail] 状态文案 (362,609,768x16) 高=16 在视口内=True
+   [1152x664_learn_fail] 工具条 可用宽=766 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1152x664_learn_fail]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1152x664_learn_fail]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1152x664_learn_fail]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1152x664_learn_fail]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1152x664_learn_fail]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1152x664_learn_fail]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1152x664_learn_fail] ③卡提示命中 1 个 TextBlock
+   [1152x664_learn_fail] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(12,12,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(12,12,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(12,12,326x640)
+     [CHAIN·③提示] Grid actual=1128x640 desired=1148x664 bounds=(12,12,1128x640)
+        cols=[330,6,792] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1152x664 desired=1148x664 bounds=(0,0,1152x664)
+     [CHAIN·③提示] Border actual=1152x664 desired=1148x664 bounds=(0,0,1152x664)
+     [CHAIN·③提示] BeadInspectView actual=1152x664 desired=1148x664 bounds=(0,0,1152x664)
+   [1152x664_learn_fail] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=640 左列可滚=1248
+   [1152x664_learn_fail] 左列 视口=309x640 内容高=1888 可滚=1248
+   [1152x664_learn_fail] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1152x664_learn_fail] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1152x664_learn_fail] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [1152x664_learn_fail] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [1152x664_learn_fail] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [1152x664_learn_fail] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [1152x664_learn_fail] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [1152x664_learn_fail] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [1152x664_learn_fail] 点列 DataGrid 高=140 行=3 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1152x664_learn_fail] 点列 可见行（网格内）= 3/3 文本单元格=12 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,82,26x21) 高=21 在网格宽内=True
+   [1152x664_learn_fail] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [1152x664_learn_fail] 配方参数·胶宽(px) 控件高=36
+   [1152x664_learn_fail] 配方参数·容差(px) 控件高=36
+   [1152x664_learn_fail] 配方参数·位置(px) 控件高=36
+   [1152x664_learn_fail] 配方参数·极性 控件高=32
+   [1152x664_learn_fail] 平面匹配搜索参数 可见且自然高 6/6
+   [1152x664_learn_fail] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_620x640_learn_ok.png
+   [620x640_learn_ok] 工具栏按钮 6 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x640_learn_ok] 结果横幅（Info） bounds=(373,128,214x62) 视口=620x640 在视口内=True
+   [620x640_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [620x640_learn_ok] 画布标题 (363,200,112x22) / 提示 (363,268,234x32) → 重叠=False
+   [620x640_learn_ok] 画布空态提示 TextBlock=无
+   [620x640_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,200,112x22)
+     [CHAIN·画布标题] WrapPanel actual=234x66 desired=174x72 bounds=(363,200,234x66)
+     [CHAIN·画布标题] DockPanel actual=234x479 desired=226x402 bounds=(363,21,234x479)
+     [CHAIN·画布标题] Border actual=256x497 desired=248x420 bounds=(352,12,256x497)
+     [CHAIN·画布标题] Grid actual=256x616 desired=252x538 bounds=(352,12,256x616)
+        rows=[497,119] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=596x616 desired=612x640 bounds=(12,12,596x616)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x640 desired=612x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] Border actual=620x640 desired=612x640 bounds=(0,0,620x640)
+     [CHAIN·画布标题] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_learn_ok] 画布可视区 (363,302,234x198) 高=198 宽=234 → 按高适配后图宽=247（比例 1.25） 横幅=有
+     [INFO] 视图 620x640 小于用户尺寸，画布 198 高仅记录（验收线只在 ≥900x540 生效）
+   [620x640_learn_ok] 右列 可用=256x616 rows=[497,119] heights=[*,Auto] min=[200,0] 合计=616
+   [620x640_learn_ok] 块·工作区卡 bounds=(0,0,256x497) 视图内y=12..509 高=497 在右列内=True 在视图内=True
+   [620x640_learn_ok] 块·状态条 bounds=(0,503,256x113) 视图内y=515..628 高=113 在右列内=True 在视图内=True
+   [620x640_learn_ok] 状态文案 (362,523,236x46) 高=46 在视口内=True
+   [620x640_learn_ok] 工具条 可用宽=234 一行实际占宽=482（预算=518） 实占=3 行 按钮=6 最宽按钮=106
+   [620x640_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [620x640_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [620x640_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [620x640_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=36
+   [620x640_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=36
+   [620x640_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=69
+   [620x640_learn_ok] ③卡提示命中 1 个 TextBlock
+   [620x640_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x616 desired=309x616 bounds=(12,12,309x616)
+     [CHAIN·③提示] Grid actual=326x616 desired=326x616 bounds=(12,12,326x616)
+        cols=[309,17] widths=[*,Auto]
+        rows=[616,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x616 desired=330x616 bounds=(12,12,326x616)
+     [CHAIN·③提示] Grid actual=596x616 desired=612x640 bounds=(12,12,596x616)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=620x640 desired=612x640 bounds=(0,0,620x640)
+     [CHAIN·③提示] Border actual=620x640 desired=612x640 bounds=(0,0,620x640)
+     [CHAIN·③提示] BeadInspectView actual=620x640 desired=620x640 bounds=(0,0,620x640)
+   [620x640_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=616 左列可滚=1570
+   [620x640_learn_ok] 左列 视口=309x616 内容高=2186 可滚=1570
+   [620x640_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [620x640_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [620x640_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [620x640_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [620x640_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [620x640_learn_ok] 配方参数·容差(px) 控件高=36
+   [620x640_learn_ok] 配方参数·位置(px) 控件高=36
+   [620x640_learn_ok] 配方参数·极性 控件高=32
+   [620x640_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [620x640_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1000x664_learn_ok.png
+   [1000x664_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1000x664_learn_ok] 结果横幅（Info） bounds=(373,64,594x31) 视口=1000x664 在视口内=True
+   [1000x664_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [1000x664_learn_ok] 画布标题 (363,108,112x22) / 提示 (363,135,614x16) → 重叠=False
+   [1000x664_learn_ok] 画布空态提示 TextBlock=无
+   [1000x664_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=614x28 desired=376x34 bounds=(363,104,614x28)
+     [CHAIN·画布标题] DockPanel actual=614x550 desired=602x252 bounds=(363,21,614x550)
+     [CHAIN·画布标题] Border actual=636x568 desired=624x270 bounds=(352,12,636x568)
+     [CHAIN·画布标题] Grid actual=636x640 desired=636x342 bounds=(352,12,636x640)
+        rows=[568,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=976x640 desired=996x664 bounds=(12,12,976x640)
+        cols=[330,6,640] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1000x664 desired=996x664 bounds=(0,0,1000x664)
+     [CHAIN·画布标题] Border actual=1000x664 desired=996x664 bounds=(0,0,1000x664)
+     [CHAIN·画布标题] BeadInspectView actual=1000x664 desired=996x664 bounds=(0,0,1000x664)
+   [1000x664_learn_ok] 画布可视区 (363,153,614x418) 高=418 宽=614 → 按高适配后图宽=522（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 418（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1000x664_learn_ok] 右列 可用=636x640 rows=[568,72] heights=[*,Auto] min=[200,0] 合计=640
+   [1000x664_learn_ok] 块·工作区卡 bounds=(0,0,636x568) 视图内y=12..580 高=568 在右列内=True 在视图内=True
+   [1000x664_learn_ok] 块·状态条 bounds=(0,574,636x66) 视图内y=586..652 高=66 在右列内=True 在视图内=True
+   [1000x664_learn_ok] 状态文案 (362,594,616x31) 高=31 在视口内=True
+   [1000x664_learn_ok] 工具条 可用宽=614 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1000x664_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1000x664_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1000x664_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1000x664_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1000x664_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1000x664_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1000x664_learn_ok] ③卡提示命中 1 个 TextBlock
+   [1000x664_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(12,12,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(12,12,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(12,12,326x640)
+     [CHAIN·③提示] Grid actual=976x640 desired=996x664 bounds=(12,12,976x640)
+        cols=[330,6,640] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1000x664 desired=996x664 bounds=(0,0,1000x664)
+     [CHAIN·③提示] Border actual=1000x664 desired=996x664 bounds=(0,0,1000x664)
+     [CHAIN·③提示] BeadInspectView actual=1000x664 desired=996x664 bounds=(0,0,1000x664)
+   [1000x664_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=640 左列可滚=1546
+   [1000x664_learn_ok] 左列 视口=309x640 内容高=2186 可滚=1546
+   [1000x664_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [1000x664_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1000x664_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [1000x664_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [1000x664_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [1000x664_learn_ok] 配方参数·容差(px) 控件高=36
+   [1000x664_learn_ok] 配方参数·位置(px) 控件高=36
+   [1000x664_learn_ok] 配方参数·极性 控件高=32
+   [1000x664_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [1000x664_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1000x664_learn_fail.png
+   [1000x664_learn_fail] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1000x664_learn_fail] 结果横幅（Error） bounds=(373,64,594x31) 视口=1000x664 在视口内=True
+   [1000x664_learn_fail] 横幅文字 = "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请点「① 配方库」的「载入」选择参考图文件，或把「对齐模式」改成「固定相机」"
+   [1000x664_learn_fail] 画布标题 (363,108,112x22) / 提示 (363,135,614x16) → 重叠=False
+   [1000x664_learn_fail] 画布空态提示 TextBlock=无
+   [1000x664_learn_fail] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=614x28 desired=376x34 bounds=(363,104,614x28)
+     [CHAIN·画布标题] DockPanel actual=614x550 desired=606x252 bounds=(363,21,614x550)
+     [CHAIN·画布标题] Border actual=636x568 desired=628x270 bounds=(352,12,636x568)
+     [CHAIN·画布标题] Grid actual=636x640 desired=632x342 bounds=(352,12,636x640)
+        rows=[568,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=976x640 desired=992x664 bounds=(12,12,976x640)
+        cols=[330,6,640] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1000x664 desired=992x664 bounds=(0,0,1000x664)
+     [CHAIN·画布标题] Border actual=1000x664 desired=992x664 bounds=(0,0,1000x664)
+     [CHAIN·画布标题] BeadInspectView actual=1000x664 desired=992x664 bounds=(0,0,1000x664)
+   [1000x664_learn_fail] 画布可视区 (363,153,614x418) 高=418 宽=614 → 按高适配后图宽=522（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 418（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1000x664_learn_fail] 右列 可用=636x640 rows=[568,72] heights=[*,Auto] min=[200,0] 合计=640
+   [1000x664_learn_fail] 块·工作区卡 bounds=(0,0,636x568) 视图内y=12..580 高=568 在右列内=True 在视图内=True
+   [1000x664_learn_fail] 块·状态条 bounds=(0,574,636x66) 视图内y=586..652 高=66 在右列内=True 在视图内=True
+   [1000x664_learn_fail] 状态文案 (362,594,616x16) 高=16 在视口内=True
+   [1000x664_learn_fail] 工具条 可用宽=614 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1000x664_learn_fail]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1000x664_learn_fail]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1000x664_learn_fail]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1000x664_learn_fail]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1000x664_learn_fail]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1000x664_learn_fail]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1000x664_learn_fail] ③卡提示命中 1 个 TextBlock
+   [1000x664_learn_fail] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(12,12,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(12,12,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(12,12,326x640)
+     [CHAIN·③提示] Grid actual=976x640 desired=992x664 bounds=(12,12,976x640)
+        cols=[330,6,640] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1000x664 desired=992x664 bounds=(0,0,1000x664)
+     [CHAIN·③提示] Border actual=1000x664 desired=992x664 bounds=(0,0,1000x664)
+     [CHAIN·③提示] BeadInspectView actual=1000x664 desired=992x664 bounds=(0,0,1000x664)
+   [1000x664_learn_fail] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=640 左列可滚=1248
+   [1000x664_learn_fail] 左列 视口=309x640 内容高=1888 可滚=1248
+   [1000x664_learn_fail] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [1000x664_learn_fail] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [1000x664_learn_fail] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [1000x664_learn_fail] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [1000x664_learn_fail] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [1000x664_learn_fail] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [1000x664_learn_fail] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [1000x664_learn_fail] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [1000x664_learn_fail] 点列 DataGrid 高=140 行=3 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [1000x664_learn_fail] 点列 可见行（网格内）= 3/3 文本单元格=12 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,82,26x21) 高=21 在网格宽内=True
+   [1000x664_learn_fail] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [1000x664_learn_fail] 配方参数·胶宽(px) 控件高=36
+   [1000x664_learn_fail] 配方参数·容差(px) 控件高=36
+   [1000x664_learn_fail] 配方参数·位置(px) 控件高=36
+   [1000x664_learn_fail] 配方参数·极性 控件高=32
+   [1000x664_learn_fail] 平面匹配搜索参数 可见且自然高 6/6
+   [1000x664_learn_fail] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_shell_1040x824_learn_ok.png
+   [shell_1040x824_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [shell_1040x824_learn_ok] 结果横幅（Info） bounds=(393,152,594x31) 视口=1040x824 在视口内=True
+   [shell_1040x824_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [shell_1040x824_learn_ok] 画布标题 (383,196,112x22) / 提示 (383,223,614x16) → 重叠=False
+   [shell_1040x824_learn_ok] 画布空态提示 TextBlock=无
+   [shell_1040x824_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(383,196,112x22)
+     [CHAIN·画布标题] WrapPanel actual=614x28 desired=376x34 bounds=(383,192,614x28)
+     [CHAIN·画布标题] DockPanel actual=614x550 desired=602x252 bounds=(383,109,614x550)
+     [CHAIN·画布标题] Border actual=636x568 desired=624x270 bounds=(372,100,636x568)
+     [CHAIN·画布标题] Grid actual=636x640 desired=636x342 bounds=(372,100,636x640)
+        rows=[568,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=976x640 desired=996x664 bounds=(32,100,976x640)
+        cols=[330,6,640] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1000x664 desired=996x664 bounds=(20,88,1000x664)
+     [CHAIN·画布标题] Border actual=1000x664 desired=996x664 bounds=(20,88,1000x664)
+     [CHAIN·画布标题] BeadInspectView actual=1000x664 desired=996x664 bounds=(20,88,1000x664)
+     [CHAIN·画布标题] Grid actual=1000x664 desired=1036x696 bounds=(20,88,1000x664)
+   [shell_1040x824_learn_ok] 画布可视区 (383,241,614x418) 高=418 宽=614 → 按高适配后图宽=522（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 418（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [shell_1040x824_learn_ok] 右列 可用=636x640 rows=[568,72] heights=[*,Auto] min=[200,0] 合计=640
+   [shell_1040x824_learn_ok] 块·工作区卡 bounds=(0,0,636x568) 视图内y=100..668 高=568 在右列内=True 在视图内=True
+   [shell_1040x824_learn_ok] 块·状态条 bounds=(0,574,636x66) 视图内y=674..740 高=66 在右列内=True 在视图内=True
+   [shell_1040x824_learn_ok] 状态文案 (382,682,616x31) 高=31 在视口内=True
+   [shell_1040x824_learn_ok] 工具条 可用宽=614 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [shell_1040x824_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [shell_1040x824_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [shell_1040x824_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [shell_1040x824_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_1040x824_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [shell_1040x824_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_1040x824_learn_ok] ③卡提示命中 1 个 TextBlock
+   [shell_1040x824_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(49,1474,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(49,1474,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(49,1443,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(32,1426,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(32,100,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(32,100,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(32,100,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(32,100,326x640)
+     [CHAIN·③提示] Grid actual=976x640 desired=996x664 bounds=(32,100,976x640)
+        cols=[330,6,640] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1000x664 desired=996x664 bounds=(20,88,1000x664)
+     [CHAIN·③提示] Border actual=1000x664 desired=996x664 bounds=(20,88,1000x664)
+     [CHAIN·③提示] BeadInspectView actual=1000x664 desired=996x664 bounds=(20,88,1000x664)
+     [CHAIN·③提示] Grid actual=1000x664 desired=1036x696 bounds=(20,88,1000x664)
+   [shell_1040x824_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=640 左列可滚=1546
+   [shell_1040x824_learn_ok] 左列 视口=309x640 内容高=2186 可滚=1546
+   [shell_1040x824_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [shell_1040x824_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [shell_1040x824_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [shell_1040x824_learn_ok] 点列下提示 (49,878,275x16) 在网格下=True 在卡内=True 卡片=(32,656,309x255)
+   [shell_1040x824_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [shell_1040x824_learn_ok] 配方参数·容差(px) 控件高=36
+   [shell_1040x824_learn_ok] 配方参数·位置(px) 控件高=36
+   [shell_1040x824_learn_ok] 配方参数·极性 控件高=32
+   [shell_1040x824_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [shell_1040x824_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_shell_960x680_learn_ok.png
+   [shell_960x680_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [shell_960x680_learn_ok] 结果横幅（Info） bounds=(393,152,514x31) 视口=960x680 在视口内=True
+   [shell_960x680_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [shell_960x680_learn_ok] 画布标题 (383,196,112x22) / 提示 (383,223,534x16) → 重叠=False
+   [shell_960x680_learn_ok] 画布空态提示 TextBlock=无
+   [shell_960x680_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(383,196,112x22)
+     [CHAIN·画布标题] WrapPanel actual=534x28 desired=376x34 bounds=(383,192,534x28)
+     [CHAIN·画布标题] DockPanel actual=534x406 desired=530x252 bounds=(383,109,534x406)
+     [CHAIN·画布标题] Border actual=556x424 desired=552x270 bounds=(372,100,556x424)
+     [CHAIN·画布标题] Grid actual=556x496 desired=556x342 bounds=(372,100,556x496)
+        rows=[424,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=896x496 desired=916x520 bounds=(32,100,896x496)
+        cols=[330,6,560] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=920x520 desired=916x520 bounds=(20,88,920x520)
+     [CHAIN·画布标题] Border actual=920x520 desired=916x520 bounds=(20,88,920x520)
+     [CHAIN·画布标题] BeadInspectView actual=920x520 desired=916x520 bounds=(20,88,920x520)
+     [CHAIN·画布标题] Grid actual=920x520 desired=956x552 bounds=(20,88,920x520)
+   [shell_960x680_learn_ok] 画布可视区 (383,241,534x274) 高=274 宽=534 → 按高适配后图宽=342（比例 1.25） 横幅=有
+     [INFO] 视图 920x520 小于用户尺寸，画布 274 高仅记录（验收线只在 ≥900x540 生效）
+   [shell_960x680_learn_ok] 右列 可用=556x496 rows=[424,72] heights=[*,Auto] min=[200,0] 合计=496
+   [shell_960x680_learn_ok] 块·工作区卡 bounds=(0,0,556x424) 视图内y=100..524 高=424 在右列内=True 在视图内=True
+   [shell_960x680_learn_ok] 块·状态条 bounds=(0,430,556x66) 视图内y=530..596 高=66 在右列内=True 在视图内=True
+   [shell_960x680_learn_ok] 状态文案 (382,538,536x31) 高=31 在视口内=True
+   [shell_960x680_learn_ok] 工具条 可用宽=534 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [shell_960x680_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [shell_960x680_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [shell_960x680_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [shell_960x680_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_960x680_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [shell_960x680_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_960x680_learn_ok] ③卡提示命中 1 个 TextBlock
+   [shell_960x680_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(49,1474,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(49,1474,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(49,1443,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(32,1426,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(32,100,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x496 desired=309x496 bounds=(32,100,309x496)
+     [CHAIN·③提示] Grid actual=326x496 desired=326x496 bounds=(32,100,326x496)
+        cols=[309,17] widths=[*,Auto]
+        rows=[496,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x496 desired=330x496 bounds=(32,100,326x496)
+     [CHAIN·③提示] Grid actual=896x496 desired=916x520 bounds=(32,100,896x496)
+        cols=[330,6,560] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=920x520 desired=916x520 bounds=(20,88,920x520)
+     [CHAIN·③提示] Border actual=920x520 desired=916x520 bounds=(20,88,920x520)
+     [CHAIN·③提示] BeadInspectView actual=920x520 desired=916x520 bounds=(20,88,920x520)
+     [CHAIN·③提示] Grid actual=920x520 desired=956x552 bounds=(20,88,920x520)
+   [shell_960x680_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=496 左列可滚=1690
+   [shell_960x680_learn_ok] 左列 视口=309x496 内容高=2186 可滚=1690
+   [shell_960x680_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [shell_960x680_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [shell_960x680_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [shell_960x680_learn_ok] 点列下提示 (49,878,275x16) 在网格下=True 在卡内=True 卡片=(32,656,309x255)
+   [shell_960x680_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [shell_960x680_learn_ok] 配方参数·容差(px) 控件高=36
+   [shell_960x680_learn_ok] 配方参数·位置(px) 控件高=36
+   [shell_960x680_learn_ok] 配方参数·极性 控件高=32
+   [shell_960x680_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [shell_960x680_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_shell_1490x1030_learn_ok.png
+   [shell_1490x1030_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [shell_1490x1030_learn_ok] 结果横幅（Info） bounds=(393,152,1044x16) 视口=1490x1030 在视口内=True
+   [shell_1490x1030_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [shell_1490x1030_learn_ok] 画布标题 (383,180,112x22) / 提示 (383,208,1064x16) → 重叠=False
+   [shell_1490x1030_learn_ok] 画布空态提示 TextBlock=无
+   [shell_1490x1030_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(383,180,112x22)
+     [CHAIN·画布标题] WrapPanel actual=1064x28 desired=376x34 bounds=(383,177,1064x28)
+     [CHAIN·画布标题] DockPanel actual=1064x771 desired=722x236 bounds=(383,109,1064x771)
+     [CHAIN·画布标题] Border actual=1086x789 desired=744x254 bounds=(372,100,1086x789)
+     [CHAIN·画布标题] Grid actual=1086x846 desired=748x312 bounds=(372,100,1086x846)
+        rows=[789,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1426x846 desired=1108x870 bounds=(32,100,1426x846)
+        cols=[330,6,1090] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1450x870 desired=1108x870 bounds=(20,88,1450x870)
+     [CHAIN·画布标题] Border actual=1450x870 desired=1108x870 bounds=(20,88,1450x870)
+     [CHAIN·画布标题] BeadInspectView actual=1450x870 desired=1108x870 bounds=(20,88,1450x870)
+     [CHAIN·画布标题] Grid actual=1450x870 desired=1148x902 bounds=(20,88,1450x870)
+   [shell_1490x1030_learn_ok] 画布可视区 (383,226,1064x654) 高=654 宽=1064 → 按高适配后图宽=818（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 654（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [shell_1490x1030_learn_ok] 右列 可用=1086x846 rows=[789,57] heights=[*,Auto] min=[200,0] 合计=846
+   [shell_1490x1030_learn_ok] 块·工作区卡 bounds=(0,0,1086x789) 视图内y=100..889 高=789 在右列内=True 在视图内=True
+   [shell_1490x1030_learn_ok] 块·状态条 bounds=(0,795,1086x51) 视图内y=895..946 高=51 在右列内=True 在视图内=True
+   [shell_1490x1030_learn_ok] 状态文案 (382,903,1066x16) 高=16 在视口内=True
+   [shell_1490x1030_learn_ok] 工具条 可用宽=1064 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [shell_1490x1030_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [shell_1490x1030_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [shell_1490x1030_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [shell_1490x1030_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_1490x1030_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [shell_1490x1030_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_1490x1030_learn_ok] ③卡提示命中 1 个 TextBlock
+   [shell_1490x1030_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(49,1474,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(49,1474,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(49,1443,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(32,1426,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(32,100,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x846 desired=309x846 bounds=(32,100,309x846)
+     [CHAIN·③提示] Grid actual=326x846 desired=326x846 bounds=(32,100,326x846)
+        cols=[309,17] widths=[*,Auto]
+        rows=[846,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x846 desired=330x846 bounds=(32,100,326x846)
+     [CHAIN·③提示] Grid actual=1426x846 desired=1108x870 bounds=(32,100,1426x846)
+        cols=[330,6,1090] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1450x870 desired=1108x870 bounds=(20,88,1450x870)
+     [CHAIN·③提示] Border actual=1450x870 desired=1108x870 bounds=(20,88,1450x870)
+     [CHAIN·③提示] BeadInspectView actual=1450x870 desired=1108x870 bounds=(20,88,1450x870)
+     [CHAIN·③提示] Grid actual=1450x870 desired=1148x902 bounds=(20,88,1450x870)
+   [shell_1490x1030_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=846 左列可滚=1340
+   [shell_1490x1030_learn_ok] 左列 视口=309x846 内容高=2186 可滚=1340
+   [shell_1490x1030_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [shell_1490x1030_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [shell_1490x1030_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [shell_1490x1030_learn_ok] 点列下提示 (49,878,275x16) 在网格下=True 在卡内=True 卡片=(32,656,309x255)
+   [shell_1490x1030_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [shell_1490x1030_learn_ok] 配方参数·容差(px) 控件高=36
+   [shell_1490x1030_learn_ok] 配方参数·位置(px) 控件高=36
+   [shell_1490x1030_learn_ok] 配方参数·极性 控件高=32
+   [shell_1490x1030_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [shell_1490x1030_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_shell_1192x824_learn_ok.png
+   [shell_1192x824_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [shell_1192x824_learn_ok] 结果横幅（Info） bounds=(393,152,746x16) 视口=1192x824 在视口内=True
+   [shell_1192x824_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [shell_1192x824_learn_ok] 画布标题 (383,180,112x22) / 提示 (383,208,766x16) → 重叠=False
+   [shell_1192x824_learn_ok] 画布空态提示 TextBlock=无
+   [shell_1192x824_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(383,180,112x22)
+     [CHAIN·画布标题] WrapPanel actual=766x28 desired=376x34 bounds=(383,177,766x28)
+     [CHAIN·画布标题] DockPanel actual=766x565 desired=722x236 bounds=(383,109,766x565)
+     [CHAIN·画布标题] Border actual=788x583 desired=744x254 bounds=(372,100,788x583)
+     [CHAIN·画布标题] Grid actual=788x640 desired=748x312 bounds=(372,100,788x640)
+        rows=[583,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1128x640 desired=1108x664 bounds=(32,100,1128x640)
+        cols=[330,6,792] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1152x664 desired=1108x664 bounds=(20,88,1152x664)
+     [CHAIN·画布标题] Border actual=1152x664 desired=1108x664 bounds=(20,88,1152x664)
+     [CHAIN·画布标题] BeadInspectView actual=1152x664 desired=1108x664 bounds=(20,88,1152x664)
+     [CHAIN·画布标题] Grid actual=1152x664 desired=1148x696 bounds=(20,88,1152x664)
+   [shell_1192x824_learn_ok] 画布可视区 (383,226,766x448) 高=448 宽=766 → 按高适配后图宽=561（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 448（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [shell_1192x824_learn_ok] 右列 可用=788x640 rows=[583,57] heights=[*,Auto] min=[200,0] 合计=640
+   [shell_1192x824_learn_ok] 块·工作区卡 bounds=(0,0,788x583) 视图内y=100..683 高=583 在右列内=True 在视图内=True
+   [shell_1192x824_learn_ok] 块·状态条 bounds=(0,589,788x51) 视图内y=689..740 高=51 在右列内=True 在视图内=True
+   [shell_1192x824_learn_ok] 状态文案 (382,697,768x16) 高=16 在视口内=True
+   [shell_1192x824_learn_ok] 工具条 可用宽=766 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [shell_1192x824_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [shell_1192x824_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [shell_1192x824_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [shell_1192x824_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_1192x824_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [shell_1192x824_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_1192x824_learn_ok] ③卡提示命中 1 个 TextBlock
+   [shell_1192x824_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(49,1474,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(49,1474,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(49,1443,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(32,1426,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(32,100,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x640 desired=309x640 bounds=(32,100,309x640)
+     [CHAIN·③提示] Grid actual=326x640 desired=326x640 bounds=(32,100,326x640)
+        cols=[309,17] widths=[*,Auto]
+        rows=[640,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x640 desired=330x640 bounds=(32,100,326x640)
+     [CHAIN·③提示] Grid actual=1128x640 desired=1108x664 bounds=(32,100,1128x640)
+        cols=[330,6,792] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1152x664 desired=1108x664 bounds=(20,88,1152x664)
+     [CHAIN·③提示] Border actual=1152x664 desired=1108x664 bounds=(20,88,1152x664)
+     [CHAIN·③提示] BeadInspectView actual=1152x664 desired=1108x664 bounds=(20,88,1152x664)
+     [CHAIN·③提示] Grid actual=1152x664 desired=1148x696 bounds=(20,88,1152x664)
+   [shell_1192x824_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=640 左列可滚=1546
+   [shell_1192x824_learn_ok] 左列 视口=309x640 内容高=2186 可滚=1546
+   [shell_1192x824_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [shell_1192x824_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [shell_1192x824_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [shell_1192x824_learn_ok] 点列下提示 (49,878,275x16) 在网格下=True 在卡内=True 卡片=(32,656,309x255)
+   [shell_1192x824_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [shell_1192x824_learn_ok] 配方参数·容差(px) 控件高=36
+   [shell_1192x824_learn_ok] 配方参数·位置(px) 控件高=36
+   [shell_1192x824_learn_ok] 配方参数·极性 控件高=32
+   [shell_1192x824_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [shell_1192x824_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_ref.png
+   [914x547_ref] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_ref] 结果横幅 = (空：尚未点过「学习」)
+   [914x547_ref] 画布标题 (363,67,112x22) / 提示 (363,94,528x16) → 重叠=False
+   [914x547_ref] 画布空态提示 TextBlock=无
+   [914x547_ref] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,67,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=376x34 bounds=(363,64,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=482x211 bounds=(363,21,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=504x229 bounds=(352,12,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=535x302 bounds=(352,12,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=895x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=895x547 bounds=(0,0,914x547)
+   [914x547_ref] 画布可视区 (363,112,528x342) 高=342 宽=528 → 按高适配后图宽=427（比例 1.25） 横幅=无
+   [914x547_ref] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_ref] 块·工作区卡 bounds=(0,0,550x450) 视图内y=12..462 高=450 在右列内=True 在视图内=True
+   [914x547_ref] 块·状态条 bounds=(0,456,550x66) 视图内y=468..535 高=66 在右列内=True 在视图内=True
+   [914x547_ref] 状态文案 (362,476,530x31) 高=31 在视口内=True
+   [914x547_ref] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_ref]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_ref]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_ref]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_ref]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_ref]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_ref]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_ref] ③卡提示命中 1 个 TextBlock
+   [914x547_ref] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=895x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=895x547 bounds=(0,0,914x547)
+   [914x547_ref] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=523 左列可滚=1366
+   [914x547_ref] 左列 视口=309x523 内容高=1888 可滚=1366
+   [914x547_ref] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [914x547_ref] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [914x547_ref] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [914x547_ref] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [914x547_ref] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [914x547_ref] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [914x547_ref] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [914x547_ref] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [914x547_ref] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [914x547_ref] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [914x547_ref] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [914x547_ref] 配方参数·胶宽(px) 控件高=36
+   [914x547_ref] 配方参数·容差(px) 控件高=36
+   [914x547_ref] 配方参数·位置(px) 控件高=36
+   [914x547_ref] 配方参数·极性 控件高=32
+   [914x547_ref] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_ref] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_learn_ok.png
+   [914x547_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_learn_ok] 结果横幅（Info） bounds=(373,64,508x31) 视口=914x547 在视口内=True
+   [914x547_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [914x547_learn_ok] 画布标题 (363,108,112x22) / 提示 (363,135,528x16) → 重叠=False
+   [914x547_learn_ok] 画布空态提示 TextBlock=无
+   [914x547_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=376x34 bounds=(363,104,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=518x252 bounds=(363,21,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=540x270 bounds=(352,12,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=552x342 bounds=(352,12,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=912x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=912x547 bounds=(0,0,914x547)
+   [914x547_learn_ok] 画布可视区 (363,153,528x300) 高=300 宽=528 → 按高适配后图宽=376（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 300（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [914x547_learn_ok] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_learn_ok] 块·工作区卡 bounds=(0,0,550x450) 视图内y=12..462 高=450 在右列内=True 在视图内=True
+   [914x547_learn_ok] 块·状态条 bounds=(0,456,550x66) 视图内y=468..535 高=66 在右列内=True 在视图内=True
+   [914x547_learn_ok] 状态文案 (362,476,530x31) 高=31 在视口内=True
+   [914x547_learn_ok] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_learn_ok] ③卡提示命中 1 个 TextBlock
+   [914x547_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=912x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=912x547 bounds=(0,0,914x547)
+   [914x547_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=523 左列可滚=1662
+   [914x547_learn_ok] 左列 视口=309x523 内容高=2186 可滚=1662
+   [914x547_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [914x547_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [914x547_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [914x547_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [914x547_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [914x547_learn_ok] 配方参数·容差(px) 控件高=36
+   [914x547_learn_ok] 配方参数·位置(px) 控件高=36
+   [914x547_learn_ok] 配方参数·极性 控件高=32
+   [914x547_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_learn_fail.png
+   [914x547_learn_fail] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_learn_fail] 结果横幅（Error） bounds=(373,64,508x31) 视口=914x547 在视口内=True
+   [914x547_learn_fail] 横幅文字 = "学习失败：未设参考图路径——「平面可变形」对齐需要参考图（模板 + 坐标系基准）。请点「① 配方库」的「载入」选择参考图文件，或把「对齐模式」改成「固定相机」"
+   [914x547_learn_fail] 画布标题 (363,108,112x22) / 提示 (363,135,528x16) → 重叠=False
+   [914x547_learn_fail] 画布空态提示 TextBlock=无
+   [914x547_learn_fail] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=376x34 bounds=(363,104,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=518x252 bounds=(363,21,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=540x270 bounds=(352,12,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=546x342 bounds=(352,12,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=906x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=906x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=906x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=906x547 bounds=(0,0,914x547)
+   [914x547_learn_fail] 画布可视区 (363,153,528x300) 高=300 宽=528 → 按高适配后图宽=376（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 300（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [914x547_learn_fail] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_learn_fail] 块·工作区卡 bounds=(0,0,550x450) 视图内y=12..462 高=450 在右列内=True 在视图内=True
+   [914x547_learn_fail] 块·状态条 bounds=(0,456,550x66) 视图内y=468..535 高=66 在右列内=True 在视图内=True
+   [914x547_learn_fail] 状态文案 (362,476,530x16) 高=16 在视口内=True
+   [914x547_learn_fail] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_learn_fail]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_learn_fail]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_learn_fail]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_learn_fail]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_learn_fail]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_learn_fail]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_learn_fail] ③卡提示命中 1 个 TextBlock
+   [914x547_learn_fail] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=906x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=906x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=906x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=906x547 bounds=(0,0,914x547)
+   [914x547_learn_fail] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=523 左列可滚=1366
+   [914x547_learn_fail] 左列 视口=309x523 内容高=1888 可滚=1366
+   [914x547_learn_fail] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [914x547_learn_fail] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [914x547_learn_fail] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [914x547_learn_fail] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [914x547_learn_fail] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [914x547_learn_fail] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [914x547_learn_fail] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [914x547_learn_fail] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [914x547_learn_fail] 点列 DataGrid 高=140 行=3 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [914x547_learn_fail] 点列 可见行（网格内）= 3/3 文本单元格=12 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,82,26x21) 高=21 在网格宽内=True
+   [914x547_learn_fail] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [914x547_learn_fail] 配方参数·胶宽(px) 控件高=36
+   [914x547_learn_fail] 配方参数·容差(px) 控件高=36
+   [914x547_learn_fail] 配方参数·位置(px) 控件高=36
+   [914x547_learn_fail] 配方参数·极性 控件高=32
+   [914x547_learn_fail] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_learn_fail] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_empty.png
+   [914x547_empty] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_empty] 结果横幅 = (空：尚未点过「学习」)
+   [914x547_empty] 画布标题 (363,67,112x22) / 提示 (363,94,528x16) → 重叠=False
+   [914x547_empty] 画布空态提示 TextBlock=无
+   [914x547_empty] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,67,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=376x34 bounds=(363,64,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x448 desired=482x211 bounds=(363,21,528x448)
+     [CHAIN·画布标题] Border actual=550x466 desired=504x229 bounds=(352,12,550x466)
+     [CHAIN·画布标题] Grid actual=550x523 desired=508x286 bounds=(352,12,550x523)
+        rows=[466,57] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=868x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=868x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=868x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=868x547 bounds=(0,0,914x547)
+   [914x547_empty] 画布可视区 (363,112,528x357) 高=357 宽=528 → 按高适配后图宽=446（比例 1.25） 横幅=无
+   [914x547_empty] 右列 可用=550x523 rows=[466,57] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_empty] 块·工作区卡 bounds=(0,0,550x466) 视图内y=12..478 高=466 在右列内=True 在视图内=True
+   [914x547_empty] 块·状态条 bounds=(0,472,550x51) 视图内y=484..535 高=51 在右列内=True 在视图内=True
+   [914x547_empty] 状态文案 (362,492,530x16) 高=16 在视口内=True
+   [914x547_empty] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_empty]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_empty]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_empty]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_empty]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_empty]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_empty]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_empty] ③卡提示命中 1 个 TextBlock
+   [914x547_empty] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=868x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=868x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=868x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=868x547 bounds=(0,0,914x547)
+   [914x547_empty] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=523 左列可滚=1366
+   [914x547_empty] 左列 视口=309x523 内容高=1888 可滚=1366
+   [914x547_empty] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [914x547_empty] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [914x547_empty] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [914x547_empty] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [914x547_empty] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [914x547_empty] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [914x547_empty] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [914x547_empty] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [914x547_empty] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [914x547_empty] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [914x547_empty] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [914x547_empty] 配方参数·胶宽(px) 控件高=36
+   [914x547_empty] 配方参数·容差(px) 控件高=36
+   [914x547_empty] 配方参数·位置(px) 控件高=36
+   [914x547_empty] 配方参数·极性 控件高=32
+   [914x547_empty] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_empty] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_shell_954x707_learn_ok.png
+   [shell_954x707_learn_ok] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [shell_954x707_learn_ok] 结果横幅（Info） bounds=(393,152,508x31) 视口=954x707 在视口内=True
+   [shell_954x707_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [shell_954x707_learn_ok] 画布标题 (383,196,112x22) / 提示 (383,223,528x16) → 重叠=False
+   [shell_954x707_learn_ok] 画布空态提示 TextBlock=无
+   [shell_954x707_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(383,196,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=376x34 bounds=(383,192,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=518x252 bounds=(383,109,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=540x270 bounds=(372,100,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=552x342 bounds=(372,100,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=912x547 bounds=(32,100,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=912x547 bounds=(20,88,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=912x547 bounds=(20,88,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=912x547 bounds=(20,88,914x547)
+     [CHAIN·画布标题] Grid actual=914x547 desired=952x579 bounds=(20,88,914x547)
+   [shell_954x707_learn_ok] 画布可视区 (383,241,528x300) 高=300 宽=528 → 按高适配后图宽=376（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 300（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [shell_954x707_learn_ok] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [shell_954x707_learn_ok] 块·工作区卡 bounds=(0,0,550x450) 视图内y=100..550 高=450 在右列内=True 在视图内=True
+   [shell_954x707_learn_ok] 块·状态条 bounds=(0,456,550x66) 视图内y=556..623 高=66 在右列内=True 在视图内=True
+   [shell_954x707_learn_ok] 状态文案 (382,564,530x31) 高=31 在视口内=True
+   [shell_954x707_learn_ok] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [shell_954x707_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [shell_954x707_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [shell_954x707_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [shell_954x707_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_954x707_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [shell_954x707_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [shell_954x707_learn_ok] ③卡提示命中 1 个 TextBlock
+   [shell_954x707_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(49,1474,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(49,1474,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(49,1443,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(32,1426,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(32,100,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(32,100,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(32,100,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(32,100,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=912x547 bounds=(32,100,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=912x547 bounds=(20,88,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=912x547 bounds=(20,88,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=912x547 bounds=(20,88,914x547)
+     [CHAIN·③提示] Grid actual=914x547 desired=952x579 bounds=(20,88,914x547)
+   [shell_954x707_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=523 左列可滚=1662
+   [shell_954x707_learn_ok] 左列 视口=309x523 内容高=2186 可滚=1662
+   [shell_954x707_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [shell_954x707_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [shell_954x707_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [shell_954x707_learn_ok] 点列下提示 (49,878,275x16) 在网格下=True 在卡内=True 卡片=(32,656,309x255)
+   [shell_954x707_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [shell_954x707_learn_ok] 配方参数·容差(px) 控件高=36
+   [shell_954x707_learn_ok] 配方参数·位置(px) 控件高=36
+   [shell_954x707_learn_ok] 配方参数·极性 控件高=32
+   [shell_954x707_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [shell_954x707_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+   [SCROLL] 左列滚到 "配方参数"：目标 offset=808（范围 0..1366，视口 523，内容 1888）
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_leftparams.png
+   [914x547_leftparams] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_leftparams] 结果横幅 = (空：尚未点过「学习」)
+   [914x547_leftparams] 画布标题 (363,67,112x22) / 提示 (363,94,528x16) → 重叠=False
+   [914x547_leftparams] 画布空态提示 TextBlock=无
+   [914x547_leftparams] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,67,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=376x34 bounds=(363,64,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=482x211 bounds=(363,21,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=504x229 bounds=(352,12,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=535x302 bounds=(352,12,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=895x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=895x547 bounds=(0,0,914x547)
+   [914x547_leftparams] 画布可视区 (363,112,528x342) 高=342 宽=528 → 按高适配后图宽=427（比例 1.25） 横幅=无
+   [914x547_leftparams] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_leftparams] 块·工作区卡 bounds=(0,0,550x450) 视图内y=12..462 高=450 在右列内=True 在视图内=True
+   [914x547_leftparams] 块·状态条 bounds=(0,456,550x66) 视图内y=468..535 高=66 在右列内=True 在视图内=True
+   [914x547_leftparams] 状态文案 (362,476,530x31) 高=31 在视口内=True
+   [914x547_leftparams] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_leftparams]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_leftparams]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_leftparams]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_leftparams]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_leftparams]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_leftparams]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_leftparams] ③卡提示命中 1 个 TextBlock
+   [914x547_leftparams] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,554,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,554,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,523,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,506,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,-796,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=895x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=895x547 bounds=(0,0,914x547)
+   [914x547_leftparams] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=523 左列可滚=1366
+   [914x547_leftparams] 左列 视口=309x523 内容高=1888 可滚=1366
+   [914x547_leftparams] 左列卡·输入绑定 高=210 内容y=-808..-599 在滚动范围内=True 可见=Visible
+   [914x547_leftparams] 左列卡·配方库 高=330 内容y=-591..-260 在滚动范围内=True 可见=Visible
+   [914x547_leftparams] 左列卡·路径点列 高=232 内容y=-252..-21 在滚动范围内=True 可见=Visible
+   [914x547_leftparams] 左列卡·配方参数 高=276 内容y=-13..263 在滚动范围内=True 可见=Visible
+   [914x547_leftparams] 左列卡·运行参数 高=215 内容y=271..486 在滚动范围内=True 可见=Visible
+   [914x547_leftparams] 左列卡·平面匹配搜索范围 高=378 内容y=494..872 在滚动范围内=True 可见=Visible
+   [914x547_leftparams] 左列卡·预览（学习叠加 高=0 内容y=-808..-808 在滚动范围内=True 可见=Collapsed
+   [914x547_leftparams] 左列卡·怎么用 高=200 内容y=880..1080 在滚动范围内=True 可见=Visible
+   [914x547_leftparams] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [914x547_leftparams] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [914x547_leftparams] 点列下提示 (29,-42,275x16) 在网格下=True 在卡内=True 卡片=(12,-240,309x232)
+   [914x547_leftparams] 配方参数·胶宽(px) 控件高=36
+   [914x547_leftparams] 配方参数·容差(px) 控件高=36
+   [914x547_leftparams] 配方参数·位置(px) 控件高=36
+   [914x547_leftparams] 配方参数·极性 控件高=32
+   [914x547_leftparams] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_leftparams] 预览卡 可见=Collapsed 高=0 预览控件高=0
+   [SCROLL] 左列滚到 "路径点列"：目标 offset=569（范围 0..1366，视口 523，内容 1888）
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_leftpoints.png
+   [914x547_leftpoints] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_leftpoints] 结果横幅 = (空：尚未点过「学习」)
+   [914x547_leftpoints] 画布标题 (363,67,112x22) / 提示 (363,94,528x16) → 重叠=False
+   [914x547_leftpoints] 画布空态提示 TextBlock=无
+   [914x547_leftpoints] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,67,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=376x34 bounds=(363,64,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=482x211 bounds=(363,21,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=504x229 bounds=(352,12,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=535x302 bounds=(352,12,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=895x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=895x547 bounds=(0,0,914x547)
+   [914x547_leftpoints] 画布可视区 (363,112,528x342) 高=342 宽=528 → 按高适配后图宽=427（比例 1.25） 横幅=无
+   [914x547_leftpoints] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_leftpoints] 块·工作区卡 bounds=(0,0,550x450) 视图内y=12..462 高=450 在右列内=True 在视图内=True
+   [914x547_leftpoints] 块·状态条 bounds=(0,456,550x66) 视图内y=468..535 高=66 在右列内=True 在视图内=True
+   [914x547_leftpoints] 状态文案 (362,476,530x31) 高=31 在视口内=True
+   [914x547_leftpoints] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_leftpoints]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_leftpoints]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_leftpoints]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_leftpoints]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_leftpoints]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_leftpoints]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_leftpoints] ③卡提示命中 1 个 TextBlock
+   [914x547_leftpoints] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,794,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,794,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,762,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,746,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,-557,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=895x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=895x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=895x547 bounds=(0,0,914x547)
+   [914x547_leftpoints] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=523 左列可滚=1366
+   [914x547_leftpoints] 左列 视口=309x523 内容高=1888 可滚=1366
+   [914x547_leftpoints] 左列卡·输入绑定 高=210 内容y=-569..-360 在滚动范围内=True 可见=Visible
+   [914x547_leftpoints] 左列卡·配方库 高=330 内容y=-352..-21 在滚动范围内=True 可见=Visible
+   [914x547_leftpoints] 左列卡·路径点列 高=232 内容y=-13..218 在滚动范围内=True 可见=Visible
+   [914x547_leftpoints] 左列卡·配方参数 高=276 内容y=226..502 在滚动范围内=True 可见=Visible
+   [914x547_leftpoints] 左列卡·运行参数 高=215 内容y=510..726 在滚动范围内=True 可见=Visible
+   [914x547_leftpoints] 左列卡·平面匹配搜索范围 高=378 内容y=734..1112 在滚动范围内=True 可见=Visible
+   [914x547_leftpoints] 左列卡·预览（学习叠加 高=0 内容y=-569..-569 在滚动范围内=True 可见=Collapsed
+   [914x547_leftpoints] 左列卡·怎么用 高=200 内容y=1120..1320 在滚动范围内=True 可见=Visible
+   [914x547_leftpoints] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [914x547_leftpoints] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [914x547_leftpoints] 点列下提示 (29,198,275x16) 在网格下=True 在卡内=True 卡片=(12,-1,309x232)
+   [914x547_leftpoints] 配方参数·胶宽(px) 控件高=36
+   [914x547_leftpoints] 配方参数·容差(px) 控件高=36
+   [914x547_leftpoints] 配方参数·位置(px) 控件高=36
+   [914x547_leftpoints] 配方参数·极性 控件高=32
+   [914x547_leftpoints] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_leftpoints] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_620x540_ref.png
+   [620x540_ref] 工具栏按钮 6 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x540_ref] 结果横幅 = (空：尚未点过「学习」)
+   [620x540_ref] 画布标题 (363,128,112x22) / 提示 (363,196,234x32) → 重叠=False
+   [620x540_ref] 画布空态提示 TextBlock=无
+   [620x540_ref] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,128,112x22)
+     [CHAIN·画布标题] WrapPanel actual=234x66 desired=174x72 bounds=(363,128,234x66)
+     [CHAIN·画布标题] DockPanel actual=234x379 desired=226x330 bounds=(363,21,234x379)
+     [CHAIN·画布标题] Border actual=256x397 desired=248x348 bounds=(352,12,256x397)
+     [CHAIN·画布标题] Grid actual=256x516 desired=259x466 bounds=(352,12,256x516)
+        rows=[397,119] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=596x516 desired=619x540 bounds=(12,12,596x516)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x540 desired=619x540 bounds=(0,0,620x540)
+     [CHAIN·画布标题] Border actual=620x540 desired=619x540 bounds=(0,0,620x540)
+     [CHAIN·画布标题] BeadInspectView actual=620x540 desired=620x540 bounds=(0,0,620x540)
+   [620x540_ref] 画布可视区 (363,230,234x170) 高=170 宽=234 → 按高适配后图宽=212（比例 1.25） 横幅=无
+     [INFO] 视图 620x540 小于用户尺寸，画布 170 高仅记录（验收线只在 ≥900x540 生效）
+   [620x540_ref] 右列 可用=256x516 rows=[397,119] heights=[*,Auto] min=[200,0] 合计=516
+   [620x540_ref] 块·工作区卡 bounds=(0,0,256x397) 视图内y=12..409 高=397 在右列内=True 在视图内=True
+   [620x540_ref] 块·状态条 bounds=(0,403,256x113) 视图内y=415..528 高=113 在右列内=True 在视图内=True
+   [620x540_ref] 状态文案 (362,423,236x46) 高=46 在视口内=True
+   [620x540_ref] 工具条 可用宽=234 一行实际占宽=482（预算=518） 实占=3 行 按钮=6 最宽按钮=106
+   [620x540_ref]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [620x540_ref]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [620x540_ref]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [620x540_ref]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=36
+   [620x540_ref]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=36
+   [620x540_ref]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=69
+   [620x540_ref] ③卡提示命中 1 个 TextBlock
+   [620x540_ref] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1363,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1363,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1332,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1314,309x378)
+     [CHAIN·③提示] StackPanel actual=309x1888 desired=309x1888 bounds=(12,12,309x1888)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x516 desired=309x516 bounds=(12,12,309x516)
+     [CHAIN·③提示] Grid actual=326x516 desired=326x516 bounds=(12,12,326x516)
+        cols=[309,17] widths=[*,Auto]
+        rows=[516,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x516 desired=330x516 bounds=(12,12,326x516)
+     [CHAIN·③提示] Grid actual=596x516 desired=619x540 bounds=(12,12,596x516)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=620x540 desired=619x540 bounds=(0,0,620x540)
+     [CHAIN·③提示] Border actual=620x540 desired=619x540 bounds=(0,0,620x540)
+     [CHAIN·③提示] BeadInspectView actual=620x540 desired=620x540 bounds=(0,0,620x540)
+   [620x540_ref] 「怎么用」卡 高=200 左列内容高=1888 左列视口高=516 左列可滚=1372
+   [620x540_ref] 左列 视口=309x516 内容高=1888 可滚=1372
+   [620x540_ref] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [620x540_ref] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [620x540_ref] 左列卡·路径点列 高=232 内容y=556..788 在滚动范围内=True 可见=Visible
+   [620x540_ref] 左列卡·配方参数 高=276 内容y=796..1072 在滚动范围内=True 可见=Visible
+   [620x540_ref] 左列卡·运行参数 高=215 内容y=1080..1294 在滚动范围内=True 可见=Visible
+   [620x540_ref] 左列卡·平面匹配搜索范围 高=378 内容y=1302..1681 在滚动范围内=True 可见=Visible
+   [620x540_ref] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [620x540_ref] 左列卡·怎么用 高=200 内容y=1689..1888 在滚动范围内=True 可见=Visible
+   [620x540_ref] 点列 DataGrid 高=140 行=0 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42]
+   [620x540_ref] 点列 可见行（网格内）= 0/0 文本单元格=0 纵向溢出=0 横向裁字=0 最宽文本=0.0 删按钮=未找到
+   [620x540_ref] 点列下提示 (29,766,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x232)
+   [620x540_ref] 配方参数·胶宽(px) 控件高=36
+   [620x540_ref] 配方参数·容差(px) 控件高=36
+   [620x540_ref] 配方参数·位置(px) 控件高=36
+   [620x540_ref] 配方参数·极性 控件高=32
+   [620x540_ref] 平面匹配搜索参数 可见且自然高 6/6
+   [620x540_ref] 预览卡 可见=Collapsed 高=0 预览控件高=0
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_620x540_learn_ok.png
+   [620x540_learn_ok] 工具栏按钮 6 个 / 占 3 行；文字裁切 0 处；省略号截断 0 处
+   [620x540_learn_ok] 结果横幅（Info） bounds=(373,128,214x62) 视口=620x540 在视口内=True
+   [620x540_learn_ok] 横幅文字 = "学习成功：配方「配方1-泵体」已学习（5 点 / 胶宽 15.3px / 容差 8 / 极性 dark）。配方库该行已显示「已学习」，可以直接试运行"
+   [620x540_learn_ok] 画布标题 (363,200,112x22) / 提示 (363,268,234x32) → 重叠=False
+   [620x540_learn_ok] 画布空态提示 TextBlock=无
+   [620x540_learn_ok] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,200,112x22)
+     [CHAIN·画布标题] WrapPanel actual=234x66 desired=174x72 bounds=(363,200,234x66)
+     [CHAIN·画布标题] DockPanel actual=234x379 desired=226x379 bounds=(363,21,234x379)
+     [CHAIN·画布标题] Border actual=256x397 desired=248x397 bounds=(352,12,256x397)
+     [CHAIN·画布标题] Grid actual=256x516 desired=252x516 bounds=(352,12,256x516)
+        rows=[397,119] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=596x516 desired=612x540 bounds=(12,12,596x516)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=620x540 desired=612x540 bounds=(0,0,620x540)
+     [CHAIN·画布标题] Border actual=620x540 desired=612x540 bounds=(0,0,620x540)
+     [CHAIN·画布标题] BeadInspectView actual=620x540 desired=620x540 bounds=(0,0,620x540)
+   [620x540_learn_ok] 画布可视区 (363,302,234x120) 高=120 宽=234 → 按高适配后图宽=150（比例 1.25） 横幅=有
+     [INFO] 视图 620x540 小于用户尺寸，画布 120 高仅记录（验收线只在 ≥900x540 生效）
+   [620x540_learn_ok] 右列 可用=256x516 rows=[397,119] heights=[*,Auto] min=[200,0] 合计=516
+   [620x540_learn_ok] 块·工作区卡 bounds=(0,0,256x397) 视图内y=12..409 高=397 在右列内=True 在视图内=True
+   [620x540_learn_ok] 块·状态条 bounds=(0,403,256x113) 视图内y=415..528 高=113 在右列内=True 在视图内=True
+   [620x540_learn_ok] 状态文案 (362,423,236x46) 高=46 在视口内=True
+   [620x540_learn_ok] 工具条 可用宽=234 一行实际占宽=482（预算=518） 实占=3 行 按钮=6 最宽按钮=106
+   [620x540_learn_ok]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [620x540_learn_ok]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [620x540_learn_ok]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [620x540_learn_ok]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=36
+   [620x540_learn_ok]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=36
+   [620x540_learn_ok]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=69
+   [620x540_learn_ok] ③卡提示命中 1 个 TextBlock
+   [620x540_learn_ok] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1386,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1386,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1355,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1338,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2186 desired=309x2186 bounds=(12,12,309x2186)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x516 desired=309x516 bounds=(12,12,309x516)
+     [CHAIN·③提示] Grid actual=326x516 desired=326x516 bounds=(12,12,326x516)
+        cols=[309,17] widths=[*,Auto]
+        rows=[516,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x516 desired=330x516 bounds=(12,12,326x516)
+     [CHAIN·③提示] Grid actual=596x516 desired=612x540 bounds=(12,12,596x516)
+        cols=[330,6,260] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=620x540 desired=612x540 bounds=(0,0,620x540)
+     [CHAIN·③提示] Border actual=620x540 desired=612x540 bounds=(0,0,620x540)
+     [CHAIN·③提示] BeadInspectView actual=620x540 desired=620x540 bounds=(0,0,620x540)
+   [620x540_learn_ok] 「怎么用」卡 高=200 左列内容高=2186 左列视口高=516 左列可滚=1670
+   [620x540_learn_ok] 左列 视口=309x516 内容高=2186 可滚=1670
+   [620x540_learn_ok] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 左列卡·路径点列 高=255 内容y=556..811 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 左列卡·配方参数 高=276 内容y=819..1095 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 左列卡·运行参数 高=215 内容y=1103..1318 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 左列卡·平面匹配搜索范围 高=378 内容y=1326..1704 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 左列卡·预览（学习叠加 高=266 内容y=1712..1978 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 左列卡·怎么用 高=200 内容y=1986..2186 在滚动范围内=True 可见=Visible
+   [620x540_learn_ok] 点列 DataGrid 高=164 行=5 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=98 Col=98 删=42] 单元格内边距=8,2,8,2
+   [620x540_learn_ok] 点列 可见行（网格内）= 5/5 文本单元格=20 纵向溢出=0 横向裁字=0 最宽文本=45.1 删按钮 (239,136,26x21) 高=21 在网格宽内=True
+   [620x540_learn_ok] 点列下提示 (29,790,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x255)
+   [620x540_learn_ok] 配方参数·胶宽(px) 控件高=36
+   [620x540_learn_ok] 配方参数·容差(px) 控件高=36
+   [620x540_learn_ok] 配方参数·位置(px) 控件高=36
+   [620x540_learn_ok] 配方参数·极性 控件高=32
+   [620x540_learn_ok] 平面匹配搜索参数 可见且自然高 6/6
+   [620x540_learn_ok] 预览卡 可见=Visible 高=266 预览控件高=200
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_points11.png
+   [914x547_points11] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_points11] 结果横幅（Warning） bounds=(373,64,508x31) 视口=914x547 在视口内=True
+   [914x547_points11] 横幅文字 = "注意：底图是输入图而非参考图——「平面可变形」的点列必须落在参考图坐标系上。请点「① 配方库」的「载入」选择参考图文件后重新拾取，否则点「学习」会被拒绝"
+   [914x547_points11] 画布标题 (363,108,112x22) / 提示 (363,135,528x16) → 重叠=False
+   [914x547_points11] 画布空态提示 TextBlock=无
+   [914x547_points11] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=379x34 bounds=(363,104,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=526x252 bounds=(363,21,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=548x270 bounds=(352,12,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=552x342 bounds=(352,12,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=912x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=912x547 bounds=(0,0,914x547)
+   [914x547_points11] 画布可视区 (363,153,528x300) 高=300 宽=528 → 按高适配后图宽=376（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 300（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [914x547_points11] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_points11] 块·工作区卡 bounds=(0,0,550x450) 视图内y=12..462 高=450 在右列内=True 在视图内=True
+   [914x547_points11] 块·状态条 bounds=(0,456,550x66) 视图内y=468..535 高=66 在右列内=True 在视图内=True
+   [914x547_points11] 状态文案 (362,476,530x16) 高=16 在视口内=True
+   [914x547_points11] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_points11]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_points11]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_points11]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_points11]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_points11]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_points11]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_points11] ③卡提示命中 1 个 TextBlock
+   [914x547_points11] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,1509,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,1509,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,1478,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,1460,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2034 desired=309x2034 bounds=(12,12,309x2034)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=912x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=912x547 bounds=(0,0,914x547)
+   [914x547_points11] 「怎么用」卡 高=200 左列内容高=2034 左列视口高=523 左列可滚=1512
+   [914x547_points11] 左列 视口=309x523 内容高=2034 可滚=1512
+   [914x547_points11] 左列卡·输入绑定 高=210 内容y=0..210 在滚动范围内=True 可见=Visible
+   [914x547_points11] 左列卡·配方库 高=330 内容y=218..548 在滚动范围内=True 可见=Visible
+   [914x547_points11] 左列卡·路径点列 高=378 内容y=556..934 在滚动范围内=True 可见=Visible
+   [914x547_points11] 左列卡·配方参数 高=276 内容y=942..1218 在滚动范围内=True 可见=Visible
+   [914x547_points11] 左列卡·运行参数 高=215 内容y=1226..1440 在滚动范围内=True 可见=Visible
+   [914x547_points11] 左列卡·平面匹配搜索范围 高=378 内容y=1448..1827 在滚动范围内=True 可见=Visible
+   [914x547_points11] 左列卡·预览（学习叠加 高=0 内容y=0..0 在滚动范围内=True 可见=Collapsed
+   [914x547_points11] 左列卡·怎么用 高=200 内容y=1835..2034 在滚动范围内=True 可见=Visible
+   [914x547_points11] 点列 DataGrid 高=286 行=11 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=90 Col=90 删=42] 单元格内边距=8,2,8,2
+   [914x547_points11] 点列 可见行（网格内）= 9/11 文本单元格=44 纵向溢出=0 横向裁字=0 最宽文本=66.2 删按钮 (222,298,26x21) 高=21 在网格宽内=True 字面量缺失=0
+   [914x547_points11] 点列下提示 (29,912,275x16) 在网格下=True 在卡内=True 卡片=(12,568,309x378)
+   [914x547_points11] 点列编辑态 编辑框高=20 文本="609.007488" 单元格=90x26 内容槽高=22
+   [914x547_points11] 配方参数·胶宽(px) 控件高=36
+   [914x547_points11] 配方参数·容差(px) 控件高=36
+   [914x547_points11] 配方参数·位置(px) 控件高=36
+   [914x547_points11] 配方参数·极性 控件高=32
+   [914x547_points11] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_points11] 预览卡 可见=Collapsed 高=0 预览控件高=0
+   [SCROLL] 左列滚到 "路径点列"：目标 offset=569（范围 0..1512，视口 523，内容 2034）
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_914x547_points11_list.png
+   [914x547_points11_list] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [914x547_points11_list] 结果横幅（Warning） bounds=(373,64,508x31) 视口=914x547 在视口内=True
+   [914x547_points11_list] 横幅文字 = "注意：底图是输入图而非参考图——「平面可变形」的点列必须落在参考图坐标系上。请点「① 配方库」的「载入」选择参考图文件后重新拾取，否则点「学习」会被拒绝"
+   [914x547_points11_list] 画布标题 (363,108,112x22) / 提示 (363,135,528x16) → 重叠=False
+   [914x547_points11_list] 画布空态提示 TextBlock=无
+   [914x547_points11_list] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=528x28 desired=379x34 bounds=(363,104,528x28)
+     [CHAIN·画布标题] DockPanel actual=528x432 desired=526x252 bounds=(363,21,528x432)
+     [CHAIN·画布标题] Border actual=550x450 desired=548x270 bounds=(352,12,550x450)
+     [CHAIN·画布标题] Grid actual=550x523 desired=552x342 bounds=(352,12,550x523)
+        rows=[450,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=890x523 desired=912x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] Border actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·画布标题] BeadInspectView actual=914x547 desired=912x547 bounds=(0,0,914x547)
+   [914x547_points11_list] 画布可视区 (363,153,528x300) 高=300 宽=528 → 按高适配后图宽=376（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 300（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [914x547_points11_list] 右列 可用=550x523 rows=[450,72] heights=[*,Auto] min=[200,0] 合计=523
+   [914x547_points11_list] 块·工作区卡 bounds=(0,0,550x450) 视图内y=12..462 高=450 在右列内=True 在视图内=True
+   [914x547_points11_list] 块·状态条 bounds=(0,456,550x66) 视图内y=468..535 高=66 在右列内=True 在视图内=True
+   [914x547_points11_list] 状态文案 (362,476,530x16) 高=16 在视口内=True
+   [914x547_points11_list] 工具条 可用宽=528 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [914x547_points11_list]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [914x547_points11_list]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [914x547_points11_list]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [914x547_points11_list]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_points11_list]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [914x547_points11_list]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [914x547_points11_list] ③卡提示命中 1 个 TextBlock
+   [914x547_points11_list] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,940,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,940,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,908,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,892,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2034 desired=309x2034 bounds=(12,-557,309x2034)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x523 desired=309x523 bounds=(12,12,309x523)
+     [CHAIN·③提示] Grid actual=326x523 desired=326x523 bounds=(12,12,326x523)
+        cols=[309,17] widths=[*,Auto]
+        rows=[523,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x523 desired=330x523 bounds=(12,12,326x523)
+     [CHAIN·③提示] Grid actual=890x523 desired=912x547 bounds=(12,12,890x523)
+        cols=[330,6,554] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] Border actual=914x547 desired=912x547 bounds=(0,0,914x547)
+     [CHAIN·③提示] BeadInspectView actual=914x547 desired=912x547 bounds=(0,0,914x547)
+   [914x547_points11_list] 「怎么用」卡 高=200 左列内容高=2034 左列视口高=523 左列可滚=1512
+   [914x547_points11_list] 左列 视口=309x523 内容高=2034 可滚=1512
+   [914x547_points11_list] 左列卡·输入绑定 高=210 内容y=-569..-360 在滚动范围内=True 可见=Visible
+   [914x547_points11_list] 左列卡·配方库 高=330 内容y=-352..-21 在滚动范围内=True 可见=Visible
+   [914x547_points11_list] 左列卡·路径点列 高=378 内容y=-13..364 在滚动范围内=True 可见=Visible
+   [914x547_points11_list] 左列卡·配方参数 高=276 内容y=372..648 在滚动范围内=True 可见=Visible
+   [914x547_points11_list] 左列卡·运行参数 高=215 内容y=656..872 在滚动范围内=True 可见=Visible
+   [914x547_points11_list] 左列卡·平面匹配搜索范围 高=378 内容y=880..1258 在滚动范围内=True 可见=Visible
+   [914x547_points11_list] 左列卡·预览（学习叠加 高=0 内容y=-569..-569 在滚动范围内=True 可见=Collapsed
+   [914x547_points11_list] 左列卡·怎么用 高=200 内容y=1266..1466 在滚动范围内=True 可见=Visible
+   [914x547_points11_list] 点列 DataGrid 高=286 行=11 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=90 Col=90 删=42] 单元格内边距=8,2,8,2
+   [914x547_points11_list] 点列 可见行（网格内）= 9/11 文本单元格=44 纵向溢出=0 横向裁字=0 最宽文本=66.2 删按钮 (222,298,26x21) 高=21 在网格宽内=True 字面量缺失=0
+   [914x547_points11_list] 点列下提示 (29,344,275x16) 在网格下=True 在卡内=True 卡片=(12,-1,309x378)
+   [914x547_points11_list] 点列编辑态 编辑框高=20 文本="609.007488" 单元格=90x26 内容槽高=22
+   [914x547_points11_list] 配方参数·胶宽(px) 控件高=36
+   [914x547_points11_list] 配方参数·容差(px) 控件高=36
+   [914x547_points11_list] 配方参数·位置(px) 控件高=36
+   [914x547_points11_list] 配方参数·极性 控件高=32
+   [914x547_points11_list] 平面匹配搜索参数 可见且自然高 6/6
+   [914x547_points11_list] 预览卡 可见=Collapsed 高=0 预览控件高=0
+   [SCROLL] 左列滚到 "路径点列"：目标 offset=569（范围 0..1158，视口 876，内容 2034）
+>> 已存 D:\C#\VM\_BeadViewProbe\after7all_1100x900_points11_list.png
+   [1100x900_points11_list] 工具栏按钮 6 个 / 占 1 行；文字裁切 0 处；省略号截断 0 处
+   [1100x900_points11_list] 结果横幅（Warning） bounds=(373,64,694x31) 视口=1100x900 在视口内=True
+   [1100x900_points11_list] 横幅文字 = "注意：底图是输入图而非参考图——「平面可变形」的点列必须落在参考图坐标系上。请点「① 配方库」的「载入」选择参考图文件后重新拾取，否则点「学习」会被拒绝"
+   [1100x900_points11_list] 画布标题 (363,108,112x22) / 提示 (363,135,714x16) → 重叠=False
+   [1100x900_points11_list] 画布空态提示 TextBlock=无
+   [1100x900_points11_list] ListBox 高=109 条目=2
+     [CHAIN·画布标题] TextBlock actual=112x22 desired=112x22 bounds=(363,108,112x22)
+     [CHAIN·画布标题] WrapPanel actual=714x28 desired=379x34 bounds=(363,104,714x28)
+     [CHAIN·画布标题] DockPanel actual=714x786 desired=710x252 bounds=(363,21,714x786)
+     [CHAIN·画布标题] Border actual=736x804 desired=732x270 bounds=(352,12,736x804)
+     [CHAIN·画布标题] Grid actual=736x876 desired=738x342 bounds=(352,12,736x876)
+        rows=[804,72] heights=[*,Auto]
+     [CHAIN·画布标题] Grid actual=1076x876 desired=1098x900 bounds=(12,12,1076x876)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·画布标题] ContentPresenter actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] Border actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·画布标题] BeadInspectView actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+   [1100x900_points11_list] 画布可视区 (363,153,714x654) 高=654 宽=714 → 按高适配后图宽=817（比例 1.25） 横幅=有
+     [INFO] 横幅态：画布让位到 654（≥300 底线；无横幅态见同尺寸 *_ref 场景）
+   [1100x900_points11_list] 右列 可用=736x876 rows=[804,72] heights=[*,Auto] min=[200,0] 合计=876
+   [1100x900_points11_list] 块·工作区卡 bounds=(0,0,736x804) 视图内y=12..816 高=804 在右列内=True 在视图内=True
+   [1100x900_points11_list] 块·状态条 bounds=(0,810,736x66) 视图内y=822..888 高=66 在右列内=True 在视图内=True
+   [1100x900_points11_list] 状态文案 (362,830,716x16) 高=16 在视口内=True
+   [1100x900_points11_list] 工具条 可用宽=714 一行实际占宽=482（预算=518） 实占=1 行 按钮=6 最宽按钮=106
+   [1100x900_points11_list]   按钮·学习 实际=54 需求=60 MinWidth=0 行y=0
+   [1100x900_points11_list]   按钮·自动提取 实际=78 需求=84 MinWidth=76 行y=0
+   [1100x900_points11_list]   按钮·撤销 实际=52 需求=58 MinWidth=52 行y=0
+   [1100x900_points11_list]   按钮·清空点列 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x900_points11_list]   按钮·拾取矫正四点 实际=106 需求=112 MinWidth=96 行y=0
+   [1100x900_points11_list]   按钮·清除矫正 实际=78 需求=84 MinWidth=64 行y=0
+   [1100x900_points11_list] ③卡提示命中 1 个 TextBlock
+   [1100x900_points11_list] ③卡提示 实际=275x64 上级=StackPanel 上级宽=275 MaxWidth=∞ 换行=Wrap 按上级宽应需高=64 少行=False 超宽=False 视图内=(29,940,275x64)
+     [CHAIN·③提示] TextBlock actual=275x64 desired=268x74 bounds=(29,940,275x64)
+     [CHAIN·③提示] StackPanel actual=275x344 desired=268x344 bounds=(29,908,275x344)
+     [CHAIN·③提示] Border actual=309x378 desired=302x386 bounds=(12,892,309x378)
+     [CHAIN·③提示] StackPanel actual=309x2034 desired=309x2034 bounds=(12,-557,309x2034)
+     [CHAIN·③提示] ScrollContentPresenter actual=309x876 desired=309x876 bounds=(12,12,309x876)
+     [CHAIN·③提示] Grid actual=326x876 desired=326x876 bounds=(12,12,326x876)
+        cols=[309,17] widths=[*,Auto]
+        rows=[876,0] heights=[*,Auto]
+     [CHAIN·③提示] ScrollViewer actual=326x876 desired=330x876 bounds=(12,12,326x876)
+     [CHAIN·③提示] Grid actual=1076x876 desired=1098x900 bounds=(12,12,1076x876)
+        cols=[330,6,740] widths=[330,Auto,*]
+     [CHAIN·③提示] ContentPresenter actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·③提示] Border actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+     [CHAIN·③提示] BeadInspectView actual=1100x900 desired=1098x900 bounds=(0,0,1100x900)
+   [1100x900_points11_list] 「怎么用」卡 高=200 左列内容高=2034 左列视口高=876 左列可滚=1158
+   [1100x900_points11_list] 左列 视口=309x876 内容高=2034 可滚=1158
+   [1100x900_points11_list] 左列卡·输入绑定 高=210 内容y=-569..-360 在滚动范围内=True 可见=Visible
+   [1100x900_points11_list] 左列卡·配方库 高=330 内容y=-352..-21 在滚动范围内=True 可见=Visible
+   [1100x900_points11_list] 左列卡·路径点列 高=378 内容y=-13..364 在滚动范围内=True 可见=Visible
+   [1100x900_points11_list] 左列卡·配方参数 高=276 内容y=372..648 在滚动范围内=True 可见=Visible
+   [1100x900_points11_list] 左列卡·运行参数 高=215 内容y=656..872 在滚动范围内=True 可见=Visible
+   [1100x900_points11_list] 左列卡·平面匹配搜索范围 高=378 内容y=880..1258 在滚动范围内=True 可见=Visible
+   [1100x900_points11_list] 左列卡·预览（学习叠加 高=0 内容y=-569..-569 在滚动范围内=True 可见=Collapsed
+   [1100x900_points11_list] 左列卡·怎么用 高=200 内容y=1266..1466 在滚动范围内=True 可见=Visible
+   [1100x900_points11_list] 点列 DataGrid 高=286 行=11 RowHeight=26 列头高=24 FontSize=12 网格宽=275 列宽=[#=32 Row=90 Col=90 删=42] 单元格内边距=8,2,8,2
+   [1100x900_points11_list] 点列 可见行（网格内）= 9/11 文本单元格=44 纵向溢出=0 横向裁字=0 最宽文本=66.2 删按钮 (222,298,26x21) 高=21 在网格宽内=True 字面量缺失=0
+   [1100x900_points11_list] 点列下提示 (29,344,275x16) 在网格下=True 在卡内=True 卡片=(12,-1,309x378)
+   [1100x900_points11_list] 点列编辑态 编辑框高=20 文本="609.007488" 单元格=90x26 内容槽高=22
+   [1100x900_points11_list] 配方参数·胶宽(px) 控件高=36
+   [1100x900_points11_list] 配方参数·容差(px) 控件高=36
+   [1100x900_points11_list] 配方参数·位置(px) 控件高=36
+   [1100x900_points11_list] 配方参数·极性 控件高=32
+   [1100x900_points11_list] 平面匹配搜索参数 可见且自然高 6/6
+   [1100x900_points11_list] 预览卡 可见=Collapsed 高=0 预览控件高=0
+=== PROBE: 全部通过 ===

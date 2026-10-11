@@ -103,6 +103,11 @@ namespace VisionMaster.Services
 
             try
             {
+                // 二期真并行（主会话口径 4）：试运行目标为并行容器时也必须退化顺序执行——
+                // 临时会话从不置 DebugEnabled（调试豁免路径对试运行无效），所以这里单独置位
+                // DebugDegradedParallel（§4 四入口退化矩阵的第二个置位入口），运行完复位。
+                session.DebugDegradedParallel = true;
+
                 if (targetNode is CompiledPluginNode targetPluginNode)
                 {
                     // 5a. 只执行上游链（编译实例），目标留给配置实例执行
@@ -138,6 +143,11 @@ namespace VisionMaster.Services
                 // 堆栈必须落日志——状态栏只显示 Message，跨线程/UI 这类问题没有堆栈无法定位
                 logger?.Error($"[试运行] 执行异常堆栈: {ex}");
                 return PluginExecuteResult.Fail(sw.ElapsedMilliseconds, $"执行异常: {ex.Message}");
+            }
+            finally
+            {
+                // 与置位成对：试运行结束复位（会话虽归调用方持有，残留 true 会影响它被复用的场景）
+                session.DebugDegradedParallel = false;
             }
 
             // 6. 收集结果：按约定从配置实例读取 Success / ErrorMessage 输出端口

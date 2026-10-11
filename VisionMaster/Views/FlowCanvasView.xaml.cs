@@ -163,6 +163,128 @@ namespace VisionMaster.Views
         }
 
         // ==================================================================
+        //  连线右键菜单
+        // ==================================================================
+
+        /// <summary>
+        /// 顺序链（执行顺序虚线）是纯视图投影，没有绑定语义——右键菜单整体拦掉
+        ///（菜单在连线模板里是每实例一份，DataContext 即连线 VM）。
+        /// </summary>
+        private void OnConnectionContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: CanvasLinkViewModel link }
+                && link.IsOrderLink)
+            {
+                e.Handled = true;
+            }
+        }
+
+        // ==================================================================
+        //  双击节点 → 模块参数 / 工具箱拖入画布（主编辑面补齐）
+        // ==================================================================
+
+        /// <summary>
+        /// 双击节点打开模块参数（与流程栏右键、画布节点右键「模块参数…」同一入口，
+        /// 分派一律在 StepParameterDialog）。豁免两类交互元素：容器头带里的折叠钮（单击是折叠/展开）
+        /// 与连接点（拖线抓手）/断点圆点——双击落在它们身上什么都不做。
+        /// 双击连线（DataContext 是连线 VM）或空白：命不到节点，同样什么都不做。
+        /// </summary>
+        private void OnEditorMouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Left) return;
+
+            var node = FindNodeFromSource(e.OriginalSource);
+            if (node == null) return;
+
+            _viewModel?.OpenModuleParameters(node);
+        }
+
+        /// <summary>工具箱拖入：只放行 ToolItemModel 负载（Scada 图元/文本等一律显「禁止」）</summary>
+        private void OnEditorDragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = FindDraggedTool(e.Data) != null ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void OnEditorDrop(object sender, DragEventArgs e)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+
+            var tool = FindDraggedTool(e.Data);
+            if (tool == null || _viewModel == null) return;
+
+            // 图坐标（与节点 Location / 容器框矩形同一坐标系）：
+            // Nodify 7.3 的 GetLocationInsideEditor(DragEventArgs) 直接做视口→图坐标换算
+            if (_viewModel.DropToolAt(tool, Editor.GetLocationInsideEditor(e)))
+                e.Effects = DragDropEffects.Copy;
+        }
+
+        /// <summary>
+        /// 从拖放负载取工具箱模板。Gong 的 IsDragSource 把数据本体按「类型即格式键」投放，
+        /// 但不同版本/自定义 DragSource 可能换格式——先按类型直取，再逐个格式判型兜底
+        ///（延迟呈现的格式取值会抛，跳过继续找；全拿不到就是「不是我们的负载」，显禁止）。
+        /// </summary>
+        private static ToolItemModel? FindDraggedTool(IDataObject? data)
+        {
+            if (data == null) return null;
+
+            if (data.GetDataPresent(typeof(ToolItemModel))
+                && data.GetData(typeof(ToolItemModel)) is ToolItemModel direct)
+                return direct;
+
+            foreach (var format in data.GetFormats())
+            {
+                try
+                {
+                    if (data.GetData(format) is ToolItemModel tool)
+                        return tool;
+                }
+                catch
+                {
+                    // 延迟呈现的提供方可能已经不在场：跳过该格式继续找
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 双击命中的节点：沿视觉树找第一个 DataContext 是节点 VM 的元素；
+        /// 路径上出现交互部件（折叠钮 / 断点圆点 / Nodify 连接点）则整体豁免。
+        /// 判据是元素身份（模板内 x:Name 与类型），不靠 ToolTip 文案——文案会随主题改，
+        /// 名字改坏了最差是回到「双击开窗」，不会静默吃掉箭头的点击（R25 家族的教训）。
+        /// </summary>
+        private static CanvasNodeViewModel? FindNodeFromSource(object? source)
+        {
+            CanvasNodeViewModel? node = null;
+
+            for (var current = source as DependencyObject; current != null; current = GetParent(current))
+            {
+                if (IsInteractivePart(current)) return null;
+
+                if (node == null && current is FrameworkElement { DataContext: CanvasNodeViewModel hit })
+                    node = hit;
+            }
+
+            return node;
+        }
+
+        /// <summary>折叠钮 / 断点圆点（模板内 x:Name）与 Nodify 连接点（NodeInput/NodeOutput）：双击一律豁免</summary>
+        private static bool IsInteractivePart(DependencyObject element)
+        {
+            if (element is FrameworkElement { Name: "ContainerCollapseToggle" or "NodeBreakpointDot" })
+                return true;
+
+            return element is Connector;
+        }
+
+        private static DependencyObject? GetParent(DependencyObject child)
+            => child is Visual or Visual3D
+                ? VisualTreeHelper.GetParent(child)
+                : LogicalTreeHelper.GetParent(child);
+
+        // ==================================================================
         //  辅助
         // ==================================================================
 

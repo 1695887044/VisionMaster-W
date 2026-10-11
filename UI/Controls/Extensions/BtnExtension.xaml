@@ -1,6 +1,15 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.MergedDictionaries>
+        <!--
+            依赖就地合并：下面两支图标按钮样式的字体令牌来自 IconDictionary.xaml
+            （本文件原先写的是 {StaticResource Solid} —— 这个键**全仓不存在**，
+            是旧工程留下的名字；查不到时 Setter.Value 不报错、只是值不生效，
+            于是图标按钮一辈子用着系统默认字体。2026-10-10 由静态断链断言 + 探针抓出）。
+        -->
+        <ResourceDictionary Source="/UI;component/Themes/IconDictionary.xaml" />
+    </ResourceDictionary.MergedDictionaries>
     <Style x:Key="IconButon" TargetType="Button">
-        <Setter Property="FontFamily" Value="{StaticResource Solid}" />
+        <Setter Property="FontFamily" Value="{StaticResource FA.Solid}" />
         <Setter Property="FontSize" Value="22" />
         <Setter Property="Foreground" Value="#444444" />
         <Setter Property="Background" Value="Transparent" />
@@ -28,7 +37,7 @@
         </Setter>
     </Style>
     <Style x:Key="IconToggleButon" TargetType="ToggleButton">
-        <Setter Property="FontFamily" Value="{StaticResource Solid}" />
+        <Setter Property="FontFamily" Value="{StaticResource FA.Solid}" />
         <Setter Property="FontSize" Value="22" />
         <Setter Property="Foreground" Value="#444444" />
         <Setter Property="Background" Value="Transparent" />

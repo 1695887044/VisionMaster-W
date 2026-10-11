@@ -1,0 +1,9 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <PackageReference Include="NPOI" Version="2.6.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Logger\G.Services.Logger.csproj" />
+  </ItemGroup>
+</Project>

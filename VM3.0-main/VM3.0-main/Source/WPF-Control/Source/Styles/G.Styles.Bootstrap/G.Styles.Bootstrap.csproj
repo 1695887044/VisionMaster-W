@@ -1,0 +1,5 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\G.Style\G.Style.csproj" />
+  </ItemGroup>
+</Project>

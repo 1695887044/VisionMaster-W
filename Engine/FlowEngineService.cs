@@ -326,6 +326,8 @@ namespace VisionMaster.Services
                 // 调试态按本次调用的显式参数置位 —— 只在这里（抢到锁之后）赋值：
                 // 调用方先置位的话，本次若被拒（HTTP 抢到锁），true 会残留给那次 HTTP 运行（P2）
                 session.DebugEnabled = debugSession;
+                // 二期真并行：调试会话并行组退化顺序执行（用户裁决 3）——与 DebugEnabled 同点位同时机
+                session.DebugDegradedParallel = debugSession;
                 session.IsRunning = true;
                 session.PauseLock.Set();
                 session.CancellationTokenSource = new CancellationTokenSource();
@@ -413,6 +415,8 @@ namespace VisionMaster.Services
                     // 绝不能泄漏给同会话的下一次非界面触发（HTTP 收图复用界面会话，残留 true 就会被
                     // 断点卡住产线链路——硬约束）；退订与运行前的订阅成对（会话比引擎活得久）
                     session.DebugEnabled = false;
+                    // 二期真并行：调试退化标志同口径归零（不泄漏给下一次非调试触发）
+                    session.DebugDegradedParallel = false;
                     session.DebugStopped -= OnDebugStopped;
 
                     session.IsRunning = false;
@@ -507,6 +511,8 @@ namespace VisionMaster.Services
                 session.PauseReason = SessionPauseReason.None;
                 // 调试态按本次调用的显式参数置位（抢到锁之后），理由见 RunSessionAsync 的 P2 注释
                 session.DebugEnabled = debugSession;
+                // 二期真并行：调试会话并行组退化顺序执行（与 RunSessionAsync 同点位同时机）
+                session.DebugDegradedParallel = debugSession;
                 session.IsRunning = true;
 
                 // 单次执行同样需要取消令牌：否则 StopSession 因 CTS 为 null 而无法停止
@@ -572,6 +578,8 @@ namespace VisionMaster.Services
                 {
                     // 与连续执行同一口径：调试标志/订阅随本轮结束归零（理由见 RunSessionAsync 收尾）
                     session.DebugEnabled = false;
+                    // 二期真并行：调试退化标志同口径归零（不泄漏给下一次非调试触发）
+                    session.DebugDegradedParallel = false;
                     session.DebugStopped -= OnDebugStopped;
 
                     session.IsRunning = false;

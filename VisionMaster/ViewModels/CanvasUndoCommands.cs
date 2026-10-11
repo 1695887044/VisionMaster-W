@@ -120,6 +120,30 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
+    /// 复合撤销：同一批提交的多条命令（如删除一根聚合线承载的全部解绑）打包成一个撤销单元，
+    /// Ctrl+Z 一次整批回滚。Undo 逆序、Redo 正序，与执行顺序对称。
+    /// </summary>
+    internal sealed class MultiUndoCommand : IUndoCommand
+    {
+        private readonly List<IUndoCommand> _commands;
+
+        public MultiUndoCommand(IEnumerable<IUndoCommand> commands)
+            => _commands = new List<IUndoCommand>(commands);
+
+        public void Undo()
+        {
+            for (int i = _commands.Count - 1; i >= 0; i--)
+                _commands[i].Undo();
+        }
+
+        public void Redo()
+        {
+            foreach (var command in _commands)
+                command.Redo();
+        }
+    }
+
+    /// <summary>
     /// 断线：consumerModel.RemoveLink(port)，Undo 时恢复 oldLink。
     /// 仅记录输入侧断线（一个输出可喂多个输入，从输出侧断是空操作，不入栈）。
     /// </summary>

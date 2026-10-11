@@ -1,0 +1,15 @@
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_mjqnhpsp_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_mjqnhpsp_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+
+已成功生成。
+
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_mjqnhpsp_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_mjqnhpsp_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+    4 个警告
+    0 个错误
+
+已用时间 00:00:01.73

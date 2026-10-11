@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <GeneratePackageOnBuild>Flase</GeneratePackageOnBuild>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Controls\G.Controls.Form.PropertyItem\G.Controls.Form.PropertyItem.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.Form\G.Controls.Form.csproj" />
+    <ProjectReference Include="..\..\Datas\G.Data.Test\G.Data.Test.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.About\G.Modules.About.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Dialog\G.Windows.Dialog.csproj" />
+  </ItemGroup>
+
+</Project>

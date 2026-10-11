@@ -27,6 +27,11 @@ namespace Core.Halcon.Extensions
             HOperatorSet.Rgb1ToGray(image, out HObject ho_GrayImage);
             return ho_GrayImage;
         }
+        /// <summary>
+        /// ⚠ 仅适用于**灰度（单通道）**图：内部走 GetImagePointer1，对多通道图只取通道 1
+        /// （且是取指针而非 AccessChannel 的引用计数语义）。彩色图请用 HImage.GetImageSize。
+        /// （2026-10-08 审查补注；当前全仓只有 UIThemeSmokeTest 在用，均为灰度场景）
+        /// </summary>
         public static int[] GetImageSize(this HObject image)
         {
             int width, height;
@@ -51,6 +56,11 @@ namespace Core.Halcon.Extensions
             image.GetImageSize(out width, out height);
             return new int[] { width, height };
         }
+        /// <summary>
+        /// ⚠ 仅适用于**灰度（单通道）**图：内部走 GetImagePointer1，对多通道图只取通道 1。
+        /// 彩色 HObject 转 HImage 请用 AccessChannel 逐通道构建。
+        /// （2026-10-08 审查补注；当前全仓只有 UIThemeSmokeTest 在用，均为灰度场景）
+        /// </summary>
         public static HImage ToHimage(this HObject hobject)
         {
             HImage img = new HImage();

@@ -69,6 +69,46 @@ namespace Core.Interfaces
         /// 这类"插件改宿主配置"的问题只在下次保存方案时以"配置怎么变了"的形式暴露。
         /// </summary>
         public List<CameraOption> Cameras { get; set; } = new();
+
+        /// <summary>
+        /// 当前方案里"可以拿来当变量名的名字"快照（供插件配置界面的「变量名」行做下拉候选）。
+        ///
+        /// 为什么必须有：插件够不到"变量管理"所在的程序集，而"给哪个变量赋值/读哪个变量"
+        /// 恰恰只能从那里选。靠用户手打名字的代价已经实测过（2026-10-10）：打错的后果
+        /// 要么是运行期"找不到全局变量"，要么是**把值写进了另一个变量** —— 两种都很难倒查。
+        ///
+        /// 与 <see cref="Cameras"/> 同一范式：拷贝一份值（名字/类型/说明），
+        /// 不让插件视图持有宿主方案里的活对象。
+        /// </summary>
+        public List<VariableOption> Variables { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 变量名候选快照（供插件配置界面列出"能选哪些变量名"）。
+    ///
+    /// 与 <see cref="CameraOption"/> 同一范式 —— 只带展示与寻址需要的字段，值不进场。
+    /// </summary>
+    public class VariableOption
+    {
+        /// <summary>变量名（写进流程的就是它；选定后由插件落成**常量**，不是连线）</summary>
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 作用域取值："Global"（变量管理里那些，跨流程随方案存盘）
+        /// / "Runtime"（流程执行中由「变量定义」节点创建的本地变量）。
+        /// 取值与「变量赋值」插件的 Scope 端口同一套字面量，界面按它过滤候选。
+        /// </summary>
+        public string Scope { get; set; } = "Global";
+
+        /// <summary>
+        /// 声明类型的短名（如 Int32 / String / HImage）。
+        /// 为什么界面必须有它：值那一行只能填文本，用户要据此才知道"该填整数还是文本"——
+        /// 类型不匹配是这条链上最常见的失败（真机 2026-10-10 反馈里就是它）。
+        /// </summary>
+        public string TypeName { get; set; } = string.Empty;
+
+        /// <summary>说明文字（变量管理里的描述；运行时变量则为"由哪个节点声明"）</summary>
+        public string Description { get; set; } = string.Empty;
     }
 
     /// <summary>

@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\G.Services.AppPath\G.Services.AppPath.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Serializable\G.Services.Serializable.csproj" />
+  </ItemGroup>
+</Project>

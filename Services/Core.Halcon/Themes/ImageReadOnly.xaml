@@ -16,7 +16,7 @@
                             Panel.ZIndex="1"
                             FontSize="12"
                             FontWeight="Bold"
-                            Foreground="Gray"
+                            Foreground="Red"
                             Text="{TemplateBinding TopText}" />
                         <halcon:HSmartWindowControlWPF x:Name="PART_Halcon" Panel.ZIndex="0" />
                         <TextBlock

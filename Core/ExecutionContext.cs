@@ -83,9 +83,14 @@ namespace VisionMaster.Services
         public DateTime ExecutionStartTime { get; init; } = DateTime.Now;
 
         /// <summary>
-        /// 本地变量字典
+        /// 本地变量字典。
+        ///
+        /// 【二期真并行】修饰符从 { get; } 改为 { get; protected init; }（全文件唯一改动，
+        /// IExecutionContext 契约零改动）：并行分支上下文（ParallelBranchExecutionContext）
+        /// 在构造时把它替换成"记账字典"（BranchVariableRegistry，写先登记 key），
+        /// join 后按真实写入集合做影子合并。除该子类外没有任何赋值方，既有行为不变。
         /// </summary>
-        public IDictionary<string, object> LocalVariables { get; } = new Dictionary<string, object>();
+        public IDictionary<string, object> LocalVariables { get; protected init; } = new Dictionary<string, object>();
 
         private IGlobalVariableWriter? _globalVariables;
 

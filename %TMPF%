@@ -1,0 +1,26 @@
+# probe: replicate FlowCanvasView.xaml PendingConnection bindings 
+$ErrorActionPreference = 'Stop' 
+Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml 
+Add-Type -Path 'C:\Users\16958\.nuget\packages\nodify\7.3.0\lib\net472\Nodify.dll' 
+$vm = New-Object Nodify.PendingConnection 
+$ctrl = New-Object Nodify.PendingConnection 
+$b1 = New-Object System.Windows.Data.Binding('IsVisible') 
+$b1.Source = $vm 
+[void][System.Windows.Data.BindingOperations]::SetBinding($ctrl, [Nodify.PendingConnection]::IsVisibleProperty, $b1) 
+$b2 = New-Object System.Windows.Data.Binding('Source') 
+$b2.Source = $vm 
+$b2.Mode = [System.Windows.Data.BindingMode]::OneWayToSource 
+[void][System.Windows.Data.BindingOperations]::SetBinding($ctrl, [Nodify.PendingConnection]::SourceProperty, $b2) 
+$b3 = New-Object System.Windows.Data.Binding('Target') 
+$b3.Source = $vm 
+$b3.Mode = [System.Windows.Data.BindingMode]::OneWayToSource 
+[void][System.Windows.Data.BindingOperations]::SetBinding($ctrl, [Nodify.PendingConnection]::TargetProperty, $b3) 
+$ctrl.IsVisible = $true 
+Write-Output ('after start: ctrl.IsVisible=' + $ctrl.IsVisible + ' vm.IsVisible=' + $vm.IsVisible) 
+$ctrl.Source = 'SRC' 
+$ctrl.Target = $null 
+Write-Output ('after source set: vm.Source=' + $vm.Source + ' vm.Target=' + $vm.Target) 
+$ctrl.IsVisible = $false 
+$ctrl.Target = 'TGT' 
+Write-Output ('at Execute time: vm.IsVisible=' + $vm.IsVisible + ' vm.Source=' + $vm.Source + ' vm.Target=' + $vm.Target) 
+Write-Output ('command parameter (ctrl.Target)=' + $ctrl.Target) 

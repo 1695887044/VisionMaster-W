@@ -40,6 +40,7 @@ namespace Plugin.ColorRegion
         Description = "在采样区里逐点分类投票，取主色与占比，与期望颜色比对（指示灯 / 色标 / 颜色纯度 / 占比）",
         ShortName = "\uf043"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public class RegionColorPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================

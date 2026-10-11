@@ -1,0 +1,27 @@
+﻿namespace G.Extensions.Command.ScrollViewers;
+
+public abstract class ScrollViewerScrollToCommandBase : DisplayMarkupCommandBase
+{
+    public override bool CanExecute(object parameter)
+    {
+        if (this.GetScrollViewer(parameter) is ScrollViewer sv)
+            return this.CanInvoke(sv);
+        return false;
+    }
+    public override void Execute(object parameter)
+    {
+        if (this.GetScrollViewer(parameter) is ScrollViewer sv)
+            this.Invoke(sv);
+    }
+
+    protected abstract void Invoke(ScrollViewer scrollViewer);
+
+    protected abstract bool CanInvoke(ScrollViewer scrollViewer);
+
+    protected ScrollViewer GetScrollViewer(object parameter)
+    {
+        if (parameter is ScrollViewer scrollViewer)
+            return scrollViewer;
+        return this.GetTargetElement(parameter).GetParent<ScrollViewer>();
+    }
+}

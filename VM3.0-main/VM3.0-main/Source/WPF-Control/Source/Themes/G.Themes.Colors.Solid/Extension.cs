@@ -1,0 +1,1 @@
+﻿namespace G.Themes.Colors.Solid;

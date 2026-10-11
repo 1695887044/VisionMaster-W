@@ -496,8 +496,9 @@ namespace UIThemeSmokeTest
                 Console.WriteLine($"=== OK: Shell.xaml 全树模板实例化无异常 (Fluent={_withFluent}) ===");
                 RunPaneLayoutChecks();
                 int gridFailures = RunGridViewChecks();
+                int flowCanvasFailures = RunFlowCanvasChecks();
                 int logConsoleFailures = RunLogConsoleChecks();
-                return gridFailures + logConsoleFailures == 0 ? 0 : 1;
+                return gridFailures + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -1236,6 +1237,69 @@ namespace UIThemeSmokeTest
         }
 
         /// <summary>
+        /// 流程画布回归闸（静态扫描 FlowCanvasView.xaml，每条都是真实事故的回潮闸）：
+        ///   · 连线的显式 Style 里不得再出现 ContextMenu 的 Setter/触发器——连线菜单现在
+        ///     内联在 ConnectionTemplate 里（每连线一份实例、DataContext 正确的本地值），
+        ///     本地值永远压掉样式值：样式侧再挂菜单或 {x:Null} 触发器，就是 2026-10-07
+        ///     "本地值压掉样式 → 数据线弹类型全名行、顺序链弹空菜单"的事故形态回潮。
+        ///   · 连线样式与触发器必须配 Fill——Nodify 的箭头由 Fill 填充，漏配就是描边色空芯三角。
+        ///   · ItemContainerStyle 必须覆盖 BorderBrush——Nodify 默认是常驻 DodgerBlue 1px
+        ///     外框（暗色演示主题泄漏进浅色调画布）。
+        /// </summary>
+        private static int RunFlowCanvasChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                string xamlPath = Path.Combine(@"d:\C#\VM", "VisionMaster", "Views", "FlowCanvasView.xaml");
+                if (!File.Exists(xamlPath))
+                {
+                    Check("FlowCanvasView.xaml 静态守门", false, $"找不到 {xamlPath}");
+                    return failures;
+                }
+
+                string text = File.ReadAllText(xamlPath);
+
+                // 控件类型不写死（LineConnection→CircuitConnection→StepConnection 走过一轮换型），
+                // 只要还是 nodify:*Connection 家族，事故形态的防回潮断言就跟着走
+                var linkStyle = Regex.Match(text,
+                    @"<(?<t>nodify:\w+Connection)\.Style>(?<body>.*?)</\k<t>\.Style>",
+                    RegexOptions.Singleline);
+                Check("连线样式侧没有 ContextMenu 的 Setter/触发器（模板内联菜单是本地值，样式侧再挂必被压掉=右键失灵事故回潮）",
+                    linkStyle.Success && !linkStyle.Groups["body"].Value.Contains("ContextMenu"),
+                    linkStyle.Success ? linkStyle.Groups["t"].Value : "没找到连线显式 Style");
+
+                var linkMenu = Regex.Match(text, @"<(?<t>nodify:\w+Connection)\.ContextMenu>");
+                Check("连线模板挂着每实例右键菜单 + 顺序链 Opening 拦截（编辑绑定/解绑入口）",
+                    linkMenu.Success && text.Contains("ContextMenuOpening=\"OnConnectionContextMenuOpening\""),
+                    linkMenu.Success ? linkMenu.Groups["t"].Value : "没找到连线内联菜单");
+
+                int fillCount = Regex.Matches(text, @"Property\s*=\s*""Fill""").Count;
+                Check("连线样式与触发器都配了 Fill（箭头由 Fill 填充，漏配=空芯箭头）",
+                    fillCount >= 3, $"Property=\"Fill\" setter 数={fillCount}");
+
+                var containerStyle = Regex.Match(text,
+                    @"nodify:NodifyEditor\.ItemContainerStyle>(?<body>.*?)</nodify:NodifyEditor\.ItemContainerStyle>",
+                    RegexOptions.Singleline);
+                Check("ItemContainerStyle 覆盖了 Nodify 默认 BorderBrush（默认是常驻 DodgerBlue 1px 蓝框）",
+                    containerStyle.Success && containerStyle.Groups["body"].Value.Contains("BorderBrush"),
+                    containerStyle.Success ? "" : "没找到 ItemContainerStyle");
+            }
+            catch (Exception ex)
+            {
+                Check("FlowCanvasView.xaml 静态守门", false, ex.Message);
+            }
+
+            return failures;
+        }
+
+        /// <summary>
         /// 表格（ListView + GridView）回归闸。
         ///
         /// 为什么单独钉它：App.xaml 把 PresentationFramework.Fluent 合并进全局资源，它自带两条
@@ -1537,14 +1601,36 @@ namespace UIThemeSmokeTest
                     else if (vmType.GetProperty(wire.Property) == null)
                         wireProblems.Add(wire.Property + "：LogViewModel 上没有这个属性");
                 }
-                if (viewText.Length > 0
-                    && (!viewText.Contains("DisplayMemberPath=\"Text\"", StringComparison.Ordinal)
-                        || typeof(VisionMaster.ViewModels.LogLevelFilterOption).GetProperty("Text") == null))
-                    wireProblems.Add("等级下拉的 DisplayMemberPath=Text 对不上 LogLevelFilterOption.Text");
-                Check("LogView 的三处过滤/开关接线 + 等级下拉都点到点（写错只会静默失效，不报编译错）",
+                // 筹码模板要绑到 LogLevelFilterOption 的 Text / Count 上（写错就是空白筹码，编译还不报错）
+                foreach (var prop in new[] { "Text", "Count" })
+                {
+                    if (viewText.Length == 0 || !viewText.Contains("{Binding " + prop + "}", StringComparison.Ordinal)
+                        || typeof(VisionMaster.ViewModels.LogLevelFilterOption).GetProperty(prop) == null)
+                        wireProblems.Add("等级筹码的 {Binding " + prop + "} 对不上 LogLevelFilterOption." + prop);
+                }
+                Check("LogView 的三处过滤/开关接线 + 等级筹码都点到点（写错只会静默失效，不报编译错）",
                     viewText.Length > 0 && wireProblems.Count == 0,
                     viewText.Length == 0 ? "找不到 " + logViewPath
-                        : (wireProblems.Count == 0 ? "5 处绑定 + DisplayMemberPath 全部对得上" : string.Join(" | ", wireProblems)));
+                        : (wireProblems.Count == 0 ? "5 处绑定 + 筹码 Text/Count 全部对得上" : string.Join(" | ", wireProblems)));
+
+                // ---- 来源为空的行不许留灰块 ----
+                // 真机截图里的症状：每行时间右边一个灰色小方块（来源胶囊空着仍然在画）。
+                // 现在来源为空整块 Collapsed，列宽不变所以正文起点仍然对齐。
+                var chipLogs = new ObservableCollection<UI.Models.LogItem>
+                {
+                    new UI.Models.LogItem(UI.Models.LogLevel.Info, "no source", null),
+                    new UI.Models.LogItem(UI.Models.LogLevel.Info, "has source", "MainTask"),
+                };
+                var chipConsole = new UI.CustomControl.LogConsole { ItemsSource = chipLogs };
+                var chipHost = new Border { Width = 600, Height = 120, Child = chipConsole };
+                chipHost.Measure(new Size(600, 120));
+                chipHost.Arrange(new Rect(0, 0, 600, 120));
+                chipHost.UpdateLayout();
+                var chipColor = Color.FromRgb(0xE9, 0xEC, 0xEF);
+                int visibleChips = Descendants<Border>(chipConsole).Count(b =>
+                    b.Visibility == Visibility.Visible && (b.Background as SolidColorBrush)?.Color == chipColor);
+                Check("来源为空的行不再留一个灰块（有来源的行照旧显示来源胶囊）",
+                    visibleChips == 1, $"可见来源块={visibleChips}（期望 1：只有那条有来源的）");
 
                 // ---- 端到端：真视图 + 真 VM，验证值真的落到了依赖属性上 ----
                 // 上面那条只证明"名字对得上"，这条证明"值真的会传过去"（OneWay/TwoWay 方向、
@@ -1561,17 +1647,32 @@ namespace UIThemeSmokeTest
                     probe.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
                     var wiredConsole = FindDescendant<UI.CustomControl.LogConsole>(logView);
-                    var levelBox = FindDescendant<ComboBox>(logView);
+                    var levelBox = logView.FindName("LevelChips") as ListBox;   // 等级筹码条（原先是 ComboBox）
                     var followBox = FindDescendant<CheckBox>(logView);
 
-                    Check("端到端：真视图 + 真 VM，控件的 AutoScroll/FilterLevel/SearchText 与下拉/勾选初值都对",
+                    Check("端到端：真视图 + 真 VM，控件的 AutoScroll/FilterLevel/SearchText 与筹码/勾选初值都对",
                         wiredConsole != null && wiredConsole.AutoScroll && wiredConsole.FilterLevel == null
                             && string.IsNullOrEmpty(wiredConsole.SearchText)
                             && levelBox != null && ReferenceEquals(levelBox.SelectedItem, logVm.LevelOptions[0])
                             && followBox != null && followBox.IsChecked == true,
                         wiredConsole == null ? "视图里没找到 LogConsole"
                             : $"AutoScroll={wiredConsole.AutoScroll} FilterLevel={(wiredConsole.FilterLevel?.ToString() ?? "null")} "
-                              + $"SearchText='{wiredConsole.SearchText}' 下拉选中={levelBox?.SelectedItem} 勾选={followBox?.IsChecked}");
+                              + $"SearchText='{wiredConsole.SearchText}' 等级选中={levelBox?.SelectedItem} 勾选={followBox?.IsChecked}");
+
+                    // 筹码上的数字要跟着日志走：增一条 +1，删一条（面板 MaxItems 裁剪走的就是 Remove）-1
+                    logVm.SystemLogs.Add(new UI.Models.LogItem(UI.Models.LogLevel.Info, "i1", null));
+                    logVm.SystemLogs.Add(new UI.Models.LogItem(UI.Models.LogLevel.Info, "i2", null));
+                    logVm.SystemLogs.Add(new UI.Models.LogItem(UI.Models.LogLevel.Error, "e1", null));
+                    probe.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    var afterAdd = new int[5];
+                    for (int i = 0; i < 5; i++) afterAdd[i] = logVm.LevelOptions[i].Count;
+                    logVm.SystemLogs.RemoveAt(0);   // 最旧那条（Info）被裁掉
+                    probe.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    var afterTrim = new int[5];
+                    for (int i = 0; i < 5; i++) afterTrim[i] = logVm.LevelOptions[i].Count;
+                    Check("等级筹码的计数跟着日志走（新增 +1、裁剪 -1，且「全部」= 总条数）",
+                        string.Join("/", afterAdd) == "3/2/0/0/1" && string.Join("/", afterTrim) == "2/1/0/0/1",
+                        $"加三条后 全部/信息/成功/警告/错误 = {string.Join("/", afterAdd)}，裁掉一条信息后 = {string.Join("/", afterTrim)}");
 
                     logVm.SearchText = "abc";
                     logVm.LevelOption = logVm.LevelOptions[4];   // 错误
@@ -1585,6 +1686,18 @@ namespace UIThemeSmokeTest
                         wiredConsole == null ? "视图里没找到 LogConsole"
                             : $"SearchText='{wiredConsole.SearchText}' FilterLevel={(wiredConsole.FilterLevel?.ToString() ?? "null")} "
                               + $"AutoScroll={wiredConsole.AutoScroll} 搜索框文本={Descendants<TextBox>(logView).FirstOrDefault(t => t.Text == "abc")?.Text ?? "（没有 abc）"}");
+
+                    // 搜索框必须有真正的输入框外形：Fluent 的隐式 TextBox 样式只画"透明底 + 一条 6% 黑的底线"，
+                    // 放在浅色工具条上等于一块看不见的空地（真机截图已踩）。要求模板里有白底 + 非零描边的 Border。
+                    var searchBox = logView.FindName("SearchBox") as TextBox;
+                    var searchFrame = searchBox == null ? null : Descendants<Border>(searchBox)
+                        .FirstOrDefault(b => b.BorderThickness.Left > 0 && (b.Background as SolidColorBrush)?.Color.A == 255);
+                    Check("搜索框有真外形（白底 + 非零描边）—— Fluent 那条 6% 黑底线在浅色条上等于看不见",
+                        searchFrame != null,
+                        searchBox == null ? "视图里没有 x:Name=SearchBox"
+                            : (searchFrame == null
+                                ? "模板里没有可见外框"
+                                : $"外框厚={(searchFrame.BorderThickness.Left.ToString("0.#"))}px bg={(searchFrame.Background as SolidColorBrush)?.Color.ToString()}"));
                 }
                 catch (Exception ex)
                 {

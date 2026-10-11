@@ -1,0 +1,902 @@
+﻿{
+  "$type": "System.Collections.ObjectModel.ObservableCollection`1[[H.VisionMaster.DiagramData.IVisionDiagramData, H.VisionMaster.DiagramData]], System.ObjectModel",
+  "$values": [
+    {
+      "$id": "1",
+      "$type": "G.App.VisionMaster.OpenCV.DiagramDatas.OpenCVVisionDiagramData, H.App.VisionMaster.OpenCV",
+      "RunModeResult": "False",
+      "UseFlowableSelectToRunning": true,
+      "Name": "HSV二值分割",
+      "Width": 1000.0,
+      "Height": 1500.0,
+      "Location": "1000,650",
+      "Datas": {
+        "$type": "G.Controls.Diagram.Presenter.DiagramDatas.Base.Datas, H.Controls.Diagram.Presenter",
+        "NodeDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.INodeData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$id": "2",
+              "$type": "G.VisionMaster.OpenCV.NodeDatas.Src.SrcVideoFilesNodeData, H.VisionMaster.OpenCV",
+              "UseAutoSwitch": true,
+              "SrcFilePath": "Assets\\Videos\\01.mp4",
+              "SrcFilePaths": {
+                "$type": "System.Collections.ObjectModel.ObservableCollection`1[[System.String, System.Private.CoreLib]], System.ObjectModel",
+                "$values": [
+                  "Assets\\Videos\\01.mp4",
+                  "Assets\\Videos\\balltest.mp4",
+                  "Assets\\Videos\\bike.avi",
+                  "Assets\\Videos\\box.mp4",
+                  "Assets\\Videos\\cars.mp4",
+                  "Assets\\Videos\\color_object.mp4",
+                  "Assets\\Videos\\crowd.mp4",
+                  "Assets\\Videos\\mulballs.mp4",
+                  "Assets\\Videos\\qRcode-sample.mp4",
+                  "Assets\\Videos\\road_line.mp4"
+                ]
+              },
+              "ROI": {
+                "$id": "3",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.FromROI, H.VisionMaster.NodeData",
+                "ID": "5a425999-b9d0-487a-82bc-1b3aabe451db",
+                "Name": "继承"
+              },
+              "FromROI": {
+                "$ref": "3"
+              },
+              "DrawROI": {
+                "$id": "4",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.DrawROI, H.VisionMaster.NodeData",
+                "Rect": "Empty",
+                "ID": "b01d03bc-298c-4216-a12d-912a6c5790ec",
+                "Name": "绘制"
+              },
+              "InputROI": {
+                "$id": "5",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.InputROI, H.VisionMaster.NodeData",
+                "ID": "67730085-933d-4683-a49c-5b5969f1838b",
+                "Name": "输入"
+              },
+              "UseInvokedPart": false,
+              "PreviewMillisecondsDelay": 0,
+              "InvokeMillisecondsDelay": 0,
+              "FlagLength": 10.0,
+              "TimeSpan": "00:00:04.0620114",
+              "Message": "用户取消",
+              "DiagramData": {
+                "$ref": "1"
+              },
+              "Text": "本地视频源",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$id": "6",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Top",
+                    "NodeID": "e1ddfe41-f84e-4489-9006-61ddec5c4734",
+                    "PortType": "Input",
+                    "ID": "83bbdcc6-1d04-47c9-bf2a-48912a51237a"
+                  },
+                  {
+                    "$id": "7",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Bottom",
+                    "NodeID": "e1ddfe41-f84e-4489-9006-61ddec5c4734",
+                    "PortType": "OutPut",
+                    "ID": "4352d0c1-8651-4288-8deb-b2bb98fdfe1f"
+                  },
+                  {
+                    "$id": "8",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "NodeID": "e1ddfe41-f84e-4489-9006-61ddec5c4734",
+                    "PortType": "Input",
+                    "ID": "bc162ef1-c5ef-4601-9018-cb35a55a3966"
+                  },
+                  {
+                    "$id": "9",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Right",
+                    "NodeID": "e1ddfe41-f84e-4489-9006-61ddec5c4734",
+                    "PortType": "OutPut",
+                    "ID": "adb37be1-290f-4851-b22d-89ab8858c26a"
+                  }
+                ]
+              },
+              "IsTemplate": false,
+              "Height": 35.0,
+              "Width": 120.0,
+              "Fill": "#FFFFFFFF",
+              "CornerRadius": 2.0,
+              "Location": "499.318931521138,562.5514387085104",
+              "ID": "e1ddfe41-f84e-4489-9006-61ddec5c4734",
+              "Name": "本地视频源",
+              "Icon": ""
+            },
+            {
+              "$id": "10",
+              "$type": "G.VisionMaster.OpenCV.NodeDatas.Basic.HSVInRange, H.VisionMaster.OpenCV",
+              "ImageColorPickerPresenter": {
+                "$id": "11",
+                "$type": "G.VisionMaster.NodeData.ImageColorPickerPresenter, H.VisionMaster.NodeData",
+                "Color": "#FF517F32"
+              },
+              "ROI": {
+                "$id": "12",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.FromROI, H.VisionMaster.NodeData",
+                "ID": "8498fe54-2f4d-4da9-ac2f-6482cd1558e2",
+                "Name": "继承"
+              },
+              "FromROI": {
+                "$ref": "12"
+              },
+              "DrawROI": {
+                "$id": "13",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.DrawROI, H.VisionMaster.NodeData",
+                "Rect": "Empty",
+                "ID": "de6e4d8a-1dfe-46c8-89c9-dbab3e7fe46f",
+                "Name": "绘制"
+              },
+              "InputROI": {
+                "$id": "14",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.InputROI, H.VisionMaster.NodeData",
+                "ID": "7844b889-b4e5-4357-a817-562fc7a7098f",
+                "Name": "输入"
+              },
+              "PreviewMillisecondsDelay": 0,
+              "InvokeMillisecondsDelay": 0,
+              "FlagLength": 10.0,
+              "TimeSpan": "00:00:00.0164434",
+              "Message": "运行成功",
+              "DiagramData": {
+                "$ref": "1"
+              },
+              "Text": "HSV二值分割",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$id": "15",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Top",
+                    "NodeID": "7263fb36-8275-47f8-adb8-c2a2934661b3",
+                    "PortType": "Input",
+                    "ID": "823bf1e1-6043-4bad-af59-31ce3d95ebf9"
+                  },
+                  {
+                    "$id": "16",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "Message": "运行成功",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Bottom",
+                    "NodeID": "7263fb36-8275-47f8-adb8-c2a2934661b3",
+                    "PortType": "OutPut",
+                    "ID": "30a811af-8e25-42cd-98ea-5d7fa4263678"
+                  },
+                  {
+                    "$id": "17",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "NodeID": "7263fb36-8275-47f8-adb8-c2a2934661b3",
+                    "PortType": "Input",
+                    "ID": "846c85c5-13dc-43d6-8c37-10447962fbda"
+                  },
+                  {
+                    "$id": "18",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Right",
+                    "NodeID": "7263fb36-8275-47f8-adb8-c2a2934661b3",
+                    "PortType": "OutPut",
+                    "ID": "35801c40-e202-4ff3-8a3d-81f4d86eb310"
+                  }
+                ]
+              },
+              "IsTemplate": false,
+              "Height": 35.0,
+              "Width": 120.0,
+              "Fill": "#FFFFFFFF",
+              "CornerRadius": 2.0,
+              "Location": "499.318931521138,651.5514387085104",
+              "ID": "7263fb36-8275-47f8-adb8-c2a2934661b3",
+              "Name": "HSV二值分割",
+              "Icon": ""
+            }
+          ]
+        },
+        "LinkDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.ILinkData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$id": "19",
+              "$type": "G.Controls.Diagram.Presenter.LinkDatas.FlowableLinkData, H.Controls.Diagram.Presenter",
+              "FontSize": 12.0,
+              "Stroke": "#FFFFA500",
+              "FromNodeID": "e1ddfe41-f84e-4489-9006-61ddec5c4734",
+              "ToNodeID": "7263fb36-8275-47f8-adb8-c2a2934661b3",
+              "FromPortID": "4352d0c1-8651-4288-8deb-b2bb98fdfe1f",
+              "ToPortID": "823bf1e1-6043-4bad-af59-31ce3d95ebf9",
+              "ID": "5636066f-ccb0-4ecd-b1ef-1fa3cfc0fa1d",
+              "Name": "连线"
+            }
+          ]
+        }
+      },
+      "ID": "f6c21fc0-4a20-4fa6-8ab2-4ef1ddf5428f"
+    },
+    {
+      "$id": "20",
+      "$type": "G.App.VisionMaster.OpenCV.DiagramDatas.OpenCVVisionDiagramData, H.App.VisionMaster.OpenCV",
+      "RunModeResult": "False",
+      "UseFlowableSelectToRunning": true,
+      "Name": "机器视觉流程",
+      "Width": 1000.0,
+      "Height": 1500.0,
+      "Location": "1000,650",
+      "Message": "选中节点 - 无缝融合背景",
+      "Datas": {
+        "$type": "G.Controls.Diagram.Presenter.DiagramDatas.Base.Datas, H.Controls.Diagram.Presenter",
+        "NodeDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.INodeData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$id": "21",
+              "$type": "G.VisionMaster.OpenCV.NodeDatas.Src.SrcVideoFilesNodeData, H.VisionMaster.OpenCV",
+              "UseAutoSwitch": true,
+              "SrcFilePath": "Assets\\Videos\\01.mp4",
+              "SrcFilePaths": {
+                "$type": "System.Collections.ObjectModel.ObservableCollection`1[[System.String, System.Private.CoreLib]], System.ObjectModel",
+                "$values": [
+                  "Assets\\Videos\\01.mp4",
+                  "Assets\\Videos\\balltest.mp4",
+                  "Assets\\Videos\\bike.avi",
+                  "Assets\\Videos\\box.mp4",
+                  "Assets\\Videos\\cars.mp4",
+                  "Assets\\Videos\\color_object.mp4",
+                  "Assets\\Videos\\crowd.mp4",
+                  "Assets\\Videos\\mulballs.mp4",
+                  "Assets\\Videos\\qRcode-sample.mp4",
+                  "Assets\\Videos\\road_line.mp4"
+                ]
+              },
+              "ROI": {
+                "$id": "22",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.FromROI, H.VisionMaster.NodeData",
+                "ID": "1108fb7f-6e51-4ec9-8f3a-81ab3b14e222",
+                "Name": "继承"
+              },
+              "FromROI": {
+                "$ref": "22"
+              },
+              "DrawROI": {
+                "$id": "23",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.DrawROI, H.VisionMaster.NodeData",
+                "Rect": "Empty",
+                "ID": "702d67f7-8816-4be8-82da-c905fd0f3706",
+                "Name": "绘制"
+              },
+              "InputROI": {
+                "$id": "24",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.InputROI, H.VisionMaster.NodeData",
+                "ID": "bd6f7eef-504b-4c79-b472-5b786c0ce2ea",
+                "Name": "输入"
+              },
+              "UseInvokedPart": false,
+              "PreviewMillisecondsDelay": 0,
+              "InvokeMillisecondsDelay": 0,
+              "FlagLength": 10.0,
+              "TimeSpan": "00:00:04.5925380",
+              "Message": "用户取消",
+              "DiagramData": {
+                "$ref": "20"
+              },
+              "Text": "本地视频源",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$id": "25",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Top",
+                    "NodeID": "18835542-9ba0-4e22-a68c-a50a93c926f4",
+                    "PortType": "Input",
+                    "ID": "c23e8ba5-fd79-466f-88ac-b28fb65dd2e6"
+                  },
+                  {
+                    "$id": "26",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Bottom",
+                    "NodeID": "18835542-9ba0-4e22-a68c-a50a93c926f4",
+                    "PortType": "OutPut",
+                    "ID": "bc136224-dcb8-446a-aa2d-a62895883afd"
+                  },
+                  {
+                    "$id": "27",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "NodeID": "18835542-9ba0-4e22-a68c-a50a93c926f4",
+                    "PortType": "Input",
+                    "ID": "926d53cc-8d7e-419a-aef5-fe29dd51d9ad"
+                  },
+                  {
+                    "$id": "28",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Right",
+                    "NodeID": "18835542-9ba0-4e22-a68c-a50a93c926f4",
+                    "PortType": "OutPut",
+                    "ID": "53f403a8-49b4-495d-ae60-ee74dab49810"
+                  }
+                ]
+              },
+              "IsTemplate": false,
+              "Height": 35.0,
+              "Width": 120.0,
+              "Fill": "#FFFFFFFF",
+              "CornerRadius": 2.0,
+              "Location": "485.67407407407404,554.6518518518517",
+              "ID": "18835542-9ba0-4e22-a68c-a50a93c926f4",
+              "Name": "本地视频源",
+              "Icon": ""
+            },
+            {
+              "$id": "29",
+              "$type": "G.VisionMaster.OpenCV.NodeDatas.Basic.HSVInRange, H.VisionMaster.OpenCV",
+              "ImageColorPickerPresenter": {
+                "$id": "30",
+                "$type": "G.VisionMaster.NodeData.ImageColorPickerPresenter, H.VisionMaster.NodeData",
+                "Color": "#FF518234"
+              },
+              "ROI": {
+                "$id": "31",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.FromROI, H.VisionMaster.NodeData",
+                "ID": "d4ae6190-897e-44da-8dc2-8fd8e20b5259",
+                "Name": "继承"
+              },
+              "FromROI": {
+                "$ref": "31"
+              },
+              "DrawROI": {
+                "$id": "32",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.DrawROI, H.VisionMaster.NodeData",
+                "Rect": "Empty",
+                "ID": "9e099489-394a-4fbc-91e1-9f209d10d88b",
+                "Name": "绘制"
+              },
+              "InputROI": {
+                "$id": "33",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.InputROI, H.VisionMaster.NodeData",
+                "ID": "e050a808-2db4-46a0-8305-1ba89b569e51",
+                "Name": "输入"
+              },
+              "UseInvokedPart": false,
+              "PreviewMillisecondsDelay": 0,
+              "InvokeMillisecondsDelay": 0,
+              "FlagLength": 10.0,
+              "TimeSpan": "00:00:00.0134888",
+              "Message": "运行成功",
+              "DiagramData": {
+                "$ref": "20"
+              },
+              "Text": "HSV二值分割",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$id": "34",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Top",
+                    "NodeID": "472f4973-ef9b-4b65-b363-f6f767d33ac8",
+                    "PortType": "Input",
+                    "ID": "e05bcc6f-3e5c-4067-a6a8-68328f81f8ef"
+                  },
+                  {
+                    "$id": "35",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "Message": "运行成功",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Bottom",
+                    "NodeID": "472f4973-ef9b-4b65-b363-f6f767d33ac8",
+                    "PortType": "OutPut",
+                    "ID": "8a315ca9-aee6-4e8c-bf81-c4ca82401442"
+                  },
+                  {
+                    "$id": "36",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "NodeID": "472f4973-ef9b-4b65-b363-f6f767d33ac8",
+                    "PortType": "Input",
+                    "ID": "c322cc1c-cd00-4d82-9d91-127867570663"
+                  },
+                  {
+                    "$id": "37",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Right",
+                    "NodeID": "472f4973-ef9b-4b65-b363-f6f767d33ac8",
+                    "PortType": "OutPut",
+                    "ID": "07110749-356a-4a89-9724-148b263400c9"
+                  }
+                ]
+              },
+              "IsTemplate": false,
+              "Height": 35.0,
+              "Width": 120.0,
+              "Fill": "#FFFFFFFF",
+              "CornerRadius": 2.0,
+              "Location": "485.67407407407404,643.6518518518517",
+              "ID": "472f4973-ef9b-4b65-b363-f6f767d33ac8",
+              "Name": "HSV二值分割",
+              "Icon": ""
+            },
+            {
+              "$id": "38",
+              "$type": "G.VisionMaster.OpenCV.NodeDatas.Basic.BitwiseNot, H.VisionMaster.OpenCV",
+              "ROI": {
+                "$id": "39",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.FromROI, H.VisionMaster.NodeData",
+                "ID": "c1433184-21df-4cd7-9e37-5391c121d68a",
+                "Name": "继承"
+              },
+              "FromROI": {
+                "$ref": "39"
+              },
+              "DrawROI": {
+                "$id": "40",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.DrawROI, H.VisionMaster.NodeData",
+                "Rect": "Empty",
+                "ID": "7d45e4b7-6e8c-4e3b-b88a-ccae8c3e7603",
+                "Name": "绘制"
+              },
+              "InputROI": {
+                "$id": "41",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.InputROI, H.VisionMaster.NodeData",
+                "ID": "be67f1c6-d295-43d0-b1dd-6a64fcd0176e",
+                "Name": "输入"
+              },
+              "UseInvokedPart": false,
+              "PreviewMillisecondsDelay": 0,
+              "InvokeMillisecondsDelay": 0,
+              "FlagLength": 10.0,
+              "TimeSpan": "00:00:00.0056057",
+              "Message": "运行成功",
+              "DiagramData": {
+                "$ref": "20"
+              },
+              "Text": "反转黑白",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$id": "42",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Top",
+                    "NodeID": "5622a899-1582-4bcc-b664-8f97a1ccd463",
+                    "PortType": "Input",
+                    "ID": "0e76718f-2ee2-4e7c-8c48-8e4469be5a43"
+                  },
+                  {
+                    "$id": "43",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "Message": "运行成功",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Bottom",
+                    "NodeID": "5622a899-1582-4bcc-b664-8f97a1ccd463",
+                    "PortType": "OutPut",
+                    "ID": "70fc7c08-b352-4169-997c-c34ad25ae150"
+                  },
+                  {
+                    "$id": "44",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "NodeID": "5622a899-1582-4bcc-b664-8f97a1ccd463",
+                    "PortType": "Input",
+                    "ID": "82f4717f-69e3-40ce-be3a-c7e16f104a4d"
+                  },
+                  {
+                    "$id": "45",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Right",
+                    "NodeID": "5622a899-1582-4bcc-b664-8f97a1ccd463",
+                    "PortType": "OutPut",
+                    "ID": "3ec7d608-558a-4ccb-a810-13632d73ad08"
+                  }
+                ]
+              },
+              "IsTemplate": false,
+              "Height": 35.0,
+              "Width": 120.0,
+              "Fill": "#FFFFFFFF",
+              "CornerRadius": 2.0,
+              "Location": "485.67407407407404,732.6518518518517",
+              "ID": "5622a899-1582-4bcc-b664-8f97a1ccd463",
+              "Name": "反转黑白",
+              "Icon": ""
+            },
+            {
+              "$id": "46",
+              "$type": "G.VisionMaster.OpenCV.NodeDatas.Other.SeamlessCloneBackground, H.VisionMaster.OpenCV",
+              "BackgroundFilePath": "Assets\\OpenCV\\asahiyama.jpg",
+              "ROI": {
+                "$id": "47",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.FromROI, H.VisionMaster.NodeData",
+                "ID": "251a11e3-bb36-4ee8-9e92-a6ffe56d0859",
+                "Name": "继承"
+              },
+              "FromROI": {
+                "$ref": "47"
+              },
+              "DrawROI": {
+                "$id": "48",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.DrawROI, H.VisionMaster.NodeData",
+                "Rect": "Empty",
+                "ID": "56d64544-8b35-48ab-acec-ff15bdd333a7",
+                "Name": "绘制"
+              },
+              "InputROI": {
+                "$id": "49",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.InputROI, H.VisionMaster.NodeData",
+                "ID": "a9654290-d2be-49e3-8f88-ef9534e70c66",
+                "Name": "输入"
+              },
+              "PreviewMillisecondsDelay": 0,
+              "InvokeMillisecondsDelay": 0,
+              "FlagLength": 10.0,
+              "TimeSpan": "00:00:00.0857222",
+              "Message": "运行成功",
+              "DiagramData": {
+                "$ref": "20"
+              },
+              "Text": "无缝融合背景",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$id": "50",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Top",
+                    "NodeID": "3c3ba9df-1ed8-4663-a7ab-60e2bfff8fab",
+                    "PortType": "Input",
+                    "ID": "e1e3b4f9-8de8-4a41-b9f0-cdeee20a9d09"
+                  },
+                  {
+                    "$id": "51",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Bottom",
+                    "NodeID": "3c3ba9df-1ed8-4663-a7ab-60e2bfff8fab",
+                    "PortType": "OutPut",
+                    "ID": "36d9ba69-69a0-4b61-bf00-c2df1aebea73"
+                  },
+                  {
+                    "$id": "52",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "NodeID": "3c3ba9df-1ed8-4663-a7ab-60e2bfff8fab",
+                    "PortType": "Input",
+                    "ID": "fea490e9-7dff-4999-85c0-95578e3be6c5"
+                  },
+                  {
+                    "$id": "53",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Right",
+                    "NodeID": "3c3ba9df-1ed8-4663-a7ab-60e2bfff8fab",
+                    "PortType": "OutPut",
+                    "ID": "1776608b-b7e0-4d1d-9f8b-921398a0fd02"
+                  }
+                ]
+              },
+              "IsTemplate": false,
+              "Height": 35.0,
+              "Width": 120.0,
+              "Fill": "#FFFFFFFF",
+              "CornerRadius": 2.0,
+              "Location": "485.67407407407404,821.6518518518517",
+              "ID": "3c3ba9df-1ed8-4663-a7ab-60e2bfff8fab",
+              "Name": "无缝融合背景",
+              "Icon": ""
+            }
+          ]
+        },
+        "LinkDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.ILinkData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$id": "54",
+              "$type": "G.Controls.Diagram.Presenter.LinkDatas.FlowableLinkData, H.Controls.Diagram.Presenter",
+              "FontSize": 12.0,
+              "Stroke": "#FFFFA500",
+              "FromNodeID": "18835542-9ba0-4e22-a68c-a50a93c926f4",
+              "ToNodeID": "472f4973-ef9b-4b65-b363-f6f767d33ac8",
+              "FromPortID": "bc136224-dcb8-446a-aa2d-a62895883afd",
+              "ToPortID": "e05bcc6f-3e5c-4067-a6a8-68328f81f8ef",
+              "ID": "e8b0feed-67d3-4728-ae9a-cfbd2e6752a7",
+              "Name": "连线"
+            },
+            {
+              "$id": "55",
+              "$type": "G.Controls.Diagram.Presenter.LinkDatas.FlowableLinkData, H.Controls.Diagram.Presenter",
+              "FontSize": 12.0,
+              "Stroke": "#FFFFA500",
+              "FromNodeID": "472f4973-ef9b-4b65-b363-f6f767d33ac8",
+              "ToNodeID": "5622a899-1582-4bcc-b664-8f97a1ccd463",
+              "FromPortID": "8a315ca9-aee6-4e8c-bf81-c4ca82401442",
+              "ToPortID": "0e76718f-2ee2-4e7c-8c48-8e4469be5a43",
+              "ID": "df8c6772-5308-4999-b532-551b7b945d7d",
+              "Name": "连线"
+            },
+            {
+              "$id": "56",
+              "$type": "G.Controls.Diagram.Presenter.LinkDatas.FlowableLinkData, H.Controls.Diagram.Presenter",
+              "FontSize": 12.0,
+              "Stroke": "#FFFFA500",
+              "FromNodeID": "5622a899-1582-4bcc-b664-8f97a1ccd463",
+              "ToNodeID": "3c3ba9df-1ed8-4663-a7ab-60e2bfff8fab",
+              "FromPortID": "70fc7c08-b352-4169-997c-c34ad25ae150",
+              "ToPortID": "e1e3b4f9-8de8-4a41-b9f0-cdeee20a9d09",
+              "ID": "ffc79c17-298d-4246-a589-e49d726598e4",
+              "Name": "连线"
+            }
+          ]
+        }
+      },
+      "ID": "28c96b87-b0e0-480a-9cd1-32ce78bcc5af"
+    },
+    {
+      "$id": "57",
+      "$type": "G.App.VisionMaster.OpenCV.DiagramDatas.OpenCVVisionDiagramData, H.App.VisionMaster.OpenCV",
+      "RunModeResult": "False",
+      "UseFlowableSelectToRunning": true,
+      "Name": "绿幕背景视频源",
+      "Width": 1000.0,
+      "Height": 1500.0,
+      "Location": "1000,650",
+      "Message": "选中节点 - 本地视频源",
+      "Datas": {
+        "$type": "G.Controls.Diagram.Presenter.DiagramDatas.Base.Datas, H.Controls.Diagram.Presenter",
+        "NodeDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.INodeData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$id": "58",
+              "$type": "G.VisionMaster.OpenCV.NodeDatas.Src.SrcVideoFilesNodeData, H.VisionMaster.OpenCV",
+              "UseAutoSwitch": true,
+              "SrcFilePath": "Assets\\Videos\\01.mp4",
+              "SrcFilePaths": {
+                "$type": "System.Collections.ObjectModel.ObservableCollection`1[[System.String, System.Private.CoreLib]], System.ObjectModel",
+                "$values": [
+                  "Assets\\Videos\\01.mp4",
+                  "Assets\\Videos\\balltest.mp4",
+                  "Assets\\Videos\\bike.avi",
+                  "Assets\\Videos\\box.mp4",
+                  "Assets\\Videos\\cars.mp4",
+                  "Assets\\Videos\\color_object.mp4",
+                  "Assets\\Videos\\crowd.mp4",
+                  "Assets\\Videos\\mulballs.mp4",
+                  "Assets\\Videos\\qRcode-sample.mp4",
+                  "Assets\\Videos\\road_line.mp4"
+                ]
+              },
+              "ROI": {
+                "$id": "59",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.FromROI, H.VisionMaster.NodeData",
+                "ID": "eadaa8f6-0293-433b-a2b1-f58e62bccaae",
+                "Name": "继承"
+              },
+              "FromROI": {
+                "$ref": "59"
+              },
+              "DrawROI": {
+                "$id": "60",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.DrawROI, H.VisionMaster.NodeData",
+                "Rect": "Empty",
+                "ID": "5f7c860e-4204-4a50-9c35-0603e0e6d77b",
+                "Name": "绘制"
+              },
+              "InputROI": {
+                "$id": "61",
+                "$type": "G.VisionMaster.NodeData.ROIPresenters.InputROI, H.VisionMaster.NodeData",
+                "ID": "9c4e03ad-5f8c-47bc-b2a6-d08b78c36d99",
+                "Name": "输入"
+              },
+              "PreviewMillisecondsDelay": 0,
+              "InvokeMillisecondsDelay": 0,
+              "FlagLength": 10.0,
+              "TimeSpan": "00:00:02.3842585",
+              "Message": "用户取消",
+              "DiagramData": {
+                "$ref": "57"
+              },
+              "Text": "本地视频源",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$id": "62",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Top",
+                    "NodeID": "28ebffc8-2e1f-48a2-b6fc-3794efd09692",
+                    "PortType": "Input",
+                    "ID": "37303cdf-fc37-4a0d-9b77-5375a8d31ede"
+                  },
+                  {
+                    "$id": "63",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Bottom",
+                    "NodeID": "28ebffc8-2e1f-48a2-b6fc-3794efd09692",
+                    "PortType": "OutPut",
+                    "ID": "526df99d-5060-49a3-8a3a-36e375cc27d2"
+                  },
+                  {
+                    "$id": "64",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "NodeID": "28ebffc8-2e1f-48a2-b6fc-3794efd09692",
+                    "PortType": "Input",
+                    "ID": "992ea77a-a908-4ae1-98c7-4cd8c52c8fe6"
+                  },
+                  {
+                    "$id": "65",
+                    "$type": "G.VisionMaster.NodeData.Base.StyleNodeDataBase+OpenCVFlowablePortData, H.VisionMaster.NodeData",
+                    "FontSize": 12.0,
+                    "Fill": "#FFFFFFFF",
+                    "StrokeThickness": 1.0,
+                    "Width": 6.0,
+                    "Height": 6.0,
+                    "Dock": "Right",
+                    "NodeID": "28ebffc8-2e1f-48a2-b6fc-3794efd09692",
+                    "PortType": "OutPut",
+                    "ID": "72cd590d-19a6-4ee3-9ab4-e68b48f2ad96"
+                  }
+                ]
+              },
+              "IsTemplate": false,
+              "Height": 35.0,
+              "Width": 120.0,
+              "Fill": "#FFFFFFFF",
+              "CornerRadius": 2.0,
+              "Location": "525.7629629629628,583.2444444444442",
+              "ID": "28ebffc8-2e1f-48a2-b6fc-3794efd09692",
+              "Name": "本地视频源",
+              "Icon": ""
+            }
+          ]
+        },
+        "LinkDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.ILinkData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": []
+        }
+      },
+      "ID": "998921ec-53e5-40ac-8b8b-e4806dd09acd"
+    }
+  ]
+}

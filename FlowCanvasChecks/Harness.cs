@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 using Core.Interfaces;
+using Prism.Dialogs;
 using VisionMaster.Models;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
@@ -104,6 +105,47 @@ namespace FlowCanvasChecks
     }
 
     /// <summary>
+    /// IDialogService 的静默桩：只把"弹了哪个窗口"记下来，不真的开窗——
+    /// 断言宿主里没有 Prism 容器，真服务一 ShowDialog 就会去容器里解析视图。
+    /// 谁需要"断言弹窗名字"就用它；不关心弹窗的用例给一个实例即可（ProcessViewModel 的
+    /// 构造函数要一份，但它的分支结构命令根本不碰对话框服务）。
+    /// </summary>
+    internal sealed class SilentDialogService : IDialogService
+    {
+        public List<string> ShownDialogs { get; } = new();
+
+        public void ShowDialog(string name, IDialogParameters parameters) => ShownDialogs.Add(name);
+
+        public void ShowDialog(string name, IDialogParameters parameters, DialogCallback callback)
+            => ShownDialogs.Add(name);
+
+        public void ShowDialog(string name, IDialogParameters parameters, string windowName)
+            => ShownDialogs.Add(name);
+
+        public void ShowDialog(
+            string name,
+            IDialogParameters parameters,
+            DialogCallback callback,
+            string windowName
+        ) => ShownDialogs.Add(name);
+
+        public void Show(string name, IDialogParameters parameters) => ShownDialogs.Add(name);
+
+        public void Show(string name, IDialogParameters parameters, DialogCallback callback)
+            => ShownDialogs.Add(name);
+
+        public void Show(string name, IDialogParameters parameters, string windowName)
+            => ShownDialogs.Add(name);
+
+        public void Show(
+            string name,
+            IDialogParameters parameters,
+            DialogCallback callback,
+            string windowName
+        ) => ShownDialogs.Add(name);
+    }
+
+    /// <summary>
     /// 画布断言夹具：一个自建的「方案 → 流程 → 步骤」栈 + 一层查询封装。
     ///
     /// 只走 public 面：WorkspaceContext 的构造函数不碰 Application.Current / Dispatcher / DI，
@@ -143,6 +185,9 @@ namespace FlowCanvasChecks
         public ConditionStep If(string name) => new("\uE700", "桩If", StubPluginProvider.IfPlugin, name);
 
         public ForStep For(string name) => new("\uE700", "桩For", StubPluginProvider.ForPlugin, name);
+
+        /// <summary>并行分组桩：模型直接 new（编译器按类型识别，与插件注册表无关）</summary>
+        public ParallelStep Parallel(string name) => new("\uE700", "并行分组", "VM.CanvasStub.Parallel", name);
 
         /// <summary>
         /// 「变量定义」桩步骤：画布据此在节点上动态长出一根以变量名命名的值输出脚。
@@ -309,8 +354,9 @@ namespace FlowCanvasChecks
     /// <summary>
     /// 画布连线入口封装：走 public 的 CompleteConnectionCommand，
     /// 从而真实经过 internal static CanConnect 的合法性判定（与用户拖线同一条路径）。
-    /// 参数用 Tuple&lt;object,object&gt; 是因为命令签名是 DelegateCommand&lt;object&gt;，
-    /// 具体两端顺序由 OnCompleteConnection 的取值约定决定（Item1 = 源、Item2 = 目标）。
+    /// 传参形态照 Nodify 7.3.0 的 IL 取证（PendingConnection::OnPendingConnectionCompleted
+    /// 为 Execute(get_Target)）：先把源脚写进 PendingConnection 状态、命令实参只带目标连接器——
+    /// 旧实现喂 Tuple&lt;object,object&gt; 走的正是被证实的死分支，207 条绿就是这么掩盖真机的。
     /// </summary>
     internal static class FlowCanvasExtensions
     {
@@ -326,8 +372,13 @@ namespace FlowCanvasChecks
             canvas.ModuleLinkRequested += Handler;
             try
             {
-                canvas.CompleteConnectionCommand.Execute(
-                    new Tuple<object, object>(producer.Outputs[0], consumer.Inputs[0]));
+                // Nodify 7.3 真实时序（IL 取证）：开始 → 控件置 IsVisible=true、源端进 VM；
+                // 完成 → 控件先 set_IsVisible(false)（TwoWay 回流，VM 清空 PendingConnection.Source/Target），
+                // 之后才 Execute(目标连接器)。少复刻中间那步回流，就把"建线不可达"掩盖成绿——
+                // 修复后的 VM 从拖线开始快照取源端，这条链路必须照实驱动
+                canvas.StartConnectionCommand.Execute(producer.Outputs[0]);
+                canvas.PendingConnection.IsVisible = false;
+                canvas.CompleteConnectionCommand.Execute(consumer.Inputs[0]);
             }
             finally
             {
@@ -348,8 +399,9 @@ namespace FlowCanvasChecks
             canvas.ModuleLinkRequested += Handler;
             try
             {
-                canvas.CompleteConnectionCommand.Execute(
-                    new Tuple<object, object>(consumer.Inputs[0], producer.Outputs[0]));
+                canvas.StartConnectionCommand.Execute(consumer.Inputs[0]);
+                canvas.PendingConnection.IsVisible = false;
+                canvas.CompleteConnectionCommand.Execute(producer.Outputs[0]);
             }
             finally
             {

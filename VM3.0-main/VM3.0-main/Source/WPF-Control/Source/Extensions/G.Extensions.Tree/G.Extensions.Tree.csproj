@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.77" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\G.Extensions.Mvvm\G.Extensions.Mvvm.csproj" />
+  </ItemGroup>
+</Project>

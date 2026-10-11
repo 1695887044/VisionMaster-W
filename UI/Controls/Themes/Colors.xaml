@@ -170,6 +170,21 @@
     <!--  投影：卡片投影色（配合 DropShadowEffect 使用，仅取色不带透明度）  -->
     <Color x:Key="DialogShadowColor">#0F172A</Color>
 
+    <!--
+        图标字体令牌（Font Awesome 6 Pro Solid，与 App.xaml 的 Icon、IconDictionary 的 FA.Solid 同源同串）。
+
+        为什么放在「第一层令牌字典」而不是某个 Dialog 分册里：
+        弹窗皮肤拆成 Dialog.*.xaml 分册后，写在分册里的 {StaticResource} 只有
+        「本文件 + 本文件自己 merge 的子树」这一层作用域 —— 兄弟分册互相看不见。
+        本令牌被三个分册消费（Container / Input / Misc），原先挂在 Dialog.Text.xaml，
+        拆册当天就断了：两支 Setter 静默失效（卡片标题图标退成默认字体 → 豆腐块），
+        模板里那支更狠 —— 2026-10-10「变量管理」弹窗一打开就抛「无法找到名为 DialogIconFont 的资源」。
+        放进 Colors.xaml 后所有分册都能查到（每个样式分册都自带 merge Colors.xaml），
+        键名保留 DialogIconFont 不动，避免改一串引用方。
+        换图标字体时：本处 + App.xaml 的 Icon + IconDictionary 的 FA.Solid，三处一起改。
+    -->
+    <FontFamily x:Key="DialogIconFont">pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid</FontFamily>
+
     <!--  ====================  流程画布令牌  ====================  -->
 
     <!--
@@ -232,4 +247,15 @@
     <SolidColorBrush x:Key="FlowCanvasCollapseBorderBrush" Color="#C9D2DE" />
     <SolidColorBrush x:Key="FlowCanvasCollapseTextBrush" Color="#475569" />
     <SolidColorBrush x:Key="FlowCanvasCollapseHoverBrush" Color="#E3EEF9" />
+
+    <!--
+        调试/断点与告警：警示橙（调试停驻描边 + Warning 运行态描边，与 ScadaWarningBrush 同值但各守各的域）/
+        断点实心红（与 FlowCanvasFailedBrush 是两种语义的红：断点=用户挂的，失败=运行态）/ 
+        断点空闲环与 Cancel 运行态灰 / 告警条浅红底（原先是画布跨域借用 ScadaInvalidBackgroundBrush）。
+        2026-10-07 画布审查：这三处十六进制曾写死在 FlowCanvasView.xaml，按本文件收口约定迁入。
+    -->
+    <SolidColorBrush x:Key="FlowCanvasWarningBrush" Color="#E6A23C" />
+    <SolidColorBrush x:Key="FlowCanvasBreakpointBrush" Color="#F56C6C" />
+    <SolidColorBrush x:Key="FlowCanvasCanceledBrush" Color="#C0C4CC" />
+    <SolidColorBrush x:Key="FlowCanvasWarningBackgroundBrush" Color="#FDF0F0" />
 </ResourceDictionary>

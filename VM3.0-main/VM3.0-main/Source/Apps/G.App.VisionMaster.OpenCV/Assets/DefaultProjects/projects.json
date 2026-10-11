@@ -1,0 +1,247 @@
+﻿{
+  "$id": "1",
+  "$type": "G.Modules.Project.Projects`1[[H.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV]], H.Modules.Project",
+  "Items": {
+    "$type": "System.Collections.Generic.List`1[[H.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV]], System.Private.CoreLib",
+    "$values": [
+      {
+        "$id": "2",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-对象识别模块",
+        "IsFixed": true,
+        "CreateTime": "07/11/2025 13:25:17",
+        "UpdateTime": "07/11/2025 13:25:17",
+        "Name": "样例项目-对象识别模块"
+      },
+      {
+        "$id": "3",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-其他模块",
+        "IsFixed": true,
+        "CreateTime": "07/11/2025 13:22:13",
+        "UpdateTime": "07/11/2025 13:42:18",
+        "Name": "样例项目-其他模块"
+      },
+      {
+        "$id": "4",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-特征识别模块",
+        "IsFixed": true,
+        "CreateTime": "07/11/2025 13:19:43",
+        "UpdateTime": "07/11/2025 13:19:43",
+        "Name": "样例项目-特征识别模块"
+      },
+      {
+        "$id": "5",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-图像预处理模块",
+        "IsFixed": true,
+        "CreateTime": "07/11/2025 13:15:26",
+        "UpdateTime": "07/11/2025 14:24:15",
+        "Name": "样例项目-图像预处理模块"
+      },
+      {
+        "$id": "6",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-条件分支",
+        "IsFixed": true,
+        "CreateTime": "07/10/2025 17:29:25",
+        "UpdateTime": "07/10/2025 17:55:59",
+        "Name": "样例项目-条件分支"
+      },
+      {
+        "$id": "7",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-HSV二值分割",
+        "CreateTime": "07/10/2025 17:19:47",
+        "UpdateTime": "07/11/2025 14:16:03",
+        "Name": "样例项目-HSV二值分割"
+      },
+      {
+        "$id": "8",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-人类语义分割Onnx模型",
+        "CreateTime": "07/10/2025 16:41:01",
+        "UpdateTime": "07/10/2025 17:02:12",
+        "Name": "样例项目-人类语义分割Onnx模型"
+      },
+      {
+        "$id": "9",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-Yolov5Onnx目标识别",
+        "CreateTime": "07/10/2025 15:47:48",
+        "UpdateTime": "07/11/2025 14:24:03",
+        "Name": "样例项目-Yolov5Onnx目标识别"
+      },
+      {
+        "$id": "10",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-输出提示消息",
+        "CreateTime": "07/10/2025 15:34:20",
+        "UpdateTime": "07/11/2025 13:21:51",
+        "Name": "样例项目-输出提示消息"
+      },
+      {
+        "$id": "11",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-年龄推测",
+        "CreateTime": "07/10/2025 14:53:21",
+        "UpdateTime": "07/10/2025 14:53:21",
+        "Name": "样例项目-年龄推测"
+      },
+      {
+        "$id": "12",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "示例项目-二维码识别",
+        "CreateTime": "07/10/2025 14:48:26",
+        "UpdateTime": "07/10/2025 17:03:36",
+        "Name": "示例项目-二维码识别"
+      },
+      {
+        "$id": "13",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-车辆马路线",
+        "CreateTime": "07/10/2025 14:25:46",
+        "UpdateTime": "07/10/2025 17:03:45",
+        "Name": "样例项目-车辆马路线"
+      },
+      {
+        "$id": "14",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-色相匹配-图像源",
+        "IsFixed": true,
+        "CreateTime": "07/10/2025 12:07:39",
+        "UpdateTime": "07/10/2025 13:32:34",
+        "Name": "样例项目-色相匹配-图像源"
+      },
+      {
+        "$id": "15",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-模板匹配-视频源",
+        "IsFixed": true,
+        "CreateTime": "07/10/2025 11:04:39",
+        "UpdateTime": "07/10/2025 17:04:22",
+        "Name": "样例项目-模板匹配-视频源"
+      },
+      {
+        "$id": "16",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-滤波模糊模块",
+        "IsFixed": true,
+        "CreateTime": "03/12/2025 18:21:05",
+        "UpdateTime": "07/11/2025 13:37:36",
+        "Name": "样例项目-滤波模糊模块"
+      },
+      {
+        "$id": "17",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-无缝融合",
+        "CreateTime": "03/12/2025 17:51:23",
+        "UpdateTime": "07/11/2025 14:23:51",
+        "Name": "样例项目-无缝融合"
+      },
+      {
+        "$id": "18",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-形态学模块",
+        "IsFixed": true,
+        "CreateTime": "03/12/2025 18:51:06",
+        "UpdateTime": "07/11/2025 14:07:19",
+        "Name": "样例项目-形态学模块"
+      },
+      {
+        "$id": "19",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-数据源模块",
+        "IsFixed": true,
+        "CreateTime": "03/12/2025 19:03:48",
+        "UpdateTime": "07/11/2025 14:12:07",
+        "Name": "样例项目-数据源模块"
+      },
+      {
+        "$id": "20",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-模板匹配-图像源",
+        "IsFixed": true,
+        "CreateTime": "07/10/2025 11:33:55",
+        "UpdateTime": "07/10/2025 12:06:55",
+        "Name": "样例项目-模板匹配-图像源"
+      },
+      {
+        "$id": "21",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-色相匹配-视频源",
+        "IsFixed": true,
+        "CreateTime": "07/10/2025 11:42:18",
+        "UpdateTime": "07/10/2025 13:29:36",
+        "Name": "样例项目-色相匹配-视频源"
+      },
+      {
+        "$id": "22",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-替换背景",
+        "CreateTime": "07/10/2025 14:11:08",
+        "UpdateTime": "07/10/2025 17:03:59",
+        "Name": "样例项目-替换背景"
+      },
+      {
+        "$id": "23",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-性别分类",
+        "CreateTime": "07/10/2025 15:05:26",
+        "UpdateTime": "07/10/2025 17:03:17",
+        "Name": "样例项目-性别分类"
+      },
+      {
+        "$id": "24",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-Yolov5Onnx人脸检测模型",
+        "CreateTime": "07/10/2025 15:14:28",
+        "UpdateTime": "07/10/2025 16:57:59",
+        "Name": "样例项目-Yolov5Onnx人脸检测模型"
+      },
+      {
+        "$id": "25",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-并行运行流程",
+        "CreateTime": "07/10/2025 17:43:01",
+        "UpdateTime": "07/10/2025 17:43:01",
+        "Name": "样例项目-并行运行流程"
+      },
+      {
+        "$id": "26",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-ROI区域绘制",
+        "IsFixed": true,
+        "CreateTime": "07/10/2025 17:48:03",
+        "UpdateTime": "07/11/2025 14:23:27",
+        "Name": "样例项目-ROI区域绘制"
+      },
+      {
+        "$id": "27",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-多图像源处理",
+        "CreateTime": "07/10/2025 17:49:52",
+        "UpdateTime": "07/10/2025 17:49:52",
+        "Name": "样例项目-多图像源处理"
+      },
+      {
+        "$id": "28",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-Modbus数据通讯",
+        "CreateTime": "07/10/2025 17:53:46",
+        "UpdateTime": "07/11/2025 14:15:13",
+        "Name": "样例项目-Modbus数据通讯"
+      },
+      {
+        "$id": "29",
+        "$type": "G.App.VisionMaster.OpenCV.Projects.VisionProjectItem, H.App.VisionMaster.OpenCV",
+        "Title": "样例项目-摄像头数据源",
+        "IsFixed": true,
+        "CreateTime": "07/11/2025 11:04:42",
+        "UpdateTime": "07/11/2025 14:23:34",
+        "Name": "样例项目-摄像头数据源"
+      }
+    ]
+  }
+}

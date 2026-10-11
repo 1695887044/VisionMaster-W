@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <GeneratePackageOnBuild>Flase</GeneratePackageOnBuild>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.16">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.16" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\DataBases\G.DataBases.SqlServer\G.DataBases.SqlServer.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.About\G.Modules.About.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Dialog\G.Modules.Messages.Dialog.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Setting\G.Modules.Setting.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.SplashScreen\G.Modules.SplashScreen.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Dialog\G.Windows.Dialog.csproj" />
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+
+  </ItemGroup>
+
+</Project>

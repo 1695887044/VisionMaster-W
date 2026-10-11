@@ -7,6 +7,7 @@
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.BlobDetect"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:UI.CustomControl;assembly=UI"
     xmlns:system="clr-namespace:System;assembly=mscorlib"
     MinWidth="{DynamicResource PluginViewMinWidth}"
     MinHeight="{DynamicResource PluginViewMinHeight}"
@@ -149,15 +150,25 @@
                                     <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource PluginFieldLabel}" Text="下限灰度" ToolTip="被检目标的灰度下界（含）。找暗缺陷填小区间、找亮缺陷填大区间" />
-                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                    <TextBox.Text>
+                                <!--
+                                    数值输入统一走 ui:NumericBox（越界自动钳到区间端点、上下键/滚轮按步进加减、
+                                    非法文本回退并标红）；范围两端与下面校验规则同源，规则保留作为"数据本身越界"的第二道提示。
+                                    样式直接沿用平台的 PluginNumericBox —— 它是 TextBox 样式（TargetType 是基类），
+                                    套在 NumericBox 上一样成立，所以另外 5 个用同一样式的插件视图一个字都不用动。
+                                -->
+                                <ui:NumericBox
+                                    Grid.Column="1"
+                                    Maximum="65535"
+                                    Minimum="0"
+                                    Style="{StaticResource PluginNumericBox}">
+                                    <ui:NumericBox.Value>
                                         <Binding Path="MinGray" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
-                                                <local:NumberValidationRule FieldName="下限灰度" Min="0" Max="65535" />
+                                                <cv:NumberValidationRule FieldName="下限灰度" Min="0" Max="65535" />
                                             </Binding.ValidationRules>
                                         </Binding>
-                                    </TextBox.Text>
-                                </TextBox>
+                                    </ui:NumericBox.Value>
+                                </ui:NumericBox>
                             </Grid>
                             <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
@@ -165,15 +176,19 @@
                                     <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource PluginFieldLabel}" Text="上限灰度" ToolTip="被检目标的灰度上界（含）" />
-                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                    <TextBox.Text>
+                                <ui:NumericBox
+                                    Grid.Column="1"
+                                    Maximum="65535"
+                                    Minimum="0"
+                                    Style="{StaticResource PluginNumericBox}">
+                                    <ui:NumericBox.Value>
                                         <Binding Path="MaxGray" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
-                                                <local:NumberValidationRule FieldName="上限灰度" Min="0" Max="65535" />
+                                                <cv:NumberValidationRule FieldName="上限灰度" Min="0" Max="65535" />
                                             </Binding.ValidationRules>
                                         </Binding>
-                                    </TextBox.Text>
-                                </TextBox>
+                                    </ui:NumericBox.Value>
+                                </ui:NumericBox>
                             </Grid>
                             <TextBlock
                                 Margin="{StaticResource PluginFieldRowMargin}"
@@ -197,19 +212,24 @@
                                     <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource PluginFieldLabel}" Text="局部窗口宽" ToolTip="动态阈值的邻域宽度（像素）。要略大于缺陷宽度，否则缺陷会被当成本地背景" />
-                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                    <TextBox.Text>
+                                <ui:NumericBox
+                                    Grid.Column="1"
+                                    DecimalPlaces="0"
+                                    Maximum="1000"
+                                    Minimum="1"
+                                    Style="{StaticResource PluginNumericBox}">
+                                    <ui:NumericBox.Value>
                                         <Binding Path="VarMaskWidth" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
-                                                <local:NumberValidationRule
+                                                <cv:NumberValidationRule
                                                     FieldName="局部窗口宽"
                                                     IntegerOnly="True"
                                                     Max="1000"
                                                     Min="1" />
                                             </Binding.ValidationRules>
                                         </Binding>
-                                    </TextBox.Text>
-                                </TextBox>
+                                    </ui:NumericBox.Value>
+                                </ui:NumericBox>
                             </Grid>
                             <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
@@ -217,19 +237,24 @@
                                     <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource PluginFieldLabel}" Text="局部窗口高" ToolTip="动态阈值的邻域高度（像素）" />
-                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                    <TextBox.Text>
+                                <ui:NumericBox
+                                    Grid.Column="1"
+                                    DecimalPlaces="0"
+                                    Maximum="1000"
+                                    Minimum="1"
+                                    Style="{StaticResource PluginNumericBox}">
+                                    <ui:NumericBox.Value>
                                         <Binding Path="VarMaskHeight" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
-                                                <local:NumberValidationRule
+                                                <cv:NumberValidationRule
                                                     FieldName="局部窗口高"
                                                     IntegerOnly="True"
                                                     Max="1000"
                                                     Min="1" />
                                             </Binding.ValidationRules>
                                         </Binding>
-                                    </TextBox.Text>
-                                </TextBox>
+                                    </ui:NumericBox.Value>
+                                </ui:NumericBox>
                             </Grid>
                             <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
@@ -237,15 +262,19 @@
                                     <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource PluginFieldLabel}" Text="标准差权重" ToolTip="局部灰度标准差要乘的系数；越大越严格、检出的越少" />
-                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                    <TextBox.Text>
+                                <ui:NumericBox
+                                    Grid.Column="1"
+                                    Maximum="100"
+                                    Minimum="0"
+                                    Style="{StaticResource PluginNumericBox}">
+                                    <ui:NumericBox.Value>
                                         <Binding Path="VarStdDevScale" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
-                                                <local:NumberValidationRule FieldName="标准差权重" Min="0" Max="100" />
+                                                <cv:NumberValidationRule FieldName="标准差权重" Min="0" Max="100" />
                                             </Binding.ValidationRules>
                                         </Binding>
-                                    </TextBox.Text>
-                                </TextBox>
+                                    </ui:NumericBox.Value>
+                                </ui:NumericBox>
                             </Grid>
                             <Grid Margin="{StaticResource PluginFieldRowMargin}">
                                 <Grid.ColumnDefinitions>
@@ -253,15 +282,19 @@
                                     <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Style="{StaticResource PluginFieldLabel}" Text="绝对灰度偏移" ToolTip="相对局部均值的固定灰度偏移量，兜底那些对比度很低的区域" />
-                                <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                    <TextBox.Text>
+                                <ui:NumericBox
+                                    Grid.Column="1"
+                                    Maximum="65535"
+                                    Minimum="0"
+                                    Style="{StaticResource PluginNumericBox}">
+                                    <ui:NumericBox.Value>
                                         <Binding Path="VarAbsThreshold" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
-                                                <local:NumberValidationRule FieldName="绝对灰度偏移" Min="0" Max="65535" />
+                                                <cv:NumberValidationRule FieldName="绝对灰度偏移" Min="0" Max="65535" />
                                             </Binding.ValidationRules>
                                         </Binding>
-                                    </TextBox.Text>
-                                </TextBox>
+                                    </ui:NumericBox.Value>
+                                </ui:NumericBox>
                             </Grid>
                         </StackPanel>
 
@@ -307,15 +340,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="面积下限" ToolTip="小于该面积（像素）的连通域当噪点丢弃。注意单位是像素，不是毫米" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000000000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MinArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="面积下限" Min="0" Max="1000000000" />
+                                            <cv:NumberValidationRule FieldName="面积下限" Min="0" Max="1000000000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -323,15 +360,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="面积上限" ToolTip="超过它的连通域直接不算缺陷（不计数、不判定）。填 0 = 不限，此时上限自动取图像像素总数" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000000000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MaxBlobArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="面积上限" Min="0" Max="1000000000" />
+                                            <cv:NumberValidationRule FieldName="面积上限" Min="0" Max="1000000000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -339,15 +380,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="圆度下限" ToolTip="0~1，1=正圆。细长划痕约 0.02~0.1，方块约 0.67。用来把「圆形斑点」与「细长划痕」分开；填 0 = 不按圆度筛" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MinCircularity" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="圆度下限" Min="0" Max="1" />
+                                            <cv:NumberValidationRule FieldName="圆度下限" Min="0" Max="1" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -355,15 +400,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="长宽比上限" ToolTip="外接矩形 长边/短边，越大越细长（正方形=1）。挑「细长划痕」就把它调大（如 10）；填 0 = 不按长宽比筛" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="10000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MaxAspectRatio" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="长宽比上限" Min="0" Max="10000" />
+                                            <cv:NumberValidationRule FieldName="长宽比上限" Min="0" Max="10000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -371,19 +420,24 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="排除触边(px)" ToolTip="缺陷外接矩形碰到图像最外 N 像素就丢弃——打光/裁切边缘效应是固定误检源，上游 ROI 只能整体裁形状、没法往里缩一圈。填 0 = 不排除" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                DecimalPlaces="0"
+                                Maximum="10000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="ExcludeBorderPx" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule
+                                            <cv:NumberValidationRule
                                                 FieldName="排除触边"
                                                 IntegerOnly="True"
                                                 Max="10000"
                                                 Min="0" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <TextBlock
                             Margin="{StaticResource PluginFieldRowMargin}"
@@ -402,15 +456,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="开运算半径" ToolTip="先腐蚀后膨胀，磨掉细小毛刺、断开粘连细桥。填 0 表示不做" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="OpenRadius" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="开运算半径" Min="0" Max="1000" />
+                                            <cv:NumberValidationRule FieldName="开运算半径" Min="0" Max="1000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -418,15 +476,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="闭运算半径" ToolTip="先膨胀后腐蚀，补上缺陷内部的小孔、连接断裂的划痕。填 0 表示不做" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="CloseRadius" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="闭运算半径" Min="0" Max="1000" />
+                                            <cv:NumberValidationRule FieldName="闭运算半径" Min="0" Max="1000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -434,15 +496,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="合并半径" ToolTip="把间距小于 2 倍半径的几段连成一个缺陷。一条划痕常被噪声断成几段、个数虚高好几倍，用它合回去。填 0 = 不合并" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MergeRadius" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="合并半径" Min="0" Max="1000" />
+                                            <cv:NumberValidationRule FieldName="合并半径" Min="0" Max="1000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <CheckBox
                             Margin="{StaticResource PluginFirstRowMargin}"
@@ -467,19 +533,24 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缺陷个数上限" ToolTip="缺陷个数超过它即判 NG。填 0 表示一个缺陷都不允许" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                DecimalPlaces="0"
+                                Maximum="1000000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MaxDefectCount" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule
+                                            <cv:NumberValidationRule
                                                 FieldName="缺陷个数上限"
                                                 IntegerOnly="True"
                                                 Max="1000000"
                                                 Min="0" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -487,19 +558,24 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缺陷个数下限" ToolTip="缺陷个数少于它即判 NG。Blob 常用来做「存在性检测」——一个都没检到恰恰是坏消息；填 0 = 不做这项判定" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                DecimalPlaces="0"
+                                Maximum="1000000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MinDefectCount" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule
+                                            <cv:NumberValidationRule
                                                 FieldName="缺陷个数下限"
                                                 IntegerOnly="True"
                                                 Max="1000000"
                                                 Min="0" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -507,15 +583,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="单个缺陷面积上限" ToolTip="最大单缺陷面积超过它即判 NG（单位：像素）。填 0 = 不做这项判定（与总面积上限同口径）" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000000000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MaxSingleArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="单个缺陷面积上限" Min="0" Max="1000000000" />
+                                            <cv:NumberValidationRule FieldName="单个缺陷面积上限" Min="0" Max="1000000000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -523,15 +603,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="缺陷总面积上限" ToolTip="所有缺陷面积之和超过它即判 NG。每个都合格、但整片脏污/麻点密布时只有总面积能兜住；填 0 = 不做这项判定" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000000000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="MaxTotalArea" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="缺陷总面积上限" Min="0" Max="1000000000" />
+                                            <cv:NumberValidationRule FieldName="缺陷总面积上限" Min="0" Max="1000000000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
                         <TextBlock
                             Margin="{StaticResource PluginFieldRowMargin}"
@@ -581,15 +665,19 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="像素当量(mm/px)" ToolTip="标定后填真实值，MaxAreaMm2 / TotalAreaMm2 即为物理量。默认 1.0 = 输出的 mm² 数值等于像素值。注意判定仍按像素做，改当量不会改判定结果；已连「标定」插件时以标定值为准（见下方说明）" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
+                            <ui:NumericBox
+                                Grid.Column="1"
+                                Maximum="1000"
+                                Minimum="0"
+                                Style="{StaticResource PluginNumericBox}">
+                                <ui:NumericBox.Value>
                                     <Binding Path="PixelSizeMm" UpdateSourceTrigger="PropertyChanged">
                                         <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="像素当量" Min="0" Max="1000" />
+                                            <cv:NumberValidationRule FieldName="像素当量" Min="0" Max="1000" />
                                         </Binding.ValidationRules>
                                     </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                                </ui:NumericBox.Value>
+                            </ui:NumericBox>
                         </Grid>
 
                         <TextBlock
@@ -807,8 +895,9 @@
                                         </Grid>
 
                                         <Grid Height="{StaticResource PluginHistogramHeight}" Margin="{StaticResource PluginSectionMargin}">
-                                            <!--  矢量绘制控件：数据与阈值都走绑定，缩放时在 OnRender 里按实际尺寸重算坐标  -->
-                                            <local:HistogramPlot
+                                            <!--  矢量绘制控件（2026-10-08 上提 Core.Halcon.Controls，原 Plugin.BlobDetect.HistogramPlot）：
+                                                数据与阈值都走绑定，缩放时在 OnRender 里按实际尺寸重算坐标  -->
+                                            <h:HistogramPlot
                                                 Data="{Binding Histogram}"
                                                 ShowThresholdMarkers="{Binding IsFixedThreshold}"
                                                 ThresholdLow="{Binding MinGray}"

@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.OpenFolderDialog\G.Extensions.OpenFolderDialog.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Dialog\G.Modules.Messages.Dialog.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Form\G.Modules.Messages.Form.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Notice\G.Modules.Messages.Notice.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Snack\G.Modules.Messages.Snack.csproj" />
+  </ItemGroup>
+</Project>

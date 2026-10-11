@@ -47,6 +47,16 @@
       </Setter.Value>
     </Setter>
   </Style>
+  <!--
+      「组内变体」：底色/描边换成浅蓝分组里的那一档（白底 + 浅蓝描边）。
+      为什么住在 Input 分册而不是 Misc 分册：BasedOn 的基类 DialogInput 就在本文件，
+      同文件引用才稳 —— 分册之间看不见彼此（2026-10-10「变量管理」弹窗打不开的那次
+      就是它挂在 Misc 里 BasedOn 本文件的 DialogCombo，见 Dialog.Misc.xaml 头部注释）。
+  -->
+  <Style x:Key="DialogInputInGroup" BasedOn="{StaticResource DialogInput}" TargetType="TextBox">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+  </Style>
   <Style x:Key="DialogSearchChrome" TargetType="Border">
     <Setter Property="Background" Value="{StaticResource DialogInputBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
@@ -149,6 +159,11 @@
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+  </Style>
+  <!--  同 DialogInputInGroup：BasedOn 的 DialogCombo 就在上面，同文件引用（弹窗「所属连接 / 扫描组 / 存储区」三个下拉都用它）  -->
+  <Style x:Key="DialogComboInGroup" BasedOn="{StaticResource DialogCombo}" TargetType="ComboBox">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
   </Style>
   <Style x:Key="DialogGridInput" TargetType="TextBox">
     <Setter Property="Height" Value="30" />

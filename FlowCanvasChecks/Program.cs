@@ -55,6 +55,26 @@ namespace FlowCanvasChecks
                 return Environment.ExitCode;
             }
 
+            // 渲染探针模式：--render [输出目录] 把画布典型图式渲染成 PNG（视觉整改的前后对比素材）。
+            // 逻辑断言绿 ≠ 视觉过关——2026-10-07 用户看真机截图直接指出连线形态问题，视觉必须出图。
+            if (args.Length >= 1 && args[0] == "--render")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                RenderProbe.Run(args.Length >= 2 ? args[1] : Path.GetTempPath());
+                return 0;
+            }
+
+            // 逻辑暴力测试加力档：--brute [N] 只跑 B0 随机图对拍（默认 2000 张），不进常规 gate。
+            // 定种子：同一条命令跑出来的图与结果完全确定（finding 的图可由 seed+i 复现）。
+            if (args.Length >= 1 && args[0] == "--brute")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                int bruteN = args.Length >= 2 && int.TryParse(args[1], out var parsed) ? parsed : 2000;
+                LogicBruteforceChecks.Run(bruteCount: bruteN, randomOnly: true);
+                Finish();
+                return Environment.ExitCode;
+            }
+
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.WriteLine("========== 流程画布 v2（海康式扁平画布）断言（容器框/泳道/模块连线/折叠/联动/撤销栈） ==========");
 
@@ -75,6 +95,29 @@ namespace FlowCanvasChecks
             UnbindUndoRedo();
             UndoStackBoundary();
             RuntimeVariableModuleLinks();
+            NodifyRealParameterShapes();
+            DeleteDisableAndUndoSync();
+            TenLevelNestingStress();
+
+            // [X] 数据线显隐（默认隐藏 / 非法线例外）/ 画布编辑入口 / 工具箱落点与工厂
+            DataLinkVisibilityAndCanvasEditing();
+
+            ParallelContainerChecks.Run();
+
+            // 流程栏树模板覆盖守门（U1-U5：类型键模板缺 ParallelStep → "VisionMaster.Models.ParallelStep" 上屏事故）
+            ProcessTreeTemplateChecks.Run();
+
+            // 流程栏分支卡片点击守门（V1-V5：双击分支弹"上一个算子"参数窗 / 弹空白条件窗事故）
+            ProcessTreeInteractionChecks.Run();
+
+            // 并行分组配置面板（W1-W7：执行模式/失败聚合/汇合超时/分支增删的草稿→校验→写回）
+            ParallelGroupConfigChecks.Run();
+
+            // 流程引擎真并行执行二期（ExecutionMode/FailFast/门禁/影子合并/退化矩阵，P1-P30）
+            ParallelExecutionChecks.Run();
+
+            // 逻辑功能暴力测试（B0 随机图 × 参考解释器对拍 / B1 判断真值表 / B2 循环 / B3 并行 / B4 分支拓扑）
+            LogicBruteforceChecks.Run();
 
             // 执行层断言（流程引擎优化 A1/A2/A3/B1/B2/B3）
             ExecutionChecks.IfInsideLoopExecutes();
@@ -107,6 +150,9 @@ namespace FlowCanvasChecks
 
             // 逻辑分支容器四项修复（For 上限 / 容器失败上浮 / Break 状态 / 循环体分支数校验）
             FlowContainerChecks.Run();
+
+            // 分支匹配（Case）容器：首中即选 / 默认分支兜底 / 判据类型归一 / 编译期硬错 / 判据版本链
+            CaseBranchChecks.Run();
 
             // DWV 第 1 期：断点 / 单步 / 暂停继续（调试门；断点不落盘、HTTP / 试运行豁免）
             DebugChecks.Run();
@@ -165,6 +211,10 @@ namespace FlowCanvasChecks
 
             // 缩略图快路径：先缩小再转换（长宽比/不放大/细线条可见/不改源图/量程回落）
             ThumbnailChecks.Run();
+
+            // 共享控件库 Core.Halcon（P0-1/2/3 修复回归：DisplayImageInfo 实例隔离 /
+            // 无图关十字不抛 / 十字状态与显示不脱节）
+            HalconControlChecks.Run();
 
             // 标定插件：仿射求解/正反变换/质量闸门/端口面（合成数据，不依赖引擎）
             CalibrationChecks.Run();
@@ -295,6 +345,13 @@ namespace FlowCanvasChecks
                 frameIndex >= 0 && frameIndex < laneIndex && laneIndex < childIndex,
                 $"frame={frameIndex} lane={laneIndex} child={childIndex}");
 
+            // 叠放层次（Panel.ZIndex 绑定值）：不只靠集合序——集合序是"分支 1 整棵树 → 分支 2 泳道"，
+            // 后入分支的泳道会盖住先入分支里的嵌套框；层次由深度 + 身份算，与分支序无关
+            Check("叠放层次恒定：容器框 < 泳道 < 内容，跨层按深度整体抬高",
+                h.Node(cond)!.ZOrder == 3 && h.Lane(ifBranch)!.ZOrder == 4 && h.Node(b1)!.ZOrder == 8
+                && h.Node(a)!.ZOrder == 5,
+                $"frame={h.Node(cond)!.ZOrder} lane={h.Lane(ifBranch)!.ZOrder} child={h.Node(b1)!.ZOrder} topStep={h.Node(a)!.ZOrder}");
+
             Check("禁用步骤标题带后缀（重建后刷新）",
                 RenderDisabledSuffix(h), "");
         }
@@ -356,6 +413,13 @@ namespace FlowCanvasChecks
                 frame.Location.X <= h.Node(b1)!.Location.X && frame.Location.Y <= h.Node(b1)!.Location.Y
                 && frame.Location.X + frame.LaneWidth >= h.Node(b1)!.Location.X,
                 $"frame=({frame.Location.X:0},{frame.Location.Y:0}) child=({h.Node(b1)!.Location.X:0},{h.Node(b1)!.Location.Y:0})");
+            // 框/泳道/内容的包含链（尺寸感知布局后逐级收紧：泳道 = 内容 ± 内边距，框 = 泳道并集 ± 框内边距）
+            Check("泳道完整包含分支内步骤（含内边距）",
+                Inside(NodeBox(lane), NodeBox(h.Node(b1)!)),
+                $"lane={NodeBox(lane)} b1={NodeBox(h.Node(b1)!)}");
+            Check("框体完整包含所属泳道（含框内边距）",
+                Inside(NodeBox(frame), NodeBox(lane)),
+                $"frame={NodeBox(frame)} lane={NodeBox(lane)}");
             Check("空分支泳道给占位提示", h.Lane(elseBranch)!.IsLaneEmpty, "");
             Check("泳道外接框为正尺寸",
                 lane.LaneWidth > 0 && lane.LaneHeight > 0, $"{lane.LaneWidth:0}x{lane.LaneHeight:0}");
@@ -379,13 +443,15 @@ namespace FlowCanvasChecks
             // 真实步骤（含分支内）的坐标入库
             var b1Node = h.Node(b1)!;
             // 布局预留：容器分支内容之下才排后续兄弟（旧实现会把兄弟叠进容器框——
-            // "展开逻辑分支后层级顺序乱了"的元凶）
+            // "展开逻辑分支后层级顺序乱了"的元凶）。判据用"兄弟在框体底缘之下"，
+            // 不锁具体行高——行距现在是"上一行框体实际高 + RowGap"，数值随内容走
             var tail = h.Leaf("尾部");
             h.Add(tail);
-            Check("AutoLayout 预留容器分支高度：后续兄弟排在分支内容之下",
-                Math.Abs(h.Node(tail)!.Location.Y - (h.Node(b1)!.Location.Y + 90)) < 0.01
+            var frameBottom = frame.Location.Y + frame.LaneHeight;
+            Check("AutoLayout 预留容器分支高度：后续兄弟排在框体底缘之下",
+                h.Node(tail)!.Location.Y >= frameBottom
                 && h.Node(tail)!.Location.X == h.Node(a)!.Location.X,
-                $"tail=({h.Node(tail)!.Location.X:0},{h.Node(tail)!.Location.Y:0}) b1=({h.Node(b1)!.Location.X:0},{h.Node(b1)!.Location.Y:0})");
+                $"tail=({h.Node(tail)!.Location.X:0},{h.Node(tail)!.Location.Y:0}) frameBottom={frameBottom:0} b1=({h.Node(b1)!.Location.X:0},{h.Node(b1)!.Location.Y:0})");
 
             b1Node.Location = new Point(999, 888);
             Check("分支内步骤拖动写回坐标库",
@@ -418,6 +484,12 @@ namespace FlowCanvasChecks
             Harness.RawLink(tail, "In", deep, "Out");
 
             var c = h.Canvas;
+            // 本图式的唯一数据线是"分支内叶子喂后续顶层步骤"（CrossBranch 非法）——默认态下非法线照常渲染，
+            // 所以这里没有"默认 0 条"的对照；改为钉"非法例外在默认态可见"（显隐开关的零对照在 [X] 段）
+            Check("默认态：唯一数据线是非法线（CrossBranch）→ 例外照常渲染",
+                !c.ShowDataLinks && c.IllegalLinkCount == 1 && c.DataLinkCount == 1,
+                $"数据线={c.DataLinkCount} 非法={c.IllegalLinkCount}");
+            c.ShowDataLinks = true;   // 本组测折叠隐藏的连线计数，不测显隐开关
             var frame = h.Node(cond)!;
             Check("展开态：深层步骤可见且连线画到深层",
                 h.Node(deep) != null && h.Link(deep, tail) != null, "");
@@ -482,6 +554,8 @@ namespace FlowCanvasChecks
             h.Add(a); h.Add(b);
             Harness.RawLink(b, "In", a, "Out");
             var c = h.Canvas;
+            Check("默认态：数据线一条不画（开关默认关）", !c.ShowDataLinks && c.DataLinkCount == 0, $"{c.DataLinkCount}");
+            c.ShowDataLinks = true;   // 本组测聚合口径，不测显隐开关
 
             Check("单绑定：一根线、无 ×N 角标",
                 c.DataLinkCount == 1 && c.Links.First(l => !l.IsOrderLink).Bindings.Count == 1 && c.Links.First(l => !l.IsOrderLink).BindingCountLabel == "", "");
@@ -538,6 +612,7 @@ namespace FlowCanvasChecks
             h2.Add(y);
             y.SetLink("In", new LinkReference(LinkKind.StepPort, Guid.NewGuid(), "Out", "幽灵.Out"));
             var c2 = h2.Canvas;
+            c2.ShowDataLinks = true;   // 显式打开：让「Links.Count == 0」判的是降级逻辑，不是显示开关
             Check("上游已删 → 降级计数（编译会报致命断连）",
                 c2.DeferredLinkCount == 1 && c2.Links.Count == 0 && c2.IllegalLinkCount == 0
                 && c2.WarningVisibility == Visibility.Collapsed,
@@ -559,6 +634,7 @@ namespace FlowCanvasChecks
             h.Add(a); h.Add(b);
             Harness.RawLink(b, "In", a, "Out");
             var c = h.Canvas;
+            c.ShowDataLinks = true;   // 本节测连线合法性判定，普通线必须可见
             Check("合法线：0 告警", c.IllegalLinkCount == 0 && !c.Links[0].IsIllegal, "");
 
             h.Flow.Steps.Move(0, 1);
@@ -582,6 +658,7 @@ namespace FlowCanvasChecks
             Harness.RawLink(inElse, "In", inIf, "Out");
             h4.Add(cond);
             var c4 = h4.Canvas;
+            c4.ShowDataLinks = true;   // 与 F1 同口径：测的是合法性判定
             Check("跨分支连线标红且 Classify 判成跨分支",
                 c4.IllegalLinkCount == 1 && c4.Links.Single(l => !l.IsOrderLink).IsIllegal
                 && h4.Topology().Classify(inIf.StepID, inElse.StepID) == LinkLegality.CrossBranch, "");
@@ -595,6 +672,7 @@ namespace FlowCanvasChecks
             h5.Add(outer);
             Harness.RawLink(bodyStep, "In", outer, "Index");
             var c5 = h5.Canvas;
+            c5.ShowDataLinks = true;   // 与 F1 同口径：测的是合法性判定
             c5.RebuildInPlace();
             Check("循环体取 For.Index 合法（ProducerIsAncestor）",
                 c5.IllegalLinkCount == 0 && h5.Link(outer, bodyStep) != null && !h5.Link(outer, bodyStep)!.IsIllegal,
@@ -607,6 +685,7 @@ namespace FlowCanvasChecks
             h2.Flow.Steps.Clear();
             foreach (var s in roots2) h2.Flow.Steps.Add(s);
             var c2 = h2.Canvas;
+            c2.ShowDataLinks = true;   // 与 F1 同口径：非法线在默认态本就会渲染，这里显式打开保证口径一致
             Check("生产方排在包住消费方的容器之后 → 标红计 1",
                 c2.IllegalLinkCount == 1 && c2.Links.Single(l => !l.IsOrderLink).IsIllegal, $"illegal={c2.IllegalLinkCount}");
             Check("非法文案含『生产方排在包住消费方的容器之后』",
@@ -626,6 +705,7 @@ namespace FlowCanvasChecks
             var b = h.Leaf("B");
             h.Add(a); h.Add(b);
             var c = h.Canvas;
+            c.ShowDataLinks = true;   // 显式打开：让「画布不写连线」的 DataLinkCount==0 有意义（默认隐藏会让它恒真）
 
             // 顺向拖线：结构合法 → 发建线请求（消费方回传），图纸零写入
             var requested = c.RequestLink(h.Node(a)!, h.Node(b)!);
@@ -902,6 +982,8 @@ namespace FlowCanvasChecks
             h2.Add(p); h2.Add(q);
             Harness.RawLink(q, "In", p, "Out");
             var c2 = h2.Canvas;
+            Check("默认态：数据线一条不画（开关默认关）", !c2.ShowDataLinks && c2.DataLinkCount == 0, $"{c2.DataLinkCount}");
+            c2.ShowDataLinks = true;   // 本组测上游删除后的降级计数，不测显隐开关
             Check("连线画出到上游", c2.DataLinkCount == 1, $"{c2.Links.Count}");
             h2.Flow.Steps.Remove(p);
             Check("上游删除后连线随重画消失并计入降级",
@@ -1121,6 +1203,8 @@ namespace FlowCanvasChecks
             h.Add(a); h.Add(b);
             Harness.RawLink(b, "In", a, "Out");
             var c = h.Canvas;
+            Check("默认态：数据线一条不画（开关默认关）", !c.ShowDataLinks && c.DataLinkCount == 0, $"{c.DataLinkCount}");
+            c.ShowDataLinks = true;   // 本组测解绑/撤销的连线重画，不测显隐开关
 
             var link = h.Link(a, b)!;
             var binding = link.Bindings.Single();
@@ -1192,6 +1276,8 @@ namespace FlowCanvasChecks
                 "loopN",
                 "Runtime.loopN"));
             var cv = h.Canvas;
+            Check("默认态：数据线一条不画（开关默认关）", !cv.ShowDataLinks && cv.DataLinkCount == 0, $"{cv.DataLinkCount}");
+            cv.ShowDataLinks = true;   // 本组测变量回找的连线，不测显隐开关
 
             Check("定义节点被识别并渲染（身份来自 FlowQueryHelper 的同一口径）",
                 h.Node(def) != null, "");
@@ -1227,6 +1313,7 @@ namespace FlowCanvasChecks
                 LinkProtocol.RuntimeVariableMarkerGuid,
                 "thresh",
                 "Runtime.thresh"));
+            hb.Canvas.ShowDataLinks = true;   // 同上：测的是"回找成线"，不是显隐开关
             hb.Canvas.RebuildInPlace();
             Check("变量喂普通算子输入口同样回找成线",
                 hb.Link(var2, leaf) != null && !hb.Link(var2, leaf)!.IsIllegal, "");
@@ -1266,6 +1353,567 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  [S] Nodify 7.3 真实传参形态（IL 取证）——拖拽改序与建线在真机事件链上必须可用
+        //
+        //  背景（2026-10-07 三方审查 + reviewer 字节级复核）：
+        //  · NodifyEditor::OnItemsDragStarted/Completed 的 IL 是 Execute(编辑器.DataContext)——
+        //    实参 = 画布 VM 自身，不是被拖容器列表；旧实现只认 IEnumerable → 快照永远为空 →
+        //    改序/跨分支提交在真机不可达（旧断言直调伪造 List，测不出真实事件链断在哪）。
+        //  · PendingConnection::OnPendingConnectionCompleted 的 IL 是 Execute(get_Target)——
+        //    实参 = 单个目标连接器；旧实现的 Tuple 分支是死代码，且先清 IsVisible 后读端点，
+        //    读到的必是 null → 建线整条闭环真机断链。
+        //  本节一律用「库实际会传的参数」驱动命令，钉死真实事件链。
+        // ==================================================================
+        private static void NodifyRealParameterShapes()
+        {
+            Section("[S] Nodify 7.3 真实传参形态（拖拽/建线）");
+
+            // ---- S1 拖拽：实参 = 编辑器 DataContext（画布 VM 自身）→ 改序必须提交 ----
+            var h = new Harness();
+            var a = h.Leaf("A");
+            var b = h.Leaf("B");
+            var c = h.Leaf("C");
+            h.Add(a); h.Add(b); h.Add(c);
+            var cv = h.Canvas;
+            Check("前置：主列 3 步已上画布", h.MainSteps().Count == 3, "");
+
+            h.Node(a)!.IsSelected = true;
+            cv.ItemsDragStartedCommand.Execute(cv);      // Nodify 7.3 实参 = 编辑器 DataContext
+            Check("DataContext 形态下拖拽快照按选中集建立", h.MainSteps().Count == 3, "");
+            Check("拖拽开始只记快照、不入撤销栈", cv.UndoStackSize == 0, $"size={cv.UndoStackSize}");
+
+            h.Node(a)!.Location = new Point(h.Node(a)!.Location.X, 10000);   // 拖到最下方
+            cv.ItemsDragCompletedCommand.Execute(cv);
+            Check("拖拽提交改序：Steps 顺序变为 [B,C,A]",
+                ReferenceEquals(h.Flow.Steps[0], b) && ReferenceEquals(h.Flow.Steps[2], a),
+                string.Join(",", h.Flow.Steps.Select(s => s.StepName)));
+            Check("改序已可撤销", cv.UndoCommand.CanExecute(), "");
+            cv.UndoCommand.Execute();
+            Check("撤销回到 [A,B,C]",
+                ReferenceEquals(h.Flow.Steps[0], a) && ReferenceEquals(h.Flow.Steps[2], c),
+                string.Join(",", h.Flow.Steps.Select(s => s.StepName)));
+
+            // S1b 参数为 null（不应发生）也不炸、不提交。先清选中——选中集是拖拽快照的
+            // 主路径，带着选中测 null 会按选中集提交，那是另一个（正确的）行为
+            h.Node(a)!.IsSelected = false;
+            cv.ItemsDragStartedCommand.Execute(null);
+            cv.ItemsDragCompletedCommand.Execute(null);
+            Check("null 实参不炸不提交", cv.UndoStackSize == 0, $"size={cv.UndoStackSize}");
+
+            // ---- S2 建线：实参 = 目标连接器；先取两端后清手势状态 ----
+            var h2 = new Harness();
+            var p = h2.Add(h2.Leaf("生产"));
+            var q = h2.Add(Harness.WithInput(h2.Leaf("消费"), "In"));
+            var cv2 = h2.Canvas;
+
+            var requested = cv2.RequestLink(h2.Node(p)!, h2.Node(q)!);
+            Check("建线请求以消费方发出（目标连接器实参形态）", ReferenceEquals(requested, q),
+                requested == null ? "未发出" : requested.StepName);
+            Check("拖线状态已收场", !cv2.PendingConnection.IsVisible && cv2.PendingConnection.Source == null, "");
+
+            var reverse = cv2.RequestLinkReverse(h2.Node(p)!, h2.Node(q)!);
+            Check("反向起拖（从输入脚拖向输出脚）同样发出", ReferenceEquals(reverse, q), "");
+
+            // ---- S3 非法连线被拒且提示落状态栏 ----
+            // 图式：「早(0) → 晚(1)」；从"晚"的输出脚拖向"早"= 生产方排在消费方之后 = 倒序非法
+            var h3 = new Harness();
+            var early = h3.Add(h3.Leaf("早"));
+            var late = h3.Add(h3.Leaf("晚"));
+            var cv3 = h3.Canvas;
+            var rejected = cv3.RequestLink(h3.Node(late)!, h3.Node(early)!);
+            Check("倒序连线被拒（不发起绑定弹窗）", rejected == null, "");
+            Check("拒绝原因落在状态栏", (cv3.StatusHint ?? string.Empty).Contains("连线被拒绝"), $"'{cv3.StatusHint}'");
+
+            // ---- S4 拖线端口反馈：可达亮出、不可达压灰、结束复位 ----
+            // 图式：「更早(0) → 源头(1) → 下游(2)」；从"源头"的输出脚起拖，
+            // 下游可达、"更早"是倒序端不可连、自身防自环不可连
+            var h4 = new Harness();
+            h4.Add(h4.Leaf("更早"));
+            var s4 = h4.Add(h4.Leaf("源头"));
+            var t4 = h4.Add(Harness.WithInput(h4.Leaf("下游"), "In"));
+            var cv4 = h4.Canvas;
+            var early4 = h4.Flow.Steps[0];
+            Check("常态：端口默认可连（默认压灰=首次打开满屏灰点的视觉缺陷）",
+                h4.Node(t4)!.Inputs[0].IsConnectable && h4.Node(early4)!.Inputs[0].IsConnectable, "");
+            cv4.StartConnectionCommand.Execute(h4.Node(s4)!.Outputs[0]);
+            Check("拖线开始：正序下游端口可连", h4.Node(t4)!.Inputs[0].IsConnectable, "");
+            Check("拖线开始：倒序端不可连", !h4.Node(early4)!.Inputs[0].IsConnectable, "");
+            Check("拖线开始：自身端口不可连（防自环）", !h4.Node(s4)!.Inputs[0].IsConnectable, "");
+            cv4.PendingConnection.IsVisible = false;
+            Check("拖线结束：端口反馈全部复位", h4.Node(early4)!.Inputs[0].IsConnectable, "");
+        }
+
+        // ==================================================================
+        //  [T] 画布删除 / 禁用 / 撤销栈与外部结构变化同步
+        // ==================================================================
+        private static void DeleteDisableAndUndoSync()
+        {
+            Section("[T] 删除/禁用/撤销栈同步");
+
+            // ---- T1 外部删除步骤 → 撤销栈清空（改序命令的下标快照已失效，防错位回滚）----
+            var h = new Harness();
+            h.Add(h.Leaf("A"));
+            var b = h.Add(h.Leaf("B"));
+            var cv = h.Canvas;
+            var reorder = FlowCanvasExtensions.CreateReorderCommand(h.Flow.Steps, 0, 1);
+            FlowCanvasExtensions.InvokeRedo(reorder);
+            cv.PushUndoReflection(reorder);
+            Check("前置：撤销栈 = 1", cv.UndoStackSize == 1, $"size={cv.UndoStackSize}");
+            h.Flow.Steps.Remove(b);     // 流程栏视角的外部删除
+            Check("外部删除后撤销栈清空", cv.UndoStackSize == 0, $"size={cv.UndoStackSize}");
+            Check("画布节点同步摘除", h.Node(b) == null, "");
+
+            // ---- T1b 画布自身的拖拽改序写回不算外部变化：命令保留在栈里可撤销 ----
+            var h1b = new Harness();
+            var a1b = h1b.Add(h1b.Leaf("A"));
+            h1b.Add(h1b.Leaf("B"));
+            var cv1b = h1b.Canvas;
+            h1b.Node(a1b)!.IsSelected = true;
+            cv1b.ItemsDragStartedCommand.Execute(null);
+            h1b.Node(a1b)!.Location = new Point(h1b.Node(a1b)!.Location.X, 10000);
+            cv1b.ItemsDragCompletedCommand.Execute(null);
+            Check("画布自身拖拽改序：栈里保留命令（不被当外部变化清掉）",
+                cv1b.UndoStackSize == 1, $"size={cv1b.UndoStackSize}");
+            cv1b.UndoCommand.Execute();
+            Check("该命令仍可撤销回原序", ReferenceEquals(h1b.Flow.Steps[0], a1b), "");
+
+            // ---- T2 Delete：删选中节点，容器连子树一起走 ----
+            var h2 = new Harness();
+            var container = h2.If("容器");
+            var inner = h2.Leaf("内层");
+            container.Children[0].Steps.Add(inner);
+            h2.Add(container);
+            var cv2 = h2.Canvas;
+            h2.Node(container)!.IsSelected = true;
+            cv2.DeleteSelectionCommand.Execute();
+            Check("容器被移出图纸", !h2.Flow.Steps.Contains(container), "");
+            Check("画布节点全部摘除（含子树）", h2.Node(container) == null && h2.Node(inner) == null, "");
+            Check("删除后撤销栈清空", cv2.UndoStackSize == 0, $"size={cv2.UndoStackSize}");
+            Check("状态栏有删除回执", (cv2.StatusHint ?? string.Empty).Contains("已删除"), $"'{cv2.StatusHint}'");
+
+            // ---- T3 禁用切换：翻转 + 标题后缀与菜单文案即时刷新 ----
+            var h3 = new Harness();
+            var s = h3.Add(h3.Leaf("步骤"));
+            h3.Canvas.RebuildInPlace();
+            var node = h3.Node(s)!;
+            node.ToggleDisableCommand!.Execute();
+            Check("禁用翻转", s.IsDisEnable, "");
+            Check("标题带（已禁用）后缀", node.Header.Contains("已禁用"), $"'{node.Header}'");
+            Check("菜单文案翻转为启用", node.DisableMenuHeader == "启用", "");
+            node.ToggleDisableCommand!.Execute();
+            Check("再切回启用", !s.IsDisEnable && node.DisableMenuHeader == "禁用", "");
+
+            // ---- T3b 注释投影：配置界面写 Description，画布节点卡片/注释行即时跟随 ----
+            // StepModel 构造把 Description 默认置为插件名，"用户真写了注释"=非空且 ≠ 插件名
+            var h3b = new Harness();
+            var s3b = h3b.Add(h3b.Leaf("步骤"));
+            h3b.Canvas.RebuildInPlace();
+            var node3b = h3b.Node(s3b)!;
+            Check("默认 Description=插件名时不显示注释行（不与副标题重复）",
+                node3b.CommentVisibility == Visibility.Collapsed, $"Comment='{node3b.Comment}'");
+            s3b.Description = "车间工位 3 面阵相机";
+            Check("注释写入后 Comment 即时跟随（INPC 不等重建）",
+                node3b.Comment == "车间工位 3 面阵相机" && node3b.CommentVisibility == Visibility.Visible,
+                $"'{node3b.Comment}'");
+            Check("卡片悬停提示含名称与注释",
+                node3b.CardTooltip.Contains("步骤") && node3b.CardTooltip.Contains("工位 3"),
+                $"'{node3b.CardTooltip}'");
+
+            // ---- T4 连线整批解绑：一对模块的多条绑定打包成一个撤销单元 ----
+            var h4 = new Harness();
+            var p4 = h4.Add(h4.Leaf("生产"));
+            var q4 = h4.Add(h4.Leaf("消费"));
+            Harness.RawLink(q4, "In", p4, "Out");
+            // 同一对模块的第二条绑定（端口无需真实存在，BuildLinks 按 LinkedSources 全量聚合）
+            q4.SetLink("Extra", new LinkReference(LinkKind.StepPort, p4.StepID, "Out", "生产.Out"));
+            var cv4 = h4.Canvas;
+            cv4.ShowDataLinks = true;   // 本组测整批解绑的聚合线，不测显隐开关
+            var link = h4.Link(p4, q4);
+            Check("前置：一对模块聚合成一条线、两条绑定",
+                link != null && link.Bindings.Count == 2, $"bindings={link?.Bindings.Count}");
+            link!.UnbindAllCommand!.Execute();
+            Check("整批解绑后图纸无绑定", q4.LinkedSources.Count == 0, $"remain={q4.LinkedSources.Count}");
+            Check("整批解绑压一个撤销单元", cv4.UndoStackSize == 1, $"size={cv4.UndoStackSize}");
+            cv4.UndoCommand.Execute();
+            Check("一次撤销恢复两条绑定", q4.LinkedSources.Count == 2, $"restored={q4.LinkedSources.Count}");
+
+            // ---- T5 改名即时刷新（画布不订阅属性变更，节点自己跟随模型）----
+            var h5 = new Harness();
+            var s5 = h5.Add(h5.Leaf("原名"));
+            h5.Canvas.RebuildInPlace();
+            s5.StepName = "改名后";
+            Check("流程栏改名后画布标题即时跟随", h5.Node(s5)!.Header == "改名后", $"'{h5.Node(s5)!.Header}'");
+
+            // ---- T6 顺序链开关：关掉后只画数据线（数据线只画真实绑定的口径不变）----
+            var h6 = new Harness();
+            h6.Add(h6.Leaf("A"));
+            var b6 = h6.Add(Harness.WithInput(h6.Leaf("B"), "In"));
+            Harness.RawLink(b6, "In", h6.Flow.Steps[0], "Out");
+            var cv6 = h6.Canvas;
+            Check("默认态：数据线一条不画（开关默认关）", !cv6.ShowDataLinks && cv6.DataLinkCount == 0, $"{cv6.DataLinkCount}");
+            cv6.ShowDataLinks = true;   // 本组测顺序链开关，数据线显式打开作对照
+            Check("默认显示顺序链", cv6.Links.Any(l => l.IsOrderLink), $"links={cv6.Links.Count}");
+            cv6.ShowOrderLinks = false;
+            Check("关闭顺序链后 Links 只剩数据线",
+                cv6.Links.Count == 1 && !cv6.Links[0].IsOrderLink, $"links={cv6.Links.Count}");
+            cv6.ShowOrderLinks = true;
+            Check("重新打开顺序链恢复", cv6.Links.Any(l => l.IsOrderLink), "");
+
+            // ---- T7 连线进出边按两端几何选向（消费方被拖到左侧 → 左出右入，绕行就近）----
+            var h7 = new Harness();
+            var a7 = h7.Add(h7.Leaf("A"));
+            var b7 = h7.Add(Harness.WithInput(h7.Leaf("B"), "In"));
+            Harness.RawLink(b7, "In", a7, "Out");
+            var cv7 = h7.Canvas;
+            cv7.ShowDataLinks = true;   // 本组测连线进出边选向，线必须可见
+            var link7 = h7.Link(a7, b7)!;
+            // AutoLayout 竖排同列（dx=0 走默认左出右入）；真实拖动路径：Location 改动 → UpdateLinkAnchors 同步方向
+            h7.Node(b7)!.Location = new Point(h7.Node(a7)!.Location.X + 600, h7.Node(b7)!.Location.Y);
+            Check("消费方拖到右侧：右出左入",
+                link7.SourcePosition == Nodify.ConnectorPosition.Right
+                && link7.TargetPosition == Nodify.ConnectorPosition.Left,
+                $"src={link7.SourcePosition} tgt={link7.TargetPosition}");
+            h7.Node(b7)!.Location = new Point(h7.Node(a7)!.Location.X - 600, h7.Node(b7)!.Location.Y);
+            Check("消费方拖到左侧：左出右入（绕行就近，不横穿画布）",
+                link7.SourcePosition == Nodify.ConnectorPosition.Left
+                && link7.TargetPosition == Nodify.ConnectorPosition.Right,
+                $"src={link7.SourcePosition} tgt={link7.TargetPosition}");
+            // 真实拖动路径：改 Location → OnNodePropertyChanged → UpdateLinkAnchors 同步方向
+
+            // ---- T8 拖动分支内步骤后容器框贴合同步（拖动中不重算、抬手一次重建）----
+            // 拖动距离刻意控制在泳道内（不触发改序/跨分支提交——那是另一条已验证的路径）
+            var h8 = new Harness();
+            var if8 = h8.If("容器");
+            var inner8 = h8.Leaf("内层");
+            if8.Children[0].Steps.Add(inner8);
+            h8.Add(if8);
+            var cv8 = h8.Canvas;
+            double frame0 = h8.Node(if8)!.LaneHeight;
+            double frameTop0 = h8.Node(if8)!.Location.Y;
+            h8.Node(inner8)!.IsSelected = true;
+            cv8.ItemsDragStartedCommand.Execute(null);
+            h8.Node(inner8)!.Location = new Point(h8.Node(inner8)!.Location.X, h8.Node(inner8)!.Location.Y + 40);
+            cv8.ItemsDragCompletedCommand.Execute(null);
+            double frame1 = h8.Node(if8)!.LaneHeight;
+            // 贴合判据：框体跟着被拖内容走、且仍完整包住它。本图式里空泳道的头带与有内容泳道对齐，
+            // 单分支内容整体下移 → 框体整体平移（高不变），所以不能只看高度增量
+            Check("拖动分支内步骤后容器框贴合同步（框体跟随内容、仍包住被拖步骤）",
+                Inside(NodeBox(h8.Node(if8)!), NodeBox(h8.Node(inner8)!))
+                && h8.Node(if8)!.Location.Y > frameTop0 + 30,
+                $"frame.top {frameTop0:0} → {h8.Node(if8)!.Location.Y:0}，h {frame0:0} → {frame1:0}");
+            Check("拖拽收尾重建后画布完整（步骤仍在分支内）",
+                h8.Node(inner8) != null
+                && h8.Topology().TryGet(inner8.StepID, out var pos8)
+                && ReferenceEquals(pos8!.Owner, if8.Children[0].Steps), "");
+        }
+
+        // ==================================================================
+        //  [U] 十层嵌套压力图式（结构正确性 + 重建性能）
+        //  与渲染探针场景 D 同构：10 层 If 嵌套、33 个算子、21 条数据线。
+        //  结构断言钉死：层数/算子数/连线数/几何包含关系；性能数字只打印不断言（机器抖动）。
+        // ==================================================================
+        private static void TenLevelNestingStress()
+        {
+            Section("[U] 十层嵌套压力图式（10 层 / 33 算子）");
+
+            var h = new Harness();
+            var capture = h.Leaf("图像采集_0");
+            var preprocess = h.Leaf("图像预处理_0");
+            var summary = h.Leaf("结果汇总_0");
+
+            ConditionStep? inner = null;
+            var leaves = new List<StepModel>();
+            var ifSteps = new List<ConditionStep>();
+            for (int level = 10; level >= 1; level--)
+            {
+                var ifStep = h.If($"分档_{level}");
+                var leafA = h.Leaf($"测量_{level}A");
+                var leafB = h.Leaf($"测量_{level}B");
+                ifStep.Children[0].Steps.Add(leafA);
+                if (inner != null)
+                    ifStep.Children[0].Steps.Add(inner);
+                ifStep.Children[1].Steps.Add(leafB);
+
+                leaves.Add(leafA);
+                leaves.Add(leafB);
+                ifSteps.Add(ifStep);
+                inner = ifStep;
+            }
+
+            h.Add(capture);
+            h.Add(preprocess);
+            h.Add(inner!);
+            h.Add(summary);
+            foreach (var leaf in leaves)
+                Harness.RawLink(leaf, "In", capture, "Out");
+            Harness.RawLink(inner!, "In", preprocess, "Out");
+
+            var cv = h.Canvas;   // 首次构建（AutoLayout + 超深自动折叠）
+
+            // ifSteps 按 level 10→1 加入：ifSteps[10-lv] = 分档_lv（分档_1 深度 1）
+            ConditionStep IfOf(int lv) => ifSteps[10 - lv];
+
+            // ---- 超深自动折叠（AutoCollapseDepth=3）：1~3 层展开、4~10 层默认折叠 ----
+            // 折叠标记查布局库：画布节点只含可见节点——分档_4 折叠后 5~10 层根本没有节点，
+            // 查画布会把"被祖先藏起来"误读成"没折叠"
+            bool CollapsedFlagOf(int lv) => h.Flow.Layout.Find(IfOf(lv).StepID)?.Collapsed == true;
+            Check("1~3 层容器展开（阈值内）",
+                Enumerable.Range(1, 3).All(lv => !CollapsedFlagOf(lv)), "");
+            Check("4~10 层容器默认折叠（超深自动折叠）",
+                Enumerable.Range(4, 7).All(CollapsedFlagOf),
+                string.Join(",", Enumerable.Range(1, 10).Select(lv => $"{lv}:{(CollapsedFlagOf(lv) ? "折" : "展")}")));
+            Check("折叠态：深层子孙不渲染（渲染步骤数远小于全量 23）",
+                h.Steps().Count < 23 && h.Steps().Count > 0, $"steps={h.Steps().Count}");
+            Check("折叠态无告警（被折叠藏的绑定不算非法/降级）",
+                cv.IllegalLinkCount == 0 && cv.DeferredLinkCount == 0,
+                $"illegal={cv.IllegalLinkCount} deferred={cv.DeferredLinkCount} hidden={cv.HiddenLinkCount}");
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            cv.RebuildInPlace();
+            sw.Stop();
+            Console.WriteLine($"    [perf] RebuildInPlace（10 层 / 33 算子 / 折叠态）: {sw.ElapsedMilliseconds} ms");
+
+            // ---- 手动展开全部折叠容器：全量渲染断言（自动折叠前的旧口径）----
+            foreach (var lv in Enumerable.Range(4, 7))
+                h.Flow.Layout.ToggleCollapsed(IfOf(lv).StepID);
+            cv.RebuildInPlace();
+
+            Check("全部展开后 33 个算子全上画布（23 步骤 + 10 容器）",
+                h.Steps().Count == 23 && h.Containers().Count == 10,
+                $"steps={h.Steps().Count} containers={h.Containers().Count}");
+            // 数据线默认隐藏：先钉默认态（一条不画），再显式打开走"连线构建"的既有口径
+            Check("默认态：数据线一条不画（ShowDataLinks 默认 false）",
+                !cv.ShowDataLinks && cv.DataLinkCount == 0, $"{cv.DataLinkCount}");
+            cv.ShowDataLinks = true;
+            Check("全部展开后数据线 21 条（20 叶子 + 1 容器）", cv.DataLinkCount == 21, $"{cv.DataLinkCount}");
+            Check("全部展开后顺序链 12 条（顶层 3 + 每层 If 分支 9）", cv.OrderLinkCount == 12, $"{cv.OrderLinkCount}");
+            Check("无非法 / 无降级", cv.IllegalLinkCount == 0 && cv.DeferredLinkCount == 0,
+                $"illegal={cv.IllegalLinkCount} deferred={cv.DeferredLinkCount}");
+
+            // 几何包含：最外层容器框必须包住最内层容器框，且内层在图纸里确实嵌套 10 层
+            // ifSteps 按 level 10→1 加入：ifSteps[0]=分档_10（最内），ifSteps[^1]=分档_1（最外）
+            var outerIf = ifSteps[^1];       // 分档_1
+            var deepestIf = ifSteps[0];      // 分档_10
+            var outerNode = h.Node(outerIf)!;
+            var deepNode = h.Node(deepestIf)!;
+            Check("外层容器框包住内层容器框",
+                outerNode.LaneWidth > deepNode.LaneWidth && outerNode.LaneHeight > deepNode.LaneHeight,
+                $"outer={outerNode.LaneWidth:0}×{outerNode.LaneHeight:0} deep={deepNode.LaneWidth:0}×{deepNode.LaneHeight:0}");
+
+            Check("最深层容器在图纸里的嵌套深度 = 10 层",
+                NestingDepth(deepestIf, h.Flow.Steps) == 10, $"{NestingDepth(deepestIf, h.Flow.Steps)}");
+
+            // 嵌套链上每一步（含最深层叶子）都被画布渲染
+            // leaves 顺序：level 10→1，leaves[0]=测量_10A（最深层的 A 叶）
+            Check("全部展开后最深层叶子（测量_10A）有节点", h.Node(leaves[0]) != null, "");
+            Check("顺序链开关压力场景下同样可关",
+                RunOrderLinkToggle(cv), $"links={cv.Links.Count}");
+
+            // ---- 深容器（第 4 层）折叠交互：点一下真的翻、整理逐容器保持现场 ----
+            // 病根（2026-10-09 修）：TidyLayoutCore 恢复折叠现场用的是 ToggleCollapsed（翻转），
+            // 而重排会把深于 AutoCollapseDepth 的容器自动折叠 → 再翻一次等于翻回展开：
+            // 表现为"第 4 层及更深的容器，展开/折叠点击与整理都反着来"。
+            // 起点：上面"手动展开全部折叠容器"刚把 4~10 层都置成展开，本组从"折叠→展开"两个方向各测一次。
+            // 放在本段最后：上面那批断言依赖全量渲染，本组会把 4 层重新折叠回去。
+            string FlagDump() => string.Join(",", Enumerable.Range(1, 10).Select(lv => $"{lv}:{(CollapsedFlagOf(lv) ? "折" : "展")}"));
+
+            cv.ToggleCollapseCommand.Execute(h.Node(IfOf(4)));
+            Check("第 4 层容器点一下能真的折叠（深容器折叠点击生效）",
+                CollapsedFlagOf(4), FlagDump());
+
+            cv.ToggleCollapseCommand.Execute(h.Node(IfOf(4)));
+            Check("第 4 层容器再点一下能真的展开（此前被 Toggle 翻转吞掉）",
+                !CollapsedFlagOf(4), FlagDump());
+
+            cv.TidyLayoutCommand.Execute();
+            Check("整理后折叠现场逐容器保持（4~10 层仍是展开，整理不擅自折叠）",
+                Enumerable.Range(4, 7).All(lv => !CollapsedFlagOf(lv)), FlagDump());
+
+            cv.ToggleCollapseCommand.Execute(h.Node(IfOf(4)));
+            cv.TidyLayoutCommand.Execute();
+            Check("第 4 层折叠后再整理，仍是折叠（整理不把它翻回去）",
+                CollapsedFlagOf(4), FlagDump());
+        }
+
+        /// <summary>统计某步骤在图纸树里的嵌套深度（顶层=1）</summary>
+        private static int NestingDepth(StepModel target, System.Collections.ObjectModel.ObservableCollection<StepModel> roots)
+        {
+            return Walk(roots, 1);
+
+            int Walk(System.Collections.ObjectModel.ObservableCollection<StepModel> list, int depth)
+            {
+                foreach (var step in list)
+                {
+                    if (ReferenceEquals(step, target)) return depth;
+                    if (step is IContainerStep container && container.Children != null)
+                    {
+                        foreach (var branch in container.Children)
+                        {
+                            if (branch?.Steps == null) continue;
+                            int found = Walk(branch.Steps, depth + 1);
+                            if (found > 0) return found;
+                        }
+                    }
+                }
+                return -1;
+            }
+        }
+
+        private static bool RunOrderLinkToggle(FlowCanvasViewModel cv)
+        {
+            cv.ShowDataLinks = true;   // 本组测顺序链开关，数据线要保持 21 条作对照
+            int before = cv.OrderLinkCount;
+            cv.ShowOrderLinks = false;
+            bool off = cv.OrderLinkCount == 0 && cv.DataLinkCount == 21;
+            cv.ShowOrderLinks = true;
+            return off && before > 0 && cv.OrderLinkCount > 0;
+        }
+
+        // ==================================================================
+        //  [X] 数据线显隐（默认隐藏 + 非法线例外）/ 画布编辑入口 / 工具箱落点与工厂
+        //  守的是四项落地：A 数据线默认隐藏、B/C 双击与右键的模块参数入口、
+        //  D 工具箱拖入（工厂抽取 + 落点命中 + 顶层插入）。
+        // ==================================================================
+        private static void DataLinkVisibilityAndCanvasEditing()
+        {
+            Section("[X] 数据线显隐与画布编辑入口");
+
+            // ---- X1 默认态与开关幂等：只显示执行顺序；数据线可开可关 ----
+            var h = new Harness();
+            var a = h.Leaf("A");
+            var b = h.Leaf("B");
+            var d = h.Leaf("C");
+            Harness.WithInput(b, "In");
+            Harness.WithInput(d, "In");
+            h.Add(a); h.Add(b); h.Add(d);
+            Harness.RawLink(b, "In", a, "Out");
+            Harness.RawLink(d, "In", b, "Out");
+            var c = h.Canvas;
+
+            Check("默认态：ShowOrderLinks=true / ShowDataLinks=false",
+                c.ShowOrderLinks && !c.ShowDataLinks, $"{c.ShowOrderLinks}/{c.ShowDataLinks}");
+            Check("默认态：数据线 0 条、顺序链照常 >0",
+                c.DataLinkCount == 0 && c.OrderLinkCount > 0, $"数据线={c.DataLinkCount} 顺序链={c.OrderLinkCount}");
+            c.ShowDataLinks = true;
+            Check("打开数据线：两层数据线各一根（2 条）", c.DataLinkCount == 2, $"{c.DataLinkCount}");
+            c.ShowDataLinks = false;
+            Check("再关：又回到 0（幂等）", c.DataLinkCount == 0 && c.OrderLinkCount > 0, $"数据线={c.DataLinkCount}");
+
+            // ---- X2 非法线例外：数据线关闭时红虚线照常渲染（错误提示不是噪声） ----
+            var h2 = new Harness();
+            var p2 = h2.Leaf("A");
+            var q2 = h2.Leaf("B");
+            var r2 = h2.Leaf("C");
+            Harness.WithInput(q2, "In");
+            h2.Add(p2); h2.Add(q2); h2.Add(r2);
+            Harness.RawLink(q2, "In", p2, "Out");   // 合法：A → B
+            Harness.RawLink(p2, "In", r2, "Out");   // 非法：C 排在 A 之后（执行顺序倒序）
+            var c2 = h2.Canvas;
+
+            Check("混合图式：数据线关闭时普通线隐藏、非法链仍在（红虚线例外）",
+                !c2.ShowDataLinks && c2.IllegalLinkCount == 1
+                && c2.DataLinkCount == 1 && c2.Links.Single(l => !l.IsOrderLink).IsIllegal
+                && c2.WarningVisibility == Visibility.Visible,
+                $"数据线={c2.DataLinkCount} 非法={c2.IllegalLinkCount}");
+            c2.ShowDataLinks = true;
+            Check("打开数据线：普通线回来（非法线一直在）",
+                c2.DataLinkCount == 2 && c2.Links.Count(l => !l.IsOrderLink && l.IsIllegal) == 1,
+                $"数据线={c2.DataLinkCount}");
+
+            // ---- X3 画布编辑入口：节点 VM 的「模块参数」命令（双击/右键共用）存在、泳道空跑 ----
+            var h3 = new Harness();
+            var cont3 = h3.If("容器");
+            h3.Add(cont3);
+            var cv3 = h3.Canvas;
+            var node3 = h3.Node(cont3)!;
+            Check("节点挂上「模块参数」入口命令", node3.OpenModuleParametersCommand != null, "");
+
+            bool thrown3 = false;
+            try { node3.OpenModuleParametersCommand!.Execute(); }
+            catch { thrown3 = true; }
+            Check("（headless 无容器）执行打开命令不抛：静默空跑", !thrown3, "");
+
+            var lane3 = h3.Lanes().FirstOrDefault();
+            bool laneThrown = false;
+            try { cv3.OpenModuleParameters(lane3); }
+            catch { laneThrown = true; }
+            Check("泳道节点调打开入口空跑不抛（Model 为 null 的守卫）",
+                !laneThrown && lane3 != null && lane3.Model == null, "");
+
+            // ---- X4 StepFactory：五种 ModuleTypeName 的类型分派（画布 Drop 与流程栏 Drop 共用一份） ----
+            Check("BuiltIn_While → WhileStep",
+                StepFactory.CreateFromTool(NewTool("BuiltIn_While", container: true), "步骤_0") is WhileStep, "");
+            Check("BuiltIn_For → ForStep",
+                StepFactory.CreateFromTool(NewTool("BuiltIn_For", container: true), "步骤_0") is ForStep, "");
+            var par4 = StepFactory.CreateFromTool(NewTool("BuiltIn_Parallel", container: true), "步骤_0") as ParallelStep;
+            Check("BuiltIn_Parallel → ParallelStep（显式 ExecutionMode=Parallel，口径同流程栏）",
+                par4 != null && par4.ExecutionMode == VisionMaster.Models.ParallelExecutionMode.Parallel,
+                $"{par4?.ExecutionMode}");
+            Check("BuiltIn_If → ConditionStep（容器兜底）",
+                StepFactory.CreateFromTool(NewTool("BuiltIn_If", container: true), "步骤_0") is ConditionStep, "");
+            var leaf4 = StepFactory.CreateFromTool(NewTool("VM.CanvasStub.Leaf", container: false), "步骤_4");
+            Check("非容器 → ActionStep，且步骤名原样落上",
+                leaf4 is ActionStep && leaf4.StepName == "步骤_4", $"{leaf4.GetType().Name}/{leaf4.StepName}");
+
+            // ---- X5 落点命中：FindDeepestContainerAt 取最深容器 / 框外为 null ----
+            var h5 = new Harness();
+            var par5 = h5.Parallel("并行组");
+            var innerIf5 = h5.If("内层If");
+            par5.Children[0].Steps.Add(innerIf5);
+            h5.Add(par5);
+            var cv5 = h5.Canvas;
+            var parNode5 = h5.Node(par5)!;
+            var ifNode5 = h5.Node(innerIf5)!;
+
+            Check("点在 If 框内 → 返回 If（最深）",
+                ReferenceEquals(cv5.FindDeepestContainerAt(new Point(
+                    ifNode5.Location.X + ifNode5.LaneWidth / 2,
+                    ifNode5.Location.Y + ifNode5.LaneHeight / 2)), ifNode5), "");
+
+            var parOnlyPoint = new Point(parNode5.Location.X + 3, parNode5.Location.Y + 3);
+            Check("点在并行组框内但 If 框外 → 返回并行组",
+                ReferenceEquals(cv5.FindDeepestContainerAt(parOnlyPoint), parNode5),
+                $"命中={cv5.FindDeepestContainerAt(parOnlyPoint)?.Model?.StepName ?? "null"}");
+
+            Check("点在空白处 → null", cv5.FindDeepestContainerAt(new Point(-5000, -5000)) == null, "");
+
+            // ---- X6 画布拖放 DropToolAt：容器内进第一条分支末尾 / 顶层按 Y 插入 / Version 推进 ----
+            var h6 = new Harness();
+            var cont6 = h6.If("容器");
+            h6.Add(cont6);
+            var cv6 = h6.Canvas;
+            var contNode6 = h6.Node(cont6)!;
+            int ver6 = h6.Flow.Version;
+
+            bool dropped6 = cv6.DropToolAt(
+                NewTool("BuiltIn_While", container: true),
+                new Point(contNode6.Location.X + contNode6.LaneWidth / 2, contNode6.Location.Y + 30));
+            Check("拖到容器框内 → 落进第一条分支末尾（WhileStep）",
+                dropped6 && cont6.Children[0].Steps.Count == 1 && cont6.Children[0].Steps[0] is WhileStep,
+                $"分支步数={cont6.Children[0].Steps.Count}");
+            Check("容器内落点不进主流程 / Version 推进（结构变更）",
+                h6.Flow.Steps.Count == 1 && h6.Flow.Version > ver6, $"version {ver6}→{h6.Flow.Version}");
+            Check("状态栏给拖放回执", (cv6.StatusHint ?? "").Contains("已添加"), $"'{cv6.StatusHint}'");
+
+            cv6.DropToolAt(
+                NewTool("VM.CanvasStub.Leaf", container: false),
+                new Point(contNode6.Location.X, contNode6.Location.Y + contNode6.LaneHeight + 40));
+            Check("顶层落点：按中心 Y 插到容器之后",
+                h6.Flow.Steps.Count == 2 && h6.Flow.Steps[1] is ActionStep,
+                string.Join(",", h6.Flow.Steps.Select(s => s.StepName)));
+        }
+
+        /// <summary>造一个工具箱模板桩（[X] 段工厂/落点断言用）</summary>
+        private static ToolItemModel NewTool(string typeName, bool container) => new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "模板",
+            Icon = "\uE700",
+            ModuleTypeName = typeName,
+            IsContainer = container,
+        };
+
+        // ==================================================================
         //  离线工具：向方案文件的 MainTask 注入 If 容器（UI 实测素材）
         // ==================================================================
         private static void InjectIfIntoMainTask(string path)
@@ -1300,6 +1948,26 @@ namespace FlowCanvasChecks
             Console.WriteLine($"  [{(ok ? "√通过" : "×失败")}] {name}{(string.IsNullOrEmpty(detail) ? "" : "  →  " + detail)}");
         }
 
+        // ------------------------------------------------------------------
+        //  几何断言辅助：画布节点盒 / 包含 / 相交
+        //  （1px 容差 = 泳道与框体都有 1~1.5px 边框线；贴边不算压）
+        // ------------------------------------------------------------------
+
+        /// <summary>画布节点的渲染矩形：泳道与容器框用算出的 Lane*，步骤盒用标称尺寸</summary>
+        internal static Rect NodeBox(CanvasNodeViewModel node) => node.Kind == CanvasNodeKind.Step
+            ? new Rect(node.Location.X, node.Location.Y, FlowCanvasViewModel.NodeWidth, FlowCanvasViewModel.NodeHeight)
+            : new Rect(node.Location.X, node.Location.Y, node.LaneWidth, node.LaneHeight);
+
+        /// <summary>包含判定：inner 完整落在 outer 内（含 1px 容差）</summary>
+        internal static bool Inside(Rect outer, Rect inner, double tol = 1)
+            => inner.Left >= outer.Left - tol && inner.Top >= outer.Top - tol
+               && inner.Right <= outer.Right + tol && inner.Bottom <= outer.Bottom + tol;
+
+        /// <summary>相交判定：两块盒体彼此压住（贴边不算，容差 0.5px）</summary>
+        internal static bool Overlaps(Rect a, Rect b, double tol = 0.5)
+            => a.Left < b.Right - tol && b.Left < a.Right - tol
+               && a.Top < b.Bottom - tol && b.Top < a.Bottom - tol;
+
         private static void Finish()
         {
             Console.WriteLine();
@@ -1313,7 +1981,7 @@ namespace FlowCanvasChecks
         /// 方案落盘用的反序列化设置：与 <c>SolutionService</c> 内部那份保持一致。
         /// 产品里那份是私有字段，这里只能用同一个 public binder 复刻，否则往返断言测的不是同一条链路。
         /// </summary>
-        private static readonly JsonSerializerSettings RoundTripSettings = new()
+        internal static readonly JsonSerializerSettings RoundTripSettings = new()
         {
             Formatting = Formatting.Indented,
             NullValueHandling = NullValueHandling.Ignore,

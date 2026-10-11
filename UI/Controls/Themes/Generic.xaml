@@ -39,14 +39,17 @@
         <ResourceDictionary Source="/UI;component/Themes/PluginConfigStyles.xaml" />
 
         <!--  ============ 第三层：自定义控件（一个控件一个主题文件）============  -->
-        <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Popover.xaml" />
+        <!--
+            2026-10-07：AlarmBar / BindableParamBox / Popover 三个控件的主题已随控件一起下线
+            （全仓零消费；备份与恢复步骤见 _Retired\2026-10-07-unused-controls\README.md）。
+            这里的三行合并同时移除 —— 留着会指向不存在的资源，运行期直接抛。
+        -->
         <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/LogConsole.xaml" />
-        <ResourceDictionary Source="/UI;component/Themes/AlarmBar.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/NumericBox.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/StatusIndicator.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/PropertyGrid.xaml" />
         <ResourceDictionary Source="/UI;component/Extensions/BtnExtension.xaml" />
         <ResourceDictionary Source="/UI;component/Extensions/BorderExtension.xaml" />
-        <ResourceDictionary Source="/UI;component/Themes/BindableParamBox.xaml" />
 
         <!--  ============ 第四层：对话框域样式（按语义拆分）============  -->
         <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Text.xaml" />

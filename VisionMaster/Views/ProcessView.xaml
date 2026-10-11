@@ -77,11 +77,16 @@
                                 </Grid>
                             </Border>
 
-                            <ItemsPresenter
-                                x:Name="ItemsHost"
+                            <!--  子项区：16px 缩进 + 左缘 1px 层级引导线（深层嵌套的归属不再靠猜）。
+                                  线不占内容位：缩进 15 + 线宽 1 = 子项仍停在原来的 16px 上。
+                                  颜色取最浅的边框令牌（不引新色）；折叠时子项收起 → 高度 0 → 线自动不出现。  -->
+                            <Border
                                 Grid.Row="1"
-                                Margin="16,0,0,0"
-                                Visibility="Collapsed" />
+                                Margin="15,0,0,0"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="1,0,0,0">
+                                <ItemsPresenter x:Name="ItemsHost" Visibility="Collapsed" />
+                            </Border>
                         </Grid>
 
                         <ControlTemplate.Triggers>
@@ -127,6 +132,32 @@
         ItemsSource="{Binding Workspace.CurrentFlow.Steps}"
         PreviewMouseRightButtonUp="moduleTree_PreviewMouseRightButtonDown">
         <TreeView.Resources>
+
+            <!--  ==========================================  -->
+            <!--  🖱 并行分支胶囊的分支级右键菜单（每实例一份）  -->
+            <!--  只挂在并行分组的分支上（见下方 StepCollection 模板的 Border.Style 触发器），  -->
+            <!--  菜单靶 = 命中的那条分支：ContextMenu 不在可视树里，RelativeSource 找不到宿主，  -->
+            <!--  所以 CommandParameter 走 PlacementTarget.DataContext（PlacementTarget = 胶囊 Border，  -->
+            <!--  它的 DataContext 就是这条 StepCollection）——与父级 TreeView 菜单的"按当前选中项取参"  -->
+            <!--  是两条独立通道（分支卡片仍不可选中、不进命令链，R25 红线不动）。  -->
+            <!--  ==========================================  -->
+            <ContextMenu
+                x:Key="ParallelBranchMenu"
+                x:Shared="False"
+                DataContext="{Binding Data, Source={StaticResource ModuleData}}"
+                FontFamily="{StaticResource Icon}">
+                <MenuItem
+                    Command="{Binding RenameParallelBranchCommand}"
+                    CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
+                    Header="重命名本条分支"
+                    Icon="pen-to-square" />
+                <MenuItem
+                    Command="{Binding RemoveParallelBranchCommand}"
+                    CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}"
+                    Foreground="{StaticResource DialogDangerBrush}"
+                    Header="删除本条分支"
+                    Icon="trash" />
+            </ContextMenu>
 
             <!--  ==========================================  -->
             <!--  🧩 普通视觉算子样式 (ActionStep) - 现代化卡片  -->
@@ -328,10 +359,14 @@
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:ConditionStep}" ItemsSource="{Binding Children}">
                 <StackPanel
-                    Margin="0,12,0,4"
+                    Margin="6,12,0,4"
                     Background="Transparent"
                     Orientation="Horizontal"
                     ToolTip="点击配置分支输入变量">
+                    <!--  状态位占位（空）：
+                          左缩进 6 = 算子卡 Margin 2 + Padding 4；占位 16 = 状态列 14 + 图标色块让位 2，
+                          于是组头色块与算子卡的图标色块落在同一竖线，容器行/算子行左起点一致。  -->
+                    <Border Width="16" Height="14" />
                     <!--  标识色块  -->
                     <Rectangle
                         Width="3"
@@ -371,10 +406,12 @@
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:WhileStep}" ItemsSource="{Binding Children}">
                 <StackPanel
-                    Margin="0,12,0,4"
+                    Margin="6,12,0,4"
                     Background="Transparent"
                     Orientation="Horizontal"
                     ToolTip="点击配置循环条件">
+                    <!--  状态位占位：对齐口径同 If 组头  -->
+                    <Border Width="16" Height="14" />
                     <Rectangle
                         Width="3"
                         Height="14"
@@ -410,10 +447,12 @@
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:ForStep}" ItemsSource="{Binding Children}">
                 <StackPanel
-                    Margin="0,12,0,4"
+                    Margin="6,12,0,4"
                     Background="Transparent"
                     Orientation="Horizontal"
                     ToolTip="计次循环容器">
+                    <!--  状态位占位：对齐口径同 If 组头  -->
+                    <Border Width="16" Height="14" />
                     <Rectangle
                         Width="3"
                         Height="14"
@@ -445,23 +484,133 @@
             </HierarchicalDataTemplate>
 
             <!--  ==========================================  -->
+            <!--  ⑂ 并行分组容器样式（二期真并行）  -->
+            <!--  2026-10-09 真机事故：此前树里缺这份模板，整行回退 WPF 默认模板把 -->
+            <!--  ToString() 原样上屏——显示 "VisionMaster.Models.ParallelStep"，分支也全丢。 -->
+            <!--  与 AGENTS.md R19-R22「类型全名上屏」同类，触发点从 GridView 换成类型键模板。 -->
+            <!--  ==========================================  -->
+            <HierarchicalDataTemplate DataType="{x:Type models:ParallelStep}" ItemsSource="{Binding Children}">
+                <StackPanel
+                    Margin="6,12,0,4"
+                    Background="Transparent"
+                    Orientation="Horizontal"
+                    ToolTip="并行分组容器（分支并列执行：顺序模式逐分支跑完汇合，并行模式真并发）">
+                    <!--  状态位占位：对齐口径同 If 组头  -->
+                    <Border Width="16" Height="14" />
+                    <!--  标识色块：并行身份色取画布泳道同源的蓝（#3B82F6），与灰/橙/绿三兄弟区分  -->
+                    <Rectangle
+                        Width="3"
+                        Height="14"
+                        Margin="0,0,8,0"
+                        Fill="#3B82F6"
+                        RadiusX="1.5"
+                        RadiusY="1.5" />
+                    <TextBlock
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="#3B82F6"
+                        Text="{Binding Icon}"
+                        TextOptions.TextFormattingMode="Display" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="#3B82F6"
+                        Text="并行分组" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="#C0C4CC"
+                        Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                </StackPanel>
+            </HierarchicalDataTemplate>
+
+            <!--  ==========================================  -->
+            <!--  🔀 分支匹配（Case）容器样式  -->
+            <!--  CaseStep 继承 ConditionStep，类型键模板必须按具体类型给一份
+                  （R23/U2：ProcessTreeTemplateChecks 反射枚举全部具体 StepModel 子类，缺模板即红）。
+                  身份色取紫（#8B5CF6），与灰(If)/橙(While)/绿(For)/蓝(并行) 区分。  -->
+            <!--  ==========================================  -->
+            <HierarchicalDataTemplate DataType="{x:Type models:CaseStep}" ItemsSource="{Binding Children}">
+                <StackPanel
+                    Margin="6,12,0,4"
+                    Background="Transparent"
+                    Orientation="Horizontal"
+                    ToolTip="分支匹配容器（按判据的匹配值选择分支；未命中走默认分支）">
+                    <!--  状态位占位：对齐口径同 If 组头  -->
+                    <Border Width="16" Height="14" />
+                    <Rectangle
+                        Width="3"
+                        Height="14"
+                        Margin="0,0,8,0"
+                        Fill="#8B5CF6"
+                        RadiusX="1.5"
+                        RadiusY="1.5" />
+                    <TextBlock
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="13"
+                        Foreground="#8B5CF6"
+                        Text="{Binding Icon}"
+                        TextOptions.TextFormattingMode="Display" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="#8B5CF6"
+                        Text="分支匹配" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="#C0C4CC"
+                        Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                </StackPanel>
+            </HierarchicalDataTemplate>
+
+            <!--  ==========================================  -->
             <!--  📦 分支/循环体 卡片样式 (StepCollection)  -->
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:StepCollection}" ItemsSource="{Binding Steps}">
-                <!--  卡片主体  -->
+                <!--  卡片主体：左缩进 6（Margin 2 + Padding 4，同算子卡）+ 状态位占位，
+                      指示灯因此与算子卡的图标色块同列；空分支瘦身到 26/150（命中区仍 ≥24，拖入落点不变）。  -->
                 <Border
                     x:Name="BranchContainer"
-                    MinWidth="180"
-                    MinHeight="32"
-                    Margin="0,4,0,4"
-                    Padding="10,6"
+                    MinWidth="150"
+                    MinHeight="26"
+                    Margin="2,2"
+                    Padding="4,4"
                     Background="#F0F7FF"
                     BorderBrush="#CBE5FF"
                     BorderThickness="1"
                     CornerRadius="6"
                     ToolTip="将算子拖入此分支内部">
+                    <!--  分支级右键菜单只给"并行分组的分支"：判据用父容器项（AncestorLevel=2）的
+                          ExecutionMode —— 只有 ParallelStep 有这个属性，其它容器（If/For/While）
+                          的分支取不到值 → 触发器不生效 → 胶囊不带菜单（右键仍被视图拦截，不出错靶菜单）。
+                          两个触发器覆盖枚举的两档取值（枚举值不能写进触发器比较，按既有蓝身份触发器
+                          的先例逐档列出）。  -->
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Sequential">
+                                    <Setter Property="ContextMenu" Value="{StaticResource ParallelBranchMenu}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Parallel">
+                                    <Setter Property="ContextMenu" Value="{StaticResource ParallelBranchMenu}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
 
                     <StackPanel Orientation="Horizontal">
+                        <!--  状态位占位（空）：14 状态列 + 2 让位，口径同容器组头  -->
+                        <Border Width="16" Height="14" />
+
                         <!--  状态指示灯  -->
                         <Ellipse
                             x:Name="StatusDot"
@@ -471,7 +620,10 @@
                             VerticalAlignment="Center"
                             Fill="#409EFF" />
 
-                        <!--  分支文本  -->
+                        <!--  分支文本：StepCollection.DisplayName 已把"分支名 + [ 表达式 / 未绑定条件 ]"
+                              拼好（If/ElseIf/Case 带表达式、Else/Default 只有名字），这里不要再叠一块
+                              Expression 文本——2026-10-09 出图抓到 "If [ Score > 80 ] [ Score > 80 ]"
+                              的重复渲染（旧模板另挂了 ExpressionText，与 DisplayName 内容重叠）。  -->
                         <TextBlock
                             x:Name="BranchText"
                             VerticalAlignment="Center"
@@ -479,41 +631,46 @@
                             Foreground="#303133"
                             Text="{Binding DisplayName}" />
 
-                        <!--  代码表达式 (Consolas 等宽字体)  -->
+                        <!--  内容量 / 空态提示：同一槽位二选一（触发器按 Steps.Count 切），不许并存——
+                              有算子显示"N 个算子"（徽章灰 #A8ABB2），空分支显示"拖入算子"
+                              （描述行灰 #909399，比统计数字显眼一档：它回答的是"空胶囊为什么空、该怎么办"）。  -->
                         <TextBlock
-                            x:Name="ExpressionText"
+                            x:Name="BranchCountText"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
-                            FontFamily="Consolas"
-                            FontSize="12"
-                            Foreground="#409EFF"
-                            Text="{Binding Expression, StringFormat='[ {0} ]'}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Expression}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding Expression}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                            FontSize="11"
+                            Foreground="#A8ABB2"
+                            Text="{Binding Steps.Count, StringFormat='{}{0} 个算子'}" />
+                        <TextBlock
+                            x:Name="BranchEmptyText"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="#909399"
+                            Text="拖入算子"
+                            Visibility="Collapsed" />
                     </StackPanel>
                 </Border>
 
                 <!--  🌟 智能变色触发器  -->
                 <HierarchicalDataTemplate.Triggers>
+                    <!--  场景 0：空分支可辨——Count=0 才是"空"，与"没加载/坏了"区分开。
+                          用本文件算子卡已在用的 ui:GreaterThanZeroConverter（不引新转换器）。  -->
+                    <DataTrigger Binding="{Binding Steps.Count, Converter={ui:GreaterThanZeroConverter}}" Value="True">
+                        <Setter TargetName="BranchCountText" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="BranchEmptyText" Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Steps.Count, Converter={ui:GreaterThanZeroConverter}}" Value="False">
+                        <Setter TargetName="BranchCountText" Property="Visibility" Value="Collapsed" />
+                        <Setter TargetName="BranchEmptyText" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+
                     <!--  场景 1：Else 分支 (灰色)  -->
                     <DataTrigger Binding="{Binding BranchType}" Value="Else">
                         <Setter TargetName="BranchContainer" Property="Background" Value="#F5F7FA" />
                         <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#E4E7ED" />
                         <Setter TargetName="StatusDot" Property="Fill" Value="#A8ABB2" />
                         <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
-                        <Setter TargetName="ExpressionText" Property="Foreground" Value="#909399" />
                     </DataTrigger>
 
                     <!--  场景 2：循环体卡片 (浅绿) —— Default(For) 与 WhileLoop(While) 都要有身份色  -->
@@ -522,14 +679,39 @@
                         <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#C2E7B0" />
                         <Setter TargetName="StatusDot" Property="Fill" Value="#67C23A" />
                         <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
-                        <Setter TargetName="ExpressionText" Property="Foreground" Value="#67C23A" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding BranchType}" Value="WhileLoop">
                         <Setter TargetName="BranchContainer" Property="Background" Value="#F0F9EB" />
                         <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#C2E7B0" />
                         <Setter TargetName="StatusDot" Property="Fill" Value="#67C23A" />
                         <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
-                        <Setter TargetName="ExpressionText" Property="Foreground" Value="#67C23A" />
+                    </DataTrigger>
+
+                    <!--  场景 2b：分支匹配的 Case 分支（紫身份，与容器组头同色）。
+                          分支文本仍只有 DisplayName 一个来源：显示成 "Case 1 [ 100 ]"（R24）。  -->
+                    <DataTrigger Binding="{Binding BranchType}" Value="Case">
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#F5F3FF" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#DDD6FE" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#8B5CF6" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#303133" />
+                    </DataTrigger>
+
+                    <!--  场景 2c：并行分组的分支（蓝身份，压掉 Default 的循环绿）——
+                          本胶囊在"分支卡片"自己的 TreeViewItem 头部里，AncestorLevel=2 即父容器项；
+                          ExecutionMode 只有 ParallelStep 有，其它容器取不到值（绑定失败=触发器不生效），
+                          于是这两个触发器就是"父容器是不是并行分组"的零转换器判别。
+                          放在 Default/WhileLoop 之后（后写者赢）、IsConditionMissing 红灯之前（红灯仍最高）。  -->
+                    <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Sequential">
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#EFF6FF" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#BFDBFE" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#3B82F6" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#303133" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Parallel">
+                        <Setter TargetName="BranchContainer" Property="Background" Value="#EFF6FF" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#BFDBFE" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="#3B82F6" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="#303133" />
                     </DataTrigger>
 
                     <!--  场景 3：缺条件统一红灯——读 StepCollection.IsConditionMissing（P1-⑦）。
@@ -563,6 +745,37 @@
                     Visibility="{Binding IsIfNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
 
                 <Separator Visibility="{Binding IsIfNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                <!--  分支匹配（Case）专用：在兜底分支之前插一条 Case 分支
+                      （命令靶 = 当前选中的容器，属于"按当前选中项取参"那条命令链，运行锁天然生效）  -->
+                <MenuItem
+                    Command="{Binding ModuleActionCommand}"
+                    CommandParameter="{x:Static enums:ModuleCommandAction.AddCase}"
+                    Header="添加 Case 分支"
+                    Icon="code-branch"
+                    Visibility="{Binding IsCaseNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                <Separator Visibility="{Binding IsCaseNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                <!--  并行分组专用：结构动作下沉后"加一条分支"就在组头上做（命令靶 = 当前选中的组头，
+                      分支胶囊上的两项见胶囊自带菜单）。到上限时不置灰：点一下给文案提示，用户知道为什么。  -->
+                <MenuItem
+                    Command="{Binding AddParallelBranchCommand}"
+                    CommandParameter="{Binding SelectStep}"
+                    Header="添加分支"
+                    Icon="code-branch"
+                    Visibility="{Binding IsParallelNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                <!--  并行分组专用：分组重命名（2026-10-09 随参数面板收编 FlatPropertyGrid 改走右键，
+                      与分支重命名同款体验；参数面板里不再有重命名入口——右键已有，别造两份）  -->
+                <MenuItem
+                    Command="{Binding RenameParallelGroupCommand}"
+                    CommandParameter="{Binding SelectStep}"
+                    Header="重命名分组"
+                    Icon="pen-to-square"
+                    Visibility="{Binding IsParallelNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                <Separator Visibility="{Binding IsParallelNodeSelected, Converter={ui:BooleanToVisibilityConverter}}" />
 
                 <MenuItem
                     Command="{Binding ModuleActionCommand}"

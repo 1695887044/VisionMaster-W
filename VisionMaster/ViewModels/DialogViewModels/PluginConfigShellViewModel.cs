@@ -113,6 +113,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _plugin = null;
                 _pluginView = null;
                 PluginViewContent = null;
+                _layoutSwitch = null;
+                CanSwitchLayout = false;
+                RaisePropertyChanged(nameof(CanSwitchLayout));
                 _execCts?.Dispose();
                 _execCts = null;
             }
@@ -132,6 +135,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 //（面板建出来了，但没有任何参数行）。
                 _pluginView = (viewObj as IPluginConfigView) ?? (viewObj.DataContext as IPluginConfigView);
                 PluginViewContent = viewObj;
+
+                // 参数面板布局切换：只有实现了契约的视图才亮出"卡片式"开关（壳不猜内容类型）。
+                // 读一次视图的现值，免得开关状态和视图实际布局对不上。
+                _layoutSwitch = viewObj as UI.CustomControl.IPropertyGridLayoutSwitch;
+                CanSwitchLayout = _layoutSwitch != null;
+                _useCardLayout = _layoutSwitch?.UseCardLayout ?? false;
+                RaisePropertyChanged(nameof(CanSwitchLayout));
+                RaisePropertyChanged(nameof(UseCardLayout));
             }
 
             if (parameters.TryGetValue<IVisionPlugin>("Plugin", out var plugin))
@@ -176,7 +187,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 HttpPort = cfg.Port > 0 && cfg.Port <= 65535 ? cfg.Port : HttpImageServerSettings.DefaultPort,
                 HttpToken = cfg.Token ?? string.Empty,
                 RequestTimeoutMs = cfg.RequestTimeoutMs,
-                Cameras = BuildCameraOptions()
+                Cameras = BuildCameraOptions(),
+                // 变量名候选（变量管理里那些 + 上游「变量定义」声明的运行时变量）：
+                // 插件够不到这两处，而"给哪个变量赋值/读哪个变量"只能从它们里选 —— 手打名字
+                // 打错的后果（找不到变量 / 值写进另一个同名变量）都很难倒查（真机 2026-10-10）
+                Variables = VisionMaster.Helpers.PluginVariableOptions.Build(_workspace, _stepData?.StepId ?? Guid.Empty)
             };
         }
 
@@ -230,6 +245,32 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string PluginName { get; private set; }
         public string PluginDescription { get; private set; }
         public object PluginViewContent { get; private set; }
+
+        /// <summary>
+        /// 当前承载的插件视图是否支持"表格 / 卡片"参数布局切换
+        /// （视图实现 <see cref="UI.CustomControl.IPropertyGridLayoutSwitch"/> 才为 true）。
+        /// </summary>
+        public bool CanSwitchLayout { get; private set; }
+
+        private bool _useCardLayout;
+
+        /// <summary>
+        /// 参数面板是否用卡片式；写下去直接落到插件视图 —— 视图自己负责切网格与重排列宽
+        /// （壳只做"传话"，不碰视图内部布局）。
+        /// </summary>
+        public bool UseCardLayout
+        {
+            get => _useCardLayout;
+            set
+            {
+                if (_useCardLayout == value) return;
+                _useCardLayout = value;
+                if (_layoutSwitch != null) _layoutSwitch.UseCardLayout = value;
+                RaisePropertyChanged(nameof(UseCardLayout));
+            }
+        }
+
+        private UI.CustomControl.IPropertyGridLayoutSwitch? _layoutSwitch;
 
         private string _statusText = "状态: 待执行";
         public string StatusText

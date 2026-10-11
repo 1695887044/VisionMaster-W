@@ -1,0 +1,7 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:G.VisionMaster.DiagramData">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/G.VisionMaster.DiagramData;component/RunDiagramDataPresenter.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

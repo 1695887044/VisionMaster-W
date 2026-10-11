@@ -33,6 +33,7 @@ namespace Plugin.BeadInspect
         Description = "参考路径 + 平面可变形对齐 + bead 检测：输出缺胶/太细/太粗/位置偏移分段判定、逐段长度与标注图，支持多配方与 mm 输出",
         ShortName = "\uf1ce"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan, shili geli + HALCON jubu duixiang
     public partial class BeadInspectPlugin : VisionPluginBase
     {
         // ==================================================================

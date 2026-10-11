@@ -1,0 +1,21 @@
+﻿using G.Extensions.Mvvm.ViewModels.Base;
+using System.Windows.Media;
+
+namespace G.Controls.ZoomBox.Extension
+{
+    [Icon("\xEB9F")]
+    [Display(Name = "图片")]
+    public class ImageZoomViewPresenter : DisplayBindableBase, IImageZoomViewPresenter
+    {
+        private ImageSource _imageSource;
+        public ImageSource ImageSource
+        {
+            get { return _imageSource; }
+            set
+            {
+                _imageSource = value;
+                RaisePropertyChanged();
+            }
+        }
+    }
+}

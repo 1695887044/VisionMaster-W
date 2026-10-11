@@ -1,0 +1,54 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>logo.ico</ApplicationIcon>
+    <GeneratePackageOnBuild>Flase</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Controls\G.Controls.ColorBox\G.Controls.ColorBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.ColorPicker\G.Controls.ColorPicker.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.FavoriteBox\G.Controls.FavoriteBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.FilterBox\G.Controls.FilterBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.FilterColumnDataGrid\G.Controls.FilterColumnDataGrid.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.GridSplitterBox\G.Controls.GridSplitterBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.HorseTextBlock\G.Controls.HorseTextBlock.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.ImageColorPicker\G.Controls.ImageColorPicker.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.OrderBox\G.Controls.OrderBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.PDF\G.Controls.PDF.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.PrintBox\G.Controls.PrintBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.PropertyGrid\G.Controls.PropertyGrid.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.QRCoderBox\G.Controls.QRCoderBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.ROIBox\G.Controls.ROIBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.ScheduleBox\G.Controls.ScheduleBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.Step\G.Controls.Step.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.TagBox\G.Controls.TagBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.TreeLayoutBox\G.Controls.TreeLayoutBox.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.TreeListView\G.Controls.TreeListView.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.Vlc\G.Controls.Vlc.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.ZoomBox\G.Controls.ZoomBox.csproj" />
+    <ProjectReference Include="..\..\Datas\G.Data.Test\G.Data.Test.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.AppPath\G.Extensions.AppPath.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Log4net\G.Extensions.Log4net.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Mail\G.Extensions.Mail.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Tree\G.Extensions.Tree.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.TypeLicense\G.Extensions.TypeLicense.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Unit\G.Extensions.Unit.csproj" />
+    <ProjectReference Include="..\..\Base\G.ValueConverter\G.ValueConverter.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.XmlSerialize\G.Extensions.XmlSerialize.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Feedback\G.Modules.Feedback.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Dialog\G.Modules.Messages.Dialog.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Form\G.Modules.Messages.Form.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Setting\G.Modules.Setting.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Dialog\G.Windows.Dialog.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Dock\G.Windows.Dock.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Main\G.Windows.Main.csproj" />
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+  </ItemGroup>
+  <!-- icon injected via Directory.Build.targets -->
+</Project>

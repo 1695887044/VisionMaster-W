@@ -1,0 +1,164 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Product>GVision</Product>
+    <Description>GVision 使用 OpenCVSharp 框架的产品</Description>
+    <Copyright>Copyright © G 2015-2025</Copyright>
+    <Authors></Authors>
+    <PackageProjectUrl>https://github.com/G</PackageProjectUrl>
+    <Title>GVision</Title>
+    <Version>2.0.0</Version>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
+    <ApplicationIcon>logo.ico</ApplicationIcon>
+  </PropertyGroup>
+  <!-- icon injected via Directory.Build.targets -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\NodeDatas\G.NodeDatas.Onnx.OpenCV\G.NodeDatas.Onnx.OpenCV.csproj" />
+    <ProjectReference Include="..\..\NodeDatas\G.NodeDatas.Zoo\G.NodeDatas.Zoo.csproj" />
+    <ProjectReference Include="..\..\VisionMaster\G.VisionMaster.DiagramData\G.VisionMaster.DiagramData.csproj" />
+    <ProjectReference Include="..\..\VisionMaster\G.VisionMaster.Network\G.VisionMaster.Network.csproj" />
+    <ProjectReference Include="..\..\VisionMaster\G.VisionMaster.Project\G.VisionMaster.Project.csproj" />
+    <ProjectReference Include="..\..\VisionMaster\G.VisionMaster.Zoo.Halcon\G.VisionMaster.Zoo.Halcon.csproj" />
+    <ProjectReference Include="..\..\VisionMaster\G.VisionMaster.Zoo.Images\G.VisionMaster.Zoo.Images.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\ApplicationBases\G.ApplicationBases.Default\G.ApplicationBases.Default.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Controls\G.Controls.ZoomBox.Extension\G.Controls.ZoomBox.Extension.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Extensions\G.Extensions.BackgroundImage\G.Extensions.BackgroundImage.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Extensions\G.Extensions.Command\G.Extensions.Command.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Extensions\G.Extensions.Common\G.Extensions.Common.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Extensions\G.Extensions.NewtonsoftJson\G.Extensions.NewtonsoftJson.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Extensions\G.Extensions.ValueConverter\G.Extensions.ValueConverter.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Modules\G.Modules.Project\G.Modules.Project.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Presenters\G.Presenters.Common\G.Presenters.Common.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Windows\G.Windows.Main\G.Windows.Main.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Datas\G.Data.Test\G.Data.Test.csproj" />
+    <ProjectReference Include="..\..\WPF-Control\Source\Extensions\G.Extensions.Geometry\G.Extensions.Geometry.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="IoTClient" Version="1.0.42" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.6.0.20220608" />
+    <PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.6.0.20220608" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Assets\DefaultProjects\projects.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-HSV二值分割.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-Modbus数据通讯.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-ROI区域绘制.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-Yolov5Onnx人脸检测模型.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-Yolov5Onnx目标识别.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-人类语义分割Onnx模型.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-其他模块.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-图像预处理模块.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-多图像源处理.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-对象识别模块.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-年龄推测.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-并行运行流程.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-形态学模块.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-性别分类.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-摄像头数据源.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-数据源.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-数据源模块.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-无缝融合.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-替换背景.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-条件分支.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-模板匹配-图像源.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-模板匹配-视频源.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-滤波模糊模块.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-特征提取.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-特征识别模块.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-色相匹配-图像源.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-色相匹配-视频源.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-车辆马路线.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\样例项目-输出提示消息.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\DefaultProjects\示例项目-二维码识别.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Onnx\age_efficientnet_b2.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Onnx\gender_efficientnet_b2.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Onnx\human_segmentation_pphumanseg_2023mar.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Onnx\lable.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Onnx\lable_zh_cn.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Onnx\yolov5s-face.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Onnx\yolov5s.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Assets\Yolov\yolov3-tiny.weights">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
+

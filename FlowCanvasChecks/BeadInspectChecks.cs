@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Core.Events;
+using Core.Halcon.Geometry;
 using Core.Interfaces;
 using HalconDotNet;
 using Newtonsoft.Json;
@@ -462,14 +463,14 @@ namespace FlowCanvasChecks
 
         // ==================================================================
         //  断言 12：点列增删保序（§6.2 决策 D2：插到最近线段之间；删点后仍可建模型）。
-        //  直接测 BeadPathEditor——配置界面画布拾取用的就是这一份实现（断言=界面行为）。
+        //  直接测 PathEditor——配置界面画布拾取用的就是这一份实现（断言=界面行为）。
         // ==================================================================
         private static void Check12_InsertDeleteOrder()
         {
             // 12b 直线中段插点：点数 +1、插入段正确、走向不变（全部线段同向，不折返）
             double[] lineRows = { 100, 100, 100, 100, 100 };
             double[] lineCols = { 100, 200, 300, 400, 500 };
-            bool insLine = BeadPathEditor.InsertNearest(
+            bool insLine = PathEditor.InsertNearest(
                 lineRows, lineCols, 100, 252, out var lr, out var lc, out int lineIdx, out _);
             bool lineStraight = true;
             for (int i = 2; i < lc.Length; i++)
@@ -484,7 +485,7 @@ namespace FlowCanvasChecks
             // 12c 范例 14 点路径中段插点（第 0~1 点线段中点）：保序 + 无折返 + 总长几乎不变
             double clickR = (RefRows[0] + RefRows[1]) / 2;
             double clickC = (RefCols[0] + RefCols[1]) / 2;
-            bool insRef = BeadPathEditor.InsertNearest(
+            bool insRef = PathEditor.InsertNearest(
                 RefRows, RefCols, clickR, clickC, out var mr, out var mc, out int refIdx, out _);
             bool orderKept = insRef && mr.Length == RefRows.Length + 1 && refIdx == 1;
             if (orderKept)
@@ -511,8 +512,8 @@ namespace FlowCanvasChecks
                 + $"长度 {lenBefore:0.##}→{lenAfter:0.##}");
 
             // 12d 删点后仍可建模型：删 1 点 → 13 点路径仍能建折线 XLD + bead 模型
-            bool del = BeadPathEditor.DeleteNearest(
-                RefRows, RefCols, RefRows[7], RefCols[7], BeadPathEditor.DefaultDeleteTolerance,
+            bool del = PathEditor.DeleteNearest(
+                RefRows, RefCols, RefRows[7], RefCols[7], PathEditor.DefaultDeleteTolerance,
                 out var dr, out var dc, out int delIdx, out _);
             bool rebuilt = false;
             string rebuildErr = string.Empty;
@@ -542,7 +543,7 @@ namespace FlowCanvasChecks
         {
             double total = 0;
             for (int i = 1; i < r.Length; i++)
-                total += BeadPathEditor.Dist(r[i - 1], c[i - 1], r[i], c[i]);
+                total += PathEditor.Dist(r[i - 1], c[i - 1], r[i], c[i]);
             return total;
         }
 

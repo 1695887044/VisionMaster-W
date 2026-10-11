@@ -1,0 +1,27 @@
+﻿global using G.App.VisionMaster.OpenCV.DiagramDatas;
+global using G.App.VisionMaster.OpenCV.NodeDatas;
+global using G.Common.Attributes;
+global using G.Common.Interfaces;
+global using G.Controls.Diagram.Presenter.DiagramDatas;
+global using G.Controls.Diagram.Presenter.DiagramDatas.Base;
+global using G.Extensions.Common;
+global using G.Extensions.FontIcon;
+global using G.Extensions.NewtonsoftJson;
+global using G.Modules.Project;
+global using G.Mvvm.ViewModels.Base;
+global using G.NodeDatas.Onnx.OpenCV.NodeDataGroups;
+global using G.Services.Message;
+global using G.VisionMaster.OpenCV.NodeDataGroups;
+global using Microsoft.Extensions.Options;
+global using System;
+global using System.Collections.Generic;
+global using System.ComponentModel.DataAnnotations;
+global using System.IO;
+global using System.Linq;
+global using System.Threading.Tasks;
+global using System.Windows;
+global using System.Windows.Controls;
+global using G.NodeDatas.Zoo.NodeDatas;
+global using G.VisionMaster.OpenCV.Base;
+global using G.VisionMaster.NodeGroup.Groups.Detector;
+

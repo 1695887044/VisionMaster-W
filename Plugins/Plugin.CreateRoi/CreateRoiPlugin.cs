@@ -27,6 +27,7 @@ namespace Plugin.CreateRoi
         Description = "在图像上创建多个ROI区域,输出裁剪图像",
         ShortName = "\uf1c5"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public partial class CreateRoiPlugin : VisionPluginBase, IPluginCustomViewProvider, IDynamicOutputProvider
     {
         #region 配置参数

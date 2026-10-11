@@ -330,6 +330,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
@@ -338,25 +339,44 @@
                                 <TextBlock
                                     Style="{StaticResource DialogColumnTitleIcon}"
                                     Text="&#xf121;" />
-                                <TextBlock
-                                    Style="{StaticResource DialogColumnTitle}"
-                                    Text="{Binding SelectedBranch.StepName, StringFormat='{}为分支 [ {0} ] 编写逻辑判断表达式'}"
-                                    Visibility="{Binding SelectedBranchNeedsExpression, Converter={ui:BooleanToVisibilityConverter}}" />
-                                <TextBlock
-                                    Style="{StaticResource DialogColumnTitle}"
-                                    Text="逻辑判断表达式"
-                                    Visibility="{Binding SelectedBranchNeedsExpression, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+                                <!--  标题随模式切换：普通=“为分支 [ X ] 编写逻辑判断表达式”；分支匹配=“填写匹配值”
+                                      （拼装收在 VM 的 EditorTitle 一处，XAML 不再并列两块文本各写各的）  -->
+                                <TextBlock Style="{StaticResource DialogColumnTitle}" Text="{Binding EditorTitle}" />
                             </StackPanel>
                         </Border>
 
+                        <!--  分支匹配（Case）模式：判据输入（容器级，只写一次；分支上写匹配值）  -->
+                        <StackPanel
+                            Grid.Row="1"
+                            Margin="12,12,12,0"
+                            Orientation="Horizontal"
+                            Visibility="{Binding IsCaseMode, Converter={ui:BooleanToVisibilityConverter}}">
+                            <TextBlock
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource DialogFormLabel}"
+                                Text="判据" />
+                            <TextBox
+                                Width="220"
+                                Style="{StaticResource DialogInput}"
+                                Text="{Binding JudgeExpressionDraft, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="要拿哪个变量去比对：填变量表里的别名，或运行时变量名" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="按顺序比对：命中第一条匹配值即执行该分支；都不命中走默认分支" />
+                        </StackPanel>
+
                         <!--  快捷插入面板：点一下就把片段插进表达式（按钮的 Tag 即插入内容）  -->
                         <ScrollViewer
-                            Grid.Row="1"
+                            Grid.Row="2"
                             MaxHeight="132"
                             Margin="12,12,12,0"
                             Padding="0,0,4,0"
                             VerticalScrollBarVisibility="Auto"
-                            Visibility="{Binding SelectedBranchNeedsExpression, Converter={ui:BooleanToVisibilityConverter}}">
+                            Visibility="{Binding ShowBooleanEditor, Converter={ui:BooleanToVisibilityConverter}}">
                             <WrapPanel Orientation="Horizontal">
 
                                 <TextBlock
@@ -584,14 +604,14 @@
                             视觉上只做一件事：外面套一层 Dialog 令牌的圆角框，把老式的方角灰边换掉。
                         -->
                         <Border
-                            Grid.Row="2"
+                            Grid.Row="3"
                             Margin="12,12,12,12"
                             Background="{StaticResource DialogInputBackgroundBrush}"
                             BorderBrush="{StaticResource DialogBorderBrush}"
                             BorderThickness="1"
                             ClipToBounds="True"
                             CornerRadius="8"
-                            Visibility="{Binding SelectedBranchNeedsExpression, Converter={ui:BooleanToVisibilityConverter}}">
+                            Visibility="{Binding ShowBooleanEditor, Converter={ui:BooleanToVisibilityConverter}}">
                             <avalonEdit:TextEditor
                                 x:Name="txtExpression"
                                 Padding="10"
@@ -604,11 +624,39 @@
                         </Border>
 
                         <!--
-                            Else / Default 分支：编译器把它的条件强制当作"真"，
-                            留一个写了也白写的编辑器只会误导人（也就那句 ToolTip 的来历）。
+                            分支匹配（Case）：匹配值输入框（替代布尔表达式编辑器）。
+                            单行常量，按判据声明类型转换（CaseValueHelper，与编译器同一判据）；
+                            快捷插入面板刻意不出现 —— 匹配值里没有变量和运算符可插。
                         -->
                         <Border
-                            Grid.Row="2"
+                            Grid.Row="3"
+                            Margin="12,12,12,12"
+                            Background="{StaticResource DialogInputBackgroundBrush}"
+                            BorderBrush="{StaticResource DialogBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Visibility="{Binding ShowCaseValueEditor, Converter={ui:BooleanToVisibilityConverter}}">
+                            <StackPanel Margin="16" VerticalAlignment="Top">
+                                <TextBlock
+                                    Style="{StaticResource DialogHintText}"
+                                    Text="匹配值：判据等于该值时执行本分支（数值 / 布尔 / 字符串等值类型；字符串无需加引号）" />
+                                <TextBox
+                                    Width="260"
+                                    Margin="0,10,0,0"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding SelectedBranch.Expression, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="例如：1 / 2.5 / true / OK" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--
+                            Else / Default 分支：编译器把它的条件强制当作“真”，
+                            留一个写了也白写的编辑器只会误导人（也就那句 ToolTip 的来历）。
+                            分支匹配模式下这段文案换成“默认分支”措辞（NoConditionTitle / NoConditionHintText）。
+                        -->
+                        <Border
+                            Grid.Row="1"
                             Grid.RowSpan="3"
                             Margin="12"
                             Padding="20"
@@ -623,7 +671,7 @@
                                     FontSize="13.5"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                    Text="该分支无需编写条件" />
+                                    Text="{Binding NoConditionTitle}" />
                                 <TextBlock
                                     MaxWidth="480"
                                     Margin="0,10,0,0"
@@ -631,7 +679,7 @@
                                     Style="{StaticResource DialogHintText}"
                                     TextAlignment="Center"
                                     ToolTip="编译器会把这个分支的条件强制替换为恒真表达式，写了也不会执行"
-                                    Text="系统自动将其视为“真”：只有其他分支的条件都不满足时，才会执行本分支的步骤。" />
+                                    Text="{Binding NoConditionHintText}" />
                             </StackPanel>
                         </Border>
                     </Grid>

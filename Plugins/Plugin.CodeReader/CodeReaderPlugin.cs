@@ -47,6 +47,7 @@ namespace Plugin.CodeReader
         Description = "读取一维条码与二维码（Data Matrix / QR / Micro QR / PDF417 / Aztec / DotCode 等）",
         ShortName = "\uf02a"
     )]
+    [ParallelSafe] // 二期真并行：chun shijue jisuan
     public class CodeReaderPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================

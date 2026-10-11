@@ -1,0 +1,5 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+  </ItemGroup>
+</Project>

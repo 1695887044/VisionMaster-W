@@ -1,0 +1,5 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Animations\G.Extensions.Animations.csproj" />
+  </ItemGroup>
+</Project>

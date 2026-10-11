@@ -216,9 +216,42 @@ namespace VisionMaster.Models
         /// 更新步骤运行时状态
         /// 高亮采用"执行指针"语义：新步骤 Running 时从上一个焦点步骤平滑接管，
         /// Success/Failed 不清焦点（保留最近执行高亮，避免毫秒级步骤的高亮闪变不可见）
+        ///
+        /// 【二期真并行：整方法级分支快捷路径（评审低危 14，§3.6）】
+        /// 并行节点不变量：
+        ///   1. 分支步骤只写自己 StepModel 的 State/耗时，绝不触碰 session.FocusedStep——
+        ///      含 Skipped 路径（分支被取消时同样会进来），触碰 = 多分支并发读写单指针，必然撕裂；
+        ///   2. 容器只由父线程写（Running/终态在扇出前/join 后上报）。
+        /// 所以方法开头判定 context 是 ParallelBranchExecutionContext：是 → 只做 State 映射 +
+        /// Running 时 BeginTiming / 完成时 EndTiming，整个方法提前 return，绝不进入焦点交接段。
         /// </summary>
         protected void UpdateStepRuntimeState(IExecutionContext context, StepRuntimeState state)
         {
+            // ===== 分支快捷路径（并行分支线程）：只 State+timing，绝不触碰 FocusedStep =====
+            if (context is ParallelBranchExecutionContext)
+            {
+                var branchStep = Blueprint;
+                if (branchStep != null)
+                {
+                    branchStep.State = state switch
+                    {
+                        StepRuntimeState.Idle => StepState.Idle,
+                        StepRuntimeState.Running => StepState.Running,
+                        StepRuntimeState.Success => StepState.Success,
+                        StepRuntimeState.Failed => StepState.Failed,
+                        StepRuntimeState.Skipped => StepState.Skipped,
+                        _ => StepState.Idle
+                    };
+
+                    if (state == StepRuntimeState.Running)
+                        branchStep.BeginTiming();
+                    else if (state == StepRuntimeState.Success || state == StepRuntimeState.Failed)
+                        branchStep.EndTiming();
+                    // Skipped：不动计时、不动焦点（分支步骤从未拿过焦点）
+                }
+                return;
+            }
+
             if (context is VisionMaster.Services.ExecutionContext execContext && execContext.CurrentSession != null)
             {
                 var session = execContext.CurrentSession;

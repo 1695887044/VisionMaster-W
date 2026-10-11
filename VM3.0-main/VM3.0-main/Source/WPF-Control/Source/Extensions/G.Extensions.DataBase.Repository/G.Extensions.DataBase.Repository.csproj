@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Logger\G.Services.Logger.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Message\G.Services.Message.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Operation\G.Services.Operation.csproj" />
+    <ProjectReference Include="..\G.Extensions.Common\G.Extensions.Common.csproj" />
+    <ProjectReference Include="..\G.Extensions.DataBase\G.Extensions.DataBase.csproj" />
+    <ProjectReference Include="..\G.Extensions.Mvvm\G.Extensions.Mvvm.csproj" />
+    <ProjectReference Include="..\G.Extensions.ObservableSource\G.Extensions.ObservableSource.csproj" />
+  </ItemGroup>
+</Project>

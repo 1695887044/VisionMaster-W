@@ -32,6 +32,7 @@ namespace Plugin.ResultUpload
         GroupName = "数据处理",
         Description = "把检测结果 POST 成 JSON 上报：MES 字段表 / 钉钉·企业微信机器人 / 自定义报文，异步队列不占节拍",
         ShortName = "\uf093")]
+    [ParallelSafe] // 二期真并行：UploadQueue dan xiaofei xiancheng + SpoolLock
     public partial class ResultUploadPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 端口

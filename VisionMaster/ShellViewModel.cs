@@ -1347,11 +1347,12 @@ namespace VisionMaster
                 _hitWindow.Owner = main;
         }
 
-        /// <summary>命中窗「打开模块参数」：复用流程栏同一帮助类（口径只有一份）</summary>
+        /// <summary>命中窗「打开模块参数」：复用流程栏同一帮助类（口径只有一份）。
+        /// workspace 传下去：命中目标是并行分组时，面板保存成功后推进 CurrentFlow.Version（与流程栏同一口径）。</summary>
         private void OpenHitStepParameters()
         {
             if (_hitTargetStep == null) return;
-            StepParameterDialog.Open(_hitTargetStep, dialogService);
+            StepParameterDialog.Open(_hitTargetStep, dialogService, Workspace);
         }
 
         /// <summary>

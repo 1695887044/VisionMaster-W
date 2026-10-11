@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <GeneratePackageOnBuild>Flase</GeneratePackageOnBuild>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Datas\G.Data.Test\G.Data.Test.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.AppPath\G.Extensions.AppPath.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.BackgroundImage\G.Extensions.BackgroundImage.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.FontIcon\G.Extensions.FontIcon.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Dialog\G.Modules.Messages.Dialog.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Setting\G.Modules.Setting.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.SplashScreen\G.Modules.SplashScreen.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Theme\G.Modules.Theme.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Accent\G.Themes.Colors.Accent.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Blue\G.Themes.Colors.Blue.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Copper\G.Themes.Colors.Copper.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Gray\G.Themes.Colors.Gray.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Industrial\G.Themes.Colors.Industrial.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Mineral\G.Themes.Colors.Mineral.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Platform\G.Themes.Colors.Platform.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Purple\G.Themes.Colors.Purple.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Solid\G.Themes.Colors.Solid.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Technology\G.Themes.Colors.Technology.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Themes.Colors.Web\G.Themes.Colors.Web.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Dialog\G.Windows.Dialog.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Main\G.Windows.Main.csproj" />
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+  </ItemGroup>
+</Project>

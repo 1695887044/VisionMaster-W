@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.About\G.Modules.About.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Feedback\G.Modules.Feedback.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Guide\G.Modules.Guide.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Help\G.Modules.Help.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Setting\G.Modules.Setting.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.SplashScreen\G.Modules.SplashScreen.csproj" />
+  </ItemGroup>
+</Project>

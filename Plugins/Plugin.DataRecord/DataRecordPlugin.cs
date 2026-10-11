@@ -43,6 +43,7 @@ namespace Plugin.DataRecord
         GroupName = "数据处理",
         Description = "把每次流程执行的结果按行记录到 CSV 账本，可选同步保存 NG 图片，异步写入不占节拍",
         ShortName = "\uf1c0")]
+    [ParallelSafe] // 二期真并行：RecordingHub BlockingCollection + dan xiaofei xiancheng chuanxing
     public partial class DataRecordPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         /// <summary>图片专用动态端口的固定名字（ImageSaveMode != Off 时存在）。</summary>

@@ -1,0 +1,9 @@
+﻿// Copyright © 2024 By G(https://github.com/G) https://github.com/G/WPF-Control
+
+namespace G.Controls.Diagram.Datas;
+
+public interface IPortDataCreator
+{
+    IPortData CreatePortData();
+}
+

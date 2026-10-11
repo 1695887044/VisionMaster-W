@@ -1,0 +1,16 @@
+﻿<Application x:Class="G.Test.Dock.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:h="https://github.com/G"
+             xmlns:local="clr-namespace:G.Test.Dock"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ColorTheme Type="Dark" />
+                <ConciseStyle/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
+

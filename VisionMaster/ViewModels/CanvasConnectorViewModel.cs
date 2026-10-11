@@ -19,6 +19,10 @@ namespace VisionMaster.ViewModels
             DataType = dataType ?? typeof(object);
             IsInput = isInput;
             DisplayLabel = portName;
+
+            // 常态可连；拖线开始时主 VM 按拓扑改写（不可达端口压灰），结束统一复位。
+            // 默认必须是 true：false 会让首次打开的画布满屏连接点都是压灰态
+            IsConnectable = true;
         }
 
         /// <summary>所属节点</summary>
@@ -46,6 +50,16 @@ namespace VisionMaster.ViewModels
 
         /// <summary>是否已有连线。Nodify 据此决定是否更新 Anchor</summary>
         public bool IsConnected
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
+
+        /// <summary>
+        /// 拖线手势进行中。端口显隐的"拖线中全显"开关（主 VM 在手势开始/结束时统一置位/复位）——
+        /// 未绑定端口平时隐藏，但拖线时必须全部现形让用户看到可用落点。
+        /// </summary>
+        public bool IsDragInProgress
         {
             get => field;
             set => SetProperty(ref field, value);

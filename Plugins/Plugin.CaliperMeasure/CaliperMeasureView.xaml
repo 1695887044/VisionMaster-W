@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.CaliperMeasure"
+    xmlns:ui="clr-namespace:UI.CustomControl;assembly=UI"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     MinWidth="{DynamicResource PluginViewMinWidth}"
     MinHeight="{DynamicResource PluginViewMinHeight}"
@@ -127,19 +128,21 @@
                                 <ColumnDefinition Width="110" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="卡尺数 N" ToolTip="每个搜索区内自动均布的卡尺条数。多点取平均可抗噪；越多越稳但越慢。工业常用起步值 5" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="CaliperCount" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule
-                                                FieldName="卡尺数"
-                                                IntegerOnly="True"
-                                                Max="1000"
-                                                Min="1" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox DecimalPlaces="0" Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="1"
+    Maximum="1000">
+    <ui:NumericBox.Value>
+        <Binding Path="CaliperCount" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule
+                                                        FieldName="卡尺数"
+                                                        IntegerOnly="True"
+                                                        Max="1000"
+                                                        Min="1" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <!--  搜索区列表  -->
@@ -219,15 +222,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="平滑 Sigma" ToolTip="测量前的高斯平滑系数；越大越抗噪、边缘定位越糊。常用 1.0，HALCON 要求 ≥ 0.4" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="Sigma" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="平滑 Sigma" Min="0.4" Max="100" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0.4"
+    Maximum="100">
+    <ui:NumericBox.Value>
+        <Binding Path="Sigma" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="平滑 Sigma" Min="0.4" Max="100" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
@@ -236,15 +241,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="边缘阈值" ToolTip="相邻像素最小灰度差；低于它不算边。太大找不到边，太小噪声当边。常用 30" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EdgeThreshold" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="边缘阈值" Min="1" Max="255" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="1"
+    Maximum="255">
+    <ui:NumericBox.Value>
+        <Binding Path="EdgeThreshold" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="边缘阈值" Min="1" Max="255" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
@@ -343,15 +350,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最大残差(px)" ToolTip="边缘点到拟合几何距离的中位数上限，超限判拟合失败。用中位数口径容忍少量毛刺离群点（与 Tukey 配套）。默认 1.0" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="FitMaxError" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="最大残差" Min="0.05" Max="1000000" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0.05"
+    Maximum="1000000">
+    <ui:NumericBox.Value>
+        <Binding Path="FitMaxError" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="最大残差" Min="0.05" Max="1000000" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
@@ -360,19 +369,21 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最少点数" ToolTip="参与拟合的最少边缘点数，不足判拟合失败。直线 2 点定线、圆 3 点定圆；默认 3" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="FitMinPoints" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule
-                                                FieldName="最少点数"
-                                                IntegerOnly="True"
-                                                Max="1000"
-                                                Min="2" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox DecimalPlaces="0" Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="2"
+    Maximum="1000">
+    <ui:NumericBox.Value>
+        <Binding Path="FitMinPoints" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule
+                                                        FieldName="最少点数"
+                                                        IntegerOnly="True"
+                                                        Max="1000"
+                                                        Min="2" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <!--  环宽：仅圆直径测量显示  -->
@@ -382,15 +393,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="环宽(px)" ToolTip="每把卡尺沿半径方向扫描的总宽度，覆盖圆心/半径的摆放误差（默认 30 = ±15px 容差）。真实圆边落在环内即可检出；过大易扫入相邻特征" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="AnnulusWidth" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="环宽" Min="2" Max="100000" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="2"
+    Maximum="100000">
+    <ui:NumericBox.Value>
+        <Binding Path="AnnulusWidth" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="环宽" Min="2" Max="100000" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <TextBlock
@@ -411,15 +424,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="标准值" ToolTip="名义尺寸；默认 0 是「零容忍」起点，提示你去填实际规格" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="StandardValue" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="标准值" Min="-1000000000" Max="1000000000" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="-1000000000"
+    Maximum="1000000000">
+    <ui:NumericBox.Value>
+        <Binding Path="StandardValue" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="标准值" Min="-1000000000" Max="1000000000" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
@@ -428,15 +443,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="上公差" ToolTip="允许偏差的正向上限（偏差 ≤ 上公差 才 OK）；支持非对称公差，例如 +0.05" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="UpperTolerance" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="上公差" Min="-1000000000" Max="1000000000" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="-1000000000"
+    Maximum="1000000000">
+    <ui:NumericBox.Value>
+        <Binding Path="UpperTolerance" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="上公差" Min="-1000000000" Max="1000000000" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
@@ -445,15 +462,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="下公差" ToolTip="允许偏差的负向下限（偏差 ≥ 下公差 才 OK）；非对称公差请填负数，例如 -0.02" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="LowerTolerance" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="下公差" Min="-1000000000" Max="1000000000" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="-1000000000"
+    Maximum="1000000000">
+    <ui:NumericBox.Value>
+        <Binding Path="LowerTolerance" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="下公差" Min="-1000000000" Max="1000000000" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
@@ -462,15 +481,17 @@
                                 <ColumnDefinition Width="130" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="像素当量(mm/px)" ToolTip="物理值 = 像素测量值 × 像素当量。默认 1.0 = 直接输出像素值（未标定）。已连「标定」插件时以标定值为准（见下方说明）" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="PixelSizeMm" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <local:NumberValidationRule FieldName="像素当量" Min="0.000001" Max="1000000" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0.000001"
+    Maximum="1000000">
+    <ui:NumericBox.Value>
+        <Binding Path="PixelSizeMm" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="像素当量" Min="0.000001" Max="1000000" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
 
                         <TextBlock

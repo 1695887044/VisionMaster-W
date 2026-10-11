@@ -1,0 +1,14 @@
+﻿<h:ApplicationBase x:Class="G.Test.Form.App"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:h="https://github.com/G"
+                   xmlns:local="clr-namespace:G.Test.Form">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ConciseStyle/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</h:ApplicationBase>
+

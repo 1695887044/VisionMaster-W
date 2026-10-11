@@ -1,0 +1,6 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Common\G.Common\G.Common.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+  </ItemGroup>
+</Project>

@@ -188,6 +188,26 @@ namespace VisionMaster.Lifetime
             _log.Info($"[退出链] 开始执行（触发：{trigger}），共 {_exitTasks.Count} 项");
             using var watchdog = new CancellationTokenSource(30_000);
 
+            // 看门狗到期必须"硬停机"，只取消 token 是不够的：本链是被 OnExit 在 UI 线程上
+            // 阻塞等待的，取消若传导不动（续体排不回那条被占住的线程），进程就永远赖着不走
+            // ——连带锁住 Modules\ 里的插件 DLL、单实例互斥体与监听端口，只能靠杀进程收拾。
+            // useSynchronizationContext:false 不可省：默认会把回调投回 UI 线程，而那正是被占住的那条。
+            // 先落盘再 Exit：队列里可能还压着本链的诊断日志，硬停机后没人再替它刷。
+            watchdog.Token.Register(
+                () =>
+                {
+                    if (_log is IDisposable logDisposable)
+                    {
+                        try { logDisposable.Dispose(); } catch { }
+                    }
+                    CrashReportWriter.Write(
+                        new TimeoutException($"退出链总看门狗超时（30s），触发：{trigger}"),
+                        "退出链看门狗",
+                        SafeScene());
+                    Environment.Exit(3);
+                },
+                useSynchronizationContext: false);
+
             for (int i = _exitTasks.Count - 1; i >= 0; i--)
             {
                 var task = _exitTasks[i];
@@ -199,7 +219,10 @@ namespace VisionMaster.Lifetime
                     // **同步跑完** —— CancelAfter 与 30s 看门狗都插不进去，任一设备 Dispose 卡住
                     // 就等于整个退出链挂死（连带草稿转存/日志落盘都做不成）
                     var exec = Task.Run(task.Execute);
-                    var winner = await Task.WhenAny(exec, Task.Delay(Timeout.Infinite, per.Token));
+                    // ConfigureAwait(false)：本方法可能从 UI 线程起步（严重异常路径），续体一旦
+                    // 被排回 Dispatcher，那条线程被占住时同样会把整条链卡死。
+                    var winner = await Task.WhenAny(exec, Task.Delay(Timeout.Infinite, per.Token))
+                        .ConfigureAwait(false);
                     _log.Info(winner == exec
                         ? $"[退出链] ✓ {task.Name}"
                         : $"[退出链] ✗ {task.Name} 超时（{task.TimeoutMs}ms），跳过");
@@ -217,9 +240,14 @@ namespace VisionMaster.Lifetime
             _log.Info("[退出链] 全部完成");
         }
 
-        /// <summary>OnExit 用的阻塞版本（退出阶段已无 UI 需要响应）</summary>
+        /// <summary>
+        /// OnExit 用的阻塞版本（退出阶段已无 UI 需要响应）。
+        /// 整条链必须丢到后台线程起步：OnExit 本身跑在 UI 线程上，若就地 GetResult()，
+        /// 链内 await 的续体要排回这条已被占住的 Dispatcher，两边互等 → 永久卡死
+        /// （关不掉进程，Modules\ 里的插件 DLL 被锁住，构建报 MSB3027）。
+        /// </summary>
         public void ExecuteExitChainBlocking(string trigger)
-            => ExecuteExitChainAsync(trigger).GetAwaiter().GetResult();
+            => Task.Run(() => ExecuteExitChainAsync(trigger)).GetAwaiter().GetResult();
 
         #endregion
     }

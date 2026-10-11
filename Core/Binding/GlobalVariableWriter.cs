@@ -1,4 +1,7 @@
 using Core.Interfaces;
+using System;
+using System.Globalization;
+using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
@@ -13,6 +16,7 @@ namespace VisionMaster.Binding
     /// 2. 类型守门：值的类型必须能赋给变量的声明类型。
     ///    为什么要挡：变量池的类型是下游所有消费方的契约，double 变量被塞进 HImage 之后，
     ///    出错点会漂移到很远的地方（取值方强转失败），最难查；
+    ///    唯一放宽处是**文本**：配置界面只能产出文本，故按声明类型解析一次（见 TryCoerceText）；
     /// 3. 交给 <see cref="IWritableVariable.TryWrite"/> 真正落值——同值也要下发、失败必须带原因，
     ///    这正是该契约相对"直接写 Value setter"的价值所在。
     ///
@@ -62,8 +66,22 @@ namespace VisionMaster.Binding
             var declared = variable.DataType;
             if (value != null && declared != null && !declared.IsInstanceOfType(value))
             {
-                error = $"全局变量「{variable.Name}」的类型是 {declared.Name}，无法写入 {value.GetType().Name}";
-                return false;
+                // ② a 文本按声明类型解析一次。
+                //
+                // 为什么必须放宽这一步：配置界面上的「值」只能产出**文本**（端口是 object，
+                // 手填的常量永远是 string），于是"给 Int32 变量填 21"走到这里必然是 string ——
+                // 硬守门会让这类最普通的用法永远失败（真机 2026-10-10 反馈：
+                // 「全局变量「OKCount」的类型是 Int32，无法写入 String」，界面上无解）。
+                // 口径与运行时变量那条路（VariableAssignmentPlugin 的 Convert.ChangeType）一致：
+                // 能转就转，转不了明确报错。只放宽文本 —— 类型化的值（double 塞进 int 变量）
+                // 仍按原样报错，那多半是上游接线错了，静默截断会把错因推迟到很远的地方。
+                if (!TryCoerceText(value, declared, out var coerced))
+                {
+                    error = $"全局变量「{variable.Name}」的类型是 {declared.Name}，无法写入 {value.GetType().Name}（值 [{value}]）";
+                    return false;
+                }
+
+                value = coerced;
             }
 
             if (variable is IWritableVariable writable)
@@ -79,6 +97,47 @@ namespace VisionMaster.Binding
 
             error = $"全局变量「{variable.Name}」不支持写入（该变量类型未实现可写契约）";
             return false;
+        }
+
+        /// <summary>
+        /// 把**文本**值按变量的声明类型解析一次。
+        ///
+        /// 只管文本：界面能产出的只有文本，而"文本→数值/布尔"正是用户写字面量的方式。
+        /// 数组 / 枚举 / HImage 这类目标一律解析不了 → 返回 false，由调用方报"类型不匹配"。
+        /// Nullable 先剥掉，否则 <c>Nullable&lt;int&gt;</c> 会让 ChangeType 直接抛。
+        ///
+        /// 两条口径：
+        ///   · **不变区域性**（InvariantCulture）：本机的 zh-CN 与不变区域性在小数点上一致（`.`），
+        ///     但显式写死才能保证换机器/换区域设置时同一个方案解析出同一个数；
+        ///   · **数值不许带千分位分隔符**：默认的 Convert 会把 `2,5` 读成 `25` ——
+        ///     用户想写 2.5 而系统静默写成 25，属于"应当报错却改了值"的一类，宁可让他改写法
+        ///     （`1500` 写错成 `1,500` 会被拒，重打一遍就好）。
+        /// </summary>
+        private static bool TryCoerceText(object value, Type declared, out object? coerced)
+        {
+            coerced = value;
+            if (value is not string raw)
+                return false;
+
+            var text = raw.Trim();
+            var target = Nullable.GetUnderlyingType(declared) ?? declared;
+
+            if (text.Length == 0)
+                return false;
+
+            if (TypeHelper.IsNumericType(target) && text.IndexOf(',') >= 0)
+                return false;
+
+            try
+            {
+                coerced = Convert.ChangeType(text, target, CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch
+            {
+                // 解析不了就交给调用方报错（错误信息里带上原值，用户才知道是哪个值被拒了）
+                return false;
+            }
         }
     }
 }

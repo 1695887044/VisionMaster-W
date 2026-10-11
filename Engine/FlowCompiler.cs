@@ -196,6 +196,29 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 按名字在已编译参数表里找声明类型（局部变量别名 / 运行时变量名）。
+        /// 重名时取**先出现**的那条——与表达式实际解析顺序一致（先加入 delegateParams 的先绑定），
+        /// 判据解析必须和运行期取值认同一个变量，否则判据值和匹配值来自两个不同的源。
+        /// </summary>
+        private static bool TryResolveParamType(List<Parameter> delegateParams, string name, out Type type)
+        {
+            type = null;
+            if (delegateParams == null || string.IsNullOrEmpty(name))
+                return false;
+
+            foreach (var p in delegateParams)
+            {
+                if (string.Equals(p.Name, name, StringComparison.Ordinal))
+                {
+                    type = p.Type;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 条件变量是否已在步骤连线里出现。
         /// 键口径：条件编辑器写回时用**变量 Id 的字符串**当键（见 CompiledIfNode 侧按 Guid 解析）；
         /// 为兼容旧数据，按变量名做键的写法也认。
@@ -252,12 +275,23 @@ namespace VisionMaster.Services
             return result;
         }
 
+        /// <summary>
+        /// 编译步骤序列。
+        ///
+        /// 【二期真并行：inParallelBranch 环境传播（评审高危 5，§5.1）】
+        /// true = 当前正编译"ExecutionMode==Parallel 的并行分组"的分支内步骤
+        /// （含嵌套：分支内 If/For/While/内层容器的子步骤原样继承 true）。
+        /// 此标志下编译出的 CompiledPluginNode 一律查 [ParallelSafe]（未标注报
+        /// [并行不安全] 编译错误）；它覆盖两个绕过口：分支内 If/循环体藏未标注算子、
+        /// 外层 Parallel 分支内的内层组（Sequential 内层组的节点仍与其它外层分支真并发）。
+        /// </summary>
         private List<CompiledNode> CompileSteps(
             IEnumerable<StepModel> models,
             string? flowName,
             Dictionary<Guid, IVisionPlugin> pluginLookup,
             Dictionary<Guid, CompiledNode> nodeLookup,
-            List<CompilationError> errors
+            List<CompilationError> errors,
+            bool inParallelBranch = false
         )
         {
             var compiledNodes = new List<CompiledNode>();
@@ -319,7 +353,8 @@ namespace VisionMaster.Services
                                 flowName,
                                 pluginLookup,
                                 nodeLookup,
-                                errors
+                                errors,
+                                inParallelBranch   // While 循环体继承外层的并行分支环境（§5.1）
                             );
                         }
 
@@ -381,6 +416,53 @@ namespace VisionMaster.Services
                     var (runtimeVarNames, runtimeVarTypes) = CompileRuntimeVarRefs(
                         model, conditionModel.RuntimeVariableRefs, delegateParams, errors);
 
+                    // ==========================================
+                    // 分支匹配（Case）容器：判据只解析一次
+                    // 每个 Case 分支的 Expression 存的是"匹配值文本"，条件由编译器合成
+                    // 「判据 == 常量」；判据/类型/值三处校验都收在这里，值转换口径与编辑器共用
+                    // CaseValueHelper（单一判据：编辑器放行的、编译器必然也放行）。
+                    // ==========================================
+                    var caseModel = model as CaseStep;
+                    Type caseJudgeType = null;
+                    string caseJudgeText = null;
+                    string caseParamName = null;
+                    var caseValues = new HashSet<object>();
+                    bool caseBranchSeen = false;
+
+                    if (caseModel != null)
+                    {
+                        caseJudgeText = caseModel.JudgeExpression?.Trim();
+
+                        if (string.IsNullOrWhiteSpace(caseJudgeText))
+                        {
+                            errors.Add(
+                                Err(model, $"[编译错误] 分支匹配容器 '{model.StepName}' 的判据表达式为空——判据即“拿哪个变量去比对”，请先在上方变量表里声明并填写。")
+                            );
+                        }
+                        else if (!TryResolveParamType(delegateParams, caseJudgeText, out caseJudgeType))
+                        {
+                            // 不拦的话 DynamicExpresso 只回一句 "Unknown identifier 'X'"，操作人员看不出该去哪补
+                            errors.Add(
+                                Err(model, $"[编译错误] 分支匹配容器 '{model.StepName}' 的判据 '{caseJudgeText}' 不是本容器已声明的变量（请新增该输入变量，或改用运行时变量名）。")
+                            );
+                        }
+                        else if (!CaseValueHelper.IsSupportedJudgeType(caseJudgeType))
+                        {
+                            errors.Add(
+                                Err(model, $"[编译错误] 分支匹配容器 '{model.StepName}' 的判据 '{caseJudgeText}' 类型为 {DescribeType(caseJudgeType)}，不支持等于匹配（仅支持数值 / 布尔 / 字符串等值类型）。")
+                            );
+                            caseJudgeType = null;
+                        }
+                        else
+                        {
+                            // 常量参数名做防撞：用户变量别名允许下划线开头，理论可能与固定名重名，
+                            // 重名会让 Parse 直接把常量绑定到用户的变量上（静默错值），必须避开
+                            caseParamName = "__caseValue";
+                            while (delegateParams.Any(p => string.Equals(p.Name, caseParamName, StringComparison.Ordinal)))
+                                caseParamName += "_";
+                        }
+                    }
+
                     // 编译分支
                     // 顺序校验（P1-3）：Else/Default 的条件被编译成恒真，其后任何分支都不可能被命中
                     bool elseSeen = false;
@@ -391,9 +473,13 @@ namespace VisionMaster.Services
                             flowName,
                             pluginLookup,
                             nodeLookup,
-                            errors
+                            errors,
+                            inParallelBranch   // If 分支继承外层的并行分支环境（§5.1）
                         );
                         Lambda compiledCondition = null;
+
+                        // Case 分支的匹配值（编译期归一后的常量实参），随 CompiledBranch 交给运行期注入
+                        object constantArg = null;
 
                         bool isElseLike =
                             childCollection.BranchType == BranchType.Else
@@ -428,7 +514,71 @@ namespace VisionMaster.Services
                                 );
                             }
 
-                            if (string.IsNullOrWhiteSpace(childCollection.Expression))
+                            if (caseModel != null)
+                            {
+                                // 分支匹配容器：只认 Case 分支。混装 If/ElseIf 直接拦下——
+                                // 同一个容器里"这个分支的 Expression 到底当表达式还是当匹配值"
+                                // 必须只有一个口径，否则编辑器、编译器、显示名各说各话。
+                                if (childCollection.BranchType != BranchType.Case)
+                                {
+                                    errors.Add(
+                                        Err(model, $"[编译错误] 分支匹配容器 '{model.StepName}' 里不能混用 '{childCollection.StepName}' 这类 If/ElseIf 分支，请删除它或改为 Case 分支。")
+                                    );
+                                }
+                                else if (caseJudgeType == null)
+                                {
+                                    // 判据本身有问题时上面已统一报错，这里不再连带刷屏
+                                }
+                                else if (string.IsNullOrWhiteSpace(childCollection.Expression))
+                                {
+                                    errors.Add(
+                                        Err(model, $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' 匹配值为空。")
+                                    );
+                                }
+                                else if (
+                                    !CaseValueHelper.TryConvert(childCollection.Expression, caseJudgeType, out var caseValue, out var caseError)
+                                )
+                                {
+                                    errors.Add(
+                                        Err(model, $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' {caseError}。")
+                                    );
+                                }
+                                else if (!caseValues.Add(caseValue))
+                                {
+                                    errors.Add(
+                                        Err(model, $"[编译错误] '{model.StepName}' 的分支 '{childCollection.StepName}' 的匹配值与前面某条 Case 分支重复，永远不会被执行（不可达分支），请删掉或改值。")
+                                    );
+                                }
+                                else
+                                {
+                                    caseBranchSeen = true;
+                                    try
+                                    {
+                                        // 合成「判据 == 常量」：常量以追加参数承载（不拼字面量文本，
+                                        // 字符串转义 / 数值类型陷阱都不经过文本层）
+                                        compiledCondition = CreateInterpreter().Parse(
+                                            $"{caseJudgeText} == {caseParamName}",
+                                            typeof(bool),
+                                            delegateParams.Concat(new[] { new Parameter(caseParamName, caseJudgeType) }).ToArray()
+                                        );
+                                        constantArg = caseValue;
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        errors.Add(
+                                            Err(model, $"[语法错误] 分支匹配节点 '{model.StepName}' 的判据 '{caseJudgeText}' 编译失败: {ex.Message}")
+                                        );
+                                    }
+                                }
+                            }
+                            else if (childCollection.BranchType == BranchType.Case)
+                            {
+                                // 手改 .vms 才会出现的场景：Case 分支塞进了普通 If 容器
+                                errors.Add(
+                                    Err(model, $"[编译错误] 节点 '{model.StepName}' 的分支 '{childCollection.StepName}' 是 Case 分支，但容器不是「分支匹配」算子——Case 分支只能在分支匹配容器里使用。")
+                                );
+                            }
+                            else if (string.IsNullOrWhiteSpace(childCollection.Expression))
                             {
                                 // 措辞纠偏：errors.Add 会阻断编译（Success=Errors.Count==0），这是硬错误不是警告
                                 errors.Add(
@@ -463,9 +613,22 @@ namespace VisionMaster.Services
                                 RuntimeVarNames = runtimeVarNames,
                                 RuntimeVarTypes = runtimeVarTypes,
                                 ExecutionSteps = childNodes,
+                                ConstantArgument = constantArg,
                             }
                         );
                     }
+
+                    // 分支匹配容器至少要有一条 Case 分支（构造器默认建一条；手改 .vms 可能删光——
+                    // 只剩兜底分支的"分支匹配"是个永远走默认的空壳，如实报错而不是假装编译成功）。
+                    // 判据本身无效时不叠加这条：此时每条 Case 分支都被跳过（caseBranchSeen 恒 false），
+                    // 再报"没有可用的 Case 分支"会把用户引向错误方向（匹配值其实填了，病根在判据）。
+                    if (caseModel != null && caseJudgeType != null && !caseBranchSeen)
+                    {
+                        errors.Add(
+                            Err(model, $"[编译错误] 分支匹配容器 '{model.StepName}' 没有可用的 Case 分支（每条 Case 分支都需要填写匹配值），请至少补一条。")
+                        );
+                    }
+
                     compiledNodes.Add(ifNode);
                 }
                 // ==========================================
@@ -485,11 +648,72 @@ namespace VisionMaster.Services
                             flowName,
                             pluginLookup,
                             nodeLookup,
-                            errors
+                            errors,
+                            inParallelBranch   // For 循环体继承外层的并行分支环境（§5.1）
                         );
                     }
 
                     compiledNodes.Add(forNode);
+                }
+                // ==========================================
+                // 🎯 场景 A-3：并行分组节点（第一期：顺序逐分支，跑完即汇合）
+                // 放在 ForStep 之后、BuiltIn_* 之前——ParallelStep 是独立类型，
+                // 但必须先于兜底的"反射实例化视觉算子"分支命中
+                // ==========================================
+                else if (model is ParallelStep parallelModel)
+                {
+                    var parallelNode = new CompiledParallelNode
+                    {
+                        Id = model.StepID,
+                        Name = model.StepName,
+                        StepName = model.StepName,
+                        Blueprint = model,
+                    };
+                    nodeLookup.Add(model.StepID, parallelNode);
+
+                    if (parallelModel.Children == null || parallelModel.Children.Count == 0)
+                    {
+                        // 与 While 无分支同口径：编译出来的空并行组是个空操作，用户拿到
+                        // "编译成功"却什么都没跑——硬错误，不给假绿
+                        errors.Add(
+                            Err(
+                                model,
+                                $"[编译错误] 并行分组 '{model.StepName}' 没有任何分支，请至少保留一条分支。"
+                            )
+                        );
+                    }
+                    else
+                    {
+                        foreach (var branch in parallelModel.Children)
+                        {
+                            var steps = branch?.Steps != null
+                                ? CompileSteps(branch.Steps, flowName, pluginLookup, nodeLookup, errors,
+                                    // 并行分组分支内步骤：ExecutionMode==Parallel 时门禁置 true（§5.1）；
+                                    // Sequential 时原样继承外层值（嵌套于另一 Parallel 分支内的 Sequential 组
+                                    // 仍与其它外层分支真并发，必须继续受门禁保护——评审高危 5 的绕过口之二）
+                                    parallelModel.ExecutionMode == VisionMaster.Models.ParallelExecutionMode.Parallel || inParallelBranch)
+                                : new List<CompiledNode>();
+                            parallelNode.Branches.Add(steps);
+                        }
+
+                        if (parallelModel.Children.Count > ParallelStep.RecommendedMaxBranches)
+                        {
+                            // 分支过多是"观感/可维护性"问题不是图纸错误：CompilationResult 没有
+                            // 警告通道（Errors 非空 = 编译失败），塞进 Errors 会把能跑的图纸拦死。
+                            // 落到编译产物的旁注里，运行首圈由引擎日志带出（不拦截、不静默）。
+                            parallelNode.CompileNotes = new List<string>
+                            {
+                                $"并行分组 '{model.StepName}' 有 {parallelModel.Children.Count} 条分支，"
+                                    + $"超过建议上限 {ParallelStep.RecommendedMaxBranches}——画布泳道会很宽，建议拆成多个并行组。",
+                            };
+                        }
+                    }
+
+                    compiledNodes.Add(parallelNode);
+
+                    // 二期真并行（§5.3）：Parallel 模式的并行分组做变量写冲突静态检查
+                    // （Runtime + Global 双口径）。不阻断上面的节点装配——错误进 errors 即编译失败。
+                    CheckParallelVariableWriteConflicts(parallelModel, errors);
                 }
                 else if (model.PluginTypeName == "BuiltIn_Break")
                 {
@@ -576,10 +800,37 @@ namespace VisionMaster.Services
                     var pluginNode = new CompiledPluginNode { Id = model.StepID, Name = model.StepName, StepName = model.StepName, ExternalPlugin = plugin, Blueprint = model };
                     nodeLookup.Add(model.StepID, pluginNode);
                     compiledNodes.Add(pluginNode);
+
+                    // ===== 二期真并行：编译期门禁（§5.2）=====
+                    // inParallelBranch=true 的分支内，算子必须声明 [ParallelSafe]（容器/控制流节点
+                    // 不受限——引擎自产代码，线程安全由并行节点设计保证）。
+                    // 硬件类算子（相机/运动）、用户脚本（CSharpScript/ImageScript）、写全局/整文件重写的
+                    // 算子通过"不标注"自然落入本门禁。
+                    if (inParallelBranch && !IsParallelSafe(plugin.GetType()))
+                    {
+                        errors.Add(
+                            Err(model,
+                                $"[并行不安全] 分支内步骤 '{model.StepName}'（算子 {plugin.GetType().Name}）未声明 [ParallelSafe]，" +
+                                "不能进入并行执行模式的并行分组（请将其移出并行组，或将并行组切回顺序模式）。")
+                        );
+                    }
                 }
             }
             return compiledNodes;
         }
+
+        /// <summary>
+        /// 【二期真并行】判断算子类型是否声明 [ParallelSafe]。
+        ///
+        /// 为什么按特性类型 FullName 字符串匹配而不是 typeof 等值：
+        /// AGENTS.md 红线 2"两份 Core.Interfaces.dll"场景下程序集身份不一致，
+        /// typeof(ParallelSafeAttribute) 等值判 false——"明明标了还报不安全"。
+        /// FullName 字符串匹配不受程序集身份影响（§5.2）。
+        /// </summary>
+        private static bool IsParallelSafe(Type t) =>
+            t.GetCustomAttributes(false).Any(a => string.Equals(
+                a.GetType().FullName, "Core.Interfaces.ParallelSafeAttribute",
+                StringComparison.Ordinal));
 
         private void LinkPorts(
             IEnumerable<StepModel> models,
@@ -1105,6 +1356,87 @@ namespace VisionMaster.Services
             if (!deps.Contains(upstream))
                 deps.Add(upstream);
         }
+
+
+        ///
+        /// 同一 ParallelStep（ExecutionMode==Parallel）下，多个 VariableAssignmentPlugin 步骤的
+        /// VariableName 端口可静态解析出同名常量（值非链接）时：
+        ///  · Scope=Runtime → [并行变量写冲突] 编译错误；
+        ///  · Scope=Global  → [并行全局变量写冲突] 编译错误（F13 已核对：全局写路径无锁，
+        ///    LocalVariableModel.Value setter 直接触发 ValueChanged 多播，通信回写/SCADA/监视
+        ///    订阅者会被多线程调用）。
+        /// 变量名来自链接/脚本等运行期来源 → 无法静态判定，运行期 Warn 兜底
+        /// （合并冲突告警只覆盖 Runtime 影子；Global 写无运行期拦截——写全局的插件已被
+        /// 标注清单挡在并行分支外）。
+        /// 图纸纪律：并行分支内避免写全局变量；确需写时每轮只允许一个分支写同一变量。
+        /// </summary>
+        private static void CheckParallelVariableWriteConflicts(
+            ParallelStep parallelModel,
+            List<CompilationError> errors)
+        {
+            if (parallelModel.ExecutionMode != VisionMaster.Models.ParallelExecutionMode.Parallel || parallelModel.Children == null)
+                return;
+
+            // 静态可解析口径：端口键 "Name" 有常量值且未连线（连线/运行期来源跳过——不误报，
+            // 运行期有记账告警兜底）。Scope 缺省按 Runtime（端口默认值即 Runtime）。
+            var runtimeWrites = new Dictionary<string, List<StepModel>>(StringComparer.Ordinal);
+            var globalWrites = new Dictionary<string, List<StepModel>>(StringComparer.Ordinal);
+
+            foreach (var branch in parallelModel.Children)
+            {
+                if (branch?.Steps == null) continue;
+                foreach (var step in branch.Steps)
+                {
+                    if (step == null || step.IsDisEnable) continue;
+                    // 只查 VariableAssignmentPlugin（按类型 FullName 字符串认——与 IsParallelSafe
+                    // 同理由：两份 Core.Interfaces.dll 场景下类型身份不可靠，且编译器不引用插件工程）
+                    if (!IsVariableAssignmentPlugin(step)) continue;
+
+                    if (step.LinkedSources != null && step.LinkedSources.ContainsKey("Name"))
+                        continue; // 变量名来自连线：无法静态判定
+
+                    if (!(step.InputValues != null && step.InputValues.TryGetValue("Name", out var nameObj)
+                          && nameObj is string varName && !string.IsNullOrWhiteSpace(varName)))
+                        continue; // 没填变量名：既有必填检查会另报，这里不重复
+
+                    bool isGlobal = step.InputValues != null
+                        && step.InputValues.TryGetValue("Scope", out var scopeObj)
+                        && string.Equals(scopeObj?.ToString(), "Global", StringComparison.OrdinalIgnoreCase);
+
+                    var target = isGlobal ? globalWrites : runtimeWrites;
+                    if (!target.TryGetValue(varName, out var list))
+                        target[varName] = list = new List<StepModel>();
+                    list.Add(step);
+                }
+            }
+
+            foreach (var kvp in runtimeWrites)
+            {
+                if (kvp.Value.Count >= 2)
+                    errors.Add(Err(kvp.Value[1],
+                        $"[并行变量写冲突] 并行分组 '{parallelModel.StepName}' 的多条分支同时写运行时变量 '{kvp.Key}'"
+                        + $"（步骤：{string.Join("、", kvp.Value.Select(s => $"'{s.StepName}'"))}）。"
+                        + "并行汇合按分支声明序取后者覆盖，取值随调度时序漂移——请各分支写各自变量，汇合后再聚合。"));
+            }
+
+            foreach (var kvp in globalWrites)
+            {
+                if (kvp.Value.Count >= 2)
+                    errors.Add(Err(kvp.Value[1],
+                        $"[并行全局变量写冲突] 并行分组 '{parallelModel.StepName}' 的多条分支同时写全局变量 '{kvp.Key}'"
+                        + $"（步骤：{string.Join("、", kvp.Value.Select(s => $"'{s.StepName}'"))}）。"
+                        + "全局变量写路径无锁（订阅者被多线程调用），并行写同名全局变量必然互踩——"
+                        + "每轮只允许一个分支写同一变量。"));
+            }
+        }
+
+        /// <summary>
+        /// 是否「变量赋值」步骤：按 PluginTypeName 含 VariableAssignmentPlugin 判
+        /// （AssemblyQualifiedName 前缀即类型全名的一部分，与 IsParallelSafe 的字符串口径同理）。
+        /// </summary>
+        private static bool IsVariableAssignmentPlugin(StepModel step) =>
+            step.PluginTypeName != null
+            && step.PluginTypeName.Contains("VariableAssignmentPlugin", StringComparison.Ordinal);
 
         /// <summary>
         /// 结构层取数合法性检查：把「数据依赖倒序」与「跨分支取数」挡在编译期。

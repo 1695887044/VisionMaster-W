@@ -1,0 +1,378 @@
+﻿{
+  "$type": "System.Collections.ObjectModel.ObservableCollection`1[[H.App.VisionMaster.OpenCV.DiagramDatas.IVisionOpenCVDiagramData, H.App.VisionMaster.OpenCV]], System.ObjectModel",
+  "$values": [
+    {
+      "$type": "G.App.VisionMaster.OpenCV.DiagramDatas.VisionImageOpenCVDiagramData, H.App.VisionMaster.OpenCV",
+      "ResultType": "输出结果<AKAZE>",
+      "ImageDatas": {
+        "$type": "System.Collections.ObjectModel.ObservableCollection`1[[H.App.VisionMaster.OpenCV.Model.IImageData, H.App.VisionMaster.OpenCV]], System.ObjectModel",
+        "$values": []
+      },
+      "UseAutoSwitch": true,
+      "UseFlowableSelectToRunning": true,
+      "FlowableNodeDatas": {
+        "$type": "System.Linq.Enumerable+<OfTypeIterator>d__65`1[[H.Controls.Diagram.Presenter.Flowables.IFlowableNodeData, H.Controls.Diagram.Presenter]], System.Linq",
+        "$values": [
+          {
+            "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Image.OpenCVSrcImageNodeData,H.Controls.Diagram.Presenters.OpenCV",
+            "FlagLength": 10.0,
+            "Text": "图像源",
+            "FontSize": 12.0,
+            "PortDatas": {
+              "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+              "$values": [
+                {
+                  "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                  "FontSize": 12.0,
+                  "StrokeThickness": 1.0,
+                  "Dock": "Bottom",
+                  "NodeID": "e2e325d9-2ce2-4f87-aecf-0f91a4ed943c",
+                  "PortType": "OutPut",
+                  "ID": "ddf91143-9d3c-4b0d-844c-bb05301a478b",
+                  "Icon": ""
+                }
+              ]
+            },
+            "Location": "504.00000000000006,595.5",
+            "IsTemplate": false,
+            "Height": 60.0,
+            "Width": 180.0,
+            "ID": "e2e325d9-2ce2-4f87-aecf-0f91a4ed943c",
+            "Name": "图像源",
+            "Icon": ""
+          },
+          {
+            "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Feature.AKazeFeatureDetector, H.Controls.Diagram.Presenters.OpenCV",
+            "DescriptorType": "MLDB",
+            "DescriptorChannels": 3,
+            "Threshold": 0.001,
+            "nOctaves": 4,
+            "nOctaveLayers": 4,
+            "Diffusivity": "DiffPmG2",
+            "FlagLength": 10.0,
+            "Text": "AKAZE",
+            "FontSize": 12.0,
+            "PortDatas": {
+              "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+              "$values": [
+                {
+                  "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                  "FontSize": 12.0,
+                  "StrokeThickness": 1.0,
+                  "Dock": "Top",
+                  "NodeID": "3871ae37-b90f-4c32-8052-18e9b573b512",
+                  "PortType": "Input",
+                  "ID": "4366a326-3864-48b0-a424-62822ca3b164",
+                  "Icon": ""
+                },
+                {
+                  "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                  "FontSize": 12.0,
+                  "StrokeThickness": 1.0,
+                  "Dock": "Bottom",
+                  "NodeID": "3871ae37-b90f-4c32-8052-18e9b573b512",
+                  "PortType": "OutPut",
+                  "ID": "2c9531f9-c788-4606-98f1-9f54be52d96f",
+                  "Icon": ""
+                }
+              ]
+            },
+            "Location": "504.00000000000006,725.5",
+            "IsTemplate": false,
+            "Height": 60.0,
+            "Width": 180.0,
+            "IsSelected": true,
+            "ID": "3871ae37-b90f-4c32-8052-18e9b573b512",
+            "Name": "AKAZE",
+            "Icon": ""
+          }
+        ]
+      },
+      "Name": "AKAZE",
+      "Width": 1000.0,
+      "Height": 1500.0,
+      "Location": "1000,650",
+      "Message": "选中节点 - AKAZE",
+      "Datas": {
+        "$type": "G.Controls.Diagram.Presenter.DiagramDatas.Base.Datas, H.Controls.Diagram.Presenter",
+        "NodeDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.INodeData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Image.OpenCVSrcImageNodeData,H.Controls.Diagram.Presenters.OpenCV",
+              "FlagLength": 10.0,
+              "Text": "图像源",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                    "FontSize": 12.0,
+                    "StrokeThickness": 1.0,
+                    "Dock": "Bottom",
+                    "NodeID": "e2e325d9-2ce2-4f87-aecf-0f91a4ed943c",
+                    "PortType": "OutPut",
+                    "ID": "ddf91143-9d3c-4b0d-844c-bb05301a478b",
+                    "Icon": ""
+                  }
+                ]
+              },
+              "Location": "504.00000000000006,595.5",
+              "IsTemplate": false,
+              "Height": 60.0,
+              "Width": 180.0,
+              "ID": "e2e325d9-2ce2-4f87-aecf-0f91a4ed943c",
+              "Name": "图像源",
+              "Icon": ""
+            },
+            {
+              "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Feature.AKazeFeatureDetector, H.Controls.Diagram.Presenters.OpenCV",
+              "DescriptorType": "MLDB",
+              "DescriptorChannels": 3,
+              "Threshold": 0.001,
+              "nOctaves": 4,
+              "nOctaveLayers": 4,
+              "Diffusivity": "DiffPmG2",
+              "FlagLength": 10.0,
+              "Text": "AKAZE",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                    "FontSize": 12.0,
+                    "StrokeThickness": 1.0,
+                    "Dock": "Top",
+                    "NodeID": "3871ae37-b90f-4c32-8052-18e9b573b512",
+                    "PortType": "Input",
+                    "ID": "4366a326-3864-48b0-a424-62822ca3b164",
+                    "Icon": ""
+                  },
+                  {
+                    "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                    "FontSize": 12.0,
+                    "StrokeThickness": 1.0,
+                    "Dock": "Bottom",
+                    "NodeID": "3871ae37-b90f-4c32-8052-18e9b573b512",
+                    "PortType": "OutPut",
+                    "ID": "2c9531f9-c788-4606-98f1-9f54be52d96f",
+                    "Icon": ""
+                  }
+                ]
+              },
+              "Location": "504.00000000000006,725.5",
+              "IsTemplate": false,
+              "Height": 60.0,
+              "Width": 180.0,
+              "IsSelected": true,
+              "ID": "3871ae37-b90f-4c32-8052-18e9b573b512",
+              "Name": "AKAZE",
+              "Icon": ""
+            }
+          ]
+        },
+        "LinkDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.ILinkData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$type": "G.Controls.Diagram.Presenter.LinkDatas.FlowableLinkData, H.Controls.Diagram.Presenter",
+              "FontSize": 12.0,
+              "FromNodeID": "e2e325d9-2ce2-4f87-aecf-0f91a4ed943c",
+              "ToNodeID": "3871ae37-b90f-4c32-8052-18e9b573b512",
+              "FromPortID": "ddf91143-9d3c-4b0d-844c-bb05301a478b",
+              "ToPortID": "4366a326-3864-48b0-a424-62822ca3b164",
+              "ID": "6e479ce0-3291-47ec-b386-cee0178c8774",
+              "Name": "连线"
+            }
+          ]
+        }
+      },
+      "ID": "16a58f0f-78da-4a30-969e-3286778240b0"
+    },
+    {
+      "$type": "G.App.VisionMaster.OpenCV.DiagramDatas.VisionImageOpenCVDiagramData, H.App.VisionMaster.OpenCV",
+      "ResultType": "图像源<lenna>",
+      "ImageDatas": {
+        "$type": "System.Collections.ObjectModel.ObservableCollection`1[[H.App.VisionMaster.OpenCV.Model.IImageData, H.App.VisionMaster.OpenCV]], System.ObjectModel",
+        "$values": []
+      },
+      "UseAutoSwitch": true,
+      "UseFlowableSelectToRunning": true,
+      "FlowableNodeDatas": {
+        "$type": "System.Linq.Enumerable+<OfTypeIterator>d__65`1[[H.Controls.Diagram.Presenter.Flowables.IFlowableNodeData, H.Controls.Diagram.Presenter]], System.Linq",
+        "$values": [
+          {
+            "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Image.OpenCVSrcImageNodeData,H.Controls.Diagram.Presenters.OpenCV",
+            "FlagLength": 10.0,
+            "Text": "图像源",
+            "FontSize": 12.0,
+            "PortDatas": {
+              "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+              "$values": [
+                {
+                  "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                  "FontSize": 12.0,
+                  "StrokeThickness": 1.0,
+                  "Dock": "Bottom",
+                  "NodeID": "e5cd06fb-93e5-4a18-a137-bf427d680ea4",
+                  "PortType": "OutPut",
+                  "ID": "4329b62c-3a08-419c-9d8a-ba318ac370f4",
+                  "Icon": ""
+                }
+              ]
+            },
+            "Location": "516,591.5",
+            "IsTemplate": false,
+            "Height": 60.0,
+            "Width": 180.0,
+            "ID": "e5cd06fb-93e5-4a18-a137-bf427d680ea4",
+            "Name": "图像源",
+            "Icon": ""
+          },
+          {
+            "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Feature.BriskFeatureDetector, H.Controls.Diagram.Presenters.OpenCV",
+            "UseRectangle": true,
+            "Threshold": 30,
+            "Octaves": 3,
+            "PatternScale": 1.0,
+            "FlagLength": 10.0,
+            "Text": "BRISK",
+            "FontSize": 12.0,
+            "PortDatas": {
+              "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+              "$values": [
+                {
+                  "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                  "FontSize": 12.0,
+                  "StrokeThickness": 1.0,
+                  "Dock": "Top",
+                  "NodeID": "b61b1d22-28bf-480d-9d1e-d4c715c7c96a",
+                  "PortType": "Input",
+                  "ID": "b780cbe6-7433-472f-b73a-f9d32f40193c",
+                  "Icon": ""
+                },
+                {
+                  "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                  "FontSize": 12.0,
+                  "StrokeThickness": 1.0,
+                  "Dock": "Bottom",
+                  "NodeID": "b61b1d22-28bf-480d-9d1e-d4c715c7c96a",
+                  "PortType": "OutPut",
+                  "ID": "26e21a1a-7152-406b-818b-807ba36bd5e5",
+                  "Icon": ""
+                }
+              ]
+            },
+            "Location": "516,721.5",
+            "IsTemplate": false,
+            "Height": 60.0,
+            "Width": 180.0,
+            "ID": "b61b1d22-28bf-480d-9d1e-d4c715c7c96a",
+            "Name": "BRISK",
+            "Icon": ""
+          }
+        ]
+      },
+      "Name": "BRISK",
+      "Width": 1000.0,
+      "Height": 1500.0,
+      "Location": "1000,650",
+      "Datas": {
+        "$type": "G.Controls.Diagram.Presenter.DiagramDatas.Base.Datas, H.Controls.Diagram.Presenter",
+        "NodeDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.INodeData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Image.OpenCVSrcImageNodeData,H.Controls.Diagram.Presenters.OpenCV",
+              "FlagLength": 10.0,
+              "Text": "图像源",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                    "FontSize": 12.0,
+                    "StrokeThickness": 1.0,
+                    "Dock": "Bottom",
+                    "NodeID": "e5cd06fb-93e5-4a18-a137-bf427d680ea4",
+                    "PortType": "OutPut",
+                    "ID": "4329b62c-3a08-419c-9d8a-ba318ac370f4",
+                    "Icon": ""
+                  }
+                ]
+              },
+              "Location": "516,591.5",
+              "IsTemplate": false,
+              "Height": 60.0,
+              "Width": 180.0,
+              "ID": "e5cd06fb-93e5-4a18-a137-bf427d680ea4",
+              "Name": "图像源",
+              "Icon": ""
+            },
+            {
+              "$type": "G.Controls.Diagram.Presenters.OpenCV.NodeDatas.Feature.BriskFeatureDetector, H.Controls.Diagram.Presenters.OpenCV",
+              "UseRectangle": true,
+              "Threshold": 30,
+              "Octaves": 3,
+              "PatternScale": 1.0,
+              "FlagLength": 10.0,
+              "Text": "BRISK",
+              "FontSize": 12.0,
+              "PortDatas": {
+                "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.IPortData, H.Controls.Diagram]], System.Private.CoreLib",
+                "$values": [
+                  {
+                    "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                    "FontSize": 12.0,
+                    "StrokeThickness": 1.0,
+                    "Dock": "Top",
+                    "NodeID": "b61b1d22-28bf-480d-9d1e-d4c715c7c96a",
+                    "PortType": "Input",
+                    "ID": "b780cbe6-7433-472f-b73a-f9d32f40193c",
+                    "Icon": ""
+                  },
+                  {
+                    "$type": "G.Controls.Diagram.Presenter.PortDatas.FlowablePortData, H.Controls.Diagram.Presenter",
+                    "FontSize": 12.0,
+                    "StrokeThickness": 1.0,
+                    "Dock": "Bottom",
+                    "NodeID": "b61b1d22-28bf-480d-9d1e-d4c715c7c96a",
+                    "PortType": "OutPut",
+                    "ID": "26e21a1a-7152-406b-818b-807ba36bd5e5",
+                    "Icon": ""
+                  }
+                ]
+              },
+              "Location": "516,721.5",
+              "IsTemplate": false,
+              "Height": 60.0,
+              "Width": 180.0,
+              "ID": "b61b1d22-28bf-480d-9d1e-d4c715c7c96a",
+              "Name": "BRISK",
+              "Icon": ""
+            }
+          ]
+        },
+        "LinkDatas": {
+          "$type": "System.Collections.Generic.List`1[[H.Controls.Diagram.Datas.ILinkData, H.Controls.Diagram]], System.Private.CoreLib",
+          "$values": [
+            {
+              "$type": "G.Controls.Diagram.Presenter.LinkDatas.FlowableLinkData, H.Controls.Diagram.Presenter",
+              "FontSize": 12.0,
+              "FromNodeID": "e5cd06fb-93e5-4a18-a137-bf427d680ea4",
+              "ToNodeID": "b61b1d22-28bf-480d-9d1e-d4c715c7c96a",
+              "FromPortID": "4329b62c-3a08-419c-9d8a-ba318ac370f4",
+              "ToPortID": "b780cbe6-7433-472f-b73a-f9d32f40193c",
+              "ID": "2440699a-0dc6-4306-a7b8-32e6631d9671",
+              "Name": "连线"
+            }
+          ]
+        }
+      },
+      "ID": "16a58f0f-78da-4a30-969e-3286778240b0"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <ItemGroup>
+    <ProjectReference Include="..\..\Base\G.Attach\G.Attach.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.DataBase\G.Extensions.DataBase.csproj" />
+    <ProjectReference Include="..\..\Services\G.Services.Common\G.Services.Common.csproj" />
+    <ProjectReference Include="..\..\Styles\G.Style\G.Style.csproj" />
+    <ProjectReference Include="..\G.Controls.Form\G.Controls.Form.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Page Update="TextPropertyItems\SliderTextPropertyItem.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="TextPropertyItems\UnitTextPropertyItem.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+</Project>

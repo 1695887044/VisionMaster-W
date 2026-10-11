@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <GeneratePackageOnBuild>Flase</GeneratePackageOnBuild>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Controls\G.Controls.Adorner\G.Controls.Adorner.csproj" />
+    <ProjectReference Include="..\..\Controls\G.Controls.Step\G.Controls.Step.csproj" />
+    <ProjectReference Include="..\..\Datas\G.Data.Test\G.Data.Test.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.ApplicationBase\G.Extensions.ApplicationBase.csproj" />
+    <ProjectReference Include="..\..\Extensions\G.Extensions.Command\G.Extensions.Command.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.About\G.Modules.About.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Dialog\G.Modules.Messages.Dialog.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Form\G.Modules.Messages.Form.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Notice\G.Modules.Messages.Notice.csproj" />
+    <ProjectReference Include="..\..\Modules\G.Modules.Messages.Snack\G.Modules.Messages.Snack.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+    <ProjectReference Include="..\..\Windows\G.Windows.Dialog\G.Windows.Dialog.csproj" />
+  </ItemGroup>
+
+</Project>

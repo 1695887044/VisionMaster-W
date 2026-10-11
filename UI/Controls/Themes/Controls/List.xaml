@@ -9,6 +9,61 @@
          自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
     <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
   </ResourceDictionary.MergedDictionaries>
+  <!--
+      展开箭头（TreeViewItem / 分组行共用）：定义必须与消费它的 TreeViewItem 模板同文件。
+      原先它挂在 Button.xaml，模板里 {StaticResource ExpandCollapseToggleStyle} 是跨分册引用 ——
+      查不到本文件那份定义时**不报错**，而是静默落回框架主题字典里的同名键
+      （2026-10-10 由静态断链断言 + 探针定位）。搬过来以后左列树用的是本仓自己的那支箭头，
+      与 ProcessView.xaml（走元素链取 App 资源）保持同一份。
+  -->
+  <Style x:Key="ExpandCollapseToggleStyle" TargetType="ToggleButton">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToggleButton">
+          <Border Padding="2" Background="Transparent">
+            <Path x:Name="ExpandPath" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 0 8" RenderTransformOrigin="0.5,0.5" Stroke="#8B8B8B" StrokeEndLineCap="Round" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeThickness="1.5">
+              <Path.RenderTransform>
+                <RotateTransform x:Name="ArrowRotate" Angle="0" />
+              </Path.RenderTransform>
+            </Path>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="ExpandPath" Property="Stroke" Value="#333333" />
+            </Trigger>
+            <Trigger Property="IsChecked" Value="True">
+              <Trigger.EnterActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="ArrowRotate" Storyboard.TargetProperty="Angle" To="90" Duration="0:0:0.15">
+                      <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.EnterActions>
+              <Trigger.ExitActions>
+                <BeginStoryboard>
+                  <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="ArrowRotate" Storyboard.TargetProperty="Angle" To="0" Duration="0:0:0.15">
+                      <DoubleAnimation.EasingFunction>
+                        <CubicEase EasingMode="EaseOut" />
+                      </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                  </Storyboard>
+                </BeginStoryboard>
+              </Trigger.ExitActions>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
   <Style TargetType="ListBox">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />

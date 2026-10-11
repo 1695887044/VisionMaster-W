@@ -4,6 +4,17 @@
     xmlns:local="clr-namespace:UI.CustomControl"
     xmlns:models="clr-namespace:UI.Models;assembly=VM.Core">
 
+    <ResourceDictionary.MergedDictionaries>
+        <!--
+            依赖就地合并（同其它皮肤分册的既有范式）：本文件的分组表头模板里引用
+            {StaticResource AccentBrush}，而 AccentBrush 定义在第一层令牌字典 Colors.xaml。
+            不合并的话，那处引用在「声明它的分册」作用域里查不到 —— 分组模板现在没被启用
+            （没有视图给 LogConsole 设 GroupBy）所以还没炸，等哪天启用分组即抛
+            「无法找到名为 AccentBrush 的资源」（2026-10-10 静态断链断言扫出来的）。
+        -->
+        <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <Style TargetType="{x:Type local:LogConsole}">
         <Style.Resources>
             <Style TargetType="{x:Type GroupItem}">
@@ -144,6 +155,23 @@
                             VerticalAlignment="Center"
                             Background="#E9ECEF"
                             CornerRadius="4">
+                            <!--
+                                来源为空时整块收起来：LogService 目前不填 source（PublishLog 的
+                                source 参数从没传过），不收的话每行都会在时间右边留一个灰块。
+                                列宽仍是固定 90，所以"有来源/没来源"的行正文起点保持一致。
+                            -->
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Source}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Source}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <TextBlock
                                 FontFamily="Consolas"
                                 FontSize="11"

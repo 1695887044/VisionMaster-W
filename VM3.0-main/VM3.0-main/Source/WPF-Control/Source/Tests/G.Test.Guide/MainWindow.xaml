@@ -1,0 +1,39 @@
+﻿<Window x:Class="G.Test.Guide.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:h="https://github.com/G"
+        xmlns:local="clr-namespace:G.Test.Guide"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        Title="MainWindow"
+        Width="800"
+        Height="450"
+        Style="{StaticResource {x:Static WindowKeys.Default}}"
+        mc:Ignorable="d">
+    <UniformGrid>
+        <Button h:Cattach.GuideData="这是一条说明信息"
+                h:Cattach.GuideTitle="消息列表"
+                h:Cattach.UseGuide="True"
+                Command="{ShowGuideCommand}"
+                Content="显示新手向导" />
+        <Button h:Cattach.GuideData="这是一条说明信息"
+                h:Cattach.GuideTitle="消息列表"
+                h:Cattach.UseGuide="True"
+                Cattach.GuideAssemblyVersion="1.0.4.0"
+                Command="{ShowGuideTreeCommand}"
+                Content="显示新手向导树" />
+        <Button h:Cattach.GuideData="这是一条说明信息"
+                h:Cattach.GuideTitle="消息列表"
+                h:Cattach.UseGuide="True"
+                Cattach.GuideAssemblyVersion="1.0.5.0"
+                Command="{ShowNewGuideCommand}"
+                Content="显示新增新手向导" />
+        <Button h:Cattach.GuideData="这是一条说明信息"
+                h:Cattach.GuideTitle="消息列表"
+                h:Cattach.UseGuide="True"
+                Command="{ShowGuideCommand}" 
+                Cattach.GuideAssemblyVersion="1.0.6.0"
+                Content="显示新手向导" />
+    </UniformGrid>
+</Window>
+

@@ -1,0 +1,39 @@
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_wfp4kttj_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_wfp4kttj_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\_BeadViewProbe\Program.cs(280,25): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(304,46): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(969,30): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1051,33): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1088,26): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1089,33): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(221,26): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(284,28): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(361,19): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(971,19): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(972,29): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1005,29): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+
+已成功生成。
+
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_wfp4kttj_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect_wfp4kttj_wpftmp.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(655,21): warning CS8604: “HTuple BeadInspectHalcon.CreateBeadModel(HObject contour, double targetWidth, double widthTolerance, double positionTolerance, string polarity)”中的形参“contour”可能传入 null 引用实参。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\Plugins\Plugin.BeadInspect\BeadInspectPlugin.cs(659,23): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj::TargetFramework=net9.0-windows]
+D:\C#\VM\_BeadViewProbe\Program.cs(280,25): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(304,46): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(969,30): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1051,33): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1088,26): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1089,33): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(221,26): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(284,28): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(361,19): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(971,19): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(972,29): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+D:\C#\VM\_BeadViewProbe\Program.cs(1005,29): warning CS8632: 只能在 "#nullable" 注释上下文内的代码中使用可为 null 的引用类型的注释。 [D:\C#\VM\_BeadViewProbe\_BeadViewProbe.csproj]
+    16 个警告
+    0 个错误
+
+已用时间 00:00:02.32

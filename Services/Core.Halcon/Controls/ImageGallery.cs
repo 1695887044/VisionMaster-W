@@ -258,10 +258,34 @@ namespace Core.Halcon.Controls
         /// 画布空白处的右键菜单：**清空 / 导出**是去掉工具条后仅剩的入口，所以在代码里建，
         /// 不写进 ControlTemplate —— ContextMenu 属于弹出树，模板里的元素取不到模板名字域，
         /// 靠 GetTemplateChild 挂接会静默失效（菜单能弹、点了没反应）。
+        /// 2026-10-08：补"钉住当前帧 / 对比模式 / 锁定跟随"三项——默认模板没有工具条
+        /// （PART_Pin / PART_Compare / PART_Lock 都不放在默认模板里），
+        /// 不补这三项的话 PinnedFrame / IsCompareMode / AutoSelectNewest 整套 API 无 UI 入口可达。
         /// </summary>
         private void EnsureContextMenu()
         {
             if (ContextMenu != null) return;
+
+            var pin = new MenuItem { Header = "钉住当前帧（对比基准）" };
+            pin.Click += OnPinClick;
+
+            var compare = new MenuItem
+            {
+                Header = "对比模式（并排显示钉住的帧）",
+                IsCheckable = true,
+                IsChecked = IsCompareMode,
+            };
+            compare.Click += (s, e) =>
+                SetCurrentValue(IsCompareModeProperty, ((MenuItem)s!).IsChecked);
+
+            var lockFollow = new MenuItem
+            {
+                Header = "锁定跟随（新图不顶掉当前查看）",
+                IsCheckable = true,
+                IsChecked = !AutoSelectNewest,
+            };
+            lockFollow.Click += (s, e) =>
+                SetCurrentValue(AutoSelectNewestProperty, !((MenuItem)s!).IsChecked);
 
             var clear = new MenuItem { Header = "清空画布" };
             clear.Click += OnClearClick;
@@ -272,7 +296,41 @@ namespace Core.Halcon.Controls
             var exportAll = new MenuItem { Header = "导出全部" };
             exportAll.Click += OnExportAllClick;
 
-            ContextMenu = new ContextMenu { Items = { clear, new Separator(), exportSelected, exportAll } };
+            ContextMenu = new ContextMenu
+            {
+                Items =
+                {
+                    pin,
+                    compare,
+                    lockFollow,
+                    new Separator(),
+                    clear,
+                    new Separator(),
+                    exportSelected,
+                    exportAll,
+                },
+            };
+
+            // 打开菜单时同步勾选态（Pin/Compare/Lock 状态可能被宿主侧 API 改过）
+            ContextMenu.Opened += (s, e) =>
+            {
+                compare.IsChecked = IsCompareMode;
+                lockFollow.IsChecked = !AutoSelectNewest;
+                pin.IsEnabled = SelectedFrame != null;
+            };
+        }
+
+        // ── 断言辅助（internal + InternalsVisibleTo FlowCanvasChecks；不走反射，改菜单结构不用同步改断言）──
+
+        /// <summary>确保右键菜单已建（等价于 OnApplyTemplate 里的调用，供断言直接驱动）</summary>
+        internal void EnsureContextMenuForTest() => EnsureContextMenu();
+
+        /// <summary>触发一次菜单 Opened 同步（断言"无选中帧时钉住置灰"用）</summary>
+        internal void RaiseContextMenuOpenedForTest()
+        {
+            EnsureContextMenu();
+            ContextMenu!.IsOpen = true;
+            ContextMenu.IsOpen = false;
         }
 
         #region 交互
@@ -330,8 +388,8 @@ namespace Core.Halcon.Controls
         private void OnLockChanged(object sender, RoutedEventArgs e)
             => SetCurrentValue(AutoSelectNewestProperty, _lockToggle?.IsChecked != true);
 
-        /// <summary>钉住当前帧作为对比基准</summary>
-        private void OnPinClick(object sender, RoutedEventArgs e)
+        /// <summary>钉住当前帧作为对比基准（右键菜单"钉住当前帧"与模板 PART_Pin 同走这里）</summary>
+        public void OnPinClick(object sender, RoutedEventArgs e)
         {
             PinnedFrame = SelectedFrame;
             if (PinnedFrame != null && _compareToggle?.IsChecked != true)

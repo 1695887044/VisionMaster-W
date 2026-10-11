@@ -1,8 +1,10 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using HalconDotNet;
+using Microsoft.Win32;
 
 namespace Plugin.BeadInspect
 {
@@ -143,7 +145,69 @@ namespace Plugin.BeadInspect
 
         private void OnSetDefaultClick(object sender, RoutedEventArgs e) => Plugin?.SetRecipeAsDefault();
 
-        private void OnLoadRefClick(object sender, RoutedEventArgs e) => Plugin?.LoadRefImage();
+        /// <summary>
+        /// 「载入」= 载入当前配方的参考图（平面可变形对齐的模板 + 坐标系基准）。
+        ///
+        /// 2026-10-09 用户真机第一问「这个载入是不是没有效果」的修复：
+        /// 本插件此前没有任何文件选择器（全插件 grep OpenFileDialog 零命中），用户必须在 200% 缩放的
+        /// 窗口里手打完整图片路径才能用「载入」——空路径时 LoadRefImage 只写一行状态文字就 return，
+        /// 屏幕上就是"点了没反应"（用户截图：路径框空、底部一行"还没有参考图路径…"）。
+        /// 现在：路径为空或文件已失效 → 弹文件选择框（<see cref="RefImagePicker"/> /
+        /// <see cref="PickRefImageFile"/>）→ 选定后写回 RefImagePath（INPC 自动刷新路径框）
+        /// 再载入；路径有效 → 保持原行为（直接载入）。取消选择 = 什么都不动。
+        /// 业务逻辑一行不动：真正的"读图/切底图/写状态"仍全在 BeadInspectPlugin.LoadRefImage 里。
+        /// </summary>
+        private void OnLoadRefClick(object sender, RoutedEventArgs e)
+        {
+            var plugin = Plugin;
+            if (plugin?.EditingEntry is not { } entry)
+                return; // 没有可编辑条目：和原来一样什么都不做（状态栏由插件侧提示）
+
+            string? path = entry.RefImagePath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                var picked = (RefImagePicker ?? PickRefImageFile)(path);
+                if (string.IsNullOrWhiteSpace(picked))
+                    return; // 用户取消：路径框与画布都保持原样
+                entry.RefImagePath = picked; // INPC → 路径框立刻回显（不用用户再手打一遍）
+            }
+            plugin.LoadRefImage();
+        }
+
+        /// <summary>
+        /// 「载入」选文件的委托。默认 null = 走下面的 <see cref="PickRefImageFile"/>（真 OpenFileDialog）；
+        /// 离屏探针 / 断言宿主里没有交互桌面（模态框弹不出来），把它换成一个返回固定路径的替身，
+        /// 就能在无人值守下走通"空路径 → 选文件 → 写回 RefImagePath → LoadRefImage"整条链
+        /// （见 _BeadViewProbe 的 P1 自检）。实例级而非 static：视图之间互不影响。
+        /// </summary>
+        public Func<string?, string?>? RefImagePicker { get; set; }
+
+        /// <summary>
+        /// 选参考图文件的弹框（「载入」在路径为空/文件不存在时调用）。
+        /// Filter / Title 的写法照 <c>Plugin.ImageAcquisition.ImageAcquisitionPlugin.BrowseFile</c>；
+        /// InitialDirectory 优先路径框现有目录，其次仓库自带的 <c>Image\bead</c>（存在才用）。
+        /// </summary>
+        private string? PickRefImageFile(string? currentPath)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Filter = "图像文件|*.bmp;*.jpg;*.jpeg;*.png;*.tif;*.tiff|所有文件|*.*",
+                Title = "选择参考图（平面可变形对齐的模板）",
+                CheckFileExists = true,
+            };
+
+            string? dir = string.IsNullOrWhiteSpace(currentPath) ? null : Path.GetDirectoryName(currentPath);
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                dlg.InitialDirectory = dir;
+            else
+            {
+                string guess = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Image", "bead");
+                if (Directory.Exists(guess))
+                    dlg.InitialDirectory = guess;
+            }
+
+            return dlg.ShowDialog() == true ? dlg.FileName : null;
+        }
 
         private void OnLearnClick(object sender, RoutedEventArgs e) => Plugin?.LearnRecipe();
 

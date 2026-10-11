@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:h="clr-namespace:Core.Halcon.Controls;assembly=Core.Halcon"
     xmlns:local="clr-namespace:Plugin.Matching"
+    xmlns:ui="clr-namespace:UI.CustomControl;assembly=UI"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     MinWidth="{DynamicResource PluginViewMinWidth}"
@@ -262,15 +263,17 @@
                                         <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Style="{StaticResource PluginFieldLabel}" Text="笔刷半径(px)" ToolTip="涂抹笔刷的半径（1~50）" />
-                                    <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                        <TextBox.Text>
-                                            <Binding Path="BrushSize" UpdateSourceTrigger="PropertyChanged">
-                                                <Binding.ValidationRules>
-                                                    <cv:NumberValidationRule FieldName="笔刷半径" Max="50" Min="1" />
-                                                </Binding.ValidationRules>
-                                            </Binding>
-                                        </TextBox.Text>
-                                    </TextBox>
+                                    <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="1"
+    Maximum="50">
+    <ui:NumericBox.Value>
+        <Binding Path="BrushSize" UpdateSourceTrigger="PropertyChanged">
+                                                        <Binding.ValidationRules>
+                                                            <cv:NumberValidationRule FieldName="笔刷半径" Max="50" Min="1" />
+                                                        </Binding.ValidationRules>
+                                                    </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                                 </Grid>
                                 <Button
                                     MinWidth="90"
@@ -309,15 +312,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最小角度(度)" ToolTip="模板允许的最小旋转角（-180~180），与商用工具同口径" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EditingEntry.MinAngleDeg" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="最小角度" Max="180" Min="-180" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="-180"
+    Maximum="180">
+    <ui:NumericBox.Value>
+        <Binding Path="EditingEntry.MinAngleDeg" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="最小角度" Max="180" Min="-180" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -325,15 +330,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最大角度(度)" ToolTip="模板允许的最大旋转角（-180~180）。产线偏转小就收窄（如 -15~15），模型更小、匹配更快" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EditingEntry.MaxAngleDeg" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="最大角度" Max="180" Min="-180" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="-180"
+    Maximum="180">
+    <ui:NumericBox.Value>
+        <Binding Path="EditingEntry.MaxAngleDeg" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="最大角度" Max="180" Min="-180" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -341,15 +348,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="角度步长(度)" ToolTip="相邻两个旋转变体的间隔（0 = 按模板尺寸自动定）。越小越准、模型越大" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EditingEntry.AngleStepDeg" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="角度步长" Max="30" Min="0" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0"
+    Maximum="30">
+    <ui:NumericBox.Value>
+        <Binding Path="EditingEntry.AngleStepDeg" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="角度步长" Max="30" Min="0" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -357,15 +366,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="梯度阈值" ToolTip="边缘提取的对比度门限（1~255，0 = 自动）。越高特征越少越快，过低会把噪声当特征" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EditingEntry.GradientThreshold" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="梯度阈值" Max="255" Min="0" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0"
+    Maximum="255">
+    <ui:NumericBox.Value>
+        <Binding Path="EditingEntry.GradientThreshold" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="梯度阈值" Max="255" Min="0" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -391,15 +402,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最小比例(倍)" ToolTip="相对模板尺寸的最小倍率（0.5~2）" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EditingEntry.ScaleMin" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="最小比例" Max="2" Min="0.5" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0.5"
+    Maximum="2">
+    <ui:NumericBox.Value>
+        <Binding Path="EditingEntry.ScaleMin" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="最小比例" Max="2" Min="0.5" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -407,15 +420,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最大比例(倍)" ToolTip="相对模板尺寸的最大倍率（0.5~2）。范围越宽模型越大越慢" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EditingEntry.ScaleMax" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="最大比例" Max="2" Min="0.5" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0.5"
+    Maximum="2">
+    <ui:NumericBox.Value>
+        <Binding Path="EditingEntry.ScaleMax" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="最大比例" Max="2" Min="0.5" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -423,15 +438,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="金字塔层数" ToolTip="1~10：层数多找得快，但太粗会丢小目标。一般 4~6" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="EditingEntry.NumLevels" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="金字塔层数" Max="10" Min="1" IntegerOnly="True" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox DecimalPlaces="0" Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="1"
+    Maximum="10">
+    <ui:NumericBox.Value>
+        <Binding Path="EditingEntry.NumLevels" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="金字塔层数" Max="10" Min="1" IntegerOnly="True" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -451,15 +468,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="分数下限" ToolTip="低于它的命中不算找到（0~1）。找不到目标先试着降到 0.3；误匹配多就往上提" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="MinScore" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="分数下限" Max="1" Min="0.01" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0.01"
+    Maximum="1">
+    <ui:NumericBox.Value>
+        <Binding Path="MinScore" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="分数下限" Max="1" Min="0.01" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -467,15 +486,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="匹配数上限" ToolTip="最多输出几个命中实例（1 = 单目标）。多目标计数/抓取场景才调大" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="MaxMatches" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="匹配数上限" Max="100" Min="1" IntegerOnly="True" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox DecimalPlaces="0" Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="1"
+    Maximum="100">
+    <ui:NumericBox.Value>
+        <Binding Path="MaxMatches" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="匹配数上限" Max="100" Min="1" IntegerOnly="True" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -483,15 +504,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="最大重叠" ToolTip="两个命中区域允许的最大重叠比例（0~1），防止同一目标报两次" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="MaxOverlap" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="最大重叠" Max="1" Min="0" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0"
+    Maximum="1">
+    <ui:NumericBox.Value>
+        <Binding Path="MaxOverlap" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="最大重叠" Max="1" Min="0" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                         <Grid Margin="{StaticResource PluginFieldRowMargin}">
                             <Grid.ColumnDefinitions>
@@ -499,15 +522,17 @@
                                 <ColumnDefinition Width="{StaticResource PluginEditorColumnWidth}" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource PluginFieldLabel}" Text="搜索激进度" ToolTip="0.1~0.9：越大越快、越容易漏检。产线不稳就调小（0.5~0.7）" />
-                            <TextBox Grid.Column="1" Style="{StaticResource PluginNumericBox}">
-                                <TextBox.Text>
-                                    <Binding Path="Greediness" UpdateSourceTrigger="PropertyChanged">
-                                        <Binding.ValidationRules>
-                                            <cv:NumberValidationRule FieldName="搜索激进度" Max="0.9" Min="0.1" IntegerOnly="False" />
-                                        </Binding.ValidationRules>
-                                    </Binding>
-                                </TextBox.Text>
-                            </TextBox>
+                            <ui:NumericBox Grid.Column="1" Style="{StaticResource PluginNumericBox}"
+    Minimum="0.1"
+    Maximum="0.9">
+    <ui:NumericBox.Value>
+        <Binding Path="Greediness" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="搜索激进度" Max="0.9" Min="0.1" IntegerOnly="False" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+    </ui:NumericBox.Value>
+</ui:NumericBox>
                         </Grid>
                     </StackPanel>
                 </Border>

@@ -30,6 +30,8 @@ namespace UI.CustomControl.PropertyGrid
             new EnumGenerator(),
             // 动态候选下拉（轴名 / 卡名）：候选来自宿主注册的来源，随方案变化
             new OptionSourceGenerator(),
+            // 数值（int/double/…）：优先于下面的 StructValueGenerator，用 NumericBox 换掉裸文本框
+            new NumericGenerator(),
             new StructValueGenerator(),
             new BoolStateGenerator(),
             // 兜底：Priority 最低，只有上面都处理不了才轮到它

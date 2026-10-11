@@ -203,6 +203,22 @@ namespace VisionMaster.Models
         public bool DebugEnabled { get; set; }
 
         /// <summary>
+        /// 【二期真并行】本会话是否按"并行组退化顺序执行"运行（用户裁决 3 + 主会话口径 4）。
+        ///
+        /// 【谁置位 / 谁清位】默认 false；置位入口只有两个（四入口退化矩阵，§4）：
+        ///  ① 界面调试运行（RunSessionAsync/OnceAsync 且 debugSession=true）——引擎抢到会话锁后
+        ///     与 DebugEnabled 同点位同时机置 true，finally 收尾复位（FlowEngineService）；
+        ///  ② 试运行（PluginTestRunner，目标为并行容器节点）——ExecuteChain 前对临时会话置 true，
+        ///     运行完复位（临时会话从不置 DebugEnabled——调试豁免路径对试运行无效，必须单独置位）。
+        /// 非调试运行（HTTP/定时/变量触发/界面普通运行）与断言宿主不置标志 → 真并发。
+        ///
+        /// 为什么调试不并发：单步/断点的语义在真并发下没有良定义（DebugStepPending 单次消费、
+        /// PauseReason 单值、Focus 单指针）；退化后调试门保持单线程，DebugChecks 既有断言零改动。
+        /// CompiledParallelNode 的退化判定只认本标志一个（置位职责在两个入口，判定单点）。
+        /// </summary>
+        public bool DebugDegradedParallel { get; set; }
+
+        /// <summary>
         /// 单步请求位（DWV 第 1 期）：StepSession 置位并放行，调试门在"下一个经过的节点边界"
         /// 消费它——从停点起恰好放行一个节点后再次停住。
         /// 跨线程（UI 线程置位 / 执行线程消费）与 IsContinuousRun 同口径：置位后紧跟 PauseLock.Set()，

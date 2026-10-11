@@ -27,6 +27,12 @@ namespace UI.CustomControl
     // 2. 全局静态管理器
     public static class Notifier
     {
+        /// <summary>
+        /// 同屏最多几张卡片：报警风暴（通信断线刷错误那种）不能让右下角糊满。
+        /// 超出时丢最旧的一张。
+        /// </summary>
+        private const int MaxVisible = 5;
+
         // 绑定到前台的全局消息队列
         public static ObservableCollection<NotificationMessage> Messages { get; } = new ObservableCollection<NotificationMessage>();
 
@@ -39,7 +45,13 @@ namespace UI.CustomControl
         // 核心执行方法
         public static void Show(string message, NotificationType type)
         {
-            Application.Current.Dispatcher.InvokeAsync(async () =>
+            // 应用正在关闭 / 没有 WPF 上下文（单测、后台工具）时没有可承载的 Dispatcher。
+            // 这里必须判空：148 处调用里相当一部分就在异常处理与关闭路径上，
+            // 让"提示错误的调用"自己先 NRE 是最糟的失败方式。无处显示 = 丢弃。
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null) return;
+
+            dispatcher.InvokeAsync(async () =>
             {
                 var msg = new NotificationMessage
                 {
@@ -50,6 +62,10 @@ namespace UI.CustomControl
                 };
 
                 Messages.Add(msg);
+
+                // 立刻执行上限（不是等 3 秒后）：新卡片还没渲染就被移除，不会闪一下
+                while (Messages.Count > MaxVisible)
+                    Messages.RemoveAt(0);
 
                 // 1. 先等待默认的 3 秒
                 await Task.Delay(3000);
@@ -81,15 +97,29 @@ namespace UI.CustomControl
             };
         }
 
-        // Win11 极其克制的高级配色
+        // Win11 极其克制的高级配色。
+        // 画刷只建一次并 Freeze：原先每条通知都 new 一个 SolidColorBrush，
+        // 148 处调用下纯属白费（冻结后还可跨线程共享、WPF 不必再包装）
+        private static readonly Brush SuccessIconBrush = CreateFrozen(Color.FromRgb(16, 124, 16));   // 微软绿
+        private static readonly Brush ErrorIconBrush = CreateFrozen(Color.FromRgb(216, 59, 1));      // 微软红
+        private static readonly Brush WarningIconBrush = CreateFrozen(Color.FromRgb(255, 140, 0));    // 微软橙
+        private static readonly Brush InfoIconBrush = CreateFrozen(Color.FromRgb(0, 95, 184));        // 微软蓝
+
+        private static Brush CreateFrozen(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
+
         private static Brush GetIconColor(NotificationType type)
         {
             return type switch
             {
-                NotificationType.Success => new SolidColorBrush(Color.FromRgb(16, 124, 16)),  // 微软绿
-                NotificationType.Error => new SolidColorBrush(Color.FromRgb(216, 59, 1)),     // 微软红
-                NotificationType.Warning => new SolidColorBrush(Color.FromRgb(255, 140, 0)),  // 微软橙
-                _ => new SolidColorBrush(Color.FromRgb(0, 95, 184))                           // 微软蓝
+                NotificationType.Success => SuccessIconBrush,
+                NotificationType.Error => ErrorIconBrush,
+                NotificationType.Warning => WarningIconBrush,
+                _ => InfoIconBrush
             };
         }
     }

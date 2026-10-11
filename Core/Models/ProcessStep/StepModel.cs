@@ -156,6 +156,14 @@ namespace VisionMaster.Models
         private List<string> _pendingRuntimeNotify;
 
         /// <summary>
+        /// 【二期真并行】pending 记账锁（评审中危 11）：并行分支线程与 UI/父线程并发触碰
+        /// 同一个 StepModel 时（僵尸会话与新旧会话共享同一批 StepModel 的放大窗口），
+        /// 无锁 List 的"Contains + Add"与 Dispose 段的"枚举"存在撕裂/丢通知风险，加锁串行化。
+        /// 锁粒度只覆盖记账段（几行），BeginTiming/EndTiming 热路径无感知。
+        /// </summary>
+        private readonly object _runtimeNotifyLock = new();
+
+        /// <summary>
         /// 运行状态属性的统一写入口：值真变了才发通知；批量模式下只记名字不发。
         ///
         /// 为什么不直接用 SetProperty（B2）：一个步骤跑一轮要动 4~6 个运行状态属性
@@ -179,9 +187,13 @@ namespace VisionMaster.Models
 
             // 批量模式：记名待发。同一属性在一个作用域内被写两次只记一次，
             // 于是"改四次 → 发四条"能压成"发一条"，UI 只刷一遍。
-            var pending = _pendingRuntimeNotify;
-            if (propertyName != null && pending != null && !pending.Contains(propertyName))
-                pending.Add(propertyName);
+            // （二期加锁：分支线程与父/UI 线程并发写同一 StepModel 的防御）
+            lock (_runtimeNotifyLock)
+            {
+                var pending = _pendingRuntimeNotify;
+                if (propertyName != null && pending != null && !pending.Contains(propertyName))
+                    pending.Add(propertyName);
+            }
         }
 
         /// <summary>
@@ -198,8 +210,11 @@ namespace VisionMaster.Models
         /// </summary>
         private IDisposable BatchRuntimeNotify()
         {
-            if (_runtimeNotifyDepth++ == 0)
-                _pendingRuntimeNotify = new List<string>();
+            lock (_runtimeNotifyLock)
+            {
+                if (_runtimeNotifyDepth++ == 0)
+                    _pendingRuntimeNotify = new List<string>();
+            }
 
             return new RuntimeNotifyScope(this);
         }
@@ -216,11 +231,18 @@ namespace VisionMaster.Models
                 if (owner == null) return;
                 _owner = null;
 
-                // 还有外层作用域没结束，名字留在账上，等最外层统一发
-                if (--owner._runtimeNotifyDepth > 0) return;
+                List<string>? pending;
+                // （二期加锁：与 SetRuntimeState 的记账段、其他并发 Dispose 串行化——
+                //  嵌套作用域由同线程持有，锁在此无重入死锁风险（不同线程才会竞争））
+                lock (owner._runtimeNotifyLock)
+                {
+                    // 还有外层作用域没结束，名字留在账上，等最外层统一发
+                    if (--owner._runtimeNotifyDepth > 0) return;
 
-                var pending = owner._pendingRuntimeNotify;
-                owner._pendingRuntimeNotify = null;
+                    pending = owner._pendingRuntimeNotify;
+                    owner._pendingRuntimeNotify = null;
+                }
+
                 if (pending == null) return;
 
                 for (int i = 0; i < pending.Count; i++)

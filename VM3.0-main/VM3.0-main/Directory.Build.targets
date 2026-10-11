@@ -1,0 +1,21 @@
+﻿<Project>
+  <PropertyGroup>
+    <GIconPath>$(MSBuildThisFileDirectory)Document\logo.ico</GIconPath>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(GIconPath)')">
+    <None Include="$(GIconPath)">
+      <Link>logo.ico</Link>
+      <Pack>false</Pack>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(MSBuildThisFileDirectory)Document\logo.png">
+      <Link>logo.png</Link>
+      <Pack>false</Pack>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <PropertyGroup Condition="Exists('$(GIconPath)') and ('$(ApplicationIcon)'=='' or '$(ApplicationIcon)'=='logo.ico')">
+    <ApplicationIcon>$(GIconPath)</ApplicationIcon>
+  </PropertyGroup>
+</Project>
+

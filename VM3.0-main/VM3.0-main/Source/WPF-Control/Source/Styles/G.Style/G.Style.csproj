@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>G.Styles</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Base\G.Attach\G.Attach.csproj" />
+    <ProjectReference Include="..\..\Themes\G.Theme\G.Theme.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Remove="Assets\logo.ico" />
+    <Resource Include="..\..\..\..\..\Document\logo.ico">
+      <Link>Assets\logo.ico</Link>
+    </Resource>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Providers\G.Iocable\G.Iocable.csproj" />
+    <ProjectReference Include="..\..\Base\G.ValueConverter\G.ValueConverter.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BencodeNET" Version="5.0.0" />
+  </ItemGroup>
+</Project>

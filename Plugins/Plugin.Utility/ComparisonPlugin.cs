@@ -20,6 +20,7 @@ namespace VisionMaster.Plugins.Util
         Description = "比较两个数值的大小关系，支持浮点容差比较",
         ShortName = "\uf047"
     )]
+    [ParallelSafe] // 二期真并行：chun jisuan lei
     public class ComparisonPlugin : VisionPluginBase
     {
         public InputPort<double> ValueA { get; } = new InputPort<double>("A", 0.0, "第一个数值");

@@ -39,6 +39,7 @@ namespace Plugin.Matching
         Description = "多模板库 + 配方驱动定位：按产品型号选模板，输出亚像素位姿与归一化图像，支持旋转/缩放搜索与涂抹编辑",
         ShortName = "\uf140"
     )]
+    [ParallelSafe] // 二期真并行：纯视觉计算（EnsureModelLoaded static 但只改本实例条目），可进并行分支
     public partial class MatchingPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================

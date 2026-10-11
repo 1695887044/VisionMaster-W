@@ -977,9 +977,10 @@ namespace FlowCanvasChecks
             catch (Exception ex) { regBoom = ex; }
             Check("RegisterCamera 不再抛 NotImplementedException（旧实现必抛）",
                 regBoom == null, regBoom == null ? "" : regBoom.GetType().Name + ": " + regBoom.Message);
-            Check("相机插件转交模块注册表后可见（否则等于'加载成功却拖不出来'）",
-                provider.ModulePlugins.ContainsKey("Stub.Camera"),
-                $"模块表 {provider.ModulePlugins.Count} 项，相机分类表 {provider.CameraPlugins.Count} 项");
+            Check("相机驱动写进相机表（转交模块表是旧口径；驱动不是流程步骤，混进算子列表反而拖不出）",
+                provider.CameraPlugins.ContainsKey("Stub.Camera") && !provider.ModulePlugins.ContainsKey("Stub.Camera"),
+                $"模块表 {provider.ModulePlugins.Count} 项，相机分类表 {provider.CameraPlugins.Count} 项"
+                + "（RegisterCamera 的注释写明了为什么必须写真相机表）");
             Check("GetCamera 与注册同表查找，不再'注册进去却查不到'",
                 provider.GetCamera("Stub.Camera") != null, "返回 null 说明两个口查了不同的表");
 

@@ -1,0 +1,32 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
+                    xmlns:dt="clr-namespace:G.VisionMaster.OpenCV.NodeDatas.Detector"
+                    xmlns:h="https://github.com/G"
+                    xmlns:lb="clr-namespace:G.VisionMaster.OpenCV.Base"
+                    xmlns:ldb="clr-namespace:G.VisionMaster.OpenCV.NodeDatas.Detector"
+                    xmlns:local="clr-namespace:G.VisionMaster.OpenCV">
+
+    <ResourceDictionary.MergedDictionaries>
+        <!--<ResourceDictionary Source="pack://application:,,,/G.VisionMaster.OpenCV;component/OpenCV.xaml" />-->
+    </ResourceDictionary.MergedDictionaries>
+
+    <DataTemplate DataType="{x:Type ldb:BlobType}">
+        <TextBlock x:Name="t" />
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding}"
+                         Value="None">
+                <Setter TargetName="t" Property="Text" Value="自定义参数识别" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}"
+                         Value="Circle">
+                <Setter TargetName="t" Property="Text" Value="圆形识别" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding}"
+                         Value="Oval">
+                <Setter TargetName="t" Property="Text" Value="椭圆识别" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+</ResourceDictionary>
+

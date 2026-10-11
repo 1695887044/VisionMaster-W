@@ -1,0 +1,40 @@
+﻿<Project>
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+    <PackageIcon>logo.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+    <LangVersion>10.0</LangVersion>
+    <Version>2.0.0</Version>
+    <FileVersion>2.0.0</FileVersion>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <Copyright>Copyright © G 2025-2025</Copyright>
+    <Authors>ChenQuanGu</Authors>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>GVision 使用 OpenCVSharp 框架的产品</Description>
+    <UseRidGraph>true</UseRidGraph>
+    <NoWarn>$(NoWarn);NETSDK1206;CS8981;SYSLIB0003;SYSLIB0004;SYSLIB0050;SYSLIB0014;CS0105</NoWarn>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <Resource Include="**\*.png" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.jpg" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.cur" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.ico" Exclude="bin\**;obj\**" />
+    <Resource Include="**\*.bmp" Exclude="bin\**;obj\**" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)Document\logo.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
+</Project>
