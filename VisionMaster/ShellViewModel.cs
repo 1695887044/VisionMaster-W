@@ -1128,7 +1128,7 @@ namespace VisionMaster
                     // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
                     // 调试态不在这里预置（理由同单次运行入口：抢锁后才置位，防 P2 泄漏）
                     // 循环会话的任务只有被"停止"取消后才会结束，因此这里绝不能 await 它
-                    var continuousTask = flowEngine.RunSessionAsync(session, debugSession: true);
+                    var continuousTask = flowEngine.RunSessionAsync(session, debugSession: false);
                     // 连续运行的"抢不到锁"没有返回值可判：引擎的抢锁与 IsRunning 置位都在首个 await
                     // 之前**同步**完成，所以调用返回后立刻取快照就是准的（不猜时序）
                     bool startedNow = session.IsRunning;

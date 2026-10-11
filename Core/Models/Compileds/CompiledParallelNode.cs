@@ -3,9 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
-using System.Threading;
-using System.Threading.Tasks;
-using VisionMaster.Services;
+
 // 本文件 using 了 System.Threading，裸写的 ExecutionContext 会和 System.Threading.ExecutionContext 撞名
 using ExecutionContext = VisionMaster.Services.ExecutionContext;
 
@@ -121,7 +119,7 @@ namespace VisionMaster.Models
 
         private List<CompiledNode> RunParallel(IExecutionContext context, ParallelStep parallelStep)
         {
-            // 生效 FailFast（§3.2：运行期解析，改全局配置下一轮生效）
+            // 生效 FailFast
             _effectiveFailFast = parallelStep.FailFastMode switch
             {
                 FailFastMode.On => true,
@@ -241,12 +239,6 @@ namespace VisionMaster.Models
                         break;
                 }
 
-                // BusinessFailed × FailFast（评审高危 3 定死）：只取消兄弟，不登记失败源、不上抛、
-                // 容器终态不在这里改（轮末 EscalateContainerFailures 会按步骤 Failed 上浮）
-
-                // 计数器在 using 块内递增（等价 finally 语义）：上方的 return/throw 出口
-                // （join 超时放弃 :179、失败源上抛 :208）也要保持 Created==Disposed 成立——
-                // reviewer #2：放在 using 之后会让异常/超时路径漏计，P5 扩场景即假红
                 Interlocked.Increment(ref GroupCtsDisposed);
             }
 

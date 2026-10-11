@@ -335,21 +335,12 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 已订阅 CollectionChanged 的集合：顶层 Steps + 每个分支/循环体的 Steps + 每个容器的 Children。
-        ///
-        /// 【为什么连 Children 也要盯】新增 ElseIf/Else 分支只动 Children 集合，
-        /// 不盯它就收不到事件 → 既不递增版本，也不会重扫订阅 → 之后往这个新分支里
-        /// 拖入的步骤永远挂不上 PropertyChanged（禁用/改参数静默不生效）。
         /// </summary>
         private readonly HashSet<INotifyCollectionChanged> _watchedCollections = new();
 
         /// <summary>
         /// 按当前流程树重扫订阅：从顶层集合出发收集所有可达的步骤集合、分支集合与步骤，
         /// 与已订阅名单求差后摘挂。
-        ///
-        /// 【为什么不按事件的 New/OldItems 逐个摘挂】Move（拖动改序）会同时带上
-        /// OldItems 与 NewItems，Reset（Clear）则不带任何明细——按明细摘挂会把还在树上的
-        /// 步骤订阅摘掉（后续禁用/改参数不再递增版本），或漏摘已删除的步骤（假版本递增 → 白重编译）。
-        /// 重扫的代价是 O(全树步骤数)，而结构变更由用户操作驱动、不在运行热路径上。
         /// </summary>
         private void RebuildSubscriptions()
         {

@@ -2,7 +2,7 @@
   "SolutionName": "解决方案-20261001122125",
   "Version": 1.0,
   "Config": {
-    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"ac339f3c-23d2-4d2c-914e-a409dd2f2fff\" DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"10/06/2026 22:17:10\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"277.79999999999995\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"10/06/2026 22:17:20\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"10/01/2026 22:51:05\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"9477.82767674242*\">\r\n      <LayoutDocumentPane>\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/06/2026 22:17:08\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"10/01/2026 14:40:15\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" DockHeight=\"200\">\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" LastActivationTimeStamp=\"10/06/2026 10:58:28\" />\r\n        <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" ContentId=\"Panel_MonitorView\" LastActivationTimeStamp=\"09/25/2026 01:09:22\" />\r\n      </LayoutAnchorablePane>\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\" />\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"235.5\">\r\n      <LayoutAnchorable AutoHideWidth=\"260.6857142857143\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"10/06/2026 22:17:18\" />\r\n      <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"10/01/2026 11:55:59\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"10/06/2026 22:17:08\" PreviousContainerId=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" IsSelected=\"True\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"10/06/2026 22:17:08\" PreviousContainerId=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" PreviousContainerIndex=\"2\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"2\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"ac339f3c-23d2-4d2c-914e-a409dd2f2fff\" DockWidth=\"169.66666666666663\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"程序\" IsSelected=\"True\" ContentId=\"Panel_FlowListView\" LastActivationTimeStamp=\"10/11/2026 18:53:22\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane DockWidth=\"444.5\">\r\n      <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程栏\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" LastActivationTimeStamp=\"10/11/2026 18:58:35\" />\r\n      <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"流程画布\" ContentId=\"Panel_FlowCanvasView\" LastActivationTimeStamp=\"10/11/2026 18:58:21\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"8397.131667515989*\">\r\n      <LayoutDocumentPane DockHeight=\"1.045520231213873*\">\r\n        <LayoutDocument Title=\"视觉图像\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/11/2026 18:53:09\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" LastActivationTimeStamp=\"10/01/2026 14:40:15\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePaneGroup Orientation=\"Horizontal\" DockHeight=\"168.5\" FloatingWidth=\"1549\" FloatingHeight=\"925\" FloatingLeft=\"157.5\" FloatingTop=\"688.5\">\r\n        <LayoutAnchorablePane Id=\"3ac42e8e-f0cf-4f54-b922-9cd377ca29d7\" DockHeight=\"168.5\" FloatingWidth=\"1549\" FloatingHeight=\"925\" FloatingLeft=\"157.5\" FloatingTop=\"688.5\" />\r\n      </LayoutAnchorablePaneGroup>\r\n      <LayoutAnchorablePane Id=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" DockHeight=\"168.5\" />\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" DockWidth=\"407.4666666666669\" />\r\n    <LayoutAnchorablePane Id=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" DockWidth=\"235.5\">\r\n      <LayoutAnchorable AutoHideWidth=\"260.6857142857143\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" LastActivationTimeStamp=\"10/11/2026 18:57:35\" />\r\n    </LayoutAnchorablePane>\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide />\r\n  <LeftSide />\r\n  <BottomSide>\r\n    <LayoutAnchorGroup Id=\"4a57ac04-f127-4de1-aef0-cf3cab1118ce\" PreviousContainerId=\"3ac42e8e-f0cf-4f54-b922-9cd377ca29d7\" />\r\n  </BottomSide>\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" LastActivationTimeStamp=\"10/11/2026 18:53:09\" PreviousContainerId=\"b95eba3e-d1a9-43c5-9f34-2d7c0fb11bc9\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"设备状态\" IsSelected=\"True\" ContentId=\"Panel_DeviceStateView\" LastActivationTimeStamp=\"10/11/2026 18:53:09\" PreviousContainerId=\"2f53384d-afab-4a19-b251-7c28ccfc90c3\" PreviousContainerIndex=\"2\" />\r\n    <LayoutAnchorable AutoHideWidth=\"114.66666666666674\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" LastActivationTimeStamp=\"10/11/2026 18:53:09\" PreviousContainerId=\"bfd2cf71-aff6-48c9-a05a-30af76768841\" PreviousContainerIndex=\"1\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" FloatingLeft=\"911\" FloatingTop=\"742\" FloatingWidth=\"1549\" FloatingHeight=\"925\" IsMaximized=\"True\" LastActivationTimeStamp=\"10/11/2026 18:53:09\" PreviousContainerId=\"3ac42e8e-f0cf-4f54-b922-9cd377ca29d7\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"日志信息\" IsSelected=\"True\" ContentId=\"Panel_LogView\" FloatingLeft=\"157.5\" FloatingTop=\"688.5\" FloatingWidth=\"1549\" FloatingHeight=\"925\" LastActivationTimeStamp=\"10/11/2026 18:53:09\" PreviousContainerId=\"4a57ac04-f127-4de1-aef0-cf3cab1118ce\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
     "ImageViewMode": 0
   },
   "Flows": [
@@ -27,7 +27,7 @@
       "FlowID": "76b3e0c6ccd8495aa3ccd0d1dcaf7af9",
       "FlowName": "MainTask",
       "Description": "主任务",
-      "Version": 413,
+      "Version": 445,
       "IsEnabled": true,
       "Role": 2,
       "InvokeType": 0,
@@ -36,89 +36,221 @@
       "TriggerMode": 1,
       "Layout": {
         "Nodes": {
-          "a2140959-9f26-49cf-88c7-2b72c04b9b44": {
+          "4b4c892a-3e7a-448d-ae60-b77a0500fef9": {
             "X": 0.0,
-            "Y": 90.0,
+            "Y": 0.0,
             "Collapsed": false
           },
-          "4f3bf47b-3bed-4e17-a48c-71c5450c4f4b": {
+          "e962698a-e1d8-4456-a97b-51030027b00c": {
+            "X": 30.0,
+            "Y": 92.0,
+            "Collapsed": false
+          },
+          "67048f52-ab9d-489f-a4ba-bd755ca16faf": {
+            "X": 292.0,
+            "Y": 92.0,
+            "Collapsed": false
+          },
+          "aa2e90df-204f-40a4-bfdd-d43121f19287": {
             "X": 0.0,
-            "Y": 180.0,
+            "Y": 212.0,
+            "Collapsed": false
+          },
+          "0dcd49b7-8929-42d7-9404-38fa45707ba0": {
+            "X": 0.0,
+            "Y": 302.0,
+            "Collapsed": false
+          },
+          "be25d58b-9cae-4790-bdb9-8866e302dded": {
+            "X": 30.0,
+            "Y": 394.0,
+            "Collapsed": false
+          },
+          "7976c536-5e0e-4919-b769-1c52e5a90969": {
+            "X": 292.0,
+            "Y": 394.0,
+            "Collapsed": false
+          },
+          "e2e57839-cb28-4f11-bc86-4dd6938bcad3": {
+            "X": 0.0,
+            "Y": 514.0,
             "Collapsed": false
           }
         },
-        "Count": 2
+        "Count": 8
       },
       "Steps": [
         {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "a2140959-9f26-49cf-88c7-2b72c04b9b44",
-          "Icon": "",
-          "PluginName": "图像采集",
-          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "图像采集_0",
-          "Description": "图像采集",
+          "$type": "VisionMaster.Models.ParallelStep, VM.Core",
+          "Children": [
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "e962698a-e1d8-4456-a97b-51030027b00c",
+                  "Icon": "",
+                  "PluginName": "延时",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "延时_0",
+                  "Description": "延时",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 3,
+                  "InputValues": {
+                    "Delay": 2500
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 0,
+              "StepName": "分支 1",
+              "DisplayName": "分支 1"
+            },
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "67048f52-ab9d-489f-a4ba-bd755ca16faf",
+                  "Icon": "",
+                  "PluginName": "延时",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "延时_1",
+                  "Description": "延时",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 3,
+                  "InputValues": {
+                    "Delay": 2500
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 0,
+              "StepName": "分支 2",
+              "DisplayName": "分支 2"
+            }
+          ],
+          "ExecutionMode": 1,
+          "FailFastMode": 0,
+          "JoinTimeoutMs": 15000,
+          "StepID": "4b4c892a-3e7a-448d-ae60-b77a0500fef9",
+          "Icon": "",
+          "PluginName": "并行分组",
+          "PluginTypeName": "BuiltIn_Parallel",
+          "StepName": "并行分组_0",
+          "Description": "并行分组",
           "SortId": 0,
           "IsDisEnable": false,
-          "State": 2,
-          "InputValues": {
-            "FilePath": "D:\\C#\\VM\\Image\\bead\\adhesive_bead_01.png",
-            "FolderPath": "",
-            "FileIndex": 0,
-            "FrameTimeoutMs": 0,
-            "Mode": 0,
-            "DisplayViewIndex": 1,
-            "CameraSerial": ""
-          },
+          "State": 3,
+          "InputValues": {},
           "LinkedSources": {},
           "OutputPortDefinitions": []
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "4f3bf47b-3bed-4e17-a48c-71c5450c4f4b",
-          "Icon": "",
-          "PluginName": "胶路检测",
-          "PluginTypeName": "Plugin.BeadInspect.BeadInspectPlugin, Plugin.BeadInspect, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "胶路检测_0",
-          "Description": "胶路检测",
+          "StepID": "aa2e90df-204f-40a4-bfdd-d43121f19287",
+          "Icon": "",
+          "PluginName": "延时",
+          "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "延时_2",
+          "Description": "延时",
           "SortId": 0,
           "IsDisEnable": false,
-          "State": 4,
+          "State": 0,
           "InputValues": {
-            "RecipeName": null,
-            "AlignedImage": null,
-            "RoiRegion": null,
-            "Transform": null,
-            "RecipeLibraryJson": "[{\"Name\":\"配方1\",\"RefImagePath\":\"\",\"RefNoBeadImagePath\":\"\",\"RefPointsJson\":\"[[177.2355253395973,256.3751740419922]]\",\"RectifyQuadJson\":\"\",\"TargetWidth\":15.0,\"WidthTolerance\":8.0,\"PositionTolerance\":30.0,\"Polarity\":\"dark\",\"LearnedSignature\":\"\"}]",
-            "DefaultRecipeName": "",
-            "AlignMode": 2,
-            "Polarity": 0,
-            "TargetWidth": 15.0,
-            "WidthTolerance": 8.0,
-            "PositionTolerance": 30.0,
-            "MinErrorLength": 5.0,
-            "MinScore": 0.4,
-            "PlanarNumLevels": 5,
-            "FindAngleStartDeg": -22.35,
-            "FindAngleExtentDeg": 44.69,
-            "FindScaleRMin": 1.0,
-            "FindScaleRMax": 1.0,
-            "FindScaleCMin": 1.0,
-            "FindScaleCMax": 1.0,
-            "DisplayViewIndex": 1,
-            "OutputAlignedImage": true,
-            "UnitOutput": 0,
-            "PixelSizeMm": 0.0
+            "Delay": 500
           },
-          "LinkedSources": {
-            "SrcImage": {
-              "Kind": 1,
-              "TargetStepId": "a2140959-9f26-49cf-88c7-2b72c04b9b44",
-              "TargetPortName": "Image",
-              "TargetVariableId": "00000000-0000-0000-0000-000000000000",
-              "DisplayAddress": "图像采集_0.Image"
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ParallelStep, VM.Core",
+          "Children": [
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "be25d58b-9cae-4790-bdb9-8866e302dded",
+                  "Icon": "",
+                  "PluginName": "延时",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "延时_3",
+                  "Description": "延时",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Delay": 5500
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 0,
+              "StepName": "分支 1",
+              "DisplayName": "分支 1"
+            },
+            {
+              "Steps": [
+                {
+                  "$type": "VisionMaster.Models.ActionStep, VM.Core",
+                  "StepID": "7976c536-5e0e-4919-b769-1c52e5a90969",
+                  "Icon": "",
+                  "PluginName": "延时",
+                  "PluginTypeName": "VisionMaster.Plugins.Util.DelayPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+                  "StepName": "延时_4",
+                  "Description": "延时",
+                  "SortId": 0,
+                  "IsDisEnable": false,
+                  "State": 0,
+                  "InputValues": {
+                    "Delay": 500
+                  },
+                  "LinkedSources": {},
+                  "OutputPortDefinitions": []
+                }
+              ],
+              "BranchType": 0,
+              "StepName": "分支 2",
+              "DisplayName": "分支 2"
             }
+          ],
+          "ExecutionMode": 1,
+          "FailFastMode": 0,
+          "JoinTimeoutMs": 15000,
+          "StepID": "0dcd49b7-8929-42d7-9404-38fa45707ba0",
+          "Icon": "",
+          "PluginName": "并行分组",
+          "PluginTypeName": "BuiltIn_Parallel",
+          "StepName": "并行分组_1",
+          "Description": "并行分组",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {},
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "e2e57839-cb28-4f11-bc86-4dd6938bcad3",
+          "Icon": "",
+          "PluginName": "变量赋值",
+          "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "变量赋值_0",
+          "Description": "变量赋值",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {
+            "Name": "OKCount",
+            "Value": "32",
+            "CreateIfNotExists": false,
+            "Scope": "Global"
           },
+          "LinkedSources": {},
           "OutputPortDefinitions": []
         }
       ]
@@ -192,7 +324,7 @@
       "DataTypeString": "System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
       "Description": "累计检测良品总数",
       "DefaultValue": 1485,
-      "Value": 1485,
+      "Value": 32,
       "Offset": "0",
       "BitOffset": -1,
       "DbNumber": 1,

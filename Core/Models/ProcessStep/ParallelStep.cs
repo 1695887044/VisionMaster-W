@@ -48,20 +48,7 @@ namespace VisionMaster.Models
     }
 
     /// <summary>
-    /// 并行步骤模型（一期为"并行分组"语义：分支按序执行，画布上并列泳道呈现；
-    /// 二期增加 ExecutionMode=Parallel 的真并发执行）。
-    ///
-    /// 设计取舍（2026-10-08 立项评审结论 + 二期方案 v2）：
-    /// · 一期执行语义 = 顺序逐分支跑完再汇合——与 For 相同的"跑完即汇合"骨架；
-    ///   二期 ExecutionMode=Parallel 时由 CompiledParallelNode 内部扇出并发并同步汇合。
-    /// · 分支数默认 2、无上限硬卡（编译期错误提示引导 2~8）；每条分支都是 Default 型，
-    ///   不需要条件表达式——并行分支没有"选谁"的问题。
-    /// · 拓扑语义：分支之间互取连线 = CrossBranch 非法（FlowTopology 兜底已覆盖），
-    ///   画布文案给"并行分支互取"的专门提示；分支各自接外部输入线合法（进入前已有值）。
-    /// · 构造器默认保持 Sequential（存量兼容硬约束）；只有画布"新建并行分组"落点
-    ///   （ProcessViewModel 拖入）显式置 Parallel。
-    /// · ExecutionMode/FailFastMode/JoinTimeoutMs 都是语义属性（非 [RuntimeState]）：
-    ///   修改走 FlowModel 版本链触发重编译。
+    /// 并行步骤模型
     /// </summary>
     public class ParallelStep : StepModel, IContainerStep
     {
