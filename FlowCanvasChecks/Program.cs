@@ -2612,6 +2612,20 @@ namespace FlowCanvasChecks
                 && ToolboxCategoryVisuals.ColorFor("不存在的分类") == ToolboxCategoryVisuals.FallbackColor,
                 "");
 
+            // ---- 类型短名（悬浮预览里每个端口的类型标签用）：去程序集限定 / 泛型实参 / 命名空间 / 元数 ----
+            Check("G9 类型短名：System.Double → Double",
+                TypeNameShortenerConverter.Shorten("System.Double") == "Double",
+                TypeNameShortenerConverter.Shorten("System.Double"));
+            Check("G9 类型短名：程序集限定名只留短名",
+                TypeNameShortenerConverter.Shorten("HalconDotNet.HImage, halcondotnet, Version=25.5.0.0, Culture=neutral, PublicKeyToken=null") == "HImage",
+                TypeNameShortenerConverter.Shorten("HalconDotNet.HImage, halcondotnet, Version=25.5.0.0, Culture=neutral, PublicKeyToken=null"));
+            Check("G9 类型短名：泛型去实参与元数（List`1[[…]] → List）",
+                TypeNameShortenerConverter.Shorten("System.Collections.Generic.List`1[[System.Double, System.Private.CoreLib, Version=9.0.0.0]], System.Private.CoreLib") == "List",
+                TypeNameShortenerConverter.Shorten("System.Collections.Generic.List`1[[System.Double, System.Private.CoreLib, Version=9.0.0.0]], System.Private.CoreLib"));
+            Check("G9 类型短名：空 / 空白 → 空串（不抛）",
+                TypeNameShortenerConverter.Shorten(null) == "" && TypeNameShortenerConverter.Shorten("   ") == "",
+                "");
+
             // ---- Toolbox 配置节：JSON 往返（纯内存，不写盘——写了会污染断言宿主的 bin） ----
             var node = new ToolboxSettings();
             node.Favorites.Add("VM.Stub.Leaf");

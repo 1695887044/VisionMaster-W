@@ -1,0 +1,31 @@
+  [INFO] 字体资源流=2204372 字节
+  [INFO] 字符串构造：解析=False 声明家族=Arial
+  [INFO] 两参构造：解析=False 声明家族=Arial
+  [PASS] ToolView 构造 + 布局不抛异常
+  [INFO] 构造/首次布局 后绑定错误 20 条
+  [PASS] 拖拽源：每个分组各一个 ItemsControl，且 dd 四件套齐  →  拖拽源=4 / 分组=4
+  [PASS] 条目容器绑定的是原始 ToolItemModel（不是包裹 VM）  →  条目容器=4 / 算子=4
+  [PASS] 列表模式：单列 StackPanel（没有 UniformGrid）
+  [IMG ] toolbox-empty-hint.png
+  [PASS] 预览浮层：ToolTip 从 PlacementTarget 拿到条目  →  content=图像二值化
+  [PASS] 每个条目一颗星标按钮，命令挂的是 ToggleFavoriteCommand  →  星标=4
+  [PASS] 未收藏：星标默认透明（悬停才显形）  →  opacity=0
+  [PASS] 收藏后：该行星标常显且换成主色  →  opacity=1 fg=#FF3B82F6
+  [PASS] 收藏后：收藏分组置顶，且组头含该项  →  groups=5 first=收藏
+  [PASS] 搜索高亮：命中片段被拆成独立 Run 并换主色  →  命中 Run='图像'
+  [PASS] 搜索高亮：命中条目在界面上确实存在  →  命中行=2
+  [PASS] 网格模式：内层面板换成 UniformGrid 且 Columns=2  →  UniformGrid=5
+  [PASS] 网格模式：条目数不变（只换模板，不换数据）  →  界面条目=5 / VM 条目=5
+  [IMG ] toolbox-grid.png
+  [IMG ] toolbox-list.png
+  [PASS] 预览浮层：名称 / 描述 / 输入 / 输出端口都渲染出来  →  ? | 图像二值化 | 图像处理 | 把灰度图按阈值切成前景/背景 | 输入 | In | HImage | 输入图 | 输出 | Out | Double | 结果
+  [PASS] 预览浮层：端口带类型与注释  →  ? | 图像二值化 | 图像处理 | 把灰度图按阈值切成前景/背景 | 输入 | In | HImage | 输入图 | 输出 | Out | Double | 结果
+  [PASS] 预览浮层：分类名胶囊用的是该分类的专属色  →  分类=图像处理 期望色=#FF3B82F6
+  [PASS] 拖拽预览模板：Icon / Name 两个绑定都出值  →  ? | ? | 图像二值化
+  [PASS] 条目图标：前景色按所属分组的专属色（收藏组金 / 分类组分类色）  →  #FFE6A23C,#FF3B82F6
+  [PASS] 没有真正的绑定错误（路径写错 / 转换器缺失在这里必红）  →  5 条全是 FindAncestor 回收期噪声
+
+========== 结果汇总 ==========
+通过: 19  失败: 0   （FindAncestor 回收期噪声 5 条，不计）
+>>> 全部断言通过 <<<
+出图目录: D:\C#\VM\_ToolboxProbe\out\

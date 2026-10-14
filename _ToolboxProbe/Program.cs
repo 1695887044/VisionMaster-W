@@ -236,11 +236,26 @@ namespace ToolboxProbe
                     && texts.Contains("In") && texts.Contains("Out"),
                     string.Join(" | ", texts.Where(t => t.Length > 0)));
 
+                // 端口行现在带类型 + 注释：类型走短名转换器（System.Double → Double），注释来自 Description
+                Check("预览浮层：端口带类型与注释",
+                    texts.Contains("HImage") && texts.Contains("Double")
+                    && texts.Contains("输入图") && texts.Contains("结果"),
+                    string.Join(" | ", texts.Where(t => t.Length > 0)));
+
                 var chipColor = VisionMaster.Helpers.ToolboxCategoryVisuals.ColorFor(leaf.Category);
                 var categoryChip = Descendants<Border>(preview)
                     .FirstOrDefault(b => (b.Background as SolidColorBrush)?.Color == chipColor);
                 Check("预览浮层：分类名胶囊用的是该分类的专属色",
                     categoryChip != null, $"分类={leaf.Category} 期望色={chipColor}");
+
+                // 端口容器是 Pump 之后才生成的，DesiredSize 会变——出图前重新量一次，
+                // 否则按"还没长出端口时"的高度截图，会把输入/输出整段裁掉
+                preview.InvalidateMeasure();
+                preview.Measure(new Size(320, 2000));
+                preview.Arrange(new Rect(0, 0, 320, preview.DesiredSize.Height));
+                preview.UpdateLayout();
+                Pump(preview);
+                Render(preview, "toolbox-preview.png", 320, preview.DesiredSize.Height);
             }
 
             // ---- 6. 拖拽负载：adornertemplate 能按条目实例化（{Binding Icon}/{Binding Name} 都在） ----
@@ -343,6 +358,20 @@ namespace ToolboxProbe
         private static void Render(FrameworkElement host, string file)
         {
             var bmp = new RenderTargetBitmap((int)host.Width, (int)host.Height, 96, 96, PixelFormats.Pbgra32);
+            bmp.Render(host);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bmp));
+            using var fs = File.Create(Path.Combine(OutputDir, file));
+            encoder.Save(fs);
+            Console.WriteLine($"  [IMG ] {file}");
+        }
+
+        /// <summary>按指定尺寸出图（浮层这类没有固定 Width/Height 的元素用）。</summary>
+        private static void Render(FrameworkElement host, string file, double width, double height)
+        {
+            var bmp = new RenderTargetBitmap(
+                Math.Max(1, (int)Math.Ceiling(width)), Math.Max(1, (int)Math.Ceiling(height)),
+                96, 96, PixelFormats.Pbgra32);
             bmp.Render(host);
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bmp));

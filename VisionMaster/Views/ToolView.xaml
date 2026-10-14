@@ -97,7 +97,6 @@
             <DataTemplate x:Key="ToolPreviewTemplate">
                 <Border
                     MaxWidth="320"
-                    MaxHeight="440"
                     Padding="12"
                     Background="{StaticResource ScadaSurfaceBrush}"
                     BorderBrush="{StaticResource ScadaPanelBorderBrush}"
@@ -111,9 +110,10 @@
                             ShadowDepth="3"
                             Color="#0F172A" />
                     </Border.Effect>
-                    <!--  端口可能很多（缺陷类算子 20+ 个），限高 + 可滚动：超出部分滚轮可看
-                          （WPF 的 ToolTip 支持交互内容，鼠标移到浮层上不会关闭）。  -->
-                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <!--  浮层按内容自适应高度（不设限高、不放 ScrollViewer）：
+                          端口可能很多，但 WPF 的 ToolTip 是 Popup，里面的滚动条不可靠
+                          ——鼠标滚轮常被路由到后面的窗口，滚动条点了不动。
+                          宁可让它长一点、把端口一次列全，也不摆一个点了没反应的控件。  -->
                     <StackPanel>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock
@@ -298,7 +298,6 @@
                             </ItemsControl>
                         </StackPanel>
                     </StackPanel>
-                    </ScrollViewer>
                 </Border>
             </DataTemplate>
 
