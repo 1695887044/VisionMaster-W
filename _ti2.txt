@@ -1,0 +1,14 @@
+Core\IPluginProvider.cs:19:        IReadOnlyDictionary<string, ToolItemModel> ModulePlugins { get; }
+Core\IPluginProvider.cs:24:        IReadOnlyDictionary<string, ToolItemModel> CameraPlugins { get; }
+Core\IPluginProvider.cs:29:        IReadOnlyDictionary<string, ToolItemModel> LaserPlugins { get; }
+Core\IPluginProvider.cs:34:        IReadOnlyDictionary<string, ToolItemModel> MotionPlugins { get; }
+Core\IPluginProvider.cs:39:        void RegisterModule(ToolItemModel plugin);
+Core\IPluginProvider.cs:44:        void RegisterCamera(ToolItemModel plugin);
+Core\IPluginProvider.cs:49:        void RegisterLaser(ToolItemModel plugin);
+Core\IPluginProvider.cs:54:        void RegisterMotion(ToolItemModel plugin);
+Core\IPluginProvider.cs:59:        ToolItemModel GetModule(string name);
+Core\IPluginProvider.cs:64:        ToolItemModel GetCamera(string name);
+Core\IPluginProvider.cs:69:        ToolItemModel GetLaser(string name);
+Core\IPluginProvider.cs:74:        ToolItemModel GetMotion(string name);
+Core\Models\ToolItemModel.cs:16:    public record class ToolItemModel
+Core\Models\ToolItemModel.cs:90:        public ObservableCollection<ToolItemModel> Children { get; set; } = new();

@@ -42,7 +42,7 @@ namespace Plugin.CaliperMeasure
         Description = "阵列式卡尺测量：自动均布 N 把卡尺做亚像素找边，支持宽度/间隙、两点距、点到线距、圆直径与角度；输出物理值、偏差与 OK/NG",
         ShortName = "\uf545"
     )]
-    [ParallelSafe] // 二期真并行：chun shijue jisuan
+    [ParallelSafe] // 二期真并行：纯视觉计算
     public partial class CaliperMeasurePlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 出厂默认值（唯一真相）
@@ -1236,11 +1236,12 @@ namespace Plugin.CaliperMeasure
                 // 渲染只是"给人看"，失败最多丢 MeasureImage，绝不能把一次成功的测量判成失败
                 try
                 {
-                    HObject displayBase = BuildDisplayBase(src, temp);
                     // 单位按类型：角度=度（不受像素当量影响），其余=mm
                     string unit = p.Kind == MeasureKind.Angle ? "°" : "mm";
+                    // 底图直接给原图：通道数/位深的归一化（4 通道丢 alpha、非 byte 按实际灰度范围拉伸）
+                    // 由共享烘焙件 AnnotationBaker.NormalizeForDisplay 负责，本插件不再自己转一遍
                     result.MeasureImage = _renderer.Render(
-                        displayBase,
+                        src,
                         caliperXld,
                         measureXld,
                         fittedXld,
@@ -1700,21 +1701,6 @@ namespace Plugin.CaliperMeasure
 
             temp.Add(gray);
             return true;
-        }
-
-        /// <summary>
-        /// 取用于显示的底图：原图（彩色保持彩色），非 byte 类型转成 byte。
-        /// HALCON 图形显示只稳妥支持 byte，16 位/float 图直接 disp_obj 可能报错或显示成一片黑。
-        /// 返回的 HObject 所有权：要么是调用方的 src（只读借用），要么是登记进 temp 的新对象。
-        /// </summary>
-        private static HObject BuildDisplayBase(HImage src, List<HObject> temp)
-        {
-            HOperatorSet.GetImageType(src, out HTuple type);
-            if (type.S == "byte") return src;
-
-            HOperatorSet.ConvertImageType(src, out HObject converted, "byte");
-            temp.Add(converted);
-            return converted;
         }
 
         /// <summary>

@@ -88,6 +88,10 @@
          在断言里照抄一份等于验的是照抄的那份，真视图里这份漏抄了字段照样漏，
          所以开放 internal 而不是把翻译提成公开 API（视图不该有对外契约）。 -->
     <InternalsVisibleTo Include="ScadaChecks" />
+    <!-- 离屏断言（FlowCanvasChecks）同理：ProcessViewModel.TickRunningTimes 是纯计算
+         （2026-10-10 判据放宽为 State==Running，服务并行分支步骤的实时耗时上屏），
+         断言直接调它验判据，不走反射——与 CheckLinkOrder 当年"反射直调"的别扭说再见。 -->
+    <InternalsVisibleTo Include="FlowCanvasChecks" />
   </ItemGroup>
 
 </Project>

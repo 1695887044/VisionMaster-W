@@ -43,6 +43,20 @@ namespace VisionMaster.Models
     /// 1. 不继承 BindableBase，不进入 FlowModel.Steps 的 PropertyChanged 订阅链；
     /// 2. 变更只走 LayoutChanged 显式事件，供画布订阅；
     /// 3. 不参与编译——FlowCompiler 只读 StepModel，从不读布局。
+    ///
+    /// 画布视图态存哪里的口径表（评审清单 B 包定稿，2026-10-12）：
+    /// ┌─────────────────┬──────────────────────────────────────────────┐
+    /// │ 随流程           │ 本类（随 .vms 落盘）：节点坐标 X/Y、容器折叠 Collapsed。
+    /// │                 │ 非语义、不递增 FlowModel.Version（本类存在的全部理由）。
+    /// ├─────────────────┼──────────────────────────────────────────────┤
+    /// │ 随用户           │ AppSettingsService（AppConfig.json 的 FlowCanvas 节）：
+    /// │                 │ 数据线开关 / 顺序链开关——与流程无关、跟操作者习惯走，
+    /// │                 │ 写回走 SyncFlowCanvasSettings（改完即存，同 RunWindowMode）。
+    /// ├─────────────────┼──────────────────────────────────────────────┤
+    /// │ 刻意不存         │ 选中集 / 瞬态高亮（调试停驻、运行染色）/ StatusHint /
+    /// │                 │ 视口位置与缩放 / 拖动参考线——都是会话内瞬时态，落盘只会
+    /// │                 │ 让"下次打开停在昨天的一半操作"这种怪状态出现。
+    /// └─────────────────┴──────────────────────────────────────────────┘
     /// </summary>
     public sealed class FlowLayoutStore
     {
@@ -300,11 +314,18 @@ namespace VisionMaster.Models
         /// 几何公式与画布渲染 ComputeContainerGeometry 逐行对齐。
         ///
         /// 只补缺项：已有坐标的步骤沿用原位置（绝不被自动布局冲掉），但仍按实际尺寸参与行/列推进。
+        /// 【本层居中（2026-10-11）】窄节点不再统统左对齐——按"本层最宽项的设计轴线"居中：
+        /// 容器与上下级算子共享一条中轴，顺序链自然垂直居中（用户反馈"延时_2 应在容器中间，不是贴左"）。
+        /// 只影响本次新落位的项；已有坐标原样沿用（拖过的位置不冲掉）。
+        /// 本层外接矩形不变（最宽项的左右缘就是 min/max），泳道/框体/行推进全部不受影响。
         /// 返回本层内容（含递归容器框）的外接矩形；本层无步骤时返回 Rect.Empty。
         /// </summary>
         /// <param name="depth">当前层深（顶层 = 1），用于超深自动折叠判定</param>
         private Rect PlaceLevel(List<StepModel> level, double columnX, double topY, int depth, ref int added)
         {
+            double maxW = MeasureLevelWidth(level, depth);
+            double axisX = columnX + maxW / 2;
+
             double cursor = topY;
             double minX = double.MaxValue, minY = double.MaxValue;
             double maxX = double.MinValue, maxY = double.MinValue;
@@ -316,9 +337,9 @@ namespace VisionMaster.Models
 
                 Rect rect;
                 if (step is IContainerStep container && container.Children != null)
-                    rect = PlaceContainer(step, container, columnX, cursor, depth, ref added);
+                    rect = PlaceContainer(step, container, axisX, cursor, depth, ref added);
                 else
-                    rect = PlaceLeaf(step, columnX, cursor, ref added);
+                    rect = PlaceLeaf(step, axisX - NodeWidth / 2, cursor, ref added);
 
                 if (!any)
                 {
@@ -337,6 +358,58 @@ namespace VisionMaster.Models
             }
 
             return any ? new Rect(minX, minY, maxX - minX, maxY - minY) : Rect.Empty;
+        }
+
+        // ------------------------------------------------------------------
+        //  纯测量（不落任何坐标）：供"本层居中"定轴线。宽度公式必须与
+        //  PlaceExpanded 的框宽逐项一致（泳道=内容±LanePadding、列距 ColumnGap、
+        //  框内边距 FramePadding；空分支=EmptyLaneWidth；无分支/折叠=CollapsedFrameWidth），
+        //  折叠态判定也走同一规则（override 优先 → 已存标记 → 深度阈值）——
+        //  两处漂移的表现就是"窄节点没对准容器轴线"。
+        //  注：测量按"新落位"假设内容左缘 = 列起点；分支里已有被拖动的旧坐标时
+        //  实际框会随内容外接框走，轴线精度略降（拖过的位置本来就不冲掉）。
+        // ------------------------------------------------------------------
+
+        /// <summary>一层内容的设计宽（取最宽项）</summary>
+        private double MeasureLevelWidth(IEnumerable<StepModel> level, int depth)
+        {
+            double max = 0;
+            foreach (var step in level)
+            {
+                if (step == null) continue;
+                max = Math.Max(max, MeasureItemWidth(step, depth));
+            }
+            return max;
+        }
+
+        /// <summary>单个步骤的设计宽：叶子=模块盒；容器=各分支泳道宽之和 + 列距 + 框内边距（折叠按折叠框）</summary>
+        private double MeasureItemWidth(StepModel step, int depth)
+        {
+            if (step is not IContainerStep container || container.Children == null)
+                return NodeWidth;
+
+            bool? forced = _collapseOverride?.Invoke(step.StepID);
+            bool collapsed = forced
+                ?? (Nodes.TryGetValue(step.StepID, out var stored) ? stored.Collapsed : depth > AutoCollapseDepth);
+
+            if (collapsed)
+                return CollapsedFrameWidth;
+
+            double total = 0;
+            int count = 0;
+            foreach (var branch in container.Children)
+            {
+                if (branch?.Steps == null) continue;
+                count++;
+                total += branch.Steps.Count == 0
+                    ? EmptyLaneWidth
+                    : MeasureLevelWidth(branch.Steps, depth + 1) + LanePadding * 2;
+            }
+
+            if (count == 0)
+                return CollapsedFrameWidth;
+
+            return total + ColumnGap * (count - 1) + FramePadding * 2;
         }
 
         /// <summary>叶子步骤：缺坐标写 (columnX, topY)，已有坐标按记录值原样返回（不覆盖）</summary>
@@ -360,15 +433,18 @@ namespace VisionMaster.Models
         ///   · 无 override（首次渲染补缺）→ 新建项按 <see cref="AutoCollapseDepth"/> 自动折叠、
         ///     已有项沿用库里的标记（用户手动展开的深容器不能被"补缺"重新按折叠足迹排位）。
         /// </summary>
-        private Rect PlaceContainer(StepModel step, IContainerStep container, double columnX, double topY, int depth, ref int added)
+        private Rect PlaceContainer(StepModel step, IContainerStep container, double axisX, double topY, int depth, ref int added)
         {
             bool? forced = _collapseOverride?.Invoke(step.StepID);
 
             if (!Nodes.TryGetValue(step.StepID, out var existing))
             {
+                // 新容器按自身设计宽在轴线上居中（测宽与 PlaceExpanded 的框宽公式同源，
+                // 漂移的表现就是"容器没对准轴线"）；已有坐标的容器原样沿用。
+                double designed = MeasureItemWidth(step, depth);
                 Nodes[step.StepID] = new NodeLayout
                 {
-                    X = columnX,
+                    X = axisX - designed / 2,
                     Y = topY,
                     Collapsed = forced ?? depth > AutoCollapseDepth,
                 };

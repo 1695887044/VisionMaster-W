@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 540" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="540" fill="#FDFDFB"/>
+  <defs>
+    <marker id="cAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#B45309"/>
+    </marker>
+  </defs>
+  <!-- 被测物：竖直亮带（灰底+亮带） -->
+  <rect x="240" y="120" width="280" height="300" fill="#6E6E6E"/>
+  <rect x="430" y="120" width="130" height="300" fill="#E6E6E6"/>
+  <!-- 搜索区：中心(380,270) L1=140(水平扫描) L2=90(竖直排布) -->
+  <rect x="240" y="180" width="280" height="180" fill="none" stroke="#2563EB" stroke-width="2.5"/>
+  <text x="248" y="172" fill="#1D4ED8" font-size="14" font-weight="bold">搜索区矩形（你拖出来的）</text>
+  <!-- 5 把卡尺：halfWidth=L2/5=18，中心 y=198,234,270,306,342 -->
+  <g fill="none" stroke="#EAB308" stroke-width="1.5">
+    <rect x="240" y="180" width="280" height="36"/>
+    <rect x="240" y="216" width="280" height="36"/>
+    <rect x="240" y="252" width="280" height="36"/>
+    <rect x="240" y="288" width="280" height="36"/>
+    <rect x="240" y="324" width="280" height="36"/>
+  </g>
+  <!-- 每把的扫描线（虚线）+ 边缘十字（亮带左边缘 x=430） -->
+  <g stroke="#FDE68A" stroke-width="1" stroke-dasharray="4 3">
+    <line x1="240" y1="198" x2="520" y2="198"/>
+    <line x1="240" y1="234" x2="520" y2="234"/>
+    <line x1="240" y1="270" x2="520" y2="270"/>
+    <line x1="240" y1="306" x2="520" y2="306"/>
+    <line x1="240" y1="342" x2="520" y2="342"/>
+  </g>
+  <g stroke="#16A34A" stroke-width="2.5">
+    <line x1="422" y1="192" x2="438" y2="204"/><line x1="438" y1="192" x2="422" y2="204"/>
+    <line x1="422" y1="228" x2="438" y2="240"/><line x1="438" y1="228" x2="422" y2="240"/>
+    <line x1="422" y1="264" x2="438" y2="276"/><line x1="438" y1="264" x2="422" y2="276"/>
+    <line x1="422" y1="300" x2="438" y2="312"/><line x1="438" y1="300" x2="422" y2="312"/>
+    <line x1="422" y1="336" x2="438" y2="348"/><line x1="438" y1="336" x2="422" y2="348"/>
+  </g>
+  <!-- L1 / L2 标注 -->
+  <line x1="240" y1="500" x2="520" y2="500" stroke="#B45309" stroke-width="2.5" marker-end="url(#cAr)"/>
+  <text x="300" y="522" fill="#B45309" font-size="15" font-weight="bold">L1 = 半长 = 扫描方向（要横跨被测边!）</text>
+  <line x1="205" y1="180" x2="205" y2="360" stroke="#B45309" stroke-width="2.5" marker-end="url(#cAr)"/>
+  <text x="128" y="120" fill="#B45309" font-size="15" font-weight="bold">L2 = 半宽</text>
+  <text x="70" y="140" fill="#B45309" font-size="14">= 排布方向</text>
+  <text x="46" y="160" fill="#B45309" font-size="14">（N 把均布）</text>
+  <!-- 注释 -->
+  <text x="540" y="196" fill="#15803D" font-size="14" font-weight="bold">绿色十字 =</text>
+  <text x="540" y="216" fill="#15803D" font-size="14">每把卡尺找到的</text>
+  <text x="540" y="236" fill="#15803D" font-size="14">亚像素边缘点</text>
+  <text x="540" y="270" fill="#475569" font-size="14">5 个点 → 取平均</text>
+  <text x="540" y="290" fill="#475569" font-size="14">→ 单点噪声带不跑</text>
+  <text x="10" y="30" fill="#0F172A" font-size="17" font-weight="bold">阵列式卡尺：边缘垂直于扫描方向 —— 矩形必须「横跨」被测的边/缝</text>
+  <text x="10" y="56" fill="#B91C1C" font-size="13">⚠ Phi≠0 时整组旋转：L2 排布向量 = (cosφ, +sinφ)。写成 (cosφ, −sinφ) 是本插件真实 P0 事故（见手册 4.6 节）</text>
+</svg>

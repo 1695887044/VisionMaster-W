@@ -59,7 +59,15 @@ namespace VisionMaster.Services
         /// PluginTypeName 相同的步骤，而不是"当前容器里的下标"。
         /// </summary>
         public static string NextStepName(FlowModel flow, ToolItemModel tool)
-            => $"{tool.Name}_{CountStepsDeep(flow.Steps, tool.ModuleTypeName)}";
+            => NextStepName(flow, tool.Name, tool.ModuleTypeName);
+
+        /// <summary>
+        /// 自动命名的薄适配：不经过工具箱模板，直接按显示名与类型名走同一条计数口径。
+        /// 画布复制/粘贴（FlowClipboard.Take）用——粘贴件手里没有 ToolItemModel 可给
+        ///（只有源步骤的 PluginName / PluginTypeName），但命名形状必须与拖入一致。
+        /// </summary>
+        public static string NextStepName(FlowModel flow, string displayName, string pluginTypeName)
+            => $"{displayName}_{CountStepsDeep(flow.Steps, pluginTypeName)}";
 
         /// <summary>
         /// 递归计数：本层命中 PluginTypeName 的步骤 + 每条分支子层继续数。

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 310" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="310" fill="#FDFDFB"/>
+  <text x="30" y="30" fill="#0F172A" font-size="15" font-weight="bold">顺序契约：8 个数组端口按 SortMode 逐项对齐 —— 第 i 项 = 同一个缺陷</text>
+  <!-- 表头 -->
+  <g font-size="12.5" font-weight="bold" fill="#334155">
+    <rect x="30"  y="48" width="70"  height="30" fill="#EEF2F6"/><text x="42"  y="68">缺陷#</text>
+    <rect x="104" y="48" width="120" height="30" fill="#EEF2F6"/><text x="114" y="68">CenterRows</text>
+    <rect x="228" y="48" width="120" height="30" fill="#EEF2F6"/><text x="238" y="68">CenterCols</text>
+    <rect x="352" y="48" width="120" height="30" fill="#EEF2F6"/><text x="362" y="68">DefectAreas</text>
+    <rect x="476" y="48" width="140" height="30" fill="#EEF2F6"/><text x="486" y="68">DefectCircularities</text>
+    <rect x="620" y="48" width="110" height="30" fill="#EEF2F6"/><text x="630" y="68">DefectAspectRatios</text>
+  </g>
+  <!-- 行 1 -->
+  <rect x="30" y="82" width="70" height="30" fill="#DBEAFE"/><text x="52" y="102" font-size="12.5" fill="#1E40AF" font-weight="bold">1</text>
+  <rect x="104" y="82" width="120" height="30" fill="#F8FAFC"/><text x="114" y="102" font-size="12.5">152.3</text>
+  <rect x="228" y="82" width="120" height="30" fill="#F8FAFC"/><text x="238" y="102" font-size="12.5">310.7</text>
+  <rect x="352" y="82" width="120" height="30" fill="#F8FAFC"/><text x="362" y="102" font-size="12.5">86.0</text>
+  <rect x="476" y="82" width="140" height="30" fill="#F8FAFC"/><text x="486" y="102" font-size="12.5">0.92（近圆=气泡）</text>
+  <rect x="620" y="82" width="110" height="30" fill="#F8FAFC"/><text x="630" y="102" font-size="12.5">1.2</text>
+  <!-- 行 2 -->
+  <rect x="30" y="116" width="70" height="30" fill="#DCFCE7"/><text x="52" y="136" font-size="12.5" fill="#166534" font-weight="bold">2</text>
+  <rect x="104" y="116" width="120" height="30" fill="#F8FAFC"/><text x="114" y="136" font-size="12.5">88.1</text>
+  <rect x="228" y="116" width="120" height="30" fill="#F8FAFC"/><text x="238" y="136" font-size="12.5">502.4</text>
+  <rect x="352" y="116" width="120" height="30" fill="#F8FAFC"/><text x="362" y="136" font-size="12.5">45.5</text>
+  <rect x="476" y="116" width="140" height="30" fill="#F8FAFC"/><text x="486" y="136" font-size="12.5">0.71</text>
+  <rect x="620" y="116" width="110" height="30" fill="#F8FAFC"/><text x="630" y="136" font-size="12.5">2.6</text>
+  <!-- 行 3 -->
+  <rect x="30" y="150" width="70" height="30" fill="#FEE2E2"/><text x="52" y="170" font-size="12.5" fill="#991B1B" font-weight="bold">3</text>
+  <rect x="104" y="150" width="120" height="30" fill="#F8FAFC"/><text x="114" y="170" font-size="12.5">201.9</text>
+  <rect x="228" y="150" width="120" height="30" fill="#F8FAFC"/><text x="238" y="170" font-size="12.5">77.2</text>
+  <rect x="352" y="150" width="120" height="30" fill="#F8FAFC"/><text x="362" y="170" font-size="12.5">112.3</text>
+  <rect x="476" y="150" width="140" height="30" fill="#F8FAFC"/><text x="486" y="170" font-size="12.5">0.28（细长=划痕）</text>
+  <rect x="620" y="150" width="110" height="30" fill="#F8FAFC"/><text x="630" y="170" font-size="12.5">8.4</text>
+  <!-- SortMode -->
+  <text x="30" y="216" fill="#0F172A" font-size="13.5" font-weight="bold">SortMode（定义顺序的开关）：</text>
+  <g font-size="12.5">
+    <rect x="250" y="200" width="130" height="26" rx="3" fill="#F1F5F9" stroke="#CBD5E1"/><text x="262" y="218">None（区域原序）</text>
+    <rect x="390" y="200" width="170" height="26" rx="3" fill="#ECFDF5" stroke="#6EE7B7"/><text x="402" y="218">AreaDescending（面积降序）</text>
+    <rect x="570" y="200" width="160" height="26" rx="3" fill="#F1F5F9" stroke="#CBD5E1"/><text x="582" y="218">从上到下从左到右</text>
+  </g>
+  <!-- 底注 -->
+  <text x="30" y="258" fill="#0F172A" font-size="13.5" font-weight="bold">为什么必须有：HALCON 区域数组本身没有顺序约定 —— 不定死顺序，下游按索引取「第 N 个缺陷」拿到的就是不可预期的内部顺序</text>
+  <text x="30" y="282" fill="#B91C1C" font-size="13" font-weight="bold">实现细节：排序是 C# 对索引列表排（BuildKeepOrder :2114），不是 sort_region；触边/长宽比筛选也在这里一起做（'elongation' 在本仓库不可用，长宽比用 smallest_rectangle1 自算）</text>
+</svg>

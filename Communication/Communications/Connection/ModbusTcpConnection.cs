@@ -9,11 +9,18 @@ namespace VisionMaster.Communications
     /// <para>Modbus TCP 协议连接实现类。</para>
     /// <para>封装 HslCommunication 的 ModbusTcpNet 设备，提供标准化的通信接口。</para>
     /// </summary>
-    public class ModbusTcpConnection : ICommunicationConnection, ILinkHealthProbe
+    public class ModbusTcpConnection : ICommunicationConnection, ILinkHealthProbe, IConnectionFailureDetail
     {
         private readonly ModbusTcpNet _device;
         private readonly ModbusTcpConfig _config;
         private bool _isConnected;
+
+        // 建连失败分类（IConnectionFailureDetail）：Worker 线程写、任意线程读
+        private volatile bool _refusedFailure;
+        private volatile string? _lastConnectError;
+
+        /// <summary>refused 分类探测的等待上限：回环/局域网拒绝是毫秒级；黑洞地址最多等这么久就放弃分类</summary>
+        private const int RefusedProbeTimeoutMs = 500;
 
         /// <inheritdoc />
         public string ConnectionName { get; }
@@ -66,14 +73,59 @@ namespace VisionMaster.Communications
             // 读超时是另一回事：它约束"每次读写帧等对端回包"的时长（HSL 默认 5000ms）。
             // 与连接超时分开配置，才能既让慢链路建连有耐心、又让掉线设备快速暴露故障。
             _device.ReceiveTimeOut = config.ReadTimeoutMs;
+            // KeepAlive 落地（EthernetConfigBase.EnableKeepAlive / KeepAliveIntervalMs 此前是零消费的死配置）：
+            // 下发到 HSL 的 SocketKeepAliveTime——HSL 在 ConnectServer 成功那一刻对底层 socket 做 IOControl
+            // （NetworkDoubleBase.ConnectServer → SetKeepAlive(time, interval)，即"连接成功后才启用"）。
+            // 关闭时不设置：保持 HSL 默认 -1（不启用），未启用时行为与配置落地前零变化。
+            // 注：契约默认值就是 EnableKeepAlive=true / 30000ms（UI「开启 KeepAlive」默认勾选），
+            // 故默认配置自此起真的启用 30s TCP keepalive（半开连接可被内核探活）。
+            if (config.EnableKeepAlive && config.KeepAliveIntervalMs > 0)
+                _device.SocketKeepAliveTime = config.KeepAliveIntervalMs;
         }
+
+        /// <inheritdoc />
+        public bool IsLastConnectFailureRefused => _refusedFailure;
+
+        /// <inheritdoc />
+        public string? LastConnectError => _lastConnectError;
 
         /// <inheritdoc />
         public bool Connect()
         {
+            long start = Environment.TickCount64;
             var result = _device.ConnectServer();
-            _isConnected = result.IsSuccess;
-            return _isConnected;
+            if (!result.IsSuccess)
+            {
+                _isConnected = false;
+                ClassifyConnectFailure(result.Message, Environment.TickCount64 - start);
+                return false;
+            }
+
+            _isConnected = true;
+            _refusedFailure = false;
+            _lastConnectError = null;
+            return true;
+        }
+
+        /// <summary>
+        /// 建连失败分类：HSL 只给一句消息（含 OS 本地化文本），无法直接拿到 SocketError。两级判定：
+        /// <para>① 消息识别（主通道，零成本）：OS 的 refused 文本（中文「积极拒绝」/英文「actively refused」）。
+        /// 实测本机（装了本地代理/TUN）回环拒绝也被 OS 层延迟到 ~2s 才回 RST，任何探测方案都会把失败耗时翻倍，
+        /// 故 refused 分类不走"先探测"，走消息识别。</para>
+        /// <para>② 快速失败探测（补充，覆盖消息未覆盖的区域设置）：HSL 对快速失败的建连会内部重试一次
+        /// （NetSupport.CreateSocketAndConnect），refused 场景总耗时约百毫秒级（正常网络）、远小于建连超时；
+        /// 真正的网络超时会耗满 <c>ConnectTimeOut</c>。只在「没耗满超时预算」（留 100ms 调度余量，封顶 1.5s）时
+        /// 做一次毫秒级 socket 探测拿确定的 SocketError——超时路径（探测会拖慢它）永远不进探测分支。</para>
+        /// </summary>
+        private void ClassifyConnectFailure(string message, long elapsedMs)
+        {
+            int timeoutMs = _config.TimeoutMs > 0 ? _config.TimeoutMs : 3000;
+            bool refused = HslHelper.MessageIndicatesConnectionRefused(message)
+                || (elapsedMs < Math.Min(timeoutMs - 100, 1500)
+                    && HslHelper.ProbeConnectionRefused(_config.IpAddress, _config.Port, RefusedProbeTimeoutMs));
+
+            _refusedFailure = refused;
+            _lastConnectError = refused ? "[ConnectionRefused] " + message : message;
         }
 
         /// <inheritdoc />

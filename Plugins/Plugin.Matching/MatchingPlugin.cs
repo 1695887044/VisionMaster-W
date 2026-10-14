@@ -10,6 +10,7 @@ using Core.Events;
 using Core.Halcon;
 using Core.Halcon.Color;
 using Core.Halcon.Controls;
+using Core.Halcon.Helpers;
 using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
@@ -1863,16 +1864,16 @@ namespace Plugin.Matching
             }
         }
 
-        private readonly object _previewGate = new();
-        private HTuple? _previewWindow;
-        private int _previewW,
-            _previewH;
+        private readonly AnnotationBaker _baker = new();
 
         /// <summary>
-        /// 在缓存复用的 buffer 离屏窗口上渲染"底图 + 轮廓叠加 + 判定文字"。
-        /// 模板预览（绿轮廓）与运行标注图（命中轮廓 + 判定文字）共用这一个渲染口。
-        /// 为什么缓存窗口：HALCON 反复 open/close 窗口会 #9302 死锁（仓库既有结论），
-        /// 尺寸不变就复用，变了才关旧开新；Dispose 时统一关闭。
+        /// 渲染"底图 + 轮廓叠加 + 判定文字"。模板预览（绿轮廓）与运行标注图（命中轮廓 + 判定文字）
+        /// 共用这一个渲染口。
+        ///
+        /// "怎么画"（open_window 'buffer' / 窗口按尺寸常驻复用防 #9302 / 每轮无条件 SetPart /
+        /// dump 回读后立刻释放源对象）全在共享烘焙件 <see cref="AnnotationBaker"/> 里，
+        /// 六条硬纪律逐条落实在那儿——本方法只剩"画哪几层、什么颜色"。
+        /// 渲染失败返回 null（不抛），端口数据照常输出。
         /// </summary>
         private HImage? RenderAnnotated(
             HObject baseImage,
@@ -1882,103 +1883,12 @@ namespace Plugin.Matching
             string textColor
         )
         {
-            lock (_previewGate)
-            {
-                try
-                {
-                    HOperatorSet.GetImageSize(baseImage, out HTuple wT, out HTuple hT);
-                    int w = wT.I,
-                        h = hT.I;
-                    if (w <= 0 || h <= 0)
-                        return null;
-
-                    if (_previewWindow == null || w != _previewW || h != _previewH)
-                    {
-                        ClosePreviewWindow();
-                        HOperatorSet.OpenWindow(
-                            0,
-                            0,
-                            w,
-                            h,
-                            "black",
-                            "buffer",
-                            "local",
-                            out HTuple win
-                        );
-                        _previewWindow = win;
-                        _previewW = w;
-                        _previewH = h;
-                    }
-                    HTuple win2 = _previewWindow;
-
-                    // 显式钉住窗口 part：不设的话本机实测 part 会被撑到参考图全幅，
-                    // 底图被缩在左上角（内容只占窗口一小块，其余全黑）
-                    HOperatorSet.SetPart(win2, 0, 0, h - 1, w - 1);
-                    HOperatorSet.DispObj(baseImage, win2);
-
-                    if (overlay != null && overlay.IsInitialized())
-                    {
-                        HOperatorSet.SetColor(win2, overlayColor);
-                        HOperatorSet.SetLineWidth(win2, 1);
-                        HOperatorSet.DispObj(overlay, win2);
-                    }
-
-                    if (lines != null && lines.Length > 0)
-                    {
-                        // 左上角判定文字加白底框：任何背景上都读得清（Blob 标注渲染同款）
-                        TrySetFont(win2, 16);
-                        HOperatorSet.DispText(
-                            win2,
-                            new HTuple(lines),
-                            "window",
-                            12,
-                            12,
-                            textColor,
-                            new HTuple("box_color"),
-                            new HTuple("white")
-                        );
-                    }
-
-                    // dump 回读：new HImage(shot) 是独立句柄，shot 本身要立刻释放（引用计数语义，
-                    // 卡尺插件实测 500 次不释放约漏 160MB）
-                    HOperatorSet.DumpWindowImage(out HObject shot, win2);
-                    var result = new HImage(shot);
-                    shot.Dispose();
-                    return result;
-                }
-                catch
-                {
-                    return null;
-                }
-            }
-        }
-
-        /// <summary>设置离屏窗口字号。失败吞掉：字号是锦上添花，不能让渲染失败</summary>
-        private static void TrySetFont(HTuple win, int size)
-        {
-            try
-            {
-                HOperatorSet.SetFont(win, $"-Consolas-{size}-*-0-*-*-1-");
-            }
-            catch
-            { /* 用默认字号即可 */
-            }
-        }
-
-        private void ClosePreviewWindow()
-        {
-            if (_previewWindow == null)
-                return;
-            try
-            {
-                HOperatorSet.CloseWindow(_previewWindow);
-            }
-            catch
-            { /* 关窗失败不阻断回收 */
-            }
-            _previewWindow = null;
-            _previewW = 0;
-            _previewH = 0;
+            var plan = new BakePlan();
+            if (overlay != null && overlay.IsInitialized())
+                plan.Objects.Add(new BakeObj(overlay, overlayColor, 1, "margin"));
+            // 左上角判定文字加白底框：任何背景上都读得清
+            plan.AddTextBlock(lines, textColor, 12, 12, 16, box: true);
+            return _baker.Bake(baseImage, plan);
         }
 
         // ==================================================================
@@ -2122,7 +2032,7 @@ namespace Plugin.Matching
 
             SmearMask = null;
             SmearEraseRegion = null;
-            ClosePreviewWindow();
+            _baker.Dispose();
             TemplatePreviewImage = null; // setter 释放预览图
             // 参考图也要释放：DisplayImage 的 setter 是普通 SetProperty（不释放旧值），
             // 换图路径靠各调用点手动 Dispose，只有这里能兜住"最后一次"那张

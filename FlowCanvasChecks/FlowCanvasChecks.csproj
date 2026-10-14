@@ -23,6 +23,13 @@
     <ProjectReference Include="..\Plugins\Plugin.CodeReader\Plugin.CodeReader.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.Yolo\Plugin.Yolo.csproj" />
     <!--
+      深度学习分类：直接引用插件工程（不走 Modules\ 反射加载），
+      断言"缩放几何 / 布局嗅探 / softmax 归一化 / TopK"这层纯函数 ——
+      归一化写错的后果是"结果全错但不报错"，只能靠受控数据钉住。
+      引用它也让构建顺带把 Plugin.DlClassify.dll 与 ONNX Runtime 原生库投递到位。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.DlClassify\Plugin.DlClassify.csproj" />
+    <!--
       Blob 缺陷检测：直接引用插件工程（而不是从 Modules\ 反射加载），
       这样"触边排除 / 长宽比 / 合并 / 填孔 / 排序 / 像素当量 / 位深底图"这些契约
       能在编译期就拿到类型检查，失败信息也更好读。
@@ -88,6 +95,20 @@
       引用它也让构建顺带把 Plugin.PoseTransform.dll 刷新到 Modules。
     -->
     <ProjectReference Include="..\Plugins\Plugin.PoseTransform\Plugin.PoseTransform.csproj" />
+    <!--
+      几何工具：直接引用（不走 Modules\ 反射加载）。
+      断言 GeometryMath 纯托管几何（距离/求交/垂足/三点构圆/夹角 [0,90]）与 GeometryParam 契约
+      （不可变工厂 / JSON 往返 / Phi 归一化）。引用它也让构建顺带把两个几何 DLL 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.GeometryRelation\Plugin.GeometryRelation.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.GeometryFinder\Plugin.GeometryFinder.csproj" />
+    <!--
+      结果显示：直接引用插件工程（不走 Modules\ 反射加载）。
+      断言"结果项 → BakePlan"的确定性映射（行主口径 / 判型顺序 / 钳制与元素上限 / 配置往返 / 试运行污染防御）
+      与"真的烧进像素"（产物像素采样、缩略图带标注、导出 PNG 带标注、端到端 .vms）。
+      引用它也让构建顺带把 Plugin.ResultDisplay.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.ResultDisplay\Plugin.ResultDisplay.csproj" />
   </ItemGroup>
 
   <ItemGroup>

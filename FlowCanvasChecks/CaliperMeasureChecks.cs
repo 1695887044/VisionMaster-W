@@ -180,6 +180,25 @@ namespace FlowCanvasChecks
                     cali.Success.Value is true && px > 0 && Math.Abs(v4 / (px * 0.02) - 1) < 1e-6,
                     $"值={v4:0.####}（期望 ≈ {px * 0.02:0.####}）");
 
+                // ---- 标注底图逐点保真 ----
+                // 亮带是"全高、列 200~440"，所以取 ROI（行 225~255）**下方**的行 470：
+                // 列 320 在亮带内应为 255、列 100 在亮带外应为 0，两点都避开左上角文字框与搜索区标注。
+                // 底图被"缩进左上角"（离屏窗口漏掉 set_part）时，这两点会一起塌成同一个常数。
+                var calmShot = cali.MeasureImage.TypedValue;
+                if (calmShot != null && calmShot.IsInitialized())
+                {
+                    double inStripe = PixelProbe.At(calmShot, 470, 320);
+                    double outStripe = PixelProbe.At(calmShot, 470, 100);
+                    Check("[CALM] 标注底图逐点保真（亮带内 255 / 亮带外 0，底图没被缩进左上角）",
+                        Math.Abs(inStripe - 255) <= 3 && outStripe <= 3,
+                        $"(470,320)={inStripe:0.#} (470,100)={outStripe:0.#}");
+                }
+                else
+                {
+                    Check("[CALM] 标注底图逐点保真（亮带内 255 / 亮带外 0，底图没被缩进左上角）",
+                        false, $"MeasureImage 为空；Err='{cali.ErrorMessage.Value}'");
+                }
+
                 // ── 态⑤：标定失败 → 当量口归 0 → 卡尺明确失败（端到端"绝不静默"） ──
                 calib.PointRows[0].MachineX = null;   // P1 半填 → 标定失败
                 calib.Execute(ctx);

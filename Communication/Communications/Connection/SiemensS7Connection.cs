@@ -8,10 +8,18 @@ namespace VisionMaster.Communications
     /// <para>西门子 S7 协议连接实现类。</para>
     /// <para>封装 HslCommunication 的 SiemensS7Net 设备，提供标准化的通信接口。</para>
     /// </summary>
-    public class SiemensS7Connection : ICommunicationConnection, ILinkHealthProbe
+    public class SiemensS7Connection : ICommunicationConnection, ILinkHealthProbe, IConnectionFailureDetail
     {
         private readonly SiemensS7Net _device;
+        private readonly SiemensS7Config _config;
         private bool _isConnected;
+
+        // 建连失败分类（IConnectionFailureDetail）：与 ModbusTcpConnection 同一套口径，Worker 线程写、任意线程读
+        private volatile bool _refusedFailure;
+        private volatile string? _lastConnectError;
+
+        /// <summary>refused 分类探测的等待上限：回环/局域网拒绝是毫秒级；黑洞地址最多等这么久就放弃分类</summary>
+        private const int RefusedProbeTimeoutMs = 500;
 
         /// <inheritdoc />
         public string ConnectionName { get; }
@@ -40,6 +48,7 @@ namespace VisionMaster.Communications
         /// <inheritdoc />
         public SiemensS7Connection(SiemensS7Config config)
         {
+            _config = config;
             Config = config;
             ConnectionName = $"{config.IpAddress}:{config.Port}({config.S7CpuType})";
             // 契约层自声明枚举按名映射到 Hsl 枚举（成员名一致），未知值回退 S1200
@@ -55,14 +64,51 @@ namespace VisionMaster.Communications
             // 所以真实建连上限 ≈ 两者之和，两个值都要下发才封得住。
             _device.ConnectTimeOut = config.TimeoutMs;
             _device.ReceiveTimeOut = config.ReadTimeoutMs;
+            // KeepAlive 落地：与 ModbusTcpConnection 同一机制（HSL NetworkDoubleBase.SocketKeepAliveTime，
+            // 建连成功那一刻由 HSL 对底层 socket 做 IOControl）。关闭时不设置，行为与落地前零变化。
+            if (config.EnableKeepAlive && config.KeepAliveIntervalMs > 0)
+                _device.SocketKeepAliveTime = config.KeepAliveIntervalMs;
         }
+
+        /// <inheritdoc />
+        public bool IsLastConnectFailureRefused => _refusedFailure;
+
+        /// <inheritdoc />
+        public string? LastConnectError => _lastConnectError;
 
         /// <inheritdoc />
         public bool Connect()
         {
+            long start = Environment.TickCount64;
             var result = _device.ConnectServer();
-            _isConnected = result.IsSuccess;
-            return _isConnected;
+            if (!result.IsSuccess)
+            {
+                _isConnected = false;
+                ClassifyConnectFailure(result.Message, Environment.TickCount64 - start);
+                return false;
+            }
+
+            _isConnected = true;
+            _refusedFailure = false;
+            _lastConnectError = null;
+            return true;
+        }
+
+        /// <summary>
+        /// 建连失败分类（与 ModbusTcpConnection.ClassifyConnectFailure 同一套规则）：
+        /// ① 消息识别（主通道）：TCP 建连被拒（refused）与协议无关，OS 文本直接判；
+        /// ② 快速失败探测（补充）：COTP 握手超时（≈ReceiveTimeOut）与网络建连超时（≈ConnectTimeOut）
+        /// 都会耗满超时预算、不进探测分支，行为不变；只有「没耗满超时预算」的快速失败才探测。
+        /// </summary>
+        private void ClassifyConnectFailure(string message, long elapsedMs)
+        {
+            int timeoutMs = _config.TimeoutMs > 0 ? _config.TimeoutMs : 3000;
+            bool refused = HslHelper.MessageIndicatesConnectionRefused(message)
+                || (elapsedMs < Math.Min(timeoutMs - 100, 1500)
+                    && HslHelper.ProbeConnectionRefused(_config.IpAddress, _config.Port, RefusedProbeTimeoutMs));
+
+            _refusedFailure = refused;
+            _lastConnectError = refused ? "[ConnectionRefused] " + message : message;
         }
 
         /// <inheritdoc />

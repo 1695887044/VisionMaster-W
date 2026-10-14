@@ -22,6 +22,15 @@ namespace VisionMaster.Scada
 
         /// <summary>切换到另一张画面（S8 已接通：经 IScadaNavigator 找画面，Id 优先、名字兜底）</summary>
         Navigate = 3,
+
+        /// <summary>让一条流程进入连续运行（已接通：经 IScadaFlowRunner，连续语义幂等——已在运行不算失败）</summary>
+        StartFlow = 4,
+
+        /// <summary>发出一条流程的停止（已接通：经 IScadaFlowRunner，幂等——本就未在运行也算成功）</summary>
+        StopFlow = 5,
+
+        /// <summary>把一条流程跑一遍（已接通：经 IScadaFlowRunner，单次语义不幂等——正在运行时拒绝）</summary>
+        RunFlowOnce = 6,
     }
 
     /// <summary>
@@ -39,6 +48,9 @@ namespace VisionMaster.Scada
             ScadaActionType.Log => "记录日志",
             ScadaActionType.WriteVariable => "写变量",
             ScadaActionType.Navigate => "切换画面",
+            ScadaActionType.StartFlow => "启动流程",
+            ScadaActionType.StopFlow => "停止流程",
+            ScadaActionType.RunFlowOnce => "执行一次",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
@@ -51,8 +63,7 @@ namespace VisionMaster.Scada
         /// 运行日志里写着另一句话，用户就没法把"我配的那条"和"日志里那条"对上号，
         /// 排查方向直接跑偏。这与 <see cref="DisplayName"/> 只写一份是同一个理由。
         ///
-        /// 三个动作现在都已接通，所以只剩"本版本不认识"这一档。
-        /// 将来再加动作类型，没接通的就在这个 switch 里给它一句原因，接上了再删掉那一项。
+        /// 六个动作现在都已接通，所以只剩"本版本不认识"这一档。
         /// </summary>
         public static string? PendingReason(this ScadaActionType type) => type switch
         {
@@ -64,6 +75,11 @@ namespace VisionMaster.Scada
             ScadaActionType.Log => null,
             ScadaActionType.WriteVariable => null,
             ScadaActionType.Navigate => null,
+            // 流程启停三条走 IScadaFlowRunner：目标流程找不到/停用/加密/编译不过/正被占用，
+            // 全是"配错了或这次没排上"，由执行侧当场算出来，不在这里预先写死。
+            ScadaActionType.StartFlow => null,
+            ScadaActionType.StopFlow => null,
+            ScadaActionType.RunFlowOnce => null,
             _ => "本版本不认识该动作",
         };
     }

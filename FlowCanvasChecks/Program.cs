@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Windows;
+using Core.Events;
 using Core.Interfaces;
 using Newtonsoft.Json;
 using VisionMaster;
@@ -75,6 +76,16 @@ namespace FlowCanvasChecks
                 return Environment.ExitCode;
             }
 
+            // 码读取 flaky 调查：--qrprobe [N] 混合图 QR 解码连跑 N 次（默认 10）统计失败率，
+            // 不进常规 gate、不做重试——就是要看原始引擎的稳定性（评审清单 B 包第 8 项的调查工具）
+            if (args.Length >= 1 && args[0] == "--qrprobe")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                int probeN = args.Length >= 2 && int.TryParse(args[1], out var probeParsed) ? probeParsed : 10;
+                CodeReaderChecks.RunMixedProbe(probeN);
+                return 0;
+            }
+
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.WriteLine("========== 流程画布 v2（海康式扁平画布）断言（容器框/泳道/模块连线/折叠/联动/撤销栈） ==========");
 
@@ -101,6 +112,32 @@ namespace FlowCanvasChecks
 
             // [X] 数据线显隐（默认隐藏 / 非法线例外）/ 画布编辑入口 / 工具箱落点与工厂
             DataLinkVisibilityAndCanvasEditing();
+
+            // 2026-10-11 三视角评审收口第一批 + 第二批：
+            // [G1] 画布编辑门禁（EditGate 豁免表 + 画布拦截点）
+            // [G2] 撤销补口（引用型 Add/Delete 命令：拖入与删除可撤销、删除不清栈）
+            // [G3] 流程栏搜索定位（含「上一个」，评审清单 B 包交互补齐）
+            // [G4] 失败自动跳转（含开关）/ [G5] 展开·折叠全部 / [G6] 编译错误事件（分组合并）
+            EditGateChecks();
+            AddDeleteUndoChecks();
+            SearchLocateChecks();
+            FailureJumpChecks();
+            CollapseExpandAllChecks();
+            CompileErrorEventChecks();
+            RunStatsChecks();
+
+            // 2026-10-12 评审清单第三批：
+            // [G7] 画布复制/粘贴（FlowClipboard：单节点深拷贝 + 五条重映射纪律 + 撤销/运行锁）
+            // [G8] 画布压力图式构造（300/600 节点；性能只量化不优化，[perf] 数字见 --render）
+            // [G9] 工具箱搜索过滤（ToolViewModel，评审清单 B 包交互补齐）
+            FlowClipboardChecks();
+            PerfGraphChecks();
+            ToolboxFilterChecks();
+
+            // 2026-10-12 评审清单 B 包第二批（画布可视化 + 几何/持久化/稳定性）：
+            // [Z1] 泳道执行染色 / [Z2] 顺序链已执行染色 / [Z3] 连线绑定参数名标签 /
+            // [Z4] 必填参数黄叹号 / [Z5] 拖动对齐参考线 / [Z7] 视图态持久化口径
+            CanvasVisualizationChecks.Run();
 
             ParallelContainerChecks.Run();
 
@@ -161,6 +198,10 @@ namespace FlowCanvasChecks
             OcrChecks.Run();
             CodeReaderChecks.Run();
             YoloChecks.Run();
+
+            // 深度学习分类：缩放几何 / 布局嗅探 / softmax 归一化 / TopK + 端口契约
+            ClassifyChecks.Run();
+
             BlobDetectChecks.Run();
             PortBindChecks.Run();
             GlobalVariableChecks.Run();
@@ -216,11 +257,26 @@ namespace FlowCanvasChecks
             // 无图关十字不抛 / 十字状态与显示不脱节）
             HalconControlChecks.Run();
 
+            // 共享离屏烘焙件 Core.Halcon.Helpers.AnnotationBaker（六条硬纪律的像素级/内存级回归网：
+            // SetPart 画布保真 / 文字底色框 / 跨轮无残留 / 非 byte 不死白 / 4 通道不抛 / 坏元素降级 / 500 轮不泄漏）
+            AnnotationBakerChecks.Run();
+
             // 标定插件：仿射求解/正反变换/质量闸门/端口面（合成数据，不依赖引擎）
             CalibrationChecks.Run();
 
             // 卡尺插件：像素当量直连「标定」（手填/上游/失效三态 + 真实测量链路）
             CaliperMeasureChecks.Run();
+
+            // 几何工具：GeometryMath 纯函数 + GeometryParam 契约（合成数据，不依赖引擎/HALCON）
+            GeometryChecks.Run();
+
+            // 几何工具演示方案：真加载 .vms → 真编译 → 真执行（几何查找/几何计算端到端）
+            GeoDemoCheck.Run();
+
+            // 结果显示插件：绘制计划级（行主序/角度取反/预算/降级）+ 像素级（青色圆环/椭圆长短轴符号/文字底色框）
+            // + 配置生命周期（OnConfirm→ApplyConfigValues 往返、动态端口增删、候选重算）+ 宁缺显示不停线
+            // + 缩略图/导出 + 6 条静态扫描（离屏纪律不外泄）+ 真加载「结果显示演示.vms」端到端
+            ResultDisplayCheck.Run();
 
             // 坐标变换插件：正反变换/角度/三类失配/位姿跟随（合成标定与合成区域，HALCON 真算子）
             PoseTransformChecks.Run();
@@ -325,6 +381,23 @@ namespace FlowCanvasChecks
                 && Math.Abs(firstChain.SourceAnchor.Y - (h.Node(a)!.Location.Y + FlowCanvasViewModel.NodeHeight)) < 0.01
                 && Math.Abs(firstChain.TargetAnchor.Y - h.Node(cond)!.Location.Y) < 0.01,
                 $"src={firstChain.SourceAnchor} tgt={firstChain.TargetAnchor}");
+
+            // ---- 就窄轴拉直（2026-10-10 真机反馈：容器与上级算子做不到居中对齐）----
+            // 算子→容器：两锚点共享同一 X（= 算子中心轴），链是垂直线，容器再宽也不拽弯；
+            // 上一步底缘中点的 X 语义不变（旧断言仍然成立），变的是目标锚不再飘到容器中心。
+            Check("★顺序链就窄轴拉直：算子→容器 两锚点共 X（与算子居中对齐）",
+                Math.Abs(firstChain.SourceAnchor.X - firstChain.TargetAnchor.X) < 0.01,
+                $"src={firstChain.SourceAnchor} tgt={firstChain.TargetAnchor}");
+
+            // 容器→算子（反向）：箭头打在下游算子顶缘中点的正上方，同样垂直
+            var tail = h.Leaf("T");
+            h.Add(tail);
+            var tailChain = c.Links.FirstOrDefault(l => l.IsOrderLink && ReferenceEquals(l.Target, h.Node(tail)));
+            Check("★容器→算子 顺序链同样共 X（垂直落在算子中轴上）",
+                tailChain != null
+                && Math.Abs(tailChain.SourceAnchor.X - tailChain.TargetAnchor.X) < 0.01
+                && Math.Abs(tailChain.TargetAnchor.X - (h.Node(tail)!.Location.X + FlowCanvasViewModel.NodeWidth / 2)) < 0.01,
+                tailChain == null ? "链不存在" : $"src={tailChain.SourceAnchor} tgt={tailChain.TargetAnchor}");
             Check("顺序链悬停提示带执行次序", firstChain.Tooltip.Contains("执行顺序"), $"'{firstChain.Tooltip}'");
             Check("顺序链不计入非法/降级（它不是数据线）",
                 c.IllegalLinkCount == 0 && c.DeferredLinkCount == 0, "");
@@ -444,14 +517,19 @@ namespace FlowCanvasChecks
             var b1Node = h.Node(b1)!;
             // 布局预留：容器分支内容之下才排后续兄弟（旧实现会把兄弟叠进容器框——
             // "展开逻辑分支后层级顺序乱了"的元凶）。判据用"兄弟在框体底缘之下"，
-            // 不锁具体行高——行距现在是"上一行框体实际高 + RowGap"，数值随内容走
+            // 不锁具体行高——行距现在是"上一行框体实际高 + RowGap"，数值随内容走。
+            // X 口径（2026-10-11 本层居中）：尾部叶子按"本层最宽项的轴线"居中，
+            // 不再与 a 左对齐——宽容器与窄算子共享一条中轴（真机反馈"延时_2 应在容器中间"）。
             var tail = h.Leaf("尾部");
             h.Add(tail);
+            var tailNode = h.Node(tail)!;
             var frameBottom = frame.Location.Y + frame.LaneHeight;
-            Check("AutoLayout 预留容器分支高度：后续兄弟排在框体底缘之下",
-                h.Node(tail)!.Location.Y >= frameBottom
-                && h.Node(tail)!.Location.X == h.Node(a)!.Location.X,
-                $"tail=({h.Node(tail)!.Location.X:0},{h.Node(tail)!.Location.Y:0}) frameBottom={frameBottom:0} b1=({h.Node(b1)!.Location.X:0},{h.Node(b1)!.Location.Y:0})");
+            double axisX = new[] { h.Node(a)!, frame }
+                .Max(n => n.Location.X + (n.Kind == CanvasNodeKind.Container ? n.LaneWidth : FlowCanvasViewModel.NodeWidth) / 2);
+            Check("AutoLayout 预留容器分支高度 + 本层居中：后续兄弟排在框体底缘之下、且居最宽项轴线",
+                tailNode.Location.Y >= frameBottom
+                && Math.Abs(tailNode.Location.X + FlowCanvasViewModel.NodeWidth / 2 - axisX) < 0.01,
+                $"tail=({tailNode.Location.X:0},{tailNode.Location.Y:0}) axisX={axisX:0} frameBottom={frameBottom:0}");
 
             b1Node.Location = new Point(999, 888);
             Check("分支内步骤拖动写回坐标库",
@@ -1488,8 +1566,14 @@ namespace FlowCanvasChecks
             cv2.DeleteSelectionCommand.Execute();
             Check("容器被移出图纸", !h2.Flow.Steps.Contains(container), "");
             Check("画布节点全部摘除（含子树）", h2.Node(container) == null && h2.Node(inner) == null, "");
-            Check("删除后撤销栈清空", cv2.UndoStackSize == 0, $"size={cv2.UndoStackSize}");
+            // 2026-10-11 撤销补口：删除作为引用型命令压栈，不再清空撤销栈（见 [G2]）
+            Check("删除压栈可撤销（不再清空撤销栈）", cv2.UndoStackSize == 1, $"size={cv2.UndoStackSize}");
             Check("状态栏有删除回执", (cv2.StatusHint ?? string.Empty).Contains("已删除"), $"'{cv2.StatusHint}'");
+            cv2.UndoCommand.Execute();
+            Check("撤销删除：容器与子树回原位", h2.Flow.Steps.Contains(container)
+                && container.Children[0].Steps.Contains(inner) && h2.Node(inner) != null, "");
+            cv2.RedoCommand.Execute();
+            Check("重做删除：容器再次移出", !h2.Flow.Steps.Contains(container) && h2.Node(container) == null, "");
 
             // ---- T3 禁用切换：翻转 + 标题后缀与菜单文案即时刷新 ----
             var h3 = new Harness();
@@ -1518,6 +1602,38 @@ namespace FlowCanvasChecks
             Check("卡片悬停提示含名称与注释",
                 node3b.CardTooltip.Contains("步骤") && node3b.CardTooltip.Contains("工位 3"),
                 $"'{node3b.CardTooltip}'");
+
+            // ---- T3c 多选批量禁用/断点（评审清单 B 包交互补齐）：选中集 >1 时对每个选中步骤节点执行 ----
+            var h3c = new Harness();
+            var b1c = h3c.Add(h3c.Leaf("批量1"));
+            var b2c = h3c.Add(h3c.Leaf("批量2"));
+            var b3c = h3c.Add(h3c.Leaf("批量3"));
+            var outsider = h3c.Add(h3c.Leaf("未选中"));
+            h3c.Canvas.RebuildInPlace();
+            h3c.Node(b1c)!.IsSelected = true;
+            h3c.Node(b2c)!.IsSelected = true;
+            h3c.Node(b3c)!.IsSelected = true;
+            Check("T3c 前置：3 个节点处于多选", h3c.Canvas.Nodes.Count(n => n.IsSelected) == 3, "");
+            h3c.Node(b1c)!.ToggleDisableCommand!.Execute();
+            Check("T3c 多选批量禁用：一次全禁用",
+                b1c.IsDisEnable && b2c.IsDisEnable && b3c.IsDisEnable, "");
+            Check("T3c 批量禁用：未选中不受影响", !outsider.IsDisEnable, "");
+            int versionBeforeBreakpoint = h3c.Flow.Version;
+            h3c.Node(b1c)!.ToggleBreakpointCommand!.Execute();
+            Check("T3c 多选批量断点：一次全设断点",
+                b1c.IsBreakpoint && b2c.IsBreakpoint && b3c.IsBreakpoint, "");
+            Check("T3c 批量断点不推版本（[RuntimeState] 口径不变）",
+                h3c.Flow.Version == versionBeforeBreakpoint, $"version={h3c.Flow.Version}");
+            h3c.Node(b1c)!.ToggleBreakpointCommand!.Execute();
+            Check("T3c 批量断点可整体反向", !b1c.IsBreakpoint && !b2c.IsBreakpoint && !b3c.IsBreakpoint, "");
+
+            // 单节点行为保持：清掉多选后，右键靶不依赖选中态（T3 既有口径不被批量改造误伤）
+            h3c.Node(b1c)!.IsSelected = false;
+            h3c.Node(b2c)!.IsSelected = false;
+            h3c.Node(b3c)!.IsSelected = false;
+            h3c.Node(outsider)!.ToggleDisableCommand!.Execute();
+            Check("T3c 无多选：维持单节点行为（只打右键靶）",
+                outsider.IsDisEnable, "");
 
             // ---- T4 连线整批解绑：一对模块的多条绑定打包成一个撤销单元 ----
             var h4 = new Harness();
@@ -1912,6 +2028,853 @@ namespace FlowCanvasChecks
             ModuleTypeName = typeName,
             IsContainer = container,
         };
+
+        // ==================================================================
+        //  [G1] 画布编辑门禁（EditGate，2026-10-11 三视角评审 P0-1）：
+        //  豁免表单一出口（断点全放行 / 参数仅暂停放行 / 其余运行中全拦）+ 画布拦截点
+        //  驱动手法照既有运行锁断言：GlobalEventBus.Publish(MainRunState.X) + finally 复位 NotStarted
+        // ==================================================================
+        private static void EditGateChecks()
+        {
+            Section("[G1] 画布编辑门禁（EditGate）");
+
+            // ---- 门禁级：豁免表 ----
+            var gate = new EditGate();
+            gate.Activate();
+            try
+            {
+                Check("G1 未启动：全部编辑动作放行且不锁",
+                    gate.IsEditable(ModuleEditAction.StructuralEdit)
+                    && gate.IsEditable(ModuleEditAction.ModuleParameters)
+                    && gate.IsEditable(ModuleEditAction.ToggleBreakpoint)
+                    && !gate.IsRunLocked, "");
+
+                GlobalEventBus.Publish(MainRunState.RunningContinuous);
+                Check("G1 运行中：结构编辑拦 / 断点放行 / 参数拦 / IsRunLocked=true",
+                    !gate.IsEditable(ModuleEditAction.StructuralEdit)
+                    && gate.IsEditable(ModuleEditAction.ToggleBreakpoint)
+                    && !gate.IsEditable(ModuleEditAction.ModuleParameters)
+                    && gate.IsRunLocked, "");
+
+                GlobalEventBus.Publish(MainRunState.Paused);
+                Check("G1 已暂停：模块参数放行 / 结构编辑仍拦",
+                    gate.IsEditable(ModuleEditAction.ModuleParameters)
+                    && !gate.IsEditable(ModuleEditAction.StructuralEdit), "");
+
+                GlobalEventBus.Publish(MainRunState.NotStarted);
+                Check("G1 回到未启动：全放行（订阅链路复位）",
+                    gate.IsEditable(ModuleEditAction.StructuralEdit)
+                    && gate.IsEditable(ModuleEditAction.ModuleParameters)
+                    && !gate.IsRunLocked, "");
+            }
+            finally
+            {
+                GlobalEventBus.Publish(MainRunState.NotStarted);   // 复位全局总线，别把锁漏给后续断言
+                gate.Deactivate();
+            }
+
+            // ---- 画布级：拦截点（拖入 / 删除）与豁免（断点）----
+            var h = new Harness();
+            var a = h.Add(h.Leaf("A"));
+            var cv = h.Canvas;
+
+            GlobalEventBus.Publish(MainRunState.RunningOnce);
+            try
+            {
+                bool dropped = cv.DropToolAt(NewTool("VM.CanvasStub.Leaf", container: false), new Point(-5000, -5000));
+                Check("G1 运行中拖入：不插入（返回 false、图纸不变）",
+                    !dropped && h.Flow.Steps.Count == 1, $"steps={h.Flow.Steps.Count}");
+                Check("G1 运行中拖入给了拦截提示", (cv.StatusHint ?? "").Contains("运行中"), $"'{cv.StatusHint}'");
+
+                h.Node(a)!.IsSelected = true;
+                cv.DeleteSelectionCommand.Execute();
+                Check("G1 运行中删除：图纸不动、命令不压栈",
+                    h.Flow.Steps.Contains(a) && cv.UndoStackSize == 0, $"size={cv.UndoStackSize}");
+
+                // 断点豁免：任何运行态都可切（先清再切，断言翻成 true）
+                a.IsBreakpoint = false;
+                cv.ToggleBreakpointCommand.Execute(h.Node(a));
+                Check("G1 运行中断点仍可切换（豁免表：断点全放行）", a.IsBreakpoint, "");
+                a.IsBreakpoint = false;
+
+                // 参数面板：headless 无弹窗服务本来就不开窗——断"运行中调用了也无副作用、不抛"
+                bool threw = false;
+                try { cv.OpenModuleParameters(h.Node(a)); }
+                catch { threw = true; }
+                Check("G1 运行中开参数：调用无副作用不抛", !threw, "");
+            }
+            finally
+            {
+                GlobalEventBus.Publish(MainRunState.NotStarted);
+            }
+
+            Check("G1 停止后恢复可编辑：拖入成功且压撤销栈",
+                cv.DropToolAt(NewTool("VM.CanvasStub.Leaf", container: false), new Point(-5000, -5000))
+                && h.Flow.Steps.Count == 2 && cv.UndoStackSize == 1,
+                $"steps={h.Flow.Steps.Count} size={cv.UndoStackSize}");
+        }
+
+        // ==================================================================
+        //  [G2] 撤销补口（2026-10-11）：引用型 Add/Delete 命令——
+        //  与既有 Reorder/MoveBranch 的「下标型」差别：本组记录**元素引用本体**，
+        //  owner 内容被外部动过时按引用判存在性静默降级，不错拿别的步骤
+        // ==================================================================
+        private static void AddDeleteUndoChecks()
+        {
+            Section("[G2] 撤销补口（引用型 Add / Delete 命令）");
+
+            // ---- 拖入 → Undo → 消失 → Redo → 回到原位 ----
+            var h = new Harness();
+            h.Add(h.Leaf("A"));
+            var cv = h.Canvas;
+            bool dropped = cv.DropToolAt(NewTool("VM.CanvasStub.Leaf", container: false), new Point(-5000, -5000));
+            var added = h.Flow.Steps[0];   // 落点 Y=-5000 → 插在最上
+            Check("G2 前置：拖入已上图纸且压撤销命令",
+                dropped && ReferenceEquals(h.Flow.Steps[0], added) && cv.UndoStackSize == 1,
+                $"steps={h.Flow.Steps.Count} size={cv.UndoStackSize}");
+            cv.UndoCommand.Execute();
+            Check("G2 撤销拖入：步骤消失", !h.Flow.Steps.Contains(added) && h.Flow.Steps.Count == 1, "");
+            Check("G2 撤销拖入：重做栈 = 1", cv.RedoStackSize == 1, "");
+            cv.RedoCommand.Execute();
+            Check("G2 重做拖入：步骤回到原位（下标 0）", ReferenceEquals(h.Flow.Steps[0], added), "");
+
+            // ---- 删除（容器子树）→ Undo → 原位恢复 + 指向被删步骤的连线复活 → Redo → 再删 ----
+            var h2 = new Harness();
+            var consumer = Harness.WithInput(h2.Leaf("消费"), "In");
+            var container = h2.If("容器");
+            var inner = h2.Leaf("内层");
+            container.Children[0].Steps.Add(inner);
+            h2.Add(consumer);
+            h2.Add(container);
+            Harness.RawLink(consumer, "In", inner, "Out");   // 跨分支取数（非法红线）——正好当"指向被删步骤的连线"
+            var cv2 = h2.Canvas;
+            Check("G2 前置：容器内步骤 → 顶层 的连线在（跨分支非法线照常画）",
+                h2.Link(inner, consumer) != null, "");
+
+            h2.Node(container)!.IsSelected = true;
+            cv2.DeleteSelectionCommand.Execute();
+            Check("G2 容器删除：子树一并移出、连线降级计数",
+                !h2.Flow.Steps.Contains(container) && cv2.DeferredLinkCount == 1,
+                $"deferred={cv2.DeferredLinkCount}");
+            Check("G2 删除压栈（不清空撤销栈）", cv2.UndoStackSize == 1, $"size={cv2.UndoStackSize}");
+
+            cv2.UndoCommand.Execute();
+            Check("G2 撤销删除：容器回原位（下标 1）、内层步骤回来",
+                h2.Flow.Steps.Count == 2 && ReferenceEquals(h2.Flow.Steps[1], container)
+                && container.Children[0].Steps.Contains(inner), "");
+            Check("G2 撤销删除：指向被删步骤的连线随之复活（Deferred 归零）",
+                cv2.DeferredLinkCount == 0 && h2.Link(inner, consumer) != null, "");
+
+            cv2.RedoCommand.Execute();
+            Check("G2 重做删除：容器再次移出、连线再次降级",
+                !h2.Flow.Steps.Contains(container) && cv2.DeferredLinkCount == 1, "");
+
+            // ---- 删除不清空撤销栈：之前的改序仍可 Undo（LIFO：先撤删除、再撤改序）----
+            var h3 = new Harness();
+            var a3 = h3.Add(h3.Leaf("A"));
+            var b3 = h3.Add(h3.Leaf("B"));
+            var cv3 = h3.Canvas;
+            var reorder = FlowCanvasExtensions.CreateReorderCommand(h3.Flow.Steps, 0, 1);
+            FlowCanvasExtensions.InvokeRedo(reorder);
+            cv3.PushUndoReflection(reorder);
+            Check("G2 前置：改序已压栈（[B,A]）",
+                cv3.UndoStackSize == 1 && ReferenceEquals(h3.Flow.Steps[0], b3), "");
+
+            h3.Node(b3)!.IsSelected = true;
+            cv3.DeleteSelectionCommand.Execute();
+            Check("G2 删除后撤销栈不清空（改序命令保留）", cv3.UndoStackSize == 2, $"size={cv3.UndoStackSize}");
+            cv3.UndoCommand.Execute();
+            Check("G2 先撤销删除：B 回来（在改序后的下标 0）", ReferenceEquals(h3.Flow.Steps[0], b3), "");
+            cv3.UndoCommand.Execute();
+            Check("G2 再撤销改序：回到原序 [A,B]",
+                ReferenceEquals(h3.Flow.Steps[0], a3) && ReferenceEquals(h3.Flow.Steps[1], b3), "");
+        }
+
+        // ==================================================================
+        //  [G3] 流程栏搜索定位：深层命中 / 循环下一个 / 无命中不换选中
+        // ==================================================================
+        private static void SearchLocateChecks()
+        {
+            Section("[G3] 流程栏搜索定位");
+
+            var h = new Harness();
+            h.Add(h.Leaf("采集"));
+            var cond = h.If("判断");
+            var deep1 = h.Leaf("检测-左");
+            var deep2 = h.Leaf("检测-右");
+            cond.Children[0].Steps.Add(deep1);
+            cond.Children[0].Steps.Add(deep2);
+            h.Add(cond);
+
+            var vm = new ProcessViewModel(h.Workspace, new SilentDialogService());
+            try
+            {
+                vm.SearchText = "检测";
+                vm.SearchNextCommand.Execute(null);
+                Check("G3 命中深层步骤（第一个）：CurrentStep 切过去",
+                    ReferenceEquals(h.Workspace.CurrentStep, deep1),
+                    $"current={h.Workspace.CurrentStep?.StepName}");
+
+                vm.SearchNextCommand.Execute(null);
+                Check("G3 再按一次：跳到第二个命中",
+                    ReferenceEquals(h.Workspace.CurrentStep, deep2),
+                    $"current={h.Workspace.CurrentStep?.StepName}");
+
+                vm.SearchNextCommand.Execute(null);
+                Check("G3 到尾回绕：回到第一个命中", ReferenceEquals(h.Workspace.CurrentStep, deep1), "");
+
+                vm.SearchText = "不存在的关键字XYZ";
+                vm.SearchNextCommand.Execute(null);
+                Check("G3 无命中：不换选中", ReferenceEquals(h.Workspace.CurrentStep, deep1), "");
+
+                // 「上一个」（评审清单 B 包交互补齐）：同一次匹配列表反向回绕
+                vm.SearchText = "检测";   // 命中列表 [检测-左, 检测-右]，当前停在 deep1（头）
+                vm.SearchPreviousCommand.Execute(null);
+                Check("G3 上一个：从头部反向回绕到最后一个命中",
+                    ReferenceEquals(h.Workspace.CurrentStep, deep2),
+                    $"current={h.Workspace.CurrentStep?.StepName}");
+
+                vm.SearchNextCommand.Execute(null);
+                Check("G3 先下一个再上一个：回到原命中", ReferenceEquals(h.Workspace.CurrentStep, deep1), "");
+            }
+            finally
+            {
+                vm.Deactivate();
+            }
+        }
+
+        // ==================================================================
+        //  [G4] 失败自动跳转：新失败才跳、同一失败不重复跳、新一轮运行基线重置
+        //  探测层 internal static 直调（与 TickRunningTimes 同款）；
+        //  定时器一轮的实际动作经 internal RunRuntimeTick 直驱，不必等 Dispatcher 泵
+        // ==================================================================
+        private static void FailureJumpChecks()
+        {
+            Section("[G4] 失败自动跳转");
+
+            var h = new Harness();
+            var a = h.Add(h.Leaf("A"));
+            var b = h.Add(h.Leaf("B"));
+
+            var vm = new ProcessViewModel(h.Workspace, new SilentDialogService());
+            try
+            {
+                a.State = StepState.Failed;
+                var baseline = new HashSet<Guid>();
+                var probe = ProcessViewModel.DetectNewFailures(h.Flow.Steps, baseline);
+                Check("G4 探测：新失败被返回并记入基线",
+                    ReferenceEquals(probe, a) && baseline.Contains(a.StepID), "");
+                probe = ProcessViewModel.DetectNewFailures(h.Flow.Steps, baseline);
+                Check("G4 探测：同一失败不重复报（基线拦截）", probe == null, "");
+
+                vm.RunRuntimeTick();
+                Check("G4 定时器一轮：当前步骤切到失败步骤",
+                    ReferenceEquals(h.Workspace.CurrentStep, a),
+                    $"current={h.Workspace.CurrentStep?.StepName}");
+
+                b.State = StepState.Failed;
+                vm.RunRuntimeTick();
+                Check("G4 新失败出现：切到新的失败",
+                    ReferenceEquals(h.Workspace.CurrentStep, b),
+                    $"current={h.Workspace.CurrentStep?.StepName}");
+
+                vm.RunRuntimeTick();
+                Check("G4 再跑一轮：不重复跳（仍在 B）", ReferenceEquals(h.Workspace.CurrentStep, b), "");
+
+                // 新一轮运行开始（NotStarted → Running*）→ 基线清零：旧失败重新算"新失败"。
+                // a、b 都是上轮的旧失败且都仍是 Failed 态——基线重置后按扫描序跳第一个（a），
+                // 先把当前步骤切到 b，跳转才可观测
+                GlobalEventBus.Publish(MainRunState.RunningContinuous);
+                h.Workspace.SwitchStep(b);
+                vm.RunRuntimeTick();
+                Check("G4 新一轮运行（基线重置）：旧失败重新算新失败、按扫描序跳第一个",
+                    ReferenceEquals(h.Workspace.CurrentStep, a),
+                    $"current={h.Workspace.CurrentStep?.StepName}");
+
+                // 开关（评审清单 B 包交互补齐）：关闭时扫描照跑（基线照记）但不切选中；打开后恢复
+                var vm2 = new ProcessViewModel(h.Workspace, new SilentDialogService());
+                try
+                {
+                    var c = h.Add(h.Leaf("开关C"));
+                    vm2.AutoJumpToFailure = false;
+                    c.State = StepState.Failed;
+                    vm2.RunRuntimeTick();
+                    Check("G4 开关关闭：新失败不切选中（扫描照跑）",
+                        ReferenceEquals(h.Workspace.CurrentStep, a),
+                        $"current={h.Workspace.CurrentStep?.StepName}");
+
+                    vm2.AutoJumpToFailure = true;
+                    var d = h.Add(h.Leaf("开关D"));
+                    d.State = StepState.Failed;
+                    vm2.RunRuntimeTick();
+                    Check("G4 开关打开：恢复自动跳转（切到新失败）",
+                        ReferenceEquals(h.Workspace.CurrentStep, d),
+                        $"current={h.Workspace.CurrentStep?.StepName}");
+                }
+                finally
+                {
+                    vm2.Deactivate();
+                }
+            }
+            finally
+            {
+                GlobalEventBus.Publish(MainRunState.NotStarted);
+                vm.Deactivate();
+            }
+        }
+
+        // ==================================================================
+        //  [G5] 展开 / 折叠全部：布局库所有容器折叠标记全翻（3 层嵌套图式）
+        // ==================================================================
+        private static void CollapseExpandAllChecks()
+        {
+            Section("[G5] 展开 / 折叠全部");
+
+            var h = new Harness();
+            h.Add(h.Leaf("A"));
+            var outer = h.If("外层");
+            var innerFor = h.For("内层循环");
+            var innerIf = h.If("最内层");
+            innerIf.Children[0].Steps.Add(h.Leaf("芯"));
+            innerFor.Children[0].Steps.Add(innerIf);
+            outer.Children[0].Steps.Add(innerFor);
+            h.Add(outer);
+            var cv = h.Canvas;
+
+            bool AllFlags(bool collapsed) => new StepModel[] { outer, innerFor, innerIf }
+                .All(s => h.Flow.Layout.Find(s.StepID)?.Collapsed == collapsed);
+
+            // 起始态可能已被 AutoCollapseDepth 自动折叠过一部分，先全部展开归零对照
+            cv.ExpandAllCommand.Execute();
+            Check("G5 展开全部：三个容器全部展开", AllFlags(false),
+                string.Join(",", new StepModel[] { outer, innerFor, innerIf }
+                    .Select(s => $"{s.StepName}:{(h.Flow.Layout.Find(s.StepID)?.Collapsed == true ? "折" : "展")}")));
+
+            cv.CollapseAllCommand.Execute();
+            Check("G5 折叠全部：三个容器全部标记折叠", AllFlags(true),
+                string.Join(",", new StepModel[] { outer, innerFor, innerIf }
+                    .Select(s => $"{s.StepName}:{(h.Flow.Layout.Find(s.StepID)?.Collapsed == true ? "折" : "展")}")));
+
+            cv.ExpandAllCommand.Execute();
+            Check("G5 再展开全部：全部归位展开", AllFlags(false), "");
+        }
+
+        // ==================================================================
+        //  [G6] 编译错误事件：发布 → 缓存条数；定位 → 切流程 + 切步骤
+        // ==================================================================
+        private static void CompileErrorEventChecks()
+        {
+            Section("[G6] 编译错误事件与错误列表定位");
+
+            var h = new Harness();
+            var a = h.Add(h.Leaf("出错算子"));
+            var cv = h.Canvas;   // 先建画布（构造即订阅 CompilationErrorsEvent）
+            var other = new FlowModel { FlowName = "第二流程" };
+            h.Solution.Flows.Add(other);
+
+            var err = new CompilationError
+            {
+                StepId = a.StepID,
+                StepName = a.StepName,
+                Message = "[连线断开] 上游步骤不存在",
+            };
+            GlobalEventBus.Publish(new Core.Events.CompilationErrorsEvent
+            {
+                FlowName = h.Flow.FlowName,
+                Errors = new List<CompilationError> { err },
+            });
+            Check("G6 发布事件 → 缓存条数正确", cv.CompileErrorCount == 1, $"count={cv.CompileErrorCount}");
+
+            // 切到别的流程后定位：应切回出错流程并选中出错步骤
+            h.Workspace.SwitchFlow(other);
+            cv.LocateCompileError(h.Flow.FlowName, a.StepID);
+            Check("G6 定位：流程切回出错流程", ReferenceEquals(h.Workspace.CurrentFlow, h.Flow),
+                $"current={h.Workspace.CurrentFlow?.FlowName}");
+            Check("G6 定位：步骤切到出错步骤", ReferenceEquals(h.Workspace.CurrentStep, a),
+                $"current={h.Workspace.CurrentStep?.StepName}");
+
+            // 批量编译口径（评审清单 B 包交互升级）：不同 FlowName 各发一次 → 按流程分组累计
+            GlobalEventBus.Publish(new Core.Events.CompilationErrorsEvent
+            {
+                FlowName = other.FlowName,
+                Errors = new List<CompilationError>
+                {
+                    new() { StepId = null, StepName = null, Message = "流程级错误" },
+                    new() { StepId = a.StepID, StepName = a.StepName, Message = "[连线类型不匹配]" },
+                },
+            });
+            Check("G6 不同 FlowName 累计：两流程错误共存（1+2=3 条）",
+                cv.CompileErrorCount == 3, $"count={cv.CompileErrorCount}");
+            var groups = cv.BuildCompileErrorGroups();
+            Check("G6 不同 FlowName 累计：缓存分 2 组（先后 = 首现顺序）",
+                groups.Count == 2
+                && groups[0].FlowName == h.Flow.FlowName && groups[0].Entries.Count == 1
+                && groups[1].FlowName == other.FlowName && groups[1].Entries.Count == 2,
+                "groups=" + string.Join(",", groups.Select(g => $"{g.FlowName}:{g.Entries.Count}")));
+
+            // 同 FlowName 重新发布（重新编译该流程）：替换该组，另一流程的组不动
+            GlobalEventBus.Publish(new Core.Events.CompilationErrorsEvent
+            {
+                FlowName = other.FlowName,
+                Errors = new List<CompilationError>
+                {
+                    new() { StepId = null, StepName = null, Message = "流程级错误" },
+                },
+            });
+            var regrouped = cv.BuildCompileErrorGroups();
+            Check("G6 同 FlowName 重发：替换该组（另一流程组保留）",
+                cv.CompileErrorCount == 2 && regrouped.Count == 2
+                && regrouped[1].Entries.Count == 1,
+                $"count={cv.CompileErrorCount} groups=" + string.Join(",", regrouped.Select(g => $"{g.FlowName}:{g.Entries.Count}")));
+
+            // 「复制全部」的文本口径：组头行 + 条目行（弹窗本身 headless 不开，断 VM 侧数据）
+            string copyText = cv.BuildCompileErrorsCopyText();
+            Check("G6 复制全部文本：含两个组头与既有条目",
+                copyText.Contains($"【{h.Flow.FlowName}】共 1 条")
+                && copyText.Contains($"【{other.FlowName}】共 1 条")
+                && copyText.Contains("[连线断开] 上游步骤不存在"),
+                copyText.Replace(Environment.NewLine, " | "));
+
+            // 流程级错误（StepId=null）与不存在的流程：定位静默无动作、不抛
+            cv.LocateCompileError(other.FlowName, null);
+            cv.LocateCompileError("不存在的流程", a.StepID);
+            Check("G6 流程级错误 / 未知流程：定位静默无动作不抛", ReferenceEquals(h.Workspace.CurrentFlow, other), "");
+        }
+
+        // ==================================================================
+        //  [G10] 流程栏执行统计（评审清单 B 包交互补齐）：规模 N/深度 d 与本轮耗时聚合
+        //  ComputeRunStats internal static 直调（纯计算，与 DetectNewFailures 同一理由）；
+        //  两行文案经 VM 属性读时现算，LastRunTimeMs 手工灌值构造已知口径
+        // ==================================================================
+        private static void RunStatsChecks()
+        {
+            Section("[G10] 流程栏执行统计");
+
+            var h = new Harness();
+            var a = h.Add(h.Leaf("A"));
+            var cond = h.If("判断");
+            var deep = h.Leaf("深层");
+            var nested = h.For("内层循环");
+            var core = h.Leaf("芯");
+            nested.Children[0].Steps.Add(core);
+            cond.Children[0].Steps.Add(nested);
+            cond.Children[0].Steps.Add(deep);
+            h.Add(cond);
+
+            // 造已知图（深度口径 = 流程栏树的层级感：顶层算子/容器第 1 层，分支内容随嵌套 +1）：
+            // 顶层 A、判断（第 1 层）→ 深层、内层循环（第 2 层）→ 芯（第 3 层）；N = 5
+            var stats = ProcessViewModel.ComputeRunStats(h.Flow.Steps);
+            Check("G10 规模统计：已知图 N=5 / 最深 3 层（容器与分支内都计入）",
+                stats.TotalSteps == 5 && stats.MaxDepth == 3,
+                $"n={stats.TotalSteps} depth={stats.MaxDepth}");
+            Check("G10 无运行数据：总耗时 0、最慢为空", stats.TotalMs == 0 && stats.SlowestName == null, "");
+
+            var vm = new ProcessViewModel(h.Workspace, new SilentDialogService());
+            try
+            {
+                Check("G10 无运行数据文案：第二行「尚未运行」",
+                    vm.RunTimeText == "尚未运行", $"'{vm.RunTimeText}'");
+
+                // 设三个 LastRunTimeMs（整数避免文案受 "0.#" 舍入影响）：总耗时 = Sum；最慢 = Max 及其步骤名
+                a.LastRunTimeMs = 120;
+                deep.LastRunTimeMs = 300;
+                core.LastRunTimeMs = 50;
+                Check("G10 两行文案：规模行 + 耗时行（Sum/Max 口径）",
+                    vm.StepCountText == "共 5 步 · 最深 3 层"
+                    && vm.RunTimeText == "本轮总耗时 470 ms · 最慢：深层 300 ms",
+                    $"'{vm.StepCountText}' / '{vm.RunTimeText}'");
+            }
+            finally
+            {
+                vm.Deactivate();
+            }
+        }
+
+        // ==================================================================
+        //  [G9] 工具箱（评审清单 B 包交互补齐 + 工具箱面板改版）：
+        //  搜索过滤（名称/描述/分类命中、清空恢复全量）/ 列表·网格视图模式 / 收藏与收藏分组 /
+        //  分类观感映射表 / Toolbox 配置节的序列化往返。
+        //  ToolViewModel 是纯 VM（构造吃 IPluginProvider + 可选 AppSettingsService），
+        //  headless 用断言桩直造，settings 传 null = 纯内存、不碰 AppConfig.json。
+        // ==================================================================
+        private static void ToolboxFilterChecks()
+        {
+            Section("[G9] 工具箱搜索过滤 / 视图模式 / 收藏");
+
+            // 前置：桩插件 3 个算子、2 个分类（"断言" 1 个 / "逻辑" 2 个，见 StubPluginProvider）
+            var provider = new StubPluginProvider();
+            var vm = new ToolViewModel(provider);
+            Check("G9 前置：全量 3 个算子 2 个分组",
+                vm.TotalCount == 3 && vm.FilteredToolBarSource.Count == 2,
+                $"total={vm.TotalCount} groups={vm.FilteredToolBarSource.Count}");
+
+            vm.SearchText = "桩算子";   // 按名称命中：只有叶子算子
+            Check("G9 按名称过滤：命中 1 条、只剩命中的分组",
+                vm.TotalCount == 1 && vm.FilteredToolBarSource.Count == 1,
+                $"total={vm.TotalCount} groups={vm.FilteredToolBarSource.Count}");
+
+            vm.SearchText = "条件容器";   // 按描述命中：只有 If 的描述含它（For 是"循环容器"、叶子是"桩算子"）
+            Check("G9 按描述过滤：命中 1 条", vm.TotalCount == 1, $"total={vm.TotalCount}");
+
+            vm.SearchText = "逻辑";     // 按分类（= 分组名）命中：整组保留（此前实现漏了 Category）
+            Check("G9 按分类过滤：整组命中（If+For 共 2 条）",
+                vm.TotalCount == 2 && vm.FilteredToolBarSource.Count == 1
+                && vm.FilteredToolBarSource[0].Children.Count == 2,
+                $"total={vm.TotalCount} groups={vm.FilteredToolBarSource.Count}");
+
+            vm.SearchText = "";         // 清空恢复全量
+            Check("G9 清空恢复全量", vm.TotalCount == 3 && vm.FilteredToolBarSource.Count == 2,
+                $"total={vm.TotalCount} groups={vm.FilteredToolBarSource.Count}");
+
+            // ---- 视图模式（命令参数是编译期不检查的 object：一律 DelegateCommand<object?> + 判型，见 AGENTS.md R27） ----
+            Check("G9 视图模式：默认列表视图", !vm.IsGridView && vm.IsListView, $"grid={vm.IsGridView}");
+
+            vm.ToggleViewModeCommand.Execute(null);
+            Check("G9 ToggleViewModeCommand：列表 → 网格（两个属性同时翻转）",
+                vm.IsGridView && !vm.IsListView, $"grid={vm.IsGridView}");
+
+            vm.SetViewModeCommand.Execute("List");
+            Check("G9 SetViewModeCommand(\"List\")：回到列表", !vm.IsGridView, $"grid={vm.IsGridView}");
+
+            vm.SetViewModeCommand.Execute("Grid");
+            Check("G9 SetViewModeCommand(\"Grid\")：切到网格", vm.IsGridView, $"grid={vm.IsGridView}");
+
+            vm.SetViewModeCommand.Execute("这不是模式名");
+            Check("G9 SetViewModeCommand(未知参数)：按切换处理、不抛异常",
+                !vm.IsGridView, $"grid={vm.IsGridView}");
+
+            // ---- 收藏（settings = null：纯内存） ----
+            var leaf = provider.GetModule(StubPluginProvider.LeafPlugin);
+            var ifItem = provider.GetModule(StubPluginProvider.IfPlugin);
+            var version0 = vm.FavoritesVersion;
+
+            Check("G9 收藏前置：初始无收藏、没有收藏分组",
+                !vm.HasFavorites && !vm.IsFavorite(leaf) && vm.FilteredToolBarSource.Count == 2,
+                $"has={vm.HasFavorites} groups={vm.FilteredToolBarSource.Count}");
+
+            vm.ToggleFavoriteCommand.Execute(leaf);
+            Check("G9 收藏一个：IsFavorite 翻转、HasFavorites 置位、版本号自增",
+                vm.IsFavorite(leaf) && vm.HasFavorites && vm.FavoritesVersion == version0 + 1,
+                $"fav={vm.IsFavorite(leaf)} has={vm.HasFavorites} ver={vm.FavoritesVersion}");
+
+            // 收藏分组置顶 + 条目是**原始 ToolItemModel 实例**（拖拽链路的硬约束：
+            // 包一层 wrapper 会让放置端 FlowCanvasView.FindDraggedTool 拿到 null）
+            Check("G9 收藏分组置顶、含该项、不计入 TotalCount",
+                vm.FilteredToolBarSource.Count == 3
+                && vm.FilteredToolBarSource[0].IsFavorites
+                && vm.FilteredToolBarSource[0].Name == "收藏"
+                && vm.FilteredToolBarSource[0].Children.Count == 1
+                && ReferenceEquals(vm.FilteredToolBarSource[0].Children[0], leaf)
+                && vm.TotalCount == 3,
+                $"groups={vm.FilteredToolBarSource.Count} first={vm.FilteredToolBarSource[0].Name}"
+                + $"/{vm.FilteredToolBarSource[0].Children.Count} total={vm.TotalCount}");
+
+            vm.ToggleFavoriteCommand.Execute(ifItem);
+            Check("G9 再收藏一个：收藏分组 2 条、版本号再增",
+                vm.FilteredToolBarSource[0].Children.Count == 2 && vm.FavoritesVersion == version0 + 2,
+                $"favGroup={vm.FilteredToolBarSource[0].Children.Count} ver={vm.FavoritesVersion}");
+
+            vm.ToggleFavoriteCommand.Execute(ifItem);
+            Check("G9 取消收藏（同一个命令）：该项移出收藏分组",
+                vm.FilteredToolBarSource[0].Children.Count == 1 && !vm.IsFavorite(ifItem),
+                $"favGroup={vm.FilteredToolBarSource[0].Children.Count}");
+
+            vm.ToggleFavoriteCommand.Execute(leaf);
+            Check("G9 取消最后一个收藏：收藏分组消失、恢复全量分组",
+                !vm.HasFavorites && vm.FilteredToolBarSource.Count == 2
+                && !vm.FilteredToolBarSource[0].IsFavorites,
+                $"groups={vm.FilteredToolBarSource.Count} first={vm.FilteredToolBarSource[0].Name}");
+
+            vm.ToggleFavoriteCommand.Execute("这不是条目");
+            Check("G9 ToggleFavoriteCommand(非 ToolItemModel)：静默空跑、不抛异常",
+                !vm.HasFavorites && vm.FilteredToolBarSource.Count == 2,
+                $"groups={vm.FilteredToolBarSource.Count}");
+
+            // ---- 分类观感映射表：13 个分类逐条核对，防"加了分类忘了配色" ----
+            var categories = new[]
+            {
+                "逻辑控制", "缺陷检测", "标定", "测量", "图像处理", "常用工具", "数据处理",
+                "几何工具", "定位", "运动控制", "流程控制", "逻辑判断", "变量操作",
+            };
+            var unconfigured = categories
+                .Where(c => string.IsNullOrEmpty(ToolboxCategoryVisuals.IconFor(c))
+                            || ToolboxCategoryVisuals.IconFor(c) == ToolboxCategoryVisuals.FallbackIcon
+                            || ToolboxCategoryVisuals.ColorFor(c) == ToolboxCategoryVisuals.FallbackColor)
+                .ToList();
+            Check("G9 分类映射：13 个分类都有专属图标与颜色（防漏配）",
+                ToolboxCategoryVisuals.Categories.Count == categories.Length && unconfigured.Count == 0,
+                unconfigured.Count == 0
+                    ? $"表内 {ToolboxCategoryVisuals.Categories.Count} 条"
+                    : "落回兜底：" + string.Join(",", unconfigured));
+
+            Check("G9 分类映射：未知分类回落通用图标 + 灰",
+                ToolboxCategoryVisuals.IconFor("不存在的分类") == ToolboxCategoryVisuals.FallbackIcon
+                && ToolboxCategoryVisuals.ColorFor("不存在的分类") == ToolboxCategoryVisuals.FallbackColor,
+                "");
+
+            // ---- Toolbox 配置节：JSON 往返（纯内存，不写盘——写了会污染断言宿主的 bin） ----
+            var node = new ToolboxSettings();
+            node.Favorites.Add("VM.Stub.Leaf");
+            node.Favorites.Add("VM.Stub.If");
+            var json = JsonConvert.SerializeObject(node);
+            var restored = JsonConvert.DeserializeObject<ToolboxSettings>(json);
+            Check("G9 ToolboxSettings JSON 往返：Favorites 一致",
+                restored != null && restored.Favorites.Count == 2
+                && restored.Favorites[0] == "VM.Stub.Leaf" && restored.Favorites[1] == "VM.Stub.If",
+                $"json={json}");
+
+            // 老配置里没有 Toolbox 节：Newtonsoft 遇到缺失的引用类型只留 null，
+            // 靠 AppConfigModel 的属性初始化器兜底（AppConfigModel.cs 三次踩坑史的同一道闸）
+            var legacy = JsonConvert.DeserializeObject<AppConfigModel>("{\"AuditRetentionDays\":30}");
+            Check("G9 老配置缺 Toolbox 节：反序列化后仍非 null（初始化器兜底）",
+                legacy?.Toolbox != null && legacy.Toolbox.Favorites != null,
+                $"toolbox={(legacy?.Toolbox == null ? "null" : "ok")}");
+
+            // ---- 落盘被占（无删除共享）时收藏仍要写入成功 ----
+            // 2026-10-14 真机事故：运行期宿主以"允许读写、不允许删除"方式占着 AppConfig.json，
+            // File.Replace 抛 ERROR_UNABLE_TO_REMOVE_REPLACED(1177)，点收藏即崩。
+            // 这里复现该占用形态，钉住 Save() 的退路（Replace 失败 → 覆盖写）。
+            // 落盘目标 = 本进程 BaseDirectory 的 AppConfig.json；密闭性靠"原本没有 → 用完删掉"还原（同 Z7）。
+            string configPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AppConfig.json");
+            bool existedBefore = System.IO.File.Exists(configPath);
+            try
+            {
+                var service = new AppSettingsService();
+                // FileShare.ReadWrite = 允许读 + 允许写、不允许删除——正是触发 1177 的形态
+                using (var hold = new System.IO.FileStream(configPath, System.IO.FileMode.OpenOrCreate, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite))
+                {
+                    service.SyncToolboxFavorites(new[] { "VM.Stub.Leaf" });   // 不得抛
+                }
+                var reloaded = new AppSettingsService();
+                Check("G9 落盘被占（无删除共享）时收藏仍写入成功（Replace 失败退化为覆盖写）",
+                    reloaded.Current?.Toolbox?.Favorites?.Contains("VM.Stub.Leaf") == true,
+                    $"favs={string.Join(",", reloaded.Current?.Toolbox?.Favorites ?? new System.Collections.Generic.List<string>())}");
+            }
+            finally
+            {
+                if (!existedBefore && System.IO.File.Exists(configPath))
+                    System.IO.File.Delete(configPath);
+            }
+        }
+
+        // ==================================================================
+        //  [G7] 画布复制/粘贴（FlowClipboard，2026-10-12 评审清单第三批；第一期单个节点）：
+        //  复制快照走 SolutionService.SerializationSettings（与 .vms 落盘同一条管线）；
+        //  粘贴物化五条重映射纪律——StepID 重生成 / 内部连线保留 / 外部连线过滤 /
+        //  条件变量 Guid 键重映射 / 根节点同型计数命名；运行期字段复位；撤销与运行锁走既有闸。
+        // ==================================================================
+        private static void FlowClipboardChecks()
+        {
+            Section("[G7] 画布复制/粘贴（FlowClipboard）");
+            FlowClipboard.Clear();
+
+            // ---- 叶子：复制 → 粘贴 → 身份/名字/配置/运行期复位，撤销重做整件来回 ----
+            var h = new Harness();
+            var src = h.Add(Harness.WithInput(h.Leaf("叶子A"), "In"));
+            src.SetInputValue("In", 3.14);
+            src.Description = "配置样本";
+            // 运行期脏值：State 会随序列化带过去（[RuntimeState] 不豁免落盘），粘贴必须复位；
+            // IsBreakpoint / LastRunTimeMs 是 [JsonIgnore] / 纯内存——断言顺带钉住"复位不是靠不序列化"
+            src.State = StepState.Success;
+            src.LastRunTimeMs = 87.6;
+            src.IsBreakpoint = true;
+            var cv = h.Canvas;
+
+            h.Node(src)!.IsSelected = true;
+            cv.CopySelectedCommand.Execute(null);
+            Check("G7 复制后剪贴板非空", FlowClipboard.HasPayload, "");
+
+            cv.PasteCommand.Execute(new Point(0, double.MaxValue));
+            var pasted = h.Flow.Steps.Count == 2 ? h.Flow.Steps[1] : null;
+            Check("G7 叶子粘贴：新步骤追加到顶层末尾",
+                pasted is ActionStep && !ReferenceEquals(pasted, src), $"steps={h.Flow.Steps.Count}");
+            Check("G7 叶子粘贴：StepID 重生成（与源无共享身份）",
+                pasted != null && pasted.StepID != src.StepID, "");
+            Check("G7 叶子粘贴：名字不与图纸现有步骤重名",
+                pasted != null && !NameExistsDeep(h.Flow.Steps, pasted.StepName, pasted),
+                pasted?.StepName ?? "");
+            Check("G7 叶子粘贴：配置与源一致（剥掉 ID/名字/运行态后序列化逐字相等）",
+                pasted != null && ConfigJsonEquals(src, pasted), "");
+            Check("G7 叶子粘贴：运行期字段复位（Idle / 无计时 / 无断点）",
+                pasted != null && pasted.State == StepState.Idle && !pasted.IsRunningFocus
+                && pasted.LastRunStartTimestamp == null && pasted.LastRunTimeMs == 0 && !pasted.IsBreakpoint, "");
+
+            cv.UndoCommand.Execute();
+            Check("G7 撤销粘贴：粘贴件整件消失（撤销补口覆盖粘贴）",
+                h.Flow.Steps.Count == 1 && pasted != null && !h.Flow.Steps.Contains(pasted),
+                $"steps={h.Flow.Steps.Count}");
+            cv.RedoCommand.Execute();
+            Check("G7 重做粘贴：粘贴件回到原位（下标 1）",
+                h.Flow.Steps.Count == 2 && ReferenceEquals(h.Flow.Steps[1], pasted), "");
+
+            // ---- 容器：If 双分支 + 分支内连线 + 指向子树外的连线 + 条件变量 → 重映射口径 ----
+            var h2 = new Harness();
+            var outside = h2.Add(Harness.WithInput(h2.Leaf("外部生产"), "In"));
+            var cond = h2.If("容器");
+            var innerA = Harness.WithInput(h2.Leaf("内部A"), "In");
+            var innerB = Harness.WithInput(h2.Leaf("内部B"), "In");
+            cond.Children[0].Steps.Add(innerA);
+            cond.Children[0].Steps.Add(innerB);
+            h2.Add(cond);
+            Harness.RawLink(innerB, "In", innerA, "Out");     // 子树内部连线：粘贴后必须保留并重映射
+            Harness.RawLink(innerA, "In", outside, "Out");    // 指向子树外部：粘贴件里必须整条过滤
+            var localVar = new LocalVariableItem { Name = "阈值", DataTypeName = "System.Double" };
+            cond.LocalVariables.Add(localVar);
+            cond.SetLink(localVar.Id.ToString(), new LinkReference(
+                LinkKind.RuntimeVariable, LinkProtocol.RuntimeVariableMarkerGuid, "阈值", "Runtime.阈值"));
+            var cv2 = h2.Canvas;
+
+            h2.Node(cond)!.IsSelected = true;
+            cv2.CopySelectedCommand.Execute(null);
+            cv2.PasteCommand.Execute(new Point(0, double.MaxValue));
+            var pastedCond = h2.Flow.Steps.Count == 3
+                ? h2.Flow.Steps.OfType<ConditionStep>().FirstOrDefault(s => !ReferenceEquals(s, cond))
+                : null;
+            Check("G7 容器粘贴：容器上图纸（顶层末尾）",
+                pastedCond != null && h2.Flow.Steps.Count == 3, $"steps={h2.Flow.Steps.Count}");
+            Check("G7 容器粘贴：分支结构完整（If 分支 2 步骤 / Else 分支空）",
+                pastedCond != null && pastedCond.Children.Count == 2
+                && pastedCond.Children[0].Steps.Count == 2 && pastedCond.Children[1].Steps.Count == 0, "");
+
+            var pastedA = pastedCond?.Children[0].Steps.OfType<StepModel>().FirstOrDefault(s => s.StepName.Contains('A'));
+            var pastedB = pastedCond?.Children[0].Steps.OfType<StepModel>().FirstOrDefault(s => s.StepName.Contains('B'));
+            Check("G7 容器粘贴：子步骤 StepID 全部重生成",
+                pastedA != null && pastedB != null
+                && pastedA.StepID != innerA.StepID && pastedB.StepID != innerB.StepID
+                && pastedA.StepID != pastedB.StepID, "");
+            Check("G7 容器粘贴：内部连线保留且指向粘贴件内部节点",
+                pastedA != null && pastedB != null
+                && pastedB.GetLink("In") is LinkReference innerLink
+                && innerLink.TargetStepId == pastedA.StepID
+                && innerLink.DisplayAddress == $"{pastedA.StepName}.Out",
+                pastedB?.GetLink("In")?.DisplayAddress ?? "");
+            Check("G7 容器粘贴：指向子树外的连线被过滤（不随粘贴造悬空引用）",
+                pastedA != null && !pastedA.LinkedSources.ContainsKey("In"), "");
+            Check("G7 容器粘贴：条件变量 Id 重映射、Guid 键同步换",
+                pastedCond != null && pastedCond.LocalVariables.Count == 1
+                && pastedCond.LocalVariables[0].Id != localVar.Id
+                && pastedCond.LinkedSources.ContainsKey(pastedCond.LocalVariables[0].Id.ToString()), "");
+            Check("G7 容器粘贴：根名字不与图纸现有步骤重名",
+                pastedCond != null && !NameExistsDeep(h2.Flow.Steps, pastedCond.StepName, pastedCond),
+                pastedCond?.StepName ?? "");
+
+            // ---- 并行分组：分支结构 + ExecutionMode 保留 ----
+            var h3 = new Harness();
+            var par = h3.Parallel("并行源");
+            par.ExecutionMode = VisionMaster.Models.ParallelExecutionMode.Parallel;
+            par.Children[0].Steps.Add(Harness.WithInput(h3.Leaf("分支1步骤"), "In"));
+            par.Children[1].Steps.Add(Harness.WithInput(h3.Leaf("分支2步骤"), "In"));
+            h3.Add(par);
+            var cv3 = h3.Canvas;
+
+            h3.Node(par)!.IsSelected = true;
+            cv3.CopySelectedCommand.Execute(null);
+            cv3.PasteCommand.Execute(new Point(0, double.MaxValue));
+            var pastedPar = h3.Flow.Steps.Count == 2
+                ? h3.Flow.Steps.OfType<ParallelStep>().FirstOrDefault(s => !ReferenceEquals(s, par))
+                : null;
+            Check("G7 并行粘贴：分组上图纸", pastedPar != null && h3.Flow.Steps.Count == 2, "");
+            Check("G7 并行粘贴：两条分支完整保留",
+                pastedPar != null && pastedPar.Children.Count == 2
+                && pastedPar.Children[0].Steps.Count == 1 && pastedPar.Children[1].Steps.Count == 1, "");
+            Check("G7 并行粘贴：ExecutionMode=Parallel 保留（不被反序列化默认值吞掉）",
+                pastedPar != null && pastedPar.ExecutionMode == VisionMaster.Models.ParallelExecutionMode.Parallel, "");
+
+            // ---- 空选/多选：第一期单个节点，多选不进剪贴板；空剪贴板粘贴空跑 ----
+            var h5 = new Harness();
+            h5.Add(h5.Leaf("甲"));
+            h5.Add(h5.Leaf("乙"));
+            var cv5 = h5.Canvas;
+            h5.Node(h5.Flow.Steps[0])!.IsSelected = true;
+            h5.Node(h5.Flow.Steps[1])!.IsSelected = true;
+            FlowClipboard.Clear();
+            cv5.CopySelectedCommand.Execute(null);
+            Check("G7 多选复制：不进剪贴板（第一期口径，给提示）",
+                !FlowClipboard.HasPayload && (cv5.StatusHint ?? "").Contains("单个"), $"'{cv5.StatusHint}'");
+            cv5.PasteCommand.Execute(null);
+            Check("G7 剪贴板为空：粘贴空跑（不插入不压栈）",
+                h5.Flow.Steps.Count == 2 && cv5.UndoStackSize == 0, $"size={cv5.UndoStackSize}");
+
+            // ---- 运行锁：Running 下粘贴空跑（门禁现成，驱动手法照 [G1]）----
+            var h4 = new Harness();
+            h4.Add(h4.Leaf("占位"));
+            var cv4 = h4.Canvas;
+            FlowClipboard.Copy(h4.Flow.Steps[0]);
+            GlobalEventBus.Publish(MainRunState.RunningOnce);
+            try
+            {
+                cv4.PasteCommand.Execute(new Point(0, double.MaxValue));
+                Check("G7 运行中粘贴：不插入、不压栈",
+                    h4.Flow.Steps.Count == 1 && cv4.UndoStackSize == 0,
+                    $"steps={h4.Flow.Steps.Count} size={cv4.UndoStackSize}");
+                Check("G7 运行中粘贴给了拦截提示", (cv4.StatusHint ?? "").Contains("运行中"), $"'{cv4.StatusHint}'");
+            }
+            finally
+            {
+                GlobalEventBus.Publish(MainRunState.NotStarted);   // 复位全局总线，别把锁漏给后续断言
+            }
+        }
+
+        /// <summary>全树查名字是否已被占用（except 自身豁免；与 StepFactory.CountStepsDeep 同一条递归口径）</summary>
+        private static bool NameExistsDeep(IEnumerable<StepModel> steps, string name, StepModel? except)
+        {
+            foreach (var step in steps)
+            {
+                if (step == null) continue;
+
+                if (!ReferenceEquals(step, except) && step.StepName == name) return true;
+
+                if (step is IContainerStep container)
+                {
+                    foreach (var branch in container.Children)
+                    {
+                        if (branch != null && NameExistsDeep(branch.Steps, name, except)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// "配置一致"的比对口径：两边都按落盘管线设置序列化成 JSON，剥掉身份字段
+        ///（StepID/StepName）与运行态（State——粘贴件被有意复位，见 G7 专属断言）后逐字相等。
+        /// 不是引用相等——粘贴件本来就是深拷贝重映射的产物。
+        /// </summary>
+        private static bool ConfigJsonEquals(StepModel source, StepModel pasted)
+        {
+            var a = Newtonsoft.Json.Linq.JObject.Parse(JsonConvert.SerializeObject(source, RoundTripSettings));
+            var b = Newtonsoft.Json.Linq.JObject.Parse(JsonConvert.SerializeObject(pasted, RoundTripSettings));
+            foreach (var key in new[] { "StepID", "StepName", "State" })
+            {
+                a.Remove(key);
+                b.Remove(key);
+            }
+            return Newtonsoft.Json.Linq.JToken.DeepEquals(a, b);
+        }
+
+        // ==================================================================
+        //  [G8] 画布压力图式构造（2026-10-12 评审清单第三批；性能只量化不优化）：
+        //  与 --render 的 [perf] 计时共用 RenderProbe.BuildPerfGraph 一份生成器。
+        //  gate 只断"图式能全量建成、展开后算子数达标"，毫秒数看 --render 的 [perf] 行。
+        // ==================================================================
+        private static void PerfGraphChecks()
+        {
+            Section("[G8] 画布压力图式构造（300/600 节点）");
+
+            var (h300, expected300) = RenderProbe.BuildPerfGraph(300);
+            var cv300 = h300.Canvas;
+            cv300.ExpandAllCommand.Execute();
+            int built300 = h300.Steps().Count + h300.Containers().Count;
+            Check("G8 300 节点图式：全量建成且展开后算子数达标",
+                built300 == expected300 && built300 >= 300, $"built={built300} expected={expected300}");
+
+            var (h600, expected600) = RenderProbe.BuildPerfGraph(600);
+            var cv600 = h600.Canvas;
+            cv600.ExpandAllCommand.Execute();
+            int built600 = h600.Steps().Count + h600.Containers().Count;
+            Check("G8 600 节点图式：全量建成且展开后算子数达标",
+                built600 == expected600 && built600 >= 600, $"built={built600} expected={expected600}");
+        }
 
         // ==================================================================
         //  离线工具：向方案文件的 MainTask 注入 If 容器（UI 实测素材）

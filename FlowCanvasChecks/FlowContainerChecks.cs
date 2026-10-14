@@ -24,6 +24,7 @@ namespace FlowCanvasChecks
             ContainerFailureEscalates();
             BreakReportsState();
             LoopBodyBranchCountValidated();
+            BranchCapsuleRunningFlag();
         }
 
         private static string Aqn<T>() => typeof(T).AssemblyQualifiedName!;
@@ -83,6 +84,54 @@ namespace FlowCanvasChecks
                 forStep.State == StepState.Failed, $"State={forStep.State}");
             Check("超限留有 Error 日志（含实际次数与上限）",
                 log.Errors.Any(e => e.Contains("超过上限")), string.Join(" | ", log.Errors.TakeLast(2)));
+        }
+
+        // ==================================================================
+        //  [E23] 并行分支胶囊运行态（StepCollection.IsRunning）+ 组头运行态
+        //        2026-10-11 真机反馈"并行分组下面的分支/组头没有焦点显示"：
+        //        引擎扇出时给分支胶囊打标（ExecuteBranch 置位 / finally 复位），
+        //        组头的 State 本就由引擎上报——流程栏的绿点/绿底/转圈都绑这两个。
+        //        用 GatePlugin 把两条分支按在门口，做确定性的"运行中"窗口观察。
+        // ==================================================================
+        private static void BranchCapsuleRunningFlag()
+        {
+            Section("[E23] 并行分支胶囊运行态（扇出打标 / 收尾复位）");
+
+            SafeGatePlugin.Reset();
+            var par = new ParallelStep("P", "并行分组", "BuiltIn_Parallel", "胶囊运行态组")
+            {
+                // 全限定名：System.Linq 也有个 ParallelExecutionMode（隐式 using），不限定则 CS0104
+                ExecutionMode = VisionMaster.Models.ParallelExecutionMode.Parallel,
+            };
+            par.Children[0].Steps.Add(new ActionStep("G1", "闸门", Aqn<SafeGatePlugin>(), "分支1闸门"));
+            par.Children[1].Steps.Add(new ActionStep("G2", "闸门", Aqn<SafeGatePlugin>(), "分支2闸门"));
+
+            var flow = new FlowModel { FlowName = "胶囊运行态流程" };
+            flow.Steps.Add(par);
+
+            var (workspace, engine, _, _) = NewEngine(flow);
+            var compiled = new FlowCompiler(workspace).Compile(flow.Steps, flow.FlowName);
+            Check("并行图纸编译通过（真并发：非调试会话）", compiled.Success,
+                compiled.Success ? "" : string.Join("；", compiled.Errors.Select(e => e.Message)));
+            if (!compiled.Success) return;
+
+            var session = new FlowSession { FlowName = flow.FlowName, ExecutionEngine = compiled.Data, CompiledVersion = flow.Version };
+            session.AddBlueprintsDeep(flow.Steps);
+
+            var runTask = engine.TryRunSessionOnceAsync(session);
+            bool reached = WaitFor(() => SafeGatePlugin.Reached.IsSet);
+            Check("两分支都抵达闸门（真并发进行中的确定性窗口）", reached, $"reached={reached}");
+            Check("★运行中：两条分支胶囊 IsRunning=true（流程栏绿点数据源）",
+                par.Children[0].IsRunning && par.Children[1].IsRunning,
+                $"分支1={par.Children[0].IsRunning} 分支2={par.Children[1].IsRunning}");
+            Check("★运行中：容器组头 State=Running（组头绿底/转圈数据源）",
+                par.State == StepState.Running, $"State={par.State}");
+
+            SafeGatePlugin.Proceed.Set();
+            runTask.GetAwaiter().GetResult();
+            Check("★收尾：两条分支胶囊 IsRunning 一律复位 false（finally 熄灯，含取消/异常路径）",
+                !par.Children[0].IsRunning && !par.Children[1].IsRunning,
+                $"分支1={par.Children[0].IsRunning} 分支2={par.Children[1].IsRunning}");
         }
 
         /// <summary>与 CompiledForNode.MaxIterations 对应（编译期常量，用反射取，避免复制数字）</summary>

@@ -163,4 +163,87 @@ namespace VisionMaster.ViewModels
         public void Undo() => _consumer.SetLink(_port, _oldLink);
         public void Redo() => _consumer.RemoveLink(_port);
     }
+
+    /// <summary>
+    /// 新增步骤（画布拖入 DropToolAt，2026-10-11 撤销补口）：
+    /// 记录 (owner 集合, step 引用, 插入下标)，Undo = owner.Remove(step)，Redo = owner.Insert(下标, step)。
+    /// 与既有 ReorderCommand/MoveBranchCommand 的「下标型」差别：那两条记录的是
+    /// "集合里原有的元素怎么挪"，Move/反向 Move 原子且不丢元素；本命令记录的是
+    /// **元素引用本体**——Undo/Redo 都按引用增删，owner 内容变了（外部又删过/加过）时
+    /// 按引用判存在性静默降级（Contains/IndexOf 守卫），不会错拿别的步骤。
+    /// </summary>
+    internal sealed class AddStepCommand : IUndoCommand
+    {
+        private readonly ObservableCollection<StepModel> _owner;
+        private readonly StepModel _step;
+        private readonly int _index;
+
+        public AddStepCommand(ObservableCollection<StepModel> owner, StepModel step, int index)
+        {
+            _owner = owner;
+            _step = step;
+            _index = index;
+        }
+
+        public void Undo()
+        {
+            // 已被外部移走（或撤销栈里更早的命令回滚过）：静默降级，不抛不重复删
+            if (!_owner.Contains(_step)) return;
+            _owner.Remove(_step);
+        }
+
+        public void Redo()
+        {
+            // 已在集合里（外部手动加回过）：静默降级；下标越界钳到尾部
+            if (_owner.Contains(_step)) return;
+
+            int index = Math.Clamp(_index, 0, _owner.Count);
+            _owner.Insert(index, _step);
+        }
+    }
+
+    /// <summary>
+    /// 删除步骤（画布 Delete / 节点右键菜单，2026-10-11 撤销补口）：
+    /// 记录 [(owner, step, 原下标)] 列表——容器子树删除会涉及多个 owner（分支 Steps），
+    /// 整批打包成一个撤销单元（与整批解绑的 MultiUndoCommand 同一批次粒度）。
+    /// Undo = 按记录插回（同 owner 内按下标升序插，先低后高才不会挤动后记录的下标）；
+    /// Redo = 按引用再删。删除不再清空撤销栈（LIFO 顺序下，更早的改序命令只有在
+    /// 删除被撤销后才轮到，下标快照届时已恢复，不存在错位回滚）。
+    /// </summary>
+    internal sealed class DeleteStepCommand : IUndoCommand
+    {
+        /// <summary>一条删除记录：步骤被从哪个集合的哪个下标移走</summary>
+        internal sealed record DeleteEntry(ObservableCollection<StepModel> Owner, StepModel Step, int Index);
+
+        private readonly List<DeleteEntry> _entries;
+
+        public DeleteStepCommand(IEnumerable<DeleteEntry> entries)
+        {
+            // 同 owner 内按下标升序：Undo 逐条 Insert 时，先插低下标不影响高下标的落位
+            _entries = entries.OrderBy(e => e.Index).ToList();
+        }
+
+        public void Undo()
+        {
+            foreach (var entry in _entries)
+            {
+                // 已被外部放回（或更晚的命令动过）：静默降级；下标越界钳到尾部
+                if (entry.Owner.Contains(entry.Step)) continue;
+
+                int index = Math.Clamp(entry.Index, 0, entry.Owner.Count);
+                entry.Owner.Insert(index, entry.Step);
+            }
+        }
+
+        public void Redo()
+        {
+            foreach (var entry in _entries)
+            {
+                // 按引用现查现删：不信任记录的下标（撤销期间同 owner 可能增删过别的步骤）
+                int index = entry.Owner.IndexOf(entry.Step);
+                if (index >= 0)
+                    entry.Owner.RemoveAt(index);
+            }
+        }
+    }
 }

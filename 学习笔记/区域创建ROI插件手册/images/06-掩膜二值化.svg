@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 360" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="360" fill="#FDFDFB"/>
+  <defs>
+    <marker id="arB2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563EB"/>
+    </marker>
+  </defs>
+  <!-- 左：区域 -->
+  <text x="30" y="48" fill="#0F172A" font-size="16" font-weight="bold">① 区域（HRegion）</text>
+  <rect x="30" y="70" width="260" height="220" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+  <circle cx="150" cy="180" r="80" fill="#F59E0B" fill-opacity="0.32" stroke="#D97706" stroke-width="2.5"/>
+  <rect x="160" y="140" width="120" height="110" fill="#F59E0B" fill-opacity="0.32" stroke="#D97706" stroke-width="2.5"/>
+  <text x="90" y="316" fill="#64748B" font-size="13">只有形状，没有像素值</text>
+  <!-- 箭头 -->
+  <line x1="310" y1="180" x2="452" y2="180" stroke="#2563EB" stroke-width="2.5" marker-end="url(#arB2)"/>
+  <text x="316" y="160" fill="#1D4ED8" font-size="13" font-weight="bold">region_to_bin</text>
+  <text x="316" y="200" fill="#1D4ED8" font-size="13">前景255 背景0</text>
+  <!-- 右：掩膜 -->
+  <text x="470" y="48" fill="#0F172A" font-size="16" font-weight="bold">② 二值掩膜（MaskImage）</text>
+  <rect x="470" y="70" width="260" height="220" fill="#0F172A"/>
+  <circle cx="590" cy="180" r="80" fill="#FFFFFF"/>
+  <rect x="600" y="140" width="120" height="110" fill="#FFFFFF"/>
+  <text x="500" y="105" fill="#E2E8F0" font-size="14" font-weight="bold">圈内 → 255（白）</text>
+  <text x="500" y="272" fill="#94A3B8" font-size="14">圈外 → 0（黑）</text>
+  <!-- 底注 -->
+  <text x="20" y="326" fill="#0F172A" font-size="14">排除模式 MaskInvert：前景/背景对调（圈内 0、圈外 255）—— 但 MaskRegion 永不反转（正语义铁律，见手册 5.3 节）</text>
+  <text x="20" y="348" fill="#475569" font-size="14">下一步：抠图 = 原图 × 掩膜 ÷ 255（见下一张图）</text>
+</svg>

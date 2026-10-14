@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>DeviceSimulator</RootNamespace>
+    <AssemblyName>DeviceSimulator</AssemblyName>
+    <LangVersion>8.0</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 与 VM 主程序同一份 HslCommunication 编译产物，保证服务端/客户端字节序行为一致 -->
+    <Reference Include="HslCommunication">
+      <HintPath>..\..\DLL\HslCommunication\bin\Release\HslCommunication.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

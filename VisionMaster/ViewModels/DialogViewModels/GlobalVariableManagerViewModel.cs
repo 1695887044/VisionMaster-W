@@ -449,6 +449,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set => SetProperty(ref field, value);
         }
 
+        private string _newInitialValueText = "";
+        /// <summary>
+        /// 新建变量的初始值（选填，仅标量类型显示）：
+        /// 「初始值」列从明细表撤掉后，基准（DefaultValue）唯一的设定入口就在这里——
+        /// 留空 = 类型默认值（0 / 空串 / false）。转换规则与"当前值"就地编辑同源（VariableValueConverter）。
+        /// 数组用「强制覆盖集合...」整体维护基准，图像由流程写入，两者都不给文本框。
+        /// </summary>
+        public string NewInitialValueText
+        {
+            get => _newInitialValueText;
+            set => SetProperty(ref _newInitialValueText, value);
+        }
+
+        /// <summary>初始值输入框显隐：数组/图像没有可文本化的初始值</summary>
+        public bool ShowNewInitialValue
+        {
+            get
+            {
+                var t = SelectedType?.ActualType;
+                return t != null && !t.IsArray && !typeof(HImage).IsAssignableFrom(t);
+            }
+        }
+
         public DataTypeOption SelectedType
         {
             get => field;
@@ -458,6 +481,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 {
                     RaisePropertyChanged(nameof(IsBitMode));
                     RaisePropertyChanged(nameof(IsBoolType));
+                    RaisePropertyChanged(nameof(ShowNewInitialValue));
                 }
             }
         }
@@ -498,9 +522,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public DelegateCommand<VariableNode> DeleteCommand { get; }
         public DelegateCommand<VariableNode> EditArrayCommand { get; }
         public DelegateCommand<VariableNode> ResetCommand { get; }
-
-        /// <summary>网络变量写值（弹出单值输入，直通设备）</summary>
-        public DelegateCommand<VariableNode> WriteValueCommand { get; }
 
         /// <summary>复制变量名（HMI 控件绑定预留入口）</summary>
         public DelegateCommand<VariableNode> CopyNameCommand { get; }
@@ -543,7 +564,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
             DeleteCommand = new DelegateCommand<VariableNode>(DeleteVariable);
             ResetCommand = new DelegateCommand<VariableNode>(ResetVariable);
             EditArrayCommand = new DelegateCommand<VariableNode>(ExecuteEditArray);
-            WriteValueCommand = new DelegateCommand<VariableNode>(ExecuteWriteValue);
             CopyNameCommand = new DelegateCommand<VariableNode>(
                 n => Clipboard.SetText(n?.Name ?? ""),
                 n => n != null && n.IsRootNode);
@@ -564,26 +584,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 变量增删 → 来源树计数刷新
             _workspace.GlobalVariables.CollectionChanged += OnVariablesChangedForCountsHandler;
 
-            // C4：值变化的全树重建合并刷新——旧实现"每值一变立即整树 Clear+重建"，
-            // 高频变化时右表闪烁、正在编辑的单元格被重建吞掉；改为脏标记 + 800ms 节拍合并
-            _treeRefreshTimer = new System.Windows.Threading.DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(800),
-            };
-            _treeRefreshTimer.Tick += (s, e) =>
-            {
-                if (!_treeDirty) return;
-                _treeDirty = false;
-                RefreshTree();
-            };
-            _treeRefreshTimer.Start();
-
             RebuildSourceTree();
             RefreshTree();
         }
-
-        private bool _treeDirty;
-        private readonly System.Windows.Threading.DispatcherTimer _treeRefreshTimer;
 
         protected override VariableNode CreateRootNode(IVariable gv)
         {
@@ -689,10 +692,27 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private void OnVariableValueChanged(object sender, EventArgs e)
         {
-            // C4：只标脏不打全树——由 800ms 节拍的 DispatcherTimer 合并刷新。
-            // 该事件可能由流程线程触发，故只写 bool 标记（UI 更新统一回到定时器所在的 UI 线程）
-            if (sender is LocalVariableModel)
-                _treeDirty = true;
+            // 值变化就地刷新（2026-10-11 收口，取代 C4 的"脏标记 + 800ms 全树重建"节拍）：
+            // 节点对象在两次结构变化之间保持稳定，正在编辑的单元格不再有被重建吞掉的窗口期，
+            // 轮询推送也不再引发整树 Clear+重建。事件可能来自流程/轮询线程 → 封送回 UI 线程再动 UI。
+            if (sender is not IVariable gv) return;
+            VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
+            {
+                foreach (var node in NodesOf(gv))
+                    node.RefreshValueDisplay();
+            });
+        }
+
+        /// <summary>枚举某变量在当前树里的全部展示节点（根 + 数组元素行；子行与根共享同一模型）</summary>
+        private IEnumerable<VariableNode> NodesOf(IVariable gv)
+        {
+            foreach (var root in _realTree)
+            {
+                if (!ReferenceEquals(root.OriginalModel, gv)) continue;
+                yield return root;
+                foreach (var child in root.Children)
+                    yield return child;
+            }
         }
 
         /// <summary>新建变量补挂值变化监听（此前仅构造时给存量变量挂接，新建变量运行中值不同步）</summary>
@@ -746,11 +766,42 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
+        /// <summary>解析新建表单的初始值文本：留空 = 类型默认值；非法文本返回 false 并给出中文原因</summary>
+        private bool TryGetNewInitialValue(Type targetType, out object? initial, out string error)
+        {
+            var text = NewInitialValueText?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                initial = targetType == typeof(string) ? string.Empty : Activator.CreateInstance(targetType);
+                error = "";
+                return true;
+            }
+
+            if (VisionMaster.Helpers.VariableValueConverter.TryConvert(text, targetType, out var converted, out error))
+            {
+                initial = converted;
+                return true;
+            }
+            initial = null;
+            return false;
+        }
+
         private void AddLocalVariable(Type targetType)
         {
-            object initValue = targetType.IsArray
-                ? Array.CreateInstance(targetType.GetElementType(), 0)
-                : targetType == typeof(string) ? string.Empty : Activator.CreateInstance(targetType);
+            object initValue;
+            if (targetType.IsArray)
+            {
+                initValue = Array.CreateInstance(targetType.GetElementType(), 0);
+            }
+            else if (!TryGetNewInitialValue(targetType, out var parsed, out var initialError))
+            {
+                EasyDialog.ShowSync($"初始值无效：{initialError}", "提示");
+                return;
+            }
+            else
+            {
+                initValue = parsed!;
+            }
 
             var newVar = new LocalVariableModel
             {
@@ -768,6 +819,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             NewVarName = string.Empty;
             NewVarDescription = string.Empty;
+            NewInitialValueText = string.Empty;
             Notifier.ShowSuccess($"本地变量 [{newVar.Name}] 创建成功");
         }
 
@@ -792,6 +844,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (targetType == typeof(string) || targetType.IsArray)
             {
                 EasyDialog.ShowSync("网络变量仅支持数值/布尔标量类型，不支持文本与数组！", "提示");
+                return;
+            }
+            if (!TryGetNewInitialValue(targetType, out var initial, out var initialError))
+            {
+                EasyDialog.ShowSync($"初始值无效：{initialError}", "提示");
                 return;
             }
 
@@ -838,6 +895,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 事后再改要走 ReRegister，这里一次到位
                 netVar.ScanGroup = ToStoredScanGroup(SelectedNewScanGroup);
 
+                // 基准与起始值同源（表单"初始值"）：此刻尚未 Bind 通信管理器，
+                // Value setter 的隐式写设备会静默跳过，只落镜像值
+                netVar.DefaultValue = initial;
+                netVar.Value = initial;
+
                 _workspace.GlobalVariables.Add(netVar); // 桥接器监听集合 → 自动 Bind + RegisterVariable + 镜像接线
 
                 // 切换到对应连接来源分组，确保新变量立即可见
@@ -845,6 +907,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 NewVarName = string.Empty;
                 NewVarDescription = string.Empty;
+                NewInitialValueText = string.Empty;
                 Notifier.ShowSuccess($"网络变量 [{netVar.Name}] 创建成功（{SelectedConnection.ConnectionName} @ {address.Address}）");
             }
             catch (Exception ex)
@@ -1036,50 +1099,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
             return underlying != null ? $"{underlying.Name}?" : elementType.Name;
         }
 
-        /// <summary>网络变量写值：弹出单值输入 → 显式下发并按真实结果反馈（禁止无条件报成功）</summary>
-        private void ExecuteWriteValue(VariableNode node)
-        {
-            if (node?.OriginalModel is not NetworkVariableModel netVar) return;
-
-            var editor = new VariableValueEditor
-            {
-                VariableName = netVar.Name,
-                Address = node.Address ?? "",
-                StringValue = netVar.Value?.ToString() ?? ""
-            };
-            var ok = EasyDialog.ShowPropertyGridSync("写值到设备", editor);
-            if (!ok) return;
-
-            try
-            {
-                object converted = Convert.ChangeType(
-                    editor.StringValue,
-                    Nullable.GetUnderlyingType(netVar.DataType) ?? netVar.DataType);
-
-                // TryWriteToValue 无条件下发（同值也写，"再写一次"是命令不是状态设置），
-                // 失败原因（离线/未配置地址/驱动异常）如实呈现——旧实现吞掉一切后报"已写入"，是产线安全隐患
-                if (netVar.TryWriteToValue(converted, out var error))
-                    Notifier.ShowSuccess($"[{netVar.Name}] 已写入 {editor.StringValue}");
-                else
-                    EasyDialog.ShowSync($"写入失败：{error}", "错误");
-            }
-            catch (Exception ex)
-            {
-                EasyDialog.ShowSync($"写入失败：{ex.Message}", "错误");
-            }
-        }
-
-        /// <summary>写值对话框承载对象（PropertyGrid 自动生成表单）</summary>
-        public class VariableValueEditor
-        {
-            [System.ComponentModel.DisplayName("变量")]
-            public string VariableName { get; set; } = "";
-            [System.ComponentModel.DisplayName("设备地址")]
-            public string Address { get; set; } = "";
-            [System.ComponentModel.DisplayName("新值")]
-            public string StringValue { get; set; } = "";
-        }
-
         #endregion
 
         #region IDialogAware实现
@@ -1103,9 +1122,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (disposing)
             {
-                // C4：合并刷新定时器随弹窗停机
-                _treeRefreshTimer.Stop();
-
                 // 取消所有变量值变化事件订阅——用基类跟踪集而非当前集合：
                 // 弹窗期间被 Clear/删除的旧变量不在 GlobalVariables 里，旧写法会漏退订导致弹窗连同树泄漏
                 foreach (var gv in TrackedVariables)

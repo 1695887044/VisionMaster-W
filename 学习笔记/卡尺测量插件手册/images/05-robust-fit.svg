@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="360" viewBox="0 0 720 360" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="720" height="360" fill="#FDFDFB"/>
+  <g fill="#2563EB">
+    <circle cx="100" cy="202" r="5"/><circle cx="160" cy="198" r="5"/><circle cx="220" cy="201" r="5"/>
+    <circle cx="280" cy="199" r="5"/><circle cx="340" cy="203" r="5"/><circle cx="400" cy="197" r="5"/>
+  </g>
+  <circle cx="480" cy="110" r="6" fill="#DC2626"/>
+  <text x="494" y="106" fill="#DC2626" font-size="14" font-weight="bold">毛刺离群点（12px）</text>
+  <line x1="70" y1="206" x2="640" y2="156" stroke="#94A3B8" stroke-width="2" stroke-dasharray="8 5"/>
+  <text x="470" y="140" fill="#64748B" font-size="14" font-weight="bold">regression：被一个坏点拽歪（191.092）</text>
+  <line x1="70" y1="200" x2="640" y2="200" stroke="#16A34A" stroke-width="3"/>
+  <text x="470" y="188" fill="#15803D" font-size="14" font-weight="bold">tukey：稳住（196.5 = 真值）</text>
+  <text x="30" y="270" fill="#0F172A" font-size="15" font-weight="bold">鲁棒拟合 = 对残差超限的点大幅降权：一个毛刺拽不歪整条线/圆</text>
+  <text x="30" y="296" fill="#475569" font-size="13.5">残差判据用【中位数】不用最大值：按最大值判，一个坏点就把 Tukey 已正确拟合的结果判死，鲁棒拟合白做</text>
+  <text x="30" y="322" fill="#B91C1C" font-size="13.5">⚠ fit_line 与 fit_circle 的 algorithm 值集是两套（regression~tukey / geometric~geotukey），传错直接 #1301（真实 P1 事故）</text>
+</svg>

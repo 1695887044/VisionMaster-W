@@ -328,8 +328,9 @@ namespace VisionMaster
             this._variableBridge = variableBridge;
 
             // DWV 第 1 期：调试会话状态订阅（生命周期 = Shell 全程，无需退订）。
-            // 调试态由各运行入口（RunAllEnabledOnce/Continuous）以 debugSession: true 参数交给
-            // 引擎置位（抢锁后），这里负责把"暂停 / 恢复"镜像到 RunState、按暂停原因驱动命中窗。
+            // 调试态由各运行入口（RunAllEnabledOnce/Continuous）以 debugSession 参数交给
+            // 引擎置位（抢锁后）：普通运行=false（并行组真并发），流程含断点时=true（自动调试），
+            // 这里负责把"暂停 / 恢复"镜像到 RunState、按暂停原因驱动命中窗。
             this._flowEngineService = flowEngineService;
             _flowEngineService.SessionStateChanged += OnSessionStateChanged;
 
@@ -906,6 +907,14 @@ namespace VisionMaster
                 {
                     Notifier.ShowError(item.Message);
                 }
+
+                // 编译错误列表广播（三视角评审第二批）：保留逐条弹泡，画布的「错误列表」按钮
+                // 据此缓存最近一次错误并支持双击定位到出错步骤
+                GlobalEventBus.Publish(new CompilationErrorsEvent
+                {
+                    FlowName = CurrentFlowName,
+                    Errors = result.Errors,
+                });
                 return;
             }
 
@@ -981,6 +990,15 @@ namespace VisionMaster
                     {
                         Notifier.ShowError($"[{flow.FlowName}] {item}");
                     }
+
+                    // 每个失败流程各广播一次（照 DoCompile 的通道，评审清单 B 包交互补齐）：
+                    // 画布按 FlowName 分组累计，批量编译的错误才能在一处看全
+                    // （口径见 FlowCanvasViewModel.OnCompilationErrorsEvent）
+                    GlobalEventBus.Publish(new CompilationErrorsEvent
+                    {
+                        FlowName = flow.FlowName,
+                        Errors = result.Errors,
+                    });
                     failCount++;
                 }
             }
@@ -1050,12 +1068,17 @@ namespace VisionMaster
 
                 if (session != null && !session.IsRunning)
                 {
-                    // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
+                    // 方案 A（2026-10-10）：界面运行默认**普通运行**——并行组真并发；
+                    // 只有流程里存在断点时才自动按调试会话启动（装调试门，断点/单步可用，
+                    // 代价是并行组就地退化顺序执行，见 FlowSession.DebugDegradedParallel）。
                     // 调试态不在这里预置：由引擎抢到会话锁后按此参数置位——预置的话，本次若被 HTTP
-                    // 抢到锁而拒绝，true 会残留给那次非界面运行（P2）；per-run 清回 false 在引擎收尾
+                    // 抢到锁而拒绝，true 会残留给那次非界面运行（P2）；per-run 清回 false 在引擎收尾。
                     // 用 Try 版本：抢不到锁（HTTP / 定时恰好占着）时引擎返回 false，
-                    // 由跟随任务立刻给一条"未启动"的提示——旧写法会把"没跑上"静默包装成"已启动"
-                    tasks.Add(TrackStartRejectedAsync(flowEngine.TryRunSessionOnceAsync(session, debugSession: true), flow.FlowName));
+                    // 由跟随任务立刻给一条"未启动"的提示——旧写法会把"没跑上"静默包装成"已启动"。
+                    bool debugRun = flow.HasBreakpoint();
+                    if (debugRun)
+                        Notifier.ShowInfo($"流程 [{flow.FlowName}] 检测到断点，本次按调试运行（断点/单步生效，并行组将按顺序执行）");
+                    tasks.Add(TrackStartRejectedAsync(flowEngine.TryRunSessionOnceAsync(session, debugSession: debugRun), flow.FlowName));
                     runCount++;
                 }
             }
@@ -1125,10 +1148,15 @@ namespace VisionMaster
 
                 if (session != null && !session.IsRunning)
                 {
-                    // DWV 第 1 期：界面发起的运行 = 调试会话（装调试门，支持断点 / 单步 / 暂停）。
-                    // 调试态不在这里预置（理由同单次运行入口：抢锁后才置位，防 P2 泄漏）
-                    // 循环会话的任务只有被"停止"取消后才会结束，因此这里绝不能 await 它
-                    var continuousTask = flowEngine.RunSessionAsync(session, debugSession: false);
+                    // 方案 A（2026-10-10）：连续运行默认**普通运行**——并行组真并发；
+                    // 只有流程里存在断点时才自动按调试会话启动（装调试门，断点/单步可用，
+                    // 代价是并行组就地退化顺序执行，见 FlowSession.DebugDegradedParallel）。
+                    // 调试态不在这里预置（理由同单次运行入口：抢锁后才置位，防 P2 泄漏）。
+                    // 循环会话的任务只有被"停止"取消后才会结束，因此这里绝不能 await 它。
+                    bool debugRun = flow.HasBreakpoint();
+                    if (debugRun)
+                        Notifier.ShowInfo($"流程 [{flow.FlowName}] 检测到断点，本次按调试运行（断点/单步生效，并行组将按顺序执行）");
+                    var continuousTask = flowEngine.RunSessionAsync(session, debugSession: debugRun);
                     // 连续运行的"抢不到锁"没有返回值可判：引擎的抢锁与 IsRunning 置位都在首个 await
                     // 之前**同步**完成，所以调用返回后立刻取快照就是准的（不猜时序）
                     bool startedNow = session.IsRunning;

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 320" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="320" fill="#FDFDFB"/>
+  <defs>
+    <marker id="gAr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16A34A"/>
+    </marker>
+    <marker id="gAr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3B82F6"/>
+    </marker>
+  </defs>
+  <!-- 标定插件 -->
+  <rect x="30" y="90" width="180" height="110" rx="6" fill="#EFF6FF" stroke="#3B82F6" stroke-width="2.5"/>
+  <text x="46" y="120" fill="#1E40AF" font-size="15" font-weight="bold">标定</text>
+  <text x="46" y="144" fill="#475569" font-size="12">配置态取点（当量/九点/透视/网格）</text>
+  <text x="46" y="166" fill="#475569" font-size="12">产出 Transform 契约 + 当量</text>
+  <!-- MmPerPixel 直连 -->
+  <line x1="210" y1="120" x2="380" y2="86" stroke="#16A34A" stroke-width="2.5" marker-end="url(#gAr2)"/>
+  <line x1="210" y1="140" x2="380" y2="146" stroke="#16A34A" stroke-width="2.5" marker-end="url(#gAr2)"/>
+  <text x="226" y="92" fill="#15803D" font-size="12.5" font-weight="bold">MmPerPixel 直连</text>
+  <text x="226" y="176" fill="#64748B" font-size="11.5">（一个数；网格=中位局部当量）</text>
+  <!-- 卡尺 -->
+  <rect x="390" y="56" width="160" height="66" rx="6" fill="#F8FAFC" stroke="#64748B" stroke-width="2"/>
+  <text x="404" y="82" fill="#0F172A" font-size="13.5" font-weight="bold">卡尺测量</text>
+  <text x="404" y="104" fill="#475569" font-size="11.5">MmPerPixel 输入端口</text>
+  <!-- Blob -->
+  <rect x="390" y="130" width="160" height="66" rx="6" fill="#F8FAFC" stroke="#64748B" stroke-width="2"/>
+  <text x="404" y="156" fill="#0F172A" font-size="13.5" font-weight="bold">Blob 缺陷检测</text>
+  <text x="404" y="178" fill="#475569" font-size="11.5">MmPerPixel 输入端口</text>
+  <!-- 手填兜底 -->
+  <rect x="600" y="86" width="160" height="100" rx="6" fill="#FFF7ED" stroke="#FDBA74" stroke-dasharray="6 4"/>
+  <text x="612" y="112" fill="#9A3412" font-size="12.5" font-weight="bold">手填 PixelSizeMm = 兜底</text>
+  <text x="612" y="134" fill="#78350F" font-size="11.5">未接线 → 用手填值（旧行为）</text>
+  <text x="612" y="154" fill="#78350F" font-size="11.5">上游失效（≤0/NaN）→</text>
+  <text x="612" y="172" fill="#B91C1C" font-size="11.5" font-weight="bold">下游明确失败（不拿旧值硬算）</text>
+  <line x1="566" y1="120" x2="596" y2="120" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <line x1="566" y1="152" x2="596" y2="152" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <!-- Transform 链 -->
+  <line x1="210" y1="176" x2="380" y2="238" stroke="#3B82F6" stroke-width="2.5" marker-end="url(#gAr2)"/>
+  <text x="216" y="216" fill="#1E40AF" font-size="12.5" font-weight="bold">Transform 契约（Kind + 矩阵/投影/网格）</text>
+  <rect x="390" y="222" width="160" height="60" rx="6" fill="#EFF6FF" stroke="#3B82F6" stroke-width="2"/>
+  <text x="404" y="246" fill="#1E40AF" font-size="13.5" font-weight="bold">坐标变换</text>
+  <text x="404" y="266" fill="#475569" font-size="11.5">用尺子：跟随 / 机械坐标</text>
+  <!-- 底注 -->
+  <rect x="20" y="292" width="740" height="24" fill="#EFF6FF"/>
+  <text x="30" y="309" fill="#1E40AF" font-size="12.5" font-weight="bold">直连语义：标定失败 → 下游明确失败（不拿旧当量硬算）——「错误但不出错」戒律的又一次落地</text>
+</svg>

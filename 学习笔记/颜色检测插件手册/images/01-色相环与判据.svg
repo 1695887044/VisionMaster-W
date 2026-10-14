@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 500" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="500" fill="#FDFDFB"/>
+  <!-- 色相环（7 段扇环，角度按判据精确绘制） -->
+  <path d="M170.6,94.7 A112,112 0 0 1 228.3,99.8 L210.5,148.6 A60,60 0 0 0 179.6,145.9 Z" fill="#E53935"/>
+  <path d="M228.3,99.8 A112,112 0 0 1 269.2,125.8 L232.4,162.6 A60,60 0 0 0 210.5,148.6 Z" fill="#FB8C00"/>
+  <path d="M269.2,125.8 A112,112 0 0 1 295.2,166.7 L246.4,184.5 A60,60 0 0 0 232.4,162.6 Z" fill="#FDD835"/>
+  <path d="M295.2,166.7 A112,112 0 0 1 228.3,310.3 L210.5,261.4 A60,60 0 0 0 246.4,184.5 Z" fill="#43A047"/>
+  <path d="M228.3,310.3 A112,112 0 0 1 104.2,277.0 L144.0,243.6 A60,60 0 0 0 210.5,261.4 Z" fill="#1E88E5"/>
+  <path d="M104.2,277.0 A112,112 0 0 1 134.0,108.0 L160.0,153.0 A60,60 0 0 0 144.0,243.6 Z" fill="#8E24AA"/>
+  <path d="M134.0,108.0 A112,112 0 0 1 170.6,94.7 L179.6,145.9 A60,60 0 0 0 160.0,153.0 Z" fill="#EC407A"/>
+  <circle cx="190" cy="205" r="46" fill="#FDFDFB"/>
+  <text x="190" y="200" fill="#0F172A" font-size="14" font-weight="bold" text-anchor="middle">色相 H</text>
+  <text x="190" y="220" fill="#64748B" font-size="12" text-anchor="middle">0~360°</text>
+  <text x="196" y="86" fill="#B71C1C" font-size="12.5" font-weight="bold" text-anchor="middle">红</text>
+  <text x="258" y="106" fill="#E65100" font-size="12" font-weight="bold">橙</text>
+  <text x="302" y="152" fill="#F57F17" font-size="12" font-weight="bold">黄</text>
+  <text x="272" y="240" fill="#1B5E20" font-size="12.5" font-weight="bold">绿 70~160</text>
+  <text x="146" y="316" fill="#0D47A1" font-size="12.5" font-weight="bold">蓝 160~230</text>
+  <text x="66" y="180" fill="#4A148C" font-size="12" font-weight="bold">紫</text>
+  <text x="60" y="92" fill="#AD1457" font-size="11.5" font-weight="bold">玫红 330~350</text>
+  <text x="196" y="66" fill="#B71C1C" font-size="11" text-anchor="middle">350~20</text>
+  <text x="330" y="122" fill="#475569" font-size="11.5">右图：色相角分段</text>
+  <text x="330" y="138" fill="#475569" font-size="11.5">红与玫红只差十几度</text>
+  <text x="330" y="154" fill="#475569" font-size="11.5">分界取 350°</text>
+  <!-- 无彩判据 -->
+  <text x="380" y="70" fill="#0F172A" font-size="15" font-weight="bold">先判「有没有颜色」（S = 饱和度）</text>
+  <rect x="380" y="86" width="360" height="52" rx="4" fill="#F1F5F9" stroke="#CBD5E1"/>
+  <text x="392" y="108" fill="#0F172A" font-size="13" font-weight="bold">S &lt; 0.45 → 无彩</text>
+  <text x="392" y="128" fill="#475569" font-size="12.5">V&lt;80 → 黑 ｜ S&lt;0.15 且 V&gt;195 → 白 ｜ 偏暖且 V&lt;175 → 棕 ｜ 其余 → 灰</text>
+  <rect x="380" y="150" width="360" height="52" rx="4" fill="#ECFDF5" stroke="#6EE7B7"/>
+  <text x="392" y="172" fill="#0F172A" font-size="13" font-weight="bold">S ≥ 0.45 → 有彩</text>
+  <text x="392" y="192" fill="#475569" font-size="12.5">按左图色相角分段归类（玫红/红/橙/黄/绿/蓝/紫）</text>
+  <text x="380" y="238" fill="#475569" font-size="12.5">13 个分界阈值可在界面「高级参数」里按工位覆盖</text>
+  <text x="380" y="256" fill="#B91C1C" font-size="12.5">⚠ 13 个属性名是 WPF 绑定契约，不能改（改名=静默失效）</text>
+  <!-- 词表 -->
+  <text x="30" y="400" fill="#0F172A" font-size="15" font-weight="bold">11 个颜色词（比对按字面！写「深红」永远匹配不上）：</text>
+  <g font-size="13" text-anchor="middle">
+    <rect x="30"  y="415" width="46" height="30" fill="#212121"/><text x="53"  y="435" fill="#fff">黑</text>
+    <rect x="80"  y="415" width="46" height="30" fill="#FAFAFA" stroke="#CBD5E1"/><text x="103" y="435" fill="#334155">白</text>
+    <rect x="130" y="415" width="46" height="30" fill="#9E9E9E"/><text x="153" y="435" fill="#fff">灰</text>
+    <rect x="180" y="415" width="46" height="30" fill="#795548"/><text x="203" y="435" fill="#fff">棕</text>
+    <rect x="230" y="415" width="52" height="30" fill="#E53935"/><text x="256" y="435" fill="#fff">红</text>
+    <rect x="286" y="415" width="56" height="30" fill="#EC407A"/><text x="314" y="435" fill="#fff">玫红</text>
+    <rect x="346" y="415" width="46" height="30" fill="#FB8C00"/><text x="369" y="435" fill="#fff">橙</text>
+    <rect x="396" y="415" width="46" height="30" fill="#FDD835"/><text x="419" y="435" fill="#333">黄</text>
+    <rect x="446" y="415" width="46" height="30" fill="#43A047"/><text x="469" y="435" fill="#fff">绿</text>
+    <rect x="496" y="415" width="46" height="30" fill="#1E88E5"/><text x="519" y="435" fill="#fff">蓝</text>
+    <rect x="546" y="415" width="46" height="30" fill="#8E24AA"/><text x="569" y="435" fill="#fff">紫</text>
+    <rect x="596" y="415" width="60" height="30" fill="#EEF2F7" stroke="#94A3B8"/><text x="626" y="435" fill="#334155">＊</text>
+  </g>
+  <text x="664" y="435" fill="#475569" font-size="12.5">← 通配符：只报不判</text>
+</svg>

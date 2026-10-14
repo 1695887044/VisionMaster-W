@@ -680,6 +680,30 @@ namespace FlowCanvasChecks
                             $"Success={plugin.Success.Value} IsOk={isOk} Ng='{ng}'");
                     }
 
+                    if (i == 1)
+                    {
+                        // 标注底图逐点保真：AnnotatedImage 的底图就是 AlignedImage（同一张 aligned），
+                        // 取两下角（避开左上角文字框与胶路主体）与 AlignedImage 逐点比对。
+                        // 底图被"缩进左上角"（离屏窗口漏掉 set_part）时，两点会一起偏离 aligned。
+                        var annoImg = plugin.AnnotatedImage.Value as HImage;
+                        var alignImg = plugin.AlignedImage.Value as HImage;
+                        if (annoImg != null && annoImg.IsInitialized()
+                            && alignImg != null && alignImg.IsInitialized())
+                        {
+                            var (w, h) = PixelProbe.SizeOf(annoImg);
+                            double dl = Math.Abs(PixelProbe.At(annoImg, h - 5, 5) - PixelProbe.At(alignImg, h - 5, 5));
+                            double dr = Math.Abs(PixelProbe.At(annoImg, h - 5, w - 6) - PixelProbe.At(alignImg, h - 5, w - 6));
+                            Check("3-01 标注底图逐点保真（两下角与 AlignedImage 一致，底图没被缩进左上角）",
+                                dl <= 3 && dr <= 3, $"左下Δ={dl:0.#} 右下Δ={dr:0.#}");
+                        }
+                        else
+                        {
+                            Check("3-01 标注底图逐点保真（两下角与 AlignedImage 一致，底图没被缩进左上角）",
+                                false, $"AnnotatedImage={(annoImg != null && annoImg.IsInitialized())} "
+                                    + $"AlignedImage={(alignImg != null && alignImg.IsInitialized())}");
+                        }
+                    }
+
                     if (i == 7)
                     {
                         // 7 号图跑完顺手看类型明细（P4：偏移3 + 缺胶1），再验数组端口逐项对齐

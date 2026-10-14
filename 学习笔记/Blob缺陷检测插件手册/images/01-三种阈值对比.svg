@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 440" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="440" fill="#FDFDFB"/>
+  <!-- 面板 A：固定阈值 · 背景均匀 -->
+  <text x="20" y="26" fill="#0F172A" font-size="14.5" font-weight="bold">A｜固定阈值 · 背景均匀 ✓</text>
+  <line x1="30" y1="360" x2="250" y2="360" stroke="#94A3B8" stroke-width="1.5"/>
+  <line x1="30" y1="360" x2="30" y2="70" stroke="#94A3B8" stroke-width="1.5"/>
+  <polyline points="30,130 120,130 150,132 175,300 200,132 250,130" fill="none" stroke="#2563EB" stroke-width="2.5"/>
+  <line x1="30" y1="213" x2="250" y2="213" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <text x="36" y="207" fill="#DC2626" font-size="12">阈值 128</text>
+  <rect x="160" y="213" width="30" height="147" fill="#DCFCE7" opacity="0.7"/>
+  <text x="36" y="122" fill="#64748B" font-size="12">背景 200</text>
+  <text x="150" y="318" fill="#166534" font-size="12" font-weight="bold">暗斑 ✓ 提出</text>
+  <text x="20" y="392" fill="#15803D" font-size="13">背景稳：一条线切开两个峰</text>
+  <!-- 面板 B：固定阈值 · 打光不匀 -->
+  <text x="270" y="26" fill="#0F172A" font-size="14.5" font-weight="bold">B｜固定阈值 · 打光不匀 ✗</text>
+  <line x1="280" y1="360" x2="500" y2="360" stroke="#94A3B8" stroke-width="1.5"/>
+  <line x1="280" y1="360" x2="280" y2="70" stroke="#94A3B8" stroke-width="1.5"/>
+  <polyline points="280,130 340,150 380,180 420,220 440,290 455,300 480,243 500,235" fill="none" stroke="#2563EB" stroke-width="2.5"/>
+  <line x1="280" y1="213" x2="500" y2="213" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <text x="286" y="207" fill="#DC2626" font-size="12">阈值 128</text>
+  <path d="M436,213 L500,213 L500,235 L478,243 440,290 436,213 Z" fill="#FEE2E2" opacity="0.85"/>
+  <text x="352" y="132" fill="#64748B" font-size="12">背景 200 → 渐变到 100</text>
+  <text x="330" y="316" fill="#B91C1C" font-size="12" font-weight="bold">暗斑 ✓（本来在渐变暗侧）</text>
+  <text x="270" y="392" fill="#B91C1C" font-size="13">渐变暗侧的背景比 128 还暗 → 整块被误提</text>
+  <!-- 面板 C：动态阈值 -->
+  <text x="520" y="26" fill="#0F172A" font-size="14.5" font-weight="bold">C｜动态阈值 · 跟邻域比 ✓</text>
+  <line x1="530" y1="360" x2="750" y2="360" stroke="#94A3B8" stroke-width="1.5"/>
+  <line x1="530" y1="360" x2="530" y2="70" stroke="#94A3B8" stroke-width="1.5"/>
+  <polyline points="530,130 590,150 630,180 670,220 690,290 705,300 730,243 750,235" fill="none" stroke="#2563EB" stroke-width="2.5"/>
+  <rect x="676" y="200" width="60" height="120" fill="none" stroke="#16A34A" stroke-width="2" stroke-dasharray="5 3"/>
+  <text x="640" y="192" fill="#166534" font-size="12" font-weight="bold">局部窗口 15×15</text>
+  <rect x="688" y="282" width="26" height="30" fill="#DCFCE7" opacity="0.85"/>
+  <text x="536" y="130" fill="#64748B" font-size="12">同一个渐变背景</text>
+  <text x="620" y="318" fill="#166534" font-size="12" font-weight="bold">只提「比邻域暗」的 ✓</text>
+  <text x="520" y="392" fill="#15803D" font-size="13">每个像素跟周围一小块的平均比 —— 渐变被自动抵消</text>
+  <!-- 底部口诀 -->
+  <rect x="20" y="408" width="740" height="26" fill="#EFF6FF"/>
+  <text x="30" y="426" fill="#1E40AF" font-size="13" font-weight="bold">选择口诀：背景稳→固定 ｜ 想省事→自动（Otsu） ｜ 打光不匀/曲面/渐变→动态（窗口 = 缺陷尺寸 2~3 倍）</text>
+</svg>

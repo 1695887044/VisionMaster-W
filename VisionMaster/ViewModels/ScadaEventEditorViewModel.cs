@@ -51,7 +51,8 @@ namespace VisionMaster.ViewModels
             string displayName,
             string? description,
             IScadaVariablePicker picker,
-            IScadaPagePicker pagePicker)
+            IScadaPagePicker pagePicker,
+            IScadaFlowPicker flowPicker)
         {
             Host = host ?? throw new ArgumentNullException(nameof(host));
             EventType = eventType;
@@ -59,6 +60,7 @@ namespace VisionMaster.ViewModels
             Description = description;
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
+            _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
 
             AddActionCommand = new DelegateCommand(OnAddAction);
             RemoveActionCommand = new DelegateCommand<ScadaAction>(OnRemoveAction, a => IndexOf(a) >= 0);
@@ -66,6 +68,7 @@ namespace VisionMaster.ViewModels
             MoveActionDownCommand = new DelegateCommand<ScadaAction>(a => OnMoveAction(a, +1), a => CanMove(a, +1));
             PickVariableCommand = new DelegateCommand<ScadaAction>(OnPickVariable, a => a != null);
             PickPageCommand = new DelegateCommand<ScadaAction>(OnPickPage, a => a != null);
+            PickFlowCommand = new DelegateCommand<ScadaAction>(OnPickFlow, a => a != null);
         }
 
         /// <summary>「选变量」入口（弹窗怎么弹、弹哪个由这一层决定，见 IScadaVariablePicker）</summary>
@@ -73,6 +76,9 @@ namespace VisionMaster.ViewModels
 
         /// <summary>「选画面」入口（弹窗怎么弹、弹哪个由这一层决定，见 IScadaPagePicker）</summary>
         private readonly IScadaPagePicker _pagePicker;
+
+        /// <summary>「选流程」入口（弹窗怎么弹、弹哪个由这一层决定，见 IScadaFlowPicker）</summary>
+        private readonly IScadaFlowPicker _flowPicker;
 
         /// <summary>本次编辑的目标宿主（接口而不是具体类型，理由见类注释）</summary>
         public IScadaEventHost Host { get; }
@@ -143,6 +149,9 @@ namespace VisionMaster.ViewModels
 
         /// <summary>「选画面」：参数是那条切换画面动作（弹窗确认后回填它的 Id 与名字）</summary>
         public DelegateCommand<ScadaAction> PickPageCommand { get; }
+
+        /// <summary>「选流程」：参数是那条流程动作（弹窗确认后回填它的 Id 与名字）</summary>
+        public DelegateCommand<ScadaAction> PickFlowCommand { get; }
 
         /// <summary>
         /// 勾选框真值的文本形态：供 <see cref="ScadaEventRow"/> 沿用基类
@@ -247,6 +256,25 @@ namespace VisionMaster.ViewModels
                 using (Host.BeginEdit($"选择目标画面 [{name}]"))
                 {
                     action.BindPage(id, name);
+                }
+            });
+        }
+
+        /// <summary>
+        /// 「选流程」：把这条流程动作当前的目标交给选择器，选中后回填。
+        /// 与「选变量」/「选画面」同一口径：Id 是权威身份，名字只作显示与兜底寻址。
+        /// 取消时回调<b>一次都不触发</b>。三种流程动作（启动/停止/执行一次）共用这一个入口——
+        /// 它们的参数形状一模一样（就一个目标流程），差异只在出口那侧的语义。
+        /// </summary>
+        private void OnPickFlow(ScadaAction? action)
+        {
+            if (action == null) return;
+
+            _flowPicker.Pick(action.FlowId, action.FlowName, (id, name) =>
+            {
+                using (Host.BeginEdit($"选择目标流程 [{name}]"))
+                {
+                    action.BindFlow(id, name);
                 }
             });
         }

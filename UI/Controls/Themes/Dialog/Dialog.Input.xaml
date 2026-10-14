@@ -246,4 +246,14 @@
       </Trigger>
     </Style.Triggers>
   </Style>
+  <!--
+    表格"就地编辑"单元格的安静态变体（变量管理「当前值」列）：
+    读取模式 = 透明背景无框，长得像普通文本；悬停显边提示可编辑；
+    聚焦后进入编辑态（边框高亮由 DialogCellInput 的模板触发器接管）；
+    提交成功后由 CellValueEditBehavior 交回焦点，视觉随本样式回到读取模式。
+  -->
+  <Style x:Key="DialogCellInputQuiet" TargetType="TextBox" BasedOn="{StaticResource DialogCellInput}">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
 </ResourceDictionary>

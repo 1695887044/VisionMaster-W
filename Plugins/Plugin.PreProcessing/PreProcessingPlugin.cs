@@ -41,7 +41,7 @@ namespace Plugin.PreProcessing
         Description = "串接色彩/几何/滤波/形态学/增强/二值化算子，支持逐步预览与单步启停",
         ShortName = "\uf085"
     )]
-    [ParallelSafe] // 二期真并行：chun shijue jisuan
+    [ParallelSafe] // 二期真并行：纯视觉计算
     public partial class PreProcessingPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 存盘配置（[StepConfig] 由基类统一读写 InputValues）

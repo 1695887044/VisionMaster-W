@@ -1,0 +1,359 @@
+<UserControl
+    x:Class="Plugin.ResultDisplay.ResultDisplayView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cv="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="clr-namespace:Plugin.ResultDisplay"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="700"
+    d:DesignWidth="520"
+    MinWidth="{DynamicResource PluginViewMinWidth}"
+    MinHeight="{DynamicResource PluginViewMinHeight}"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Core.Halcon;component/Generic.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/UI;component/Themes/Generic.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <local:InputPortConverter x:Key="InputPortConv" />
+            <local:ViewIndexHintConverter x:Key="ViewIndexHint" />
+            <local:EnumDisplayNameConverter x:Key="EnumName" />
+
+            <!--
+                卡片/标题/提示/字段标签/输入框/下拉已收编进 UI 库 Plugin* 键。
+                本地只留两类（理由同 DataRecordView 的注释）：
+                · Card：五家视图抄写源内边距 12 ≠ 公共 14，BasedOn 覆盖保住原视觉；
+                · ModernCombo：只要现代外观 + 公共条目容器，条目中文由 EnumName 转换器从 [Display] 取。
+            -->
+            <Style x:Key="Card" BasedOn="{StaticResource PluginCard}" TargetType="Border">
+                <Setter Property="Padding" Value="12" />
+            </Style>
+
+            <Style
+                x:Key="ModernCombo"
+                BasedOn="{StaticResource PluginModernComboBase}"
+                TargetType="ComboBox">
+                <Setter Property="ItemContainerStyle" Value="{StaticResource PluginModernComboItem}" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10">
+
+            <!--  卡片1：底图（唯一必接项）  -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="底图" />
+                    <TextBlock
+                        Margin="0,2,0,6"
+                        Style="{StaticResource PluginHintText}"
+                        Text="结果画在哪张图上：把上游图像连给 SrcImage。本算子不改原图，产出一张全新的标注图（AnnotatedImage）" />
+                    <Grid Margin="0,2">
+                        <cv:LinkableValueEditor
+                            HorizontalAlignment="Stretch"
+                            Label="底图 SrcImage"
+                            Port="{Binding SrcImage}"
+                            StepData="{Binding StepData}"
+                            ToolTip="底图 SrcImage：结果画在哪张图上（必接，上游图像算子的输出端口）" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片2：结果项  -->
+            <Border
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Style="{StaticResource PluginCardTitle}"
+                            Text="结果项（一行 = 一个要显示的输出）" />
+                        <Button
+                            HorizontalAlignment="Right"
+                            Click="AddItem_Click"
+                            Content="+ 添加一项" />
+                    </Grid>
+                    <TextBlock
+                        Margin="0,2,0,6"
+                        Style="{StaticResource PluginHintText}"
+                        Text="每行左边点 🔗 连上游算子的输出端口。数值/文本/OK-NG 变成左上角一行字；几何基元、区域、XLD 轮廓直接画在图上（青色）。图像值不支持（那是底图，请连 SrcImage）" />
+                    <Grid Margin="0,0,0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="26" />
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="62" />
+                            <ColumnDefinition Width="46" />
+                            <ColumnDefinition Width="28" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            FontSize="11"
+                            Foreground="{StaticResource PluginHintTextBrush}"
+                            Text="用" />
+                        <TextBlock
+                            Grid.Column="1"
+                            FontSize="11"
+                            Foreground="{StaticResource PluginHintTextBrush}"
+                            Text="名字（图上/信息栏显示）" />
+                        <TextBlock
+                            Grid.Column="2"
+                            FontSize="11"
+                            Foreground="{StaticResource PluginHintTextBrush}"
+                            Text="取值（连上游端口 / 手填常量）" />
+                        <TextBlock
+                            Grid.Column="3"
+                            FontSize="11"
+                            Foreground="{StaticResource PluginHintTextBrush}"
+                            Text="格式" />
+                        <TextBlock
+                            Grid.Column="4"
+                            FontSize="11"
+                            Foreground="{StaticResource PluginHintTextBrush}"
+                            Text="单位" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="62" />
+                                        <ColumnDefinition Width="46" />
+                                        <ColumnDefinition Width="28" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsChecked="{Binding Enabled}"
+                                        ToolTip="启用该项" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Style="{StaticResource PluginFieldBox}"
+                                        Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="显示名：图上那行字的冒号左边、信息栏那一行的标签。改它不会断开连线" />
+
+                                    <!--  取值：行内连线编辑器（端口名 = 稳定 Id，用户改不到，所以改名不断线）  -->
+                                    <cv:LinkableValueEditor
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        StepData="{Binding DataContext.StepData, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                        <cv:LinkableValueEditor.Port>
+                                            <MultiBinding Converter="{StaticResource InputPortConv}">
+                                                <Binding Path="Id" />
+                                                <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                                <!--  PortsVersion：端口重建锚点，增删项/改名后自动重取新端口  -->
+                                                <Binding
+                                                    Path="DataContext.PortsVersion"
+                                                    RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                                            </MultiBinding>
+                                        </cv:LinkableValueEditor.Port>
+                                    </cv:LinkableValueEditor>
+
+                                    <TextBox
+                                        Grid.Column="3"
+                                        Margin="4,0"
+                                        Style="{StaticResource PluginFieldBox}"
+                                        Text="{Binding Format, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip=".NET 格式串：F2 / 0.000 / HH:mm 等；空 = 默认（数值最多 4 位小数，不留末尾 0）" />
+                                    <TextBox
+                                        Grid.Column="4"
+                                        Margin="0,0,4,0"
+                                        Style="{StaticResource PluginFieldBox}"
+                                        Text="{Binding Unit, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="单位后缀，紧跟数值显示（mm / ° / ms …）。换算请在产出该数值的算子里做，本算子只贴标签不改数" />
+                                    <Button
+                                        Grid.Column="5"
+                                        Width="24"
+                                        Height="24"
+                                        Padding="0"
+                                        Click="DelItem_Click"
+                                        Content="✕"
+                                        Tag="{Binding}"
+                                        ToolTip="删除该项" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片3：显示位置与判定  -->
+            <Border
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="显示与判定" />
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="显示窗口" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource PluginFieldBox}"
+                            Text="{Binding DisplayViewIndex, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="1~9 = 主界面第几个图像窗口；0 = 只烧录不发布（缩略图/导出图/存图仍带标注，但不抢占窗口）" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource PluginHintText}"
+                            Text="{Binding DisplayViewIndex, Converter={StaticResource ViewIndexHint}}" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="判定项" />
+                        <ComboBox
+                            Grid.Column="1"
+                            IsEditable="True"
+                            Style="{StaticResource ModernCombo}"
+                            ItemsSource="{Binding JudgeItemLabels}"
+                            Text="{Binding JudgeItemLabel, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="按哪一项的值决定整幅标注的颜色：命中 NG 值 → 文字红色，否则绿色。空 = 不判定（一律绿色）" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="NG 值" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource PluginFieldBox}"
+                            Text="{Binding NgValue, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="判定项等于它就判 NG。数值按数值比（21 = 21.0）、真假按真假比（false = NG）、其余按文本忽略大小写比" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource PluginHintText}"
+                            Text="判定项为空时这一格不起作用" />
+                    </Grid>
+                    <StackPanel Margin="{StaticResource PluginFieldRowMargin}" Orientation="Horizontal">
+                        <CheckBox
+                            Content="图上叠字"
+                            IsChecked="{Binding ShowTextOnImage}"
+                            ToolTip="勾上：数值/文本/OK-NG 烧进像素（缩略图、导出图、存图都带字）；取消：图上只画几何/区域/轮廓，文字仍进信息栏" />
+                    </StackPanel>
+                    <TextBlock
+                        Margin="0,4,0,0"
+                        Style="{StaticResource PluginHintText}"
+                        Text="底图为空时只写告警、本步骤仍算成功（宁缺显示不停线）；烧录失败会降级为发布原底图" />
+                </StackPanel>
+            </Border>
+
+            <!--  卡片3b：文字位置（九宫格 + 边距 + 字号倍率）；几何标签跟着图形走，不受这里影响  -->
+            <Border
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PluginCardTitle}" Text="文字位置" />
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="九宫格" />
+                        <ComboBox
+                            Grid.Column="1"
+                            Style="{StaticResource ModernCombo}"
+                            ItemsSource="{Binding TextAnchors}"
+                            SelectedItem="{Binding TextAnchor, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumName}}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock
+                        Margin="0,2,0,0"
+                        Style="{StaticResource PluginHintText}"
+                        Text="只搬“数值/文本”那一块；几何项的标签（圆心旁的 r=…）永远跟着图形走。默认左上 = 老版本的位置" />
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="边距" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource PluginFieldBox}"
+                            Text="{Binding TextMargin, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="文字块到画布边缘的距离（像素，0~4096）。0 = 自动（画布高×2%），与引入本项之前完全一致" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource PluginHintText}"
+                            Text="0 = 自动（画布高×2%）" />
+                    </Grid>
+                    <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="字号" />
+                        <TextBox
+                            Grid.Column="1"
+                            Style="{StaticResource PluginFieldBox}"
+                            Text="{Binding TextScale, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="字号倍率 0.5~3.0，1.0 = 按图高自适应。行距跟着一起缩放；堆叠块与几何标签都放大（只放大角上的字等于没解决“看不清”）" />
+                        <TextBlock
+                            Grid.Column="2"
+                            Margin="6,0,0,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource PluginHintText}"
+                            Text="1.0 = 按图高自适应；填 2 就是大一倍（行距同步）" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!--  卡片4：高级（默认收起，新手不用碰）  -->
+            <Border
+                Margin="{StaticResource PluginSectionMargin}"
+                Style="{StaticResource Card}">
+                <Expander Header="高级" IsExpanded="False">
+                    <StackPanel Margin="0,6,0,0">
+                        <Grid Margin="0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource PluginFieldLabelFixed}" Text="绘制上限" />
+                            <TextBox
+                                Grid.Column="1"
+                                Style="{StaticResource PluginFieldBox}"
+                                Text="{Binding MaxDrawElements, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="一轮最多画多少个图形/对象/文字元素（10~2000）。防大轮廓点集把烧录拖慢；超限只画前面的，图上会写一行提示" />
+                            <TextBlock
+                                Grid.Column="2"
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginHintText}"
+                                Text="轮廓点集另有 2000 点抽稀上限，与本项独立" />
+                        </Grid>
+                    </StackPanel>
+                </Expander>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

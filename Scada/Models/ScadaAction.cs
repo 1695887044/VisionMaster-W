@@ -27,6 +27,8 @@ namespace VisionMaster.Scada
         private string? _value;
         private Guid _targetPageId;
         private string? _targetPageName;
+        private string? _flowId;
+        private string? _flowName;
 
         /// <summary>动作类型（决定下面哪几组字段有意义）</summary>
         public ScadaActionType Type
@@ -133,6 +135,46 @@ namespace VisionMaster.Scada
         public bool HasTargetPage => _targetPageId != Guid.Empty || !string.IsNullOrWhiteSpace(_targetPageName);
 
         /// <summary>
+        /// 目标流程稳定身份（<see cref="ScadaActionType.StartFlow"/> / StopFlow / RunFlowOnce）。
+        ///
+        /// 为什么是 <c>string</c> 而不像变量/画面那样是 <see cref="Guid"/>：目标身份要跟着
+        /// 流程模型走，而流程模型（Core 侧，本领域层刻意不引用它）的身份键 FlowID
+        /// 本来就是字符串（Guid 的 "N" 格式文本）。这里原样承载那份文本，
+        /// 寻址时由实现方与 FlowModel.FlowID 做字符串比对——转成 Guid 再比只会
+        /// 多出一条"空串/坏文本怎么办"的口径，没有换来任何东西。
+        /// </summary>
+        public string? FlowId
+        {
+            get => _flowId;
+            set
+            {
+                if (SetProperty(ref _flowId, value))
+                    RaisePropertyChanged(nameof(HasFlow));
+            }
+        }
+
+        /// <summary>目标流程名（展示串 + 旧数据兜底键；与 <see cref="TargetPageName"/> 同一分工）</summary>
+        public string? FlowName
+        {
+            get => _flowName;
+            set
+            {
+                if (SetProperty(ref _flowName, value))
+                {
+                    RaisePropertyChanged(nameof(Detail));
+                    RaisePropertyChanged(nameof(HasFlow));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 是否已经选好目标流程（Id 或名字任一非空白即算）。与 <see cref="HasVariable"/> /
+        /// <see cref="HasTargetPage"/> 同一口径、同一用途：给属性面板一个布尔位去切
+        /// "未选择"提示与占位文案，判定口径与执行侧流程动作的第一步逐字一致。
+        /// </summary>
+        public bool HasFlow => !string.IsNullOrWhiteSpace(_flowId) || !string.IsNullOrWhiteSpace(_flowName);
+
+        /// <summary>
         /// 本动作的关键参数（属性面板上"这一行右边要显示的短文本"）。
         /// 单独开一个只读属性，是为了让界面不必各自去 switch 一遍动作类型——
         /// 那份 switch 与 <see cref="Describe"/> 是同一份知识，只该存在一处。
@@ -142,6 +184,10 @@ namespace VisionMaster.Scada
             ScadaActionType.Log => _text ?? string.Empty,
             ScadaActionType.WriteVariable => $"{_variableName} := {_value}",
             ScadaActionType.Navigate => _targetPageName ?? string.Empty,
+            // 流程三条与切画面同款：行上显示目标流程名（未选则为空，面板另有占位与警告）
+            ScadaActionType.StartFlow => _flowName ?? string.Empty,
+            ScadaActionType.StopFlow => _flowName ?? string.Empty,
+            ScadaActionType.RunFlowOnce => _flowName ?? string.Empty,
             _ => string.Empty,
         };
 
@@ -164,6 +210,16 @@ namespace VisionMaster.Scada
         {
             TargetPageId = pageId;
             TargetPageName = pageName;
+        }
+
+        /// <summary>
+        /// 绑定/回填目标流程（口径同 <see cref="BindVariable"/> / <see cref="BindPage"/>：
+        /// Id 是权威键、名字只作展示与兜底寻址——流程的 Id 本身就是字符串，见 <see cref="FlowId"/>）。
+        /// </summary>
+        public void BindFlow(string flowId, string? flowName)
+        {
+            FlowId = flowId;
+            FlowName = flowName;
         }
 
         /// <summary>
@@ -197,6 +253,16 @@ namespace VisionMaster.Scada
             ScadaActionType.Navigate => _targetPageId == Guid.Empty && string.IsNullOrEmpty(_targetPageName)
                 ? "切换画面（未选画面）"
                 : $"切换画面 → {_targetPageName}",
+            // 流程三条的判定口径与 HasFlow 一致（Id 或名字任一非空白即算已选）
+            ScadaActionType.StartFlow => !HasFlow
+                ? "启动流程（未选流程）"
+                : $"启动流程 {_flowName}",
+            ScadaActionType.StopFlow => !HasFlow
+                ? "停止流程（未选流程）"
+                : $"停止流程 {_flowName}",
+            ScadaActionType.RunFlowOnce => !HasFlow
+                ? "执行一次流程（未选流程）"
+                : $"执行一次流程 {_flowName}",
             _ => Type.DisplayName(),
         };
     }

@@ -49,7 +49,7 @@ namespace Plugin.Ocr
         Description = "在识别区里切分字符并用内置分类器识别（0-9 / A-Z，带拒识）",
         ShortName = "\uf031"
     )]
-    [ParallelSafe] // 二期真并行：chun shijue jisuan
+    [ParallelSafe] // 二期真并行：纯视觉计算
     public class OcrPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================

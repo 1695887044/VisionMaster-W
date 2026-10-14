@@ -448,19 +448,33 @@ namespace FlowCanvasChecks
             p8.Execute(MakeContext(new StubLog()));
             var anno8 = p8.DefectImage.Value as HImage;
             double span8 = anno8 != null && anno8.IsInitialized() ? MeasureStripSpan(anno8) : -1;
+
+            // ---- 底图逐点保真 ----
+            // 两档图在 MinGray=MaxGray=0 下必然零缺陷，标注图 = 纯底图 + 左上角文字框。
+            // 取样点落在底部条带（避开文字框）：底图一旦被"缩进左上角"（离屏窗口漏掉 set_part 的典型症状），
+            // 这两点会一起塌成窗口底色的同一个常数——比"跨度>50"更早、更准地指出是底图这一层出的事。
+            if (anno8 != null && anno8.IsInitialized())
+            {
+                double lo = PixelProbe.At(anno8, 150, 20), hi = PixelProbe.At(anno8, 150, 180);
+                Check("【底图保真】标注图逐点等于原图（左半 100 / 右半 200，底图没被缩进左上角）",
+                    Math.Abs(lo - 100) <= 3 && Math.Abs(hi - 200) <= 3,
+                    $"(150,20)={lo:0.#} (150,180)={hi:0.#}");
+            }
+            else
+            {
+                Check("【底图保真】标注图逐点等于原图（左半 100 / 右半 200，底图没被缩进左上角）",
+                    false, $"DefectImage 为空；Err='{p8.ErrorMessage.Value}'");
+            }
             p8.Dispose();
 
-            // 这条是"环境闸门"而不是断言：离屏窗口（open_window 'buffer' + dump_window_image）
-            // 在没有显示会话的环境里可能根本不渲染底图（实测 byte 对照组也是一片黑）。
-            // 闸门没开就说明"本环境验不了位深修复"，记成跳过，绝不制造一条假失败。
-            if (span8 <= 50)
-            {
-                Check("【位深】uint2 标注底图按实际灰度范围拉伸", true,
-                    $"跳过：本环境离屏窗口不渲染底图层次（byte 对照组跨度={span8:0.#}，期望 ≈100），"
-                    + "需在带显示会话的环境里目视确认 —— 位深截断的实质证据见开发记录（uint2 1632 → byte 实测为 255）");
-                return;
-            }
-
+            // 底部条带跨度：底图还有没有层次（被截成常数时跨度是 0）。
+            //
+            // ★ 这里原先是一道"环境闸门"（跨度 ≤50 就记跳过，理由写的是"本环境离屏窗口不渲染底图层次"）。
+            //   那个判断是**错的**：AnnotationBakerChecks B1 早就实测过 buffer 窗口能正常铺满底图
+            //   （四角像素 == 底图灰度 100）。跨度=0 的真因是本插件自带的渲染器**漏了 SetPart**
+            //   （共享烘焙件纪律 3）：底图被缩进左上角，底部整条只剩窗口底色。
+            //   2026-10-13 迁到 AnnotationBaker 之后这条从"跳过"变成实测跨度=100，故删闸门、改硬断言——
+            //   留着它，下一次同类回归又会被伪装成"环境不支持"而静默放行。
             Check("【位深·对照】byte 两档图的标注底图保留了层次（渲染链路本身可用）",
                 span8 > 50, $"底部条带灰度跨度={span8:0.#}（期望 ≈100）");
 

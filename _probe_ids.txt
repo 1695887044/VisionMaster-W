@@ -1,0 +1,531 @@
+Core\IPluginProvider.cs:14:    public interface IPluginProvider
+Core\IPluginProvider.cs:19:        IReadOnlyDictionary<string, ToolItemModel> ModulePlugins { get; }
+Core\IPluginProvider.cs:24:        IReadOnlyDictionary<string, ToolItemModel> CameraPlugins { get; }
+Core\IPluginProvider.cs:29:        IReadOnlyDictionary<string, ToolItemModel> LaserPlugins { get; }
+Core\IPluginProvider.cs:34:        IReadOnlyDictionary<string, ToolItemModel> MotionPlugins { get; }
+Core\IPluginProvider.cs:39:        void RegisterModule(ToolItemModel plugin);
+Core\IPluginProvider.cs:44:        void RegisterCamera(ToolItemModel plugin);
+Core\IPluginProvider.cs:49:        void RegisterLaser(ToolItemModel plugin);
+Core\IPluginProvider.cs:54:        void RegisterMotion(ToolItemModel plugin);
+Core\IPluginProvider.cs:59:        ToolItemModel GetModule(string name);
+Core\IPluginProvider.cs:64:        ToolItemModel GetCamera(string name);
+Core\IPluginProvider.cs:69:        ToolItemModel GetLaser(string name);
+Core\IPluginProvider.cs:74:        ToolItemModel GetMotion(string name);
+Core\Models\ToolItemModel.cs:16:    public record class ToolItemModel
+Core\Models\ToolItemModel.cs:90:        public ObservableCollection<ToolItemModel> Children { get; set; } = new();
+Core\Toolkit\GlobalExceptionHandler.cs:112:           // sb.AppendLine(Log.GetRecentLogs(100));
+DLL\HslCommunication\Algorithms\Fourier\FFTHelper.cs:137:						graphics.DrawString(layoutRectangle: new RectangleF(list[k] * num11 + (float)num2 + 1f - 40f, heigh - num4 + 1, 80f, 20f), s: list[k].ToString(), font: defaultFont, brush: Brushes.DeepPink, format: stringFormat2);
+DLL\HslCommunication\Core\Device\DeviceTcpNet.cs:17:		private Lazy<Ping> ping = new Lazy<Ping>(() => new Ping());
+DLL\HslCommunication\Core\Device\DeviceTcpNet.cs:163:		public IPStatus IpAddressPing()
+DLL\HslCommunication\Core\Device\DeviceUdpNet.cs:106:		/// <inheritdoc cref="M:HslCommunication.Core.Device.DeviceTcpNet.IpAddressPing" />
+DLL\HslCommunication\Core\Device\DeviceUdpNet.cs:107:		public IPStatus IpAddressPing()
+DLL\HslCommunication\Core\Device\DeviceUdpNet.cs:109:			Ping ping = new Ping();
+DLL\HslCommunication\Core\Net\NetworkDoubleBase.cs:77:		private Lazy<Ping> ping = new Lazy<Ping>(() => new Ping());
+DLL\HslCommunication\Core\Net\NetworkDoubleBase.cs:382:		public IPStatus IpAddressPing()
+DLL\HslCommunication\Core\Net\NetworkUdpBase.cs:198:		/// <inheritdoc cref="M:HslCommunication.Core.Net.NetworkDoubleBase.IpAddressPing" />
+DLL\HslCommunication\Core\Net\NetworkUdpBase.cs:199:		public IPStatus IpAddressPing()
+DLL\HslCommunication\Core\Net\NetworkUdpBase.cs:201:			Ping ping = new Ping();
+DLL\HslCommunication\Core\Net\TcpNetCommunication.cs:17:		private Lazy<Ping> ping = new Lazy<Ping>(() => new Ping());
+DLL\HslCommunication\Core\Net\TcpNetCommunication.cs:148:		/// <inheritdoc cref="M:HslCommunication.Core.Device.DeviceTcpNet.IpAddressPing" />
+DLL\HslCommunication\Core\Net\TcpNetCommunication.cs:149:		public IPStatus IpAddressPing()
+DLL\HslCommunication\Enthernet\Redis\RedisClient.cs:2761:		public OperateResult Ping()
+DLL\HslCommunication\Enthernet\Redis\RedisClient.cs:2807:		/// <inheritdoc cref="M:HslCommunication.Enthernet.Redis.RedisClient.Ping" />
+DLL\HslCommunication\Enthernet\Redis\RedisClient.cs:2808:		public async Task<OperateResult> PingAsync()
+DLL\HslCommunication\Enthernet\Redis\RedisClientPool.cs:1340:		/// <inheritdoc cref="M:HslCommunication.Enthernet.Redis.RedisClient.Ping" />
+DLL\HslCommunication\Enthernet\Redis\RedisClientPool.cs:1341:		public OperateResult Ping()
+DLL\HslCommunication\Enthernet\Redis\RedisClientPool.cs:1343:			return ConnectPoolExecute((RedisClient m) => m.Ping());
+DLL\HslCommunication\Enthernet\Redis\RedisClientPool.cs:1370:		/// <inheritdoc cref="M:HslCommunication.Enthernet.Redis.RedisClientPool.Ping" />
+DLL\HslCommunication\Enthernet\Redis\RedisClientPool.cs:1371:		public async Task<OperateResult> PingAsync()
+DLL\HslCommunication\Enthernet\Redis\RedisClientPool.cs:1373:			return await ConnectPoolExecuteAsync((RedisClient m) => m.PingAsync());
+DLL\HslCommunication\LogNet\LogNetAnalysisControl.cs:406:				e.Graphics.DrawLine(Pens.DeepPink, pointMove.X, 15, pointMove.X, pictureBox1.Height - 30);
+DLL\HslCommunication\NamespaceDoc.cs:1204:	///             <item>RedisClient: redis的客户端新增Ping方法，DBSize方法获取key数量，FlushDB方法清除数据库所有key。</item>
+DLL\HslCommunication\NamespaceDoc.cs:1281:	///             <item>NetworkDoubleBase: 添加一个PING的方法IpAddressPing( ), 对设备当前的IP地址进行PING操作。</item>
+DLL\HslCommunication\NamespaceDoc.cs:1282:	///             <item>NetworkUdpBase: 添加一个PING的方法IpAddressPing( ), 对设备当前的IP地址进行PING操作。</item>
+DLL\HslCommunication\Profinet\Beckhoff\BeckhoffAdsNet.cs:807:			GCHandle gCHandle = GCHandle.Alloc(operateResult.Content, GCHandleType.Pinned);
+DLL\HslCommunication\Profinet\Beckhoff\BeckhoffAdsNet.cs:808:			structure = (T)Marshal.PtrToStructure(gCHandle.AddrOfPinnedObject(), typeof(T));
+DLL\HslCommunication\Profinet\Beckhoff\BeckhoffAdsNet.cs:824:			GCHandle gCHandle = GCHandle.Alloc(value2, GCHandleType.Pinned);
+DLL\HslCommunication\Profinet\Beckhoff\BeckhoffAdsNet.cs:825:			Marshal.StructureToPtr(value, gCHandle.AddrOfPinnedObject(), fDeleteOld: false);
+DLL\HslCommunication\Profinet\Siemens\SiemensWebApi.cs:518:		public OperateResult ReadPing()
+DLL\HslCommunication\Profinet\Siemens\SiemensWebApi.cs:521:			JArray jArray = BuildRequestBody("Api.Ping", null, incrementCount.GetCurrentValue());
+DLL\HslCommunication\Profinet\Siemens\SiemensWebApi.cs:530:		/// <inheritdoc cref="M:HslCommunication.Profinet.Siemens.SiemensWebApi.ReadPing" />
+DLL\HslCommunication\Profinet\Siemens\SiemensWebApi.cs:531:		public async Task<OperateResult> ReadPingAsync()
+DLL\HslCommunication\Profinet\Siemens\SiemensWebApi.cs:534:			OperateResult<string> read = await PostAsync(body: BuildRequestBody("Api.Ping", null, incrementCount.GetCurrentValue()).ToString(), rawUrl: rawUrl);
+DLL\HslCommunication\WebSocket\WSOpCode.cs:27:		HeartbeatPing = 9,
+Engine\FlowEngineModule.cs:18:            registry.RegisterSingleton<IPluginProvider, PluginProvider>();
+Engine\FlowQueryHelper.cs:32:        private static IPluginProvider _pluginProvider;
+Engine\FlowQueryHelper.cs:34:        private static IPluginProvider PluginProvider
+Engine\FlowQueryHelper.cs:41:                var resolved = ContainerLocator.Container.Resolve<IPluginProvider>();
+Engine\FlowQueryHelper.cs:51:        public static List<ToolItemModel> GetAvailableVariablesTree(
+Engine\FlowQueryHelper.cs:57:            var treeNodes = new List<ToolItemModel>();
+Engine\FlowQueryHelper.cs:61:                var globalNode = new ToolItemModel()
+Engine\FlowQueryHelper.cs:91:                var runtimeNode = new ToolItemModel()
+Engine\FlowQueryHelper.cs:106:                var data = PluginProvider.ModulePlugins[node.PluginTypeName];
+Engine\FlowQueryHelper.cs:128:                var uiNode = new ToolItemModel
+Engine\PluginProvider.cs:15:    public class PluginProvider : IPluginProvider
+Engine\PluginProvider.cs:24:        private readonly Dictionary<string, ToolItemModel> _modules = new();
+Engine\PluginProvider.cs:25:        private readonly Dictionary<string, ToolItemModel> _cameras = new();
+Engine\PluginProvider.cs:26:        private readonly Dictionary<string, ToolItemModel> _lasers = new();
+Engine\PluginProvider.cs:27:        private readonly Dictionary<string, ToolItemModel> _motions = new();
+Engine\PluginProvider.cs:33:        public IReadOnlyDictionary<string, ToolItemModel> ModulePlugins
+Engine\PluginProvider.cs:35:            get { lock (_lock) return new Dictionary<string, ToolItemModel>(_modules); }
+Engine\PluginProvider.cs:41:        public IReadOnlyDictionary<string, ToolItemModel> CameraPlugins
+Engine\PluginProvider.cs:43:            get { lock (_lock) return new Dictionary<string, ToolItemModel>(_cameras); }
+Engine\PluginProvider.cs:49:        public IReadOnlyDictionary<string, ToolItemModel> LaserPlugins
+Engine\PluginProvider.cs:51:            get { lock (_lock) return new Dictionary<string, ToolItemModel>(_lasers); }
+Engine\PluginProvider.cs:57:        public IReadOnlyDictionary<string, ToolItemModel> MotionPlugins
+Engine\PluginProvider.cs:59:            get { lock (_lock) return new Dictionary<string, ToolItemModel>(_motions); }
+Engine\PluginProvider.cs:65:        public void RegisterModule(ToolItemModel plugin)
+Engine\PluginProvider.cs:79:        public ToolItemModel GetModule(string name)
+Engine\PluginProvider.cs:95:        ///   那种插件走的是 RegisterModule，见 PluginService.LoadPlugin 里 case "相机" 的说明）。
+Engine\PluginProvider.cs:101:        public void RegisterCamera(ToolItemModel plugin)
+Engine\PluginProvider.cs:115:        public void RegisterLaser(ToolItemModel plugin) => RegisterModule(plugin);
+Engine\PluginProvider.cs:121:        /// 原实现 `=> RegisterModule(plugin)` 是"分类未启用"时的占位。运动驱动**不是流程步骤**
+Engine\PluginProvider.cs:127:        public void RegisterMotion(ToolItemModel plugin)
+Engine\PluginProvider.cs:144:        public ToolItemModel GetCamera(string name)
+Engine\PluginProvider.cs:154:        public ToolItemModel GetLaser(string name) => GetModule(name);
+Engine\PluginProvider.cs:160:        public ToolItemModel GetMotion(string name)
+Engine\PluginService.cs:21:        private readonly IPluginProvider _registry;
+Engine\PluginService.cs:27:        public PluginService(IPluginProvider registry, IUserNotifier notifier)
+Engine\PluginService.cs:70:            var ifToolItem = new ToolItemModel
+Engine\PluginService.cs:88:            _registry.RegisterModule(ifToolItem);
+Engine\PluginService.cs:92:            _registry.RegisterModule(new ToolItemModel
+Engine\PluginService.cs:111:            var whileToolItem = new ToolItemModel
+Engine\PluginService.cs:129:            _registry.RegisterModule(whileToolItem);
+Engine\PluginService.cs:131:            var forToolItem = new ToolItemModel
+Engine\PluginService.cs:158:            _registry.RegisterModule(forToolItem);
+Engine\PluginService.cs:163:            _registry.RegisterModule(new ToolItemModel
+Engine\PluginService.cs:173:            _registry.RegisterModule(new ToolItemModel
+Engine\PluginService.cs:182:            _registry.RegisterModule(new ToolItemModel
+Engine\PluginService.cs:191:            _registry.RegisterModule(new ToolItemModel
+Engine\PluginService.cs:226:                var toolItem = new ToolItemModel
+Engine\PluginService.cs:286:                        _registry.RegisterModule(toolItem);
+Engine\PluginService.cs:289:                        _registry.RegisterModule(toolItem);
+Engine\PluginService.cs:325:                _registry.RegisterMotion(new ToolItemModel
+Engine\PluginService.cs:366:                _registry.RegisterCamera(new ToolItemModel
+FlowCanvasChecks\ExecutionChecks.cs:968:            var camera = new ToolItemModel
+FlowCanvasChecks\ExecutionChecks.cs:981:                provider.CameraPlugins.ContainsKey("Stub.Camera") && !provider.ModulePlugins.ContainsKey("Stub.Camera"),
+FlowCanvasChecks\ExecutionChecks.cs:982:                $"模块表 {provider.ModulePlugins.Count} 项，相机分类表 {provider.CameraPlugins.Count} 项"
+FlowCanvasChecks\HalconControlChecks.cs:460:            var hr = System.Runtime.InteropServices.GCHandle.Alloc(r, System.Runtime.InteropServices.GCHandleType.Pinned);
+FlowCanvasChecks\HalconControlChecks.cs:461:            var hg = System.Runtime.InteropServices.GCHandle.Alloc(g, System.Runtime.InteropServices.GCHandleType.Pinned);
+FlowCanvasChecks\HalconControlChecks.cs:462:            var hb = System.Runtime.InteropServices.GCHandle.Alloc(b, System.Runtime.InteropServices.GCHandleType.Pinned);
+FlowCanvasChecks\HalconControlChecks.cs:466:                image.GenImage3("byte", width, height, hr.AddrOfPinnedObject(), hg.AddrOfPinnedObject(), hb.AddrOfPinnedObject());
+FlowCanvasChecks\HalconControlChecks.cs:518:            var handle = System.Runtime.InteropServices.GCHandle.Alloc(data, System.Runtime.InteropServices.GCHandleType.Pinned);
+FlowCanvasChecks\HalconControlChecks.cs:522:                image.GenImage1("byte", width, height, handle.AddrOfPinnedObject());
+FlowCanvasChecks\Harness.cs:28:    internal sealed class StubPluginProvider : IPluginProvider
+FlowCanvasChecks\Harness.cs:39:        private readonly Dictionary<string, ToolItemModel> _modules = new()
+FlowCanvasChecks\Harness.cs:41:            [LeafPlugin] = new ToolItemModel
+FlowCanvasChecks\Harness.cs:58:            [IfPlugin] = new ToolItemModel
+FlowCanvasChecks\Harness.cs:73:            [ForPlugin] = new ToolItemModel
+FlowCanvasChecks\Harness.cs:88:        public IReadOnlyDictionary<string, ToolItemModel> ModulePlugins => _modules;
+FlowCanvasChecks\Harness.cs:89:        public IReadOnlyDictionary<string, ToolItemModel> CameraPlugins { get; } =
+FlowCanvasChecks\Harness.cs:90:            new Dictionary<string, ToolItemModel>();
+FlowCanvasChecks\Harness.cs:91:        public IReadOnlyDictionary<string, ToolItemModel> LaserPlugins { get; } =
+FlowCanvasChecks\Harness.cs:92:            new Dictionary<string, ToolItemModel>();
+FlowCanvasChecks\Harness.cs:93:        public IReadOnlyDictionary<string, ToolItemModel> MotionPlugins { get; } =
+FlowCanvasChecks\Harness.cs:94:            new Dictionary<string, ToolItemModel>();
+FlowCanvasChecks\Harness.cs:96:        public void RegisterModule(ToolItemModel plugin) => _modules[plugin.ModuleTypeName] = plugin;
+FlowCanvasChecks\Harness.cs:97:        public void RegisterCamera(ToolItemModel plugin) { }
+FlowCanvasChecks\Harness.cs:98:        public void RegisterLaser(ToolItemModel plugin) { }
+FlowCanvasChecks\Harness.cs:99:        public void RegisterMotion(ToolItemModel plugin) { }
+FlowCanvasChecks\Harness.cs:101:        public ToolItemModel GetModule(string name) => _modules.TryGetValue(name, out var m) ? m : null!;
+FlowCanvasChecks\Harness.cs:102:        public ToolItemModel GetCamera(string name) => null!;
+FlowCanvasChecks\Harness.cs:103:        public ToolItemModel GetLaser(string name) => null!;
+FlowCanvasChecks\Harness.cs:104:        public ToolItemModel GetMotion(string name) => null!;
+FlowCanvasChecks\PerfChecks.cs:241:                var hd = GCHandle.Alloc(data, GCHandleType.Pinned);
+FlowCanvasChecks\PerfChecks.cs:245:                    img.GenImage1("byte", w, h, hd.AddrOfPinnedObject());
+FlowCanvasChecks\PerfChecks.cs:254:                var hr = GCHandle.Alloc(r, GCHandleType.Pinned);
+FlowCanvasChecks\PerfChecks.cs:255:                var hg = GCHandle.Alloc(g, GCHandleType.Pinned);
+FlowCanvasChecks\PerfChecks.cs:256:                var hb = GCHandle.Alloc(b, GCHandleType.Pinned);
+FlowCanvasChecks\PerfChecks.cs:261:                        hr.AddrOfPinnedObject(), hg.AddrOfPinnedObject(), hb.AddrOfPinnedObject());
+FlowCanvasChecks\Program.cs:2023:        private static ToolItemModel NewTool(string typeName, bool container) => new()
+FlowCanvasChecks\Program.cs:2495:        //  ToolViewModel 是纯 VM（构造只吃 IPluginProvider），headless 用断言桩直造
+FlowCanvasChecks\ThumbnailChecks.cs:36:            var hd = GCHandle.Alloc(data, GCHandleType.Pinned);
+FlowCanvasChecks\ThumbnailChecks.cs:40:                img.GenImage1("byte", w, h, hd.AddrOfPinnedObject());
+FlowCanvasChecks\ThumbnailChecks.cs:48:            var hr = GCHandle.Alloc(r, GCHandleType.Pinned);
+FlowCanvasChecks\ThumbnailChecks.cs:49:            var hg = GCHandle.Alloc(g, GCHandleType.Pinned);
+FlowCanvasChecks\ThumbnailChecks.cs:50:            var hb = GCHandle.Alloc(b, GCHandleType.Pinned);
+FlowCanvasChecks\ThumbnailChecks.cs:55:                    hr.AddrOfPinnedObject(), hg.AddrOfPinnedObject(), hb.AddrOfPinnedObject());
+FlowCanvasChecks\VariableBindingCheck.cs:41:            provider.RegisterModule(new ToolItemModel
+FlowCanvasChecks\VariableBindingCheck.cs:127:            var upstream = new ToolItemModel
+HelpProbe\Program.cs:49:            Console.WriteLine($"[probe] 插件表：模块 {provider.ModulePlugins.Count} / 相机 {provider.CameraPlugins.Count} / 运动 {provider.MotionPlugins.Count}");
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:45:        private GCHandle _convertPin;
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:46:        private bool _convertPinned;
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:217:                    sdk.SetField(convert, "pDstBuffer", _convertPin.AddrOfPinnedObject());
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:228:                    Marshal.Copy(_convertPin.AddrOfPinnedObject(), data, 0, need);
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:269:            if (_convertBuffer.Length >= need && _convertPinned) return;
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:273:            _convertPin = GCHandle.Alloc(_convertBuffer, GCHandleType.Pinned);
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:274:            _convertPinned = true;
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:279:            if (_convertPinned)
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:281:                _convertPin.Free();
+Plugins\Plugin.Camera.Hikvision\HikvisionCameraDevice.cs:282:                _convertPinned = false;
+Plugins\Plugin.Camera.Hikvision\MvsRuntime.cs:238:            var handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
+Plugins\Plugin.Camera.Hikvision\MvsRuntime.cs:241:                var sub = Marshal.PtrToStructure(handle.AddrOfPinnedObject(), Nested(structName));
+Plugins\Plugin.ImageAcquisition\ImageAcquisitionPlugin.cs:816:        /// 用 GCHandle(Pinned) 钉住托管数组就能满足，不需要再 AllocHGlobal + Copy 一次。
+Plugins\Plugin.ImageAcquisition\ImageAcquisitionPlugin.cs:868:                // 注意必须用 AddrOfPinnedObject()：GCHandle.ToIntPtr() 返回的是"句柄令牌"
+Plugins\Plugin.ImageAcquisition\ImageAcquisitionPlugin.cs:872:                var handle = GCHandle.Alloc(pixelData, GCHandleType.Pinned);
+Plugins\Plugin.ImageAcquisition\ImageAcquisitionPlugin.cs:875:                    var pointer = handle.AddrOfPinnedObject();
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1048:tuple_min (Results, WorstPin)
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1223:PinRows := [150,170,190,210,230]
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1224:PinCols := [200,200,200,200,200]
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1225:PinPhis := [0,0,0,0,0]
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1227:PinLen1 := 40
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1228:PinLen2 := 6
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1239:* ── 第2步 设计卡尺位逐个变换+测量（PinRows/PinCols/PinPhis=设计数组）──
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1241:for i := 0 to |PinRows| - 1 by 1
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1243:    affine_trans_pixel (HomMat2D, PinRows[i], PinCols[i], ActRow, ActCol)
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1244:    ActPhi := PinPhis[i] + MAngle
+Plugins\Plugin.ImageScript\ScriptTemplates.cs:1245:    gen_measure_rectangle2 (ActRow, ActCol, ActPhi, PinLen1, PinLen2, Width, Height, 'bilinear', MeasureHandle)
+Plugins\Plugin.ResultUpload\obj\Debug\net9.0-windows\ResultUploadView.g.cs:56:        internal System.Windows.Controls.ListBox RecentLogsList;
+Plugins\Plugin.ResultUpload\obj\Debug\net9.0-windows\ResultUploadView.g.cs:127:            this.RecentLogsList = ((System.Windows.Controls.ListBox)(target));
+Plugins\Plugin.ResultUpload\obj\Debug\net9.0-windows\ResultUploadView.g.i.cs:57:        internal System.Windows.Controls.ListBox RecentLogsList;
+Plugins\Plugin.ResultUpload\obj\Debug\net9.0-windows\ResultUploadView.g.i.cs:128:            this.RecentLogsList = ((System.Windows.Controls.ListBox)(target));
+Plugins\Plugin.ResultUpload\ResultUploadPlugin.cs:371:        internal List<UploadLogItem> RecentLogs => UploadQueue.SnapshotRecentLogs();
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:147:            RefreshRecentLogs();
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:165:                    RefreshRecentLogs();
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:181:        private void RefreshRecentLogs()
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:183:            if (RecentLogsList == null) return;
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:184:            var logs = Plugin?.RecentLogs;
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:186:            RecentLogsList.ItemsSource = logs;
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:187:            if (RecentLogsList.Items.Count > 0)
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:188:                RecentLogsList.ScrollIntoView(RecentLogsList.Items[RecentLogsList.Items.Count - 1]);
+Plugins\Plugin.ResultUpload\ResultUploadView.xaml.cs:191:        private void RefreshLogs_Click(object sender, RoutedEventArgs e) => RefreshRecentLogs();
+Plugins\Plugin.ResultUpload\UploadQueue.cs:91:        private const int MaxRecentLogs = 50;      // 日志回看容量（配置面板一屏能看完的量）
+Plugins\Plugin.ResultUpload\UploadQueue.cs:92:        private static readonly object RecentLogLock = new object();
+Plugins\Plugin.ResultUpload\UploadQueue.cs:93:        private static readonly List<UploadLogItem> RecentLogBuffer = new List<UploadLogItem>(); // 回看底账：TakeLogs 转交宿主后这里仍有
+Plugins\Plugin.ResultUpload\UploadQueue.cs:523:            lock (RecentLogLock)
+Plugins\Plugin.ResultUpload\UploadQueue.cs:525:                RecentLogBuffer.Add(item);
+Plugins\Plugin.ResultUpload\UploadQueue.cs:526:                if (RecentLogBuffer.Count > MaxRecentLogs) RecentLogBuffer.RemoveAt(0); // 环形：只留最近 50 条
+Plugins\Plugin.ResultUpload\UploadQueue.cs:531:        public static List<UploadLogItem> SnapshotRecentLogs()
+Plugins\Plugin.ResultUpload\UploadQueue.cs:533:            lock (RecentLogLock) return new List<UploadLogItem>(RecentLogBuffer);
+Scada\Models\ScadaAlarmEngine.cs:176:        /// <summary>内存里的报警流水（按发生顺序，旧 → 新）。要"最新在前"请自行反转或调 <see cref="RecentRecords"/></summary>
+Scada\Models\ScadaAlarmEngine.cs:183:        public IReadOnlyList<ScadaAlarmRecord> RecentRecords(int max)
+ScadaChecks\Program.cs:14787:                var recent = capEngine.RecentRecords(3);
+ScadaChecks\Program.cs:14788:                Check("RecentRecords 返回「最新在前」的一截，条数不超过可用条数；max<=0 返回空表",
+ScadaChecks\Program.cs:14789:                    recent.Count == 3 && capEngine.RecentRecords(0).Count == 0
+Services\Core.Halcon\Controls\ImageGallery.cs:48:        private const string PartPin = "PART_Pin";
+Services\Core.Halcon\Controls\ImageGallery.cs:106:        public static readonly DependencyProperty PinnedFrameProperty = DependencyProperty.Register(
+Services\Core.Halcon\Controls\ImageGallery.cs:107:            nameof(PinnedFrame), typeof(ImageFrame), typeof(ImageGallery),
+Services\Core.Halcon\Controls\ImageGallery.cs:110:        public ImageFrame? PinnedFrame
+Services\Core.Halcon\Controls\ImageGallery.cs:112:            get => (ImageFrame?)GetValue(PinnedFrameProperty);
+Services\Core.Halcon\Controls\ImageGallery.cs:113:            set => SetValue(PinnedFrameProperty, value);
+Services\Core.Halcon\Controls\ImageGallery.cs:224:            _pinButton = GetTemplateChild(PartPin) as Button;
+Services\Core.Halcon\Controls\ImageGallery.cs:235:            if (_pinButton != null) _pinButton.Click += OnPinClick;
+Services\Core.Halcon\Controls\ImageGallery.cs:250:            if (_pinButton != null) _pinButton.Click -= OnPinClick;
+Services\Core.Halcon\Controls\ImageGallery.cs:262:        /// （PART_Pin / PART_Compare / PART_Lock 都不放在默认模板里），
+Services\Core.Halcon\Controls\ImageGallery.cs:263:        /// 不补这三项的话 PinnedFrame / IsCompareMode / AutoSelectNewest 整套 API 无 UI 入口可达。
+Services\Core.Halcon\Controls\ImageGallery.cs:270:            pin.Click += OnPinClick;
+Services\Core.Halcon\Controls\ImageGallery.cs:314:            // 打开菜单时同步勾选态（Pin/Compare/Lock 状态可能被宿主侧 API 改过）
+Services\Core.Halcon\Controls\ImageGallery.cs:391:        /// <summary>钉住当前帧作为对比基准（右键菜单"钉住当前帧"与模板 PART_Pin 同走这里）</summary>
+Services\Core.Halcon\Controls\ImageGallery.cs:392:        public void OnPinClick(object sender, RoutedEventArgs e)
+Services\Core.Halcon\Controls\ImageGallery.cs:394:            PinnedFrame = SelectedFrame;
+Services\Core.Halcon\Controls\ImageGallery.cs:395:            if (PinnedFrame != null && _compareToggle?.IsChecked != true)
+UI\Controls\Behaviors\FocusVisibleBehavior.cs:14:    /// 【判据】<see cref="InputManager.MostRecentInputDevice"/>：焦点落到控件上的那一刻，
+UI\Controls\Behaviors\FocusVisibleBehavior.cs:66:            bool fromKeyboard = InputManager.Current?.MostRecentInputDevice is not MouseDevice;
+UIThemeSmokeTest\Program.cs:804:            gallery.PinnedFrame = gallery.FilteredFrames.FirstOrDefault();
+UIThemeSmokeTest\Program.cs:867:            gallery.PinnedFrame = gallery.FilteredFrames.FirstOrDefault();
+VisionMaster\App.xaml.cs:96:                () => Container.Resolve<IPluginProvider>(),
+VisionMaster\App.xaml.cs:385:                c.Resolve<IPluginProvider>(),
+VisionMaster\Lifetime\Checks\PluginScanCheck.cs:16:        private readonly Func<IPluginProvider> _providerFactory;
+VisionMaster\Lifetime\Checks\PluginScanCheck.cs:19:        public PluginScanCheck(Func<PluginService> pluginServiceFactory, Func<IPluginProvider> providerFactory, ILogService log)
+VisionMaster\Lifetime\Checks\PluginScanCheck.cs:36:                    return p.ModulePlugins.Count + p.CameraPlugins.Count + p.LaserPlugins.Count + p.MotionPlugins.Count;
+VisionMaster\Services\Camera\CameraProvider.cs:47:        private readonly IPluginProvider _plugins;
+VisionMaster\Services\Camera\CameraProvider.cs:75:        public CameraProvider(ILogService log, IReadOnlyWorkspaceContext workspace, IPluginProvider plugins)
+VisionMaster\Services\Help\HelpCatalogService.cs:43:        private readonly IPluginProvider _provider;
+VisionMaster\Services\Help\HelpCatalogService.cs:63:        public HelpCatalogService(IPluginProvider provider, ILogService log)
+VisionMaster\Services\Help\HelpCatalogService.cs:123:                void Absorb(IReadOnlyDictionary<string, ToolItemModel> table)
+VisionMaster\Services\Help\HelpCatalogService.cs:129:                Absorb(_provider.ModulePlugins);
+VisionMaster\Services\Help\HelpCatalogService.cs:158:        private void AbsorbOne(ToolItemModel model, Dictionary<string, List<HelpNode>> byCategory)
+VisionMaster\Services\Help\HelpCatalogService.cs:220:            Type? type, ToolItemModel model, bool isBuiltIn, out bool fromManual)
+VisionMaster\Services\Help\HelpCatalogService.cs:400:        private static string BuildAutoPageMarkdown(ToolItemModel model, Type? type, bool isBuiltIn)
+VisionMaster\Services\Motion\MotionProvider.cs:54:        private readonly IPluginProvider _plugins;
+VisionMaster\Services\Motion\MotionProvider.cs:85:        public MotionProvider(ILogService log, IReadOnlyWorkspaceContext workspace, IPluginProvider plugins)
+VisionMaster\Services\StepFactory.cs:10:    /// 都要"按 ToolItemModel 造一个步骤"，两处各抄一份必然漂移（改了一处忘另一处）。
+VisionMaster\Services\StepFactory.cs:28:        public static StepModel CreateFromTool(ToolItemModel tool, string stepName)
+VisionMaster\Services\StepFactory.cs:61:        public static string NextStepName(FlowModel flow, ToolItemModel tool)
+VisionMaster\Services\StepFactory.cs:66:        /// 画布复制/粘贴（FlowClipboard.Take）用——粘贴件手里没有 ToolItemModel 可给
+VisionMaster\ViewModels\DialogViewModels\VariableBindingViewModel.cs:17:        private readonly IPluginProvider pluginProvider;
+VisionMaster\ViewModels\DialogViewModels\VariableBindingViewModel.cs:36:        public ObservableCollection<ToolItemModel> TreeNodes { get; } = new();
+VisionMaster\ViewModels\DialogViewModels\VariableBindingViewModel.cs:101:        private ToolItemModel _selectedNode;
+VisionMaster\ViewModels\DialogViewModels\VariableBindingViewModel.cs:102:        public ToolItemModel SelectedNode
+VisionMaster\ViewModels\DialogViewModels\VariableBindingViewModel.cs:201:        public VariableBindingViewModel(IWorkspaceManager workspace, IPluginProvider pluginProvider)
+VisionMaster\ViewModels\DialogViewModels\VariableBindingViewModel.cs:523:                    pluginProvider.ModulePlugins.TryGetValue(
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:44:    ///   读：StepModel.LinkedSources / IPluginProvider 静态端口 → 节点与聚合连线；
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:90:        private readonly IPluginProvider _pluginProvider;
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:165:        public FlowCanvasViewModel(IWorkspaceManager workspace, IPluginProvider pluginProvider,
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:2737:        /// 画布拖放：把工具箱模板造出的步骤插到落点（ToolItemModel → 模型走 StepFactory，
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:2742:        public bool DropToolAt(ToolItemModel tool, Point position)
+VisionMaster\ViewModels\ProcessViewModel.cs:1081:            bool isFromToolbox = dropInfo.Data is ToolItemModel; // 从左侧工具箱拖来的图纸模板
+VisionMaster\ViewModels\ProcessViewModel.cs:1207:            if (args.Effects == DragDropEffects.Copy && args.Data is ToolItemModel node)
+VisionMaster\ViewModels\ScadaAlarmHistoryViewModel.cs:23:    /// 取的是 <see cref="ScadaAlarmEngine.RecentRecords"/>（<b>最新在前</b>），
+VisionMaster\ViewModels\ScadaAlarmHistoryViewModel.cs:233:            var records = _context?.Alarms.RecentRecords(MaxRows);
+VisionMaster\ViewModels\ToolViewModel.cs:18:        private readonly IPluginProvider pluginProvider;
+VisionMaster\ViewModels\ToolViewModel.cs:48:        public ToolViewModel(IPluginProvider pluginProvider)
+VisionMaster\ViewModels\ToolViewModel.cs:103:            pluginProvider.ModulePlugins.GroupBy(t => t.Value.Category).ToList().ForEach(g =>
+VisionMaster\Views\FlowCanvasView.xaml.cs:230:        /// <summary>工具箱拖入：只放行 ToolItemModel 负载（Scada 图元/文本等一律显「禁止」）</summary>
+VisionMaster\Views\FlowCanvasView.xaml.cs:274:        private static ToolItemModel? FindDraggedTool(IDataObject? data)
+VisionMaster\Views\FlowCanvasView.xaml.cs:278:            if (data.GetDataPresent(typeof(ToolItemModel))
+VisionMaster\Views\FlowCanvasView.xaml.cs:279:                && data.GetData(typeof(ToolItemModel)) is ToolItemModel direct)
+VisionMaster\Views\FlowCanvasView.xaml.cs:286:                    if (data.GetData(format) is ToolItemModel tool)
+VM3.0-main\VM3.0-main\Source\VisionMaster\G.VisionMaster.OpenCV\OpenvCVExtension.cs:216:        yield return Colors.DeepPink;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\App.xaml.cs:1:﻿using G.Controls.FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\App.xaml.cs:61:            services.AddFavorite<ProjectFavoriteService>(x =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\App.xaml.cs:63:                x.FavoriteItems.Add(new FavoriteItem() { Path = "默认" });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\App.xaml.cs:64:                x.FavoriteItems.Add(new FavoriteItem() { Path = "资源" });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\App.xaml.cs:65:                x.FavoriteItems.Add(new FavoriteItem() { Path = "学习" });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\App.xaml.cs:66:                x.FavoriteItems.Add(new FavoriteItem() { Path = "娱乐" });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\App.xaml.cs:67:                x.FavoriteItems.Add(new FavoriteItem() { Path = "工作" });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Converter\GetFileMenuItemConverter.cs:43:                    file.Favorite = !file.Favorite;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Converter\GetFileMenuItemConverter.cs:44:                    favorite.IsChecked = file.Favorite;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Converter\GetFileMenuItemConverter.cs:47:                { IsCheckable = true, IsChecked = file.Favorite };
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Converter\GetFileMenuItemConverter.cs:48:                if (this.FileProjectItem.Setting.UseFavorite)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\DataBase\Model\fm_dd_file.cs:99:        public bool Favorite
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\DataBase\Model\fm_dd_file.cs:113:        public string FavoritePath
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231216081730_init.cs:26:                    Favorite = table.Column<bool>(type: "INTEGER", nullable: false),
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231216081730_init.Designer.cs:40:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231222095447_init1.Designer.cs:40:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231225024330_init2.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231227063135_init3.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231227065629_init4.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231228030344_init5.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231229071231_init6.cs:13:                name: "FavoritePath",
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231229071231_init6.cs:23:                name: "FavoritePath",
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231229071231_init6.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231229071231_init6.Designer.cs:47:                    b.Property<string>("FavoritePath")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231231074649_init7.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20231231074649_init7.Designer.cs:47:                    b.Property<string>("FavoritePath")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20240105074211_init8.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20240105074211_init8.Designer.cs:47:                    b.Property<string>("FavoritePath")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20240105091237_init9.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20240105091237_init9.Designer.cs:47:                    b.Property<string>("FavoritePath")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20240109071744_init10.Designer.cs:44:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\20240109071744_init10.Designer.cs:47:                    b.Property<string>("FavoritePath")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\DataContextModelSnapshot.cs:41:                    b.Property<bool>("Favorite")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Migrations\DataContextModelSnapshot.cs:44:                    b.Property<string>("FavoritePath")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Presenter\MoreFileViewBase.xaml.cs:69:                IEnumerable<fm_dd_file> finds = files.Where(x => t.FavoritePath != null && x.FavoritePath != null && (x.FavoritePath?.StartsWith(t.FavoritePath) == true || t.FavoritePath?.StartsWith(x.FavoritePath) == true));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Presenter\MoreImageView.xaml.cs:43:                IEnumerable<fm_dd_file> finds = files.Where(x => t.FavoritePath != null && x.FavoritePath != null && (x.FavoritePath?.StartsWith(t.FavoritePath) == true || t.FavoritePath?.StartsWith(x.FavoritePath) == true));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Presenter\VideoView.xaml.cs:20:    //        //    IEnumerable<fm_dd_video> finds = videos.Where(x => t.FavoritePath != null && x.FavoritePath != null && (x.FavoritePath?.StartsWith(t.FavoritePath) == true || t.FavoritePath?.StartsWith(x.FavoritePath) == true));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItem.xaml.cs:1:﻿using G.Controls.FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItem.xaml.cs:46:        public ObservableCollection<FavoriteItem> FavoriteItems { get; set; } = new ObservableCollection<FavoriteItem>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItem.xaml.cs:91:            IocFavoriteService.Instance.Load(out message);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:9:        private bool _useFavorite = true;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:11:        public bool UseFavorite
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:13:            get { return _useFavorite; }
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:16:                _useFavorite = value;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:21:        private bool _useFavoritePath = true;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:23:        public bool UseFavoritePath
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:25:            get { return _useFavoritePath; }
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectItemSetting.cs:28:                _useFavoritePath = value;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectService.cs:2:using G.Controls.FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectService.cs:17:        private readonly IOptions<FavoriteOptions> _favoriteOptions;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectService.cs:18:        public FileProjectService(IOptions<ProjectOptions> options, IOptions<TagOptions> tagOptions, IOptions<FavoriteOptions> favoriteOptions) : base(options)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Project\FileProjectService.cs:31:                FavoriteItems = _favoriteOptions.Value.FavoriteItems.ToObservable()
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Provider\Filter\FavoriteFileFilter.cs:6:    public class FavoriteFileFilter : FilterBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Provider\Filter\FavoriteFileFilter.cs:13:                return file.Model.Favorite == this.Value;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Provider\Order\FileOrderByFavorite.cs:12:    public class FileOrderByFavorite : OrderBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Provider\Order\FileOrderByFavorite.cs:17:                return from.OfType<IModelBindable<fm_dd_file>>().OrderByDescending(x => x.Model.Favorite);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Provider\Order\FileOrderByFavorite.cs:18:            return from.OfType<IModelBindable<fm_dd_file>>().OrderBy(x => x.Model.Favorite);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Service\ProjectFavoriteService.cs:1:﻿using G.Controls.FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Service\ProjectFavoriteService.cs:8:    public class ProjectFavoriteService : FavoriteService
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Service\ProjectFavoriteService.cs:11:        public ProjectFavoriteService(IOptions<FavoriteOptions> options, IProjectService project) : base(options)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Service\ProjectFavoriteService.cs:16:        public override IEnumerable<IFavoriteItem> Collection
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\App\G.App.FileManager\Service\ProjectFavoriteService.cs:21:                    return item.FavoriteItems;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\ApplicationBases\G.ApplicationBases.Themes\Extention.cs:79:                x.ColorResources.Add(new TechnologyPinkColorResource());
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Chart2D\Presenter\PiePresenter.xaml.cs:19:            Color[] colors = new Color[12] { Colors.Red, Colors.Green, Colors.Orange, Colors.Purple, Colors.Gray, Colors.Brown, Colors.DeepPink, Colors.DeepSkyBlue, Colors.DarkViolet, Colors.Black, Colors.LightBlue, Colors.DarkTurquoise };
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Diagram.Presenter\DiagramDatas\Base\ThemeDigramDataBase.cs:27:        List<Color> colors = new List<Color>() { Colors.Red, Colors.Green, Colors.DarkBlue, Colors.Purple, Colors.Gray, Colors.Black, Colors.Orange, Colors.Brown, Colors.DeepPink, Colors.DarkSlateGray };
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\LayoutAnchorControl.xaml.cs:12:    /// is in AutoHide mode (which can be applied via context menu drop entry or click on the Pin symbol.
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\NativeMethods.cs:1246:    /// <summary>SHAddToRecentDocuments flags.  SHARD_*</summary>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\NativeMethods.cs:3163:        [DllImport("shell32.dll", EntryPoint = "SHAddToRecentDocs")]
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\NativeMethods.cs:3164:        private static extern void _SHAddToRecentDocs_String(SHARD uFlags, [MarshalAs(UnmanagedType.LPWStr)] string pv);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\NativeMethods.cs:3168:        [DllImport("shell32.dll", EntryPoint = "SHAddToRecentDocs")]
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\NativeMethods.cs:3169:        private static extern void _SHAddToRecentDocs_ShellLink(SHARD uFlags, IShellLinkW pv);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\NativeMethods.cs:3171:        public static void SHAddToRecentDocs(string path) => _SHAddToRecentDocs_String(SHARD.PATHW, path);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\NativeMethods.cs:3174:        public static void SHAddToRecentDocs(IShellLinkW shellLink) => _SHAddToRecentDocs_ShellLink(SHARD.LINK, shellLink);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\ShellProvider.cs:841:    // Used to remove items from the automatic destination lists created when apps or the system call SHAddToRecentDocs to report usage of a document.
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\ShellProvider.cs:862:    /// Allows an application to retrieve the most recent and frequent documents opened in that app, as reported via SHAddToRecentDocs
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:100:            GCHandle handleLeft = GCHandle.Alloc(leftBuffer, GCHandleType.Pinned);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:101:            IntPtr ptrLeft = handleLeft.AddrOfPinnedObject();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:104:            GCHandle handleRight = GCHandle.Alloc(rightBuffer, GCHandleType.Pinned);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:105:            IntPtr ptrRight = handleRight.AddrOfPinnedObject();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:499:            GCHandle handleLeft = GCHandle.Alloc(left, GCHandleType.Pinned);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:500:            IntPtr ptrLeft = handleLeft.AddrOfPinnedObject();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:502:            GCHandle handleRight = GCHandle.Alloc(right, GCHandleType.Pinned);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Controls\Shell\Standard\Utilities.cs:503:            IntPtr ptrRight = handleRight.AddrOfPinnedObject();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Properties\Resources.Designer.cs:154:        ///   查找类似 Toggle Pin status 的本地化字符串。
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Properties\Resources.Designer.cs:156:        public static string Document_BtnPinned_Hint {
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Properties\Resources.Designer.cs:158:                return ResourceManager.GetString("Document_BtnPinned_Hint", resourceCulture);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\AssemblyInfo.cs:13:[assembly: XmlnsDefinition("https://github.com/G", "G.Controls.FavoriteBox")]
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\AssemblyInfo.cs:16:[assembly: XmlnsDefinition("https://github.com/G", "G.Controls.FavoriteBox")]
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\AssemblyInfo.cs:19:[assembly: XmlnsDefinition("http://schemas.microsoft.com/winfx/2006/xaml/presentation", "G.Controls.FavoriteBox")]
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Create.cs:1:﻿namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Create.cs:5:    public class CreateFavoriteCommand : DisplayMarkupCommandBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Create.cs:9:            var service = Ioc.GetService<IFavoriteService>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Create.cs:20:            return Ioc.Exist<IFavoriteService>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Delete.cs:1:﻿namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Delete.cs:5:    public class DeleteFavoriteCommand : DisplayMarkupCommandBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Delete.cs:9:            if (parameter is IFavoriteItem favoriteItem)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Delete.cs:11:                var service = Ioc.GetService<IFavoriteService>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Delete.cs:21:            return Ioc.Exist<IFavoriteService>() && parameter is IFavoriteItem;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Edit.cs:6:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Edit.cs:10:    public class EditFavoriteCommand : DisplayMarkupCommandBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Edit.cs:14:            if (parameter is IFavoriteItem favoriteItem)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Edit.cs:16:                var service = Ioc.GetService<IFavoriteService>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Edit.cs:35:            return Ioc.Exist<IFavoriteService>() && parameter is IFavoriteItem;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Insert.cs:1:﻿namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Insert.cs:5:    public class InsertFavoriteCommand : DisplayMarkupCommandBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Insert.cs:9:            if (parameter is IFavoriteItem favoriteItem)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Insert.cs:12:                var service = Ioc.GetService<IFavoriteService>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Insert.cs:27:            return Ioc.Exist<IFavoriteService>() && parameter is IFavoriteItem;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Manage.cs:1:﻿namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Manage.cs:5:    public class ManageFavoriteCommand : DisplayMarkupCommandBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Manage.cs:9:            var ioc = Ioc.GetService<IFavoriteService>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Manage.cs:10:            var favorite = new FavoritesPresenter();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Commands\Command.Manage.cs:27:            return Ioc.Exist<IFavoriteService>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:1:﻿using G.Controls.FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:10:        public static IServiceCollection AddFavorite(this IServiceCollection services, Action<IFavoriteOptions> setupAction = null)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:12:            return services.AddFavorite<FavoriteService>(setupAction);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:15:        public static IServiceCollection AddFavorite<T>(this IServiceCollection services, Action<IFavoriteOptions> setupAction = null) where T : class, IFavoriteService
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:18:            services.TryAdd(ServiceDescriptor.Singleton<IFavoriteService, T>());
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:20:                services.Configure(new Action<FavoriteOptions>(setupAction));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:24:        public static IApplicationBuilder UseFavoriteOptions(this IApplicationBuilder builder, Action<IFavoriteOptions> option = null)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:26:            IocSetting.Instance.Add(FavoriteOptions.Instance);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Extension.cs:27:            option?.Invoke(FavoriteOptions.Instance);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:12:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:14:    public class FavoriteBox : TreeView
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:16:        static FavoriteBox()
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:18:            DefaultStyleKeyProperty.OverrideMetadata(typeof(FavoriteBox), new FrameworkPropertyMetadata(typeof(FavoriteBox)));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:21:        public FavoriteBox()
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:35:            IocFavoriteService.Instance.CollectionChanged += (l, k) =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:48:            this.ItemsSource = new FavoriteTree().GetTreeNodes().ToList();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:59:            DependencyProperty.Register("GroupName", typeof(string), typeof(FavoriteBox), new FrameworkPropertyMetadata(default(string), (d, e) =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:61:                FavoriteBox control = d as FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:77:        public string SelectedFavoritePath
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:79:            get { return (string)GetValue(SelectedFavoritePathProperty); }
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:80:            set { SetValue(SelectedFavoritePathProperty, value); }
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:84:        public static readonly DependencyProperty SelectedFavoritePathProperty =
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:85:            DependencyProperty.Register("SelectedFavoritePath", typeof(string), typeof(FavoriteBox), new FrameworkPropertyMetadata(default(string), FrameworkPropertyMetadataOptions.BindsTwoWayByDefault | // Flags
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:88:                FavoriteBox control = d as FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:101:                        var find = tree.Where<IFavoriteItem>(x => x.Path == n).FirstOrDefault();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:126:            if (e.NewValue is IModelBindable viewModel && viewModel.GetModel() is IFavoriteItem favorite)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:127:                this.SelectedFavoritePath = favorite.Path;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteBox.xaml.cs:129:                this.SelectedFavoritePath = null;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:4:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:6:    public class FavoriteFilterBox : TreeView
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:8:        static FavoriteFilterBox()
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:10:            DefaultStyleKeyProperty.OverrideMetadata(typeof(FavoriteFilterBox), new FrameworkPropertyMetadata(typeof(FavoriteFilterBox)));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:13:        public FavoriteFilterBox()
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:15:            this.Filter = new FavoriteFilter(this);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:17:            IocFavoriteService.Instance.CollectionChanged += (l, k) =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:42:            DependencyProperty.Register("GroupName", typeof(string), typeof(FavoriteFilterBox), new FrameworkPropertyMetadata(default(string), (d, e) =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:44:                FavoriteFilterBox control = d as FavoriteFilterBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:62:            this.DelayInvoke(() => this.ItemsSource = new FavoriteTree().GetTreeNodes());
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:68:            this.Filter = new FavoriteFilter(this);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:80:            DependencyProperty.Register("Filter", typeof(IFilterable), typeof(FavoriteFilterBox), new FrameworkPropertyMetadata(default(IFilterable), (d, e) =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:82:                FavoriteFilterBox control = d as FavoriteFilterBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:99:            EventManager.RegisterRoutedEvent("FilterChanged", RoutingStrategy.Bubble, typeof(EventHandler<RoutedEventArgs>), typeof(FavoriteFilterBox));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:120:            DependencyProperty.Register("PropertyName", typeof(string), typeof(FavoriteFilterBox), new FrameworkPropertyMetadata(default(string), (d, e) =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:122:                FavoriteFilterBox control = d as FavoriteFilterBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:140:    public class FavoriteFilter : IFilterable
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:142:        FavoriteFilterBox _favoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:143:        public FavoriteFilter(FavoriteFilterBox favoriteBox)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteFilterBox.xaml.cs:167:            if (this._favoriteBox.SelectedItem is TreeNodeBase<object> node && node.Model is IFavoriteItem favorite)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteItem.xaml.cs:6:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoriteItem.xaml.cs:8:    public class FavoriteItem : BindableBase, IFavoriteItem
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoritesPresenter.xaml.cs:4:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoritesPresenter.xaml.cs:6:    public class FavoritesPresenter : BindableBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoritesPresenter.xaml.cs:8:        private ObservableCollection<IFavoriteItem> _collection = new ObservableCollection<IFavoriteItem>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\FavoritesPresenter.xaml.cs:10:        public ObservableCollection<IFavoriteItem> Collection
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteOptions.cs:6:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteOptions.cs:9:    public class FavoriteOptions : IocOptionInstance<FavoriteOptions>, IFavoriteOptions
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteOptions.cs:12:        public ObservableCollection<FavoriteItem> FavoriteItems { get; set; } = new ObservableCollection<FavoriteItem>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:5:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:8:    public class FavoriteService : BindableBase, IFavoriteService
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:10:        IOptions<FavoriteOptions> _options;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:12:        public FavoriteService(IOptions<FavoriteOptions> options)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:18:        public virtual IEnumerable<IFavoriteItem> Collection => this._options.Value.FavoriteItems;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:20:        public virtual void Add(params IFavoriteItem[] ts)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:24:                foreach (var item in ts.OfType<FavoriteItem>())
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:32:        public virtual IFavoriteItem Create()
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:34:            return new FavoriteItem();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:37:        public virtual void Delete(params IFavoriteItem[] ts)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteService.cs:39:            var favorites = ts.OfType<FavoriteItem>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteTree.cs:3:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteTree.cs:5:    public class FavoriteTree : ITree
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteTree.cs:10:                return IocFavoriteService.Instance.Collection.Where(x => !x.Path.Trim('\\').Contains(System.IO.Path.DirectorySeparatorChar));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteTree.cs:11:            if (parent is IFavoriteItem directory)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\FavoriteTree.cs:12:                return IocFavoriteService.Instance.Collection.Where(x => Path.GetDirectoryName(x.Path) == directory.Path);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteItem.cs:3:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteItem.cs:5:    public interface IFavoriteItem
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteOptions.cs:3:namespace G.Controls.FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteOptions.cs:4:public interface IFavoriteOptions
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteOptions.cs:6:    ObservableCollection<FavoriteItem> FavoriteItems { get; set; }
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteService.cs:3:namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteService.cs:5:    public interface IFavoriteService : IDataSource<IFavoriteItem>, ISplashLoadable, ISplashSave
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IFavoriteService.cs:7:        IFavoriteItem Create();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IocFavoriteService.cs:1:﻿namespace G.Controls.FavoriteBox
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.FavoriteBox\Service\IocFavoriteService.cs:4:    public class IocFavoriteService : Ioc<IFavoriteService>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:28:    [TemplatePart(Name = PART_RecentColors, Type = typeof(ListBox))]
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:35:        private const string PART_RecentColors = "PART_RecentColors";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:271:        #region RecentColors
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:273:        public static readonly DependencyProperty RecentColorsProperty = DependencyProperty.Register("RecentColors", typeof(ObservableCollection<ColorItem>), typeof(ColorPicker), new UIPropertyMetadata(null));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:274:        public ObservableCollection<ColorItem> RecentColors
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:278:                return (ObservableCollection<ColorItem>)GetValue(RecentColorsProperty);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:282:                SetValue(RecentColorsProperty, value);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:286:        #endregion //RecentColors
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:288:        #region RecentColorsHeader
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:290:        public static readonly DependencyProperty RecentColorsHeaderProperty = DependencyProperty.Register("RecentColorsHeader", typeof(string), typeof(ColorPicker), new UIPropertyMetadata("Recent Colors"));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:291:        public string RecentColorsHeader
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:295:                return (string)GetValue(RecentColorsHeaderProperty);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:299:                SetValue(RecentColorsHeaderProperty, value);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:303:        #endregion //RecentColorsHeader
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:389:        #region ShowRecentColors
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:391:        public static readonly DependencyProperty ShowRecentColorsProperty = DependencyProperty.Register("ShowRecentColors", typeof(bool), typeof(ColorPicker), new UIPropertyMetadata(false));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:392:        public bool ShowRecentColors
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:396:                return (bool)GetValue(ShowRecentColorsProperty);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:400:                SetValue(ShowRecentColorsProperty, value);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:404:        #endregion //DisplayRecentColors
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:532:        this.RecentColors = new ObservableCollection<ColorItem>();
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:534:            this.SetCurrentValue(ColorPicker.RecentColorsProperty, new ObservableCollection<ColorItem>());
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:566:            _recentColors = GetTemplateChild(PART_RecentColors) as ListBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:641:                UpdateRecentColors(colorItem);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:655:            else if ((_recentColors != null) && this.ShowRecentColors)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:735:            this.UpdateRecentColors(new ColorItem(this.SelectedColor, this.SelectedColorText));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:738:        private void UpdateRecentColors(ColorItem colorItem)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:740:            if (!this.RecentColors.Contains(colorItem))
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:741:                this.RecentColors.Add(colorItem);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:743:            if (this.RecentColors.Count > 10) //don't allow more than ten, maybe make a property that can be set by the user.
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ColorPicker\Implementation\ColorPicker.cs:744:                this.RecentColors.RemoveAt(0);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:12:    public const string MapPin = "\ue707";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:29:    public const string Pin = "\ue718";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:45:    public const string FavoriteList = "\ue728";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:54:    public const string FavoriteStar = "\ue734";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:55:    public const string FavoriteStarFill = "\ue735";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:151:    public const string MapPin2 = "\ue7b7";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:217:    public const string Recent = "\ue823";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:238:    public const string Pinned = "\ue840";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:239:    public const string PinFill = "\ue841";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:240:    public const string PinnedFill = "\ue842";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:544:    public const string ChinesePinyin = "\ue98a";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:921:    public const string EmojiTabFavorites = "\ued5a";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:964:    public const string PinyinIMELogo = "\uede5";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.FontIcon\FontIcons.cs:1012:    public const string DoublePinyin = "\xE085";
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:40:        public static readonly Unit Pints = new Unit(System, "Pints", "pt", "PTI", Dimensions.Volume, 0.568261 * litresToCubicMetres, Unit.DisplayOption.Multi);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:83:            Pints,
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:118:            Pints,
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:381:        public static Volume Pints(this int v) { return ((double)v).Pints(); }
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:382:        public static Volume Pints(this double v)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:384:            return new Volume(BritishUnits.Pints.ConvertValueToSI(v));
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:386:        public static double InPints(this Volume v)
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Extensions\G.Extensions.Unit\PhysicalUnits\Provider\BritishUnits.cs:388:            return BritishUnits.Pints.ConvertValueFromSI((IPhysicalQuantity)v);
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Tests\G.Test.Test\App.xaml.cs:1:﻿using G.Controls.FavoriteBox;
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Tests\G.Test.Test\App.xaml.cs:59:            services.AddFavorite(x =>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Tests\G.Test.Test\App.xaml.cs:61:                x.FavoriteItems.Add(new FavoriteItem() { Path = "1", Description = "这是一个严重标签", Background = Brushes.Purple });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Tests\G.Test.Test\App.xaml.cs:62:                x.FavoriteItems.Add(new FavoriteItem() { Path = "1\\1", Description = "这是一个严重标签", Background = Brushes.Purple });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Tests\G.Test.Test\App.xaml.cs:63:                x.FavoriteItems.Add(new FavoriteItem() { Path = "1\\1\\1", Description = "这是一个严重标签", Background = Brushes.Purple });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Tests\G.Test.Test\App.xaml.cs:64:                x.FavoriteItems.Add(new FavoriteItem() { Path = "2", Description = "这是一个严重标签", Background = Brushes.Purple });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Tests\G.Test.Test\App.xaml.cs:65:                x.FavoriteItems.Add(new FavoriteItem() { Path = "2\\1", Description = "这是一个严重标签", Background = Brushes.Purple });
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Themes\G.Theme\BrushKeys.xaml.cs:110:    public static ComponentResourceKey Pink => new ComponentResourceKey(typeof(BrushKeys), "S.Brush.Pink");
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Themes\G.Theme\ColorKeys.xaml.cs:297:    public static ComponentResourceKey Pink => new ComponentResourceKey(typeof(ColorKeys), "S.Color.Pink");
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Themes\G.Themes.Colors.Technology\TechnologyPinkColorResource.cs:10:public class TechnologyPinkColorResource : ColorResourceBase
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Themes\G.Themes.Colors.Technology\TechnologyPinkColorResource.cs:12:    public TechnologyPinkColorResource()
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Themes\G.Themes.Colors.Technology\TechnologyPinkColorResource.cs:18:        Source = new Uri("pack://application:,,,/G.Themes.Colors.Technology;component/TechnologyPink.xaml")
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Windows\G.Windows.Ribbon\ViewModels\RecentDocumentBindable.cs:5:    public class RecentDocumentBindable : ToggleButtonBindable

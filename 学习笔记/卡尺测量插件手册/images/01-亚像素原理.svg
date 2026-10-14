@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="720" height="320" fill="#FDFDFB"/>
+  <!-- 像素条带：暗 | 暗 | 暗 | 暗 | 暗 | 过渡 | 亮 | 亮 | 亮 | 亮 -->
+  <g stroke="#94A3B8" stroke-width="1">
+    <rect x="30"  y="60" width="40" height="80" fill="#4A4A4A"/>
+    <rect x="70"  y="60" width="40" height="80" fill="#4A4A4A"/>
+    <rect x="110" y="60" width="40" height="80" fill="#4A4A4A"/>
+    <rect x="150" y="60" width="40" height="80" fill="#4A4A4A"/>
+    <rect x="190" y="60" width="40" height="80" fill="#4A4A4A"/>
+    <rect x="230" y="60" width="40" height="80" fill="#8C8C8C"/>
+    <rect x="270" y="60" width="40" height="80" fill="#E0E0E0"/>
+    <rect x="310" y="60" width="40" height="80" fill="#E0E0E0"/>
+    <rect x="350" y="60" width="40" height="80" fill="#E0E0E0"/>
+    <rect x="390" y="60" width="40" height="80" fill="#E0E0E0"/>
+  </g>
+  <!-- 真实边缘（亚像素位置） -->
+  <line x1="254" y1="40" x2="254" y2="160" stroke="#DC2626" stroke-width="2.5"/>
+  <text x="262" y="48" fill="#DC2626" font-size="15" font-weight="bold">真实边缘 = 150.6（在两个像素之间）</text>
+  <!-- 像素编号 -->
+  <g fill="#64748B" font-size="12" text-anchor="middle">
+    <text x="50" y="160">148</text><text x="90" y="160">149</text><text x="130" y="160">150</text><text x="170" y="160">151</text><text x="210" y="160">152</text><text x="250" y="160">153</text>
+  </g>
+  <text x="230" y="184" fill="#64748B" font-size="12" text-anchor="middle">过渡像素（部分被边缘盖住）</text>
+  <!-- 两种精度 -->
+  <text x="30" y="228" fill="#0F172A" font-size="15" font-weight="bold">整像素精度：只能说边缘在 150 或 151（误差最多 1 个像素）</text>
+  <text x="30" y="256" fill="#0F172A" font-size="15" font-weight="bold">亚像素精度：利用过渡像素的灰度做插值 → 报出 150.6（误差 ~0.2px）</text>
+  <text x="30" y="292" fill="#475569" font-size="14">物理精度 = 亚像素精度 ÷ 像素当量。0.2px × 0.04mm/px ≈ 0.008mm —— 这就是卡尺敢说"精密"的底气</text>
+</svg>

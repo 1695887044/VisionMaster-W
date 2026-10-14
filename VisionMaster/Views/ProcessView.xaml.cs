@@ -167,5 +167,42 @@ namespace VisionMaster.Views
 
             return null;
         }
+
+        // ==================================================================
+        //  流程栏树的展开 / 折叠（右键菜单，三视角评审第二批）。
+        //  纯视图行为：按数据项逐项置 TreeViewItem.IsExpanded，不碰模型；
+        //  headless 断言宿主不实例化视图，无断言，行为以真机/渲染探针复核。
+        // ==================================================================
+
+        /// <summary>「展开全部」：所有层级的容器项都展开</summary>
+        private void OnExpandTreeAllClick(object sender, RoutedEventArgs e)
+            => ApplyTreeExpandState(expandAll: true);
+
+        /// <summary>「折叠到第一层」：仅根层展开，深层全部收起（归属靠缩进与引导线仍可读）</summary>
+        private void OnCollapseTreeFirstLevelClick(object sender, RoutedEventArgs e)
+            => ApplyTreeExpandState(expandAll: false);
+
+        private void ApplyTreeExpandState(bool expandAll)
+        {
+            foreach (var item in StepTree.Items)
+            {
+                if (StepTree.ItemContainerGenerator.ContainerFromItem(item) is TreeViewItem root)
+                    ApplyExpandRecursive(root, depth: 0, expandAll);
+            }
+        }
+
+        /// <summary>深度优先置 IsExpanded：expandAll=false 时只有根层（depth 0）保持展开。
+        /// 展开后子容器才生成可视项，先 UpdateLayout 再递归，保证深层也能被遍历到</summary>
+        private void ApplyExpandRecursive(TreeViewItem container, int depth, bool expandAll)
+        {
+            container.IsExpanded = expandAll || depth == 0;
+            container.UpdateLayout();
+
+            foreach (var item in container.Items)
+            {
+                if (container.ItemContainerGenerator.ContainerFromItem(item) is TreeViewItem child)
+                    ApplyExpandRecursive(child, depth + 1, expandAll);
+            }
+        }
     }
 }

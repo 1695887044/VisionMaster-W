@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using VisionMaster.Models;
 using VisionMaster.ViewModels.DialogViewModels;
 using static FlowCanvasChecks.Program;
@@ -30,6 +32,8 @@ namespace FlowCanvasChecks
             RunFilterContract();
             RunElementEditContract();
             RunArrayBuildContract();
+            RunDetailColumnWidthContract();
+            RunCurrentValueEditContract();
         }
 
         // ==================================================================
@@ -191,6 +195,231 @@ namespace FlowCanvasChecks
             var misuse = GlobalVariableManagerViewModel.TryBuildArray(typeof(int[]), new[] { "1" }, out string e6);
             Check("误传数组类型时明确失败（而不是抛一句指不到问题所在的 InvalidCastException）",
                 misuse == null && e6.Contains("元素类型"), "error=" + e6);
+        }
+
+        // ==================================================================
+        //  ④ 明细表列宽契约：固定列不许吃光右栏视口（"当前值"列消失事故）
+        // ==================================================================
+        //
+        // 【事故】2026-10-11「变量明细显示不全」：8 列固定宽合计 750，而默认窗口
+        // 1240 下右栏视口只有 ~660 —— 星号"当前值"列被压成 0 宽整列消失，
+        // 类型/初始值单元格被硬裁成 "St"/"Product_"，横向滚动条还是 Disabled
+        // （超宽部分静默裁掉，连滚动兜底都没有）。
+        //
+        // 【怎么判】静态扫 GlobalVariableView.xaml（剥注释）：
+        //  ① 横向滚动条必须是 Auto（Disabled = 裁掉最右列且不可达）；
+        //  ② 星号列必须存在且带 MinWidth（宁可出滚动条也不许变 0 宽）；
+        //  ③ 本地来源下的固定列合计 + 星号下限 ≤ 最小窗口的右栏视口
+        //    （本地来源下"来源/扫描组/地址"三列被代码后置整列收起，不计入）；
+        //  ④ 代码后置的收放线仍在（IsNetworkSource + 三个列名），防静默删线。
+        // 右栏视口 = 窗口宽 −(216+12+296+12) 三栏结构 −(14×2) 外边距 = 宽 −564。
+
+        private static readonly string[] DetailCollapsedInLocalSource =
+            { "SourceColumn", "ScanGroupColumn", "AddressColumn" };
+
+        private static void RunDetailColumnWidthContract()
+        {
+            Section("[G] 变量管理：明细表列宽契约（星号列不许被固定列挤没）");
+
+            var xamlPath = FindRepoFile(@"VisionMaster\Views\DialogViews\GlobalVariableView.xaml");
+            if (xamlPath == null)
+            {
+                Check("【列宽】GlobalVariableView.xaml 定位", true, "跳过：定位不到视图文件");
+                return;
+            }
+
+            string text = Regex.Replace(File.ReadAllText(xamlPath), "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            var columnTags = Regex.Matches(text, @"<DataGrid(?:Template|Text|CheckBox)Column\b[^>]*?>")
+                .Select(m => m.Value)
+                .ToList();
+
+            Check("【列宽】DataGrid 横向滚动条 = Auto（Disabled 会静默裁掉超宽部分）",
+                Regex.IsMatch(text, @"<DataGrid\b[^>]*?HorizontalScrollBarVisibility=""Auto"""),
+                "");
+
+            var starTag = columnTags.FirstOrDefault(t => Regex.IsMatch(t, @"Width=""\*"""));
+            var starMin = starTag == null
+                ? 0
+                : double.TryParse(Regex.Match(starTag, @"MinWidth=""(\d+(?:\.\d+)?)""").Groups[1].Value, out var sm) ? sm : 0;
+            Check("【列宽】星号列（当前值）存在且 MinWidth ≥ 80", starTag != null && starMin >= 80,
+                starTag == null ? "没找到 Width=\"*\" 的列" : $"MinWidth={starMin}");
+
+            var fixedLocal = new List<string>();
+            double fixedSum = 0;
+            foreach (var tag in columnTags)
+            {
+                var w = Regex.Match(tag, @"[\s""]Width=""([^""]+)""");
+                if (!w.Success || w.Groups[1].Value.EndsWith("*")) continue;
+                if (!double.TryParse(w.Groups[1].Value, out var px)) continue;
+                if (DetailCollapsedInLocalSource.Any(tag.Contains)) continue;
+                fixedSum += px;
+                fixedLocal.Add(px.ToString("0"));
+            }
+
+            var minWidth = double.TryParse(
+                Regex.Match(text, @"Setter Property=""MinWidth"" Value=""(\d+)""").Groups[1].Value, out var mw) ? mw : 0;
+            double localViewport = minWidth - 564;
+
+            Check("【列宽】本地来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（当前值列必须始终可见）",
+                localViewport > 0 && fixedSum + starMin <= localViewport,
+                $"固定列=[{string.Join(",", fixedLocal)}] 合计={fixedSum:0} + 星号下限={starMin:0} ≤ 视口({MinWidthText(minWidth)}−564)={localViewport:0}");
+
+            var codeBehind = File.Exists(xamlPath.EndsWith(".xaml", StringComparison.Ordinal)
+                ? xamlPath.Substring(0, xamlPath.Length - 5) + ".xaml.cs"
+                : xamlPath + ".xaml.cs")
+                ? File.ReadAllText(xamlPath.Substring(0, xamlPath.Length - 5) + ".xaml.cs")
+                : string.Empty;
+            //  "HookViewModel();" 出现 ≥2 次 = 订阅之外构造器里还有一次直调：
+            //  Prism 在 InitializeComponent 解析期间就设好 DataContext（早于事件订阅），
+            //  DataContextChanged 之后不会再发——只靠订阅，列收放一次都不会执行。
+            Check("【列宽】代码后置仍按 IsNetworkSource 收放 来源/扫描组/地址 三列，且构造器直调 HookViewModel（防静默删线/漏补当前值）",
+                DetailCollapsedInLocalSource.All(codeBehind.Contains)
+                && codeBehind.Contains("IsNetworkSource")
+                && Regex.Matches(codeBehind, "HookViewModel\\(\\);").Count >= 2,
+                "");
+        }
+
+        private static string MinWidthText(double minWidth) => minWidth > 0 ? $"MinWidth={minWidth:0}" : "未读到";
+
+        /// <summary>从输出目录往上找仓库根，再拼相对路径（定位不到返回 null，由调用方跳过）</summary>
+        private static string? FindRepoFile(string relative)
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            for (int i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return null;
+        }
+
+        // ==================================================================
+        //  ⑤ 当前值就地编辑（写值语义 / 基准不被污染 / 编辑中暂停推送 / 结构收放）
+        // ==================================================================
+        //
+        // 【背景】2026-10-11 交互收敛：写值进"当前值"单元格（本地写内存 / 网络下发设备），
+        // "恢复初始值"从操作列挪进当前值单元格、仅偏离基准时出现，操作列只剩 3 个通用动作。
+        //
+        // 【三条红线】
+        //  ① 就地编辑绝不触碰 DefaultValue——基准被悄悄改掉，"恢复"就恢复不到用户认定的基准；
+        //  ② 转换统一走 VariableValueConverter（布尔认 1/0/是/否/on/off、不变文化），不许另立规则；
+        //  ③ 编辑中（IsEditingValue）值推送暂停——轮询不许冲掉输入中的草稿。
+        //
+        // 【结构断言】视图含 CellValueEditBehavior/IsValueDeviated 且不再有 WriteValueCommand；
+        //  VM 里写值弹窗死代码清干净。
+
+        private static void RunCurrentValueEditContract()
+        {
+            Section("[G] 变量管理：当前值就地编辑（提交写值 / 基准不被污染 / 编辑中暂停推送）");
+
+            // —— 本地 int 标量：提交写 Value、基准分毫不动 ——
+            var model = new LocalVariableModel
+            {
+                Name = "Qty",
+                DataType = typeof(int),
+                DefaultValue = 7,
+                Value = 7,
+            };
+            var node = new VariableNode { OriginalModel = model, Name = "Qty", DataType = typeof(int), Level = 0 };
+
+            Check("【当前值】显示文本与偏离标记初值", node.CurrentValueText == "7" && !node.IsValueDeviated,
+                $"text={node.CurrentValueText} deviated={node.IsValueDeviated}");
+
+            var commit1 = node.CommitEditValue("42");
+            Check("★【当前值】提交写入当前值、初始值（基准）分毫不动",
+                commit1 == null && Equals(model.Value, 42) && Equals(model.DefaultValue, 7) && node.IsValueDeviated,
+                $"err={commit1 ?? "无"} Value={model.Value} DefaultValue={model.DefaultValue}");
+
+            var commit2 = node.CommitEditValue("abc");
+            Check("【当前值】非法文本提交失败并给出原因、模型保持干净",
+                commit2 != null && Equals(model.Value, 42),
+                $"err={commit2 ?? "<无>"} Value={model.Value}");
+
+            // —— 布尔走 VariableValueConverter 的 PLC 约定（1/0、是/否、on/off） ——
+            var flag = new LocalVariableModel { Name = "Flag", DataType = typeof(bool), DefaultValue = false, Value = false };
+            var flagNode = new VariableNode { OriginalModel = flag, Name = "Flag", DataType = typeof(bool), Level = 0 };
+            var r1 = flagNode.CommitEditValue("1");
+            var vAfterOne = flag.Value;
+            var r2 = flagNode.CommitEditValue("off");
+            Check("【当前值】布尔按 PLC 约定解析（1=真 / off=假），不是 ChangeType 的英文异常",
+                r1 == null && Equals(vAfterOne, true) && r2 == null && Equals(flag.Value, false),
+                $"1→err={r1 ?? "无"},v={vAfterOne}；off→err={r2 ?? "无"},v={flag.Value}");
+
+            // —— 回到基准（↺ 的模型路径）：恢复后偏离标记消失 ——
+            flag.ResetToDefault();
+            flagNode.RefreshValueDisplay();
+            Check("【当前值】恢复初始值后偏离标记消失", !flagNode.IsValueDeviated,
+                $"Value={flag.Value} DefaultValue={flag.DefaultValue}");
+
+            // —— 网络变量：未绑定通信管理器 → 下发失败必须如实报错、镜像值不被污染 ——
+            var netVar = new NetworkVariableModel { Name = "MW10", DataType = typeof(int), DefaultValue = 5, Value = 5 };
+            var netNode = new VariableNode { OriginalModel = netVar, Name = "MW10", DataType = typeof(int), Level = 0 };
+            var netCommit = netNode.CommitEditValue("9");
+            Check("【当前值】网络变量写入失败如实报错（未绑定管理器）、镜像值不变",
+                netCommit != null && Equals(netVar.Value, 5),
+                $"err={netCommit ?? "<无>"} Value={netVar.Value}");
+
+            // —— 编辑中暂停推送：轮询/流程的值更新不许冲掉输入中的草稿 ——
+            int pushCount = 0;
+            node.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(VariableNode.CurrentValueText)) pushCount++; };
+            node.BeginEditValue();
+            model.Value = 99;
+            node.RefreshValueDisplay();
+            Check("【当前值】编辑中模型值推送被暂停（草稿不被轮询冲掉）", node.IsEditingValue && pushCount == 0,
+                $"editing={node.IsEditingValue} pushes={pushCount}");
+
+            node.CancelEditValue();
+            Check("【当前值】放弃编辑（Esc）退出编辑态并回读模型值", !node.IsEditingValue && node.CurrentValueText == "99" && pushCount == 1,
+                $"editing={node.IsEditingValue} text={node.CurrentValueText} pushes={pushCount}");
+
+            // —— 数组元素行：就地写当前值元素，基准数组分毫不动 ——
+            var arr = new LocalVariableModel
+            {
+                Name = "Codes",
+                DataType = typeof(string[]),
+                DefaultValue = new[] { "A", "B" },
+                Value = new[] { "A", "B" },
+            };
+            var child = new VariableNode { OriginalModel = arr, Name = "[1]", DataType = typeof(string), ElementIndex = 1, Level = 1 };
+            Check("【当前值】元素行显示文本取自父数组当前值对应下标", child.CurrentValueText == "B",
+                $"text={child.CurrentValueText}");
+            var childCommit = child.CommitEditValue("X9");
+            Check("★【当前值】元素行提交只写 Value[i]、基准数组分毫不动",
+                childCommit == null && ((string[])arr.Value)[1] == "X9" && ((string[])arr.DefaultValue)[1] == "B",
+                $"err={childCommit ?? "无"} Value[1]={((string[])arr.Value)[1]} DefaultValue[1]={((string[])arr.DefaultValue)[1]}");
+
+            // —— 结构收放：单元格化之后的视图/VM 形状 ——
+            var xamlPath = FindRepoFile(@"VisionMaster\Views\DialogViews\GlobalVariableView.xaml");
+            var vmPath = FindRepoFile(@"VisionMaster\ViewModels\DialogViewModels\GlobalVariableManagerViewModel.cs");
+            if (xamlPath == null || vmPath == null)
+            {
+                Check("【当前值】结构扫描定位", true, "跳过：定位不到视图/VM 文件");
+                return;
+            }
+
+            string xaml = File.ReadAllText(xamlPath);
+            string vm = File.ReadAllText(vmPath);
+            Check("【当前值】视图：单元格挂 CellValueEditBehavior（根行+元素行≥2 处）+ 偏离才显示的↺；写值/恢复两按钮已撤出操作列",
+                xaml.Contains("CellValueEditBehavior.Active")
+                && Regex.Matches(xaml, "CellValueEditBehavior\\.Active").Count >= 2
+                && xaml.Contains("{Binding IsValueDeviated")
+                && !xaml.Contains("WriteValueCommand"),
+                "");
+            Check("【当前值】视图：明细表「初始值」列零残留（DefaultValueText/ChildDefaultValueText 不再被绑定），建表单有「初始值」项",
+                !xaml.Contains("DefaultValueText")
+                && xaml.Contains("{Binding NewInitialValueText")
+                && xaml.Contains("{Binding ShowNewInitialValue"),
+                "");
+            Check("【当前值】VM：写值弹窗死命令清干净（WriteValueCommand/ExecuteWriteValue 零残留）",
+                !vm.Contains("WriteValueCommand") && !vm.Contains("ExecuteWriteValue"),
+                "");
+
+            var behaviorPath = FindRepoFile(@"VisionMaster\Helpers\CellValueEditBehavior.cs");
+            Check("【当前值】提交成功立刻失焦回读取模式：两格样式走 DialogCellInputQuiet（不再用常驻输入框样式），行为里有 Keyboard.ClearFocus",
+                Regex.Matches(xaml, "DialogCellInputQuiet").Count >= 2
+                && !xaml.Contains("Style=\"{StaticResource DialogCellInput}\"")
+                && behaviorPath != null && File.ReadAllText(behaviorPath).Contains("Keyboard.ClearFocus()"),
+                "");
         }
 
         // ==================================================================

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Nodify;
 using Prism.Mvvm;
+using VisionMaster.Models;
 
 namespace VisionMaster.ViewModels
 {
@@ -23,6 +25,37 @@ namespace VisionMaster.ViewModels
         {
             Source = source ?? throw new ArgumentNullException(nameof(source));
             Target = target ?? throw new ArgumentNullException(nameof(target));
+
+            // 顺序链"已执行"染色的刷新源：两端步骤的 State 属性通知。
+            // 连线 VM 每轮重建整体换新（BuildLinks/BuildOrderLinks），UnhookModels
+            // 由主 VM 在丢弃旧连线前统一调用（与节点 VM 的 UnhookModel 同一条挂摘成对纪律）
+            if (Source.Model != null) Source.Model.PropertyChanged += OnEndpointStateChanged;
+            if (Target.Model != null) Target.Model.PropertyChanged += OnEndpointStateChanged;
+            RecomputeExecuted();
+        }
+
+        private void OnEndpointStateChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(StepModel.State)) return;
+            RecomputeExecuted();
+        }
+
+        private void RecomputeExecuted()
+        {
+            // 终态口径（评审定稿）：两端步骤都离开 Idle 才算这段顺序"已走过"，
+            // 不做"Running 也算"的实时口径——运行中的段由步骤自己的高亮承担
+            bool executed = Source.Model != null && Source.Model.State != StepState.Idle
+                         && Target.Model != null && Target.Model.State != StepState.Idle;
+            SetProperty(ref _isExecuted, executed, nameof(IsExecuted));
+        }
+
+        private bool _isExecuted;
+
+        /// <summary>退出渲染前摘掉两端步骤的 State 订阅（主 VM 在清空连线集合前逐根调用）</summary>
+        public void UnhookModels()
+        {
+            if (Source.Model != null) Source.Model.PropertyChanged -= OnEndpointStateChanged;
+            if (Target.Model != null) Target.Model.PropertyChanged -= OnEndpointStateChanged;
         }
 
         /// <summary>生产方模块（输出脚）</summary>
@@ -70,6 +103,27 @@ namespace VisionMaster.ViewModels
 
         /// <summary>绑定条数角标文本；1 条时不画角标（一根线一对绑定不用解释，空串=模板不画）</summary>
         public string BindingCountLabel => Bindings.Count > 1 ? $"×{Bindings.Count}" : string.Empty;
+
+        /// <summary>单绑定短文本的截断上限（超出省略；连线中段的标签太长会压住节点卡片）</summary>
+        private const int LinkLabelMaxLength = 36;
+
+        /// <summary>
+        /// 连线中段标签（评审清单 B 包：连线上显示绑定参数名）：
+        /// 单绑定 = 「目标口 ← 源口」短文本（截断省略，如 <c>In ← 采集.Out</c>）；
+        /// 多绑定 = ×N 计数，逐条明细看悬停提示（Tooltip）。顺序链 Bindings 为空 → 空串不画。
+        /// </summary>
+        public string LinkLabel => Bindings.Count switch
+        {
+            1 => Truncate(Bindings[0].Display),
+            > 1 => $"×{Bindings.Count}",
+            _ => string.Empty,
+        };
+
+        private static string Truncate(string text)
+        {
+            if (string.IsNullOrEmpty(text) || text.Length <= LinkLabelMaxLength) return text;
+            return text.Substring(0, LinkLabelMaxLength) + "…";
+        }
 
         /// <summary>
         /// 解绑单条端口绑定。命令本体在主 VM（要写撤销栈），这里挂个入口
@@ -143,7 +197,12 @@ namespace VisionMaster.ViewModels
         public void NotifyBindingsChanged()
         {
             RaisePropertyChanged(nameof(BindingCountLabel));
+            RaisePropertyChanged(nameof(LinkLabel));
             RaisePropertyChanged(nameof(Tooltip));
         }
+
+        /// <summary>顺序链"已执行"：两端步骤都离开 Idle（终态口径，见 RecomputeExecuted）。
+        /// 模板据此把顺序链虚线换成运行色实线，未执行的保持灰虚线</summary>
+        public bool IsExecuted => _isExecuted;
     }
 }

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 400" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="400" fill="#FDFDFB"/>
+  <defs>
+    <marker id="qAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#B45309"/>
+    </marker>
+  </defs>
+  <!-- 线束（10 根，扇形微散） -->
+  <g stroke-width="6" fill="none" stroke-linecap="round">
+    <polyline points="60,120  300,108" stroke="#212121"/>
+    <polyline points="60,150  300,132" stroke="#FAFAFA"/>
+    <polyline points="60,180  300,156" stroke="#9E9E9E"/>
+    <polyline points="60,210  300,180" stroke="#8E24AA"/>
+    <polyline points="60,240  300,204" stroke="#1E88E5"/>
+    <polyline points="60,270  300,228" stroke="#43A047"/>
+    <polyline points="60,300  300,252" stroke="#FDD835"/>
+    <polyline points="60,330  300,276" stroke="#E53935"/>
+    <polyline points="60,360  300,300" stroke="#EC407A"/>
+    <polyline points="60,385  300,324" stroke="#795548"/>
+  </g>
+  <!-- 采样矩形（横跨线束，长轴沿线束方向） -->
+  <polygon points="180,88 330,60 330,350 180,392" fill="none" stroke="#2563EB" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <!-- 长轴标注 -->
+  <line x1="196" y1="415" x2="322" y2="388" stroke="#B45309" stroke-width="2.5" marker-end="url(#qAr)"/>
+  <text x="60" y="432" fill="#B45309" font-size="14" font-weight="bold">长轴（半长大的轴）= 线束走向 —— 自动判，竖着画也能用</text>
+  <!-- 短轴标注 -->
+  <line x1="150" y1="105" x2="150" y2="380" stroke="#B45309" stroke-width="2.5" marker-end="url(#qAr)"/>
+  <text x="24" y="90" fill="#B45309" font-size="14" font-weight="bold">短轴 =</text>
+  <text x="10" y="110" fill="#B45309" font-size="14" font-weight="bold">采样剖面方向</text>
+  <!-- 5 条采样线 -->
+  <g stroke="#FBBF24" stroke-width="1.5">
+    <line x1="238" y1="66"  x2="238" y2="376"/>
+    <line x1="246" y1="64"  x2="246" y2="372"/>
+    <line x1="254" y1="62"  x2="254" y2="368"/>
+    <line x1="262" y1="60"  x2="262" y2="364"/>
+    <line x1="270" y1="58"  x2="270" y2="360"/>
+  </g>
+  <text x="352" y="120" fill="#B45309" font-size="13.5" font-weight="bold">5 条采样线，只偏移 ±4px，</text>
+  <text x="352" y="140" fill="#B45309" font-size="13.5" font-weight="bold">同一短轴位置取中位合成剖面</text>
+  <text x="352" y="168" fill="#B91C1C" font-size="13" font-weight="bold">真实 P0：沿长轴摊开会把扇形散开的</text>
+  <text x="352" y="188" fill="#B91C1C" font-size="13" font-weight="bold">边界线洗掉（第 10 根棕线丢失）</text>
+  <text x="352" y="222" fill="#0F172A" font-size="13.5">序列索引 0 = 坐标较小的那一端；</text>
+  <text x="352" y="242" fill="#0F172A" font-size="13.5">方向反了勾「序列反向」。</text>
+  <text x="10" y="30" fill="#0F172A" font-size="16" font-weight="bold">颜色序列检查的采样几何：一条带子扫过整束线</text>
+</svg>

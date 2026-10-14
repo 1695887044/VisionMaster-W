@@ -44,7 +44,7 @@ namespace Plugin.Calibration
         Description = "像素当量 / 九点标定 / 透视标定：产出「像素 → 毫米 / 机械坐标」的变换，供下游坐标换算与引导使用",
         ShortName = "\uf05b"
     )]
-    [ParallelSafe] // 二期真并行：chun shijue jisuan
+    [ParallelSafe] // 二期真并行：纯视觉计算
     public partial class CalibrationPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         /// <summary>画布标记半径的下限（图像像素）：大图上按图幅比例放大，小图上不至于变成一坨</summary>

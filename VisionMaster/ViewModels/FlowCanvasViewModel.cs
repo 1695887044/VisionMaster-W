@@ -6,10 +6,14 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
+using Core.Events;
 using Core.Interfaces;
 using Prism.Dialogs;
 using Prism.Ioc;
+using UI.CustomControl;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
 using VisionMaster.Services;
@@ -85,6 +89,17 @@ namespace VisionMaster.ViewModels
         private readonly IWorkspaceManager _workspace;
         private readonly IPluginProvider _pluginProvider;
 
+        /// <summary>
+        /// 软件级配置（AppConfig.json）。画布的「随用户」视图态（数据线/顺序链开关）从这里读初值、
+        /// 改动写回并立即落盘（与 RunWindowMode 同一条"改完即存"的周期）。
+        /// 断言宿主 / 设计器不传：开关走代码内默认值、不落盘——AppSettingsService 构造会在
+        /// 程序目录写 AppConfig.json，不能让 headless 进程碰它（该服务的注释有案）。
+        /// </summary>
+        private readonly AppSettingsService? _appSettings;
+
+        /// <summary>构造收尾前为 false：读初值走属性 setter 时不应触发"写回配置"（刚读出来的值再写回去没有意义）</summary>
+        private bool _viewSettingsReady;
+
         /// <summary>构造时 Workspace 的 INotifyPropertyChanged 引用，Deactivate 时用于解绑</summary>
         private readonly INotifyPropertyChanged? _workspaceChanged;
 
@@ -138,10 +153,31 @@ namespace VisionMaster.ViewModels
         /// <summary>拖拽开始快照：每个被拖节点的 (Owner, IndexInOwner, OriginalLocation)</summary>
         private List<DragSnapshot>? _dragStartedSnapshot;
 
-        public FlowCanvasViewModel(IWorkspaceManager workspace, IPluginProvider pluginProvider)
+        /// <summary>
+        /// 画布编辑门禁（2026-10-11 收口）：运行态经 GlobalEventBus 同步进 EditGate，
+        /// 豁免表与流程栏共用同一份判据（断点全放行 / 暂停中放参数 / 其余编辑运行中全拦）。
+        /// </summary>
+        private readonly EditGate _editGate = new();
+
+        /// <summary>画布运行锁横幅文案（画布本地常量：与流程栏同款提示的另一处消费端，不跨类引用私有常量）</summary>
+        private const string RunLockedMessage = "流程运行中，禁止编辑；如需修改请先点击“停止”";
+
+        public FlowCanvasViewModel(IWorkspaceManager workspace, IPluginProvider pluginProvider,
+            AppSettingsService? appSettings = null)
         {
             _workspace = workspace;
             _pluginProvider = pluginProvider;
+            _appSettings = appSettings;
+
+            // 「随用户」视图态：AppConfig.json 里有就用用户的（缺失按代码默认兜底），
+            // 写回走 SyncFlowCanvasSettings（统一保存口）。初值灌入在 _viewSettingsReady 置位前，
+            // setter 里的持久化分支不会空转
+            if (appSettings != null)
+            {
+                var node = appSettings.Current?.FlowCanvasSettings;
+                ShowOrderLinks = node?.ShowOrderLinks ?? true;
+                ShowDataLinks = node?.ShowDataLinks ?? false;
+            }
 
             _workspaceChanged = _workspace as INotifyPropertyChanged;
 
@@ -158,11 +194,22 @@ namespace VisionMaster.ViewModels
 
             UndoCommand = new DelegateCommand(Undo, () => _undoStack.Count > 0);
             RedoCommand = new DelegateCommand(Redo, () => _redoStack.Count > 0);
+            ExpandAllCommand = new DelegateCommand(OnExpandAll);
+            CollapseAllCommand = new DelegateCommand(OnCollapseAll);
+            ShowCompileErrorsCommand = new DelegateCommand(OnShowCompileErrors);
             ItemsDragStartedCommand = new DelegateCommand<object>(OnItemsDragStarted);
             ItemsDragCompletedCommand = new DelegateCommand<object>(OnItemsDragCompleted);
             DeleteSelectionCommand = new DelegateCommand(OnDeleteSelection);
+            CopySelectedCommand = new DelegateCommand<object?>(OnCopySelected);
+            PasteCommand = new DelegateCommand<object?>(OnPaste);
 
             PendingConnection.PropertyChanged += OnPendingConnectionChanged;
+
+            // 门禁运行态变化 → 刷新 IsRunLocked / 横幅可见性绑定面（门禁与 VM 同生命周期，构造挂接即可）
+            _editGate.RunStateChanged += OnRunGateStateChanged;
+
+            // 初值已灌完：此后两个显隐开关的 setter 开始走"写回配置"分支
+            _viewSettingsReady = true;
 
             // 订阅与首次渲染统一由 Activate 负责（View 的 Loaded / Unloaded 成对调用）；
             // 构造即视为"已入树"，这里先挂一次（含 Rebuild）
@@ -183,6 +230,10 @@ namespace VisionMaster.ViewModels
             if (_workspaceChanged != null)
                 _workspaceChanged.PropertyChanged += OnWorkspacePropertyChanged;
 
+            // 编辑门禁与编译错误事件与本体同挂同摘（离树时一并可逆清理）
+            _editGate.Activate();
+            GlobalEventBus.Subscribe<CompilationErrorsEvent>(OnCompilationErrorsEvent);
+
             Rebuild();
         }
 
@@ -194,6 +245,9 @@ namespace VisionMaster.ViewModels
 
             if (_workspaceChanged != null)
                 _workspaceChanged.PropertyChanged -= OnWorkspacePropertyChanged;
+
+            GlobalEventBus.Unsubscribe<CompilationErrorsEvent>(OnCompilationErrorsEvent);
+            _editGate.Deactivate();
 
             Detach();
         }
@@ -252,6 +306,15 @@ namespace VisionMaster.ViewModels
 
         public DelegateCommand RedoCommand { get; }
 
+        /// <summary>展开全部容器（工具条）。只动布局库折叠标记，不碰流程语义 → 不受运行锁限制</summary>
+        public DelegateCommand ExpandAllCommand { get; }
+
+        /// <summary>折叠全部容器（工具条）。同上不受运行锁限制</summary>
+        public DelegateCommand CollapseAllCommand { get; }
+
+        /// <summary>打开「编译错误列表」（工具条按钮，有错误才可见；双击行定位到出错步骤）</summary>
+        public DelegateCommand ShowCompileErrorsCommand { get; }
+
         /// <summary>拖拽开始：记录被拖节点的原 owner / 原下标 / 原坐标</summary>
         public DelegateCommand<object> ItemsDragStartedCommand { get; }
 
@@ -262,10 +325,30 @@ namespace VisionMaster.ViewModels
         /// 删除画布选中的模块（Delete 键 / 节点右键菜单共用）：连容器子树一起移出图纸。
         /// 数据连线的删除走连线右键菜单（编辑绑定/逐条/整批解绑）——
         /// Nodify 7.3 的连线选中机制（SelectedConnections 集合语义与选中视觉）未取证，不盲绑。
-        /// 删除会使撤销栈里改序/移分支命令的下标快照失效，统一清栈——
-        /// 宁可失去撤销能力，也不给出错乱的回滚。
+        /// 2026-10-11 撤销补口后删除可撤销（引用型 DeleteStepCommand），不再清空撤销栈（见 OnDeleteSelection）。
         /// </summary>
         public DelegateCommand DeleteSelectionCommand { get; }
+
+        /// <summary>
+        /// 复制当前选中的模块节点（节点右键菜单「复制」/ Ctrl+C 共用；第一期单个节点，
+        /// 多选批量复制不做）。参数按 R27 口径用 object? 装：右键路径传节点 VM、
+        /// 快捷键路径传 null（走既有选中机制）、其余类型一律 is 判型空跑。
+        /// </summary>
+        public DelegateCommand<object?> CopySelectedCommand { get; }
+
+        /// <summary>
+        /// 粘贴剪贴板内容（画布空白右键菜单「粘贴」/ Ctrl+V 共用）：
+        /// FlowClipboard.Take 物化重映射 → 按拖入同款落点规则插入 → 压撤销命令。
+        /// 参数允许传 Point 落点（断言直驱用）；为空时回退 LastPointerGraphPosition。
+        /// </summary>
+        public DelegateCommand<object?> PasteCommand { get; }
+
+        /// <summary>
+        /// 最近一次指针在画布图坐标系下的位置（视图随 MouseMove 回报，与节点 Location 同一坐标系）。
+        /// 粘贴落点用它；Ctrl+V 直按（指针没进过画布）时为 null，落点回退"追加到顶层末尾"。
+        /// 频繁写入、无绑定消费 → 不发属性通知。
+        /// </summary>
+        public Point? LastPointerGraphPosition { get => field; set => field = value; }
 
         public int UndoStackSize => _undoStack.Count;
         public int RedoStackSize => _redoStack.Count;
@@ -317,6 +400,39 @@ namespace VisionMaster.ViewModels
             ? $"⚠ {IllegalLinkCount} 条连线结构非法（编译会报致命错），已按红色虚线显示；另有 {DeferredLinkCount} 条连线的上游已不在图纸上"
             : string.Empty;
 
+        // ------------------------------------------------------------------
+        //  运行锁（画布编辑门禁，2026-10-11 三视角评审 P0）：状态由 EditGate 同步
+        // ------------------------------------------------------------------
+
+        /// <summary>流程运行中（画布编辑锁定；断点与暂停中的参数豁免）。运行态由 EditGate 经总线同步</summary>
+        public bool IsRunLocked => _editGate.IsRunLocked;
+
+        /// <summary>运行锁横幅可见性：运行中在顶部警告条区常驻（视觉横幅，评审 P0-4）</summary>
+        public Visibility RunLockBannerVisibility
+            => IsRunLocked ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>运行锁横幅文案</summary>
+        public string RunLockBannerText => "流程运行中：编辑已锁定（断点与暂停中的参数除外）";
+
+        private void OnRunGateStateChanged()
+        {
+            RaisePropertyChanged(nameof(IsRunLocked));
+            RaisePropertyChanged(nameof(RunLockBannerVisibility));
+        }
+
+        /// <summary>
+        /// 画布侧的运行锁闸：编辑类动作在运行中被拦下时给状态栏提示并返回 false。
+        /// 拦截点：拖入 / 删除 / 禁用 / 解绑 / 拖拽改序（结构编辑）与模块参数（暂停豁免）；
+        /// 断点、折叠展开、缩放、显隐开关不设闸（断点全放行，其余不碰流程语义）。
+        /// </summary>
+        private bool EnsureEditable(ModuleEditAction action)
+        {
+            if (_editGate.IsEditable(action)) return true;
+
+            StatusHint = RunLockedMessage;
+            return false;
+        }
+
         /// <summary>状态栏提示：拒绝连线/折叠提示等一次性文案；无提示时为 null。
         /// 一次性文案 5 秒后自动收起——旧提示长期驻留会与新状态互相矛盾、误导操作。
         /// headless 断言环境无消息泵，定时器不 tick，StatusHint 保持可查。</summary>
@@ -349,14 +465,38 @@ namespace VisionMaster.ViewModels
             StatusHint = null;
         }
 
-        /// <summary>是否显示执行顺序链（工具条开关）</summary>
+        // ------------------------------------------------------------------
+        //  运行耗时实时刷新（200ms，与流程栏同频）：
+        //  引擎只写步骤起始时间戳（LastRunStartTimestamp），运行中耗时由 UI tick 计算
+        //  写进 CurrentRunTimeMs——画布耗时徽章的"运行中跳秒"靠这里，不依赖流程栏面板开着
+        //  （两处 tick 调同一静态纯函数，重复计算幂等；SetProperty 同值不发通知）。
+        //  生命周期：Attach 启动 / Detach 与空流程停止。
+        // ------------------------------------------------------------------
+        private DispatcherTimer? _runTimeTimer;
+
+        /// <summary>定时器一轮的实际动作（internal：断言宿主直驱，不等 Dispatcher 泵）。</summary>
+        internal void RunTimeTick() => ProcessViewModel.TickRunningTimes(_attachedFlow?.Steps);
+
+        /// <summary>tick 是否在跑（断言宿主验 Attach/Detach 生命周期用）。</summary>
+        internal bool RunTimeTimerEnabled => _runTimeTimer?.IsEnabled == true;
+
+        private void StartRunTimeTimer()
+        {
+            _runTimeTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            _runTimeTimer.Start();
+        }
+
+        /// <summary>是否显示执行顺序链（工具条开关；「随用户」视图态，改动写回 AppConfig.json）</summary>
         public bool ShowOrderLinks
         {
             get => field;
             set
             {
                 if (SetProperty(ref field, value))
+                {
+                    PersistViewSettings();
                     RebuildInPlace();
+                }
             }
         } = true;
 
@@ -366,6 +506,7 @@ namespace VisionMaster.ViewModels
         ///
         /// 隐藏只针对普通数据线：非法数据线（红虚线）是要用户去修的错误提示，不随开关隐藏
         ///（警告条与 Illegal/Deferred 计数同样照常）。全局变量/常量角标不受影响。
+        /// 「随用户」视图态：改动写回 AppConfig.json（与顺序链开关同一保存周期）。
         /// </summary>
         public bool ShowDataLinks
         {
@@ -373,7 +514,29 @@ namespace VisionMaster.ViewModels
             set
             {
                 if (SetProperty(ref field, value))
+                {
+                    PersistViewSettings();
                     RebuildInPlace();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 把两个显隐开关写回软件级配置并落盘（「随用户」视图态的唯一写路径）。
+        /// 保存失败不抛：开关本身已生效，落盘失败只提示（下次改开关会再试）；
+        /// 无 AppSettingsService（断言宿主/设计器）或构造期灌初值（_viewSettingsReady=false）时跳过。
+        /// </summary>
+        private void PersistViewSettings()
+        {
+            if (_appSettings == null || !_viewSettingsReady) return;
+
+            try
+            {
+                _appSettings.SyncFlowCanvasSettings(ShowDataLinks, ShowOrderLinks);
+            }
+            catch (Exception ex)
+            {
+                StatusHint = $"画布显示设置保存失败（重启后会回到原值）：{ex.Message}";
             }
         }
 
@@ -557,8 +720,10 @@ namespace VisionMaster.ViewModels
                 if (flow == null)
                 {
                     Nodes.Clear();
+                    UnhookLinks();
                     Links.Clear();
                     _nodeMap.Clear();
+                    UnhookLanes();
                     _steps.Clear();
                     _lanes.Clear();
                     _frameRects.Clear();
@@ -570,6 +735,7 @@ namespace VisionMaster.ViewModels
                 }
 
                 _attachedFlow = flow;
+                StartRunTimeTimer();   // 运行耗时实时刷新随图纸挂接（空流程/Detach 时停止）
 
                 if (_stepsChanged == null)
                 {
@@ -600,15 +766,33 @@ namespace VisionMaster.ViewModels
 
         private void Detach()
         {
+            _runTimeTimer?.Stop();   // 没有挂接的图纸就没有耗时刷新
             if (_attachedFlow != null && _stepsChanged != null)
                 _attachedFlow.Steps.CollectionChanged -= _stepsChanged;
 
             _stepsChanged = null;
             _attachedFlow = null;
             DetachLists();
+            UnhookLanes();   // 最后一帧的泳道还挂在 _lanes 上，摘干净再放手
+            UnhookLinks();   // 最后一帧的连线还挂在 Links 上，同上
+            HideDragGuides();
 
             ClearUndoStacks();
             _dragStartedSnapshot = null;
+        }
+
+        /// <summary>丢弃全部旧泳道前摘掉 StepCollection 订阅（泳道 VM 每帧新建，不摘会钉住阻止 GC）</summary>
+        private void UnhookLanes()
+        {
+            foreach (var lane in _lanes)
+                lane.UnhookBranch();
+        }
+
+        /// <summary>丢弃旧连线前摘掉两端步骤的 State 订阅（连线 VM 每轮重建，同上）</summary>
+        private void UnhookLinks()
+        {
+            foreach (var link in Links)
+                link.UnhookModels();
         }
 
         private void DetachLists()
@@ -664,6 +848,7 @@ namespace VisionMaster.ViewModels
 
             // 2. 建/复用节点（扁平，含折叠祖先内的步骤——它们进池不进画布）
             _steps.Clear();
+            UnhookLanes();   // 泳道每帧新建，丢弃前摘掉分支订阅（IsBranchRunning 的挂摘成对）
             _lanes.Clear();
             _nodeMap.Clear();
             _frameRects.Clear();
@@ -766,6 +951,9 @@ namespace VisionMaster.ViewModels
 
             var node = new CanvasNodeViewModel(step);
 
+            // 必填端口元数据：节点入池一次注入（同一 StepID 复用同一节点，元数据不变）
+            node.RequiredPortNames = ResolveRequiredPortNames(step);
+
             // 模块级流连接器：每节点一根输入脚 + 一根输出脚（连接器锚点由 Nodify 控件自动回写）
             node.Inputs.Add(new CanvasConnectorViewModel(node, "__flow_in", typeof(object), isInput: true));
             node.Outputs.Add(new CanvasConnectorViewModel(node, "__flow_out", typeof(object), isInput: false));
@@ -780,6 +968,7 @@ namespace VisionMaster.ViewModels
             node.ToggleBreakpointCommand = new DelegateCommand(() => OnToggleBreakpoint(node));
             node.ToggleDisableCommand = new DelegateCommand(() => OnToggleDisable(node));
             node.DeleteCommand = new DelegateCommand(() => OnDeleteNode(node));
+            node.CopyCommand = new DelegateCommand(() => OnCopyNode(node));
 
             node.PropertyChanged += OnNodePropertyChanged;
             node.PropertyChanged += OnNodeSelectionChanged;
@@ -807,6 +996,7 @@ namespace VisionMaster.ViewModels
             }
 
             node.RefreshHeader();
+            node.RefreshMissingRequired();   // 必填参数角标随渲染重算（Rebuild 时重算的口径）
         }
 
         /// <summary>FlowLayoutStore 读取的小包装（缺项返回 false）</summary>
@@ -1158,6 +1348,48 @@ namespace VisionMaster.ViewModels
             ViewportActionRequested?.Invoke(node);
         }
 
+        // ------------------------------------------------------------------
+        //  必填参数角标（评审清单 B 包）：与编译期 FlowCompiler 的 [参数缺失] 同一判据的画布投影。
+        //  端口元数据按 PluginTypeName 反射原型实例解析并缓存——端口名 / IsRequired 是
+        //  插件类型的静态事实（PluginService.LoadPlugins 启动扫描就是这么建的），
+        //  与 StepParameterDialog.ResolvePluginInstance 同一条反射先例；
+        //  解析不到（假类型名桩 / 加载失败）返回 null，节点一律不亮角标。
+        // ------------------------------------------------------------------
+
+        /// <summary>插件类型 → 必填输入端口名列表（null = 解析不到）。进程级缓存：每类型只反射一次</summary>
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<
+            string, IReadOnlyList<string>?> RequiredPortsCache = new();
+
+        /// <summary>解析一个插件类型的必填输入端口名；解析失败缓存并返回 null（不反复抛）</summary>
+        private static IReadOnlyList<string>? ResolveRequiredPortNames(StepModel step)
+        {
+            if (step is not ActionStep action || string.IsNullOrWhiteSpace(action.PluginTypeName))
+                return null;
+
+            return RequiredPortsCache.GetOrAdd(action.PluginTypeName, key =>
+            {
+                try
+                {
+                    var type = Type.GetType(key);
+                    if (type == null || !typeof(VisionPluginBase).IsAssignableFrom(type))
+                        return null;
+
+                    if (Activator.CreateInstance(type) is not VisionPluginBase prototype)
+                        return null;
+
+                    return prototype.Inputs.Values
+                        .Where(p => p.IsRequired)
+                        .Select(p => p.Name)
+                        .ToList();
+                }
+                catch
+                {
+                    // 原型构造失败（缺依赖/抛异常）= 端口元数据不可得，与"找不到类型"同口径
+                    return null;
+                }
+            });
+        }
+
         /// <summary>清理池中已不在图纸里的步骤节点（防止挂接阻塞 GC）</summary>
         private void PrunePool()
         {
@@ -1196,6 +1428,7 @@ namespace VisionMaster.ViewModels
                 node.ResetExternalBindings();
             }
 
+            UnhookLinks();   // 上一帧的连线（数据线 + 顺序链）整体作废，先摘 State 订阅再清
             Links.Clear();
 
             // 运行时变量名 → 定义节点。变量身份是名字（运行期按名取值），
@@ -1326,8 +1559,9 @@ namespace VisionMaster.ViewModels
             {
                 for (int i = Links.Count - 1; i >= 0; i--)
                 {
-                    if (!Links[i].IsIllegal)
-                        Links.RemoveAt(i);
+                    if (Links[i].IsIllegal) continue;
+                    Links[i].UnhookModels();   // 被隐藏的线本轮就丢弃，订阅一并摘掉
+                    Links.RemoveAt(i);
                 }
             }
 
@@ -1365,7 +1599,10 @@ namespace VisionMaster.ViewModels
             }
         }
         /// 数据线：源 = 生产方盒子右缘中点，目标 = 消费方盒子左缘中点；
-        /// 顺序链：自上而下流动——源 = 上一步盒子底缘中点，目标 = 下一步盒子顶缘中点。
+        /// 顺序链：自上而下流动——源 = 上一步盒子底缘中点，目标 = 下一步盒子顶缘中点，
+        /// 但窄算子与宽容器之间的链**共享同一 X**（见 SharedVerticalX）——
+        /// 容器比算子宽得多，中心对中心必然错开，正交走线被拽成"下-横-下"的拐弯，
+        /// 视觉上就是"容器与上级算子做不到居中对齐"（2026-10-10 真机反馈）。
         /// 容器框用框体矩形，步骤盒用固定尺寸常量。
         /// 节点拖动（Location 变化）也会走到这里，连线实时跟随。
         /// </summary>
@@ -1375,8 +1612,21 @@ namespace VisionMaster.ViewModels
             {
                 if (link.IsOrderLink)
                 {
-                    link.SourceAnchor = EdgeMidpoint(link.Source, OrderEdge.Bottom);
-                    link.TargetAnchor = EdgeMidpoint(link.Target, OrderEdge.Top);
+                    var src = EdgeMidpoint(link.Source, OrderEdge.Bottom);
+                    var tgt = EdgeMidpoint(link.Target, OrderEdge.Top);
+
+                    // 就窄轴拉直：两锚点共享同一 X（优先"对方中心落在我跨度内"的那一侧），
+                    // 链成为一条垂直线、与窄节点居中对齐；互不在跨度内（并排错位的手摆图）
+                    // 保持中心对中心不硬掰。
+                    double sharedX = SharedVerticalX(link.Source, link.Target, src.X, tgt.X);
+                    if (!double.IsNaN(sharedX))
+                    {
+                        src.X = sharedX;
+                        tgt.X = sharedX;
+                    }
+
+                    link.SourceAnchor = src;
+                    link.TargetAnchor = tgt;
                     link.SourcePosition = Nodify.ConnectorPosition.Bottom;
                     link.TargetPosition = Nodify.ConnectorPosition.Top;
                 }
@@ -1406,6 +1656,35 @@ namespace VisionMaster.ViewModels
         }
 
         private enum OrderEdge { Left, Right, Top, Bottom }
+
+        /// <summary>节点的水平跨度宽（容器 = 框宽 LaneWidth，步骤 = 固定盒宽）</summary>
+        private static double NodeSpanWidth(CanvasNodeViewModel node)
+            => node.Kind == CanvasNodeKind.Container ? node.LaneWidth : NodeWidth;
+
+        /// <summary>
+        /// 纵向顺序链的共享 X（就窄轴拉直，2026-10-10）：
+        ///  · 下游中心落在上游跨度内 → 用下游中心（箭头打在下游正中，容器→算子）；
+        ///  · 否则上游中心落在下游跨度内 → 用上游中心（算子→容器：链贴着算子轴垂直下落）；
+        ///  · 都不在（并排错位的手摆图，垂直线本不可能）→ NaN，调用方保持中心对中心。
+        /// 结果向跨度内侧内缩 <see cref="EdgeAnchorInset"/>，避免锚点贴在框角 / 折叠钮上。
+        /// </summary>
+        private const double EdgeAnchorInset = 12;
+
+        private static double SharedVerticalX(
+            CanvasNodeViewModel source, CanvasNodeViewModel target,
+            double sourceCenterX, double targetCenterX)
+        {
+            double sL = source.Location.X, sR = sL + NodeSpanWidth(source);
+            double tL = target.Location.X, tR = tL + NodeSpanWidth(target);
+
+            if (targetCenterX >= sL && targetCenterX <= sR)
+                return Math.Min(Math.Max(targetCenterX, sL + EdgeAnchorInset), sR - EdgeAnchorInset);
+
+            if (sourceCenterX >= tL && sourceCenterX <= tR)
+                return Math.Min(Math.Max(sourceCenterX, tL + EdgeAnchorInset), tR - EdgeAnchorInset);
+
+            return double.NaN;
+        }
 
         private static Point EdgeMidpoint(CanvasNodeViewModel node, OrderEdge edge)
         {
@@ -1592,6 +1871,9 @@ namespace VisionMaster.ViewModels
         {
             if (_attachedFlow == null) return;
 
+            // 运行锁：解绑是编辑动作，运行中拦下（三视角评审 P0-1）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
+
             var commands = new List<IUndoCommand>();
             foreach (var binding in link.Bindings)
             {
@@ -1615,6 +1897,9 @@ namespace VisionMaster.ViewModels
             if (binding.OriginalLink == null) return;
             if (!_topology.TryGet(binding.Consumer.StepID, out _)) return;
 
+            // 运行锁：解绑是编辑动作，运行中拦下（三视角评审 P0-1）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
+
             binding.Consumer.RemoveLink(binding.Key);
             PushUndo(new DisconnectCommand(binding.Consumer, binding.Key, binding.OriginalLink));
             StatusHint = $"已解绑「{binding.Display}」（Ctrl+Z 可撤销）";
@@ -1632,7 +1917,10 @@ namespace VisionMaster.ViewModels
             // IsBreakpoint 是 [RuntimeState]：不递增 Version、不落盘；圆点等绑定靠属性通知自行刷新，无需重画。
             if (node?.Model == null || node.Kind != CanvasNodeKind.Step) return;
 
-            node.Model.IsBreakpoint = !node.Model.IsBreakpoint;
+            // 多选批量（评审清单 B 包交互补齐）：选中集 >1 时对每个选中的步骤节点执行，
+            // 无多选维持单节点行为。断点同样不推版本、不给提示（与单节点口径一致）
+            foreach (var target in CollectBatchTargets(node, stepNodesOnly: true))
+                target.Model!.IsBreakpoint = !target.Model.IsBreakpoint;
         }
 
         private void OnToggleCollapse(CanvasNodeViewModel? node)
@@ -1657,16 +1945,52 @@ namespace VisionMaster.ViewModels
         //  禁用 / 删除
         // ==================================================================
 
-        /// <summary>启用/禁用切换（节点右键菜单）。与流程栏同一写法：翻转 IsDisEnable，禁用语义由执行引擎解释</summary>
+        /// <summary>启用/禁用切换（节点右键菜单）。与流程栏同一写法：翻转 IsDisEnable，禁用语义由执行引擎解释。
+        /// 运行锁：禁用/启用是编辑动作，运行中拦下（三视角评审 P0-1；豁免口径与流程栏 ToggleDisable 一致）。
+        /// 多选批量（评审清单 B 包交互补齐）：选中集 &gt;1 时对每个选中的有模型节点执行（容器框也算——
+        /// 单节点口径本就允许容器禁用），一次性给一条汇总回执</summary>
         private void OnToggleDisable(CanvasNodeViewModel? node)
         {
             if (node?.Model == null || node.IsDecorator) return;
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
 
-            node.Model.IsDisEnable = !node.Model.IsDisEnable;
-            node.RefreshHeader();
-            StatusHint = node.Model.IsDisEnable
-                ? $"已禁用「{node.Model.StepName}」"
-                : $"已启用「{node.Model.StepName}」";
+            var targets = CollectBatchTargets(node, stepNodesOnly: false);
+            foreach (var target in targets)
+            {
+                // 禁用走语义 setter：FlowModel 版本链自动递增（与单节点同一条写路径）
+                target.Model!.IsDisEnable = !target.Model.IsDisEnable;
+                target.RefreshHeader();
+            }
+
+            if (targets.Count == 1)
+            {
+                var single = targets[0].Model!;
+                StatusHint = single.IsDisEnable
+                    ? $"已禁用「{single.StepName}」"
+                    : $"已启用「{single.StepName}」";
+                return;
+            }
+
+            // 批量：状态可混合（有的本来禁着），回执报清两边条数
+            int disabled = targets.Count(t => t.Model!.IsDisEnable);
+            StatusHint = $"已切换禁用状态 {targets.Count} 个模块（禁用 {disabled} / 启用 {targets.Count - disabled}）";
+        }
+
+        /// <summary>
+        /// 批量禁用/断点的目标采集（评审清单 B 包交互补齐）：多选（选中集 &gt;1）时按
+        /// DeleteSelectedNodesCore 的选中集遍历口径取目标——IsSelected、非装饰节点（泳道 Model=null 跳过）、
+        /// 有模型；断点再过 Kind==Step 闸（容器框不给断点 UI 的单节点口径不变）。
+        /// 无多选时维持单节点行为：返回右键命中的节点本身——菜单靶不依赖选中态，
+        /// "没选中就右键"也要能切换（T3 单节点断言钉住的既有行为）。
+        /// </summary>
+        private List<CanvasNodeViewModel> CollectBatchTargets(CanvasNodeViewModel anchor, bool stepNodesOnly)
+        {
+            var selected = _nodeMap.Values
+                .Where(n => n.IsSelected && !n.IsDecorator && n.Model != null
+                            && (!stepNodesOnly || n.Kind == CanvasNodeKind.Step))
+                .ToList();
+
+            return selected.Count > 1 ? selected : new List<CanvasNodeViewModel> { anchor };
         }
 
         /// <summary>节点右键菜单「删除」：把该节点单选化后走统一删除</summary>
@@ -1681,22 +2005,114 @@ namespace VisionMaster.ViewModels
             OnDeleteSelection();
         }
 
-        /// <summary>Delete 键 / 右键菜单的统一删除入口：移除选中的模块节点（含容器子树）</summary>
+        // ==================================================================
+        //  复制 / 粘贴（2026-10-12 评审清单第三批；第一期单个节点）
+        //  快照与重映射都在 FlowClipboard（Services 层纯计算），本类只管选中采集、
+        //  落点判定、入图与撤销/版本推进——与拖入 DropToolAt 同一条纪律。
+        // ==================================================================
+
+        /// <summary>节点右键菜单「复制」：把该节点单选化后走统一复制</summary>
+        private void OnCopyNode(CanvasNodeViewModel node)
+        {
+            if (_attachedFlow == null || node.Model == null || node.IsDecorator) return;
+
+            foreach (var other in _nodeMap.Values.Where(n => n.IsSelected && !ReferenceEquals(n, node)))
+                other.IsSelected = false;
+            node.IsSelected = true;
+
+            OnCopySelected(node);
+        }
+
+        /// <summary>复制入口的统一收口：先按参数/选中集锁定唯一目标，再交给 FlowClipboard 快照。
+        /// 复制不改图纸、不受运行锁限制（与"看"同族；粘贴才是结构编辑）。</summary>
+        private void OnCopySelected(object? parameter)
+        {
+            if (_attachedFlow == null) return;
+
+            CanvasNodeViewModel? target = parameter as CanvasNodeViewModel;
+            if (target == null)
+            {
+                // 快捷键路径：走既有选中机制（与 DeleteSelection 同一条采集口径）
+                var selected = _nodeMap.Values
+                    .Where(n => n.IsSelected && !n.IsDecorator && n.Model != null)
+                    .ToList();
+
+                if (selected.Count > 1)
+                {
+                    StatusHint = "复制暂只支持单个模块（多选批量复制后续版本提供）";
+                    return;
+                }
+
+                target = selected.Count == 1 ? selected[0] : null;
+            }
+
+            if (target?.Model is not StepModel model) return;   // 泳道/空参/其它类型：空跑
+
+            FlowClipboard.Copy(model);
+            StatusHint = $"已复制「{model.StepName}」（Ctrl+V 或画布空白右键粘贴）";
+        }
+
+        /// <summary>粘贴：物化重映射后的子树按落点插入图纸。运行锁与拖入/删除同闸（结构编辑）；
+        /// 剪贴板没货时静默空跑（菜单项常驻，不做成动态可用性）。</summary>
+        private void OnPaste(object? parameter)
+        {
+            if (_attachedFlow == null) return;
+            if (!FlowClipboard.HasPayload) return;
+
+            // 运行锁：粘贴是结构编辑，运行中拦下（与拖入同一条三视角评审 P0-1 闸）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
+
+            var step = FlowClipboard.Take(_attachedFlow);
+            if (step == null)
+            {
+                StatusHint = "剪贴板内容无法识别，已忽略";
+                return;
+            }
+
+            Point position = parameter is Point p ? p
+                : LastPointerGraphPosition ?? new Point(0, double.MaxValue);   // 无落点信息 → 追加到顶层末尾
+
+            var (owner, insertIndex, targetName) = ResolveInsertTarget(position);
+
+            if (insertIndex < 0) insertIndex = 0;
+            if (insertIndex > owner.Count) insertIndex = owner.Count;
+            owner.Insert(insertIndex, step);
+
+            // 撤销补口：粘贴与拖入同一条引用型 AddStepCommand（Undo=按引用移除，Redo=插回原位）
+            PushUndo(new AddStepCommand(owner, step, insertIndex));
+
+            // 结构变更：通知图纸重编译（口径同拖入）；集合 Add 已触发一次画布重建，这里幂等兜底
+            _attachedFlow.Version++;
+            RebuildInPlace();
+            StatusHint = $"已粘贴「{step.StepName}」到{targetName}";
+        }
+
+        /// <summary>Delete 键 / 右键菜单的统一删除入口：移除选中的模块节点（含容器子树）。
+        /// 2026-10-11 撤销补口：删除作为引用型 DeleteStepCommand 压栈，不再清空撤销栈——
+        /// LIFO 顺序下更早的改序命令只有在删除被撤销后才轮到，下标快照届时已恢复，
+        /// 不存在错位回滚；外部（非命令路径）结构变化照旧清栈的保护由 OnFlowStepsChanged
+        /// 的闸门承担（Add/Move 不塌陷下标不清、Remove/Replace/Reset 清）。</summary>
         private void OnDeleteSelection()
         {
             if (_attachedFlow == null) return;
 
-            int removed = DeleteSelectedNodesCore();
+            // 运行锁：删除是结构编辑，运行中拦下（三视角评审 P0-1）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
+
+            var records = new List<DeleteStepCommand.DeleteEntry>();
+            int removed = DeleteSelectedNodesCore(records);
             if (removed == 0) return;
 
-            // 删除改变了集合构成，撤销栈里改序/移分支命令记录的下标快照已不可信
-            ClearUndoStacks();
+            if (records.Count > 0)
+                PushUndo(new DeleteStepCommand(records));
+
             StatusHint = $"已删除 {removed} 个模块（含子步骤）";
             RebuildInPlace();
         }
 
-        /// <summary>把选中的模块（含容器子树）移出图纸。返回删除个数。期间抑制逐个 Remove 触发的重建</summary>
-        private int DeleteSelectedNodesCore()
+        /// <summary>把选中的模块（含容器子树）移出图纸。返回删除个数；
+        /// 删除记录（owner + 原下标）写入 records 供撤销命令插回。期间抑制逐个 Remove 触发的重建</summary>
+        private int DeleteSelectedNodesCore(List<DeleteStepCommand.DeleteEntry> records)
         {
             int removed = 0;
             var targets = _nodeMap.Values
@@ -1706,18 +2122,26 @@ namespace VisionMaster.ViewModels
                 .ToList();
             if (targets.Count == 0) return 0;
 
+            // 原始下标必须先于任何删除统一记录：删除途中 IndexOf 会随前序删除移位
+            foreach (var step in targets)
+            {
+                if (!_topology.TryGet(step.StepID, out var pos) || pos!.Owner == null) continue;
+
+                int index = pos.Owner.IndexOf(step);
+                if (index >= 0)
+                    records.Add(new DeleteStepCommand.DeleteEntry(pos.Owner, step, index));
+            }
+
             _rebuilding = true;
             try
             {
-                foreach (var step in targets)
+                // 按引用现查现删：不信任记录的下标（同批次前序删除会挤动同 owner 的下标）
+                foreach (var record in records)
                 {
-                    if (!_topology.TryGet(step.StepID, out var pos) || pos!.Owner == null) continue;
-
-                    // IndexOf 按引用现查：快照里的 IndexInOwner 可能已被同批次删除挤动
-                    int index = pos.Owner.IndexOf(step);
+                    int index = record.Owner.IndexOf(record.Step);
                     if (index >= 0)
                     {
-                        pos.Owner.RemoveAt(index);
+                        record.Owner.RemoveAt(index);
                         removed++;
                     }
                 }
@@ -1748,6 +2172,9 @@ namespace VisionMaster.ViewModels
         {
             var model = node?.Model;
             if (model == null) return;
+
+            // 运行锁：模块参数仅"已暂停"放行、运行中拦下，口径与流程栏同一份豁免表（EditGate）
+            if (!EnsureEditable(ModuleEditAction.ModuleParameters)) return;
 
             var dialogService = TryResolveDialogService();
             if (dialogService == null) return;
@@ -1816,6 +2243,283 @@ namespace VisionMaster.ViewModels
         }
 
         // ==================================================================
+        //  展开 / 折叠全部（画布工具条，三视角评审第二批）
+        //  只动布局库的折叠标记，不碰流程语义 → 与单个折叠钮同口径，不受运行锁限制；
+        //  置完统一 RebuildInPlace（一帧重排，逐个 ToggleCollapsed + 每个都重建太浪费）
+        // ==================================================================
+
+        private void OnExpandAll() => SetAllContainersCollapsed(false);
+
+        private void OnCollapseAll() => SetAllContainersCollapsed(true);
+
+        /// <summary>遍历拓扑容器逐个置折叠标记，有变化才整体重排。
+        /// 注意 SetCollapsed 的返回值是"置后的折叠态"而不是"是否变化"，变化判定要自己比对旧值</summary>
+        private void SetAllContainersCollapsed(bool collapsed)
+        {
+            if (_attachedFlow == null) return;
+
+            bool changed = false;
+            foreach (var container in CollectContainers(_attachedFlow.Steps))
+            {
+                if ((_attachedFlow.Layout.Find(container.StepID)?.Collapsed ?? false) == collapsed)
+                    continue;
+
+                _attachedFlow.Layout.SetCollapsed(container.StepID, collapsed);
+                changed = true;
+            }
+
+            if (!changed) return;
+
+            RebuildInPlace();
+            StatusHint = collapsed ? "已折叠全部容器" : "已展开全部容器";
+        }
+
+        /// <summary>收集全树的容器步骤（IContainerStep 口径，与拓扑/编译器同一判据）</summary>
+        private static IEnumerable<StepModel> CollectContainers(ObservableCollection<StepModel> steps)
+        {
+            foreach (var step in steps)
+            {
+                if (step == null) continue;
+
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    yield return step;
+
+                    foreach (var branch in container.Children)
+                    {
+                        if (branch?.Steps == null) continue;
+                        foreach (var nested in CollectContainers(branch.Steps))
+                            yield return nested;
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        //  编译错误列表（三视角评审第二批）：ShellViewModel 编译失败时广播
+        //  CompilationErrorsEvent，画布缓存错误，供工具条「错误列表」按钮
+        //  打开列表、双击行定位到对应流程与步骤（切流程 + 按 StepId 找步骤模型 + 切选中，
+        //  画布经既有联动选中并滚入，零新增定位通道）。
+        //  评审清单 B 包交互升级：缓存从"最近一次整体替换"改为**按 FlowName 分组累计**——
+        //  批量编译（DoCompileAll）对每个失败流程各发一次，用户要在一处看全所有流程的错误；
+        //  同 FlowName 重新发布（重新编译该流程）替换该组。
+        // ==================================================================
+
+        // internal：CompileErrorGroup.Entries 要跨出去给断言宿主读（CS0053：成员类型不得比成员更封闭）
+        internal sealed record CompileErrorEntry(string FlowName, CompilationError Error)
+        {
+            // 兜底显示：万一列表项没走显式绑定，也不能把 record 全名刷到屏幕上（R20 同族的病）
+            public override string ToString() => Error.Message;
+        }
+
+        /// <summary>错误列表的按流程分组（评审清单 B 包交互升级）：每组头 = 流程名 + 条数。
+        /// 组的先后 = 该流程错误首次出现的顺序，组内按发布顺序排列。VM 侧分组数据与弹窗
+        /// 显示共用这一份，视图只排版不重组（headless 断言直接读 BuildCompileErrorGroups）。</summary>
+        internal sealed class CompileErrorGroup
+        {
+            internal CompileErrorGroup(string flowName) { FlowName = flowName; }
+
+            /// <summary>流程名（CompilationErrorsEvent.FlowName 快照）</summary>
+            public string FlowName { get; }
+
+            /// <summary>该流程的错误条目</summary>
+            public List<CompileErrorEntry> Entries { get; } = new();
+        }
+
+        private readonly List<CompileErrorEntry> _compileErrors = new();
+
+        /// <summary>缓存的编译错误条数（工具条「错误列表」按钮的可见性开关；分组累计口径）</summary>
+        public int CompileErrorCount => _compileErrors.Count;
+
+        /// <summary>错误列表按钮可见性：有错误才出现（不占工具条常驻位）</summary>
+        public Visibility CompileErrorsVisibility
+            => _compileErrors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        private void OnCompilationErrorsEvent(CompilationErrorsEvent @event)
+        {
+            string flowName = @event?.FlowName ?? string.Empty;
+
+            // 按 FlowName 分组累计：同 FlowName 先整组摘掉（重新编译该流程 = 替换该组），
+            // 再把本次错误追加回去；不同 FlowName 自然累积成新组
+            _compileErrors.RemoveAll(entry => string.Equals(entry.FlowName, flowName, StringComparison.Ordinal));
+            if (@event?.Errors != null)
+            {
+                foreach (var error in @event.Errors)
+                    _compileErrors.Add(new CompileErrorEntry(flowName, error));
+            }
+
+            RaisePropertyChanged(nameof(CompileErrorCount));
+            RaisePropertyChanged(nameof(CompileErrorsVisibility));
+        }
+
+        /// <summary>按流程分组（现算：错误量级是个位数到几十条，不必维护增量分组结构）。
+        /// internal：断言宿主直调（弹窗本身在 headless 不开，分组数据结构就地可断）。</summary>
+        internal List<CompileErrorGroup> BuildCompileErrorGroups()
+        {
+            var groups = new List<CompileErrorGroup>();
+            foreach (var entry in _compileErrors)
+            {
+                var group = groups.Find(g => string.Equals(g.FlowName, entry.FlowName, StringComparison.Ordinal));
+                if (group == null)
+                {
+                    group = new CompileErrorGroup(entry.FlowName);
+                    groups.Add(group);
+                }
+                group.Entries.Add(entry);
+            }
+            return groups;
+        }
+
+        /// <summary>
+        /// 「错误列表」弹窗：按流程分组列出编译错误（组头=流程名+条数；行=步骤/消息），双击行定位；
+        /// 底部「复制全部」把多行文本写进系统剪贴板（评审清单 B 包交互升级）。
+        /// EasyDialog 在 headless（无 Application）下走取消保护分支——断言宿主直接调
+        /// BuildCompileErrorGroups / BuildCompileErrorsCopyText。
+        /// </summary>
+        private void OnShowCompileErrors()
+        {
+            if (_compileErrors.Count == 0) return;
+
+            var list = new ListBox { MaxHeight = 320, MinWidth = 460 };
+            foreach (var group in BuildCompileErrorGroups())
+            {
+                // 组头：流程名 + 条数（禁用态 = 不可点击，只做分组导航）
+                list.Items.Add(new ListBoxItem
+                {
+                    IsEnabled = false,
+                    Content = new TextBlock
+                    {
+                        Text = $"{group.FlowName}（{group.Entries.Count} 条）",
+                        FontWeight = FontWeights.Bold,
+                        Margin = new Thickness(0, 6, 0, 2),
+                    },
+                });
+                foreach (var entry in group.Entries)
+                {
+                    var row = new ListBoxItem
+                    {
+                        Content = new TextBlock
+                        {
+                            Text = $"{entry.Error.StepName ?? "（流程级）"} · {entry.Error.Message}",
+                            TextTrimming = TextTrimming.CharacterEllipsis,
+                            ToolTip = entry.Error.Message,
+                        },
+                        Tag = entry,
+                    };
+                    row.MouseLeftButtonDown += OnCompileErrorRowClick;
+                    list.Items.Add(row);
+                }
+            }
+
+            var copyButton = new Button
+            {
+                Content = "复制全部",
+                MinWidth = 84,
+                Margin = new Thickness(0, 8, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            copyButton.Click += (_, _) => CopyCompileErrorsToClipboard();
+
+            var panel = new StackPanel();
+            panel.Children.Add(list);
+            panel.Children.Add(copyButton);
+            panel.Children.Add(new TextBlock
+            {
+                Text = "双击一行定位到出错步骤（错误是编译时的快照，步骤随后可能已被删除或改名；定位失败时无动作）",
+                FontSize = 11,
+                Margin = new Thickness(0, 8, 0, 0),
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap,
+            });
+
+            EasyDialog.ShowSync("编译错误列表", panel);
+        }
+
+        /// <summary>「复制全部」的文本口径：每组头一行（【流程】共 N 条）+ 每条一行（步骤 · 消息）。
+        /// internal：断言宿主直调文本口径；真剪贴板写入在 headless 不测（弹窗本身标注不测）。</summary>
+        internal string BuildCompileErrorsCopyText()
+        {
+            var lines = new List<string>();
+            foreach (var group in BuildCompileErrorGroups())
+            {
+                lines.Add($"【{group.FlowName}】共 {group.Entries.Count} 条");
+                foreach (var entry in group.Entries)
+                    lines.Add($"{entry.Error.StepName ?? "（流程级）"} · {entry.Error.Message}");
+            }
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>把错误文本写进系统剪贴板（照 GlobalVariableManagerViewModel 复制变量名的用法）。
+        /// 无窗口站（headless）/剪贴板被其它进程长期占用时 Clipboard.SetText 会抛
+        /// ExternalException——静默降级，不阻断弹窗的其余交互。</summary>
+        internal void CopyCompileErrorsToClipboard()
+        {
+            try
+            {
+                Clipboard.SetText(BuildCompileErrorsCopyText());
+            }
+            catch (System.Runtime.InteropServices.ExternalException)
+            {
+                // headless 无剪贴板：静默降级
+            }
+        }
+
+        private void OnCompileErrorRowClick(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount != 2) return;
+            if (sender is ListBoxItem { Tag: CompileErrorEntry entry })
+                LocateCompileError(entry.FlowName, entry.Error.StepId);
+        }
+
+        /// <summary>按流程名切流程、按 StepId 找步骤模型并切选中（internal：断言宿主直调）。
+        /// 找不到（流程已删 / 步骤已删）静默返回——编译错误是快照，图纸随后可能已变。</summary>
+        internal void LocateCompileError(string flowName, Guid? stepId)
+        {
+            var flow = _workspace.CurrentSolution?.Flows.FirstOrDefault(f => f.FlowName == flowName);
+            if (flow == null) return;
+
+            if (!ReferenceEquals(_workspace.CurrentFlow, flow))
+                _workspace.SwitchFlow(flow);
+
+            if (stepId is not { } id || id == Guid.Empty) return;
+
+            var step = FindStepById(flow.Steps, id);
+            if (step == null) return;
+
+            try
+            {
+                _workspace.SwitchStep(step);
+            }
+            catch (InvalidOperationException)
+            {
+                // 图纸状态边缘：静默放弃
+            }
+        }
+
+        /// <summary>按 StepId 在流程树里递归找步骤模型（FlowModel 没有现成的按 Id 查找，画布侧私有递归）</summary>
+        private static StepModel? FindStepById(ObservableCollection<StepModel> steps, Guid id)
+        {
+            foreach (var step in steps)
+            {
+                if (step == null) continue;
+
+                if (step.StepID == id) return step;
+
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                    {
+                        if (branch?.Steps == null) continue;
+                        var found = FindStepById(branch.Steps, id);
+                        if (found != null) return found;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        // ==================================================================
         //  缩放
         // ==================================================================
 
@@ -1858,6 +2562,7 @@ namespace VisionMaster.ViewModels
         private void OnItemsDragStarted(object? parameter)
         {
             _dragStartedSnapshot = null;
+            HideDragGuides();   // 上一次手势若没走到 Completed（异常路径），入场先摘干净
 
             if (_attachedFlow == null) return;
 
@@ -1881,13 +2586,29 @@ namespace VisionMaster.ViewModels
                 _dragStartedSnapshot.Add(new DragSnapshot(
                     node, pos!.Owner, pos.IndexInOwner, node.Location));
             }
+
+            // 对齐参考线（纯视觉附加）：盯主拖动节点的 Location（与 OnItemsDragCompleted
+            // 的 primary 同一取法），拖动期间实时算与其它节点同名边的对齐
+            HideDragGuides();
+            if (_dragStartedSnapshot is { Count: > 0 } snapshot)
+            {
+                _guideDragNode = snapshot[0].Node;
+                _guideDragNode.PropertyChanged += OnDragGuideNodeMoved;
+                UpdateDragGuides();
+            }
         }
 
         private void OnItemsDragCompleted(object? parameter)
         {
+            // 参考线是拖动期视觉，抬手即收——放在一切早退之前（含"被运行锁拦下"的路径）
+            HideDragGuides();
+
             var snapshot = _dragStartedSnapshot;
             _dragStartedSnapshot = null;
             if (snapshot == null || snapshot.Count == 0 || _attachedFlow == null) return;
+
+            // 运行锁：拖拽改序 / 跨分支移动是结构编辑，运行中拦下（快照已清，本次拖动只挪坐标）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
 
             var primary = snapshot[0];
             var primaryNode = primary.Node;
@@ -2015,33 +2736,17 @@ namespace VisionMaster.ViewModels
         /// <summary>
         /// 画布拖放：把工具箱模板造出的步骤插到落点（ToolItemModel → 模型走 StepFactory，
         /// 与流程栏 Drop 同一份工厂）。
-        /// 落点规则（与流程栏 Drop 的可见结果对齐）：
-        ///  · 容器框内（取最深）→ 该容器第一条分支末尾；
-        ///  · 其余 → 顶层：插入下标 = 顶层步骤里"节点中心 Y 小于落点 Y"的条数（画布坐标）。
-        /// 结构变更通知图纸（Version++，触发重编译）；不做撤销（与流程栏 Drop 同口径）。
+        /// 落点规则与粘贴共用（见 <see cref="ResolveInsertTarget"/>）；
+        /// 结构变更通知图纸（Version++，触发重编译）。
         /// </summary>
         public bool DropToolAt(ToolItemModel tool, Point position)
         {
             if (_attachedFlow == null || tool == null) return false;
 
-            var container = FindDeepestContainerAt(position);
-            ObservableCollection<StepModel> owner;
-            int insertIndex;
-            string targetName;
+            // 运行锁：拖入是结构编辑，运行中拦下（三视角评审 P0-1）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return false;
 
-            // 畸形容器（模型层构造保证不会出现）没有分支可落：退化按顶层插入，不让拖放"无声失败"
-            if (container?.Model is IContainerStep target && target.Children is { Count: > 0 })
-            {
-                owner = target.Children[0].Steps;
-                insertIndex = owner.Count;   // 容器内一律追加到第一条分支末尾
-                targetName = $"「{container.Model.StepName}」";
-            }
-            else
-            {
-                owner = _attachedFlow.Steps;
-                insertIndex = ComputeInsertIndexByY(owner, position.Y, null);
-                targetName = "主流程";
-            }
+            var (owner, insertIndex, targetName) = ResolveInsertTarget(position);
 
             string stepName = StepFactory.NextStepName(_attachedFlow, tool);
             var step = StepFactory.CreateFromTool(tool, stepName);
@@ -2050,11 +2755,31 @@ namespace VisionMaster.ViewModels
             if (insertIndex > owner.Count) insertIndex = owner.Count;
             owner.Insert(insertIndex, step);
 
+            // 撤销补口（2026-10-11）：拖入也入撤销栈——引用型 AddStepCommand（Undo=按引用移除，
+            // Redo=按记录下标插回；owner 内容被外部动过时按引用判存在性静默降级）
+            PushUndo(new AddStepCommand(owner, step, insertIndex));
+
             // 结构变更：通知图纸重编译（口径同流程栏 Drop）；集合 Add 已触发一次画布重建，这里幂等兜底
             _attachedFlow.Version++;
             RebuildInPlace();
             StatusHint = $"已添加「{stepName}」到{targetName}";
             return true;
+        }
+
+        /// <summary>
+        /// 落点判定（画布拖入与粘贴共用一条规则，与流程栏 Drop 的可见结果对齐）：
+        ///  · 容器框内（取最深）→ 该容器第一条分支末尾；
+        ///  · 其余 → 顶层：插入下标 = 顶层步骤里"节点中心 Y 小于落点 Y"的条数（画布坐标）。
+        /// </summary>
+        private (ObservableCollection<StepModel> Owner, int InsertIndex, string TargetName) ResolveInsertTarget(Point position)
+        {
+            var container = FindDeepestContainerAt(position);
+
+            // 畸形容器（模型层构造保证不会出现）没有分支可落：退化按顶层插入，不让落点"无声失败"
+            if (container?.Model is IContainerStep target && target.Children is { Count: > 0 })
+                return (target.Children[0].Steps, target.Children[0].Steps.Count, $"「{container.Model.StepName}」");
+
+            return (_attachedFlow!.Steps, ComputeInsertIndexByY(_attachedFlow.Steps, position.Y, null), "主流程");
         }
 
         /// <summary>在 owner 内按中心 Y 升序排（含被拖节点），算出被拖节点应处的下标</summary>
@@ -2082,6 +2807,107 @@ namespace VisionMaster.ViewModels
                 }
             }
             return count;
+        }
+
+        // ==================================================================
+        //  拖动对齐参考线（评审清单 B 包，纯视觉附加——不改拖动改序/多选拖动的任何判定）
+        //
+        //  拖动期间盯主拖动节点的 Location：它的左/右/水平中心与其它节点**同名边**
+        //  差 ≤ GuideSnapThreshold → 出竖向参考线；上/下/垂直中心对齐 → 横向参考线。
+        //  多条命中取差值最小的一条（并列取先遇到的那条）。
+        //  视图侧由 Adorner 把图坐标换算成屏幕坐标画 1px 虚线（GuideVisibility 控制浮层）。
+        // ==================================================================
+
+        /// <summary>对齐判定半径（图坐标 px）：主节点边缘与其它节点同名边差 ≤ 此值即吸附出线</summary>
+        private const double GuideSnapThreshold = 6;
+
+        /// <summary>竖向参考线的 X（图坐标）；无对齐时 null（视图隐藏该线）</summary>
+        public double? GuideX
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        /// <summary>横向参考线的 Y（图坐标）；无对齐时 null</summary>
+        public double? GuideY
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        /// <summary>参考线浮层可见性（视图 Adorner 消费；任一条在场即可见）</summary>
+        public Visibility GuideVisibility
+            => GuideX != null || GuideY != null ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>本手势的主拖动节点（订阅它的 Location；Completed/Detach 摘除）</summary>
+        private CanvasNodeViewModel? _guideDragNode;
+
+        private void OnDragGuideNodeMoved(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(CanvasNodeViewModel.Location)) return;
+            UpdateDragGuides();
+        }
+
+        /// <summary>按当前几何重算两条参考线。候选 = 渲染中的真实节点（步骤+容器框），
+        /// 排除被拖节点自己与同批被拖的伙伴（它们跟着一起动，与自己比没有意义）</summary>
+        private void UpdateDragGuides()
+        {
+            var primary = _guideDragNode;
+            if (primary == null) return;
+
+            double? bestX = null, bestY = null;
+            double bestXDiff = double.MaxValue, bestYDiff = double.MaxValue;
+
+            double pw = NodeSpanWidth(primary);
+            double ph = primary.Kind == CanvasNodeKind.Container ? primary.LaneHeight : NodeHeight;
+            double pL = primary.Location.X, pCX = pL + pw / 2, pR = pL + pw;
+            double pT = primary.Location.Y, pCY = pT + ph / 2, pB = pT + ph;
+
+            foreach (var other in _nodeMap.Values)
+            {
+                if (ReferenceEquals(other, primary)) continue;
+                if (_dragStartedSnapshot?.Any(s => ReferenceEquals(s.Node, other)) == true) continue;
+
+                double ow = NodeSpanWidth(other);
+                double oh = other.Kind == CanvasNodeKind.Container ? other.LaneHeight : NodeHeight;
+                double oL = other.Location.X, oCX = oL + ow / 2, oR = oL + ow;
+                double oT = other.Location.Y, oCY = oT + oh / 2, oB = oT + oh;
+
+                TrySnapGuide(pL, oL, oL, ref bestX, ref bestXDiff);
+                TrySnapGuide(pR, oR, oR, ref bestX, ref bestXDiff);
+                TrySnapGuide(pCX, oCX, oCX, ref bestX, ref bestXDiff);
+                TrySnapGuide(pT, oT, oT, ref bestY, ref bestYDiff);
+                TrySnapGuide(pB, oB, oB, ref bestY, ref bestYDiff);
+                TrySnapGuide(pCY, oCY, oCY, ref bestY, ref bestYDiff);
+            }
+
+            GuideX = bestX;
+            GuideY = bestY;
+            RaisePropertyChanged(nameof(GuideVisibility));
+        }
+
+        /// <summary>同名边对齐判定：差在半径内且比已命中者更近 → 记下（并列保持先到的那条）</summary>
+        private static void TrySnapGuide(double primaryEdge, double otherEdge, double guidePos,
+            ref double? best, ref double bestDiff)
+        {
+            double diff = Math.Abs(primaryEdge - otherEdge);
+            if (diff > GuideSnapThreshold || diff >= bestDiff) return;
+            bestDiff = diff;
+            best = guidePos;
+        }
+
+        /// <summary>收参考线并摘掉主拖动节点的订阅（挂摘成对；幂等）</summary>
+        private void HideDragGuides()
+        {
+            if (_guideDragNode != null)
+            {
+                _guideDragNode.PropertyChanged -= OnDragGuideNodeMoved;
+                _guideDragNode = null;
+            }
+
+            GuideX = null;
+            GuideY = null;
+            RaisePropertyChanged(nameof(GuideVisibility));
         }
     }
 

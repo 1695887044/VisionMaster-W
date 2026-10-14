@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 500" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="640" height="500" fill="#FDFDFB"/>
+  <!-- 拟合圆（绿，穿过边缘点） -->
+  <circle cx="320" cy="240" r="126" fill="none" stroke="#16A34A" stroke-width="3"/>
+  <!-- 真实圆周参考（琥珀虚线） -->
+  <circle cx="320" cy="240" r="110" fill="none" stroke="#D97706" stroke-width="1.8" stroke-dasharray="6 4"/>
+  <circle cx="320" cy="240" r="4" fill="#0F172A"/>
+  <text x="330" y="246" fill="#0F172A" font-size="14">圆心</text>
+  <!-- 8 把径向卡尺：角 0,45,...,315；中心在 r=110 圆周上，沿径向放置 -->
+  <g fill="#F59E0B" fill-opacity="0.3" stroke="#D97706" stroke-width="1.8">
+    <rect x="386" y="234" width="52" height="12" transform="rotate(0 412 240)"/>
+    <rect x="386" y="234" width="52" height="12" transform="rotate(45 412 240) translate(-92 0)" transform-origin="320 240"/>
+    <rect x="386" y="234" width="52" height="12" transform="rotate(90 412 240) translate(-184 0)" transform-origin="320 240"/>
+    <rect x="386" y="234" width="52" height="12" transform="rotate(135 412 240) translate(-276 0)" transform-origin="320 240"/>
+    <rect x="386" y="234" width="52" height="12" transform="rotate(180 412 240) translate(-368 0)" transform-origin="320 240"/>
+    <rect x="386" y="234" width="52" height="12" transform="rotate(225 412 240) translate(-460 0)" transform-origin="320 240"/>
+    <rect x="386" y="234" width="52" height="12" transform="rotate(270 412 240) translate(-552 0)" transform-origin="320 240"/>
+    <rect x="386" y="234" width="52" height="12" transform="rotate(315 412 240) translate(-644 0)" transform-origin="320 240"/>
+  </g>
+  <!-- 边缘点十字（在 r≈126 外缘） -->
+  <g stroke="#15803D" stroke-width="2.5">
+    <line x1="438" y1="234" x2="454" y2="246"/><line x1="454" y1="234" x2="438" y2="246"/>
+    <line x1="402" y1="130" x2="418" y2="142"/><line x1="418" y1="130" x2="402" y2="142"/>
+    <line x1="306" y1="102" x2="322" y2="114"/><line x1="322" y1="102" x2="306" y2="114"/>
+    <line x1="208" y1="130" x2="224" y2="142"/><line x1="224" y1="130" x2="208" y2="142"/>
+    <line x1="174" y1="234" x2="190" y2="246"/><line x1="190" y1="234" x2="174" y2="246"/>
+    <line x1="208" y1="338" x2="224" y2="350"/><line x1="224" y1="338" x2="208" y2="350"/>
+    <line x1="306" y1="366" x2="322" y2="378"/><line x1="322" y1="366" x2="306" y2="378"/>
+    <line x1="402" y1="338" x2="418" y2="350"/><line x1="418" y1="338" x2="402" y2="350"/>
+  </g>
+  <!-- 环宽标注 -->
+  <text x="452" y="290" fill="#B45309" font-size="14" font-weight="bold">环宽 AnnulusWidth（默认30px）</text>
+  <text x="452" y="310" fill="#475569" font-size="13">每把沿半径扫描的总宽（±15px 容差）</text>
+  <!-- 底注 -->
+  <text x="20" y="436" fill="#0F172A" font-size="15" font-weight="bold">每把卡尺的扫描方向 = 该点的径向（几何：φ = −a）→ 边缘点拟合圆 → 直径 = 2×半径</text>
+  <text x="20" y="462" fill="#B91C1C" font-size="13.5">⚠ 退化判据：拟合圆直径 &lt; 点集跨度 60% → 判退化报错（防「3 个共线点拟出贴住少数点的小圆」，实测 r≈31px 还不报错）</text>
+  <text x="20" y="486" fill="#475569" font-size="13.5">角度测量同理改两把"线卡尺"→ 拟合两线 → angle_ll（弧度→度，且先归一化成「交点→远端」射线，防 150° 报成 −30°）</text>
+</svg>

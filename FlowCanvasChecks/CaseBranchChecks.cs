@@ -27,6 +27,7 @@ namespace FlowCanvasChecks
             StringJudgeAndValueType();
             CompileTimeGuards();
             JudgeVersionChain();
+            ValueJudgeTypes();
         }
 
         private static string Aqn<T>() => typeof(T).AssemblyQualifiedName!;
@@ -238,6 +239,64 @@ namespace FlowCanvasChecks
             var okResult = new FlowCompiler(new WorkspaceContext()).Compile(new StepModel[] { okIf }, "普通If图纸");
             Check("普通 If 图纸仍编译通过（未误伤既有语义）", okResult.Success,
                 okResult.Success ? "" : string.Join(" | ", okResult.Errors.Select(e => e.Message)));
+        }
+
+        // ==================================================================
+        //  [E20] ⑤ 值类型判据全集：decimal / char / bool / 枚举 / DateTime
+        //        此前只有 double/string 有实跑断言（review 2026-10-10 指出）。
+        //        白名单放行的其它值类型经 ValueConverter.Convert 归一（枚举名字串
+        //        → Enum.Parse 也在里面），比较两侧同类型，DynamicExpresso 逐类型相等比较。
+        // ==================================================================
+        internal enum CaseTestColor
+        {
+            Red,
+            Green,
+        }
+
+        /// <summary>造一张"判据 = 运行时变量 loopN（指定声明类型）"的单 Case 图纸</summary>
+        private static (CaseStep caseStep, ExecRun run) BuildTypedJudgeFlow(string dataTypeName, string matchText)
+        {
+            var producer = new ActionStep("V", "变量定义", Aqn<LoopVarPlugin>(), "写 loopN");
+            var caseStep = new CaseStep("K", "分支匹配", "BuiltIn_Case", "按值分档");
+            caseStep.JudgeExpression = "loopN";
+            caseStep.RuntimeVariableRefs.Add(
+                new LocalVariableItem { Name = "loopN", DataTypeName = dataTypeName }
+            );
+            caseStep.Children[0].Expression = matchText;
+            caseStep.Children[0].Steps.Add(new ActionStep("A", "计数A", Aqn<CountA>(), "命中步"));
+            caseStep.Children[1].Steps.Add(new ActionStep("C", "计数C", Aqn<CountC>(), "默认步"));
+
+            var run = ExecHarness.Prepare(new StepModel[] { producer, caseStep });
+            return (caseStep, run);
+        }
+
+        /// <summary>单类型用例：判据值写入运行时变量 → 应命中匹配值所在分支</summary>
+        private static void ValueJudgeCase(string label, string dataTypeName, object judgeValue, string matchText)
+        {
+            CountA.Reset();
+            CountC.Reset();
+            LoopVarPlugin.Value = judgeValue;
+
+            var (_, run) = BuildTypedJudgeFlow(dataTypeName, matchText);
+            Check($"[{label}] 图纸编译通过", run.Compiled, run.Errors);
+            if (!run.Compiled)
+                return;
+
+            run.Engine!.Run(run.NewContext(new StubLog()));
+            Check($"★[{label}] 判据命中匹配值 \"{matchText}\"（不落默认分支）",
+                CountA.Runs == 1 && CountC.Runs == 0, $"A={CountA.Runs} C={CountC.Runs}");
+        }
+
+        private static void ValueJudgeTypes()
+        {
+            Section("[E20] 分支匹配：值类型判据全集");
+
+            ValueJudgeCase("decimal", "System.Decimal", 1.5m, "1.5");
+            ValueJudgeCase("char", "System.Char", 'A', "A");
+            ValueJudgeCase("bool", "System.Boolean", true, "true");
+            ValueJudgeCase("enum", typeof(CaseTestColor).AssemblyQualifiedName!, CaseTestColor.Green, "Green");
+            ValueJudgeCase("DateTime", "System.DateTime",
+                new DateTime(2026, 1, 15, 8, 30, 0), "2026-01-15 08:30:00");
         }
 
         // ==================================================================

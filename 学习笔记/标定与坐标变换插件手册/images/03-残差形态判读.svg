@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 420" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="420" fill="#FDFDFB"/>
+  <!-- 三个残差形态小图 -->
+  <text x="30" y="30" fill="#0F172A" font-size="15" font-weight="bold">残差形态 = 畸变判据（横轴：离视野中心的半径 0→1；纵轴：残差 px）</text>
+  <!-- ① 随机 -->
+  <text x="40" y="66" fill="#0F172A" font-size="13.5" font-weight="bold">① 随机小残差（无位置规律）</text>
+  <line x1="40" y1="180" x2="220" y2="180" stroke="#94A3B8" stroke-width="1.5"/>
+  <line x1="40" y1="180" x2="40" y2="90" stroke="#94A3B8" stroke-width="1.5"/>
+  <g fill="#2563EB"><circle cx="60" cy="140" r="3"/><circle cx="80" cy="128" r="3"/><circle cx="100" cy="146" r="3"/><circle cx="120" cy="132" r="3"/><circle cx="140" cy="150" r="3"/><circle cx="160" cy="126" r="3"/><circle cx="180" cy="142" r="3"/><circle cx="200" cy="134" r="3"/></g>
+  <text x="40" y="204" fill="#15803D" font-size="12.5" font-weight="bold">正常噪声 → 维持仿射</text>
+  <text x="40" y="222" fill="#475569" font-size="12">（可把网格加密到 4/5 提高抗噪）</text>
+  <!-- ② 径向 -->
+  <text x="290" y="66" fill="#0F172A" font-size="13.5" font-weight="bold">② 中心小、边缘大（径向规律）</text>
+  <line x1="290" y1="180" x2="470" y2="180" stroke="#94A3B8" stroke-width="1.5"/>
+  <line x1="290" y1="180" x2="290" y2="90" stroke="#94A3B8" stroke-width="1.5"/>
+  <path d="M300,168 C340,166 380,150 420,110 452,96" fill="none" stroke="#DC2626" stroke-width="2.5"/>
+  <g fill="#DC2626"><circle cx="310" cy="166" r="3"/><circle cx="350" cy="162" r="3"/><circle cx="390" cy="140" r="3"/><circle cx="430" cy="108" r="3"/></g>
+  <text x="290" y="204" fill="#B91C1C" font-size="12.5" font-weight="bold">镜头径向畸变（仿射吃不下）</text>
+  <text x="290" y="222" fill="#475569" font-size="12">→ 网格标定（工程近似）</text>
+  <text x="290" y="240" fill="#475569" font-size="12">→ 标定板内参标定（正解，二期）</text>
+  <!-- ③ 梯形 -->
+  <text x="540" y="66" fill="#0F172A" font-size="13.5" font-weight="bold">③ 单向偏差 / 梯形</text>
+  <line x1="540" y1="180" x2="720" y2="180" stroke="#94A3B8" stroke-width="1.5"/>
+  <line x1="540" y1="180" x2="540" y2="90" stroke="#94A3B8" stroke-width="1.5"/>
+  <line x1="550" y1="160" x2="710" y2="100" stroke="#DC2626" stroke-width="2.5"/>
+  <g fill="#DC2626"><circle cx="560" cy="156" r="3"/><circle cx="600" cy="142" r="3"/><circle cx="640" cy="128" r="3"/><circle cx="680" cy="114" r="3"/></g>
+  <text x="540" y="204" fill="#B91C1C" font-size="12.5" font-weight="bold">相机倾斜（透视形变）</text>
+  <text x="540" y="222" fill="#475569" font-size="12">→ 透视标定（≥4 点）</text>
+  <!-- 指标速查 -->
+  <g font-size="13">
+    <text x="30" y="278" fill="#0F172A" font-weight="bold">指标速查：</text>
+    <text x="30" y="302" fill="#334155">· 残差 RMS ≤1px 合格（≤0.2px 漂亮）　· 最大偏差比 RMS 大 2~3 倍属正常 —— 哪个点没取好，表格残差列直接指到行</text>
+    <text x="30" y="326" fill="#334155">· 各向异性 &gt;1% 提示（标定物没正对镜头）　· 径向带：无点带记 0，先看计数再看均值（空带不判形态）</text>
+    <text x="30" y="350" fill="#B91C1C" font-weight="bold">· 网格模式的 RMS 是「全局仿射基线」—— 偏大是正常的（正是选网格的理由），所以网格不做残差闸门</text>
+    <text x="30" y="374" fill="#64748B" font-size="12.5">口诀：先查点、再查单位、最后才动阈值（残差 mm 当 px 的 P0 事故见手册 4.1 —— 0.5mm 的错点曾被 1px 闸门静默放行）</text>
+  </g>
+  <text x="30" y="404" fill="#475569" font-size="12.5">网格模式特例：节点处精确通过（残差恒 0）、网格外不外推；与消费端共用 Core.Interfaces.CalibrationMesh</text>
+</svg>

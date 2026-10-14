@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 445" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="445" fill="#FDFDFB"/>
+  <!-- 左：union2 -->
+  <text x="30" y="30" fill="#0F172A" font-size="17" font-weight="bold">union2：并集（合并多个 ROI）</text>
+  <circle cx="140" cy="185" r="95" fill="#F59E0B" fill-opacity="0.32" stroke="#D97706" stroke-width="2.5"/>
+  <rect x="185" y="135" width="170" height="170" fill="#3B82F6" fill-opacity="0.28" stroke="#2563EB" stroke-width="2.5"/>
+  <text x="52" y="322" fill="#B45309" font-size="15" font-weight="bold">A</text>
+  <text x="300" y="140" fill="#1D4ED8" font-size="15" font-weight="bold">B</text>
+  <text x="30" y="360" fill="#475569" font-size="14">两张剪纸叠在一起 → 圈出总范围</text>
+  <text x="30" y="382" fill="#475569" font-size="14">BuildMergedRegion 里逐个 Union2 合并全部 ROI</text>
+  <!-- 右：difference -->
+  <text x="420" y="30" fill="#0F172A" font-size="17" font-weight="bold">difference：差集（挖除）</text>
+  <rect x="450" y="110" width="240" height="200" fill="#F59E0B" fill-opacity="0.32" stroke="#D97706" stroke-width="2.5"/>
+  <circle cx="575" cy="210" r="75" fill="#FDFDFB" stroke="#DC2626" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="545" y="216" fill="#B91C1C" font-size="15" font-weight="bold">B 被挖掉</text>
+  <text x="660" y="130" fill="#B45309" font-size="15" font-weight="bold">A</text>
+  <text x="420" y="360" fill="#475569" font-size="14">从 A 上把 B 盖住的部分剪掉</text>
+  <text x="420" y="382" fill="#475569" font-size="14">擦除功能 = 合并区域 − 擦除笔迹</text>
+  <!-- 警告条 -->
+  <rect x="10" y="402" width="760" height="34" rx="4" fill="#FEF2F2" stroke="#FCA5A5"/>
+  <text x="24" y="424" fill="#B91C1C" font-size="14" font-weight="bold">⚠ new HRegion() 是「未初始化」不是空区域 → 必须先 GenEmptyRegion()，否则 region_to_bin 等算子直接抛异常（源码 :636-639 防爆）</text>
+</svg>

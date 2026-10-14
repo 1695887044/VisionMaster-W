@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.DlClassify</RootNamespace>
+    <AssemblyName>Plugin.DlClassify</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    ONNX Runtime 与 Plugin.Yolo 同源：从 DLL\ 本地引用（不走 NuGet，理由见 Plugin.Yolo.csproj 注释：
+    本机 NuGet V2 源稳定 502、且本地引用保证离线可复现）。
+    托管程序集用 <Reference>；原生库只能当普通文件随输出走（见下面两个 ItemGroup）。
+  -->
+  <ItemGroup>
+    <Reference Include="Microsoft.ML.OnnxRuntime">
+      <HintPath>..\..\DLL\OnnxRuntime\Microsoft.ML.OnnxRuntime.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="System.Numerics.Tensors">
+      <HintPath>..\..\DLL\OnnxRuntime\System.Numerics.Tensors.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    两个原生库必须随输出走：本工程/断言工程的输出目录 + 生产宿主 exe 目录。
+    为什么一定要在 exe 旁边：Windows 加载原生 DLL 不递归搜索 Modules\，放错位置的表现是
+    运行期一句 "DllNotFoundException: onnxruntime"，编译期完全看不出问题。
+  -->
+  <ItemGroup>
+    <None Include="..\..\DLL\OnnxRuntime\onnxruntime.dll">
+      <Link>onnxruntime.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\..\DLL\OnnxRuntime\onnxruntime_providers_shared.dll">
+      <Link>onnxruntime_providers_shared.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- 生产宿主按 Plugin*.dll 反射加载，拿不到 CopyToOutputDirectory 的传递拷贝，故显式投递。 -->
+  <Target Name="DeployOnnxRuntimeToHost" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(MSBuildThisFileDirectory)..\..\DLL\OnnxRuntime&quot; &quot;$(HostBinDir)&quot; /Y /Q /I" />
+  </Target>
+
+</Project>

@@ -87,6 +87,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly IWorkspaceManager _workspace;
         private readonly IScadaVariablePicker _picker;
         private readonly IScadaPagePicker _pagePicker;
+        private readonly IScadaFlowPicker _flowPicker;
         private readonly ScadaAuditWriter? _audit;
         private readonly Func<string?>? _actorProvider;
 
@@ -111,6 +112,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <param name="workspace">只用来取"当前方案的组态文档"与"工程变量清单"</param>
         /// <param name="picker">「选变量」入口，转交给 5 个事件编辑器（它们要能配"写变量"动作）</param>
         /// <param name="pagePicker">「选画面」入口，同上（它们要能配"切换画面"动作）</param>
+        /// <param name="flowPicker">「选流程」入口，同上（它们要能配"启动/停止/执行一次流程"动作）</param>
         /// <param name="audit">
         /// 操作审计落盘端。默认 null = 不记（单机调试 / 断言里直接 new 的路径）。
         /// <b>可选参数必须由宿主显式工厂注册</b>：交给容器去猜的结果是编译能过、
@@ -121,12 +123,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             IWorkspaceManager workspace,
             IScadaVariablePicker picker,
             IScadaPagePicker pagePicker,
+            IScadaFlowPicker flowPicker,
             ScadaAuditWriter? audit = null,
             Func<string?>? actorProvider = null)
         {
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
+            _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
             _audit = audit;
             _actorProvider = actorProvider;
 
@@ -439,7 +443,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         type.DisplayName(),
                         Describe(type),
                         _picker,
-                        _pagePicker));
+                        _pagePicker,
+                        _flowPicker));
                 }
             }
 

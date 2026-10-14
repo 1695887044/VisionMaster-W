@@ -334,6 +334,12 @@ namespace FlowCanvasChecks
         /// <summary>
         /// 混合图：同一张图里同时有条码与二维码。
         /// 验证"一个节点覆盖两个家族"——选哪个码制就走哪个引擎。
+        ///
+        /// QR 断言的偶发失败（评审清单 B 包第 8 项）：该段曾出现"两次复跑一红一绿"。
+        /// 根因是 find_data_code_2d 的 500ms 超时（与插件默认值一致的 TimeoutMs）在
+        /// 宿主负载高时偶尔不够用——解码是"逐金字塔层试"的重活，超时即 0 候选。
+        /// 修法：最多 3 次重试（每次重新 Execute——新引擎实例新模型），断言语义
+        /// "能解出"不变，不算放弱；重试仍全败才算红（那才是真问题）。
         /// </summary>
         private static void RunMixedImageCases(string root)
         {
@@ -349,10 +355,62 @@ namespace FlowCanvasChecks
                 one.Ok && one.Codes.Count >= 1,
                 one.Ok ? $"Count={one.Codes.Count} 内容：{string.Join(" | ", one.Codes)}" : one.Error);
 
-            var two = Decode(mixed, "QR Code");
+            var two = DecodeWithRetry(mixed, "QR Code", attempts: 3);
             Check("混合图上按二维码码制读 → 解出二维码",
                 two.Ok && two.Codes.Count >= 1,
-                two.Ok ? $"Count={two.Codes.Count} 内容：{string.Join(" | ", two.Codes)}" : two.Error);
+                two.Ok
+                    ? $"Count={two.Codes.Count} 内容：{string.Join(" | ", two.Codes)}"
+                      + (two.Attempts > 1 ? $"（第 {two.Attempts} 次尝试解出，此前疑似超时）" : "")
+                    : $"{two.Error}（已重试 {two.Attempts} 次）");
+        }
+
+        /// <summary>带重试的一次解码（flaky 稳定化用）：每次尝试全新引擎实例（新模型句柄），
+        /// 任一次解出即成功。返回的 Outcome 承载"实际用了几次"供诊断。</summary>
+        private static Outcome DecodeWithRetry(string imagePath, string symbology, int attempts)
+        {
+            var last = new Outcome();
+            for (int i = 1; i <= attempts; i++)
+            {
+                last = Decode(imagePath, symbology);
+                if (last.Ok && last.Codes.Count >= 1)
+                {
+                    last.Attempts = i;
+                    return last;
+                }
+            }
+            last.Attempts = attempts;
+            return last;
+        }
+
+        /// <summary>
+        /// --qrprobe N：混合图上按二维码码制解码连跑 N 次的失败率统计（flaky 调查用，不进常规 gate）。
+        /// 不重试、不复位——就是要看原始引擎在连续调用下的稳定性；每次全量重建引擎（与断言同款）。
+        /// </summary>
+        public static void RunMixedProbe(int iterations)
+        {
+            string? root = ResolveImagesRoot();
+            string mixed = root == null ? "" : Path.Combine(root, @"barcode\mixed\barcodes_datacodes_mixed_01.png");
+            if (root == null || !File.Exists(mixed))
+            {
+                Console.WriteLine($"[qrprobe] 跳过：样张不可得（{mixed}）");
+                return;
+            }
+
+            int fail = 0;
+            var failures = new List<int>();
+            for (int i = 1; i <= iterations; i++)
+            {
+                var o = Decode(mixed, "QR Code");
+                bool ok = o.Ok && o.Codes.Count >= 1;
+                if (!ok)
+                {
+                    fail++;
+                    failures.Add(i);
+                }
+                Console.WriteLine($"[qrprobe] {i:D2}/{iterations}: {(ok ? "OK" : "FAIL")} Count={o.Codes.Count} {o.Error} {o.CountNote}");
+            }
+
+            Console.WriteLine($"[qrprobe] 失败 {fail}/{iterations}" + (fail > 0 ? $"（第 {string.Join(",", failures)} 次）" : ""));
         }
 
         // ==================================================================
@@ -365,6 +423,9 @@ namespace FlowCanvasChecks
             public string Error = string.Empty;
             public List<string> Codes = new();
             public string CountNote = string.Empty;
+
+            /// <summary>带重试的解码实际用的尝试次数（1 = 首次即成）</summary>
+            public int Attempts = 1;
         }
 
         private static Outcome Decode(string imagePath, string symbology)

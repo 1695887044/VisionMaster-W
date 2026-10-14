@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using Core.Events;
+using Core.Halcon.Helpers;
 using Core.Interfaces;
 using HalconDotNet;
 using Newtonsoft.Json;
@@ -33,7 +34,7 @@ namespace Plugin.BeadInspect
         Description = "参考路径 + 平面可变形对齐 + bead 检测：输出缺胶/太细/太粗/位置偏移分段判定、逐段长度与标注图，支持多配方与 mm 输出",
         ShortName = "\uf1ce"
     )]
-    [ParallelSafe] // 二期真并行：chun shijue jisuan, shili geli + HALCON jubu duixiang
+    [ParallelSafe] // 二期真并行：纯视觉计算, 实例隔离 + HALCON 局部对象
     public partial class BeadInspectPlugin : VisionPluginBase
     {
         // ==================================================================
@@ -807,21 +808,21 @@ namespace Plugin.BeadInspect
         }
 
         // ==================================================================
-        //  离屏标注渲染（BlobDetect 的 AnnotationRenderer 同款：缓存 buffer 窗口防 #9302）
+        //  离屏标注渲染（2026-10-13 起走共享烘焙件 AnnotationBaker，本类只攒"画什么"）
         // ==================================================================
 
         /// <summary>
         /// 把「对齐图 + 参考路径（橙） + 左右轮廓（绿） + 错误段（红，线宽 2） + 判定文字」
-        /// 合成一张 HImage。HALCON 写文字必须依附窗口字库，故走 open_window('buffer') 离屏渲染；
-        /// 窗口按尺寸缓存复用（HALCON 反复 open/close 窗口会 #9302 死锁，仓库既有结论）。
+        /// 合成一张 HImage。
+        ///
+        /// "怎么画"（open_window 'buffer' / 窗口按尺寸常驻复用防 #9302 / 每轮无条件 SetPart /
+        /// dump 回读后立刻释放源对象）全在共享烘焙件 <see cref="AnnotationBaker"/> 里，
+        /// 六条硬纪律逐条落实在那儿——本类只剩"画哪几层、什么颜色"这份私有分界。
+        /// 渲染失败 <see cref="AnnotationBaker.Bake"/> 返回 null（不抛），端口数据照常输出。
         /// </summary>
         private sealed class OffscreenRenderer : IDisposable
         {
-            private readonly object _gate = new();
-            private HTuple? _window;
-            private int _width;
-            private int _height;
-            private bool _disposed;
+            private readonly AnnotationBaker _baker = new();
 
             public HImage? Render(
                 HObject baseImage,
@@ -831,111 +832,25 @@ namespace Plugin.BeadInspect
                 string[] lines,
                 bool ok)
             {
-                lock (_gate)
-                {
-                    if (_disposed || baseImage == null || !baseImage.IsInitialized())
-                        return null;
-                    try
-                    {
-                        HOperatorSet.GetImageSize(baseImage, out HTuple widthT, out HTuple heightT);
-                        int w = widthT.I, h = heightT.I;
-                        if (w <= 0 || h <= 0)
-                            return null;
-
-                        EnsureWindow(w, h);
-                        var win = _window!;
-
-                        // 显式钉住窗口 part（不设的话 part 会被撑到全幅，底图缩在角落——Matching 实测）
-                        HOperatorSet.SetPart(win, 0, 0, h - 1, w - 1);
-                        HOperatorSet.DispObj(baseImage, win);
-
-                        if (HasContent(referencePath))
-                        {
-                            HOperatorSet.SetColor(win, "orange");
-                            HOperatorSet.SetLineWidth(win, 1);
-                            HOperatorSet.DispObj(referencePath!, win);
-                        }
-                        if (HasContent(beadContours))
-                        {
-                            HOperatorSet.SetColor(win, "green");
-                            HOperatorSet.SetLineWidth(win, 1);
-                            HOperatorSet.DispObj(beadContours!, win);
-                        }
-                        if (HasContent(errorSegments))
-                        {
-                            HOperatorSet.SetColor(win, "red");
-                            HOperatorSet.SetLineWidth(win, 2);
-                            HOperatorSet.DispObj(errorSegments!, win);
-                            HOperatorSet.SetLineWidth(win, 1); // 还原，别把线宽带去下一张
-                        }
-
-                        if (lines is { Length: > 0 })
-                        {
-                            TrySetFont(win, 16);
-                            HOperatorSet.DispText(
-                                win, new HTuple(lines), "window", 12, 12, ok ? "green" : "red",
-                                new HTuple("box_color"), new HTuple("white"));
-                        }
-
-                        // dump 回读：new HImage(shot) 是独立句柄，shot 立刻释放（引用计数语义，
-                        // 卡尺插件实测 500 次不释放约漏 160MB）
-                        HOperatorSet.DumpWindowImage(out HObject shot, win);
-                        var result = new HImage(shot);
-                        shot.Dispose();
-                        return result;
-                    }
-                    catch
-                    {
-                        return null; // 标注渲染失败不影响端口数据（错误段/判定照常输出）
-                    }
-                }
+                var plan = new BakePlan();
+                AddLayer(plan, referencePath, "orange", 1);   // 学习到的参考路径
+                AddLayer(plan, beadContours, "green", 1);     // 本轮提取的左右轮廓
+                AddLayer(plan, errorSegments, "red", 2);      // 错误段加粗：一眼看到 NG 在哪一段
+                plan.AddTextBlock(lines, ok ? "green" : "red", 12, 12, 16, box: true);
+                return _baker.Bake(baseImage, plan);
             }
 
-            private void EnsureWindow(int w, int h)
+            /// <summary>
+            /// 缺席的图层不进计划：null/未初始化在这里挡掉，免得烘焙件逐条告警"对象元素未初始化"
+            /// （空对象集不用挡——画它是合法的，烘焙件自己会静默跳过）。
+            /// </summary>
+            private static void AddLayer(BakePlan plan, HObject? obj, string color, int lineWidth)
             {
-                if (_window != null && w == _width && h == _height)
-                    return;
-                CloseWindow();
-                HOperatorSet.OpenWindow(0, 0, w, h, "black", "buffer", "local", out HTuple win);
-                _window = win;
-                _width = w;
-                _height = h;
+                if (obj == null || !obj.IsInitialized()) return;
+                plan.Objects.Add(new BakeObj(obj, color, lineWidth, "margin"));
             }
 
-            private static void TrySetFont(HTuple win, int size)
-            {
-                try { HOperatorSet.SetFont(win, $"-Consolas-{size}-*-0-*-*-1-"); }
-                catch { /* 字号是锦上添花，失败用默认 */ }
-            }
-
-            private static bool HasContent(HObject? o)
-            {
-                if (o == null || !o.IsInitialized())
-                    return false;
-                HOperatorSet.CountObj(o, out HTuple n);
-                return n.Length > 0 && n[0].I > 0;
-            }
-
-            private void CloseWindow()
-            {
-                if (_window == null)
-                    return;
-                try { HOperatorSet.CloseWindow(_window); } catch { /* 关窗失败不阻断 */ }
-                _window = null;
-                _width = 0;
-                _height = 0;
-            }
-
-            public void Dispose()
-            {
-                lock (_gate)
-                {
-                    if (_disposed)
-                        return;
-                    _disposed = true;
-                    CloseWindow();
-                }
-            }
+            public void Dispose() => _baker.Dispose();
         }
     }
 }

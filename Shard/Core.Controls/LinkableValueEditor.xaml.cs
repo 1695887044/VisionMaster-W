@@ -258,9 +258,14 @@ namespace Core.Controls
             var text = (string)e.NewValue;
             try
             {
+                // 必须走共享的 ValueConverter（不是裸 Convert.ChangeType）：
+                // ChangeType 不认"字符串→枚举"，抛异常被下面的 catch 吞掉，
+                // 表现为"枚举端口在下拉里选了、点确定后又还原成默认值"（所有无自定义视图的
+                // 枚举端口都中招，如「几何查找」的查找类型、数学计算的运算类型）。
+                // ValueConverter 对枚举按名字 Enum.Parse（与 JSON 加载路径同一口径）。
                 editor.Port.Value = string.IsNullOrEmpty(text)
                     ? GetDefaultValue(editor.Port.DataType)
-                    : Convert.ChangeType(text, editor.Port.DataType);
+                    : ValueConverter.Convert(text, editor.Port.DataType);
             }
             catch { /* 类型转换失败忽略，保留原值 */ }
         }

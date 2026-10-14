@@ -80,6 +80,15 @@ namespace VisionMaster.ViewModels
         /// <summary>组头菜单「添加分支」的可见性判据（刷新点同 IsIfNodeSelected：SelectStep setter）</summary>
         public bool IsParallelNodeSelected => SelectStep is ParallelStep;
 
+        /// <summary>Case 分支胶囊右键「重命名本条分支」的命令靶 = 命中的那条 Case 分支。
+        /// 同并行三命令用 object：胶囊菜单的 CommandParameter 绑 PlacementTarget.DataContext，
+        /// XAML 编译器不检查类型，运行期才判（R27）。</summary>
+        public DelegateCommand<object?> RenameCaseBranchCommand { get; init; }
+
+        /// <summary>Case 分支胶囊右键「删除本条分支」的命令靶 = 命中的那条 Case 分支。
+        /// 默认分支（Else）不可删、至少保留一条 Case 分支（编译期同样守）。</summary>
+        public DelegateCommand<object?> RemoveCaseBranchCommand { get; init; }
+
         public object SelectStep
         {
             get => field;
@@ -119,14 +128,17 @@ namespace VisionMaster.ViewModels
         private bool _syncingFromWorkspace;
 
         /// <summary>
-        /// 运行状态镜像：由 ShellViewModel 经 GlobalEventBus 广播同步。
-        /// 运行中锁住流程编辑（增删/改名/参数/拖放），防止"边跑边换轮胎"。
+        /// 画布编辑门禁（2026-10-11 收口为单一出口）：运行态镜像与豁免表都在 EditGate 里，
+        /// 流程栏与画布共用同一份判据。本 VM 只保留"新一轮运行开始 → 失败跳转基线清零"的
+        /// 状态转换监听（见 OnMainRunStateChanged）。
         /// </summary>
-        private MainRunState _runState = MainRunState.NotStarted;
-        private bool IsRunLocked => _runState != MainRunState.NotStarted;
+        private readonly EditGate _editGate = new();
 
-        /// <summary>运行锁拦截的提示文案（ModuleActionCommand / Drop / 三个分支结构命令共用一份，别各写各的）</summary>
-        private const string RunLockedMessage = "流程运行中，禁止编辑；如需修改请先点击“停止”";
+        /// <summary>运行锁镜像（门禁的只读投影：ModuleActionCommand / Drop / 结构命令共用）</summary>
+        private bool IsRunLocked => _editGate.IsRunLocked;
+
+        /// <summary>运行锁拦截的提示文案（ModuleActionCommand / Drop / 分支结构命令共用一份，与门禁同源）</summary>
+        private const string RunLockedMessage = EditGate.RunLockedMessage;
 
         /// <summary>
         /// 运行时间实时刷新定时器：
@@ -140,10 +152,14 @@ namespace VisionMaster.ViewModels
             this.Workspace = workspace;
             this.dialogService = dialogService;
             ModuleActionCommand = new(ModuleActionAsync);
+            SearchNextCommand = new(SearchNext);
+            SearchPreviousCommand = new(SearchPrevious);
             AddParallelBranchCommand = new(AddParallelBranch);
             RemoveParallelBranchCommand = new(RemoveParallelBranch);
             RenameParallelBranchCommand = new(RenameParallelBranch);
             RenameParallelGroupCommand = new(RenameParallelGroup);
+            RenameCaseBranchCommand = new(RenameCaseBranch);
+            RemoveCaseBranchCommand = new(RemoveCaseBranch);
 
             _workspaceChanged = workspace as INotifyPropertyChanged;
 
@@ -176,6 +192,9 @@ namespace VisionMaster.ViewModels
             // 用命名方法而非 lambda：GlobalEventBus.Unsubscribe 依赖委托的 Target+Method 匹配
             GlobalEventBus.Subscribe<MainRunState>(OnMainRunStateChanged);
 
+            // 编辑门禁的运行态订阅与本体同挂同摘（离树时一并可逆清理）
+            _editGate.Activate();
+
             if (_workspaceChanged != null)
                 _workspaceChanged.PropertyChanged += OnWorkspacePropertyChanged;
 
@@ -196,14 +215,56 @@ namespace VisionMaster.ViewModels
             GlobalEventBus.Unsubscribe<LinkPathEvent>(OnLinkPathEvent);
             GlobalEventBus.Unsubscribe<MainRunState>(OnMainRunStateChanged);
 
+            _editGate.Deactivate();
+
             if (_workspaceChanged != null)
                 _workspaceChanged.PropertyChanged -= OnWorkspacePropertyChanged;
         }
 
-        private void OnMainRunStateChanged(MainRunState state) => _runState = state;
+        private void OnMainRunStateChanged(MainRunState state)
+        {
+            // 新一轮运行开始（从未启动进入任一运行/暂停态）：清空失败自动跳转的基线，
+            // 上一轮的失败不再拦住本轮的自动定位（"同一失败不重复跳"的口径见 DetectNewFailures）
+            if (_lastObservedRunState == MainRunState.NotStarted && state != MainRunState.NotStarted)
+                _failedJumpBaseline.Clear();
+
+            _lastObservedRunState = state;
+        }
+
+        /// <summary>上一轮观察到的运行态（失败跳转基线重置的转换判据）</summary>
+        private MainRunState _lastObservedRunState = MainRunState.NotStarted;
 
         private void OnRunTimeTimerTick(object? sender, EventArgs e)
-            => TickRunningTimes(Workspace.CurrentFlow?.Steps);
+        {
+            TickRunningTimes(Workspace.CurrentFlow?.Steps);
+
+            // 执行统计两行（评审清单 B 包交互补齐）顺带刷新：tick 本就每 200ms 过一遍，
+            // 统计读时现算，这里只负责发通知，不另起扫描
+            RaisePropertyChanged(nameof(StepCountText));
+            RaisePropertyChanged(nameof(RunTimeText));
+
+            // 失败自动跳转（三视角评审第二批）：发现新出现的失败步骤就切过去并给一次性提示——
+            // 每轮只跳扫描序里的第一个新失败，同一失败不重复跳（基线口径见 DetectNewFailures）
+            var failed = DetectNewFailures(Workspace.CurrentFlow?.Steps, _failedJumpBaseline);
+            if (failed == null) return;
+
+            // 开关关闭：扫描照跑（上面的基线照记，重新打开后历史失败不补跳），只是不切选中
+            if (!AutoJumpToFailure) return;
+
+            try
+            {
+                Workspace.SwitchStep(failed);
+            }
+            catch (InvalidOperationException)
+            {
+                return;   // 图纸刚切换等边缘场景：静默放弃，下一轮再说
+            }
+
+            ShowFeedback($"发现失败步骤「{failed.StepName}」，已自动定位", false);
+        }
+
+        /// <summary>定时器一轮的实际动作（internal：断言宿主直接驱动同一逻辑，不必等 Dispatcher 泵）</summary>
+        internal void RunRuntimeTick() => OnRunTimeTimerTick(this, EventArgs.Empty);
 
         private void OnWorkspacePropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -224,18 +285,21 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 递归刷新运行中步骤的实时耗时（含容器内嵌套步骤）
-        /// 只更新 IsRunningFocus 且 State==Running 的步骤：
-        /// 完成步骤的耗时已在引擎侧冻结为最终值，此处不覆盖
+        /// 递归刷新运行中步骤的实时耗时（含容器内嵌套步骤）。
+        /// 判据是 State==Running（2026-10-10 前只认 IsRunningFocus）：并行分支线程走
+        /// UpdateStepRuntimeState 的分支快捷路径——只写 State+计时、刻意不碰 FocusedStep
+        /// （并发不变量 1：多分支并发读写单指针必然撕裂），分支步骤永远没有 IsRunningFocus，
+        /// 旧判据下真并行会话里分支内步骤的实时耗时永远停在 0、跑完才一次性蹦终值。
+        /// 终态（Success/Failed）不满足条件：引擎冻结的最终值不会被本方法覆盖。
+        /// internal static：纯计算，便于断言程序直接调用（与 FlowCompiler.CheckLinkOrder 同一理由）。
         /// </summary>
-        private static void TickRunningTimes(IEnumerable<StepModel> steps)
+        internal static void TickRunningTimes(IEnumerable<StepModel> steps)
         {
             if (steps == null) return;
 
             foreach (var step in steps)
             {
-                if (step.IsRunningFocus
-                    && step.State == StepState.Running
+                if (step.State == StepState.Running
                     && step.LastRunStartTimestamp.HasValue)
                 {
                     step.CurrentRunTimeMs = step.LiveElapsedMs();
@@ -245,6 +309,224 @@ namespace VisionMaster.ViewModels
                 {
                     foreach (var branch in container.Children)
                         TickRunningTimes(branch.Steps);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 失败自动跳转的探测：从步骤树里找出"新出现"的 State==Failed 步骤。
+        /// 基线集合记录已处理过的失败（含本轮没跳到的——每轮只跳第一个，其余不迟到补跳，
+        /// 免得一次多点失败把用户来回拽）；基线由调用方持有，在新一轮运行开始时清空
+        /// （OnMainRunStateChanged）。返回本轮应跳转的那一个（扫描序第一个新失败；没有则 null）。
+        /// internal static：纯计算 + 显式基线入参，断言宿主直调（与 TickRunningTimes 同一理由）。
+        /// </summary>
+        internal static StepModel? DetectNewFailures(IEnumerable<StepModel>? steps, HashSet<Guid> baseline)
+        {
+            if (steps == null) return null;
+
+            StepModel? first = null;
+            Walk(steps);
+            return first;
+
+            void Walk(IEnumerable<StepModel> list)
+            {
+                foreach (var step in list)
+                {
+                    if (step == null) continue;
+
+                    // Add=false = 基线里已有（此前已处理过），不算新失败
+                    if (step.State == StepState.Failed && baseline.Add(step.StepID) && first == null)
+                        first = step;
+
+                    if (step is IContainerStep container && container.Children != null)
+                    {
+                        foreach (var branch in container.Children)
+                        {
+                            if (branch?.Steps != null)
+                                Walk(branch.Steps);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================================================================
+        //  流程栏执行统计（评审清单 B 包交互补齐）：底部两行只读信息
+        //  第 1 行「共 N 步 · 最深 d 层」；第 2 行「本轮总耗时 X ms · 最慢：步骤名 Y ms」，
+        //  无任何运行数据（LastRunTimeMs 全 0）时第二行显示"尚未运行"。
+        //  递归口径与 TickRunningTimes / CollectSearchMatches 同一条：容器经
+        //  IContainerStep.Children 逐分支下钻；步骤数含容器本身，顶层 = 第 1 层。
+        // ==================================================================
+
+        /// <summary>执行统计快照：步骤总数 / 最大深度 / 总耗时 / 最慢步骤（纯数据载体）</summary>
+        internal sealed record FlowRunStats(
+            int TotalSteps, int MaxDepth, double TotalMs, double SlowestMs, string? SlowestName);
+
+        /// <summary>第 1 行：步骤规模。读时现算（流程树的量级遍历代价可忽略），刷新由 200ms tick 顺带通知。</summary>
+        public string StepCountText
+        {
+            get
+            {
+                var stats = ComputeRunStats(Workspace?.CurrentFlow?.Steps);
+                return $"共 {stats.TotalSteps} 步 · 最深 {stats.MaxDepth} 层";
+            }
+        }
+
+        /// <summary>第 2 行：耗时汇总。LastRunTimeMs 是 [RuntimeState] 的冻结终值，总和 ≤ 0 = 尚未运行。
+        /// 口径：总耗时 = Sum(LastRunTimeMs)；最慢 = Max 及其步骤名（与流程树卡片同用 "0.#" 格式）。</summary>
+        public string RunTimeText
+        {
+            get
+            {
+                var stats = ComputeRunStats(Workspace?.CurrentFlow?.Steps);
+                if (stats.TotalMs <= 0)
+                    return "尚未运行";
+                return $"本轮总耗时 {stats.TotalMs.ToString("0.#")} ms · 最慢：{stats.SlowestName ?? "—"} {stats.SlowestMs.ToString("0.#")} ms";
+            }
+        }
+
+        /// <summary>
+        /// 递归聚合整棵步骤树的执行统计（顶层 = 第 1 层，每下钻一层分支 +1）。
+        /// internal static：纯计算 + 显式入参，断言宿主直调（与 DetectNewFailures 同一理由）。
+        /// </summary>
+        internal static FlowRunStats ComputeRunStats(IEnumerable<StepModel>? steps) => ComputeRunStats(steps, 1);
+
+        private static FlowRunStats ComputeRunStats(IEnumerable<StepModel>? steps, int depth)
+        {
+            int total = 0, maxDepth = 0;
+            double totalMs = 0, slowestMs = 0;
+            string? slowestName = null;
+
+            if (steps != null)
+            {
+                foreach (var step in steps)
+                {
+                    if (step == null) continue;
+
+                    total++;
+                    if (depth > maxDepth) maxDepth = depth;
+
+                    totalMs += step.LastRunTimeMs;
+                    if (step.LastRunTimeMs > slowestMs)
+                    {
+                        slowestMs = step.LastRunTimeMs;
+                        slowestName = step.StepName;
+                    }
+
+                    if (step is IContainerStep container && container.Children != null)
+                    {
+                        foreach (var branch in container.Children)
+                        {
+                            if (branch?.Steps == null) continue;
+
+                            var nested = ComputeRunStats(branch.Steps, depth + 1);
+                            total += nested.TotalSteps;
+                            if (nested.MaxDepth > maxDepth) maxDepth = nested.MaxDepth;
+                            totalMs += nested.TotalMs;
+                            if (nested.SlowestMs > slowestMs)
+                            {
+                                slowestMs = nested.SlowestMs;
+                                slowestName = nested.SlowestName;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new FlowRunStats(total, maxDepth, totalMs, slowestMs, slowestName);
+        }
+
+        // ==================================================================
+        //  流程栏搜索定位（三视角评审第二批）
+        // ==================================================================
+
+        /// <summary>搜索框文本（按步骤名 / 注释匹配，回车或「下一个」触发定位）</summary>
+        public string SearchText
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
+
+        /// <summary>「下一个」：循环定位下一个匹配步骤。DelegateCommand&lt;object?&gt;（R27：绑定无参，判型收在处理器）</summary>
+        public DelegateCommand<object?> SearchNextCommand { get; }
+
+        /// <summary>「上一个」（评审清单 B 包交互补齐）：同一次匹配列表反向回绕。与 SearchNextCommand 同用 object（R27）</summary>
+        public DelegateCommand<object?> SearchPreviousCommand { get; }
+
+        /// <summary>失败自动跳转的基线：已处理过的失败步骤 Id（新一轮运行开始时清空）</summary>
+        private readonly HashSet<Guid> _failedJumpBaseline = new();
+
+        /// <summary>
+        /// 失败自动跳转开关（评审清单 B 包交互补齐，默认开）：关闭时扫描照跑——
+        /// DetectNewFailures 照常执行、基线照记，只是不再切选中；重新打开后从"下一个新失败"
+        /// 恢复跳转，关闭期间记入基线的失败不补跳（避免打开瞬间整批旧失败把用户来回拽）。
+        /// </summary>
+        public bool AutoJumpToFailure
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = true;
+
+        /// <summary>
+        /// 搜索定位：遍历当前流程（容器递归走 IContainerStep.Children，跳过 StepCollection
+        /// 自身——分支卡片进不了 SelectStep，定位它只会落空），按 StepName / Description 的
+        /// Contains（OrdinalIgnoreCase）匹配。命中即 Workspace.SwitchStep——树展开定位与画布
+        /// 滚入由既有联动总线完成，这里零新增联动；再按一次跳下一个（到尾回绕）；
+        /// 无命中给提示、不换选中。
+        /// </summary>
+        private void SearchNext(object? parameter) => SearchLocate(forward: true);
+
+        /// <summary>「上一个」（评审清单 B 包交互补齐）：同一次匹配列表反向回绕——
+        /// 匹配列表每次现算（口径与「下一个」一致，等价于 SearchText 变化时重算），
+        /// 反向在头回绕到最后一个；当前不在命中列表时从最后一个开始。</summary>
+        private void SearchPrevious(object? parameter) => SearchLocate(forward: false);
+
+        /// <summary>搜索定位公共核（+1 = 下一个 / -1 = 上一个），命中列表与回绕口径见 SearchNext 注释</summary>
+        private void SearchLocate(bool forward)
+        {
+            var flow = Workspace?.CurrentFlow;
+            if (flow == null) return;
+
+            string query = (SearchText ?? string.Empty).Trim();
+            if (query.Length == 0) return;
+
+            var matches = new List<StepModel>();
+            CollectSearchMatches(flow.Steps, query, matches);
+            if (matches.Count == 0)
+            {
+                ShowFeedback($"没有匹配「{query}」的步骤", false);
+                return;
+            }
+
+            // 命中列表里已有当前选中 → 按方向走一步（尾/头回绕）；不在 → 正向从第一个、反向从最后一个开始
+            int index = matches.FindIndex(s => ReferenceEquals(s, Workspace.CurrentStep));
+            int target = forward
+                ? (index + 1) % matches.Count
+                : (index <= 0 ? matches.Count - 1 : index - 1);
+            Workspace.SwitchStep(matches[target]);
+        }
+
+        private static void CollectSearchMatches(IEnumerable<StepModel> steps, string query, List<StepModel> into)
+        {
+            foreach (var step in steps)
+            {
+                if (step == null) continue;
+
+                if ((step.StepName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || (step.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
+                {
+                    into.Add(step);
+                }
+
+                // 分支（StepCollection）不在 Steps 列表里、也进不了 SelectStep；
+                // 容器的分支内步骤经 Children 递归照常搜
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                    {
+                        if (branch?.Steps != null)
+                            CollectSearchMatches(branch.Steps, query, into);
+                    }
                 }
             }
         }
@@ -276,36 +558,20 @@ namespace VisionMaster.ViewModels
             });
         }
 
-        /// <summary>
-        /// 运行锁豁免表（DWV 第 1 期）。豁免只放宽下列动作，其余编辑动作维持原锁。
-        ///
-        /// 【为什么「切换断点」任何运行态都放行】断点标记是 [RuntimeState] 运行期设施——
-        /// 不落盘、不递增 Version、不改流程语义（见 StepModel.IsBreakpoint 注释）；
-        /// 而"停在断点上给后续步骤加减断点"恰恰是调试的日常动作，锁住它等于调试时不能调断点。
-        ///
-        /// 【为什么「模块参数」只在"已暂停"放行】暂停中查看/调整参数是调试的核心诉求
-        /// （引擎停在节点执行前，此刻看参数不与被执行中的插件状态打架）；
-        /// 运行中（非暂停）仍锁死，防止"边跑边换轮胎"。
-        /// 注意：豁免只影响本命令的运行锁守卫；参数写回仍走既有通道（Version 递增照旧），
-        /// 是否对下一轮生效由引擎的编译版本检查决定，本命令不做额外处理。
-        /// </summary>
-        private bool IsRunLockExempt(ModuleCommandAction action)
+        /// <summary>UI 命令动作 → 门禁编辑类别的归一（豁免口径全在 EditGate.IsEditable，别再私写判据）</summary>
+        private static ModuleEditAction ToEditAction(ModuleCommandAction action) => action switch
         {
-            if (action == ModuleCommandAction.ToggleBreakpoint)
-                return true;
-
-            if (action == ModuleCommandAction.ModuleParameters && _runState == MainRunState.Paused)
-                return true;
-
-            return false;
-        }
+            ModuleCommandAction.ToggleBreakpoint => ModuleEditAction.ToggleBreakpoint,
+            ModuleCommandAction.ModuleParameters => ModuleEditAction.ModuleParameters,
+            _ => ModuleEditAction.StructuralEdit,
+        };
 
         private async Task ModuleActionAsync(ModuleCommandAction? action)
         {
             // 运行锁：双击卡片、右键菜单（重命名/删除/禁用/模块参数…）都汇聚到本命令，单点拦截。
             // 删除/改名/参数等全部菜单动作都是编辑动作，运行中一律拦截（原 Copy/ShowAll 放行已随空壳项移除）。
-            // DWV 第 1 期两处豁免见 IsRunLockExempt：切换断点任何运行态放行；模块参数仅"已暂停"放行。
-            if (action.HasValue && IsRunLocked && !IsRunLockExempt(action.Value))
+            // DWV 第 1 期两处豁免已收口进 EditGate.IsEditable：切换断点任何运行态放行；模块参数仅"已暂停"放行。
+            if (action.HasValue && !_editGate.IsEditable(ToEditAction(action.Value)))
             {
                 Notifier.ShowWarning(RunLockedMessage);
                 return;
@@ -668,6 +934,126 @@ namespace VisionMaster.ViewModels
                         return container as ParallelStep;
 
                     var nested = FindOwningParallelGroup(child.Steps, branch);
+                    if (nested != null)
+                        return nested;
+                }
+            }
+
+            return null;
+        }
+        #endregion
+
+        #region 分支匹配（Case）：分支结构动作（改名 / 删除）
+        //  2026-10-11：Case 分支此前只有编译语义没有结构入口——加分支走 ModuleCommandAction.AddCase，
+        //  改名/删除缺席（"Case 1/2/3"想改成"型号A"做不到）。照并行分支胶囊先例补齐：
+        //  判型收 object（R27）、运行锁同一份文案、三个可注入出口（ShowFeedback /
+        //  ConfirmDeleteParallelBranch / ConfirmRenameParallelBranch）**与并行共用同一份**——
+        //  出口各写一份必然漂移。删除/改名打在命中的那条分支上（菜单靶 = PlacementTarget.DataContext），
+        //  与"当前选中项"无关，不违反 R25 的分支卡片不可选中闸。
+
+        /// <summary>
+        /// 重命名一条 Case 分支（流程栏分支胶囊右键）。写 StepName 后手动 Version++：
+        /// StepCollection.StepName 不在 FlowModel 监听面里（口径与并行分支改名一致）。
+        /// </summary>
+        private void RenameCaseBranch(object? target)
+        {
+            if (target is not StepCollection branch)
+                return;
+
+            if (FindOwningCaseStep(Workspace?.CurrentFlow?.Steps, branch) == null)
+                return;
+
+            if (IsRunLocked)
+            {
+                ShowFeedback(RunLockedMessage, false);
+                return;
+            }
+
+            var data = ConfirmRenameParallelBranch("Case 分支重命名", branch.StepName);
+            if (!data.IsConfirmed)
+                return;
+
+            string name = (data.Value ?? string.Empty).Trim();
+            if (name.Length == 0)
+            {
+                ShowFeedback("分支名不能为空", false);
+                return;
+            }
+
+            if (name == branch.StepName)
+                return;
+
+            branch.StepName = name;
+            if (Workspace?.CurrentFlow != null)
+                Workspace.CurrentFlow.Version++;
+        }
+
+        /// <summary>
+        /// 删除一条 Case 分支（流程栏分支胶囊右键）。两条业务闸：
+        /// 默认分支（Else）不可删——未命中任何匹配值时靠它收尾；至少保留一条 Case 分支
+        /// （编译期"没有可用的 Case 分支"也会拦，UI 先说人话）。删有算子的分支先确认。
+        /// 从 Children 移除由 FlowModel 集合监听自动递增版本，不手动 Version++。
+        /// </summary>
+        private void RemoveCaseBranch(object? target)
+        {
+            if (target is not StepCollection branch)
+                return;
+
+            var owner = FindOwningCaseStep(Workspace?.CurrentFlow?.Steps, branch);
+            if (owner == null)
+                return;
+
+            if (IsRunLocked)
+            {
+                ShowFeedback(RunLockedMessage, false);
+                return;
+            }
+
+            if (branch.BranchType != BranchType.Case)
+            {
+                ShowFeedback("默认分支不可删除（所有匹配值都不命中时靠它收尾）", false);
+                return;
+            }
+
+            if (owner.Children.Count(c => c.BranchType == BranchType.Case) <= 1)
+            {
+                ShowFeedback("至少保留一条 Case 分支", false);
+                return;
+            }
+
+            if (branch.Steps.Count > 0)
+            {
+                bool confirmed = ConfirmDeleteParallelBranch?.Invoke(
+                    "删除 Case 分支",
+                    $"分支「{branch.StepName}」内还有 {branch.Steps.Count} 个算子，删除分支会一并移除，确定？") ?? false;
+                if (!confirmed)
+                    return;
+            }
+
+            owner.Children.Remove(branch);
+        }
+
+        /// <summary>
+        /// 从流程树里找某条分支的所属分支匹配容器（找不到 / 属主不是 CaseStep 都返回 null，不抛）。
+        /// 递归口径与 FindOwningParallelGroup 逐字同款：分支可能嵌在别的容器里，
+        /// 只有属主是 CaseStep 时才认，免得"删 Case 分支"误伤别处同名分支。
+        /// </summary>
+        private static CaseStep? FindOwningCaseStep(IEnumerable<StepModel>? steps, StepCollection branch)
+        {
+            if (steps == null || branch == null)
+                return null;
+
+            foreach (var step in steps)
+            {
+                if (step is not IContainerStep container || container.Children == null)
+                    continue;
+
+                foreach (var child in container.Children)
+                {
+                    if (ReferenceEquals(child, branch))
+                        return container as CaseStep;
+
+                    var nested = FindOwningCaseStep(child.Steps, branch);
                     if (nested != null)
                         return nested;
                 }

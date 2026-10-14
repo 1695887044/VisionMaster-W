@@ -274,6 +274,84 @@
                             </TextBlock>
                         </StackPanel>
 
+                        <!--  流程动作（启动 / 停止 / 执行一次）：三者参数形状一模一样（就一个目标流程），
+                              共用这一块面板，按类型三选一显形。目标流程存"身份 + 名字"两份，
+                              Id 优先、名字只用于显示与兜底寻址，回填与寻址的口径在 ScadaAction.BindFlow 一处。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="StartFlow">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="StopFlow">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="RunFlowOnce">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--  名字为空（=还没选）时由 TargetNullValue 顶上一句占位文案，
+                                      省掉一个"空/非空"双控件互斥的触发器  -->
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding FlowName, TargetNullValue=（还没选流程）}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding FlowName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasFlow}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Button
+                                    Grid.Column="1"
+                                    Padding="6,1"
+                                    FontSize="11"
+                                    Command="{Binding DataContext.PickFlowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="选择流程"
+                                    ToolTip="从当前方案的流程清单里挑一条" />
+                            </Grid>
+
+                            <!--  没选流程：执行侧会照实警告并跳过，先把这件事说在界面上  -->
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaWarningBrush}"
+                                Text="还没选流程，这条动作运行时会跳过。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasFlow}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
                         <!--  还没接通的动作：说明"为什么现在配了也不会响"。
                               文案来自领域层（ScadaAction.PendingReason），与运行日志里那句逐字相同，
                               用户才能把"我配的这条"和"日志里那条"对上号。  -->

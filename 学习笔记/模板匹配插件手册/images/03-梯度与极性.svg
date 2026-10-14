@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="720" height="320" fill="#FDFDFB"/>
+  <!-- 左：暗→亮 -->
+  <text x="60" y="34" fill="#0F172A" font-size="15" font-weight="bold">暗 → 亮（正向边）</text>
+  <line x1="50" y1="240" x2="320" y2="240" stroke="#94A3B8" stroke-width="2"/>
+  <polyline points="50,200 120,200 150,190 180,110 210,96 260,96 320,96"
+            fill="none" stroke="#2563EB" stroke-width="3"/>
+  <text x="60" y="230" fill="#64748B" font-size="13">暗 (60)</text>
+  <text x="266" y="86" fill="#64748B" font-size="13">亮 (200)</text>
+  <line x1="186" y1="96" x2="186" y2="240" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="120" y="282" fill="#DC2626" font-size="14" font-weight="bold">边缘：灰度往上跳</text>
+  <!-- 右：亮→暗 -->
+  <text x="440" y="34" fill="#0F172A" font-size="15" font-weight="bold">亮 → 暗（负向边）</text>
+  <line x1="420" y1="240" x2="690" y2="240" stroke="#94A3B8" stroke-width="2"/>
+  <polyline points="420,96 480,96 510,110 540,190 570,204 690,204"
+            fill="none" stroke="#2563EB" stroke-width="3"/>
+  <text x="426" y="86" fill="#64748B" font-size="13">亮 (200)</text>
+  <text x="620" y="230" fill="#64748B" font-size="13">暗 (60)</text>
+  <line x1="524" y1="96" x2="524" y2="240" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="490" y="282" fill="#DC2626" font-size="14" font-weight="bold">边缘：灰度往下跳</text>
+  <!-- 底注 -->
+  <text x="40" y="308" fill="#0F172A" font-size="14" font-weight="bold">极性 = 边缘的黑白方向。勾「使用极性」：学习与查找方向必须一致才算命中 → 更快更准；光照可能反相（正反面）就取消勾</text>
+</svg>

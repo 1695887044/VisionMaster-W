@@ -68,6 +68,12 @@ namespace VisionMaster.Communications
         private long _lastSuccessTicks;              // 最近一次真实通信成功的 DateTime.Ticks（Interlocked 访问）
         private bool _disposed;
 
+        // 建连失败分类（连接实现若支持 IConnectionFailureDetail）：
+        // _lastConnectRefused 决定退避节奏（refused 用固定短间隔，主机活着服务未起的场景不值得指数拖长）；
+        // _connectFailureSerial 每次建连失败自增，供 WaitStateAsync 感知"等待期间发生了新失败"→ 快速返回
+        private volatile bool _lastConnectRefused;
+        private int _connectFailureSerial;
+
         // M3：主线程 Dispose 等待线程退出超时后置位——改由 Worker 线程在退出前自行释放连接对象，
         // 避免"后台线程仍在使用连接对象时主线程抢先 Dispose"（socket 层竞态 / 诡异报错）
         private volatile bool _disposeConnectionOnExit;
@@ -99,6 +105,14 @@ namespace VisionMaster.Communications
 
         /// <summary>重连退避上限</summary>
         public int ReconnectMaxIntervalMs { get; set; } = 30000;
+
+        /// <summary>
+        /// <para>「目标拒绝连接」（ConnectionRefused）场景的重试间隔（固定值，不走指数退避）。</para>
+        /// <para>为什么可以更短：refused 说明目标主机活着、只是端口没监听——探测成本是内核级的毫秒秒拒，
+        /// 按指数退避拖到 30s 反而让"目标服务晚起几分钟"的场景白等；非 refused（超时/丢包）路径
+        /// 仍按 <see cref="ReconnectBaseIntervalMs"/> 指数退避，行为不变。</para>
+        /// </summary>
+        public int RefusedRetryIntervalMs { get; set; } = 1000;
 
         /// <summary>
         /// 是否维持自动重连（由 Manager 按"管理器总开关 && 连接级开关"注入），默认 true。
@@ -328,9 +342,12 @@ namespace VisionMaster.Communications
                 {
                     break;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // 循环自身不允许崩（防御性兜底），等下一拍
+                    // 循环自身不允许崩（防御性兜底），等下一拍。
+                    // 异常必须留下证据：旧实现整段吞掉，状态机卡在奇怪状态时无从排查；
+                    // 限频防热路径刷屏（同一类异常 5s 窗口内只记一次）
+                    LogErrorThrottled("loop", $"Worker 主循环异常: {ex.GetType().Name}: {ex.Message}");
                     Thread.Sleep(200);
                 }
             }
@@ -390,15 +407,27 @@ namespace VisionMaster.Communications
                 {
                     _reconnectAttempt = 0;
                     _lastError = null;
+                    _lastConnectRefused = false;
                     TouchCommunicationSuccess();
                     _scheduler?.ResetAllDue(); // 立即允许首轮轮询
                     SetState(ConnectionState.Connected);
                     return;
                 }
-                OnConnectionFailed(new InvalidOperationException("建立连接失败"), connectPhase: true);
+
+                // 建连失败：若连接实现支持失败分类，取「是否 refused」与具体原因——
+                // refused 决定退避节奏（固定短间隔），原因进 _lastError 供上层/界面区分故障类别。
+                // LastConnectError 在 refused 场景已自带 [ConnectionRefused] 前缀，此处只对没有前缀的补一遍
+                _lastConnectRefused = _connection is IConnectionFailureDetail { IsLastConnectFailureRefused: true };
+                string reason = "建立连接失败";
+                if (_connection is IConnectionFailureDetail detail && detail.LastConnectError is { } connectError)
+                    reason = connectError;
+                if (_lastConnectRefused && !reason.StartsWith("[ConnectionRefused]", StringComparison.Ordinal))
+                    reason = "[ConnectionRefused] " + reason;
+                OnConnectionFailed(new InvalidOperationException(reason), connectPhase: true);
             }
             catch (Exception ex)
             {
+                _lastConnectRefused = false;
                 OnConnectionFailed(ex, connectPhase: true);
             }
         }
@@ -407,6 +436,7 @@ namespace VisionMaster.Communications
         private void OnConnectionFailed(Exception ex, bool connectPhase)
         {
             _lastError = ex.Message;
+            Interlocked.Increment(ref _connectFailureSerial); // 唤醒 WaitStateAsync 的 refused 快速失败判定
             CommunicationError?.Invoke(ex);
             ScheduleReconnect();
         }
@@ -445,11 +475,11 @@ namespace VisionMaster.Communications
                 return;
             }
 
-            // base * 2^(attempt-1)，封顶 max
-            int shift = Math.Min(_reconnectAttempt - 1, 16);
-            long backoff = (long)ReconnectBaseIntervalMs << shift;
-            if (backoff > ReconnectMaxIntervalMs)
-                backoff = ReconnectMaxIntervalMs;
+            // base * 2^(attempt-1)，封顶 max；refused（目标拒绝连接）例外：固定短间隔重试，
+            // 主机活着服务未起的场景探测成本毫秒级，指数拖长只会让"目标服务晚起"的场景白等
+            long backoff = _lastConnectRefused
+                ? RefusedRetryIntervalMs
+                : Math.Min((long)ReconnectBaseIntervalMs << Math.Min(_reconnectAttempt - 1, 16), ReconnectMaxIntervalMs);
 
             SetState(ConnectionState.Reconnecting);
             Volatile.Write(ref _nextConnectTick, Now() + backoff);
@@ -461,9 +491,12 @@ namespace VisionMaster.Communications
             {
                 item.Action(_connection);
             }
-            catch
+            catch (Exception ex)
             {
-                // 委托内部自负异常处理（Invoke 已把结果写入 TCS）；循环不允许被单条命令打崩
+                // 委托内部（EnqueueCommand 的包装）已把异常写入 TCS 回抛调用方；这里兜住是为了
+                // 循环不被单条命令打崩。补一条限频日志留证据：像 TriggerWrite 这类真异步入口
+                // 调用方不持有 Task，异常若在这里也静默，就彻底无人看见。
+                LogErrorThrottled("cmd:" + ex.GetType().Name, $"命令执行异常: {ex.Message}");
             }
         }
 
@@ -498,10 +531,15 @@ namespace VisionMaster.Communications
             // 封顶只影响"本次调用能否拿到成功结果"，不影响后台重连意图（超时返回 false，重连照常继续）
             long wait = millisecondsTimeout < 0 ? MaxConnectWaitMs : millisecondsTimeout;
             long deadline = Environment.TickCount64 + wait;
+            int failuresAtStart = Volatile.Read(ref _connectFailureSerial);
             while (true)
             {
                 if (State == target) return true;
                 if (_disposed || _cts.IsCancellationRequested) return false;
+                // 本次等待期间发生了一次「目标拒绝」的建连失败 → 立即判失败返回（refused 是确定性的"当前连不上"，
+                // Manager.Connect 的幽灵端口路径不必陪等满 TimeoutMs）；重连意图不受影响：Worker 仍按退避继续在后台重连
+                if (Volatile.Read(ref _connectFailureSerial) > failuresAtStart && _lastConnectRefused)
+                    return false;
                 if (Environment.TickCount64 >= deadline) return State == target;
                 await Task.Delay(25).ConfigureAwait(false);
             }
@@ -522,6 +560,43 @@ namespace VisionMaster.Communications
         private void ThrowIfDisposed()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(ConnectionWorker));
+        }
+
+        #endregion
+
+        #region 日志（与 Manager 同一入口）
+
+        // 日志双通道：Console 保留给调试器；LogSink 由 App 启动时挂接 ILogService（进 UI 日志窗口）。
+        // 限流：同一 key 在窗口期内的重复日志只记第一条——轮询/退避热路径上同类异常会连续发生，
+        // 不限流会把日志窗口刷满（参照 PollBatchPlanner._logTicks 的限流写法）。
+
+        private readonly ConcurrentDictionary<string, long> _logThrottleTicks = new();
+        private const long LogThrottleWindowMs = 5000;
+
+        /// <summary>同一 key 在窗口期内的重复调用返回 true（应被抑制）</summary>
+        private bool IsLogThrottled(string key)
+        {
+            long now = Environment.TickCount64;
+            if (_logThrottleTicks.TryGetValue(key, out long last) && now - last < LogThrottleWindowMs)
+                return true;
+            _logThrottleTicks[key] = now;
+            return false;
+        }
+
+        /// <summary>限频 ERROR：key 相同的异常在窗口期内只记一条。
+        /// 本方法在 catch 块内被调用——日志通道自身的异常（订阅者/Console）必须就地吞掉，否则会从 catch 逃逸杀死 Worker 线程。</summary>
+        private void LogErrorThrottled(string key, string message)
+        {
+            try
+            {
+                if (IsLogThrottled(key)) return;
+                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] [ERROR] [{ConnectionName}] {message}");
+                AdvancedCommunicationManager.LogSink?.Error($"[Comm] [{ConnectionName}] {message}");
+            }
+            catch
+            {
+                // 报告故障的代码不许自己成为故障源
+            }
         }
 
         #endregion

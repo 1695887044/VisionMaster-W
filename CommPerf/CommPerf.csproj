@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <!-- 临时压测台：直连用户 DeviceSimulator（127.0.0.1:10000-10019），不参与产品发布 -->
+    <IsPackable>false</IsPackable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>CommPerf</RootNamespace>
+    <AssemblyName>CommPerf</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只引用通信工程（传递拿到 VM.Core / HSL），避免牵动 VisionMaster 宿主构建产物 -->
+    <ProjectReference Include="..\Communication\VM.Communication.csproj" />
+  </ItemGroup>
+
+</Project>

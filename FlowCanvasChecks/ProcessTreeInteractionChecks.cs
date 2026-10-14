@@ -311,6 +311,158 @@ namespace FlowCanvasChecks
                     vm.Deactivate();
                 }
             }
+
+            // ---- V9：分支匹配（Case）的结构命令（2026-10-11）----
+            // ① ModuleCommandAction.AddCase（ModuleActionCommand 链，靶 = SelectStep）：
+            //    插在默认分支之前、自动名取第一个未占用号（改过名的空位可复用）；非 CaseStep 静默空跑。
+            // ② RenameCaseBranchCommand / RemoveCaseBranchCommand（胶囊右键，靶 = 命中分支）：
+            //    改名写回 + 手动 Version++（StepName 不在监听面）；删除两道业务闸（默认分支不可删 /
+            //    至少保留一条 Case）+ 有算子两态确认；运行锁同一份文案；类型容错同 V8。
+            {
+                var h = new Harness();
+                var feedback = new List<string>();
+                var vm = new ProcessViewModel(h.Workspace, dialogs)
+                {
+                    ShowFeedback = (message, success) => feedback.Add((success ? "成功:" : "警示:") + message),
+                    ConfirmDeleteParallelBranch = (title, message) => false,
+                    ConfirmRenameParallelBranch = (title, defaultValue) => (false, defaultValue),
+                };
+                try
+                {
+                    var caseStep = new CaseStep("\uE700", "分支匹配", "BuiltIn_Case", "分档_0");
+                    h.Add(caseStep);
+
+                    // ---- AddCase：插在默认分支之前，自动名不撞既有分支 ----
+                    vm.SelectStep = caseStep;
+                    vm.ModuleActionCommand.Execute(ModuleCommandAction.AddCase);
+                    bool inserted = caseStep.Children.Count == 3
+                        && caseStep.Children[1].BranchType == BranchType.Case
+                        && caseStep.Children[1].StepName == "Case 2"
+                        && caseStep.Children[2].BranchType == BranchType.Else;
+                    caseStep.Children[1].StepName = "型号A";   // 用户改过名
+                    vm.ModuleActionCommand.Execute(ModuleCommandAction.AddCase);
+                    bool uniqueNaming = caseStep.Children.Count == 4
+                        && caseStep.Children.Select(c => c.StepName).Distinct().Count() == 4
+                        && caseStep.Children[2].StepName == "Case 2";   // 被改走的空位可复用，不撞"型号A"
+                    Check("V9：添加 Case 分支 → 插在默认分支之前 + 自动名取未占用号",
+                        inserted && uniqueNaming,
+                        $"插入={inserted} 名字={string.Join("/", caseStep.Children.Select(c => c.StepName))}");
+
+                    // ---- 非目标类型：AddCase 拿不到 CaseStep → 静默空跑 ----
+                    // 注意不能写 SelectStep = alien：SwitchStep 对"不属于当前流程"的步骤直接抛
+                    //（WorkspaceContext 语义，与命令容错是两回事）；空跑判据走 null 靶。
+                    int beforeAlien = caseStep.Children.Count;
+                    vm.SelectStep = null;
+                    vm.ModuleActionCommand.Execute(ModuleCommandAction.AddCase);
+                    Check("V9：AddCase 靶不是 CaseStep（null）→ 静默空跑",
+                        caseStep.Children.Count == beforeAlien,
+                        $"分支数={caseStep.Children.Count}（应={beforeAlien}）");
+
+                    // ---- 改名：写回（裁空白）+ 手动 Version++；空白名与取消都不动 ----
+                    var renameTarget = caseStep.Children[0];
+                    vm.SelectStep = caseStep;
+                    int v0 = h.Flow.Version;
+                    vm.ConfirmRenameParallelBranch = (title, defaultValue) => (true, "  型号B  ");
+                    vm.RenameCaseBranchCommand.Execute(renameTarget);
+                    bool renamed = renameTarget.StepName == "型号B" && h.Flow.Version > v0;
+
+                    vm.ConfirmRenameParallelBranch = (title, defaultValue) => (true, "   ");
+                    vm.RenameCaseBranchCommand.Execute(renameTarget);
+                    bool blankRejected = renameTarget.StepName == "型号B";
+
+                    vm.ConfirmRenameParallelBranch = (title, defaultValue) => (false, "误改");
+                    vm.RenameCaseBranchCommand.Execute(renameTarget);
+                    Check("V9：Case 分支改名 → StepName 写回 + Version 递增；空白名与取消都不动",
+                        renamed && blankRejected && renameTarget.StepName == "型号B",
+                        $"名='{renameTarget.StepName}' 版本 {v0} → {h.Flow.Version}");
+
+                    // ---- 删除两道闸：默认分支不可删；最后一条 Case 分支不可删 ----
+                    feedback.Clear();
+                    var fallback = caseStep.Children.First(c => c.BranchType == BranchType.Else);
+                    vm.RemoveCaseBranchCommand.Execute(fallback);
+                    bool fallbackKept = caseStep.Children.Contains(fallback)
+                        && feedback.Any(f => f.Contains("默认分支不可删除"));
+
+                    var caseBranches = caseStep.Children.Where(c => c.BranchType == BranchType.Case).ToList();
+                    caseBranches.Remove(renameTarget);
+                    foreach (var extra in caseBranches)
+                        vm.RemoveCaseBranchCommand.Execute(extra);   // 逐条删到只剩改名的那条
+                    feedback.Clear();
+                    vm.RemoveCaseBranchCommand.Execute(renameTarget);
+                    bool lastKept = caseStep.Children.Contains(renameTarget)
+                        && feedback.Any(f => f.Contains("至少保留一条 Case"));
+                    Check("V9：默认分支不可删 + 最后一条 Case 分支不可删（Children 不动 + 各给提示）",
+                        fallbackKept && lastKept,
+                        $"默认分支保留={fallbackKept} 最后一条保留={lastKept} 反馈={string.Join("|", feedback)}");
+
+                    // ---- 删有算子的分支：确认两态（false = 什么都不做；true = Children -1）----
+                    // 先补一条 Case 分支：renameTarget 此刻是仅剩的一条，"至少保留一条"闸会先拦、
+                    // 确认框根本到不了（上一段验的就是那道闸）；补齐后这里才轮到确认流。
+                    vm.SelectStep = caseStep;
+                    vm.ModuleActionCommand.Execute(ModuleCommandAction.AddCase);
+                    renameTarget.Steps.Add(new ActionStep("\uE700", "算子", StubPluginProvider.LeafPlugin, "Case内算子"));
+                    bool askedWithCount = false;
+                    vm.ConfirmDeleteParallelBranch = (title, message) =>
+                    {
+                        askedWithCount = message.Contains("还有 1 个算子");
+                        return false;
+                    };
+                    vm.RemoveCaseBranchCommand.Execute(renameTarget);
+                    bool keptOnCancel = caseStep.Children.Contains(renameTarget) && askedWithCount;
+
+                    vm.ConfirmDeleteParallelBranch = (title, message) => true;
+                    vm.RemoveCaseBranchCommand.Execute(renameTarget);
+                    bool removedOnConfirm = !caseStep.Children.Contains(renameTarget);
+                    Check("V9：删有算子的 Case 分支 → 先确认（文案带算子数）；取消不动 / 确认后移除",
+                        keptOnCancel && removedOnConfirm,
+                        $"文案带算子数={askedWithCount} 确认后已移除={removedOnConfirm}");
+
+                    // ---- 运行锁 + 类型容错（同 V8 手法）----
+                    var locked = new CaseStep("\uE700", "分支匹配", "BuiltIn_Case", "锁靶");
+                    h.Add(locked);
+                    int lockedCount = locked.Children.Count;
+                    string lockedName = locked.Children[0].StepName;
+                    feedback.Clear();
+                    GlobalEventBus.Publish(MainRunState.RunningOnce);
+                    try
+                    {
+                        vm.RenameCaseBranchCommand.Execute(locked.Children[0]);
+                        vm.RemoveCaseBranchCommand.Execute(locked.Children[0]);
+                    }
+                    finally
+                    {
+                        GlobalEventBus.Publish(MainRunState.NotStarted);
+                    }
+                    Check("V9：运行中两个 Case 结构命令都被运行锁拦下（分支数/名不动 + 各给提示）",
+                        locked.Children.Count == lockedCount
+                        && locked.Children[0].StepName == lockedName
+                        && feedback.Count(f => f.Contains("流程运行中")) == 2,
+                        $"分支数={locked.Children.Count} 名='{locked.Children[0].StepName}' 反馈={string.Join("|", feedback)}");
+
+                    Exception? caseBoom = null;
+                    try
+                    {
+                        var alien = new ActionStep("\uE700", "算子", StubPluginProvider.LeafPlugin, "算子_0");
+                        bool canRename = vm.RenameCaseBranchCommand.CanExecute(alien);
+                        bool canRemove = vm.RemoveCaseBranchCommand.CanExecute(alien);
+                        vm.RenameCaseBranchCommand.Execute(alien);
+                        vm.RemoveCaseBranchCommand.Execute(alien);
+                        Check("V9：Case 结构命令拿到非目标类型（ActionStep）→ 不抛异常、静默空跑",
+                            canRename && canRemove && locked.Children.Count == lockedCount,
+                            $"CanExecute={canRename && canRemove} 分支数={locked.Children.Count}");
+                    }
+                    catch (Exception ex)
+                    {
+                        caseBoom = ex;
+                        Check("V9：Case 结构命令拿到非目标类型（ActionStep）→ 不抛异常、静默空跑",
+                            false, $"{caseBoom.GetType().Name}: {caseBoom.Message}");
+                    }
+                }
+                finally
+                {
+                    vm.Deactivate();
+                }
+            }
         }
 
         /// <summary>

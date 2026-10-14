@@ -37,6 +37,14 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 方案序列化设置的只读出口：流程剪贴板（FlowClipboard）的复制快照与 .vms 落盘
+        /// 共用同一条管线——TypeNameHandling / binder 口径一旦两份漂移，就会出现
+        /// "存盘读得回、粘贴不认账"的劈叉。断言工程没有本程序集私有字段可拿，
+        /// 只能用同一个 public binder 复刻同款设置（FlowCanvasChecks.Program.RoundTripSettings）。
+        /// </summary>
+        public static JsonSerializerSettings SerializationSettings => _jsonSettings;
+
+        /// <summary>
         /// 方案模型集合（只读）
         /// </summary>
         public ReadOnlyObservableCollection<SolutionModel> SolutionModels { get; }

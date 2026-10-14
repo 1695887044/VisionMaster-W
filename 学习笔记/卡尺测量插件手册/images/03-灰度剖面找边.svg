@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="720" height="360" fill="#FDFDFB"/>
+  <!-- 坐标轴 -->
+  <line x1="60" y1="300" x2="660" y2="300" stroke="#94A3B8" stroke-width="2"/>
+  <line x1="60" y1="300" x2="60" y2="50" stroke="#94A3B8" stroke-width="2"/>
+  <text x="560" y="322" fill="#475569" font-size="14">扫描方向（沿 L1）</text>
+  <text x="20" y="60" fill="#475569" font-size="14">灰度值</text>
+  <!-- 灰度剖面：平台60 → 平滑上升 → 平台200 -->
+  <polyline points="60,240 210,240 230,236 255,190 280,130 305,96 330,88 640,88"
+            fill="none" stroke="#2563EB" stroke-width="3"/>
+  <!-- 平台参考虚线 -->
+  <line x1="60" y1="240" x2="640" y2="240" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="5 4"/>
+  <line x1="60" y1="88" x2="640" y2="88" stroke="#CBD5E1" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="66" y="258" fill="#64748B" font-size="13">灰度 60（暗）</text>
+  <text x="66" y="80" fill="#64748B" font-size="13">灰度 200（亮）</text>
+  <!-- 振幅 -->
+  <line x1="580" y1="240" x2="580" y2="88" stroke="#B45309" stroke-width="1.8"/>
+  <line x1="572" y1="240" x2="588" y2="240" stroke="#B45309" stroke-width="1.8"/>
+  <line x1="572" y1="88" x2="588" y2="88" stroke="#B45309" stroke-width="1.8"/>
+  <text x="590" y="170" fill="#B45309" font-size="14" font-weight="bold">振幅 Amp ≈ 140</text>
+  <text x="590" y="190" fill="#475569" font-size="13">跳变幅度 ≥ 阈值(30) 才算边</text>
+  <!-- 边缘点 -->
+  <circle cx="268" cy="160" r="6" fill="#DC2626"/>
+  <line x1="268" y1="160" x2="268" y2="300" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="150" y="130" fill="#DC2626" font-size="15" font-weight="bold">亚像素边缘位置（最陡处，小数!）</text>
+  <text x="150" y="152" fill="#DC2626" font-size="13">极性 Transition：暗→亮（60 → 200）</text>
+  <!-- 底注 -->
+  <text x="60" y="340" fill="#475569" font-size="13.5">Sigma = 先轻度平滑再求差：越大越抗噪但边缘越糊（HALCON 最小 0.4，传 0 直接 #1302 —— 插件静默夹到 0.4）</text>
+</svg>

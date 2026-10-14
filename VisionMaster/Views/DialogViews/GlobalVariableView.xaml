@@ -6,6 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:helpers="clr-namespace:VisionMaster.Helpers"
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="{StaticResource DialogBackgroundBrush}"
     mc:Ignorable="d">
@@ -30,9 +31,14 @@
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
-            <Setter Property="Width" Value="1240" />
+            <!--
+                默认宽 1300：右栏"变量明细"表 6 个固定列（来源/扫描组/地址收起后）约 500，
+                加"当前值"列的可读下限，右栏视口需要 ~700 起。小屏（如 1920@150% 的逻辑
+                桌面只有 1280）由代码后置的 ClampToWorkArea 收敛到工作区宽度，列显隐随之自适应。
+            -->
+            <Setter Property="Width" Value="1300" />
             <Setter Property="Height" Value="700" />
-            <Setter Property="MinWidth" Value="1120" />
+            <Setter Property="MinWidth" Value="1200" />
             <Setter Property="MinHeight" Value="580" />
         </Style>
     </prism:Dialog.WindowStyle>
@@ -256,6 +262,19 @@
                                 ItemsSource="{Binding FilteredTypes}"
                                 SelectedItem="{Binding SelectedType}"
                                 Style="{StaticResource DialogCombo}" />
+
+                            <!--  初始值（选填）：建变量时定基准——明细表 ↺「恢复为初始值」恢复的就是它。
+                                  数组/图像没有可文本化的初始值（数组用「强制覆盖集合」、图像由流程写入），此时隐藏  -->
+                            <TextBlock
+                                Style="{StaticResource DialogFormLabel}"
+                                Text="初始值 (选填)"
+                                Visibility="{Binding ShowNewInitialValue, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <TextBox
+                                Margin="0,0,0,14"
+                                Style="{StaticResource DialogInput}"
+                                Tag="留空 = 类型默认值（0 / 空串 / false）"
+                                Text="{Binding NewInitialValueText, UpdateSourceTrigger=PropertyChanged}"
+                                Visibility="{Binding ShowNewInitialValue, Converter={ui:BooleanToVisibilityConverter}}" />
 
                             <!--  变量描述  -->
                             <TextBlock Style="{StaticResource DialogFormLabel}" Text="变量描述 (选填)" />
@@ -508,19 +527,38 @@
                         </Grid>
                     </Border>
 
+                    <!--
+                        HorizontalScrollBarVisibility=Auto：固定列合计超过视口时（网络来源下
+                        列更多，或窗口被压到最小宽）横向滚动兜底，而不是静默裁掉最右的"操作"列。
+                        本地来源下"来源/扫描组/地址"三列整列收起（见代码后置），正常不会出滚动条。
+                    -->
                     <DataGrid
                         Grid.Row="1"
-                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalScrollBarVisibility="Auto"
                         ItemsSource="{Binding FilteredDisplayNodes}"
                         Style="{StaticResource DialogDataGrid}">
                         <DataGrid.Columns>
-                            <!--  变量名（树形缩进 + 展开按钮）  -->
+                            <!--
+                                变量名（树形缩进 + 展开按钮）。
+                                根容器必须是 Grid 而不是横向 StackPanel：StackPanel 给 TextBlock
+                                的是"无限宽"，TextTrimming 永远不生效，超长名只会被单元格硬裁掉
+                                半个字；换成 Grid 让名称列拿 *，截断才走省略号。
+                            -->
                             <DataGridTemplateColumn Width="146" Header="变量名">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Background="Transparent" Orientation="Horizontal">
-                                            <Border Width="{Binding Level, Converter={ui:LevelToIndentConverter}}" />
+                                        <Grid Background="Transparent">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border
+                                                Grid.Column="0"
+                                                Width="{Binding Level, Converter={ui:LevelToIndentConverter}}" />
                                             <ToggleButton
+                                                Grid.Column="1"
                                                 Width="14"
                                                 Height="14"
                                                 Margin="0,0,8,0"
@@ -530,8 +568,15 @@
                                                 IsChecked="{Binding IsExpanded, Mode=TwoWay}"
                                                 Template="{StaticResource ExpandToggleButtonTemplate}"
                                                 Visibility="{Binding IsContainer, Converter={ui:BooleanToVisibilityConverter}}" />
-                                            <Border Width="{Binding IsContainer, Converter={ui:BooleanToWidthConverter}, ConverterParameter=22}" />
-                                            <TextBlock VerticalAlignment="Center" Text="{Binding Name}">
+                                            <Border
+                                                Grid.Column="2"
+                                                Width="{Binding IsContainer, Converter={ui:BooleanToWidthConverter}, ConverterParameter=22}" />
+                                            <TextBlock
+                                                Grid.Column="3"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Name}"
+                                                TextTrimming="CharacterEllipsis"
+                                                ToolTip="{Binding Name}">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="FontSize" Value="13" />
@@ -545,14 +590,14 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                        </StackPanel>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!--  类型  -->
+                            <!--  类型（64：装得下 "Boolean"/"String[]"，再长的走省略号）  -->
                             <DataGridTextColumn
-                                Width="56"
+                                Width="64"
                                 Binding="{Binding TypeName}"
                                 Header="类型"
                                 IsReadOnly="True">
@@ -560,13 +605,17 @@
                                     <Style TargetType="TextBlock">
                                         <Setter Property="VerticalAlignment" Value="Center" />
                                         <Setter Property="FontSize" Value="12" />
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
                                         <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <!--  来源徽标（本地/连接名 + 在线圆点）  -->
-                            <DataGridTemplateColumn Width="104" Header="来源">
+                            <!--  来源徽标（本地/连接名 + 在线圆点）。本地来源下整列收起（每行都是"本地"）  -->
+                            <DataGridTemplateColumn
+                                x:Name="SourceColumn"
+                                Width="104"
+                                Header="来源">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel
@@ -611,8 +660,11 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!--  扫描组（网络变量根节点才有；空组名 = 默认组，显示成"默认组"）  -->
-                            <DataGridTemplateColumn Width="96" Header="扫描组">
+                            <!--  扫描组（网络变量根节点才有；空组名 = 默认组，显示成"默认组"）。本地来源下整列收起  -->
+                            <DataGridTemplateColumn
+                                x:Name="ScanGroupColumn"
+                                Width="96"
+                                Header="扫描组">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <ComboBox
@@ -635,8 +687,11 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!--  设备地址  -->
-                            <DataGridTemplateColumn Width="74" Header="地址">
+                            <!--  设备地址（仅网络变量有值）。本地来源下整列收起  -->
+                            <DataGridTemplateColumn
+                                x:Name="AddressColumn"
+                                Width="74"
+                                Header="地址">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock
@@ -657,133 +712,107 @@
                                 原来元素行是只读 TextBlock —— 改一个数字也得打开整个弹窗，
                                 而那个弹窗又因为 PropertyGrid 不渲染集合而根本用不了（见 VM 注释）。
                             -->
-                            <DataGridTemplateColumn Width="112" Header="初始值">
+                            <!--  （"初始值"列已撤：基准在建变量表单的「初始值」项设定，明细表只看当前值）  -->
+
+                            <!--
+                                当前值：就地编辑（2026-10-11 交互收敛，第二轮：撤掉"初始值"列）。
+                                - 标量根 = 提交式编辑框：回车/失焦提交，本地写内存、网络下发设备，
+                                  失败红框如实留痕；编辑中轮询推送暂停，草稿不被冲掉（CellValueEditBehavior）；
+                                - 数组元素行 = 同样的编辑框，就地改这一项（只写 Value，不碰基准）；
+                                - 当前值 ≠ 初始值时才出现 ↺（基准在建变量时的"初始值"表单项设定）；
+                                - 数组根 = 强制覆盖集合（增删元素、基准与当前值一起换）。
+                                * 列 + MinWidth=80：这是"固定列吃光视口、星号列静默变 0"事故
+                                  （2026-10-11 变量明细显示不全）的守门——低于 80 宁可出横向滚动条。
+                            -->
+                            <DataGridTemplateColumn Width="*" MinWidth="80" Header="当前值">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
-                                            <TextBox
-                                                Style="{StaticResource DialogCellInput}"
-                                                Text="{Binding DefaultValueText, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                                ToolTip="按变量类型校验：与类型不符的值会被拒绝（红框），不会污染模型"
-                                                Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            <StackPanel
+                                                VerticalAlignment="Center"
+                                                Orientation="Horizontal"
+                                                Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                <!--  质量色点：绿=采集正常 / 黄=最近一次读取失败(显示旧值) / 灰=断线或从未读到；
+                                                      本地变量无质量概念 → 不显示  -->
+                                                <Ellipse
+                                                    Width="5"
+                                                    Height="5"
+                                                    Margin="0,0,5,0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="采集质量：绿=正常 / 黄=最近一次读取失败（显示旧值） / 灰=断线或从未读到">
+                                                    <!--
+                                                        色值刻意不走 Dialog* 令牌：这套绿/黄/灰是"采集质量"的
+                                                        全项目统一约定，SCADA 图层面板、流程画布、属性面板都用同一组，
+                                                        换肤时应整体一起动，不能只让弹窗变。
+                                                    -->
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="#FFC0C4CC" />
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Good">
+                                                                    <Setter Property="Fill" Value="#FF67C23A" />
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Uncertain">
+                                                                    <Setter Property="Fill" Value="#FFE6A23C" />
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Bad">
+                                                                    <Setter Property="Fill" Value="#FFC0C4CC" />
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                                <TextBox
+                                                    Width="110"
+                                                    helpers:CellValueEditBehavior.Active="True"
+                                                    IsReadOnly="{Binding IsValueReadOnly}"
+                                                    Style="{StaticResource DialogCellInputQuiet}"
+                                                    Text="{Binding CurrentValueText, Mode=OneWay}"
+                                                    ToolTip="当前值就地编辑：点击进入编辑，回车或移开焦点提交（成功后自动回到读取模式）。本地变量写入内存；网络变量直接下发设备（失败标红并给出原因）。只读存储区（如 Modbus 离散输入）不可编辑。" />
+                                                <!--  回到基准：仅当当前值 ≠ 初始值时出现（基准在建变量表单的「初始值」项设定）  -->
+                                                <Button
+                                                    Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    ToolTip="当前值已偏离初始值：点击恢复为创建时设定的初始值"
+                                                    Visibility="{Binding IsValueDeviated, Converter={ui:BooleanToVisibilityConverter}}">
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource Icon}"
+                                                        FontSize="12"
+                                                        Foreground="{StaticResource DialogWarningTextBrush}"
+                                                        Text="&#xf0e2;" />
+                                                </Button>
+                                            </StackPanel>
 
+                                            <!--  数组根：整体覆盖当前值的入口（能改长度与元素）  -->
                                             <Button
                                                 Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                 CommandParameter="{Binding}"
-                                                Content="编辑集合..."
+                                                Content="强制覆盖集合..."
                                                 Style="{StaticResource LinkButtonStyle}"
-                                                ToolTip="增删元素、批量修改（元素多时比逐行改方便）"
+                                                ToolTip="增删元素、批量修改并整体覆盖当前值（元素多时比逐行改方便）"
                                                 Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
 
+                                            <!--  数组元素行：就地改这一项的当前值（只写 Value；增删元素走父行「强制覆盖集合...」）  -->
                                             <TextBox
-                                                Style="{StaticResource DialogCellInput}"
-                                                Text="{Binding ChildDefaultValueText, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                                ToolTip="数组元素：直接改这一项。要增删元素请点父行的「编辑集合...」"
+                                                Width="110"
+                                                helpers:CellValueEditBehavior.Active="True"
+                                                Style="{StaticResource DialogCellInputQuiet}"
+                                                Text="{Binding CurrentValueText, Mode=OneWay}"
+                                                ToolTip="数组元素当前值：点击进入编辑，回车或移开焦点提交（成功后自动回到读取模式）。要增删元素请点父行的「强制覆盖集合...」"
                                                 Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!--  当前值（青蓝胶囊样式）  -->
-                            <DataGridTemplateColumn Width="*" Header="当前值">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <Border
-                                                Height="26"
-                                                MinWidth="40"
-                                                HorizontalAlignment="Left"
-                                                Background="{StaticResource DialogAccentLightBrush}"
-                                                CornerRadius="13"
-                                                Visibility="{Binding IsRootNode, Converter={ui:BooleanToVisibilityConverter}}">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <!--  质量色点：绿=采集正常 / 黄=最近一次读取失败(显示旧值) / 灰=断线或从未读到；本地变量无质量概念 → 不显示  -->
-                                                    <Ellipse
-                                                        Grid.Column="0"
-                                                        Width="5"
-                                                        Height="5"
-                                                        Margin="8,0,0,0"
-                                                        VerticalAlignment="Center"
-                                                        ToolTip="采集质量：绿=正常 / 黄=最近一次读取失败（显示旧值） / 灰=断线或从未读到">
-                                                        <!--
-                                                            色值刻意不走 Dialog* 令牌：这套绿/黄/灰是"采集质量"的
-                                                            全项目统一约定，SCADA 图层面板、流程画布、属性面板都用同一组，
-                                                            换肤时应整体一起动，不能只让弹窗变。
-                                                        -->
-                                                        <Ellipse.Style>
-                                                            <Style TargetType="Ellipse">
-                                                                <Setter Property="Fill" Value="#FFC0C4CC" />
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Good">
-                                                                        <Setter Property="Fill" Value="#FF67C23A" />
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Uncertain">
-                                                                        <Setter Property="Fill" Value="#FFE6A23C" />
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Bad">
-                                                                        <Setter Property="Fill" Value="#FFC0C4CC" />
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Ellipse.Style>
-                                                    </Ellipse>
-                                                    <TextBlock
-                                                        Grid.Column="1"
-                                                        Margin="3,0,10,0"
-                                                        VerticalAlignment="Center"
-                                                        FontSize="12"
-                                                        FontWeight="SemiBold"
-                                                        Text="{Binding OriginalModel.Value, Mode=OneWay}"
-                                                        TextTrimming="CharacterEllipsis"
-                                                        Visibility="{Binding IsEditableNode, Converter={ui:BooleanToVisibilityConverter}}">
-                                                        <!--  Foreground 必须放进 Style：attribute 形式的本地值优先级高于 DataTrigger，Bad 时打不灰  -->
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding OriginalModel.Quality}" Value="Bad">
-                                                                        <Setter Property="Foreground" Value="#FF909399" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <Button
-                                                        Grid.Column="0"
-                                                        Grid.ColumnSpan="2"
-                                                        HorizontalAlignment="Left"
-                                                        Command="{Binding DataContext.EditArrayCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                        CommandParameter="{Binding}"
-                                                        Content="强制覆盖集合..."
-                                                        Foreground="{StaticResource DialogAccentTextBrush}"
-                                                        Style="{StaticResource LinkButtonStyle}"
-                                                        Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}" />
-                                                </Grid>
-                                            </Border>
-                                            <TextBlock
-                                                Padding="2,0"
-                                                VerticalAlignment="Center"
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                Foreground="{StaticResource DialogAccentTextBrush}"
-                                                Text="{Binding ChildValue}"
-                                                Visibility="{Binding IsChildNode, Converter={ui:BooleanToVisibilityConverter}}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!--  操作  -->
-                            <DataGridTemplateColumn Width="162" Header="操作">
+                            <!--  操作（2026-10-11 收敛：写值走"当前值"单元格就地编辑、"恢复初始值"收进当前值单元格，
+                                      此列只剩 复制 / 重命名 / 删除 三个通用动作）  -->
+                            <DataGridTemplateColumn Width="126" Header="操作">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel
@@ -815,33 +844,6 @@
                                                     Foreground="{StaticResource DialogTextMutedBrush}"
                                                     Text="&#xf044;" />
                                             </Button>
-                                            <!--  写值到设备（仅网络变量）  -->
-                                            <Button
-                                                Command="{Binding DataContext.WriteValueCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource DialogIconButton}"
-                                                ToolTip="写值到设备">
-                                                <Button.Visibility>
-                                                    <Binding Path="IsNetwork" Converter="{ui:BooleanToVisibilityConverter}" />
-                                                </Button.Visibility>
-                                                <TextBlock
-                                                    FontFamily="{StaticResource Icon}"
-                                                    FontSize="13"
-                                                    Foreground="{StaticResource DialogAccentBrush}"
-                                                    Text="&#xf093;" />
-                                            </Button>
-                                            <!--  恢复初始值  -->
-                                            <Button
-                                                Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource DialogIconButton}"
-                                                ToolTip="恢复初始值">
-                                                <TextBlock
-                                                    FontFamily="{StaticResource Icon}"
-                                                    FontSize="13"
-                                                    Foreground="{StaticResource DialogWarningTextBrush}"
-                                                    Text="&#xf0e2;" />
-                                            </Button>
                                             <!--  删除  -->
                                             <Button
                                                 Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
@@ -867,7 +869,7 @@
                         Margin="16,12"
                         FontSize="11"
                         Foreground="{StaticResource DialogTextMutedBrush}"
-                        Text="* 网络变量：当前值来自轮询采集，写值直达设备。本地变量：值由您在界面上维护；流程内插件创建的运行时变量（Runtime.*）不在此列，请到监视栏查看。"
+                        Text="* 在「当前值」格里直接改值：本地变量写入内存，网络变量直达设备（失败会标红并给出原因）。↺ 恢复为建变量时设定的初始值。流程内插件创建的运行时变量（Runtime.*）不在此列，请到监视栏查看。"
                         TextWrapping="Wrap" />
                 </Grid>
             </Border>

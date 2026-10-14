@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="720" height="380" fill="#FDFDFB"/>
+  <defs>
+    <marker id="mAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+  <!-- 模板区域（你画的框） -->
+  <rect x="80" y="70" width="400" height="240" fill="#F8FAFC" stroke="#2563EB" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <text x="92" y="60" fill="#1D4ED8" font-size="15" font-weight="bold">你画的框（模板区域）</text>
+  <!-- 期望原点：框中心 -->
+  <line x1="272" y1="192" x2="288" y2="208" stroke="#16A34A" stroke-width="2.5"/>
+  <line x1="288" y1="192" x2="272" y2="208" stroke="#16A34A" stroke-width="2.5"/>
+  <line x1="280" y1="186" x2="280" y2="214" stroke="#16A34A" stroke-width="2.5"/>
+  <line x1="266" y1="200" x2="294" y2="200" stroke="#16A34A" stroke-width="2.5"/>
+  <text x="300" y="256" fill="#15803D" font-size="15" font-weight="bold">框中心（期望原点）</text>
+  <!-- HALCON 默认原点（偏了 1~2px，图上放大到 15px 便于看见） -->
+  <circle cx="295" cy="185" r="6" fill="#DC2626"/>
+  <text x="310" y="150" fill="#DC2626" font-size="14" font-weight="bold">HALCON 默认原点</text>
+  <text x="310" y="170" fill="#DC2626" font-size="13">（模型内部参考点，实测差 1~2px）</text>
+  <!-- 补偿箭头 -->
+  <line x1="295" y1="185" x2="282" y2="198" stroke="#DC2626" stroke-width="2" marker-end="url(#mAr)"/>
+  <text x="60" y="322" fill="#0F172A" font-size="15" font-weight="bold">学完在原图自匹配一次，量出偏差 → set_shape_model_origin 补偿</text>
+  <text x="60" y="348" fill="#B91C1C" font-size="14" font-weight="bold">补偿量 = 默认落点 − 画布中心（方向与直觉相反！代码注释专门写「别修回减法」）→ 以后 find 输出 = 框中心</text>
+</svg>

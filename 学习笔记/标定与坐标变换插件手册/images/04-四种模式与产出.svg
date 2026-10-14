@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 360" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="360" fill="#FDFDFB"/>
+  <text x="30" y="30" fill="#0F172A" font-size="15" font-weight="bold">四种标定模式：输入要求 → 产出（Transform.Kind）</text>
+  <!-- ① PixelScale -->
+  <rect x="30" y="50" width="170" height="250" rx="6" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.8"/>
+  <text x="42" y="76" fill="#0F172A" font-size="14" font-weight="bold">① 像素当量</text>
+  <text x="42" y="104" fill="#475569" font-size="12.5">输入：已知长度(mm)</text>
+  <text x="42" y="124" fill="#475569" font-size="12.5">+ A/B 两点</text>
+  <text x="42" y="156" fill="#1D4ED8" font-size="12.5" font-weight="bold">产出：MmPerPixel</text>
+  <text x="42" y="180" fill="#B91C1C" font-size="12" font-weight="bold">⚠ Kind=PixelScale</text>
+  <text x="42" y="200" fill="#B91C1C" font-size="12" font-weight="bold">没有机械坐标系！</text>
+  <text x="42" y="240" fill="#475569" font-size="11.5">护栏 [0.001,1] mm/px；</text>
+  <text x="42" y="258" fill="#475569" font-size="11.5">跨度 &lt;1/3 视野橙字偏短</text>
+  <!-- ② NinePoint -->
+  <rect x="215" y="50" width="170" height="250" rx="6" fill="#EFF6FF" stroke="#3B82F6" stroke-width="2"/>
+  <text x="227" y="76" fill="#0F172A" font-size="14" font-weight="bold">② 九点标定</text>
+  <text x="227" y="104" fill="#475569" font-size="12.5">输入：N×N 组「机械↔图像」</text>
+  <text x="227" y="124" fill="#475569" font-size="12.5">（3 非共线点即唯一解）</text>
+  <text x="227" y="156" fill="#1D4ED8" font-size="12.5" font-weight="bold">产出：6 元仿射矩阵</text>
+  <text x="227" y="180" fill="#1D4ED8" font-size="12.5" font-weight="bold">+ 当量 + 残差 + 径向带</text>
+  <text x="227" y="216" fill="#475569" font-size="11.5">机器人引导 / 纠偏</text>
+  <text x="227" y="236" fill="#475569" font-size="11.5">网格规模下拉 2~10</text>
+  <text x="227" y="262" fill="#15803D" font-size="11.5" font-weight="bold">残差闸门 ≤ResidualThresholdPx</text>
+  <!-- ③ Perspective -->
+  <rect x="400" y="50" width="170" height="250" rx="6" fill="#F0FDF4" stroke="#10B981" stroke-width="1.8"/>
+  <text x="412" y="76" fill="#0F172A" font-size="14" font-weight="bold">③ 透视标定</text>
+  <text x="412" y="104" fill="#475569" font-size="12.5">输入：≥4 组对应点</text>
+  <text x="412" y="136" fill="#065F46" font-size="12.5" font-weight="bold">产出：9 元投影矩阵</text>
+  <text x="412" y="166" fill="#475569" font-size="11.5">治：相机倾斜 / 梯形</text>
+  <text x="412" y="196" fill="#475569" font-size="11.5">vector_to_proj_hom_mat2d</text>
+  <text x="412" y="224" fill="#475569" font-size="11.5">h33 归一；|h33| 近零 = 退化</text>
+  <!-- ④ Mesh -->
+  <rect x="585" y="50" width="170" height="250" rx="6" fill="#F0FDF4" stroke="#10B981" stroke-width="1.8"/>
+  <text x="597" y="76" fill="#0F172A" font-size="14" font-weight="bold">④ 网格标定</text>
+  <text x="597" y="104" fill="#475569" font-size="12.5">输入：N×N 全取点</text>
+  <text x="597" y="136" fill="#065F46" font-size="12.5" font-weight="bold">产出：分段仿射</text>
+  <text x="597" y="160" fill="#475569" font-size="11.5">节点处精确通过；</text>
+  <text x="597" y="178" fill="#475569" font-size="11.5">网格外不外推（明确失败）；</text>
+  <text x="597" y="200" fill="#475569" font-size="11.5">治：镜头径向畸变</text>
+  <text x="597" y="232" fill="#B45309" font-size="11.5" font-weight="bold">基线残差只判读不设闸门；</text>
+  <text x="597" y="250" fill="#B45309" font-size="11.5" font-weight="bold">与消费端共用 CalibrationMesh</text>
+  <!-- 底注 -->
+  <text x="30" y="336" fill="#475569" font-size="13">四种模式切换只影响界面与执行分支，不清掉其他模式已填的数据；网格要求 N×N 每行都填（插值模型）</text>
+  <text x="30" y="356" fill="#475569" font-size="13">产出统一走 Transform 契约（Kind + Matrix/ProjectiveMatrix + 尺寸/序列号/残差带）—— 下游按 Kind 分支消费</text>
+</svg>

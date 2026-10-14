@@ -416,10 +416,14 @@ namespace VisionMaster.Communications
             {
                 // 建连与失败重连都由 Worker 状态机负责；这里只等待"首次建连"的结果。
                 // 超时返回 false ≠ 放弃：Worker 仍在后台按退避重连，状态变化会经事件广播出来。
+                // refused（目标拒绝连接）场景 Worker 会在首次建连失败后立即结束等待（不等满超时预算）。
                 int timeoutMs = config.Config?.TimeoutMs > 0 ? config.Config.TimeoutMs : 3000;
                 if (!worker.Connect(timeoutMs).GetAwaiter().GetResult())
                 {
-                    LogWarning($"连接未在 {timeoutMs}ms 内建立: {connectionName}（后台按退避继续重连）");
+                    string? lastError = worker.LastError;
+                    LogWarning(lastError == null
+                        ? $"连接未在 {timeoutMs}ms 内建立: {connectionName}（后台按退避继续重连）"
+                        : $"连接失败: {connectionName} — {lastError}（后台按退避继续重连）");
                     return false;
                 }
 
@@ -962,8 +966,10 @@ namespace VisionMaster.Communications
         /// <summary>
         /// <para>同步加载连接配置（启动链路专用入口）。</para>
         /// <para>启动期的加载发生在 UI 线程**且必须早于自检与界面构造**：通信自检要按配置逐条测连通，
-        /// 配置没加载完它只能看到空列表（旧实现在 ShellViewModel 构造函数里加载，自检永远报"无通讯配置"）。
-        /// 此处只有一次几 KB 的本地文件读取，同步完成可避免 UI 线程 await 造成的时序不确定。</para>
+        /// 配置没加载完它只能看到空列表（旧实现在 ShellViewModel 构造函数里加载，自检永远报"无通讯配置"）。</para>
+        /// <para>容错语义（修复点）：加载是**尽力而为**——文件级语法错误 / 单条坏点都只记 ERROR 日志、
+        /// 尽量多加载好条目，<b>不向上抛异常</b>。唯一调用方（CommunicationModule 启动装配）的既有兜底就是
+        /// "配置损坏按无通讯配置继续启动"，这里就地消化错误让证据留在通信日志里，其余连接不再被一个坏点连坐。</para>
         /// </summary>
         public void LoadConfig()
         {
@@ -980,8 +986,9 @@ namespace VisionMaster.Communications
             }
             catch (Exception ex)
             {
+                // ApplyConfigJson 已消化 JSON 层错误；能到这里只剩文件读取异常（被锁/权限）。
+                // 同样不抛：加载尽力而为，不阻断启动（旧实现 rethrow，由调用方兜底，证据却不在通信日志里）
                 LogError("加载配置失败", ex);
-                throw;
             }
         }
 
@@ -991,29 +998,94 @@ namespace VisionMaster.Communications
             await Task.Run(LoadConfig).ConfigureAwait(false);
         }
 
-        /// <summary>反序列化并逐条登记连接（单条失败只记日志，不影响其余连接）</summary>
+        /// <summary>
+        /// <para>反序列化并逐条登记连接（<b>逐条隔离</b>）：先解析成 JToken 集合再逐条反序列化+登记——
+        /// 单条坏点（$type 越权 / 字段类型错 / 协议不识别）只影响该条，其余照常加载。</para>
+        /// <para>旧实现（all-or-nothing）对整份 JSON 一次 <c>DeserializeObject</c>：一个 $type 越权就把
+        /// 整份文件打成 0 条；"未实现协议/协议号越界"虽在 AddConnection 阶段隔离，但反序列化层的坏点连坐全部。</para>
+        /// <para>文件级语法错误：整份无法解析 → 记 ERROR、加载 0 条、<b>不抛异常</b>（启动不得被一个坏文件阻断）。</para>
+        /// <para>$type 白名单 SerializationBinder 与 JsonSerializerSettings 原样保留，安全口径不变。</para>
+        /// </summary>
         private void ApplyConfigJson(string json)
         {
-            var configs = Newtonsoft.Json.JsonConvert.DeserializeObject<List<CommunicationConfig>>(json, _configJsonSettings);
-            if (configs == null)
+            if (string.IsNullOrWhiteSpace(json))
             {
                 LogInfo("配置加载完成: 文件内容为空");
                 return;
             }
 
-            foreach (var config in configs)
+            Newtonsoft.Json.Linq.JToken root;
+            try
             {
+                root = Newtonsoft.Json.Linq.JToken.Parse(json);
+            }
+            catch (Exception ex)
+            {
+                // 文件级语法错误（截断/双编码/半包）：整份无法解析 → 加载 0 条、不抛。
+                // （CommunicationModule 启动装配按"配置损坏不阻断启动"兜底，但那是最后一道；
+                //   这里就地记 ERROR，把坏文件的症状留在通信日志里可查）
+                LogError($"配置文件 JSON 解析失败（整份损坏），本次加载 0 条连接: {ex.Message}");
+                return;
+            }
+
+            if (root.Type == Newtonsoft.Json.Linq.JTokenType.Null
+                || root.Type == Newtonsoft.Json.Linq.JTokenType.Undefined)
+            {
+                LogInfo("配置加载完成: 文件内容为空");
+                return;
+            }
+
+            if (root is not Newtonsoft.Json.Linq.JArray array)
+            {
+                LogError($"配置文件顶层不是 JSON 数组（实际为 {root.Type}），本次加载 0 条连接");
+                return;
+            }
+
+            if (array.Count == 0)
+            {
+                LogInfo("配置加载完成: 文件内容为空");
+                return;
+            }
+
+            int loaded = 0, failed = 0;
+            // JToken.ToObject 只接受 JsonSerializer（不接受 Settings），从同一份设置创建：
+            // $type 白名单 binder / TypeNameHandling.Auto 等安全口径与整份序列化完全一致
+            var serializer = Newtonsoft.Json.JsonSerializer.Create(_configJsonSettings);
+            for (int i = 0; i < array.Count; i++)
+            {
+                var token = array[i];
+                string label = DescribeConfigLabel(token, i);
                 try
                 {
+                    // 逐条反序列化：$type 越权 / 字段类型错只炸这一条（binder 与 settings 原样保留）；
+                    // 后续 AddConnection 阶段（未实现协议 / 协议号越界 / 同名冲突）本就有逐条 try/catch
+                    var config = token.ToObject<CommunicationConfig>(serializer)
+                        ?? throw new Newtonsoft.Json.JsonSerializationException("反序列化结果为空");
                     AddConnection(config);
+                    loaded++;
                 }
                 catch (Exception ex)
                 {
-                    LogError($"加载连接配置失败: {config.ConnectionName}", ex);
+                    failed++;
+                    LogError($"加载连接配置失败: {label}", ex);
                 }
             }
 
-            LogInfo($"配置加载完成: 共加载 {configs.Count} 个连接");
+            LogInfo($"配置加载完成: 共 {array.Count} 条，成功 {loaded} 条，跳过 {failed} 条");
+        }
+
+        /// <summary>取条目日志标签：能读到 ConnectionName 就带上（JSON 键大小写不敏感），否则按序号指认</summary>
+        private static string DescribeConfigLabel(Newtonsoft.Json.Linq.JToken token, int index)
+        {
+            string? name = token is Newtonsoft.Json.Linq.JObject obj
+                ? obj.Properties()
+                    .FirstOrDefault(p => string.Equals(p.Name, nameof(CommunicationConfig.ConnectionName), StringComparison.OrdinalIgnoreCase)) is { } prop
+                    ? (string?)prop.Value
+                    : null
+                : null;
+            return string.IsNullOrWhiteSpace(name)
+                ? $"第 {index + 1} 条（连接名缺失，或该条本身就不是对象）"
+                : $"第 {index + 1} 条 {name}";
         }
 
         public async Task ExportConfigAsync(string filePath)

@@ -11,9 +11,11 @@ namespace VisionMaster.Services
     ///
     /// 现在接通了哪些动作
     /// ---------
-    /// 三个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
+    /// 六个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
     /// <see cref="IScadaValueSource"/> 解析后落 <c>IWritableVariable.TryWrite</c>（S6 接入）；
-    /// 「切换画面」走 <see cref="IScadaNavigator"/> 找画面并换 <c>CurrentPage</c>（S8 接入）。
+    /// 「切换画面」走 <see cref="IScadaNavigator"/> 找画面并换 <c>CurrentPage</c>（S8 接入）；
+    /// 「启动流程 / 停止流程 / 执行一次」走 <see cref="IScadaFlowRunner"/> 启停目标流程（Id 优先、
+    /// 名字兜底；连续幂等、单次不幂等、停止最宽——语义由契约说了算，本类不做二次解释）。
     ///
     /// 执行不了的怎么办：<b>照实说一句</b>
     /// ---------
@@ -70,8 +72,9 @@ namespace VisionMaster.Services
     ///
     /// 线程：只在 UI 线程上被调用（事件的来源是鼠标与渲染，都在这条线上），故不加锁。
     /// <see cref="IScadaValueSource"/> 也是线程安全的只读查询（写值最终落到变量模型，
-    /// 网络变量自己管通讯线程），<see cref="IScadaNavigator"/> 同样是 UI 线程上的会话转发，
-    /// 所以这里不需要额外的同步。
+    /// 网络变量自己管通讯线程），<see cref="IScadaNavigator"/> 同样是 UI 线程上的会话转发；
+    /// <see cref="IScadaFlowRunner"/> 的启动配方（查会话/编译/注册）也是 UI 线程链路上的一小段
+    /// （真正费时的执行在引擎自己的任务里），所以这里不需要额外的同步。
     /// </summary>
     public sealed class ScadaActionDispatcher : IScadaActionDispatcher
     {
@@ -92,6 +95,13 @@ namespace VisionMaster.Services
         private readonly IScadaNavigator _navigator;
 
         /// <summary>
+        /// 流程启停出口。可为 null——没接线时流程类动作按"未接入"如实跳过（与审计同款的可选参数）：
+        /// 断言工程那 16 处 <c>new ScadaActionDispatcher(...)</c> 与网关/离线场景
+        /// 不该为了跑流程动作去解析一整套引擎依赖。
+        /// </summary>
+        private readonly IScadaFlowRunner? _flows;
+
+        /// <summary>
         /// 操作审计落盘端（S12）。可为 null——不接线时只记运行日志，
         /// 动作执行本身一字不差地照跑（审计是旁路，不是执行的前置条件）。
         /// 留成可选参数还为了断言工程：那 16 处 <c>new ScadaActionDispatcher(...)</c>
@@ -103,12 +113,14 @@ namespace VisionMaster.Services
             ILogService log,
             IScadaValueSource values,
             IScadaNavigator navigator,
-            ScadaAuditWriter? audit = null)
+            ScadaAuditWriter? audit = null,
+            IScadaFlowRunner? flows = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _values = values ?? throw new ArgumentNullException(nameof(values));
             _navigator = navigator ?? throw new ArgumentNullException(nameof(navigator));
             _audit = audit;
+            _flows = flows;
         }
 
         /// <inheritdoc/>
@@ -228,6 +240,12 @@ namespace VisionMaster.Services
                     ExecuteNavigate(action, head, stamp);
                     return;
 
+                case ScadaActionType.StartFlow:
+                case ScadaActionType.StopFlow:
+                case ScadaActionType.RunFlowOnce:
+                    ExecuteFlowAction(action, head, stamp);
+                    return;
+
                 default:
                     // "高版本存下的、本版本不认识的类型"（枚举按数值反序列化，不校验取值范围）：
                     // 配置存得下、执行还没接上，所以照实说一句。那句话由领域层出
@@ -267,6 +285,72 @@ namespace VisionMaster.Services
             // 成功照实记一行。这里用 Describe() 而不是自己拼："切换画面 → 主界面" 与属性面板上那条
             // 动作的摘要同一个出处，日志和配置界面对得上号。
             Ok(stamp, action, $"{head} → {action.Describe()}");
+        }
+
+        /// <summary>
+        /// 执行一条流程动作（启动 / 停止 / 执行一次）：把目标交给 <see cref="IScadaFlowRunner"/>。
+        ///
+        /// 为什么解析与启停都走出口、本类不碰引擎：与写变量/切画面走同一条分工——
+        /// 寻址口径（Id 优先、名字兜底）、会话准备、加密门禁全由那一处说了算，
+        /// 本类只负责"没选流程"与"出口说了没办成"两档交代。
+        ///
+        /// 为什么失败只有 Skipped 一档（记 Warn 不记 Error）：出口回的 false 全是
+        /// "配错了"（没选流程/找不到/停用/加密）或"这次没排上"（正在运行/被占用）——
+        /// 没有设备侧故障那一层（引擎的事故由引擎自己报进运行日志）。
+        /// 与切画面同一口径：软件没坏，下次配对/等它跑完就好。
+        /// </summary>
+        private void ExecuteFlowAction(ScadaAction action, string head, AuditStamp stamp)
+        {
+            // ⓪ 出口没接线（断言宿主/网关等没注入 runner）：照实说一句，跳过
+            if (_flows == null)
+            {
+                Skipped(stamp, action,
+                    $"{head} → {action.Describe()}：流程执行能力未接入，本条未执行",
+                    "流程执行能力未接入");
+                return;
+            }
+
+            // ① 没选流程：配置漏了。与"还没选画面"同款措辞（Describe() 此刻是"××流程（未选流程）"，
+            //    再补一句就重复了，所以动词取类型的显示名、不取 Describe）
+            if (string.IsNullOrWhiteSpace(action.FlowId) && string.IsNullOrWhiteSpace(action.FlowName))
+            {
+                Skipped(stamp, action,
+                    $"{head} → {action.Type.DisplayName()}：还没选流程，本条未执行", "还没选流程");
+                return;
+            }
+
+            // ② 交给出口。三个动作签名同构，这里只做类型 → 方法的翻译，成败语义归出口一处
+            bool accepted;
+            string? reason;
+            switch (action.Type)
+            {
+                case ScadaActionType.StartFlow:
+                    accepted = _flows.StartContinuous(action.FlowId ?? string.Empty, action.FlowName, out reason);
+                    break;
+                case ScadaActionType.StopFlow:
+                    accepted = _flows.Stop(action.FlowId ?? string.Empty, action.FlowName, out reason);
+                    break;
+                case ScadaActionType.RunFlowOnce:
+                    accepted = _flows.RunOnce(action.FlowId ?? string.Empty, action.FlowName, out reason);
+                    break;
+                default:
+                    // 编译期不可达（上面 Execute 的 switch 已按类型分派）；留着防将来加类型漏改
+                    Skipped(stamp, action,
+                        $"{head} → {action.Describe()}：{action.Type.PendingReason()}，本条未执行",
+                        action.Type.PendingReason());
+                    return;
+            }
+
+            // ③ 出口说了"没办成"：原因原样带上来（找不到流程/已停用/加密/正在运行…），不加工
+            if (!accepted)
+            {
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            // 成功照实记一行；审计"说明"列补上净效果（"已启动" / "已在运行，未重复启动" /
+            // "已下发单次执行" / "已发出停止" / "本就未在运行"）——那是只有出口拿得到的一句话。
+            Ok(stamp, action, $"{head} → {action.Describe()}", reason);
         }
 
         /// <summary>

@@ -62,6 +62,11 @@ namespace VisionMaster.ViewModels
                 RaisePropertyChanged(nameof(CommentVisibility));
                 RaisePropertyChanged(nameof(CardTooltip));
             }
+
+            // 必填参数的判定原料变了：手填常量（InputValues）或上游连线（LinkedSources）。
+            // StepModel 的统一写路径（SetInputValue/RemoveInputValue/SetLink/RemoveLink）都会发这两条通知
+            if (e.PropertyName is nameof(StepModel.InputValues) or nameof(StepModel.LinkedSources))
+                RefreshMissingRequired();
         }
 
         /// <summary>
@@ -78,11 +83,36 @@ namespace VisionMaster.ViewModels
         {
             Kind = CanvasNodeKind.Lane;
             Branch = branch;
+
+            // 泳道每帧新建（见主 VM 渲染阶段注释），订阅必须可摘：
+            // UnhookBranch 由主 VM 在丢弃旧泳道前统一调用，否则引擎跨线程打标的
+            // PropertyChanged 会钉住整帧旧泳道 VM 阻止 GC（与 UnhookModel 同一条纪律）
+            branch.PropertyChanged += OnBranchPropertyChanged;
+        }
+
+        private void OnBranchPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // 分支执行中（并行扇出打标）→ 泳道执行染色。IsRunning 是标量属性，
+            // 引擎分支线程发通知、WPF 自动编组，与 StepModel.State 同款
+            if (e.PropertyName == nameof(StepCollection.IsRunning))
+                RaisePropertyChanged(nameof(IsBranchRunning));
+        }
+
+        /// <summary>泳道退出渲染时摘掉分支订阅（主 VM 在清旧泳道列表前逐个调用）</summary>
+        public void UnhookBranch()
+        {
+            if (Branch != null) Branch.PropertyChanged -= OnBranchPropertyChanged;
         }
 
         /// <summary>造一条分支泳道。branch 引用用于认人（同名分支可能有多个，实例才是唯一身份），
         /// 泳道标题绑 branch.DisplayName，分支改名即时生效</summary>
         public static CanvasNodeViewModel CreateLane(StepCollection branch) => new(branch);
+
+        /// <summary>
+        /// 分支执行中（并行扇出打标）：泳道模板据此把底色/边框染成运行色。
+        /// 引擎的 CompiledParallelNode.ExecuteBranch 置 StepCollection.IsRunning，这里只做转发投影。
+        /// </summary>
+        public bool IsBranchRunning => Kind == CanvasNodeKind.Lane && Branch?.IsRunning == true;
 
         /// <summary>背后的步骤模型；泳道为 null</summary>
         public StepModel? Model { get; }
@@ -276,6 +306,56 @@ namespace VisionMaster.ViewModels
             set => SetProperty(ref field, value);
         }
 
+        // ---- 必填参数角标：与编译期 FlowCompiler 的 [参数缺失] 同一判据的画布投影 ----
+
+        /// <summary>
+        /// 插件的必填输入端口名快照（主 VM 在节点创建时注入，按 PluginTypeName 解析并缓存；
+        /// null = 解析不到插件类型——断言桩的假类型名 / 反射失败，此时一律不亮角标）。
+        /// </summary>
+        public IReadOnlyList<string>? RequiredPortNames { get; set; }
+
+        /// <summary>
+        /// 是否存在未配置的必填参数（模板据此显示黄叹号）。
+        /// 判据与 FlowCompiler 必填项检查逐字对齐：IsRequired &amp;&amp; 无上游连线 &amp;&amp; 手填值为空——
+        /// 界面与编译器各判一套必然出现"角标说缺、编译器放行"的分裂。
+        /// </summary>
+        public bool HasMissingRequired
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        /// <summary>黄叹号悬停提示：逐个列出缺失的必填端口名（空 = 不显示提示）</summary>
+        public string MissingRequiredTooltip => _missingRequiredNames.Count == 0
+            ? string.Empty
+            : "必填参数未配置（编译会报参数缺失）：\n" + string.Join("\n", _missingRequiredNames.Select(n => $"· {n}"));
+
+        private List<string> _missingRequiredNames = new();
+
+        /// <summary>
+        /// 重算必填参数缺失态（幂等）。调用时机：注入 RequiredPortNames 后、每次渲染
+        /// （RefreshNodeState）、以及 Model 的 InputValues/LinkedSources 属性通知。
+        /// </summary>
+        public void RefreshMissingRequired()
+        {
+            _missingRequiredNames.Clear();
+
+            if (Kind == CanvasNodeKind.Step && Model is ActionStep
+                && RequiredPortNames is { Count: > 0 } required)
+            {
+                foreach (var name in required)
+                {
+                    bool hasConstant = Model.InputValues != null
+                        && Model.InputValues.TryGetValue(name, out var constantValue)
+                        && constantValue != null;
+                    if (!Model.IsLinked(name) && !hasConstant)
+                        _missingRequiredNames.Add(name);
+                }
+            }
+
+            HasMissingRequired = _missingRequiredNames.Count > 0;
+        }
+
         /// <summary>能否拖动。泳道与容器框一律钉死——框体位置由内容算出，拖了没地方存</summary>
         public bool IsDraggable => Kind == CanvasNodeKind.Step;
 
@@ -340,6 +420,8 @@ namespace VisionMaster.ViewModels
         public DelegateCommand? ToggleDisableCommand { get; set; }
 
         public DelegateCommand? DeleteCommand { get; set; }
+
+        public DelegateCommand? CopyCommand { get; set; }
 
         /// <summary>断点菜单项可见性：只有普通步骤可挂断点（容器/泳道不参与，与 ToggleBreakpoint 的闸门同口径）</summary>
         public Visibility BreakpointMenuVisibility

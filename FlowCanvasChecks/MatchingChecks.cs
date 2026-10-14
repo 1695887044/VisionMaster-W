@@ -258,6 +258,24 @@ namespace FlowCanvasChecks
                     runtime.AlignedImage.Value is HImage a && a.IsInitialized(), "");
                 Check("【输出】标注图已生成",
                     runtime.MeasureImage.Value is HImage m && m.IsInitialized(), "");
+
+                // ---- 标注底图逐点保真 ----
+                // 场景背景恒定 180，图案只在 (150,200) 附近；取底部两角（避开左上角文字框与图案）：
+                // 底图被"缩进左上角"（离屏窗口漏掉 set_part）时，这两点会一起塌成同一个常数。
+                var matchShot = runtime.MeasureImage.TypedValue;
+                if (matchShot != null && matchShot.IsInitialized())
+                {
+                    double bl = PixelProbe.At(matchShot, ImgH - 10, 10);
+                    double br = PixelProbe.At(matchShot, ImgH - 10, ImgW - 10);
+                    Check("【输出】标注底图逐点保真（两下角 == 场景背景 180，底图没被缩进左上角）",
+                        Math.Abs(bl - 180) <= 3 && Math.Abs(br - 180) <= 3,
+                        $"({ImgH - 10},10)={bl:0.#} ({ImgH - 10},{ImgW - 10})={br:0.#}");
+                }
+                else
+                {
+                    Check("【输出】标注底图逐点保真（两下角 == 场景背景 180，底图没被缩进左上角）",
+                        false, $"MeasureImage 为空；Err='{runtime.ErrorMessage.Value}'");
+                }
                 Check("【输出】MatchedTemplate 回传配方名",
                     (runtime.MatchedTemplate.Value as string ?? "") == "模板1",
                     $"MatchedTemplate='{runtime.MatchedTemplate.Value}'");

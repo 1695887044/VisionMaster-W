@@ -2,6 +2,8 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -71,7 +73,10 @@ namespace CommChecks
             WaitSchedulingAndLogThrottleKey();
             GapToleranceByTransport();
             CommunicationProtocolsAndAddRollback();
-            // 本段是唯一会真发起 TCP 连接的断言（靶子是本机未监听端口，内核秒拒），放最后
+            KeepAliveConfigPropagation();
+            ConfigJsonPerItemIsolation();
+            // 以下两段会真发起 TCP 连接（靶子是本机未监听端口，内核秒拒），放最后
+            RefusedClassificationAndBackoff();
             TestConnectionAsyncContract().GetAwaiter().GetResult();
 
             Finish();
@@ -1617,6 +1622,240 @@ namespace CommChecks
 
         #endregion
 
+        #region C16 KeepAlive 死配置落地
+
+        /// <summary>
+        /// <para>「开启 KeepAlive / 心跳间隔(ms)」是 <see cref="EthernetConfigBase"/> 上的两个契约属性
+        /// （默认 true / 30000ms），此前在 Communication 树里<b>零消费</b>——界面上勾不勾都一样，纯属死配置。</para>
+        /// <para>落地方式：构造连接时下发到 HSL 的 <c>SocketKeepAliveTime</c>——HSL 在 <c>ConnectServer</c>
+        /// 成功那一刻对底层 socket 做 IOControl（<c>SetKeepAlive(time, interval)</c>），即"连接成功后才启用"。
+        /// 关闭时不设置（保持 HSL 默认 -1），未启用时行为与落地前零变化。</para>
+        /// <para>本组断言"配置值确实落到了设备对象上"（与 C7/C8 同一反射口径，不真建连、离线可跑）；
+        /// 连接成功后 socket 选项真的翻开的运行时证据见 CommPerf 的 F1 段（本机 TcpListener 靶子）。</para>
+        /// </summary>
+        private static void KeepAliveConfigPropagation()
+        {
+            Section("C16 KeepAlive 死配置落地（EnableKeepAlive/KeepAliveIntervalMs → device.SocketKeepAliveTime）");
+
+            // 契约默认值：EnableKeepAlive=true / interval=30000——落地后默认配置即启用 30s TCP keepalive
+            using (var mt = new ModbusTcpConnection(new ModbusTcpConfig { IpAddress = "127.0.0.1", Port = 502 }))
+            {
+                int actual = DeviceIntProperty(mt, "SocketKeepAliveTime");
+                Check("C16-1 ModbusTcp：契约默认值（true/30000）已下发到设备（HSL 建连成功后按它启用）",
+                    actual == 30000, $"设备 SocketKeepAliveTime={actual}");
+            }
+
+            using (var mtOff = new ModbusTcpConnection(new ModbusTcpConfig
+            { IpAddress = "127.0.0.1", Port = 502, EnableKeepAlive = false }))
+            {
+                int actual = DeviceIntProperty(mtOff, "SocketKeepAliveTime");
+                Check("C16-2 ModbusTcp：EnableKeepAlive=false → 不设置（保持 HSL 默认 -1，未启用时零行为变化）",
+                    actual == -1, $"设备 SocketKeepAliveTime={actual}");
+            }
+
+            using (var mtCustom = new ModbusTcpConnection(new ModbusTcpConfig
+            { IpAddress = "127.0.0.1", Port = 502, EnableKeepAlive = true, KeepAliveIntervalMs = 5000 }))
+            {
+                int actual = DeviceIntProperty(mtCustom, "SocketKeepAliveTime");
+                Check("C16-3 ModbusTcp：自定义间隔 5000 如实下发（不是恰好等于默认值的假通过）",
+                    actual == 5000, $"设备 SocketKeepAliveTime={actual}");
+            }
+
+            // 同一条基类字段，不允许只有 Modbus 生效
+            using (var s7 = new SiemensS7Connection(new SiemensS7Config { IpAddress = "192.168.0.1" }))
+            {
+                int actual = DeviceIntProperty(s7, "SocketKeepAliveTime");
+                Check("C16-4 SiemensS7：契约默认值同样下发（与 Modbus 同一基类路径）",
+                    actual == 30000, $"设备 SocketKeepAliveTime={actual}");
+            }
+
+            using (var s7Off = new SiemensS7Connection(new SiemensS7Config
+            { IpAddress = "192.168.0.1", EnableKeepAlive = false }))
+            {
+                int actual = DeviceIntProperty(s7Off, "SocketKeepAliveTime");
+                Check("C16-5 SiemensS7：EnableKeepAlive=false → 不设置（HSL 默认 -1）",
+                    actual == -1, $"设备 SocketKeepAliveTime={actual}");
+            }
+        }
+
+        #endregion
+
+        #region C18 communications.json 逐条隔离
+
+        /// <summary>
+        /// <para>加载容错语义（本轮修复点）：旧实现对整份 JSON 一次 <c>DeserializeObject</c>（all-or-nothing）——
+        /// 一处语法错误或一个越权 $type 就把整份文件打成 0 条并抛异常。新实现逐条反序列化逐条登记：
+        /// 单条坏点只影响该条，其余照常加载；文件级语法错误记 ERROR、加载 0 条、<b>不抛异常</b>。</para>
+        /// <para>$type 白名单 SerializationBinder 与 JsonSerializerSettings 原样保留（安全口径不变），
+        /// 所以"越权类型"从"炸掉整份"变成"只跳过那一条"。</para>
+        /// </summary>
+        private static void ConfigJsonPerItemIsolation()
+        {
+            Section("C18 communications.json 逐条隔离（单条坏点只影响该条；文件级语法错误加载 0 条且不抛）");
+
+            string dir = Path.Combine(Path.GetTempPath(), "CommChecksJson");
+            Directory.CreateDirectory(dir);
+            string file = Path.Combine(dir, "case.json");
+
+            List<CommunicationConfig> LoadList(string json)
+            {
+                File.WriteAllText(file, json, new System.Text.UTF8Encoding(false));
+                using var mgr = new AdvancedCommunicationManager { ConfigFilePath = file };
+                mgr.LoadConfig(); // 新语义：任何内容级错误都不抛异常
+                return mgr.GetAllConnections();
+            }
+
+            const string good = "{\"connectionName\":\"J_A\",\"protocol\":0," +
+                "\"config\":{\"ipAddress\":\"127.0.0.1\",\"port\":10010,\"type\":0,\"timeoutMs\":2500},\"autoStart\":false}";
+            const string badType = "{\"connectionName\":\"J_E\",\"protocol\":0," +
+                "\"config\":{\"$type\":\"System.DateTime, System.Private.CoreLib\"},\"autoStart\":false}";
+            const string badProto = "{\"connectionName\":\"J_B\",\"protocol\":3," +
+                "\"config\":{\"ipAddress\":\"127.0.0.1\",\"port\":9600,\"type\":0}}";
+
+            Check("C18-1 正常单条 → 加载 1 条（基线不回归）",
+                LoadList("[" + good + "]") is { Count: 1 }, "");
+
+            Check("C18-2 文件级语法错误（截断）→ 不抛异常，加载 0 条（旧实现抛 JsonReaderException 且整份丢弃）",
+                LoadList("[" + good + ",{\"connectionName\":\"J_B\",\"protocol\":0,\"config\":{\"ipAddr") is { Count: 0 }, "");
+
+            var badFirst = LoadList("[" + badType + "," + good + "]");
+            Check("C18-3 $type 越权条在前、好条在后 → 只跳过坏条，好条照常加载（逐条隔离的核心证据）",
+                badFirst is { Count: 1 } && badFirst[0].ConnectionName == "J_A"
+                && badFirst[0].Config is ModbusTcpConfig m1 && m1.Port == 10010 && m1.TimeoutMs == 2500,
+                $"加载 [{string.Join(",", badFirst.Select(c => c.ConnectionName))}]");
+
+            Check("C18-4 $type 越权条在后、好条在前 → 同样只跳过坏条（顺序无关）",
+                LoadList("[" + good + "," + badType + "]") is { Count: 1 }, "");
+
+            Check("C18-5 未实现协议条 → 仍按 AddConnection 阶段隔离（旧语义保持）",
+                LoadList("[" + good + "," + badProto + "]") is { Count: 1 }, "");
+
+            Check("C18-6 缺字段条 → 反序列化兜底默认值（timeoutMs 缺省 3000），不算坏点",
+                LoadList("[{\"connectionName\":\"J_C\",\"protocol\":0,\"config\":{\"ipAddress\":\"127.0.0.1\"}}]")
+                    .SingleOrDefault()?.Config is ModbusTcpConfig m2 && m2.TimeoutMs == 3000, "");
+
+            Check("C18-7 顶层不是数组（整份写成对象）→ 不抛异常，加载 0 条",
+                LoadList(good) is { Count: 0 }, "");
+
+            Check("C18-8 空数组 → 加载 0 条（不算错误）",
+                LoadList("[]") is { Count: 0 }, "");
+        }
+
+        #endregion
+
+        #region C17 连接拒绝分类 + 退避加速
+
+        /// <summary>
+        /// <para>修复点：HSL 对建连失败只给一句消息，refused（目标拒绝）与网络超时无法区分；
+        /// 上层（<see cref="AdvancedCommunicationManager.Connect"/>）在幽灵端口上要陪等满 TimeoutMs 才认输。</para>
+        /// <para>修法三件套：① 连接实现按 HSL 失败消息识别 refused（OS 文本主通道）+ 快速失败时毫秒级探测
+        /// （补充通道），经新增的 <see cref="IConnectionFailureDetail"/> 上报（LastError 带 [ConnectionRefused] 标记）；
+        /// ② Worker 检测到 refused 后让本次等待立即返回（重连意图不变）；
+        /// ③ Worker 对 refused 用固定短间隔重试（<c>RefusedRetryIntervalMs</c>），不再指数退避拖到 30s。</para>
+        /// <para>⚠ 实测基线（本机装了本地代理/TUN）：回环上连<b>活端口</b>是 0~3ms，连<b>无人监听端口</b>
+        /// 要 ~2030ms 才回 ConnectionRefused（OS/代理层延迟 RST，裸 socket 实测，与 HSL 无关）——
+        /// 所以 refused 的"更快"体现在：分类零额外探测开销（消息识别）、Manager.Connect 不再陪等满预算、
+        /// 退避节奏用固定短间隔；socket 层那 ~2s 是 OS 底线，任何实现都省不掉。</para>
+        /// <para>靶子：127.0.0.1:1（回环上必然无人监听的端口，内核/代理层最终回 RST），零外部依赖。</para>
+        /// </summary>
+        private static void RefusedClassificationAndBackoff()
+        {
+            Section("C17 连接拒绝分类 + 退避加速（[ConnectionRefused] / 幽灵端口快速失败）");
+
+            using (var conn = new ModbusTcpConnection(new ModbusTcpConfig
+            { IpAddress = "127.0.0.1", Port = 1, TimeoutMs = 3000, ReadTimeoutMs = 3000 }))
+            {
+                var sw = Stopwatch.StartNew();
+                bool ok = conn.Connect();
+                sw.Stop();
+                var detail = (IConnectionFailureDetail)conn;
+                Check("C17-1 ModbusTcp 幽灵端口：Connect 返回 false（前提）",
+                    !ok, $"返回 {ok}");
+                Check("C17-1 失败被分类为 ConnectionRefused（IConnectionFailureDetail 新能力，消息识别主通道）",
+                    detail.IsLastConnectFailureRefused, $"refused={detail.IsLastConnectFailureRefused}");
+                Check("C17-1 LastError 带 [ConnectionRefused] 标记（上层可区分故障类别）",
+                    detail.LastConnectError?.Contains("[ConnectionRefused]") == true,
+                    detail.LastConnectError ?? "null");
+                Check("C17-1 refused 失败耗时 < TimeoutMs=3000（本机 OS 层拒绝延迟 ~2s 是底线；分类不额外加探测耗时）",
+                    sw.ElapsedMilliseconds < 3000, $"耗时 {sw.ElapsedMilliseconds}ms");
+            }
+
+            // TCP 建连被拒与协议无关：S7 与 Modbus 必须对称
+            using (var conn7 = new SiemensS7Connection(new SiemensS7Config
+            { IpAddress = "127.0.0.1", Port = 1, TimeoutMs = 3000, ReadTimeoutMs = 3000 }))
+            {
+                bool ok = conn7.Connect();
+                bool refused = conn7 is IConnectionFailureDetail d && d.IsLastConnectFailureRefused;
+                Check("C17-2 SiemensS7 幽灵端口：同样分类为 ConnectionRefused（两实现对称）",
+                    !ok && refused, $"连接={ok} refused={refused}");
+            }
+
+            // Manager.Connect 幽灵端口路径：refused 失败后立即结束等待，不再陪等满 TimeoutMs
+            using var manager = new AdvancedCommunicationManager { AutoReconnectEnabled = true };
+            var cfg = new CommunicationConfig(CommunicationType.ModbusTcp) { ConnectionName = "C17_GHOST" };
+            cfg.Config.TimeoutMs = 3000;
+            ((ModbusTcpConfig)cfg.Config).IpAddress = "127.0.0.1";
+            ((ModbusTcpConfig)cfg.Config).Port = 1;
+            ((ModbusTcpConfig)cfg.Config).RetryIntervalMs = 1000;
+            manager.AddConnection(cfg);
+            var ghostWorker = GetWorker(manager, "C17_GHOST");
+
+            var swM = Stopwatch.StartNew();
+            bool connected = manager.Connect("C17_GHOST");
+            swM.Stop();
+            Check("C17-3 Manager.Connect 幽灵端口：refused 失败即返回 false（旧实现陪等满 TimeoutMs=3000）",
+                !connected && swM.ElapsedMilliseconds < 2900,
+                $"返回 {connected}，耗时 {swM.ElapsedMilliseconds}ms");
+            Check("C17-3 Worker.LastError 带 [ConnectionRefused] 标记",
+                ghostWorker.LastError?.Contains("[ConnectionRefused]") == true,
+                ghostWorker.LastError ?? "null");
+            manager.RemoveConnection("C17_GHOST");
+
+            // 退避节奏（桩连接，秒级返回，节奏可精确度量）：refused 走固定 RefusedRetryIntervalMs，
+            // 不再按指数退避拖长。真实 socket 的 refused 一次要 ~2s（OS 底线），桩把它归零才能看清节奏本身
+            using var stubWorker = new ConnectionWorker(new AlwaysRefusedConnection())
+            {
+                ReconnectBaseIntervalMs = 1000,
+                RefusedRetryIntervalMs = 200,
+                AutoReconnect = true
+            };
+            stubWorker.Start();
+            var swW = Stopwatch.StartNew();
+            bool stubConnected = stubWorker.Connect(1500).GetAwaiter().GetResult();
+            swW.Stop();
+            Check("C17-4 桩：refused 失败立即结束本次等待（不等满 1500ms，重连意图不受影响）",
+                !stubConnected && swW.ElapsedMilliseconds < 800, $"返回 {stubConnected}，耗时 {swW.ElapsedMilliseconds}ms");
+
+            int f0 = (int)(WorkerConnectFailureSerialField?.GetValue(stubWorker) ?? 0);
+            Thread.Sleep(1300);
+            int f1 = (int)(WorkerConnectFailureSerialField?.GetValue(stubWorker) ?? 0);
+            Check("C17-4 refused 固定短间隔重试：1.3s 内 ≥5 次建连尝试（间隔 200ms；旧指数退避 base 1s 只有 1~2 次）",
+                f1 - f0 >= 5, $"失败尝试 {f1 - f0} 次");
+        }
+
+        /// <summary>C17 桩：永远拒绝连接、自带 refused 分类——退避节奏只取决于 Worker，与 socket 无关</summary>
+        private sealed class AlwaysRefusedConnection : ICommunicationConnection, IConnectionFailureDetail
+        {
+            public string ConnectionName => "STUB_REFUSED";
+            public CommunicationType Type => CommunicationType.ModbusTcp;
+            public bool IsConnected => false;
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.ABCD;
+            public bool IsLastConnectFailureRefused => true;
+            public string? LastConnectError => "[ConnectionRefused] 桩：模拟目标拒绝连接";
+
+            public bool Connect() => false;
+            public void Disconnect() { }
+            public bool TestConnection() => false;
+            public void Dispose() { }
+            public T Read<T>(string address) where T : struct => default;
+            public void Write(string address, object value) { }
+            public byte[] ReadBytes(string address, ushort length) => new byte[length];
+            public void WriteBytes(string address, byte[] data) { }
+            public bool[] ReadBits(string address, ushort count) => new bool[count];
+        }
+
+        #endregion
+
         #region 反射探针（Manager 私有注册表）
 
         private static readonly FieldInfo? RegisteredVariablesField = typeof(AdvancedCommunicationManager)
@@ -1625,6 +1864,10 @@ namespace CommChecks
         /// <summary>Manager 的连接→Worker 注册表（C6 要"占住 Worker 线程"来证明调用不阻塞，只能从这里取 Worker）</summary>
         private static readonly FieldInfo? WorkersField = typeof(AdvancedCommunicationManager)
             .GetField("_workers", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        /// <summary>Worker 的建连失败序号（每次建连失败自增，C17 用它数 refused 场景的重试节奏）</summary>
+        private static readonly FieldInfo? WorkerConnectFailureSerialField = typeof(ConnectionWorker)
+            .GetField("_connectFailureSerial", BindingFlags.Instance | BindingFlags.NonPublic);
 
         /// <summary>
         /// 取连接实现里私有的 HSL 设备实例（<c>_device</c>）。走反射是为了让断言工程不必引用

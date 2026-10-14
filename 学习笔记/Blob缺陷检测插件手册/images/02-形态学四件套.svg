@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 330" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="330" fill="#FDFDFB"/>
+  <!-- 形态学四步 -->
+  <text x="20" y="28" fill="#0F172A" font-size="15" font-weight="bold">四件套（对二值区域做）</text>
+  <!-- ① 原始：毛刺 + 孔 + 断口 -->
+  <text x="30" y="60" fill="#475569" font-size="13">① 原始</text>
+  <path d="M40,100 L60,86 78,96 74,78 96,90 110,84 118,100 108,118 118,132 96,140 100,156 76,150 60,160 52,140 36,146 44,124 30,112 Z"
+        fill="#94A3B8" fill-rule="evenodd"/>
+  <circle cx="78" cy="118" r="9" fill="#FDFDFB"/>
+  <g stroke="#DC2626" stroke-width="1.5"><line x1="60" y1="86" x2="52" y2="70"/><line x1="110" y1="84" x2="120" y2="66"/></g>
+  <text x="30" y="182" fill="#B91C1C" font-size="11.5">毛刺 / 内孔 / 断口</text>
+  <!-- ② 开运算 -->
+  <text x="210" y="60" fill="#475569" font-size="13">② 开运算 OpenRadius</text>
+  <path d="M230,96 252,88 272,92 284,104 278,122 284,138 262,148 238,144 224,128 230,110 Z" fill="#94A3B8"/>
+  <circle cx="254" cy="118" r="9" fill="#FDFDFB"/>
+  <text x="212" y="182" fill="#15803D" font-size="11.5" font-weight="bold">毛刺没了 ✓（断口还在）</text>
+  <!-- ③ 闭运算 -->
+  <text x="390" y="60" fill="#475569" font-size="13">③ 闭运算 CloseRadius</text>
+  <path d="M400,96 422,88 442,92 454,104 448,122 454,138 432,148 408,144 394,128 400,110 Z" fill="#94A3B8"/>
+  <text x="392" y="182" fill="#15803D" font-size="11.5" font-weight="bold">边缘圆滑、细缝长上 ✓</text>
+  <!-- ④ 填孔 -->
+  <text x="570" y="60" fill="#475569" font-size="13">④ 填孔 FillHoles</text>
+  <path d="M580,96 602,88 622,92 634,104 628,122 634,138 612,148 588,144 574,128 580,110 Z" fill="#94A3B8"/>
+  <text x="572" y="182" fill="#15803D" font-size="11.5" font-weight="bold">内孔填实 → 面积才算得准 ✓</text>
+  <!-- 合并 -->
+  <text x="20" y="222" fill="#0F172A" font-size="15" font-weight="bold">合并断裂：一条划痕被噪声断成 3 段（个数虚高 → 必 NG）</text>
+  <g stroke="#94A3B8" stroke-width="7" stroke-linecap="round">
+    <line x1="40"  y1="262" x2="120" y2="258"/>
+    <line x1="150" y1="256" x2="230" y2="252"/>
+    <line x1="262" y1="250" x2="330" y2="246"/>
+  </g>
+  <line x1="120" y1="258" x2="150" y2="256" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <line x1="230" y1="252" x2="262" y2="250" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <line x1="360" y1="258" x2="420" y2="256" stroke="#DC2626" stroke-width="1.8" marker-end="url(#bAr)" stroke-dasharray="6 4"/>
+  <g stroke="#2563EB" stroke-width="7" stroke-linecap="round">
+    <line x1="440" y1="258" x2="640" y2="250"/>
+  </g>
+  <text x="446" y="236" fill="#1D4ED8" font-size="13" font-weight="bold">union1 → closing_circle → connection = 1 根 ✓</text>
+  <defs>
+    <marker id="bAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+  <!-- 底部警告 -->
+  <rect x="20" y="288" width="740" height="34" rx="4" fill="#FEF2F2" stroke="#FCA5A5"/>
+  <text x="32" y="310" fill="#B91C1C" font-size="13.5" font-weight="bold">⚠ 直接对区域数组做 closing_circle 是「逐对象处理」、永远合不到一起 —— 必须先 union1（本插件最著名的算子坑）</text>
+</svg>

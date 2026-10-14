@@ -252,6 +252,7 @@ namespace FlowCanvasChecks
                 "Plugin.DataRecord", "Plugin.Ocr", "Plugin.PoseTransform", "Plugin.PreProcessing",
                 "Plugin.ResultUpload", "Plugin.Yolo",
                 "Plugin.Matching", "Plugin.Util",   // Plugin.Utility 工程的产物名是 Plugin.Util.dll
+                "Plugin.GeometryFinder", "Plugin.GeometryRelation",
             };
             var stale = new List<string>();
             foreach (var name in annotated)
@@ -262,7 +263,7 @@ namespace FlowCanvasChecks
                 if (!text.Contains("ParallelSafeAttribute"))
                     stale.Add(name);
             }
-            Check("标注 [ParallelSafe] 的 16 个插件 DLL 全部含特性元数据（漏重建=门禁误报）",
+            Check("标注 [ParallelSafe] 的 18 个插件 DLL 全部含特性元数据（漏重建=门禁误报）",
                 stale.Count == 0,
                 stale.Count == 0 ? "" : "陈旧产物: " + string.Join(",", stale));
         }

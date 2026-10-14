@@ -114,6 +114,7 @@ namespace ScadaChecks
             RuntimeSessionChecks();
             ViewportRenderChecks();
             EventHookDispatchChecks();
+            FlowActionDispatchChecks();
             RuntimeBinderChecks();
             AnimationChecks();
             VariableEventChecks();
@@ -4419,7 +4420,8 @@ namespace ScadaChecks
             var notifier = new RecordingNotifier();
             var picker = new FakeVariablePicker();
             var pagePicker = new FakePagePicker();
-            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker);
+            var flowPicker = new FakeFlowPicker();
+            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker, flowPicker);
 
             static int Total(ScadaPropertyVM vm) => vm.Groups.Sum(g => g.Rows.Count);
 
@@ -4653,18 +4655,22 @@ namespace ScadaChecks
                 eventRow.Actions!.Count == 1 && eventRow.Actions[0].Text == "甲",
                 $"{eventRow.Actions.Count} 条 / 剩「{eventRow.Actions[0].Text}」");
 
-            Check("类型下拉三项与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话",
-                eventRow.ActionTypeChoices.Count == 3
-                && eventRow.ActionTypeChoices.Select(o => o.Type).Distinct().Count() == 3
+            Check("类型下拉六项与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话",
+                eventRow.ActionTypeChoices.Count == 6
+                && eventRow.ActionTypeChoices.Select(o => o.Type).Distinct().Count() == 6
                 && eventRow.ActionTypeChoices.Select(o => o.DisplayName).SequenceEqual(
-                    new[] { ScadaActionType.Log, ScadaActionType.WriteVariable, ScadaActionType.Navigate }
+                    new[] { ScadaActionType.Log, ScadaActionType.WriteVariable, ScadaActionType.Navigate,
+                            ScadaActionType.StartFlow, ScadaActionType.StopFlow, ScadaActionType.RunFlowOnce }
                         .Select(t => t.DisplayName())),
                 string.Join("/", eventRow.ActionTypeChoices.Select(o => o.DisplayName)));
 
-            Check("三条动作现在都已接通（S6 写变量、S8 切换画面），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
+            Check("六条动作现在都已接通（S6 写变量、S8 切换画面、流程启停三条），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
                 new ScadaAction { Type = ScadaActionType.Log }.PendingReason == null
                 && new ScadaAction { Type = ScadaActionType.WriteVariable }.PendingReason == null
                 && new ScadaAction { Type = ScadaActionType.Navigate }.PendingReason == null
+                && new ScadaAction { Type = ScadaActionType.StartFlow }.PendingReason == null
+                && new ScadaAction { Type = ScadaActionType.StopFlow }.PendingReason == null
+                && new ScadaAction { Type = ScadaActionType.RunFlowOnce }.PendingReason == null
                 && new ScadaAction { Type = (ScadaActionType)99 }.PendingReason == "本版本不认识该动作",
                 new ScadaAction { Type = ScadaActionType.Navigate }.PendingReason ?? "null");
 
@@ -4723,7 +4729,7 @@ namespace ScadaChecks
             // 否则"回填到的是画面字段还是变量字段"这件事就没有独立证据了。
 
             var navHost = Named("Hmi.Button", "去列表");
-            var navRow = new ScadaEventRow(navHost, ScadaEventType.Pressed, ScadaEventRow.ElementGroup, picker, pagePicker);
+            var navRow = new ScadaEventRow(navHost, ScadaEventType.Pressed, ScadaEventRow.ElementGroup, picker, pagePicker, new FakeFlowPicker());
             navRow.AddActionCommand.Execute();
             var navAction = navRow.Actions![0];
             navAction.Type = ScadaActionType.Navigate;
@@ -7333,6 +7339,232 @@ namespace ScadaChecks
         }
 
         // ==================================================================
+        //  [Y2] 流程动作（启动/停止/执行一次）：出口分派 + 三种幂等语义 + 未接线的交代
+        //
+        //  与 [Y] 段同一手法：分发器用生产那份（只依赖接口），流程启停出口给替身
+        //  （FakeFlowRunner：脚本化结果 + 记账），审计落进临时目录。
+        //  这里验的是"分发器这一侧"的分派与交代；"怎么找到流程、怎么起会话"的语义
+        //  在宿主 ScadaFlowRunner 里，控制台进程碰不到引擎，属未验证项（见交接）。
+        // ==================================================================
+        private static void FlowActionDispatchChecks()
+        {
+            Section("[Y2] 流程动作：启动/停止/执行一次 的分派、幂等与交代");
+
+            var log = new LoggerStub();
+            var values = new FakeValueSource();
+            var nav = new FakeNavigator();
+            var runner = new FakeFlowRunner();
+            var auditDir = Path.Combine(Path.GetTempPath(), "ScadaChecks",
+                "flow-actions-" + Guid.NewGuid().ToString("N")[..8]);
+            var audit = new ScadaAuditWriter(auditDir);
+            var dispatcher = new ScadaActionDispatcher(log, values, nav, audit, runner);
+
+            // 审计文件按当天走（时间戳由落盘端在落笔那一刻盖）；每次单动作 Dispatch 恰好追加一行，
+            // 取文件尾行即本组那条
+            string AuditTail()
+            {
+                var path = Path.Combine(auditDir, ScadaAuditWriter.SuggestFileName(DateTime.Now));
+                return File.Exists(path) ? File.ReadAllLines(path).LastOrDefault() ?? "" : "";
+            }
+
+            // ---------------- ① 没选流程：Warn + 审计 Skipped，且不惊动出口 ----------------
+
+            var noFlow = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            noFlow.Actions.Add(new ScadaAction { Type = ScadaActionType.StartFlow });
+            dispatcher.Dispatch(noFlow, "启动按钮", "张三");
+            Check("流程①没选流程：Warn 一句「还没选流程」，且根本不去问出口（配置漏了不该惊动引擎）",
+                log.Lines.Count == 1 && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].EndsWith("启动流程：还没选流程，本条未执行")
+                && runner.StartCalls == 0,
+                log.Lines.FirstOrDefault() ?? "无");
+
+            // ---------------- ② 找不到流程：出口的原因原样带上来，寻址参数原样递出去 ----------------
+
+            var ghost = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            ghost.Actions.Add(new ScadaAction
+            {
+                Type = ScadaActionType.StartFlow,
+                FlowId = "abc123def456",
+                FlowName = "已删除的流程",
+            });
+            log = new LoggerStub();
+            runner.StartResult = false;
+            runner.StartReason = "找不到流程「已删除的流程」";
+            dispatcher = new ScadaActionDispatcher(log, values, nav, audit, runner);
+            dispatcher.Dispatch(ghost, "启动按钮");
+            Check("流程②找不到流程：Warn 带动作原文 + 出口给的原因，本条未执行",
+                log.Lines.Count == 1 && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].Contains("启动流程 已删除的流程")
+                && log.Lines[0].EndsWith("：找不到流程「已删除的流程」，本条未执行"),
+                log.Lines.FirstOrDefault() ?? "无");
+            Check("流程②寻址口径归出口：分发器把 Id 与名字原样递出去，不猜、不加工",
+                runner.LastFlowId == "abc123def456" && runner.LastFlowName == "已删除的流程",
+                $"{runner.LastFlowId} / {runner.LastFlowName}");
+            Check("流程②审计落「未执行」档，说明列是出口那句原因（排查的入口，不许是空的）",
+                AuditTail().Contains("找不到流程「已删除的流程」") && AuditTail().Contains("未执行"),
+                AuditTail());
+
+            // ---------------- ③ 连续启动已在运行：幂等成功（Ok + 审计 Success） ----------------
+
+            var already = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            already.Actions.Add(new ScadaAction { Type = ScadaActionType.StartFlow, FlowName = "主检测" });
+            log = new LoggerStub();
+            runner.StartResult = true;
+            runner.StartReason = "已在运行，未重复启动";
+            dispatcher = new ScadaActionDispatcher(log, values, nav, audit, runner);
+            dispatcher.Dispatch(already, "启动按钮", "李四");
+            var successRow = AuditTail();
+            Check("流程③连续启动已在运行：Info 一行（重复点击不算失败，日志不该拿警告淹真正该看的）",
+                log.Lines.Count == 1 && log.Lines[0]
+                    == "I [组态事件] 李四 · 启动按钮 · 按下 → 启动流程 主检测",
+                log.Lines.FirstOrDefault() ?? "无");
+            Check("流程③审计落「成功」档，说明列写净效果「已在运行，未重复启动」",
+                successRow.Contains("成功") && successRow.Contains("已在运行，未重复启动"),
+                successRow);
+
+            // ---------------- ④ 单次执行已在运行：拒绝（单次语义不幂等） ----------------
+
+            var busy = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            busy.Actions.Add(new ScadaAction { Type = ScadaActionType.RunFlowOnce, FlowName = "主检测" });
+            log = new LoggerStub();
+            runner.OnceResult = false;
+            runner.OnceReason = "流程正在运行，本次未执行";
+            dispatcher = new ScadaActionDispatcher(log, values, nav, audit, runner);
+            dispatcher.Dispatch(busy, "单发按钮");
+            Check("流程④单次执行已在运行：Warn 说清「本次未执行」——把没跑包装成跑了，操作员会以为结果已经有了",
+                log.Lines.Count == 1 && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].EndsWith("执行一次流程 主检测：流程正在运行，本次未执行，本条未执行"),
+                log.Lines.FirstOrDefault() ?? "无");
+
+            // ---------------- ⑤ 停止未在运行：幂等成功（停止键永远不该报错） ----------------
+
+            var idle = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            idle.Actions.Add(new ScadaAction { Type = ScadaActionType.StopFlow, FlowName = "主检测" });
+            log = new LoggerStub();
+            runner.StopResult = true;
+            runner.StopReason = "本就未在运行";
+            dispatcher = new ScadaActionDispatcher(log, values, nav, audit, runner);
+            dispatcher.Dispatch(idle, "停止按钮");
+            Check("流程⑤停止未在运行：Info 一行照常成功——操作员要的「它停下来」这个状态已经成立",
+                log.Lines.Count == 1 && log.Lines[0]
+                    == "I [组态事件] 未登录 · 停止按钮 · 按下 → 停止流程 主检测",
+                log.Lines.FirstOrDefault() ?? "无");
+            Check("流程⑤审计说明列写「本就未在运行」（幂等的成功也要说清净效果，否则像没生效）",
+                AuditTail().Contains("本就未在运行"),
+                AuditTail());
+
+            // ---------------- ⑥ 出口未接线（旧构造）：照实说一句「未接入」 ----------------
+
+            log = new LoggerStub();
+            var wired = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            wired.Actions.Add(new ScadaAction { Type = ScadaActionType.StartFlow, FlowName = "主检测" });
+            // 4 参构造 = flows 可选参数默认 null（断言工程旧构造点的形态）
+            new ScadaActionDispatcher(log, values, new FakeNavigator()).Dispatch(wired, "启动按钮");
+            Check("流程⑥出口未接线：Warn 一句「流程执行能力未接入」，不炸、不哑、更不拿 NullReference 当事故",
+                log.Lines.Count == 1 && log.Lines[0].StartsWith("W ")
+                && log.Lines[0].EndsWith("流程执行能力未接入，本条未执行"),
+                log.Lines.FirstOrDefault() ?? "无");
+
+            // ---------------- ⑦ 出口抛异常：契约①②——Dispatch 不炸、后续动作继续 ----------------
+
+            var faulty = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            faulty.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "第一条" });
+            faulty.Actions.Add(new ScadaAction { Type = ScadaActionType.StartFlow, FlowName = "主检测" });
+            faulty.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "第三条" });
+            log = new LoggerStub();
+            runner.ThrowOnStart = new InvalidOperationException("引擎端口爆炸");
+            dispatcher = new ScadaActionDispatcher(log, values, nav, audit, runner);
+            dispatcher.Dispatch(faulty, "急停按钮");
+            Check("流程⑦出口内部抛异常绝不冒到调用方（调用点在 UI 线程的鼠标链上，抛出=点一下崩一次）",
+                log.Lines.Count == 3, string.Join(" ⏎ ", log.Lines));
+            Check("流程⑦炸掉的那条就地留一行 Error（带动作原文），前后两条照跑",
+                log.Lines[0].EndsWith("→ 第一条")
+                && log.Lines[1].StartsWith("E ") && log.Lines[1].Contains("启动流程 主检测")
+                && log.Lines[1].Contains("执行失败：引擎端口爆炸")
+                && log.Lines[2].EndsWith("→ 第三条"),
+                string.Join(" ⏎ ", log.Lines));
+            runner.ThrowOnStart = null;
+
+            // 同一契约对另外两个方法也成立：出口任何一侧的意外都止步于一行 Error，不影响后面的动作
+            runner.ThrowOnOnce = new InvalidOperationException("单次端口爆炸");
+            runner.ThrowOnStop = new InvalidOperationException("停止端口爆炸");
+            var moreFault = new ScadaEventHook { Event = ScadaEventType.Pressed };
+            moreFault.Actions.Add(new ScadaAction { Type = ScadaActionType.RunFlowOnce, FlowName = "主检测" });
+            moreFault.Actions.Add(new ScadaAction { Type = ScadaActionType.StopFlow, FlowName = "主检测" });
+            log = new LoggerStub();
+            dispatcher = new ScadaActionDispatcher(log, values, nav, audit, runner);
+            dispatcher.Dispatch(moreFault, "急停按钮");
+            Check("流程⑦单次/停止两条同样炸不出调用方：各留一行 Error，一串照常走完",
+                log.Lines.Count == 2
+                && log.Lines[0].StartsWith("E ") && log.Lines[0].Contains("执行失败：单次端口爆炸")
+                && log.Lines[1].StartsWith("E ") && log.Lines[1].Contains("执行失败：停止端口爆炸"),
+                string.Join(" ⏎ ", log.Lines));
+            runner.ThrowOnOnce = null;
+            runner.ThrowOnStop = null;
+
+            // ---------------- ⑧ 审计署名四列（谁 · 对象 · 事件 · 动作原文）逐列钉住 ----------------
+            //
+            // 用 ③ 那次成功落下的那行（successRow 在 ③ 分派的当场截取——⑦ 之后审计又落了新行，
+            // 再取文件尾就串行了）：四列缺一，事后就查不出"谁在哪个按钮上启动了哪条流程"。
+
+            Check("流程⑧审计署名：操作者/对象/事件/动作原文四列都落了值（一条没有署名的记录等于白记）",
+                successRow.Contains("李四") && successRow.Contains("启动按钮")
+                && successRow.Contains("按下") && successRow.Contains("启动流程 主检测"),
+                successRow);
+
+            // ---------------- ⑨ 停止豁免停用门（2026-10-12 架构裁决：停止/急停入口永远要能按） ----------------
+            //
+            // 前面 ①~⑧ 钉的是分发器这一侧（出口给替身）；这一组下探一层，把生产那个
+            // ScadaFlowRunner 借假运行管理器/假引擎/真编译器在控制台里整条拉起来，
+            // 钉它自己的门判语义：停用挡启动、不挡停止——这一对是裁决的完整两面。
+
+            var gateWs = new WorkspaceContext();
+            var gateSol = new SolutionModel();
+            gateSol.Flows.Clear();   // 清掉预置骨架：这里的流程名都由本组自造，别让 Home/Main/End 混进寻址
+            gateWs.SwitchSolution(gateSol);
+            gateSol.Flows.Add(new FlowModel { FlowName = "已停用的流程", IsEnabled = false });
+            gateSol.Flows.Add(new FlowModel { FlowName = "还在跑的流程", IsEnabled = true });
+            var disabledSession = new FlowSession { FlowName = "还在跑的流程" };
+            disabledSession.IsRunning = true;
+
+            var gateRuntime = new StubRuntimeManager();
+            gateRuntime.SessionsByName["还在跑的流程"] = disabledSession;
+            var gateEngine = new StubFlowEngine();
+            var gateLog = new LoggerStub();
+            var gateRunner = new ScadaFlowRunner(
+                gateRuntime, gateEngine, new FlowCompiler(gateWs), gateWs, gateLog);
+
+            var startBlocked = gateRunner.StartContinuous(string.Empty, "已停用的流程", out var startBlockReason);
+            Check("流程⑨停用挡启动：StartContinuous 返回 false 且原因「已停用」（裁决只豁免停止，不豁免启动）",
+                !startBlocked && startBlockReason == "流程「已停用的流程」已停用",
+                startBlockReason ?? "null");
+
+            var runningDisabled = new FlowModel { FlowName = "停用时还在跑的流程", IsEnabled = false };
+            gateSol.Flows.Add(runningDisabled);
+            var stillRunning = new FlowSession { FlowName = "停用时还在跑的流程" };
+            stillRunning.IsRunning = true;
+            gateRuntime.SessionsByName["停用时还在跑的流程"] = stillRunning;
+
+            var stopOk = gateRunner.Stop(string.Empty, "停用时还在跑的流程", out var stopNote);
+            Check("流程⑨停用不挡停止：已停用且正在运行的流程照样 Stop 成功、停止真递到引擎",
+                stopOk && stopNote == "已发出停止" && gateEngine.StopSessionCalls == 1
+                && gateEngine.LastStoppedFlow == "停用时还在跑的流程",
+                $"{stopOk} / {stopNote} / 引擎收停 {gateEngine.StopSessionCalls} 次（{gateEngine.LastStoppedFlow}）");
+
+            var stopIdle = gateRunner.Stop(string.Empty, "已停用的流程", out var idleNote);
+            Check("流程⑨停用且未运行：Stop 幂等成功「本就未在运行」（停止键在任何状态下都不报错）",
+                stopIdle && idleNote == "本就未在运行", idleNote ?? "null");
+
+            var stopMiss = gateRunner.Stop(string.Empty, "不存在的流程", out var missNote);
+            Check("流程⑨豁免只限停用门：找不到流程的 Stop 照样 false（存在性门与门禁是两回事）",
+                !stopMiss && missNote == "找不到流程「不存在的流程」", missNote ?? "null");
+
+            // 收尾：临时审计目录整个清掉（删不掉不影响断言结论）
+            try { if (Directory.Exists(auditDir)) Directory.Delete(auditDir, true); }
+            catch { /* 临时目录删不掉不影响断言结论 */ }
+        }
+
+        // ==================================================================
         //  [Y] 事件钩子 → 动作分发：命中规则、执行次序、跑不动时怎么交代
         //
         //  [W] 钉的是"会话该不该广播"，这一节钉的是"广播出去以后发生了什么"。
@@ -9693,7 +9925,7 @@ namespace ScadaChecks
             var emptyWorkspace = new WorkspaceContext();
             emptyWorkspace.GlobalVariables.Clear();
 
-            var emptyVm = new ScadaVariableEventDialogViewModel(emptyWorkspace, picker, pagePicker);
+            var emptyVm = new ScadaVariableEventDialogViewModel(emptyWorkspace, picker, pagePicker, new FakeFlowPicker());
             emptyVm.OnDialogOpened(new DialogParameters());
 
             Check("工作区里一个变量都没有时左栏为空（空态提示靠 HasAnyRows 显隐）",
@@ -9749,7 +9981,7 @@ namespace ScadaChecks
             var staleRecord = doc.GetOrAddVariableEvent(Guid.NewGuid(), "已删除的变量");
             staleRecord.AddEventHook(ScadaEventType.ValueChanged).Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
 
-            var vm = new ScadaVariableEventDialogViewModel(workspace, picker, pagePicker);
+            var vm = new ScadaVariableEventDialogViewModel(workspace, picker, pagePicker, new FakeFlowPicker());
             vm.OnDialogOpened(new DialogParameters());
 
             var rows = vm.Rows.Cast<ScadaVariableEventRow>().ToList();
@@ -9947,7 +10179,7 @@ namespace ScadaChecks
             }
 
             string veActor = "王工";
-            var audited = new ScadaVariableEventDialogViewModel(workspace, picker, pagePicker, veAudit, () => veActor);
+            var audited = new ScadaVariableEventDialogViewModel(workspace, picker, pagePicker, new FakeFlowPicker(), veAudit, () => veActor);
             audited.OnDialogOpened(new DialogParameters());
 
             var auditedTarget = audited.Rows.Cast<ScadaVariableEventRow>().Single(r => r.Name == "炉温");
@@ -10002,7 +10234,7 @@ namespace ScadaChecks
             noSolution.GlobalVariables.Clear();
             noSolution.GlobalVariables.Add(VariableFactory.CreateLocal("孤儿变量", typeof(int), "没有方案时的变量", 1));
 
-            var orphanVm = new ScadaVariableEventDialogViewModel(noSolution, picker, pagePicker, veAudit, () => null);
+            var orphanVm = new ScadaVariableEventDialogViewModel(noSolution, picker, pagePicker, new FakeFlowPicker(), veAudit, () => null);
             orphanVm.OnDialogOpened(new DialogParameters());
             orphanVm.SelectedRow = orphanVm.Rows.Cast<ScadaVariableEventRow>().Single();
             orphanVm.CreateCommand.Execute();
@@ -11502,6 +11734,167 @@ namespace ScadaChecks
         }
 
         /// <summary>
+        /// 假的「选流程」选择器：与 <see cref="FakePagePicker"/> 同构，只是目标身份是字符串
+        /// （流程 Id 是 FlowID 文本，不是 Guid），清单来源是当前方案的流程集合——
+        /// 所以断言里也另立一个替身，"面板把哪一类目标交出去了"各自有独立的证据。
+        /// </summary>
+        private sealed class FakeFlowPicker : IScadaFlowPicker
+        {
+            /// <summary>下一次 Pick 要回传的流程 Id；空白表示"用户点了取消"（回调一次都不触发）</summary>
+            public string? NextId { get; set; }
+
+            public string? NextName { get; set; }
+
+            /// <summary>被点了几次「选择流程」</summary>
+            public int PickCalls { get; private set; }
+
+            /// <summary>最后一次收到的"当前目标流程"，用来核对预选参数确实是这条动作的现状</summary>
+            public string? LastCurrentId { get; private set; }
+
+            public string? LastCurrentName { get; private set; }
+
+            public void Pick(string? currentFlowId, string? currentName, Action<string, string?> onPicked)
+            {
+                PickCalls++;
+                LastCurrentId = currentFlowId;
+                LastCurrentName = currentName;
+
+                // 取消的语义是"回调一次都不触发"，不是"回传空值让调用方自己判断"。
+                if (string.IsNullOrWhiteSpace(NextId)) return;
+
+                onPicked(NextId!, NextName);
+            }
+        }
+
+        /// <summary>
+        /// 假的「流程启停」出口：不碰任何引擎对象，按方法各自的预置结果回报并记账。
+        ///
+        /// 分发器只认 <see cref="IScadaFlowRunner"/> 三个方法（它拿不到引擎，也不该拿到），
+        /// 所以断言工程能在控制台里把"启动/停止/执行一次"这条动作整条走完——
+        /// 与 <see cref="FakeNavigator"/> 同一个角色。真机那条链上换的是
+        /// <c>ScadaFlowRunner</c>（转发到流程引擎），分发器一行不动。
+        /// </summary>
+        private sealed class FakeFlowRunner : IScadaFlowRunner
+        {
+            /// <summary>三个方法各自的预置结果与原因（null 原因 + true = 干净成功）</summary>
+            public bool StartResult = true;
+            public string? StartReason;
+            public bool OnceResult = true;
+            public string? OnceReason;
+            public bool StopResult = true;
+            public string? StopReason;
+
+            /// <summary>非 null 时：下一次对应方法调用直接抛这个异常（契约①：分发器必须接住）</summary>
+            public Exception? ThrowOnStart;
+            public Exception? ThrowOnOnce;
+            public Exception? ThrowOnStop;
+
+            /// <summary>各方法被调了几次 + 最后一次收到的寻址参数（核对"该不该走到出口"）</summary>
+            public int StartCalls { get; private set; }
+            public int OnceCalls { get; private set; }
+            public int StopCalls { get; private set; }
+            public string? LastFlowId { get; private set; }
+            public string? LastFlowName { get; private set; }
+
+            public bool StartContinuous(string flowId, string? fallbackName, out string? reason)
+            {
+                StartCalls++;
+                Record(flowId, fallbackName);
+                if (ThrowOnStart != null) throw ThrowOnStart;
+                reason = StartReason;
+                return StartResult;
+            }
+
+            public bool RunOnce(string flowId, string? fallbackName, out string? reason)
+            {
+                OnceCalls++;
+                Record(flowId, fallbackName);
+                if (ThrowOnOnce != null) throw ThrowOnOnce;
+                reason = OnceReason;
+                return OnceResult;
+            }
+
+            public bool Stop(string flowId, string? fallbackName, out string? reason)
+            {
+                StopCalls++;
+                Record(flowId, fallbackName);
+                if (ThrowOnStop != null) throw ThrowOnStop;
+                reason = StopReason;
+                return StopResult;
+            }
+
+            private void Record(string? flowId, string? fallbackName)
+            {
+                LastFlowId = flowId;
+                LastFlowName = fallbackName;
+            }
+        }
+
+        /// <summary>
+        /// 假的运行管理器：按名字字典回会话（ScadaFlowRunner 的幂等判/停止寻址只走 GetSessionByName），
+        /// 用来把生产那个 <see cref="ScadaFlowRunner"/> 在控制台进程里整条拉起来——
+        /// 它的门判语义（停用挡启动、不挡停止）不属于分发器那一层，得分开钉。
+        /// </summary>
+        private sealed class StubRuntimeManager : IRuntimeManager
+        {
+            public Dictionary<string, FlowSession> SessionsByName { get; } = new(StringComparer.Ordinal);
+
+            public ObservableCollection<FlowSession> ActiveSessions { get; } = new();
+
+            public IReadOnlyList<FlowSession> SnapshotSessions() => ActiveSessions.ToList();
+
+            public void RegisterSession(FlowSession session)
+            {
+                if (session == null) return;
+                SessionsByName[session.FlowName] = session;
+                ActiveSessions.Add(session);
+            }
+
+            public void UnregisterSession(string sessionId) { }
+
+            public FlowSession GetSessionById(string sessionId) => null;
+
+            public FlowSession GetSessionByName(string flowName)
+                => flowName != null && SessionsByName.TryGetValue(flowName, out var session) ? session : null;
+
+            public void ClearAll()
+            {
+                SessionsByName.Clear();
+                ActiveSessions.Clear();
+            }
+        }
+
+        /// <summary>假的流程引擎：只记账不真跑——这条链只验"停止有没有真递到引擎手上"。</summary>
+        private sealed class StubFlowEngine : IFlowEngine
+        {
+            public int StopSessionCalls { get; private set; }
+
+            public string? LastStoppedFlow { get; private set; }
+
+            public int ActiveSessionCount => 0;
+
+            public Task RunSessionAsync(FlowSession session, bool debugSession = false) => Task.CompletedTask;
+
+            public Task RunSessionOnceAsync(FlowSession session, bool debugSession = false) => Task.CompletedTask;
+
+            public Task<bool> TryRunSessionOnceAsync(FlowSession session, bool debugSession = false) => Task.FromResult(false);
+
+            public void StopSession(FlowSession session)
+            {
+                StopSessionCalls++;
+                LastStoppedFlow = session?.FlowName;
+            }
+
+            public void StopAll() { }
+
+            public void PauseSession(FlowSession session) { }
+
+            public void ResumeSession(FlowSession session) { }
+
+            public void StepSession(FlowSession session) { }
+        }
+
+        /// <summary>
         /// 假的运行态宿主：只记账，不弹任何窗口。
         /// 断言工程是控制台进程，真的宿主会去 ShowDialog 卡住整个测试；而视图模型只看
         /// 接口，所以这里给一个最笨的实现就足够把"可用性"这件事验完。
@@ -12870,7 +13263,7 @@ namespace ScadaChecks
                     editor.SelectedElements = new[] { e1 };
 
                     var panel = new ScadaPropertyVM(
-                        editor, new RecordingNotifier(), new FakeVariablePicker(), new FakePagePicker());
+                        editor, new RecordingNotifier(), new FakeVariablePicker(), new FakePagePicker(), new FakeFlowPicker());
 
                     ScadaEditHistory.Clear();
                     ScadaWriteGuard.Strict = true;
@@ -16715,7 +17108,9 @@ namespace ScadaChecks
                 var service = new SolutionService();
 
                 var solution = new SolutionModel();
-                solution.Flows.Clear();
+                // 不 Clear() 骨架流程：LoadAsync 会走 MandatoryFlows.Ensure 补齐 Home/Main/End（2026-10-12），
+                // 存一份 "Flows": [] 再读回必然多出三条骨架——往返稳定性这条断言的前提就是
+                // "落盘什么读回什么"，所以这里保留模型预置的骨架（真实的 .vms 也从来不是空的）。
                 var page = solution.Scada.AddPage("打包画面");
 
                 // 与编辑器 AddElement 同一口径：新图元一律先归到首个图层。

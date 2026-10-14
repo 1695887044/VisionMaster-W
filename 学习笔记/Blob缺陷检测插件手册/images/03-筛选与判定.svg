@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 440" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="440" fill="#FDFDFB"/>
+  <!-- 候选层 -->
+  <text x="30" y="30" fill="#0F172A" font-size="15" font-weight="bold">connection 拆出的候选连通域</text>
+  <g fill="#94A3B8">
+    <circle cx="70"  cy="60" r="6"/><circle cx="120" cy="52" r="4"/><circle cx="180" cy="64" r="16"/><circle cx="250" cy="56" r="5"/>
+    <circle cx="320" cy="60" r="30"/><circle cx="420" cy="56" r="5"/><circle cx="480" cy="62" r="8"/><circle cx="560" cy="54" r="4"/>
+    <circle cx="620" cy="60" r="24"/><circle cx="690" cy="56" r="5"/>
+  </g>
+  <text x="196" y="100" fill="#475569" font-size="12">真缺陷</text><text x="296" y="102" fill="#475569" font-size="12">大块背景!</text>
+  <text x="52" y="92" fill="#475569" font-size="12">噪点</text><text x="600" y="100" fill="#475569" font-size="12">划痕</text>
+  <!-- 门 1：筛选 -->
+  <rect x="30" y="130" width="700" height="44" rx="4" fill="#EFF6FF" stroke="#3B82F6" stroke-width="2"/>
+  <text x="44" y="148" fill="#1E40AF" font-size="14.5" font-weight="bold">第一道门 · 筛选：「这个东西算不算缺陷？」</text>
+  <text x="44" y="166" fill="#1D4ED8" font-size="12.5">MinArea / MaxBlobArea / MinCircularity / MaxAspectRatio / ExcludeBorderPx —— 超了 → 不计数，等于没看见</text>
+  <!-- 被筛掉的 -->
+  <g fill="#E2E8F0">
+    <circle cx="120" cy="212" r="5" opacity="0.7"/><circle cx="420" cy="206" r="5" opacity="0.7"/><circle cx="690" cy="206" r="5" opacity="0.7"/>
+  </g>
+  <text x="140" y="216" fill="#94A3B8" font-size="12">噪点丢弃 = 没看见</text>
+  <text x="446" y="216" fill="#B91C1C" font-size="12" font-weight="bold">⚠ 大块背景若在这里被静默滤掉 → 漏检还报 OK（1e7 事故）</text>
+  <!-- 缺陷层 -->
+  <g fill="#DC2626">
+    <circle cx="180" cy="252" r="16"/><circle cx="320" cy="250" r="30"/><circle cx="620" cy="250" r="24"/>
+  </g>
+  <g fill="#fff" font-size="12" text-anchor="middle" font-weight="bold">
+    <text x="180" y="257">1</text><text x="320" y="255">2</text><text x="620" y="255">3</text>
+  </g>
+  <text x="360" y="254" fill="#475569" font-size="12">剩下的 = 缺陷（编号输出）</text>
+  <!-- 门 2：判定 -->
+  <rect x="30" y="290" width="700" height="44" rx="4" fill="#FEF2F2" stroke="#EF4444" stroke-width="2"/>
+  <text x="44" y="308" fill="#991B1B" font-size="14.5" font-weight="bold">第二道门 · 判定：「这些缺陷合不合格？」</text>
+  <text x="44" y="326" fill="#B91C1C" font-size="12.5">MaxDefectCount / MinDefectCount（存在性检测） / MaxSingleArea / MaxTotalArea —— 超了 → 判 NG（NG 仍 Success=true）</text>
+  <!-- 底注 -->
+  <rect x="30" y="352" width="700" height="34" rx="4" fill="#FEF2F2" stroke="#FCA5A5"/>
+  <text x="42" y="374" fill="#B91C1C" font-size="13" font-weight="bold">两道门两套参数，混在一起的真实代价：筛选上限写死 1e7 → 大画幅整块背景被静默滤掉 → 漏检还报 OK（P0 事故，见手册 4.1）</text>
+  <text x="30" y="412" fill="#475569" font-size="12.5">同类戒律：卡尺「必须全部检出」、颜色「配方缺失报错」、序列「期望为空报错」—— 计量最危险的失败是「错误但不出错」</text>
+  <text x="30" y="430" fill="#475569" font-size="12.5">另：像素当量不参与判定（mm² 只是附加输出）—— 防「改了当量就改判定结果」的隐式耦合</text>
+</svg>

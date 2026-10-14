@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 430" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="430" fill="#FDFDFB"/>
+  <defs>
+    <marker id="tAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748B"/>
+    </marker>
+  </defs>
+  <!-- 左：像素世界 -->
+  <text x="40" y="30" fill="#0F172A" font-size="15" font-weight="bold">像素世界（相机看到的世界）</text>
+  <rect x="40" y="46" width="200" height="200" fill="#F1F5F9" stroke="#64748B" stroke-width="2"/>
+  <g stroke="#E2E8F0" stroke-width="1">
+    <line x1="80" y1="46" x2="80" y2="246"/><line x1="120" y1="46" x2="120" y2="246"/><line x1="160" y1="46" x2="160" y2="246"/><line x1="200" y1="46" x2="200" y2="246"/>
+    <line x1="40" y1="86" x2="240" y2="86"/><line x1="40" y1="126" x2="240" y2="126"/><line x1="40" y1="166" x2="240" y2="166"/><line x1="40" y1="206" x2="240" y2="206"/>
+  </g>
+  <rect x="90" y="100" width="90" height="60" fill="#9AA3AD"/>
+  <text x="60" y="270" fill="#1D4ED8" font-size="13" font-weight="bold">坐标 = (Row, Col)</text>
+  <text x="60" y="290" fill="#475569" font-size="12.5">Row 向下 · Col 向右 · 单位：像素</text>
+  <!-- 中：三条翻译路线 -->
+  <text x="300" y="30" fill="#0F172A" font-size="15" font-weight="bold">翻译层（标定插件产出的尺子）</text>
+  <rect x="300" y="50" width="200" height="86" rx="4" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.5"/>
+  <text x="312" y="72" fill="#0F172A" font-size="13" font-weight="bold">① 像素当量 PixelScale</text>
+  <text x="312" y="92" fill="#475569" font-size="12">已知长度 ÷ 像素距离</text>
+  <text x="312" y="110" fill="#B91C1C" font-size="11.5">只给比例尺 —— 没有机械坐标系</text>
+  <rect x="300" y="150" width="200" height="86" rx="4" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.8"/>
+  <text x="312" y="172" fill="#1E40AF" font-size="13" font-weight="bold">② 九点标定 NinePoint</text>
+  <text x="312" y="192" fill="#475569" font-size="12">N×N 组「机械 ↔ 图像」点</text>
+  <text x="312" y="210" fill="#1D4ED8" font-size="11.5">2D 仿射：比例尺+方向+原点全有</text>
+  <rect x="300" y="250" width="200" height="86" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="312" y="272" fill="#065F46" font-size="13" font-weight="bold">③ 透视 / 网格（升级）</text>
+  <text x="312" y="292" fill="#475569" font-size="12">治相机倾斜 / 镜头畸变</text>
+  <text x="312" y="310" fill="#065F46" font-size="11.5">透视 ≥4 点；网格 N×N 全取点</text>
+  <!-- 右：机械世界 -->
+  <text x="560" y="30" fill="#0F172A" font-size="15" font-weight="bold">机械世界（车间坐标系）</text>
+  <rect x="560" y="46" width="200" height="200" fill="#F8FAFC" stroke="#64748B" stroke-width="2"/>
+  <line x1="580" y1="226" x2="740" y2="226" stroke="#DC2626" stroke-width="2" marker-end="url(#tAr)"/>
+  <line x1="580" y1="226" x2="580" y2="66" stroke="#DC2626" stroke-width="2" marker-end="url(#tAr)"/>
+  <text x="712" y="244" fill="#DC2626" font-size="13" font-weight="bold">X (mm)</text>
+  <text x="588" y="76" fill="#DC2626" font-size="13" font-weight="bold">Y (mm)</text>
+  <rect x="620" y="120" width="86" height="56" fill="#9AA3AD"/>
+  <text x="566" y="270" fill="#B91C1C" font-size="13" font-weight="bold">坐标 = (X, Y) mm</text>
+  <text x="566" y="290" fill="#475569" font-size="12.5">轴方向/镜像由矩阵自然吸收</text>
+  <!-- 连接箭头 -->
+  <line x1="244" y1="140" x2="296" y2="140" stroke="#64748B" stroke-width="2" marker-end="url(#tAr)"/>
+  <line x1="504" y1="140" x2="556" y2="140" stroke="#64748B" stroke-width="2" marker-end="url(#tAr)"/>
+  <!-- 底部铁律 -->
+  <rect x="20" y="366" width="740" height="50" rx="4" fill="#FEF2F2" stroke="#FCA5A5"/>
+  <text x="32" y="388" fill="#B91C1C" font-size="13.5" font-weight="bold">铁律：像素当量（①）的产出没有机械坐标系 —— 它的矩阵是「沿图像轴的毫米」，不是「沿机床轴的毫米」；</text>
+  <text x="32" y="406" fill="#B91C1C" font-size="13.5" font-weight="bold">拿它当九点用做坐标换算，会在坐标变换插件被明确拒绝（防呆，不是 bug）</text>
+</svg>

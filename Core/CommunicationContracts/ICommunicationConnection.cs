@@ -62,4 +62,27 @@ namespace VisionMaster.Communications
         /// </summary>
         bool HasLinkFault { get; }
     }
+
+    /// <summary>
+    /// <para>建连失败分类（可选能力）：让上层（ConnectionWorker / Manager）能区分
+    /// 「目标拒绝连接」与「网络超时」，并拿到人类可读的失败原因。</para>
+    /// <para>为什么需要它：HSL 的建连失败只返回一句消息（含 OS 本地化文本），无法可靠分类；
+    /// 连接实现在建连快速失败时用自己的 socket 探测一次，直接拿到确定的 SocketError 才算分类。</para>
+    /// <para>不具备该能力的实现（如串口）不必实现本接口，上层按「分类未知」处理，行为与旧版一致。</para>
+    /// </summary>
+    public interface IConnectionFailureDetail
+    {
+        /// <summary>
+        /// 最近一次 <see cref="ICommunicationConnection.Connect"/> 失败是否为
+        /// 「目标计算机积极拒绝」（SocketError.ConnectionRefused，典型：IP 可达但端口无监听）。
+        /// <para>连接成功后自动复位为 false；只在 Connect() 路径维护，TestConnection 不维护。</para>
+        /// </summary>
+        bool IsLastConnectFailureRefused { get; }
+
+        /// <summary>
+        /// 最近一次 <see cref="ICommunicationConnection.Connect"/> 失败的原因消息；
+        /// refused 场景带 <c>[ConnectionRefused]</c> 前缀标记。未失败过或已恢复为 null。
+        /// </summary>
+        string? LastConnectError { get; }
+    }
 }

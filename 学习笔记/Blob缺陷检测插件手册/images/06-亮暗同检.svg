@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 290" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="720" height="290" fill="#FDFDFB"/>
+  <!-- 原图 -->
+  <text x="24" y="26" fill="#0F172A" font-size="13.5" font-weight="bold">原图：暗划痕 + 亮亮点并存</text>
+  <rect x="24" y="36" width="150" height="130" fill="#D9DDE2"/>
+  <polyline points="36,150 70,110 100,120 140,60" fill="none" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="118" cy="52" r="7" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <circle cx="138" cy="90" r="5" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <circle cx="52" cy="66" r="6" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <!-- 暗极性 -->
+  <text x="210" y="26" fill="#0F172A" font-size="13.5" font-weight="bold">暗极性一轮</text>
+  <rect x="210" y="36" width="150" height="130" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5"/>
+  <polyline points="222,150 256,110 286,120 326,60" fill="none" stroke="#DC2626" stroke-width="4" stroke-linecap="round"/>
+  <text x="216" y="184" fill="#475569" font-size="12">只抓到划痕（亮点消失）</text>
+  <!-- 亮极性 -->
+  <text x="396" y="26" fill="#0F172A" font-size="13.5" font-weight="bold">亮极性一轮</text>
+  <rect x="396" y="36" width="150" height="130" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5"/>
+  <circle cx="490" cy="52" r="8" fill="#DC2626"/>
+  <circle cx="510" cy="90" r="6" fill="#DC2626"/>
+  <circle cx="424" cy="66" r="7" fill="#DC2626"/>
+  <text x="402" y="184" fill="#475569" font-size="12">只抓到亮点（划痕消失）</text>
+  <!-- 并集 -->
+  <text x="576" y="26" fill="#0F172A" font-size="13.5" font-weight="bold">union2 并集</text>
+  <rect x="576" y="36" width="130" height="130" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5"/>
+  <polyline points="588,150 622,110 652,120 692,60" fill="none" stroke="#DC2626" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="670" cy="52" r="8" fill="#DC2626"/>
+  <circle cx="690" cy="90" r="6" fill="#DC2626"/>
+  <circle cx="604" cy="66" r="7" fill="#DC2626"/>
+  <text x="582" y="184" fill="#15803D" font-size="12" font-weight="bold">两类缺陷一次全抓 ✓</text>
+  <!-- 中间箭头 -->
+  <g fill="#94A3B8" font-size="16">
+    <text x="178" y="108">→</text><text x="364" y="108">→</text><text x="550" y="108">∪</text>
+  </g>
+  <!-- 底注 -->
+  <text x="24" y="232" fill="#0F172A" font-size="14" font-weight="bold">亮暗同检（DetectBrightAndDark）：两种极性各做一次二值化，union2 取并集 —— 一次把「暗划痕 + 亮亮点」都检出来</text>
+  <text x="24" y="256" fill="#475569" font-size="13">⚠ 只在自动 / 动态阈值下生效（固定阈值的区间本身就是极性表达）</text>
+  <text x="24" y="278" fill="#475569" font-size="13">同场加映：动态阈值的局部窗口若框住彩色缺陷 —— 灰度反差不够就检不出，那是颜色家族的活</text>
+</svg>

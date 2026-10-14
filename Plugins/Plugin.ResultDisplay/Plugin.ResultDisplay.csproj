@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>Plugin.ResultDisplay</RootNamespace>
+    <AssemblyName>Plugin.ResultDisplay</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Services\Core.Halcon\Core.Halcon.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+  <!--
+    DisplayDraw / DisplayItem 等 internal 成员对断言工程开放（与 Plugin.Camera.Hikvision 同一口径）：
+    A3~A5 要断言的是"结果项 → BakePlan"这一层的**确定性映射**（行主口径、判型顺序、钳制与元素上限），
+    只能拿 plan 直接看；靠像素反推既不确定也读不出"为什么错"。
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlowCanvasChecks" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

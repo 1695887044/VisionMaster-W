@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 620" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="620" fill="#FDFDFB"/>
+  <defs>
+    <marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+  <!-- 图像框 -->
+  <rect x="10" y="10" width="690" height="540" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+  <!-- 圆：gen_circle(Row=210, Col=190, R=80) -->
+  <circle cx="190" cy="210" r="80" fill="#F59E0B" fill-opacity="0.3" stroke="#D97706" stroke-width="2.5"/>
+  <circle cx="190" cy="210" r="3.5" fill="#92400E"/>
+  <line x1="190" y1="210" x2="190" y2="130" stroke="#92400E" stroke-width="1.5"/>
+  <text x="198" y="168" fill="#92400E" font-size="14" font-weight="bold">R=80</text>
+  <text x="60" y="330" fill="#92400E" font-size="14">gen_circle(Row=210, Col=190, R=80)</text>
+  <!-- 椭圆：gen_ellipse(Row=170, Col=480, Phi=0.4, Ra=110, Rb=55) -->
+  <g transform="rotate(-22.9 480 170)">
+    <ellipse cx="480" cy="170" rx="110" ry="55" fill="#F59E0B" fill-opacity="0.3" stroke="#D97706" stroke-width="2.5"/>
+  </g>
+  <line x1="379" y1="213" x2="581" y2="127" stroke="#92400E" stroke-width="1.5"/>
+  <text x="545" y="112" fill="#92400E" font-size="14" font-weight="bold">Ra=110</text>
+  <circle cx="480" cy="170" r="3.5" fill="#92400E"/>
+  <text x="500" y="196" fill="#92400E" font-size="14">gen_ellipse(Row=170, Col=480,</text>
+  <text x="500" y="216" fill="#92400E" font-size="14">Phi=0.4rad, Ra=110, Rb=55)</text>
+  <!-- 矩形：gen_rectangle2(Row=390, Col=330, Phi=30°, L1=140, L2=60) -->
+  <polygon points="481.2,372 421.2,268 178.8,408 238.8,512" fill="#F59E0B" fill-opacity="0.3" stroke="#D97706" stroke-width="2.5"/>
+  <circle cx="330" cy="390" r="4" fill="#92400E"/>
+  <line x1="150" y1="378" x2="320" y2="389" stroke="#64748B" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="30" y="374" fill="#92400E" font-size="14">中心 (Row=390, Col=330)</text>
+  <!-- 半长箭头 -->
+  <line x1="330" y1="390" x2="451.2" y2="320" stroke="#DC2626" stroke-width="2.5" marker-end="url(#arR)"/>
+  <text x="455" y="296" fill="#DC2626" font-size="14" font-weight="bold">半长 L1=140</text>
+  <text x="455" y="316" fill="#DC2626" font-size="13">（到边！不是全长）</text>
+  <!-- 半宽箭头 -->
+  <line x1="330" y1="390" x2="360" y2="442" stroke="#DC2626" stroke-width="2.5" marker-end="url(#arR)"/>
+  <text x="366" y="462" fill="#DC2626" font-size="14" font-weight="bold">半宽 L2=60</text>
+  <!-- 角度弧 -->
+  <line x1="330" y1="390" x2="470" y2="390" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <path d="M 440 390 A 110 110 0 0 0 425.3 335" fill="none" stroke="#DC2626" stroke-width="1.8"/>
+  <text x="446" y="360" fill="#DC2626" font-size="14" font-weight="bold">Phi=30°</text>
+  <text x="446" y="378" fill="#DC2626" font-size="13">= 0.5236 弧度!</text>
+  <!-- 底注 -->
+  <text x="10" y="578" fill="#475569" font-size="13">绘制口径：SVG 的 x=列(Col)、y=行(Row)，与 HALCON 同为左上原点；矩形面积 = 4 × L1 × L2（半长半宽！）。</text>
+  <text x="10" y="598" fill="#475569" font-size="13">HALCON 正角度＝屏幕逆时针（长轴右端抬高）；角度一律弧度，方向以 HDevelop 实测为准。</text>
+</svg>

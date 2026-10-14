@@ -28,7 +28,7 @@ namespace Plugin.BlobDetect
         Description = "阈值分割 + 连通域分析，检出划痕/暗斑等缺陷并按个数与面积判定 OK/NG；支持固定/自动/动态阈值与亮暗同检，支持检测/排除区域，输出逐缺陷面积、圆度、长宽比、方向等特征",
         ShortName = "\uf002"
     )]
-    [ParallelSafe] // 二期真并行：chun shijue jisuan
+    [ParallelSafe] // 二期真并行：纯视觉计算
     public partial class BlobDetectPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         #region 输入 / 输出端口（名字即连线名，编译期就存在，供按名连线）
@@ -1770,8 +1770,6 @@ namespace Plugin.BlobDetect
                     if (p.MaxTotalArea > 0) lines.Add($"总面积：{result.TotalArea:0.#} px");
                     if (Math.Abs(p.PixelSizeMm - 1.0) > 1e-9) lines.Add($"最大面积：{result.MaxAreaMm2:0.###} mm²");
 
-                    HObject displayBase = BuildDisplayBase(src, temp);
-
                     // 渲染防护：噪声图上几千个 blob 时逐个画圈+编号会把渲染拖垮。
                     // 按**输出顺序**取前 N 个 —— 编号 1..N 与端口/缺陷清单仍然一一对应；
                     // 输出端口不受影响，永远全量
@@ -1783,8 +1781,11 @@ namespace Plugin.BlobDetect
                         lines.Add($"（仅绘制前 {MaxRenderMarkers} 个缺陷）");
                     }
 
+                    // 底图直接给原图（彩色保持彩色，比灰度更利于人眼判断）：
+                    // 通道数/位深的归一化由共享烘焙件 AnnotationBaker.NormalizeForDisplay 负责
+                    // （4 通道丢 alpha、非 byte 单通道按实际灰度范围线性拉伸），本插件不再自己转一遍
                     result.AnnotatedImage = _renderer.Render(
-                        displayBase,
+                        src,
                         renderTargets,
                         lines.ToArray(),
                         result.IsOk ? "green" : "red",
@@ -1863,83 +1864,6 @@ namespace Plugin.BlobDetect
             public double TotalArea;
 
             public void Dispose() => Candidates?.Dispose();
-        }
-
-        /// <summary>
-        /// 取用于显示的底图：原图（彩色保持彩色），非 byte 类型转成 byte。
-        /// 为什么显示原图而不是灰度图：标注图是给人看的，彩色输入保留彩色信息更利于判断；
-        /// 灰度输入时"原图"与"灰度图"本来就是同一张，不产生差异。
-        /// 返回的 HObject 所有权：要么是调用方的 src（原样借用），要么是登记进 temp 的新对象，
-        /// 渲染方只读不改，本方法绝不制造需要额外回收的中间包装。
-        /// </summary>
-        private HObject BuildDisplayBase(HImage src, List<HObject> temp)
-        {
-            HOperatorSet.CountChannels(src, out HTuple channels);
-
-            // 4 通道（RGBA/BGRA）：disp_obj 只稳妥支持 1/3 通道，4 通道直接画会报"通道数不对"，
-            // 整张标注图就没了。先丢 alpha 转成 3 通道再走显示流程（检测走的是 TryToGrayImage，不受影响）
-            HObject displaySource = src;
-            if (channels.I == 4)
-            {
-                displaySource = DropAlphaChannel(src, temp);
-                HOperatorSet.CountChannels(displaySource, out channels);
-            }
-
-            HOperatorSet.GetImageType(displaySource, out HTuple type);
-            if (type.S == "byte") return displaySource;
-
-            // 多通道（如彩色 uint2）不参与灰度范围度量，直接转
-            if (channels.I != 1)
-            {
-                HOperatorSet.ConvertImageType(displaySource, out HObject direct, "byte");
-                temp.Add(direct);
-                return direct;
-            }
-
-            // HALCON 图形显示只稳妥支持 byte。但 convert_image_type(...,'byte') 是"截断"不是"缩放"：
-            // 实测 uint2 灰度 1632 转出来就是 255，12/16 位相机的标注底图会整片死白，底图信息全丢。
-            // 所以先按"实际灰度范围"线性拉伸到 0~255 再转。
-            HOperatorSet.GetDomain(displaySource, out HObject domain);
-            temp.Add(domain);
-            HOperatorSet.MinMaxGray(domain, displaySource, 0, out HTuple minT, out HTuple maxT, out HTuple _);
-            double gMin = minT.Length > 0 ? minT[0].D : 0;
-            double gMax = maxT.Length > 0 ? maxT[0].D : 0;
-
-            if (double.IsNaN(gMin) || double.IsNaN(gMax) || gMax - gMin < 1e-9)
-            {
-                // 退化（均匀图/空图）：拉伸没有意义，直接转（反正没有层次可保留）
-                HOperatorSet.ConvertImageType(displaySource, out HObject flat, "byte");
-                temp.Add(flat);
-                return flat;
-            }
-
-            double k = 255.0 / (gMax - gMin);
-            HOperatorSet.ScaleImage(displaySource, out HObject scaled, k, -gMin * k);
-            temp.Add(scaled);
-            HOperatorSet.ConvertImageType(scaled, out HObject converted, "byte");
-            temp.Add(converted);
-            return converted;
-        }
-
-        /// <summary>
-        /// 取前 3 通道组成一张 3 通道图（丢掉第 4 通道 alpha）。
-        /// HALCON 没有一步到位的"去通道"算子，用 append_channel 两步拼出来；
-        /// 全部中间对象登记进 temp，由调用方 finally 统一释放。
-        /// </summary>
-        private static HObject DropAlphaChannel(HObject src, List<HObject> temp)
-        {
-            HOperatorSet.AccessChannel(src, out HObject c1, 1);
-            HOperatorSet.AccessChannel(src, out HObject c2, 2);
-            HOperatorSet.AccessChannel(src, out HObject c3, 3);
-            temp.Add(c1);
-            temp.Add(c2);
-            temp.Add(c3);
-
-            HOperatorSet.AppendChannel(c1, c2, out HObject c12);
-            temp.Add(c12);
-            HOperatorSet.AppendChannel(c12, c3, out HObject rgb);
-            temp.Add(rgb);
-            return rgb;
         }
 
         /// <summary>

@@ -39,6 +39,8 @@ namespace FlowCanvasChecks
             TestRunIsExempt();
             PauseAndResumeDuringDebugSingleRun();
             EngineOwnsDebugFlag();
+            ParallelBranchTimingRefreshes();
+            BreakpointDetectionForRunEntry();
         }
 
         // ==================================================================
@@ -470,6 +472,62 @@ namespace FlowCanvasChecks
             Check("非调试调用收尾后 DebugEnabled=false", !session.DebugEnabled, $"DebugEnabled={session.DebugEnabled}");
             Check("全流程照常执行（A=B=C=1）", CountA.Runs == 1 && CountB.Runs == 1 && CountC.Runs == 1,
                 $"A={CountA.Runs} B={CountB.Runs} C={CountC.Runs}");
+        }
+
+        // ==================================================================
+        //  [E21] 并行分支步骤的实时耗时上屏
+        //        TickRunningTimes 判据放宽为 State==Running（2026-10-10）：并行分支线程
+        //        走 UpdateStepRuntimeState 分支快捷路径、刻意不设 IsRunningFocus（并发不变量 1），
+        //        旧判据下真并行会话里分支内步骤的实时耗时永远停在 0。
+        // ==================================================================
+        private static void ParallelBranchTimingRefreshes()
+        {
+            Section("[E21] 分支步骤实时耗时（State==Running 判据，无需 IsRunningFocus）");
+
+            var step = new ActionStep("A", "延时", Aqn<CountA>(), "分支内延时");
+            // 复刻并行分支步骤的运行期形态：只有 State（分支快捷路径从不设 IsRunningFocus）
+            step.State = StepState.Running;
+            step.BeginTiming();
+            Thread.Sleep(40);
+
+            VisionMaster.ViewModels.ProcessViewModel.TickRunningTimes(new StepModel[] { step });
+            Check("★State==Running 且无 IsRunningFocus → 实时耗时被刷新（>0，不再停 0）",
+                step.CurrentRunTimeMs > 0, $"CurrentRunTimeMs={step.CurrentRunTimeMs:0.#}");
+
+            step.State = StepState.Success;
+            double frozen = step.EndTiming();
+            VisionMaster.ViewModels.ProcessViewModel.TickRunningTimes(new StepModel[] { step });
+            Check("终态后 Tick 不再覆盖（引擎冻结的终值原样保持）",
+                step.CurrentRunTimeMs == frozen && step.LastRunTimeMs == frozen,
+                $"Current={step.CurrentRunTimeMs:0.#} Last={step.LastRunTimeMs:0.#} frozen={frozen:0.#}");
+        }
+
+        // ==================================================================
+        //  [E22] 运行入口的断点检测（方案 A：界面运行默认普通运行，有断点才自动调试）
+        // ==================================================================
+        private static void BreakpointDetectionForRunEntry()
+        {
+            Section("[E22] 方案A：流程断点检测（FlowModel.HasBreakpoint 深度递归）");
+
+            var flow = new FlowModel { FlowName = "断点检测流程" };
+            Check("无断点 → false（普通运行，并行组真并发）", !flow.HasBreakpoint(), "");
+
+            var par = new ParallelStep("P", "并行分组", "BuiltIn_Parallel", "并行组");
+            flow.Steps.Add(par);
+            Check("并行组存在但未设断点 → false", !flow.HasBreakpoint(), "");
+
+            var inner = new ActionStep("A", "计数", Aqn<CountA>(), "分支内步骤");
+            par.Children[0].Steps.Add(inner);
+            inner.IsBreakpoint = true;
+            Check("★并行分支内的步骤设断点 → true（本次自动按调试运行）", flow.HasBreakpoint(), "");
+
+            inner.IsBreakpoint = false;
+            var nested = new ConditionStep("I", "条件", "BuiltIn_If", "嵌套If");
+            par.Children[1].Steps.Add(nested);
+            var deepLeaf = new ActionStep("B", "计数", Aqn<CountB>(), "If分支内步骤");
+            nested.Children[0].Steps.Add(deepLeaf);
+            deepLeaf.IsBreakpoint = true;
+            Check("★容器嵌套两层（并行组→If→步骤）设断点 → true", flow.HasBreakpoint(), "");
         }
     }
 

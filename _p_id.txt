@@ -1,0 +1,49 @@
+Communication\Communications\Manager\AdvancedCommunicationManager.cs:892:        /// <paramref name="oldName"/> 的**已注册变量**改指到 <paramref name="newName"/>（传 null/空 = 回落默认组），
+Core\Binding\IVariableRegistry.cs:87:        /// <param name="newName">新名（内部会 Trim）</param>
+Core\CommunicationContracts\CommunicationVariable.cs:105:        /// <param name="newValue">新值</param>
+DLL\HslCommunication\BasicFramework\SoftBasic.cs:801:		/// <param name="newLineCount">每隔指定数量的时候进行换行，如果小于等于0，则不进行分行显示</param>
+DLL\HslCommunication\Core\HslHelper.cs:442:		/// <param name="newStart">返回的新的字节的索引，仍然按照位单位</param>
+DLL\HslCommunication\LogNet\LogStatisticsBase.cs:98:		/// <param name="newValue">增对最后一个数的自定义操作</param>
+DLL\HslCommunication\LogNet\LogStatisticsBase.cs:119:		/// <param name="newValue">增对最后一个数的自定义操作</param>
+DLL\HslCommunication\ModBus\ModbusHelper.cs:555:		/// <param name="newAddress">返回的新的地址</param>
+DLL\HslCommunication\MQTT\MqttServer.cs:1576:		/// <param name="newPath">新的路径信息</param>
+DLL\HslCommunication\MQTT\MqttSyncClient.cs:1213:		/// <param name="newName">新的路径名称</param>
+DLL\HslCommunication\Profinet\Toledo\ToledoStandardData.cs:176:				Unit = "newton";
+DLL\HslCommunication\Profinet\Toledo\ToledoStandardData.cs:221:				Unit = "newton";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:630:				StringBuilder stringBuilder = new StringBuilder("new object[]{ ");
+DLL\HslCommunication\Secs\Types\SecsValue.cs:660:					return "new short[]{ " + getArrayString(array) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:669:					return "new bool[]{ " + getArrayString(array2) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:678:					return "new ushort[]{ " + getArrayString(array3) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:687:					return "new int[]{ " + getArrayString(array4) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:696:					return "new uint[]{ " + getArrayString(array5) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:705:					return "new long[]{ " + getArrayString(array6) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:714:					return "new ulong[]{ " + getArrayString(array7) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:723:					return "new float[]{ " + getArrayString(array8, "f") + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:732:					return "new double[]{ " + getArrayString(array9, "d") + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:741:					return "new byte[]{ " + getArrayString(array10) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:750:					return "new sbyte[]{ " + getArrayString(array11) + " }";
+DLL\HslCommunication\Secs\Types\SecsValue.cs:791:			StringBuilder stringBuilder = new StringBuilder("new SecsValue( ");
+Engine\FlowEngineService.cs:206:        /// <param name="newState">新状态</param>
+FlowCanvasChecks\MotionZMotionChecks.cs:133:                defaultsText.Contains("new OptionSourceGenerator()") && generatorsInherited,
+FlowCanvasChecks\MotionZMotionChecks.cs:193:                moduleText.Contains("new StepConfigOption(")
+FlowCanvasChecks\MotionZMotionChecks.cs:221:                pvText.Contains("new AutoPortConfigView(") && pvText.Contains("if (view == null)"),
+FlowCanvasChecks\MotionZMotionChecks.cs:254:                pvText.Contains("GetConfigView(stepData) as FrameworkElement") && pvText.Contains("new AutoPortConfigView("), "");
+FlowCanvasChecks\ProcessTreeTemplateChecks.cs:66:            var revived = UiNeverInstantiates.Where(n => vm.Contains("new " + n + "(")).ToList();
+Plugins\Plugin.CSharpScript\CSharpApiDoc.cs:126:            "for", "foreach", "while", "if", "else", "return", "new",
+Scada\Models\ScadaDocument.cs:580:        /// <param name="newName">改名后的新名</param>
+Scada\Models\ScadaElement.cs:446:        /// <param name="newName">改名后的新名</param>
+Scada.Controls\Elements\ScadaElementBase.cs:360:        /// <param name="newContext">换之后的那一只（摘掉时为 null）</param>
+ScadaChecks\Program.cs:16139:                !reloaded.TryChangePassword("张三", "wrong", "newpass", out string badOld)
+ScadaChecks\Program.cs:16148:                reloaded.TryChangePassword("张三", "zhang123", "newpass", out string chgErr)
+ScadaChecks\Program.cs:16149:                && reloaded.TryValidate("张三", "newpass", out _, out _)
+Shard\Core.Interfaces\Core\ObservableObject.cs:54:        /// <param name="newValue">新值</param>
+Shard\Core.Interfaces\Motion\MotionCamTable.cs:84:        /// 把表里所有等于 <paramref name="oldLabel"/> 的主/从轴引用改成 <paramref name="newLabel"/>。
+VisionMaster\ViewModels\DialogViewModels\ScanGroupEditorViewModel.cs:517:        /// <param name="newName">新组名；null/空 = 回落到默认组（删组场景）</param>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Layout\ILayoutPane.cs:18:        /// <summary>Move a child entry from the <paramref name="oldIndex"/> to the <paramref name="newIndex"/>.</summary>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Layout\ILayoutPane.cs:20:        /// <param name="newIndex"></param>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.Dock\Layout\LayoutFloatingWindow.cs:44:        /// <param name="newElement"></param>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.OutlookBar\OutlookBar.xaml.cs:768:        /// <param name="newValue"></param>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ButtonSpinner\Implementation\ButtonSpinner.cs:281:        /// <param name="newValue">The new value.</param>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ButtonSpinner\Implementation\ButtonSpinner.cs:315:        /// <param name="newValue">The new value of the Content property.</param>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\ButtonSpinner\Implementation\Spinner.cs:99:        /// <param name="newValue">The new value.</param>
+VM3.0-main\VM3.0-main\Source\WPF-Control\Source\Controls\G.Controls.PropertyGrid\PropertyGrid\Implementation\PropertyItemCollection.cs:80:                throw new ArgumentNullException("newItems");

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 400" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="400" fill="#FDFDFB"/>
+  <!-- 坐标轴 -->
+  <line x1="70" y1="310" x2="730" y2="310" stroke="#94A3B8" stroke-width="2"/>
+  <line x1="70" y1="310" x2="70" y2="50" stroke="#94A3B8" stroke-width="2"/>
+  <text x="640" y="332" fill="#475569" font-size="13">延迟 lag（像素）</text>
+  <text x="16" y="60" fill="#475569" font-size="13">相关度</text>
+  <!-- 零线 -->
+  <line x1="70" y1="180" x2="730" y2="180" stroke="#CBD5E1" stroke-width="1.2"/>
+  <!-- 自相关曲线：零延迟大峰 → 衰减过零 → 负谷 → 真峰 p≈21.5 → 过零 → 小峰 2p≈43 -->
+  <polyline points="70,30 92,42 108,110 122,182 138,238 154,206 170,150 186,120 202,138 218,150 226,146 234,158 250,182 266,226 282,186 298,160 314,170 330,178 346,172 362,180 378,176 394,180 410,178 426,180 442,176 458,182 474,178 490,180 530,180 570,176 610,182 650,178 730,180"
+            fill="none" stroke="#2563EB" stroke-width="2.5"/>
+  <!-- 零延迟峰 -->
+  <circle cx="70" cy="30" r="6" fill="#DC2626"/>
+  <text x="84" y="44" fill="#DC2626" font-size="13" font-weight="bold">零延迟峰（天然最高）</text>
+  <text x="84" y="62" fill="#B91C1C" font-size="12.5">直接取全局最大 → 3px 荒唐值</text>
+  <!-- 过零 -->
+  <circle cx="138" cy="238" r="4" fill="#94A3B8"/>
+  <text x="118" y="262" fill="#475569" font-size="12">先等它衰减过零 ↓</text>
+  <!-- 真峰 -->
+  <circle cx="218" cy="146" r="6" fill="#16A34A"/>
+  <line x1="218" y1="146" x2="218" y2="310" stroke="#16A34A" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="180" y="120" fill="#15803D" font-size="13.5" font-weight="bold">过零后第一个显著峰 = 真周期 p ≈ 21.5 ✓</text>
+  <!-- 倍频峰 -->
+  <circle cx="298" cy="160" r="5" fill="#F2994A"/>
+  <text x="300" y="140" fill="#E2880B" font-size="12.5" font-weight="bold">倍频峰 2p（p 的整数倍也是峰）</text>
+  <!-- 分段线距 hint -->
+  <line x1="226" y1="70" x2="226" y2="310" stroke="#92400E" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text x="234" y="86" fill="#92400E" font-size="12.5" font-weight="bold">分段线距 hint（独立证据）</text>
+  <!-- 仲裁框 -->
+  <rect x="420" y="60" width="320" height="118" rx="4" fill="#F0F7FF" stroke="#93C5FD"/>
+  <text x="432" y="84" fill="#1E40AF" font-size="13" font-weight="bold">三条仲裁（按实测数据定，不是直觉）：</text>
+  <text x="432" y="108" fill="#334155" font-size="12.5">① 两者接近（差 &lt;25%）→ 取平均消噪</text>
+  <text x="432" y="130" fill="#334155" font-size="12.5">② 分段 ≈ 自相关 × N（N≥1.6）→ 信自相关</text>
+  <text x="444" y="148" fill="#475569" font-size="12">（那是「漏检一半致间距翻倍」的典型）</text>
+  <text x="432" y="170" fill="#334155" font-size="12.5">③ 其余 → 信分段（实测：自相关 16，真值 21.5）</text>
+  <!-- 底注 -->
+  <text x="70" y="356" fill="#0F172A" font-size="13.5" font-weight="bold">信号选「边缘强度」（|亮度差|+|彩度差|）：每根线两条边界各冒一个尖 → 周期正好 = 线距；</text>
+  <text x="70" y="378" fill="#475569" font-size="13">用亮度本身会被「黑线 vs 白线」的颜色差异压住，周期反而看不出来</text>
+</svg>

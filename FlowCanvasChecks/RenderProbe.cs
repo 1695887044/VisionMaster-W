@@ -81,6 +81,11 @@ namespace FlowCanvasChecks
             RenderScenarioG(Path.Combine(outDir, "parallel-group-params-render-G.png"));
             RenderScenarioH(Path.Combine(outDir, "flowcanvas-render-H-parallel-nested.png"));
 
+            // 性能量化（2026-10-12 评审清单第三批）：压力图式 300/600 节点，只量化不优化——
+            // RebuildInPlace / 整帧毫秒打 [perf] 行（3 次取中位数），结论供评审拍板"第一刀接不接局部刷新"
+            RenderScenarioPerf(Path.Combine(outDir, "flowcanvas-render-perf-300.png"), 300);
+            RenderScenarioPerf(Path.Combine(outDir, "flowcanvas-render-perf-600.png"), 600);
+
             app.Shutdown();
         }
 
@@ -111,6 +116,11 @@ namespace FlowCanvasChecks
             h.Add(capture);
             h.Add(bead);
             Harness.RawLink(bead, "In", capture, "Out");
+
+            // 耗时徽章出图素材（2026-10-11 卡片徽章复核）：冻结值由引擎 EndTiming 写入，
+            // 探针这里直接补数——采集 12.4ms / 检测 87.6ms
+            capture.LastRunTimeMs = 12.4;
+            bead.LastRunTimeMs = 87.6;
 
             return h;
         }
@@ -324,6 +334,9 @@ namespace FlowCanvasChecks
             {
                 State = StepState.Running,
                 Description = "右工位气泡/断胶",
+                // 运行中徽章素材：IsRunningFocus → 耗时徽章显示 CurrentRunTimeMs 实时值（Z8 双态绑定）
+                IsRunningFocus = true,
+                CurrentRunTimeMs = 15230,
             };
             par.Children[0].Steps.Add(leftA);
             par.Children[0].Steps.Add(leftB);
@@ -355,8 +368,9 @@ namespace FlowCanvasChecks
         /// "VisionMaster.Models.ParallelStep"（分支也全丢）。
         ///
         /// 图式（2026-10-09 打磨后按用户真机截图重建，供"层级引导线 / 空分支提示 / 分支算子数 /
-        /// 四类行左对齐 / 空分支瘦身"五处观感复核）：
-        /// 顶层 图像采集_0(成功) → 胶路检测_0(运行) → 并行分组_0(4 分支) → 逻辑路由-[If_1]
+        /// 四类行左对齐 / 空分支瘦身"五处观感复核；2026-10-11 增补分支匹配容器）：
+        ///顶层 图像采集_0(成功) → 胶路检测_0(运行) → 并行分组_0(4 分支) → 分支匹配-[分档_0]
+        ///（判据 Type：Case 1/Case 2 有料、默认分支空，紫身份）→ 逻辑路由-[If_1]
         ///（If 带表达式 Score &gt; 80、Else）→ For 循环-[For_0]（循环体有料）→ While 循环-[While_0]
         ///（循环体空且条件未绑）→ Break_0；
         /// 并行分组_0 分支 1 = 逻辑路由-[If_0]（两分支空）/ For 循环-[For_0]（循环体空）/
@@ -407,6 +421,23 @@ namespace FlowCanvasChecks
             topIf.Children[1]
                 .Steps.Add(new ActionStep("\uE711", "返修标记", StubPluginProvider.LeafPlugin, "返修标记_0"));
 
+            // ---- 顶层容器行：分支匹配（Case，紫身份）——判据/匹配值语义的对照图式（2026-10-11）----
+            // Case 1 有料（绿勾位）、Case 2 有料、默认分支留空（"拖入算子"空态）；
+            // Case 分支胶囊 = 紫身份 + DisplayName 拼匹配值，缺失匹配值亮红灯（IsConditionMissing 同源）。
+            var topCase = new CaseStep("\uE7C1", "分支匹配", "BuiltIn_Case", "分档_0")
+            {
+                JudgeExpression = "Type",
+                Description = "按判据的匹配值选择分支",
+            };
+            topCase.Children[0].Expression = "1";
+            topCase.Children[0]
+                .Steps.Add(new ActionStep("\uE73E", "尺寸测量", StubPluginProvider.LeafPlugin, "A档测量_0"));
+            topCase.Children.Insert(
+                1,
+                new StepCollection { BranchType = BranchType.Case, StepName = "Case 2", Expression = "2" });
+            topCase.Children[1]
+                .Steps.Add(new ActionStep("\uE73E", "深度测量", StubPluginProvider.LeafPlugin, "B档测量_0"));
+
             // ---- 顶层容器行：For（循环体有料）/ While（循环体空且条件未绑）/ Break ----
             var topFor = new ForStep("\uE722", "循环", StubPluginProvider.ForPlugin, "For_0");
             topFor.Children[0]
@@ -417,14 +448,15 @@ namespace FlowCanvasChecks
             h.Add(capture);
             h.Add(bead);
             h.Add(par);
+            h.Add(topCase);
             h.Add(topIf);
             h.Add(topFor);
             h.Add(topWhile);
             h.Add(topBreak);
 
-            // 高度按真机图式给足：七个顶层节点 + 并行分组 4 分支 + 分支 1 内四层嵌套全展开约 1100px，
+            // 高度按真机图式给足：八个顶层节点 + 并行分组 4 分支 + 分支 1 内四层嵌套全展开约 1100px，
             // 460×900 会把顶层 For/While/Break 三行截在框外（看不到就没法对照容器行观感）。
-            RenderTree(h.Workspace, path, 460, 1180);
+            RenderTree(h.Workspace, path, 460, 1320);
         }
 
         /// <summary>
@@ -706,6 +738,166 @@ namespace FlowCanvasChecks
                 canvas.ShowDataLinks = true;
 
             RenderCore(canvas, path, width, height);
+        }
+
+        /// <summary>
+        /// 场景 perf（性能量化，2026-10-12 评审清单第三批）：300/600 节点压力图式，
+        /// 与常规 gate 的 [G8] 断言共用 <see cref="BuildPerfGraph"/> 一份生成器。
+        /// 只量化不优化（局部刷新/虚拟化都不做）——量 RebuildInPlace 毫秒与整帧毫秒
+        ///（各 3 次取中位数防抖），stdout 打 [perf] 行，结论供评审拍板
+        /// "当前规模是否已疼、第一刀接不接 FlowLayoutStore 局部刷新"。
+        /// </summary>
+        private static void RenderScenarioPerf(string path, int targetNodes)
+        {
+            var (h, expected) = BuildPerfGraph(targetNodes);
+            var canvas = new FlowCanvasViewModel(h.Workspace, new StubPluginProvider());
+            WireViewModelFactory(canvas);
+
+            // 全量展开：压力图式要测的是"全节点在场"的重建与整帧（首建的超深自动折叠先撤掉）
+            canvas.ExpandAllCommand.Execute();
+
+            var view = new FlowCanvasView();
+            var host = new Border
+            {
+                Width = 1280,
+                Height = 1560,
+                Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF)),
+                Child = view,
+            };
+            host.Measure(new Size(1280, 1560));
+            host.Arrange(new Rect(0, 0, 1280, 1560));
+            host.UpdateLayout();
+            PumpFrames(16);
+
+            // 两段式适配：300/600 个 ItemContainer 的生成跨多帧，先泵足再适配，
+            // 否则 ItemsExtent 还没长全、FitToScreen 按局部内容算 → 停在 1:1 只拍到一截（实测踩过）
+            var editor = FindEditor(view);
+            if (editor != null)
+            {
+                editor.FitToScreen(null);
+                host.UpdateLayout();
+                PumpFrames(8);
+
+                // FitToScreen 在大图上不缩（ItemsExtent 未长全时按局部内容算，停在 1:1 只拍一截，实测踩过）
+                // ——以 extent 实测为准手工兜底：按可视面积算缩放，再把 extent 中心对到视口中心
+                //（不走 BringIntoView：600 节点图实测它没把视口送到内容处，出图整版空）
+                var extent = editor.ItemsExtent;
+                if (!extent.IsEmpty && extent.Width > 0 && extent.Height > 0
+                    && editor.ActualWidth > 0 && editor.ActualHeight > 0)
+                {
+                    double fit = Math.Min((host.Width - 40) / extent.Width, (host.Height - 40) / extent.Height);
+                    double zoom = Math.Max(0.05, Math.Min(fit, 1.0));
+                    if (editor.ViewportZoom > zoom)
+                    {
+                        editor.ViewportZoom = zoom;
+                        editor.ViewportLocation = new Point(
+                            extent.X + extent.Width / 2 - editor.ActualWidth / 2 / zoom,
+                            extent.Y + extent.Height / 2 - editor.ActualHeight / 2 / zoom);
+                    }
+                }
+
+                host.UpdateLayout();
+                PumpFrames(6);
+                Console.WriteLine(
+                    $"[render][diag] perf{targetNodes} extent={editor.ItemsExtent.Width:0}x{editor.ItemsExtent.Height:0}"
+                    + $" zoom={editor.ViewportZoom:0.00}");
+            }
+
+            // 暖场一轮（JIT / 模板缓存），不计时
+            canvas.RebuildInPlace();
+            host.UpdateLayout();
+            PumpFrames(4);
+
+            var rebuildMs = new System.Collections.Generic.List<double>(3);
+            var frameMs = new System.Collections.Generic.List<double>(3);
+            for (int round = 0; round < 3; round++)
+            {
+                // RebuildInPlace：VM 侧节点/连线/几何全量重建
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                canvas.RebuildInPlace();
+                sw.Stop();
+                rebuildMs.Add(sw.Elapsed.TotalMilliseconds);
+
+                // 整帧：重建 + 布局 + 容器生成泵两拍（可视树跟上这次重建）
+                sw.Restart();
+                host.UpdateLayout();
+                PumpFrames(2);
+                sw.Stop();
+                frameMs.Add(sw.Elapsed.TotalMilliseconds);
+            }
+
+            int rendered = canvas.Nodes.Count(n => n.Kind != CanvasNodeKind.Lane);
+            Console.WriteLine(
+                $"[perf] N={targetNodes} 节点={rendered}（预期 {expected}）"
+                + $" RebuildInPlace={Median(rebuildMs):0.#} ms 全帧={Median(frameMs):0.#} ms");
+
+            SavePng(host, path);
+        }
+
+        /// <summary>三次取中位数（防抖；偶发的 GC 尖峰不进数字）</summary>
+        private static double Median(System.Collections.Generic.List<double> values)
+        {
+            var sorted = values.OrderBy(v => v).ToList();
+            return sorted[sorted.Count / 2];
+        }
+
+        /// <summary>
+        /// 压力图式生成器（[G8] 断言与 perf 场景共用一份，图式只有一份不劈叉）：
+        /// 宽×深混合——顶层 topCount 个算子 + 1 个并行分组（branches 条并行分支），
+        /// 每条分支 depth 层嵌套 If、每层 If 共 leavesPerIf 个叶子（If 分支 2 片 + Else 分支 1 片）；
+        /// 数据线 = 顶层「采集」喂全部叶子（宽幅长线压力，与场景 D 同款合法拓扑：生产方在最前）。
+        /// 目标 &gt;400 用 10 层嵌套、否则 5 层，顶层步骤数都压在百级。
+        /// </summary>
+        /// <returns>图纸夹具与精确预期算子数（顶层 + 分组 1 + 全部 If + 全部叶子）</returns>
+        internal static (Harness Harness, int ExpectedNodes) BuildPerfGraph(int targetNodes)
+        {
+            const int branches = 12;
+            int depth = targetNodes > 400 ? 10 : 5;
+            const int leavesPerIf = 3;
+
+            int inner = branches * depth * (1 + leavesPerIf);
+            int topCount = Math.Max(20, targetNodes - inner - 1);
+            int expected = 1 + inner + topCount;
+
+            var h = new Harness();
+            h.Flow.FlowName = $"压力图式（{expected} 算子）";
+
+            var capture = h.Add(new ActionStep("\uE722", "图像采集", StubPluginProvider.LeafPlugin, "采集_0"));
+            for (int i = 1; i < topCount; i++)
+                h.Add(new ActionStep("\uE700", "顶层算子", StubPluginProvider.LeafPlugin, $"顶层_{i}"));
+
+            var par = new ParallelStep("\uE7C1", "并行分组", "VM.CanvasStub.Parallel", "并行_0");
+            h.Add(par);
+            while (par.Children.Count < branches)
+                par.Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = $"分支 {par.Children.Count + 1}" });
+
+            ActionStep NewLeaf(string name)
+            {
+                var leaf = Harness.WithInput(new ActionStep("\uE73E", "尺寸测量", StubPluginProvider.LeafPlugin, name), "In");
+                Harness.RawLink(leaf, "In", capture, "Out");
+                return leaf;
+            }
+
+            int ifNo = 0, leafNo = 0;
+            for (int branch = 0; branch < branches; branch++)
+            {
+                // 自内向外组装嵌套链：每层 If 的 If 分支挂 [叶, 叶, 下一层 If]，Else 分支挂 1 叶
+                ConditionStep? innerIf = null;
+                for (int level = depth; level >= 1; level--)
+                {
+                    var ifStep = new ConditionStep("\uE7C1", "结果判断", StubPluginProvider.IfPlugin, $"分档_{ifNo++}");
+                    ifStep.Children[0].Steps.Add(NewLeaf($"测量_{leafNo++}"));
+                    ifStep.Children[0].Steps.Add(NewLeaf($"测量_{leafNo++}"));
+                    if (innerIf != null)
+                        ifStep.Children[0].Steps.Add(innerIf);
+                    ifStep.Children[1].Steps.Add(NewLeaf($"测量_{leafNo++}"));
+                    innerIf = ifStep;
+                }
+
+                par.Children[branch].Steps.Add(innerIf!);
+            }
+
+            return (h, expected);
         }
 
         /// <summary>

@@ -223,12 +223,20 @@ namespace VisionMaster
                 c.Resolve<ILogService>(),
                 c.Resolve<IScadaValueSource>(),
                 c.Resolve<IScadaNavigator>(),
-                c.Resolve<ScadaAuditWriter>()));
+                c.Resolve<ScadaAuditWriter>(),
+                c.Resolve<IScadaFlowRunner>()));
             // 运行态的切页出口：分发器是长命单例，运行态会话是每次点"运行"现建、关窗口即废，
             // 中间得有人记住"此刻活着的是哪一个会话"。宿主 Start 时 Attach、关窗口收尾时摘掉。
             // 也必须是单例：两份实例各记一个会话，动作落到哪一份上就变成了随机。
             containerRegistry.RegisterSingleton<ScadaNavigator>();
             containerRegistry.RegisterSingleton<IScadaNavigator>(c => c.Resolve<ScadaNavigator>());
+            // 流程启停出口：SCADA 事件动作的「启动流程 / 停止流程 / 执行一次」经它落到流程引擎上。
+            // 单例：引擎、运行管理器、编译器都是单例，本类只是它们面前的一层薄翻译，
+            // 两份实例不会有第二份状态（无字段可分裂），但仍按仓库惯例映射同一实例。
+            // 走工厂而不是类型映射：它的五个依赖全部已注册为单例，显式点名实现类是为了
+            // "这条链上用的就是这一份"在注册处一眼可见（与 IScadaValueSource 同一手法）。
+            containerRegistry.RegisterSingleton<ScadaFlowRunner>();
+            containerRegistry.RegisterSingleton<IScadaFlowRunner>(c => c.Resolve<ScadaFlowRunner>());
             // 运行态权限出口（S12）：**"此刻是谁登录着"全局只有一份**，所以必须是单例——
             // 两份实例的表现是"状态栏显示已登录，而权限判定用的是另一份（未登录）"，
             // 现场看起来就是"登录了还是按不动"，而且这种 bug 极难往"注册了两份"上想。
@@ -273,6 +281,12 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<IScadaPagePicker, ScadaPagePicker>();
             containerRegistry.RegisterDialog<ScadaPagePickerView, ScadaPagePickerViewModel>(
                 ScadaPagePicker.DialogName);
+            // 组态「选流程」入口：与上两个同一手法——清单来源不同（流程来自当前方案的流程集合），
+            // 目标身份是字符串型的 FlowID（不是 Guid），所以另立一个入口而不是给万能选择器加档位：
+            // 运行态"选得到就一定跑得到"的承诺与另两个各自成立。
+            containerRegistry.RegisterSingleton<IScadaFlowPicker, ScadaFlowPicker>();
+            containerRegistry.RegisterDialog<ScadaFlowPickerView, ScadaFlowPickerViewModel>(
+                ScadaFlowPicker.DialogName);
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             containerRegistry.RegisterDialog<ConditionEditorView, ConditionEditorViewModel>("ConditionEditor");
@@ -336,13 +350,14 @@ namespace VisionMaster
             // 变量事件弹窗同一手法（它的 audit / actorProvider 同样是可选参数，理由见上）。
             // 它比上面几个更依赖这一行：本弹窗的每一次勾选、每一次改阈值都当场写回模型，
             // 没有"确定"这个统一的提交点——所以漏接审计的话，一条线索都不会留下。
-            // 两个 picker 也必须显式传：它们是 5 个事件编辑器构造时用的，
+            // 三个 picker 也必须显式传：它们是 5 个事件编辑器构造时用的，
             // 交给容器去猜的结果是编译能过、运行起来点「选择变量」没反应。
             Prism.Mvvm.ViewModelLocationProvider.Register<ScadaVariableEventDialogView>(() =>
                 new ScadaVariableEventDialogViewModel(
                     Container.Resolve<IWorkspaceManager>(),
                     Container.Resolve<IScadaVariablePicker>(),
                     Container.Resolve<IScadaPagePicker>(),
+                    Container.Resolve<IScadaFlowPicker>(),
                     Container.Resolve<ScadaAuditWriter>(),
                     () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
             // 报警配置弹窗同一手法。它同样"每一次编辑都当场写回模型"，没有统一的提交点，

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="430" fill="#FDFDFB"/>
+  <rect x="10" y="10" width="740" height="380" fill="#F1F5F9" stroke="#94A3B8" stroke-width="2"/>
+  <!-- 学习位姿（ghost） -->
+  <g transform="translate(120,180) rotate(0)">
+    <polygon points="0,0 140,0 140,60 70,60 70,110 0,110"
+             fill="none" stroke="#94A3B8" stroke-width="2" stroke-dasharray="6 4"/>
+  </g>
+  <line x1="185" y1="228" x2="203" y2="246" stroke="#64748B" stroke-width="2"/>
+  <line x1="203" y1="228" x2="185" y2="246" stroke="#64748B" stroke-width="2"/>
+  <text x="90" y="330" fill="#64748B" font-size="13">学习位姿（标准）：灰虚线</text>
+  <!-- 命中实例：转 25° 平移 -->
+  <g transform="translate(440,110) rotate(25)">
+    <polygon points="0,0 140,0 140,60 70,60 70,110 0,110"
+             fill="none" stroke="#16A34A" stroke-width="3.5"/>
+  </g>
+  <circle cx="600" cy="215" r="5" fill="#DC2626"/>
+  <!-- 角度弧 -->
+  <line x1="600" y1="215" x2="700" y2="215" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <path d="M 668 215 A 68 68 0 0 0 662 186" fill="none" stroke="#DC2626" stroke-width="1.8"/>
+  <text x="676" y="200" fill="#DC2626" font-size="14" font-weight="bold">Angle=25°</text>
+  <!-- 标注 -->
+  <text x="470" y="90" fill="#15803D" font-size="15" font-weight="bold">命中实例（绿实线轮廓）</text>
+  <text x="452" y="256" fill="#DC2626" font-size="14" font-weight="bold">Row, Column（亚像素中心）</text>
+  <text x="452" y="278" fill="#DC2626" font-size="14">Score = 0.95</text>
+  <text x="20" y="416" fill="#0F172A" font-size="14.5" font-weight="bold">绿轮廓 = affine_trans_contour_xld 把模板轮廓搬到命中位姿 —— 标注图上的"画框"就是它；结果天然按分数从高到低排序</text>
+</svg>

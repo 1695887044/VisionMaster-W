@@ -106,7 +106,10 @@ namespace Plugin.ImageScript
             {
                 HObject ho;
                 HOperatorSet.DumpWindowImage(out ho, _win);
-                result = new HImage(ho);
+                // new HImage(ho) 是独立句柄，但 ho 是"源对象"：不释放就留一个引用计数，
+                // 长期跑约漏 160MB（同期在卡尺插件上实测；见 Core.Halcon.Helpers.AnnotationBaker 纪律 6）。
+                try { result = new HImage(ho); }
+                finally { ho.Dispose(); }
             });
             return result;
         }

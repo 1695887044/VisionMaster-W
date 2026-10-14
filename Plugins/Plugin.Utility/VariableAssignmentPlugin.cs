@@ -16,7 +16,7 @@ namespace VisionMaster.Plugins.Util
         Description = "为已定义的本地变量赋值",
         ShortName = "\uf044"
     )]
-    [ParallelSafe] // 二期真并行：Runtime xie zou jizhang zidian; Global xie you bianjianqi jiancha
+    [ParallelSafe] // 二期真并行：Runtime 写走记账字典; Global 写由编辑器检查
     public class VariableAssignmentPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
     {
         /// <summary>

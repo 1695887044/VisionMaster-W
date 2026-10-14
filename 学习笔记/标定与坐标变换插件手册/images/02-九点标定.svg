@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 430" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="430" fill="#FDFDFB"/>
+  <!-- 左：视野与九点 -->
+  <text x="40" y="30" fill="#0F172A" font-size="15" font-weight="bold">视野里铺 3×3：覆盖四角 + 中心（采样密度，不是方法名）</text>
+  <rect x="60" y="60" width="300" height="260" fill="#F1F5F9" stroke="#64748B" stroke-width="2"/>
+  <g fill="#1E88E5" stroke="#0D47A1" stroke-width="1.5">
+    <circle cx="90"  cy="90"  r="7"/><circle cx="210" cy="90"  r="7"/><circle cx="330" cy="90"  r="7"/>
+    <circle cx="90"  cy="190" r="7"/><circle cx="210" cy="190" r="7"/><circle cx="330" cy="190" r="7"/>
+    <circle cx="90"  cy="290" r="7"/><circle cx="210" cy="290" r="7"/><circle cx="330" cy="290" r="7"/>
+  </g>
+  <g fill="#0D47A1" font-size="11.5" text-anchor="middle">
+    <text x="90" y="72">P1</text><text x="210" y="72">P2</text><text x="330" y="72">P3</text>
+    <text x="90" y="172">P4</text><text x="210" y="172">P5</text><text x="330" y="172">P6</text>
+    <text x="90" y="312">P7</text><text x="210" y="312">P8</text><text x="330" y="312">P9</text>
+  </g>
+  <text x="60" y="345" fill="#475569" font-size="12.5">每行一组：机械X / 机械Y / 像Row / 像Col</text>
+  <text x="60" y="364" fill="#B91C1C" font-size="12.5">点全在一条线上 = 共线 → 直接失败（方向自由度丢失）</text>
+  <!-- 右：公式与要点 -->
+  <rect x="410" y="60" width="350" height="130" rx="4" fill="#F0F7FF" stroke="#93C5FD"/>
+  <text x="424" y="86" fill="#1E40AF" font-size="14" font-weight="bold">仿射只有 6 个自由度：</text>
+  <text x="424" y="112" fill="#0F172A" font-size="14" font-family="Consolas,monospace">X = a11·Row + a12·Col + a31</text>
+  <text x="424" y="136" fill="#0F172A" font-size="14" font-family="Consolas,monospace">Y = a21·Row + a22·Col + a32</text>
+  <text x="424" y="164" fill="#475569" font-size="12.5">轴交换 / 镜像 / 旋转 / 缩放全由矩阵自然吸收</text>
+  <g font-size="13">
+    <text x="410" y="222" fill="#0F172A" font-weight="bold">求解两件让数值更稳的事：</text>
+    <text x="410" y="248" fill="#334155">· 质心 + 尺度归一化（坐标缩到 ~[-1,1] 再解法方程）</text>
+    <text x="410" y="272" fill="#334155">· 共线守卫：det ≤ 1e-4·trace³ → 不解病态方程</text>
+    <text x="410" y="296" fill="#334155">· 3 个非共线点即唯一解；3×3 是为了抗噪与覆盖</text>
+    <text x="410" y="320" fill="#B91C1C" font-weight="bold">· 换 12 点治不了畸变 —— 仿射没有非线性项（4.6）</text>
+  </g>
+  <text x="40" y="404" fill="#0F172A" font-size="13.5" font-weight="bold">产出：6 元矩阵（映射 Row/Col → X/Y）+ 当量反解 + 残差 RMS/最大 + 径向带 → Transform 契约</text>
+</svg>

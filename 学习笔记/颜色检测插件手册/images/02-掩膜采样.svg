@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 380" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="380" fill="#FDFDFB"/>
+  <!-- 左：方框（四角混入背景） -->
+  <text x="30" y="30" fill="#0F172A" font-size="16" font-weight="bold">✗ 方框采样：四个角是背景</text>
+  <rect x="30" y="50" width="330" height="250" fill="#5A6570"/>
+  <circle cx="195" cy="175" r="62" fill="#E53935"/>
+  <circle cx="195" cy="175" r="62" fill="none" stroke="#FF8A80" stroke-width="2"/>
+  <rect x="115" y="95" width="160" height="160" fill="none" stroke="#FBBF24" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <g fill="#FDE68A" font-size="12" font-weight="bold">
+    <text x="128" y="112">背景</text>
+    <text x="238" y="112">背景</text>
+    <text x="128" y="238">背景</text>
+    <text x="238" y="238">背景</text>
+  </g>
+  <text x="30" y="330" fill="#B91C1C" font-size="13.5" font-weight="bold">背景像素参与投票 → 主色可能变成「背景灰」，</text>
+  <text x="30" y="350" fill="#B91C1C" font-size="13.5" font-weight="bold">而且因为背景占比高，它还「看起来很有把握」</text>
+  <!-- 右：圆形掩膜 -->
+  <text x="450" y="30" fill="#0F172A" font-size="16" font-weight="bold">✓ 圆形掩膜：只剩灯上的像素</text>
+  <rect x="450" y="50" width="330" height="250" fill="#5A6570"/>
+  <circle cx="615" cy="175" r="62" fill="#E53935"/>
+  <circle cx="615" cy="175" r="66" fill="none" stroke="#FBBF24" stroke-width="2.5" stroke-dasharray="8 5"/>
+  <text x="450" y="330" fill="#15803D" font-size="13.5" font-weight="bold">主色 红，占比 100% —— 判定干净利落</text>
+  <!-- 底注 -->
+  <rect x="20" y="352" width="740" height="24" fill="#EFF6FF"/>
+  <text x="30" y="369" fill="#1E40AF" font-size="13">口诀：采样区形状跟着对象走 —— 圆灯用圆、方标用矩形、椭圆标用椭圆（ROI 超出图像的部分会静默裁掉，不报错）</text>
+</svg>

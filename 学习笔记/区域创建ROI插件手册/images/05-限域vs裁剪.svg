@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 430" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="840" height="430" fill="#FDFDFB"/>
+  <defs>
+    <clipPath id="pieceClip"><circle cx="620" cy="290" r="95"/></clipPath>
+  </defs>
+  <!-- 左：reduce_domain -->
+  <text x="40" y="30" fill="#0F172A" font-size="17" font-weight="bold">reduce_domain（限域）</text>
+  <rect x="30" y="44" width="300" height="300" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2"/>
+  <rect x="60" y="80" width="90" height="60" fill="#CBD5E1"/>
+  <rect x="170" y="120" width="110" height="80" fill="#94A3B8"/>
+  <rect x="70" y="220" width="120" height="70" fill="#BCC7D4"/>
+  <rect x="210" y="250" width="80" height="60" fill="#CBD5E1"/>
+  <path d="M30,44 H330 V344 H30 Z M180,95 A95,95 0 1,0 180.01,95 Z" fill="#FFFFFF" fill-opacity="0.55" fill-rule="evenodd"/>
+  <circle cx="180" cy="190" r="95" fill="none" stroke="#D97706" stroke-width="3"/>
+  <text x="128" y="196" fill="#B45309" font-size="14" font-weight="bold">圈内：算子干活</text>
+  <text x="40" y="332" fill="#64748B" font-size="13">圈外：像素还在，算子不碰</text>
+  <text x="30" y="376" fill="#1D4ED8" font-size="15" font-weight="bold">尺寸不变 · 坐标系不变 → 全局坐标 ★首选</text>
+  <text x="30" y="398" fill="#64748B" font-size="13">不省内存（reduce 只改 domain 标记）</text>
+  <!-- 中间标注 -->
+  <text x="345" y="120" fill="#475569" font-size="13">同一张原图</text>
+  <line x1="338" y1="130" x2="438" y2="150" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <line x1="338" y1="260" x2="438" y2="300" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <!-- 右：crop_domain -->
+  <text x="490" y="30" fill="#0F172A" font-size="17" font-weight="bold">crop_domain（裁剪）</text>
+  <rect x="450" y="44" width="300" height="300" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-dasharray="7 5"/>
+  <circle cx="600" cy="170" r="95" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+  <text x="560" y="168" fill="#CBD5E1" font-size="13">原位置（已剪走）</text>
+  <g clip-path="url(#pieceClip)">
+    <rect x="510" y="180" width="90" height="60" fill="#CBD5E1"/>
+    <rect x="620" y="210" width="110" height="80" fill="#94A3B8"/>
+    <rect x="520" y="300" width="120" height="70" fill="#BCC7D4"/>
+    <rect x="650" y="320" width="80" height="60" fill="#CBD5E1"/>
+  </g>
+  <circle cx="620" cy="290" r="95" fill="none" stroke="#D97706" stroke-width="3"/>
+  <circle cx="525" cy="195" r="5" fill="#DC2626"/>
+  <text x="470" y="190" fill="#DC2626" font-size="13" font-weight="bold">本地 (0,0)</text>
+  <text x="450" y="376" fill="#B91C1C" font-size="15" font-weight="bold">真剪小 · 原点搬到框左上角 → 全局 = 本地 + Offset</text>
+  <text x="450" y="398" fill="#64748B" font-size="13">漏连 Offset = 坐标静默错（不报错!）</text>
+</svg>

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="360" fill="#FDFDFB"/>
+  <defs>
+    <marker id="hAr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+  <!-- 直方图柱 -->
+  <g fill="#64748B">
+    <rect x="137" y="280" width="22" height="20"/><rect x="163" y="255" width="22" height="45"/>
+    <rect x="189" y="232" width="22" height="68"/><rect x="215" y="248" width="22" height="52"/>
+    <rect x="241" y="270" width="22" height="30"/><rect x="266" y="282" width="22" height="18"/>
+    <rect x="292" y="288" width="22" height="12"/><rect x="318" y="291" width="22" height="9"/>
+    <rect x="344" y="293" width="22" height="7"/><rect x="370" y="294" width="22" height="6"/>
+    <rect x="395" y="294" width="22" height="6"/><rect x="421" y="292" width="22" height="8"/>
+    <rect x="447" y="286" width="22" height="14"/><rect x="473" y="270" width="22" height="30"/>
+    <rect x="499" y="230" width="22" height="70"/><rect x="524" y="180" width="22" height="120"/>
+    <rect x="550" y="135" width="22" height="165"/><rect x="576" y="120" width="22" height="180"/>
+    <rect x="602" y="150" width="22" height="150"/><rect x="628" y="210" width="22" height="90"/>
+    <rect x="653" y="260" width="22" height="40"/><rect x="679" y="282" width="22" height="18"/>
+  </g>
+  <!-- 峰标注 -->
+  <text x="163" y="222" fill="#0F172A" font-size="13" font-weight="bold">缺陷峰（暗斑 50）</text>
+  <text x="520" y="110" fill="#0F172A" font-size="13" font-weight="bold">背景峰（200）</text>
+  <!-- 轴 -->
+  <line x1="60" y1="300" x2="730" y2="300" stroke="#94A3B8" stroke-width="2"/>
+  <line x1="60" y1="300" x2="60" y2="80" stroke="#94A3B8" stroke-width="2"/>
+  <text x="640" y="322" fill="#475569" font-size="12.5">灰度 0 → 255</text>
+  <text x="20" y="90" fill="#475569" font-size="12.5">像素数</text>
+  <g fill="#94A3B8" font-size="11" text-anchor="middle">
+    <text x="60" y="318">0</text><text x="189" y="318">50</text><text x="318" y="318">100</text>
+    <text x="447" y="318">150</text><text x="576" y="318">200</text><text x="705" y="318">255</text>
+  </g>
+  <!-- 可拖阈值线 -->
+  <line x1="382" y1="90" x2="382" y2="300" stroke="#DC2626" stroke-width="2.5"/>
+  <circle cx="382" cy="90" r="7" fill="#DC2626"/>
+  <line x1="330" y1="86" x2="368" y2="88" stroke="#DC2626" stroke-width="1.8" marker-end="url(#hAr)"/>
+  <line x1="434" y1="86" x2="396" y2="88" stroke="#DC2626" stroke-width="1.8" marker-end="url(#hAr)"/>
+  <text x="300" y="70" fill="#DC2626" font-size="13.5" font-weight="bold">阈值线可直接拖 —— 拖到两峰之间的谷底</text>
+  <!-- 底注 -->
+  <rect x="30" y="300" width="700" height="24" fill="#EFF6FF"/>
+  <text x="40" y="317" fill="#1E40AF" font-size="12.5" font-weight="bold">「按当前图像重新适配」给的只是保守带（可用起点 ≠ 正确值）—— 现场仍按直方图微调，这正是直方图存在的意义</text>
+  <text x="30" y="345" fill="#475569" font-size="13">MaxGray 默认 128 隐含 8 位假设：12 位图（0~4095）约取 2048，或用一键适配</text>
+</svg>

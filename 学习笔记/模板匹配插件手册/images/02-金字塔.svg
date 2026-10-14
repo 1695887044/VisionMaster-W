@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 320" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="760" height="320" fill="#FDFDFB"/>
+  <!-- 金字塔阶梯（底对齐） -->
+  <rect x="40"  y="110" width="240" height="160" fill="#DBE4EC" stroke="#64748B" stroke-width="2"/>
+  <rect x="310" y="190" width="120" height="80"  fill="#C6D2DD" stroke="#64748B" stroke-width="2"/>
+  <rect x="460" y="230" width="60"  height="40"  fill="#B1C1CF" stroke="#64748B" stroke-width="2"/>
+  <rect x="550" y="250" width="30"  height="20"  fill="#9DB0C1" stroke="#64748B" stroke-width="2"/>
+  <text x="120" y="200" fill="#0F172A" font-size="14" font-weight="bold">层1 原图（最细）</text>
+  <text x="330" y="240" fill="#0F172A" font-size="13" font-weight="bold">层2 (1/2)</text>
+  <text x="462" y="262" fill="#0F172A" font-size="12" font-weight="bold">层3 (1/4)</text>
+  <text x="545" y="284" fill="#0F172A" font-size="11" font-weight="bold">层4</text>
+  <!-- 查找顺序箭头 -->
+  <line x1="600" y1="120" x2="80" y2="120" stroke="#DC2626" stroke-width="2.5"/>
+  <polygon points="80,120 94,113 94,127" fill="#DC2626"/>
+  <text x="150" y="106" fill="#DC2626" font-size="14" font-weight="bold">查找顺序：最粗层粗找（快）→ 逐层下到最细确认（准）</text>
+  <!-- 底注 -->
+  <text x="40" y="300" fill="#475569" font-size="13.5">层数 NumLevels：模板小用 6~8 层，巨大用 3~4 层；层数多=快，太粗会漏小目标</text>
+  <text x="40" y="296" fill="#475569" font-size="1" > </text>
+  <text x="520" y="300" fill="#B91C1C" font-size="13">⚠ get_shape_model_contours 的 level 是 1 基：1=最细层，填 0 报错</text>
+</svg>

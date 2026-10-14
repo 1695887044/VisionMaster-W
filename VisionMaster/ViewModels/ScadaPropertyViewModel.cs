@@ -776,14 +776,14 @@ namespace VisionMaster.ViewModels
 
         /// <param name="host">本行勾选的目标宿主：图元或画面，见 <see cref="IScadaEventHost"/></param>
         /// <param name="group">本行落在哪一组（图元事件用 <see cref="ElementGroup"/>，画面事件用 <see cref="ScadaPageEvents.Group"/>）</param>
-        public ScadaEventRow(IScadaEventHost host, ScadaEventType eventType, string group, IScadaVariablePicker picker, IScadaPagePicker pagePicker)
+        public ScadaEventRow(IScadaEventHost host, ScadaEventType eventType, string group, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker)
             : base(new ScadaEventSpec(eventType, group),
                    (host ?? throw new ArgumentNullException(nameof(host))).FindEventHook(eventType) != null
                        ? "True" : "False")
         {
             // 显示名与悬停说明沿用声明里的那一份：面板上勾的那一行和运行日志里出现的那一行
             // 必须对得上号，否则用户对不上"我配的"和"响的"。
-            Editor = new ScadaEventEditorViewModel(host, eventType, DisplayName, Description, picker, pagePicker);
+            Editor = new ScadaEventEditorViewModel(host, eventType, DisplayName, Description, picker, pagePicker, flowPicker);
 
             // 本行仍是"面板面向的那张脸"：编辑器对外状态（动作表整块、命令可用性）一变就转出去，
             // 既有的绑定与断言（认 ScadaEventRow.Actions / HasActions）不必知道底下换了实现。
@@ -1819,6 +1819,7 @@ namespace VisionMaster.ViewModels
         private readonly IUserNotifier _notifier;
         private readonly IScadaVariablePicker _picker;
         private readonly IScadaPagePicker _pagePicker;
+        private readonly IScadaFlowPicker _flowPicker;
 
         /// <summary>摊平的行（模型有外部写入时逐行回读；分组视图从它派生）</summary>
         private readonly List<ScadaPropertyRowBase> _rows = new();
@@ -1827,12 +1828,13 @@ namespace VisionMaster.ViewModels
         private ScadaElement? _element;
         private ScadaPage? _page;
 
-        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker)
+        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
+            _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
 
             // 参数化的 CanExecute 而不是 IsEnabled：行对象换了，可用性就得重算，
             // 挂在参数上比挂在面板状态上准（也便于断言里直接调 CanExecute）。
@@ -2045,7 +2047,7 @@ namespace VisionMaster.ViewModels
                 // 不是面板漏列；反过来，面板绝不自行罗列全部事件，那会把
                 // "勾上了却永远不响的钩子"（Unloaded/ValueChanged 还没接触发源）漏给用户。
                 foreach (var eventType in descriptor.Events)
-                    _rows.Add(new ScadaEventRow(element, eventType, ScadaEventRow.ElementGroup, _picker, _pagePicker));
+                    _rows.Add(new ScadaEventRow(element, eventType, ScadaEventRow.ElementGroup, _picker, _pagePicker, _flowPicker));
 
                 // r4 动画行：四种动画各一行，与描述符无关——"图元会不会动"不是类型的表态，
                 // 而是这一台设备上这个图元要不要跟变量联动，任何图元都可能需要。
@@ -2079,7 +2081,7 @@ namespace VisionMaster.ViewModels
                 // 比"面板上没这个选项"糟得多。落在「运行」组，紧接「启动画面」之后：
                 // 组的首现次序决定显示次序，而这一组的第一行是上面那条 StartupPage。
                 foreach (var eventType in ScadaPageEvents.All)
-                    _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker));
+                    _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker, _flowPicker));
             }
 
             RaisePropertyChanged(nameof(Element));

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 330" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="330" fill="#FDFDFB"/>
+  <!-- 上排：检到的可靠段 -->
+  <text x="30" y="40" fill="#0F172A" font-size="15" font-weight="bold">① 检到的可靠段（白线抓不到、端部漏了一根）</text>
+  <g>
+    <rect x="60"  y="60" width="58" height="40" fill="#43A047"/>
+    <rect x="126" y="60" width="58" height="40" fill="#43A047"/>
+    <rect x="192" y="60" width="58" height="40" fill="#43A047"/>
+    <rect x="324" y="60" width="58" height="40" fill="#43A047"/>
+    <rect x="390" y="60" width="58" height="40" fill="#43A047"/>
+    <rect x="456" y="60" width="58" height="40" fill="#43A047"/>
+    <rect x="522" y="60" width="58" height="40" fill="#43A047"/>
+    <rect x="588" y="60" width="58" height="40" fill="#43A047"/>
+  </g>
+  <g fill="#94A3B8" font-size="13" text-anchor="middle">
+    <text x="89"  y="120">1</text><text x="155" y="120">2</text><text x="221" y="120">3</text>
+    <text x="287" y="120">4?</text><text x="353" y="120">5</text><text x="419" y="120">6</text>
+    <text x="485" y="120">7</text><text x="551" y="120">8</text><text x="617" y="120">9</text>
+    <text x="683" y="120">10?</text>
+  </g>
+  <rect x="258" y="60" width="58" height="40" fill="none" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="5 4"/>
+  <rect x="654" y="60" width="58" height="40" fill="none" stroke="#DC2626" stroke-width="1.8" stroke-dasharray="5 4"/>
+  <!-- 回归线 -->
+  <line x1="60" y1="86" x2="700" y2="74" stroke="#2563EB" stroke-width="2" stroke-dasharray="7 4"/>
+  <text x="230" y="66" fill="#1D4ED8" font-size="13" font-weight="bold">最小二乘回归定锚（相位 + 端点，迭代 2~3 轮）</text>
+  <!-- 下排：规整铺满 -->
+  <text x="30" y="180" fill="#0F172A" font-size="15" font-weight="bold">② 等间距规整化：按线距铺满整束（抓不到的被补回来）</text>
+  <g>
+    <rect x="60"  y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="126" y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="192" y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="258" y="200" width="58" height="40" fill="#FDBA74" stroke="#EA580C" stroke-width="2"/>
+    <rect x="324" y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="390" y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="456" y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="522" y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="588" y="200" width="58" height="40" fill="#43A047"/>
+    <rect x="654" y="200" width="58" height="40" fill="#FDBA74" stroke="#EA580C" stroke-width="2"/>
+  </g>
+  <g fill="#334155" font-size="13" text-anchor="middle">
+    <text x="89"  y="260">检</text><text x="155" y="260">检</text><text x="221" y="260">检</text>
+    <text x="287" y="260" fill="#C2410C" font-weight="bold">补</text><text x="353" y="260">检</text><text x="419" y="260">检</text>
+    <text x="485" y="260">检</text><text x="551" y="260">检</text><text x="617" y="260">检</text>
+    <text x="683" y="260" fill="#C2410C" font-weight="bold">补</text>
+  </g>
+  <text x="30" y="298" fill="#0F172A" font-size="13.5" font-weight="bold">端部漏检只少一根，不会整条错位一格（脚本版会）；补出来的根数 ≤ 一半（断言守着）；画面上补的标橙字</text>
+  <text x="30" y="320" fill="#475569" font-size="13">端点外推判据：那一格附近「有没有起伏」——线必有亮暗起伏，平坦背景没有（≥全局起伏 20% 即算证据）</text>
+</svg>

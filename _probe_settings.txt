@@ -1,0 +1,60 @@
+Core\AppSettingsService.cs:13:    public class AppSettingsService
+Core\AppSettingsService.cs:24:        public AppSettingsService()
+Core\Models\AppConfigModel.cs:429:    /// 并行执行全局设置（二期）。装配链：AppSettingsService.Load()/Save() 末尾把
+Core\Models\AppConfigModel.cs:445:        /// 启动/保存时经 <c>AppSettingsService.SyncParallelConfig</c> 灌进 <c>GlobalParallelConfig</c>，
+Core\Models\FlowLayoutStore.cs:52:    /// │ 随用户           │ AppSettingsService（AppConfig.json 的 FlowCanvas 节）：
+Core\Threading\GlobalParallelConfig.cs:15:    /// 装配点：AppSettingsService.Load()/Save() 末尾把
+FlowCanvasChecks\CanvasVisualizationChecks.cs:307:                var service = new AppSettingsService();
+FlowCanvasChecks\CanvasVisualizationChecks.cs:309:                var reloaded = new AppSettingsService();
+FlowCanvasChecks\HttpImageSmoke.cs:42:    ///   · AppSettingsService 的配置路径不可注入（private static readonly，落在
+FlowCanvasChecks\HttpImageSmoke.cs:68:            // ---- S1 配置：先落盘 AppConfig.json，再构造 AppSettingsService ----
+FlowCanvasChecks\HttpImageSmoke.cs:73:            var settings = new AppSettingsService();
+FlowCanvasChecks\PreviewCaptureChecks.cs:36:            var settings = new VisionMaster.Services.AppSettingsService();
+FlowCanvasChecks\ResultDisplayCheck.cs:930:            var settings = new AppSettingsService();
+FlowCanvasChecks\ThumbnailChecks.cs:204:                var settings = new VisionMaster.Services.AppSettingsService();
+Plugins\Plugin.ImageAcquisition\ImageAcquisitionPlugin.cs:554:        /// 插件 DLL 拿不到宿主的 AppSettingsService（不引用 Core 项目），
+ScadaChecks\Program.cs:10678:        //  配置那一半用真的 AppSettingsService（路径写死在程序目录，没法注入临时目录），
+ScadaChecks\Program.cs:10698:            var settings = new AppSettingsService();
+ScadaChecks\Program.cs:10742:                var reread = new AppSettingsService();
+ScadaChecks\Program.cs:10773:                var rereadMonitor = new AppSettingsService();
+ScadaChecks\Program.cs:10789:                    var rereadPick = new AppSettingsService();
+ScadaChecks\Program.cs:16720:        //  弹窗那一半用真的 AppSettingsService（路径写死在程序目录，没法注入临时目录），
+ScadaChecks\Program.cs:16806:            var settings = new AppSettingsService();
+ScadaChecks\Program.cs:16853:                var reread = new AppSettingsService();
+ScadaChecks\Program.cs:16944:        /// 用真的 <see cref="AppSettingsService"/>（路径写死在程序目录，没法注入临时目录），
+ScadaChecks\Program.cs:16951:            var settings = new AppSettingsService();
+ScadaChecks\Program.cs:17031:                    new AppSettingsService().Current.StartupSolutionPath == @"C:\scada\line3.vms",
+ScadaChecks\Program.cs:17032:                    new AppSettingsService().Current.StartupSolutionPath);
+Shard\Core.Interfaces\IPluginConfigContextProvider.cs:12:    /// 拿不到宿主的 AppSettingsService / HttpImageServer —— 也就读不到
+UIThemeSmokeTest\Program.cs:989:            var settings = new VisionMaster.Services.AppSettingsService();
+VisionMaster\App.xaml.cs:89:            _lifetime.RegisterCheck(new ConfigCheck(Container.Resolve<AppSettingsService>(), Container.Resolve<ILogService>()));
+VisionMaster\App.xaml.cs:105:                () => Container.Resolve<AppSettingsService>().Current,
+VisionMaster\App.xaml.cs:139:            containerRegistry.RegisterSingleton<AppSettingsService>();
+VisionMaster\App.xaml.cs:201:                retentionProvider: () => c.Resolve<AppSettingsService>().Current.AuditRetentionDays));
+VisionMaster\App.xaml.cs:250:                new ScadaAccessPolicy(() => c.Resolve<AppSettingsService>().Current.IdleTimeout));
+VisionMaster\App.xaml.cs:342:                    Container.Resolve<AppSettingsService>(),
+VisionMaster\App.xaml.cs:347:                    Container.Resolve<AppSettingsService>(),
+VisionMaster\App.xaml.cs:395:                    Container.Resolve<AppSettingsService>(),
+VisionMaster\Lifetime\Checks\ConfigCheck.cs:15:        private readonly AppSettingsService _settings;
+VisionMaster\Lifetime\Checks\ConfigCheck.cs:18:        public ConfigCheck(AppSettingsService settings, ILogService log)
+VisionMaster\Services\Camera\NetworkCameraServer.cs:44:        private readonly AppSettingsService _settings;
+VisionMaster\Services\Camera\NetworkCameraServer.cs:60:        public NetworkCameraServer(ILogService log, AppSettingsService settings, ICameraProvider cameras)
+VisionMaster\Services\HttpImageServer.cs:46:        private readonly AppSettingsService _settings;
+VisionMaster\Services\HttpImageServer.cs:59:            AppSettingsService settings,
+VisionMaster\Services\ImageCollectionService.cs:68:        private readonly AppSettingsService _settings;
+VisionMaster\Services\ImageCollectionService.cs:98:        public ImageCollectionService(AppSettingsService settings, FlowEngineService engine, ILogService? log = null)
+VisionMaster\Services\ScadaRuntimeHost.cs:105:        private readonly AppSettingsService _appSettings;
+VisionMaster\Services\ScadaRuntimeHost.cs:213:            AppSettingsService appSettings)
+VisionMaster\ShellViewModel.cs:533:            var settings = ContainerLocator.Container.Resolve<AppSettingsService>();
+VisionMaster\ViewModels\DialogViewModels\ScadaRunWindowSettingsViewModel.cs:77:        private readonly AppSettingsService _settings;
+VisionMaster\ViewModels\DialogViewModels\ScadaRunWindowSettingsViewModel.cs:96:            AppSettingsService settings,
+VisionMaster\ViewModels\DialogViewModels\ScadaSystemParametersViewModel.cs:52:    /// 落笔点选在这里（配置的唯一界面出口）而不是 <see cref="AppSettingsService"/>：
+VisionMaster\ViewModels\DialogViewModels\ScadaSystemParametersViewModel.cs:71:        private readonly AppSettingsService _settings;
+VisionMaster\ViewModels\DialogViewModels\ScadaSystemParametersViewModel.cs:98:            AppSettingsService settings,
+VisionMaster\ViewModels\DialogViewModels\SolutionListViewModel.cs:24:    /// 落笔点选在这里（清单的唯一界面出口）而不是 <see cref="AppSettingsService"/>：
+VisionMaster\ViewModels\DialogViewModels\SolutionListViewModel.cs:40:        private readonly AppSettingsService appSettings;
+VisionMaster\ViewModels\DialogViewModels\SolutionListViewModel.cs:90:            AppSettingsService appSettings,
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:95:        /// 断言宿主 / 设计器不传：开关走代码内默认值、不落盘——AppSettingsService 构造会在
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:98:        private readonly AppSettingsService? _appSettings;
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:166:            AppSettingsService? appSettings = null)
+VisionMaster\ViewModels\FlowCanvasViewModel.cs:527:        /// 无 AppSettingsService（断言宿主/设计器）或构造期灌初值（_viewSettingsReady=false）时跳过。

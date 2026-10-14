@@ -1,6 +1,8 @@
 using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -26,6 +28,9 @@ namespace VisionMaster.Views
     {
         private FlowCanvasViewModel? _viewModel;
 
+        /// <summary>拖动对齐参考线浮层（入树挂、离树摘，与 Activate/Deactivate 同一对）</summary>
+        private DragGuidesAdorner? _guidesAdorner;
+
         public FlowCanvasView()
         {
             InitializeComponent();
@@ -34,13 +39,34 @@ namespace VisionMaster.Views
             // 所以清理必须可逆（离树摘干净让旧 VM 可 GC，入树重新挂上），不能用一次性 Dispose。
             Loaded += OnViewLoaded;
             Unloaded += OnViewUnloaded;
+
+            // 粘贴落点来源：指针在编辑器内移动即回报图坐标（Ctrl+V 直按也取"最后一次悬停位置"）
+            Editor.PreviewMouseMove += OnEditorPointerMoved;
         }
 
         private void OnViewLoaded(object sender, RoutedEventArgs e)
-            => _viewModel?.Activate();
+        {
+            // 参考线浮层只挂一次（幂等）；Editor 的 AdornerLayer 要等入树才拿得到
+            if (_guidesAdorner == null
+                && AdornerLayer.GetAdornerLayer(Editor) is { } layer)
+            {
+                _guidesAdorner = new DragGuidesAdorner(this);
+                layer.Add(_guidesAdorner);
+            }
+
+            _viewModel?.Activate();
+        }
 
         private void OnViewUnloaded(object sender, RoutedEventArgs e)
-            => _viewModel?.Deactivate();
+        {
+            if (_guidesAdorner != null)
+            {
+                (AdornerLayer.GetAdornerLayer(Editor) as AdornerLayer)?.Remove(_guidesAdorner);
+                _guidesAdorner = null;
+            }
+
+            _viewModel?.Deactivate();
+        }
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
@@ -49,6 +75,7 @@ namespace VisionMaster.Views
                 _viewModel.ViewportActionRequested -= OnViewportActionRequested;
                 _viewModel.ZoomCommandRequested -= OnZoomCommandRequested;
                 _viewModel.ModuleLinkRequested -= OnModuleLinkRequested;
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
                 // 旧 VM 即将失去视图：摘掉订阅，避免它继续响应流程变化（旧 VM 随之可被 GC）
                 _viewModel.Deactivate();
             }
@@ -60,6 +87,7 @@ namespace VisionMaster.Views
             _viewModel.ViewportActionRequested += OnViewportActionRequested;
             _viewModel.ZoomCommandRequested += OnZoomCommandRequested;
             _viewModel.ModuleLinkRequested += OnModuleLinkRequested;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
             // Prism 的 AutoWireViewModel 可能晚于 Loaded 才把 VM 装进 DataContext，
             // 此时入树事件已过去，需补挂一次（Activate 幂等，不会重复订阅）
@@ -206,6 +234,24 @@ namespace VisionMaster.Views
             e.Handled = true;
         }
 
+        /// <summary>
+        /// 指针在编辑器内移动：把图坐标回报给画布 VM（粘贴落点用；高频写、无绑定消费）。
+        /// 换算与 Editor.GetLocationInsideEditor(DragEventArgs)（工具箱拖入用的是库内重载）
+        /// 同一条口径：图坐标 = 视口原点 + 屏幕坐标 / 缩放。
+        /// </summary>
+        private void OnEditorPointerMoved(object sender, MouseEventArgs e)
+        {
+            if (_viewModel == null) return;
+
+            var screen = e.GetPosition(Editor);
+            double zoom = Editor.ViewportZoom;
+            if (zoom <= 0) zoom = 1.0;
+
+            _viewModel.LastPointerGraphPosition = new Point(
+                Editor.ViewportLocation.X + screen.X / zoom,
+                Editor.ViewportLocation.Y + screen.Y / zoom);
+        }
+
         private void OnEditorDrop(object sender, DragEventArgs e)
         {
             e.Effects = DragDropEffects.None;
@@ -283,6 +329,81 @@ namespace VisionMaster.Views
             => child is Visual or Visual3D
                 ? VisualTreeHelper.GetParent(child)
                 : LogicalTreeHelper.GetParent(child);
+
+        // ==================================================================
+        //  拖动对齐参考线浮层
+        // ==================================================================
+
+        /// <summary>
+        /// VM 的参考线值变了 → 重画浮层。只认三个参考线属性，
+        /// 其余高频属性通知（Location / IsSelected 等）不进这里。
+        /// </summary>
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(FlowCanvasViewModel.GuideX)
+                or nameof(FlowCanvasViewModel.GuideY)
+                or nameof(FlowCanvasViewModel.GuideVisibility))
+            {
+                _guidesAdorner?.InvalidateVisual();
+            }
+        }
+
+        /// <summary>
+        /// 拖动对齐参考线的渲染浮层（评审清单 B 包，纯视觉）。
+        /// VM 给的是图坐标（GuideX/GuideY，null = 该线不画），这里按视口换算成屏幕坐标画
+        /// 1px 虚线——换算公式与 <see cref="OnEditorPointerMoved"/> 同一条（已对过
+        /// GetLocationInsideEditor 的口径）：屏幕 = (图坐标 - 视口原点) × 缩放。
+        /// 视口平移/缩放（ViewportUpdated）与自身尺寸变化都会触发重画；
+        /// 颜色用既有运行令牌整刷 40% 透明（不引新色值）。
+        /// </summary>
+        private sealed class DragGuidesAdorner : Adorner
+        {
+            private readonly FlowCanvasView _owner;
+
+            public DragGuidesAdorner(FlowCanvasView owner)
+                : base(owner.Editor)
+            {
+                _owner = owner;
+                IsHitTestVisible = false;
+
+                // 拖动中视口可能被平移/缩放：视口一变就重画（事件随 adorner 生命周期，摘除即断）
+                ((NodifyEditor)AdornedElement).ViewportUpdated += (_, _) => InvalidateVisual();
+                SizeChanged += (_, _) => InvalidateVisual();
+            }
+
+            protected override void OnRender(DrawingContext drawingContext)
+            {
+                var vm = _owner._viewModel;
+                if (vm == null || vm.GuideVisibility != Visibility.Visible) return;
+
+                var editor = (NodifyEditor)AdornedElement;
+                double zoom = editor.ViewportZoom;
+                if (zoom <= 0) zoom = 1.0;
+
+                // 既有令牌整刷透明度：Clone 后改 Opacity（同一色值，不算引新色）
+                var baseBrush = _owner.FindResource("FlowCanvasRunningBrush") as Brush;
+                var brush = baseBrush?.Clone();
+                if (brush == null) return;
+                brush.Opacity = 0.4;
+                brush.Freeze();
+
+                var pen = new Pen(brush, 1);
+                pen.DashStyle = new DashStyle(new double[] { 5, 4 }, 0);
+                pen.Freeze();
+
+                if (vm.GuideX is { } guideX)
+                {
+                    double x = (guideX - editor.ViewportLocation.X) * zoom;
+                    drawingContext.DrawLine(pen, new Point(x, 0), new Point(x, ActualHeight));
+                }
+
+                if (vm.GuideY is { } guideY)
+                {
+                    double y = (guideY - editor.ViewportLocation.Y) * zoom;
+                    drawingContext.DrawLine(pen, new Point(0, y), new Point(ActualWidth, y));
+                }
+            }
+        }
 
         // ==================================================================
         //  辅助

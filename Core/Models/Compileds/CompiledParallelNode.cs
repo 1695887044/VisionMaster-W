@@ -156,6 +156,7 @@ namespace VisionMaster.Models
                     // 分支体一次都不执行（其分支上下文与记账就此丢失）。分支体内部对取消完全协作
                     // （RunSequence 每节点检查 + 桩算子步进检查），不需要外层再砍一刀。
                     tasks[i] = Task.Run(() => ExecuteBranch(branchIndex, branchContexts[branchIndex], groupCts,
+                        branchModel: parallelStep.Children.Count > branchIndex ? parallelStep.Children[branchIndex] : null,
                         ref failureSource, ref firstFault));
                 }
 
@@ -163,7 +164,9 @@ namespace VisionMaster.Models
                 try
                 {
                     for (int i = taskCount; i < n; i++)
-                        ExecuteBranch(i, branchContexts[i], groupCts, ref failureSource, ref firstFault);
+                        ExecuteBranch(i, branchContexts[i], groupCts,
+                            branchModel: parallelStep.Children.Count > i ? parallelStep.Children[i] : null,
+                            ref failureSource, ref firstFault);
                 }
                 finally
                 {
@@ -308,16 +311,22 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 分支体（§3.1）：整体 try/catch——任务永不 faulted，一切结果（含异常）记入 results。
+        /// branchModel：分支的图纸胶囊（StepCollection），扇出开始置 IsRunning=true、finally 复位——
+        /// 流程栏分支胶囊的"运行中"绿点亮它（真并发专属：顺序退化平铺不打标，见 StepCollection.IsRunning）。
         /// </summary>
         private void ExecuteBranch(
             int branchIndex,
             ParallelBranchExecutionContext branchCtx,
             CancellationTokenSource groupCts,
+            StepCollection? branchModel,
             ref int failureSource,
             ref Exception? firstFault)
         {
             ParallelBranchResult.BranchOutcome outcome;
             Exception? captured = null;
+
+            if (branchModel != null)
+                branchModel.IsRunning = true;
 
             try
             {
@@ -391,6 +400,12 @@ namespace VisionMaster.Models
                         $"并行分组 '{Name}' 分支 {branchIndex + 1} 在取消后仍抛出异常（已降级，失败源为分支 {failureSource + 1}）: {ex.Message}");
                     outcome = ParallelBranchResult.BranchOutcome.Cancelled;
                 }
+            }
+            finally
+            {
+                // 胶囊"运行中"绿灯必须熄：无论 Success/Cancelled/异常/超时放弃，finally 一律复位
+                if (branchModel != null)
+                    branchModel.IsRunning = false;
             }
 
             RecordResult(branchIndex, new ParallelBranchResult

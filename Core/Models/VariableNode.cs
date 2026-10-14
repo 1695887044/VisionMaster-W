@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using HalconDotNet;
+using VisionMaster.Helpers;
 
 namespace VisionMaster.Models
 {
@@ -214,8 +215,151 @@ namespace VisionMaster.Models
                 model.DefaultValue = converted;
                 ChildDefaultValue = converted;
                 RaisePropertyChanged(nameof(ChildDefaultValue));
+                RaisePropertyChanged(nameof(IsValueDeviated));
             }
         }
+
+        // ==================================================================
+        //  当前值就地编辑（2026-10-11 交互收敛：写值进"当前值"单元格，
+        //  "恢复初始值"从操作列挪进单元格、仅偏离基准时出现）
+        // ==================================================================
+        //
+        //  提交语义（与"初始值"列刻意不同）：
+        //  - 只写 Value（经 IWritableVariable.TryWrite：本地=内存赋值，网络=下发设备），
+        //    绝不触碰 DefaultValue——基准值是"恢复初始值"的锚点，若就地编辑悄悄改掉它，
+        //    "恢复"就恢复不到用户认定的基准了；
+        //  - 文本转换统一走 VariableValueConverter.TryConvert（布尔认 1/0/是/否/on/off、
+        //    不变文化、数组/图像明确拒绝），与组态动作 WriteVariable 共享同一份规则；
+        //  - 编辑期间（IsEditingValue）VM 的值推送暂停：轮询周期里的镜像更新不许冲掉正在输入的草稿。
+        //  交互由 VisionMaster.Helpers.CellValueEditBehavior 驱动（获得焦点=进入编辑、
+        //  回车/失焦=提交、Esc=放弃、失败=红框保持编辑态）。
+
+        /// <summary>是否处于单元格编辑态：为 true 时模型值推送暂停（防止轮询冲掉输入中的草稿）</summary>
+        public bool IsEditingValue { get; private set; }
+
+        /// <summary>进入编辑态（由单元格行为在获得键盘焦点时调用；幂等）</summary>
+        public void BeginEditValue()
+        {
+            if (IsEditingValue) return;
+            IsEditingValue = true;
+        }
+
+        /// <summary>放弃草稿：退出编辑态并把界面文本回读为模型值</summary>
+        public void CancelEditValue()
+        {
+            if (!IsEditingValue) return;
+            IsEditingValue = false;
+            RaisePropertyChanged(nameof(CurrentValueText));
+        }
+
+        /// <summary>
+        /// 提交编辑文本。成功返回 null（退出编辑态、界面回读模型值）；
+        /// 失败返回可直接展示的中文原因（保持编辑态，模型未被污染，由调用方标红）。
+        /// 根行与数组元素行自动分派：根行走 <see cref="IWritableVariable.TryWrite"/>，
+        /// 元素行就地写父数组当前值的对应下标（见 <see cref="CommitChildElementEdit"/>）。
+        /// </summary>
+        public string? CommitEditValue(string? text)
+        {
+            var model = OriginalModel;
+            if (model == null || DataType == null) return "变量模型不可用";
+
+            if (ElementIndex >= 0)
+                return CommitChildElementEdit(model, text);
+
+            if (!VariableValueConverter.TryConvert(text, DataType, out var converted, out var convertError))
+                return convertError;
+
+            if (model is not IWritableVariable writable)
+                return $"变量 [{model.Name}] 不支持写入";
+
+            if (!writable.TryWrite(converted, out var writeError))
+                return writeError;
+
+            EndEditValue();
+            return null;
+        }
+
+        /// <summary>
+        /// 数组元素行的提交：就地写父数组【当前值】的第 <see cref="ElementIndex"/> 项，只动 Value、不碰 DefaultValue——
+        /// 基准随父行「强制覆盖集合...」整体维护（那里DefaultValue 与 Value 一起换）。元素级只写当前值。
+        /// 数组只有本地变量（网络侧创建时已过滤数组），无设备 I/O 语义，直接写内存数组。
+        /// </summary>
+        private string? CommitChildElementEdit(IVariable model, string? text)
+        {
+            if (model.Value is not Array current || ElementIndex >= current.Length)
+                return "当前值数组不可用（请用父行的「强制覆盖集合...」重建）";
+
+            if (!VariableValueConverter.TryConvert(text, DataType, out var converted, out var convertError))
+                return convertError;
+
+            current.SetValue(converted, ElementIndex);
+            ChildValue = converted;
+            EndEditValue();
+            RaisePropertyChanged(nameof(ChildValue));
+            return null;
+        }
+
+        private void EndEditValue()
+        {
+            IsEditingValue = false;
+            RaisePropertyChanged(nameof(CurrentValueText));
+            RaisePropertyChanged(nameof(IsValueDeviated));
+        }
+
+        /// <summary>
+        /// 模型值变化时的就地刷新（VM 在 UI 线程调用，取代"值变化打全树重建"）：
+        /// 编辑中不打扰草稿，其余同步文本、偏离标记与数组元素行快照。
+        /// </summary>
+        public void RefreshValueDisplay()
+        {
+            if (!IsEditingValue)
+                RaisePropertyChanged(nameof(CurrentValueText));
+            RaisePropertyChanged(nameof(IsValueDeviated));
+
+            if (ElementIndex >= 0 && OriginalModel?.Value is Array current && ElementIndex < current.Length)
+            {
+                ChildValue = current.GetValue(ElementIndex);
+                RaisePropertyChanged(nameof(ChildValue));
+            }
+        }
+
+        /// <summary>
+        /// 当前值显示文本（根行与数组元素行同格复用）：元素行读父数组当前值的对应下标。
+        /// 编辑中草稿由 TextBox 自己持有，getter 始终反映模型；数值用不变文化格式化，
+        /// 与 VariableValueConverter 的解析方向对齐（避免小数点随区域漂移）。
+        /// </summary>
+        public string CurrentValueText
+        {
+            get
+            {
+                var model = OriginalModel;
+                if (model == null) return "";
+
+                object? raw = ElementIndex >= 0
+                    ? (model.Value is Array current && ElementIndex < current.Length
+                        ? current.GetValue(ElementIndex)
+                        : null)
+                    : model.Value;
+                return Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+            }
+        }
+
+        /// <summary>当前值是否偏离初始值：决定单元格内 ↺（回到基准）是否出现</summary>
+        public bool IsValueDeviated
+        {
+            get
+            {
+                var model = OriginalModel;
+                if (model == null) return false;
+                return !Equals(model.Value, model.DefaultValue);
+            }
+        }
+
+        /// <summary>
+        /// 当前值是否只读（Modbus 离散输入 1x / S7 输入映像 I 等只读存储区）：
+        /// 编辑框转只读展示，物理上写不进去的区不再给可编辑的假象。
+        /// </summary>
+        public bool IsValueReadOnly => (OriginalModel as IVariableDisplaySource)?.IsReadOnly == true;
 
         private bool _isExpanded;
         /// <summary>

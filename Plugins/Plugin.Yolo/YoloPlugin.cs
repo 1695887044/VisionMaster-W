@@ -43,7 +43,7 @@ namespace Plugin.Yolo
         Description = "用 ONNX 格式的 YOLO 检测模型找出目标（类别 + 置信度 + 位置）",
         ShortName = "\uf03d"
     )]
-    [ParallelSafe] // 二期真并行：YoloSession.Cache dai CacheLock
+    [ParallelSafe] // 二期真并行：YoloSession.Cache 带 CacheLock
     public partial class YoloPlugin : VisionPluginBase, IPluginCustomViewProvider
     {
         // ==================================================================

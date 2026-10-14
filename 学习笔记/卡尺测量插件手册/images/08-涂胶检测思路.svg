@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 470" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="470" fill="#FDFDFB"/>
+  <!-- 左：胶路俯视 -->
+  <text x="30" y="30" fill="#0F172A" font-size="16" font-weight="bold">① 胶路俯视：沿法线方向的卡尺阵列</text>
+  <rect x="30" y="70" width="380" height="210" fill="#B9BFC7" stroke="#64748B" stroke-width="2"/>
+  <rect x="50" y="160" width="340" height="44" fill="#3A3F45"/>
+  <!-- 胶：正常段 / 断胶间隙 / 偏细段 -->
+  <rect x="60"  y="170" width="230" height="24" fill="#F2C94C"/>
+  <rect x="330" y="176" width="80"  height="12" fill="#F2C94C"/>
+  <!-- 卡尺（法向，横跨胶路） -->
+  <g fill="none" stroke="#D97706" stroke-width="1.8">
+    <rect x="69"  y="142" width="12" height="80"/>
+    <rect x="104" y="142" width="12" height="80"/>
+    <rect x="139" y="142" width="12" height="80"/>
+    <rect x="174" y="142" width="12" height="80"/>
+    <rect x="209" y="142" width="12" height="80"/>
+    <rect x="244" y="142" width="12" height="80"/>
+    <rect x="272" y="142" width="12" height="80"/>
+    <rect x="302" y="142" width="12" height="80"/>
+    <rect x="359" y="142" width="12" height="80"/>
+  </g>
+  <!-- 边缘十字（绿） -->
+  <g stroke="#16A34A" stroke-width="2">
+    <line x1="69" y1="170" x2="81" y2="170"/><line x1="69" y1="194" x2="81" y2="194"/>
+    <line x1="104" y1="170" x2="116" y2="170"/><line x1="104" y1="194" x2="116" y2="194"/>
+    <line x1="139" y1="170" x2="151" y2="170"/><line x1="139" y1="194" x2="151" y2="194"/>
+    <line x1="174" y1="170" x2="186" y2="170"/><line x1="174" y1="194" x2="186" y2="194"/>
+    <line x1="209" y1="170" x2="221" y2="170"/><line x1="209" y1="194" x2="221" y2="194"/>
+    <line x1="244" y1="170" x2="256" y2="170"/><line x1="244" y1="194" x2="256" y2="194"/>
+    <line x1="272" y1="170" x2="284" y2="170"/><line x1="272" y1="194" x2="284" y2="194"/>
+    <line x1="359" y1="176" x2="371" y2="176"/><line x1="359" y1="188" x2="371" y2="188"/>
+  </g>
+  <!-- 断胶处红叉 -->
+  <g stroke="#DC2626" stroke-width="2.5">
+    <line x1="301" y1="175" x2="315" y2="189"/><line x1="315" y1="175" x2="301" y2="189"/>
+  </g>
+  <text x="322" y="130" fill="#DC2626" font-size="13" font-weight="bold">✗ 无边 → 断胶候选</text>
+  <text x="345" y="222" fill="#B45309" font-size="12.5">偏细段（16px vs 24px）</text>
+  <text x="60" y="132" fill="#B45309" font-size="13">每把横跨胶路（L1 = 法向）</text>
+  <text x="30" y="306" fill="#475569" font-size="13">胶路 = 连续曲线 → 沿法线每 d mm 一把卡尺 → 得到一列宽度 w₁…w_N</text>
+  <!-- 右：宽度序列 -->
+  <text x="450" y="30" fill="#0F172A" font-size="16" font-weight="bold">② 宽度序列：把胶路变成一列数字</text>
+  <line x1="460" y1="300" x2="745" y2="300" stroke="#94A3B8" stroke-width="2"/>
+  <line x1="460" y1="300" x2="460" y2="70" stroke="#94A3B8" stroke-width="2"/>
+  <text x="600" y="322" fill="#475569" font-size="13">沿胶路位置</text>
+  <text x="462" y="62" fill="#475569" font-size="13">胶宽 w</text>
+  <!-- 公差带 -->
+  <line x1="460" y1="102" x2="745" y2="102" stroke="#DC2626" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <line x1="460" y1="138" x2="745" y2="138" stroke="#DC2626" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <line x1="460" y1="120" x2="745" y2="120" stroke="#94A3B8" stroke-width="1"/>
+  <text x="700" y="98" fill="#B91C1C" font-size="12">上限 2.2</text>
+  <text x="700" y="116" fill="#64748B" font-size="12">规格 2.0</text>
+  <text x="700" y="154" fill="#B91C1C" font-size="12">下限 1.8</text>
+  <!-- 曲线：i1..5 正常 → i6 掉 0（断胶）→ i7..9 偏细 -->
+  <polyline points="475,121 503,118 531,121 559,119 587,122" fill="none" stroke="#2563EB" stroke-width="2.5"/>
+  <line x1="615" y1="122" x2="643" y2="298" stroke="#DC2626" stroke-width="3"/>
+  <polyline points="643,298 671,152 699,150 727,153" fill="none" stroke="#F2994A" stroke-width="2.5"/>
+  <circle cx="643" cy="298" r="5" fill="#DC2626"/>
+  <text x="560" y="270" fill="#DC2626" font-size="13.5" font-weight="bold">断胶（no bead）</text>
+  <text x="640" y="120" fill="#E2880B" font-size="13" font-weight="bold" transform="translate(0,42)">偏细（too thin）</text>
+  <!-- 底注 -->
+  <rect x="20" y="404" width="745" height="58" rx="4" fill="#EFF6FF" stroke="#93C5FD"/>
+  <text x="34" y="426" fill="#0F172A" font-size="13.5" font-weight="bold">Blob 说「有缺陷」；宽度序列说「第 6 把（≈37mm 处）断了、后面偏细」——把一条胶路变成一列数字，才能分段分类</text>
+  <text x="34" y="448" fill="#B91C1C" font-size="13" font-weight="bold">⚠ 手摆卡尺的局限：两把之间的断胶检不到 → 连续采样 = Plugin.BeadInspect（直觉模型 → 工程产品，见 8.3 节）</text>
+</svg>

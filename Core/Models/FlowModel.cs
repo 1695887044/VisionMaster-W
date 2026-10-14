@@ -319,6 +319,42 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 深度判定本流程是否存在断点（含并行分支 / 循环体 / If 分支里的嵌套步骤）。
+        ///
+        /// 用途：界面"运行"入口据此决定是否按调试会话启动（方案 A，2026-10-10）——
+        /// 没有断点 = 普通运行（并行组真并发）；有断点 = 自动按调试运行（装调试门，
+        /// 断点/单步可用，代价是并行组就地退化顺序执行，见 FlowSession.DebugDegradedParallel）。
+        /// 容器判定一律走 IContainerStep（与 FlowTopology 同一口径，别退化成判具体容器类型）。
+        /// </summary>
+        public bool HasBreakpoint() => HasBreakpointDeep(_steps);
+
+        private static bool HasBreakpointDeep(IEnumerable<StepModel> steps)
+        {
+            if (steps == null)
+                return false;
+
+            foreach (var step in steps)
+            {
+                if (step == null)
+                    continue;
+
+                if (step.IsBreakpoint)
+                    return true;
+
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                    {
+                        if (branch?.Steps != null && HasBreakpointDeep(branch.Steps))
+                            return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 初始化流程模型（为初始空集合挂上订阅）
         /// </summary>
         [JsonConstructor]
@@ -473,29 +509,6 @@ namespace VisionMaster.Models
                 return;
 
             Version++;
-        }
-
-        /// <summary>
-        /// 添加步骤并自动生成唯一名称
-        /// </summary>
-        public void AddStepWithAutoName(StepModel newStep)
-        {
-            if (newStep == null) return;
-            if (string.IsNullOrWhiteSpace(newStep.PluginName)) newStep.PluginName = "未知工具";
-
-            var existingNames = new HashSet<string>(Steps.Select(s => s.StepName));
-
-            int nextId = 1;
-            string targetName = $"{newStep.PluginName}_{nextId}";
-
-            while (existingNames.Contains(targetName))
-            {
-                nextId++;
-                targetName = $"{newStep.PluginName}_{nextId}";
-            }
-
-            newStep.StepName = targetName;
-            Steps.Add(newStep);
         }
     }
 }

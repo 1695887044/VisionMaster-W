@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="340" fill="#FDFDFB"/>
+  <!-- 左：点阵（灰63% 蓝22% 白10% 绿5%，共 40 点示意） -->
+  <text x="30" y="28" fill="#0F172A" font-size="15" font-weight="bold">采样区逐点分类（每点判成一个颜色词）</text>
+  <rect x="30" y="42" width="240" height="240" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5"/>
+  <g>
+    <circle cx="48"  cy="60"  r="7" fill="#9E9E9E"/><circle cx="76"  cy="60"  r="7" fill="#9E9E9E"/><circle cx="104" cy="60"  r="7" fill="#42A5F5"/><circle cx="132" cy="60"  r="7" fill="#9E9E9E"/><circle cx="160" cy="60"  r="7" fill="#9E9E9E"/><circle cx="188" cy="60"  r="7" fill="#9E9E9E"/><circle cx="216" cy="60"  r="7" fill="#E0E0E0"/><circle cx="244" cy="60"  r="7" fill="#9E9E9E"/>
+    <circle cx="48"  cy="88"  r="7" fill="#9E9E9E"/><circle cx="76"  cy="88"  r="7" fill="#66BB6A"/><circle cx="104" cy="88"  r="7" fill="#9E9E9E"/><circle cx="132" cy="88"  r="7" fill="#9E9E9E"/><circle cx="160" cy="88"  r="7" fill="#42A5F5"/><circle cx="188" cy="88"  r="7" fill="#9E9E9E"/><circle cx="216" cy="88"  r="7" fill="#9E9E9E"/><circle cx="244" cy="88"  r="7" fill="#9E9E9E"/>
+    <circle cx="48"  cy="116" r="7" fill="#9E9E9E"/><circle cx="76"  cy="116" r="7" fill="#9E9E9E"/><circle cx="104" cy="116" r="7" fill="#9E9E9E"/><circle cx="132" cy="116" r="7" fill="#E0E0E0"/><circle cx="160" cy="116" r="7" fill="#9E9E9E"/><circle cx="188" cy="116" r="7" fill="#42A5F5"/><circle cx="216" cy="116" r="7" fill="#9E9E9E"/><circle cx="244" cy="116" r="7" fill="#9E9E9E"/>
+    <circle cx="48"  cy="144" r="7" fill="#42A5F5"/><circle cx="76"  cy="144" r="7" fill="#9E9E9E"/><circle cx="104" cy="144" r="7" fill="#9E9E9E"/><circle cx="132" cy="144" r="7" fill="#9E9E9E"/><circle cx="160" cy="144" r="7" fill="#9E9E9E"/><circle cx="188" cy="144" r="7" fill="#9E9E9E"/><circle cx="216" cy="144" r="7" fill="#66BB6A"/><circle cx="244" cy="144" r="7" fill="#9E9E9E"/>
+    <circle cx="48"  cy="172" r="7" fill="#9E9E9E"/><circle cx="76"  cy="172" r="7" fill="#9E9E9E"/><circle cx="104" cy="172" r="7" fill="#E0E0E0"/><circle cx="132" cy="172" r="7" fill="#9E9E9E"/><circle cx="160" cy="172" r="7" fill="#9E9E9E"/><circle cx="188" cy="172" r="7" fill="#42A5F5"/><circle cx="216" cy="172" r="7" fill="#9E9E9E"/><circle cx="244" cy="172" r="7" fill="#9E9E9E"/>
+    <circle cx="48"  cy="200" r="7" fill="#9E9E9E"/><circle cx="76"  cy="200" r="7" fill="#9E9E9E"/><circle cx="104" cy="200" r="7" fill="#9E9E9E"/><circle cx="132" cy="200" r="7" fill="#42A5F5"/><circle cx="160" cy="200" r="7" fill="#9E9E9E"/><circle cx="188" cy="200" r="7" fill="#9E9E9E"/><circle cx="216" cy="200" r="7" fill="#E0E0E0"/><circle cx="244" cy="200" r="7" fill="#9E9E9E"/>
+    <circle cx="48"  cy="228" r="7" fill="#9E9E9E"/><circle cx="76"  cy="228" r="7" fill="#66BB6A"/><circle cx="104" cy="228" r="7" fill="#9E9E9E"/><circle cx="132" cy="228" r="7" fill="#9E9E9E"/><circle cx="160" cy="228" r="7" fill="#9E9E9E"/><circle cx="188" cy="228" r="7" fill="#9E9E9E"/><circle cx="216" cy="228" r="7" fill="#42A5F5"/><circle cx="244" cy="228" r="7" fill="#9E9E9E"/>
+    <circle cx="48"  cy="256" r="7" fill="#9E9E9E"/><circle cx="76"  cy="256" r="7" fill="#9E9E9E"/><circle cx="104" cy="256" r="7" fill="#9E9E9E"/><circle cx="132" cy="256" r="7" fill="#E0E0E0"/><circle cx="160" cy="256" r="7" fill="#9E9E9E"/><circle cx="188" cy="256" r="7" fill="#9E9E9E"/><circle cx="216" cy="256" r="7" fill="#9E9E9E"/><circle cx="244" cy="256" r="7" fill="#42A5F5"/>
+  </g>
+  <!-- 右：投票条形 -->
+  <text x="330" y="28" fill="#0F172A" font-size="15" font-weight="bold">投票（票数降序）</text>
+  <g font-size="13">
+    <text x="330" y="62"  fill="#616161">灰</text><rect x="360" y="48"  width="252" height="18" fill="#9E9E9E"/><text x="618" y="62"  fill="#334155">63%</text>
+    <text x="330" y="94"  fill="#1565C0">蓝</text><rect x="360" y="80"  width="88"  height="18" fill="#42A5F5"/><text x="454" y="94"  fill="#334155">22%</text>
+    <text x="330" y="126" fill="#616161">白</text><rect x="360" y="112" width="40"  height="18" fill="#E0E0E0"/><text x="406" y="126" fill="#334155">10%</text>
+    <text x="330" y="158" fill="#2E7D32">绿</text><rect x="360" y="144" width="20"  height="18" fill="#66BB6A"/><text x="386" y="158" fill="#334155">5%</text>
+  </g>
+  <rect x="330" y="182" width="290" height="34" rx="4" fill="#ECFDF5" stroke="#6EE7B7"/>
+  <text x="342" y="204" fill="#065F46" font-size="13.5" font-weight="bold">主色 = 灰 ， 占比 = 63%</text>
+  <text x="330" y="242" fill="#475569" font-size="13">取中位色分类一次：可能报出一个「谁都不像」的词，</text>
+  <text x="330" y="262" fill="#475569" font-size="13">且现场看不出它其实没把握；</text>
+  <text x="330" y="288" fill="#0F172A" font-size="13" font-weight="bold">逐点投票直接暴露「不纯」—— 这是计量的诚实。</text>
+  <text x="30" y="318" fill="#64748B" font-size="12.5">同票按词表顺序定序 → 同一块区域每次跑出来的主色都一样（确定性）｜ 点太多按步长抽稀（SamplePoints，默认 400）</text>
+</svg>

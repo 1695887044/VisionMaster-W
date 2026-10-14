@@ -1,0 +1,25 @@
+Core\IPluginProvider.cs:19:        IReadOnlyDictionary<string, ToolItemModel> ModulePlugins { get; }
+Core\IPluginProvider.cs:24:        IReadOnlyDictionary<string, ToolItemModel> CameraPlugins { get; }
+Core\IPluginProvider.cs:29:        IReadOnlyDictionary<string, ToolItemModel> LaserPlugins { get; }
+Core\IPluginProvider.cs:34:        IReadOnlyDictionary<string, ToolItemModel> MotionPlugins { get; }
+Core\IPluginProvider.cs:39:        void RegisterModule(ToolItemModel plugin);
+Core\IPluginProvider.cs:44:        void RegisterCamera(ToolItemModel plugin);
+Core\IPluginProvider.cs:49:        void RegisterLaser(ToolItemModel plugin);
+Core\IPluginProvider.cs:54:        void RegisterMotion(ToolItemModel plugin);
+Core\IPluginProvider.cs:59:        ToolItemModel GetModule(string name);
+Core\IPluginProvider.cs:64:        ToolItemModel GetCamera(string name);
+Core\IPluginProvider.cs:69:        ToolItemModel GetLaser(string name);
+Core\IPluginProvider.cs:74:        ToolItemModel GetMotion(string name);
+Core\Models\Compileds\CompiledNode.cs:18:        public Guid Id { get; set; } = Guid.NewGuid();
+Core\Models\FlowModel.cs:158:        public string FlowID { get; set; } = Guid.NewGuid().ToString("N");
+Core\Models\FlowSession.cs:91:        public string SessionID { get; } = Guid.NewGuid().ToString("N");
+Core\Models\LocalVariableItem.cs:18:        public Guid Id { get; set; } = Guid.NewGuid();
+Core\Models\LogItem.cs:19:        public string Id { get; } = Guid.NewGuid().ToString("N");
+Core\Models\ProcessStep\StepModel.cs:20:        public Guid StepID { get; set; } = Guid.NewGuid();
+Core\Models\ToolItemModel.cs:16:    public record class ToolItemModel
+Core\Models\ToolItemModel.cs:90:        public ObservableCollection<ToolItemModel> Children { get; set; } = new();
+Core\Models\Variable\LocalVariableModel.cs:31:        public Guid VariableId { get; set; } = Guid.NewGuid();
+Core\Models\Variable\NetworkVariableModel.cs:59:        public Guid VariableId { get; set; } = Guid.NewGuid();
+Core\Models\Variable\VariableFactory.cs:19:                VariableId = variableId ?? Guid.NewGuid(),
+Core\Models\Variable\VariableFactory.cs:39:                VariableId = variableId ?? Guid.NewGuid(),
+Core\Toolkit\BatchDataWriter.cs:190:                var fileName = $"failed_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.json";

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 380" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="380" fill="#FDFDFB"/>
+  <!-- 左：measure_pos -->
+  <text x="30" y="30" fill="#0F172A" font-size="16" font-weight="bold">measure_pos：单边缘</text>
+  <line x1="40" y1="290" x2="360" y2="290" stroke="#94A3B8" stroke-width="2"/>
+  <polyline points="40,240 110,240 135,150 160,110 200,110 235,150 260,240 350,240"
+            fill="none" stroke="#2563EB" stroke-width="3"/>
+  <circle cx="142" cy="146" r="6" fill="#DC2626"/>
+  <circle cx="243" cy="146" r="6" fill="#DC2626"/>
+  <text x="96" y="120" fill="#DC2626" font-size="13" font-weight="bold">边1（暗→亮）</text>
+  <text x="222" y="120" fill="#DC2626" font-size="13" font-weight="bold">边2（亮→暗）</text>
+  <text x="40" y="330" fill="#475569" font-size="13.5">返回【每个边】的位置+振幅 —— 点是散的，</text>
+  <text x="40" y="350" fill="#475569" font-size="13.5">给"两点距 / 拟合"当点来源用</text>
+  <!-- 右：measure_pairs -->
+  <text x="430" y="30" fill="#0F172A" font-size="16" font-weight="bold">measure_pairs：成对边缘</text>
+  <line x1="440" y1="290" x2="740" y2="290" stroke="#94A3B8" stroke-width="2"/>
+  <polyline points="440,240 500,240 525,150 550,110 590,110 625,150 650,240 740,240"
+            fill="none" stroke="#2563EB" stroke-width="3"/>
+  <circle cx="532" cy="146" r="6" fill="#DC2626"/>
+  <circle cx="633" cy="146" r="6" fill="#DC2626"/>
+  <line x1="532" y1="100" x2="633" y2="100" stroke="#16A34A" stroke-width="2.5"/>
+  <line x1="532" y1="94" x2="532" y2="106" stroke="#16A34A" stroke-width="2.5"/>
+  <line x1="633" y1="94" x2="633" y2="106" stroke="#16A34A" stroke-width="2.5"/>
+  <text x="530" y="86" fill="#15803D" font-size="14" font-weight="bold">IntraDistance = 缝宽 ★</text>
+  <text x="440" y="330" fill="#475569" font-size="13.5">把边按「第一条+第二条」配对，直接给出</text>
+  <text x="440" y="350" fill="#475569" font-size="13.5">对内间距（宽度）/ 相邻对间距 —— 测宽正解</text>
+  <!-- 中缝分隔 -->
+  <line x1="400" y1="20" x2="400" y2="360" stroke="#E2E8F0" stroke-width="2"/>
+</svg>

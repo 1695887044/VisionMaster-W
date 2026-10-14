@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 420" font-family="Microsoft YaHei, PingFang SC, sans-serif">
+  <rect width="780" height="420" fill="#FDFDFB"/>
+  <!-- 左：坏框 -->
+  <text x="30" y="28" fill="#B91C1C" font-size="15.5" font-weight="bold">✗ 坏框：大平面 + 反光面</text>
+  <rect x="30" y="44" width="330" height="250" fill="#C8CDD4"/>
+  <!-- 零件细节：丝印文字行、角孔、反光螺丝 -->
+  <g fill="#4A5560">
+    <rect x="250" y="70" width="70" height="6"/><rect x="250" y="84" width="58" height="6"/><rect x="250" y="98" width="64" height="6"/>
+  </g>
+  <circle cx="60" cy="70" r="10" fill="#9AA3AD"/><circle cx="60" cy="70" r="5" fill="#E8EDF2"/>
+  <ellipse cx="300" cy="230" rx="16" ry="10" fill="#E8EDF2" stroke="#9AA3AD"/>
+  <circle cx="290" cy="270" r="9" fill="#9AA3AD"/>
+  <!-- 坏框：框在大平面上，绿线稀疏 -->
+  <rect x="60" y="150" width="150" height="110" fill="none" stroke="#DC2626" stroke-width="3" stroke-dasharray="9 5"/>
+  <g stroke="#16A34A" stroke-width="1.5">
+    <line x1="90" y1="180" x2="130" y2="178"/>
+  </g>
+  <text x="86" y="230" fill="#B91C1C" font-size="12.5" font-weight="bold">绿线稀疏 = 没特征</text>
+  <!-- 反光框 -->
+  <rect x="270" y="205" width="62" height="48" fill="none" stroke="#DC2626" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="250" y="270" fill="#B91C1C" font-size="12">反光面 ✗ 每批都变</text>
+  <text x="30" y="322" fill="#B91C1C" font-size="13" font-weight="bold">症状：MinScore 拉到 0.3 也时有时无；</text>
+  <text x="30" y="342" fill="#B91C1C" font-size="13" font-weight="bold">换一批产品分数全变 —— 模型学了个寂寞</text>
+  <!-- 右：好框 -->
+  <text x="450" y="28" fill="#15803D" font-size="15.5" font-weight="bold">✓ 好框：丝印 + 孔位组合（纹理丰富且稳定）</text>
+  <rect x="450" y="44" width="330" height="250" fill="#C8CDD4"/>
+  <g fill="#4A5560">
+    <rect x="500" y="80" width="110" height="8"/><rect x="500" y="98" width="92" height="8"/><rect x="500" y="116" width="102" height="8"/>
+    <rect x="500" y="140" width="80" height="8"/>
+  </g>
+  <circle cx="480" cy="88" r="10" fill="#9AA3AD"/><circle cx="480" cy="88" r="5" fill="#E8EDF2"/>
+  <circle cx="480" cy="150" r="10" fill="#9AA3AD"/><circle cx="480" cy="150" r="5" fill="#E8EDF2"/>
+  <ellipse cx="700" cy="230" rx="16" ry="10" fill="#E8EDF2" stroke="#9AA3AD"/>
+  <!-- 好框 -->
+  <rect x="470" y="66" width="160" height="100" fill="none" stroke="#16A34A" stroke-width="3" stroke-dasharray="9 5"/>
+  <!-- 密集绿特征线 -->
+  <g stroke="#16A34A" stroke-width="1.8">
+    <line x1="500" y1="84" x2="610" y2="84"/><line x1="500" y1="102" x2="592" y2="102"/>
+    <line x1="500" y1="120" x2="602" y2="120"/><line x1="500" y1="144" x2="580" y2="144"/>
+    <line x1="480" y1="78" x2="480" y2="98"/><line x1="480" y1="140" x2="480" y2="160"/>
+    <line x1="470" y1="88" x2="490" y2="88"/><line x1="470" y1="150" x2="490" y2="150"/>
+  </g>
+  <text x="470" y="184" fill="#15803D" font-size="12.5" font-weight="bold">绿线密 = 特征多且稳定 ✓</text>
+  <text x="450" y="322" fill="#15803D" font-size="13" font-weight="bold">症状对照：转 ±15°、平移四角、调暗 20%，分数始终 ≥0.9</text>
+  <text x="450" y="342" fill="#475569" font-size="13">拿不准就看模板预览的绿线多不多 —— 稀疏就换地方</text>
+  <!-- 底注 -->
+  <rect x="20" y="366" width="740" height="46" rx="4" fill="#EFF6FF"/>
+  <text x="32" y="386" fill="#1E40AF" font-size="13" font-weight="bold">画框要领：框丝印 / 边角组合 / 孔位（纹理丰富 + 会跟着产品动）；避开大平面、反光面、活动件；</text>
+  <text x="32" y="404" fill="#1E40AF" font-size="13" font-weight="bold">宁可框大一点（4 条边错 1 条 = 75%，40 条错 1 条 = 97.5%）—— 但必须独特</text>
+</svg>

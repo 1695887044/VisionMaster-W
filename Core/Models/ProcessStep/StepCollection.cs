@@ -14,6 +14,25 @@ namespace VisionMaster.Models
     /// </summary>
     public class StepCollection : BindableBase
     {
+        private bool _isRunning;
+
+        /// <summary>
+        /// 运行期标志：本分支（并行分支）是否正在执行。
+        ///
+        /// 由 <c>CompiledParallelNode.ExecuteBranch</c> 在扇出开始置 true、收尾 finally 复位——
+        /// 只有真并发路径打标（顺序退化是平铺逐个跑，分支胶囊不打标，步骤自己会高亮；
+        /// If/While/For 的分支胶囊同样不打标，本批只覆盖并行分支——用户反馈的是"并行分组
+        /// 下面的分支/组头没有焦点显示"）。
+        /// [JsonIgnore]：纯运行期，不落盘；SetProperty 发通知，流程栏分支胶囊的触发器
+        /// 绑它点亮（分支线程跨线程发标量属性通知，WPF 自动编组，与 StepModel.State 同款）。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsRunning
+        {
+            get => _isRunning;
+            set => SetProperty(ref _isRunning, value);
+        }
+
         /// <summary>
         /// 步骤列表
         /// </summary>
@@ -58,6 +77,17 @@ namespace VisionMaster.Models
         /// 用户在界面上输入，后端解析执行
         /// 例如 "Score > 80"
         /// 对于 Else 和 Default 分支，此属性可以留空
+        ///
+        /// 【双语义契约】本字段的内容按所属 StepCollection 的 BranchType 分两种读法，
+        /// 任何新消费方必须先确认拿到的是哪个分支类型的语义，不许想当然按表达式解析：
+        ///  · If / ElseIf / WhileLoop 分支 = 布尔条件表达式——编译期由 FlowCompiler
+        ///    CreateInterpreter().Parse 解析（约 FlowCompiler.cs:492-592 一带），空值/解析失败是硬编译错误；
+        ///  · Case 分支 = 匹配值文本——不是表达式！CaseValueHelper.TryConvert 按判据类型转常量后
+        ///    合成「判据 == 常量」（2026-10-11 Case 分支线加入此列）；
+        ///  · Else / Default（含 For 循环体）= 恒真，编译器不消费（RequiresExpression=false，可留空）。
+        /// 消费方名单：FlowCompiler.cs（解析/转换）、ConditionEditorViewModel（编辑草稿）、
+        /// ProcessView.xaml 分支胶囊文案（经 DisplayName 拼接，R24——胶囊只认 DisplayName 一个来源）、
+        /// FlowCanvasChecks 的 B0 参考解释器（LogicBruteforceChecks.EvalCond）。
         /// </summary>
         public string Expression
         {

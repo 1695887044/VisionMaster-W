@@ -1,6 +1,7 @@
 using HslCommunication;
 using HslCommunication.Core;
 using System;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 
 namespace VisionMaster.Communications
@@ -254,6 +255,58 @@ namespace VisionMaster.Communications
             if (BitConverter.IsLittleEndian)
                 Array.Reverse(raw); // 小端内存序 → 大端传输序
             return raw;
+        }
+
+        /// <summary>
+        /// <para>用自己的 socket 快速探测目标端口是否「拒绝连接」（ConnectionRefused）。</para>
+        /// <para>为什么不用 HSL 的失败消息文本分类：那是 OS 本地化文本（中文"积极拒绝"/英文"actively refused"），
+        /// 按文本匹配脆弱；直接拨一次 socket 能拿到确定的 <see cref="SocketError"/>。</para>
+        /// <para>调用时机：只在 HSL 建连<b>快速失败</b>（耗时远小于建连超时预算）之后调用——
+        /// 正常网络上拒绝是毫秒级 RST，探测本身毫秒级返回；真正的超时路径不进探测分支，
+        /// 行为保持不变。探测超时上限内没拿到答案（黑洞地址/被代理层延迟的拒绝）按「非拒绝」处理，不强行分类。</para>
+        /// <para>⚠ 实测注意：装了本地代理/TUN 的机器上，回环拒绝也被延迟到 ~2s 才回 RST
+        /// （裸 socket 实测 2030ms）——这类场景探测等不到答案，分类由
+        /// <see cref="MessageIndicatesConnectionRefused"/> 的消息识别兜住，探测只是补充手段。</para>
+        /// </summary>
+        /// <param name="ipAddress">目标 IP</param>
+        /// <param name="port">目标端口</param>
+        /// <param name="timeoutMs">探测等待上限（ms）</param>
+        public static bool ProbeConnectionRefused(string ipAddress, int port, int timeoutMs)
+        {
+            try
+            {
+                using var probe = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                var iar = probe.BeginConnect(ipAddress, port, null, null);
+                if (!iar.AsyncWaitHandle.WaitOne(timeoutMs))
+                    return false;           // 探测也没立刻给答案（黑洞/慢网/被代理延迟）→ 不强行分类
+                probe.EndConnect(iar);      // 能连上 → 目标活着，不是 refused
+                return false;
+            }
+            catch (SocketException se) when (se.SocketErrorCode == SocketError.ConnectionRefused)
+            {
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// <para>从 HSL/OS 的建连失败消息里识别「目标拒绝连接」。零成本、零额外探测，是分类的<b>主通道</b>。</para>
+        /// <para>HSL 的非超时建连失败消息形如 <c>Socket Connect {endPoint} Exception -&gt; {OS 消息}</c>，
+        /// 其中 OS 消息随系统区域设置变化；这里覆盖常见的中英文表述，未识别（其他语言/其他原因）
+        /// 返回 false，按「未分类」处理（行为与旧版一致）。</para>
+        /// <para>实测对照（本机 zh-CN）：回环拒绝 =「由于目标计算机积极拒绝，无法连接。」；超时路径走
+        /// HSL 的 ConnectTimeout 资源文本，不含这些词，不会误判。</para>
+        /// </summary>
+        public static bool MessageIndicatesConnectionRefused(string? message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return false;
+
+            return message.Contains("积极拒绝", StringComparison.OrdinalIgnoreCase)           // zh-CN
+                || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase); // en-US 及其变体
         }
     }
 }

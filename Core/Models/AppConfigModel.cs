@@ -392,11 +392,70 @@ namespace VisionMaster.Models
         /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路（AppConfigModel.cs 三次踩坑史）。
         /// </summary>
         public ParallelExecutionSettings ParallelExecution { get; set; } = new();
+
+        /// <summary>
+        /// 流程画布的「随用户」视图态（评审清单 B 包），见 <see cref="FlowCanvasSettings"/>。
+        ///
+        /// <b>不能为 null</b>：与上面四节同一理由——FlowCanvasViewModel 构造时会直接点着用
+        /// （<c>Current.FlowCanvasSettings.ShowOrderLinks</c>），而老版本的 AppConfig.json
+        /// 里没有这个节，Newtonsoft 遇到缺失的引用类型只留 null 不会自动 new。
+        /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路（AppConfigModel.cs 三次踩坑史）。
+        /// </summary>
+        public FlowCanvasSettings FlowCanvasSettings { get; set; } = new();
+
+        /// <summary>
+        /// 工具箱的「随用户」态（收藏的算子清单），见 <see cref="ToolboxSettings"/>。
+        ///
+        /// <b>不能为 null</b>：与上面几节同一理由——ToolViewModel 构造时会直接点着用
+        /// （<c>Current.Toolbox.Favorites</c>），而老版本的 AppConfig.json 里没有这个节，
+        /// Newtonsoft 遇到缺失的引用类型只留 null 不会自动 new。
+        /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路（AppConfigModel.cs 三次踩坑史）。
+        /// </summary>
+        public ToolboxSettings Toolbox { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 流程画布的「随用户」视图态（AppConfig.json 的 <c>FlowCanvas</c> 节）。
+    ///
+    /// 画布视图态的三栏口径（完整表见 Core\Models\FlowLayoutStore.cs 头注释）里，
+    /// 这一节承担"随用户"栏：与流程无关、与"这台机器的操作者习惯"绑定——
+    /// 换个方案、换个流程都不该丢，随软件配置落盘，不进 .vms。
+    /// </summary>
+    public class FlowCanvasSettings
+    {
+        /// <summary>
+        /// 是否显示端口数据线。默认 <b>false</b>（历史行为，用户口径：
+        /// "端口之间的连线默认不显示，只显示执行顺序"；非法连线不受此开关影响）。
+        /// </summary>
+        public bool ShowDataLinks { get; set; } = false;
+
+        /// <summary>
+        /// 是否显示执行顺序链。默认 <b>true</b>（历史行为：顺序链是画布的主视觉）。
+        /// </summary>
+        public bool ShowOrderLinks { get; set; } = true;
+    }
+
+    /// <summary>
+    /// 工具箱的「随用户」态（AppConfig.json 的 <c>Toolbox</c> 节）。
+    ///
+    /// 为什么落在这里：收藏是"这台机器的操作者习惯"——换方案、换流程、重启软件都不该丢，
+    /// 但它又不属于任何一份 .vms（图纸是给别的机器也能跑的），所以随软件配置落盘。
+    /// 键取 <c>ToolItemModel.ModuleTypeName</c>（程序集限定类型名）：显示名可以改、
+    /// 分类可以调，只有类型名是插件的稳定身份。
+    /// </summary>
+    public class ToolboxSettings
+    {
+        /// <summary>
+        /// 收藏的算子 <c>ModuleTypeName</c> 清单。
+        /// 读取侧（ToolViewModel）会拿当前已注册插件做一次存在性过滤——
+        /// 插件升级/卸载后老配置里的类型名会失效，留着只会在界面上多出一个拖不动的死条目。
+        /// </summary>
+        public List<string> Favorites { get; set; } = new();
     }
 
     /// <summary>
     /// 并行执行全局设置（二期）。装配链：AppSettingsService.Load()/Save() 末尾把
-    /// FailFastByDefault 灌进静态 <c>GlobalParallelConfig</c>（运行期解析，改配置下一轮生效）。
+    /// FailFastByDefault / ForceSequential 灌进静态 <c>GlobalParallelConfig</c>（运行期解析，改配置下一轮生效）。
     /// </summary>
     public class ParallelExecutionSettings
     {
@@ -407,5 +466,13 @@ namespace VisionMaster.Models
         /// 不产生异常、不上抛、不置会话 Faulted。
         /// </summary>
         public bool FailFastByDefault { get; set; } = false;
+
+        /// <summary>
+        /// 进程级总闸：true = 所有并行组退化顺序执行（现场排障一键回退）。
+        /// 默认 false = 真并发；写入 AppConfig.json 的 <c>ParallelExecution.ForceSequential</c>，
+        /// 启动/保存时经 <c>AppSettingsService.SyncParallelConfig</c> 灌进 <c>GlobalParallelConfig</c>，
+        /// 改完重启（或触发一次配置保存）生效、无需重编译。
+        /// </summary>
+        public bool ForceSequential { get; set; } = false;
     }
 }
