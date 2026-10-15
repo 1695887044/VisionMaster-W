@@ -28,29 +28,45 @@ namespace VisionMaster.Services
         public static StepModel CreateFromTool(ToolItemModel tool, string stepName)
         {
             if (!tool.IsContainer)
-                return new ActionStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName);
+                return new ActionStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
+                {
+                    Category = tool.Category,
+                };
 
             switch (tool.ModuleTypeName)
             {
                 case "BuiltIn_While":
-                    return new WhileStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName);
+                    return new WhileStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
+                    {
+                        Category = tool.Category,
+                    };
 
                 case "BuiltIn_For":
-                    return new ForStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName);
+                    return new ForStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
+                    {
+                        Category = tool.Category,
+                    };
 
                 case "BuiltIn_Case":
                     // 分支匹配：与 If 同族但"判据 + 匹配值"语义（编译成同一个 CompiledIfNode）
-                    return new CaseStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName);
+                    return new CaseStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
+                    {
+                        Category = tool.Category,
+                    };
 
                 case "BuiltIn_Parallel":
                     return new ParallelStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
                     {
+                        Category = tool.Category,
                         // 全限定名：System.Linq 也有个 ParallelExecutionMode（隐式 using），不限定则 CS0104
                         ExecutionMode = VisionMaster.Models.ParallelExecutionMode.Parallel,
                     };
 
                 default:
-                    return new ConditionStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName);
+                    return new ConditionStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
+                    {
+                        Category = tool.Category,
+                    };
             }
         }
 

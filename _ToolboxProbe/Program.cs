@@ -112,6 +112,12 @@ namespace ToolboxProbe
             Check("ToolView 构造 + 布局不抛异常", true, "");
             Console.WriteLine($"  [INFO] {phase} 后绑定错误 {bindingErrors.Messages.Count} 条");
 
+            // 分组默认折叠（IsExpanded=false）→ 里面的条目容器根本不生成。下面的条目级断言
+            // 需要它们可见，所以先把所有组展开（"默认折叠"这条语义由 G9 专门钉）。
+            foreach (var g in vm.FilteredToolBarSource) g.IsExpanded = true;
+            Layout(host);
+            Layout(host);
+
             // ---- 1. 列表模式结构 ----
             var itemsControls = Descendants<ItemsControl>(view)
                 .Where(ic => GongSolutions.Wpf.DragDrop.DragDrop.GetIsDragSource(ic))
@@ -124,9 +130,16 @@ namespace ToolboxProbe
                     && GongSolutions.Wpf.DragDrop.DragDrop.GetDragAdornerTemplate(ic) != null),
                 $"拖拽源={itemsControls.Count} / 分组={provider.CategoryCount}");
 
-            // 条目数据必须是原始 ToolItemModel（放置端 FlowCanvasView.FindDraggedTool 硬认它）
-            var itemBorders = Descendants<Border>(view)
-                .Where(b => b.DataContext is ToolItemModel && b.ToolTip != null)
+            // 条目数据必须是原始 ToolItemModel（放置端 FlowCanvasView.FindDraggedTool 硬认它）。
+            // 用"宿主 ContentPresenter 挂的是条目模板"来定位条目根 Border——原来靠 ToolTip 定位，
+            // 但预览已从 ToolTip 改成 Popup，条目上不再挂 ToolTip。
+            var listTemplate = FindResource(view, "ToolListTemplate") as DataTemplate;
+            var gridTemplate = FindResource(view, "ToolGridTemplate") as DataTemplate;
+            var itemBorders = Descendants<ContentPresenter>(view)
+                .Where(cp => ReferenceEquals(cp.ContentTemplate, listTemplate)
+                             || ReferenceEquals(cp.ContentTemplate, gridTemplate))
+                .Select(cp => VisualTreeHelper.GetChildrenCount(cp) > 0 ? VisualTreeHelper.GetChild(cp, 0) : null)
+                .OfType<Border>()
                 .ToList();
             Check("条目容器绑定的是原始 ToolItemModel（不是包裹 VM）",
                 itemBorders.Count == provider.ModulePlugins.Count
@@ -137,23 +150,16 @@ namespace ToolboxProbe
                 Descendants<UniformGrid>(view).Count == 0, "");
             Render(host, "toolbox-empty-hint.png");   // 尚无收藏：空态提示行在
 
-            // 悬停预览浮层的 ToolTip 内容来源：显式从 PlacementTarget 取（不赌 DataContext 隐式继承）。
-            // 不真的开窗弹浮层（探针没有窗口），只把 PlacementTarget 摆上去，看 Content 能不能落到条目。
-            var firstItemBorder = itemBorders.FirstOrDefault();
-            var firstTip = firstItemBorder?.ToolTip as ToolTip;
-            if (firstTip != null && firstItemBorder != null)
-            {
-                firstTip.PlacementTarget = firstItemBorder;
-                Pump(host);
-                Check("预览浮层：ToolTip 从 PlacementTarget 拿到条目",
-                    ReferenceEquals(firstTip.Content, firstItemBorder.DataContext),
-                    $"content={(firstTip.Content as ToolItemModel)?.Name ?? "null"}");
-                firstTip.PlacementTarget = null;
-            }
-            else
-            {
-                Check("预览浮层：ToolTip 从 PlacementTarget 拿到条目", false, "条目上没有 ToolTip");
-            }
+            // 悬停预览浮层：已从 ToolTip 改成视图自管的 Popup（ToolTip 的内容拿不到焦点，
+            // 里面的滚动条真机上点了不动）。探针不开窗（无窗口），只断言 Popup 就位、内容模板挂对、
+            // 且条目上不再挂 ToolTip。
+            var previewPopup = view.FindName("PreviewPopup") as System.Windows.Controls.Primitives.Popup;
+            var previewContent = view.FindName("PreviewContent") as ContentControl;
+            Check("预览浮层：视图自管 Popup + 内容模板就位（条目上不再挂 ToolTip）",
+                previewPopup != null && previewContent != null
+                && ReferenceEquals(previewContent.ContentTemplate, FindResource(view, "ToolPreviewTemplate"))
+                && itemBorders.All(b => b.ToolTip == null),
+                $"popup={previewPopup != null} content={previewContent != null}");
 
             // ---- 2. 星标：命令 + 收藏态观感 ----
             var starButtons = Descendants<Button>(view)
@@ -203,10 +209,15 @@ namespace ToolboxProbe
             Check("网格模式：内层面板换成 UniformGrid 且 Columns=2",
                 grids.Count == provider.CategoryCount + 1 && grids.All(g => g.Columns == 2),
                 $"UniformGrid={grids.Count}");
+            // 条目定位同第 1 节：走"宿主 ContentPresenter 挂的是网格条目模板"（不再靠 ToolTip）
+            var gridItemBorders = Descendants<ContentPresenter>(view)
+                .Where(cp => ReferenceEquals(cp.ContentTemplate, gridTemplate))
+                .Select(cp => VisualTreeHelper.GetChildrenCount(cp) > 0 ? VisualTreeHelper.GetChild(cp, 0) : null)
+                .OfType<Border>()
+                .ToList();
             Check("网格模式：条目数不变（只换模板，不换数据）",
-                Descendants<Border>(view).Count(b => b.DataContext is ToolItemModel && b.ToolTip != null)
-                == vm.FilteredToolBarSource.Sum(g => g.Children.Count),
-                $"界面条目={Descendants<Border>(view).Count(b => b.DataContext is ToolItemModel && b.ToolTip != null)}"
+                gridItemBorders.Count == vm.FilteredToolBarSource.Sum(g => g.Children.Count),
+                $"界面条目={gridItemBorders.Count}"
                 + $" / VM 条目={vm.FilteredToolBarSource.Sum(g => g.Children.Count)}");
             Render(host, "toolbox-grid.png");
 

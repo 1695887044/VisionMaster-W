@@ -1,0 +1,54 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+  HslCommunication -> D:\C#\VM\DLL\HslCommunication\bin\Debug\HslCommunication.dll
+  Core.Interfaces -> D:\C#\VM\Shard\Core.Interfaces\bin\Debug\net9.0\Core.Interfaces.dll
+  VM.Scada -> D:\C#\VM\Scada\bin\Debug\net9.0\VM.Scada.dll
+  Core.PluginGenerators -> D:\C#\VM\Shard\Core.PluginGenerators\bin\Debug\netstandard2.0\Core.PluginGenerators.dll
+  Core.Halcon -> D:\C#\VM\Services\Core.Halcon\bin\Debug\net9.0-windows\Core.Halcon.dll
+  VM.Scada.Controls -> D:\C#\VM\Scada.Controls\bin\Debug\net9.0-windows\VM.Scada.Controls.dll
+  Plugin.Camera.Hikvision -> D:\C#\VM\Plugins\Plugin.Camera.Hikvision\bin\Debug\net9.0-windows\Plugin.Camera.Hikvision.dll
+  Core.Controls -> D:\C#\VM\Shard\Core.Controls\bin\Debug\net9.0-windows\Core.Controls.dll
+  VM.Core -> D:\C#\VM\Core\bin\Debug\net9.0-windows\VM.Core.dll
+  VM.Communication -> D:\C#\VM\Communication\bin\Debug\net9.0-windows\VM.Communication.dll
+  VM.FlowEngine -> D:\C#\VM\Engine\bin\Debug\net9.0-windows\VM.FlowEngine.dll
+  UI -> D:\C#\VM\UI\Controls\bin\Debug\net9.0-windows\UI.dll
+  Plugin.DlClassify -> D:\C#\VM\Plugins\Plugin.DlClassify\bin\Debug\net9.0-windows\Plugin.DlClassify.dll
+  Plugin.CodeReader -> D:\C#\VM\Plugins\Plugin.CodeReader\bin\Debug\net9.0-windows\Plugin.CodeReader.dll
+  Plugin.Ocr -> D:\C#\VM\Plugins\Plugin.Ocr\bin\Debug\net9.0-windows\Plugin.Ocr.dll
+  Plugin.Yolo -> D:\C#\VM\Plugins\Plugin.Yolo\bin\Debug\net9.0-windows\Plugin.Yolo.dll
+  VisionMaster -> D:\C#\VM\VisionMaster\bin\Debug\net9.0-windows\VisionMaster.dll
+  复制了 1 个文件
+  复制了 5 个文件
+  复制了 5 个文件
+  Plugin.GeometryFinder -> D:\C#\VM\Plugins\Plugin.GeometryFinder\bin\Debug\net9.0-windows\Plugin.GeometryFinder.dll
+  Plugin.Util -> D:\C#\VM\Plugins\Plugin.Utility\bin\Debug\net9.0-windows\Plugin.Util.dll
+  Plugin.PoseTransform -> D:\C#\VM\Plugins\Plugin.PoseTransform\bin\Debug\net9.0-windows\Plugin.PoseTransform.dll
+  Plugin.CaliperMeasure -> D:\C#\VM\Plugins\Plugin.CaliperMeasure\bin\Debug\net9.0-windows\Plugin.CaliperMeasure.dll
+  Plugin.GeometryRelation -> D:\C#\VM\Plugins\Plugin.GeometryRelation\bin\Debug\net9.0-windows\Plugin.GeometryRelation.dll
+  Plugin.BlobDetect -> D:\C#\VM\Plugins\Plugin.BlobDetect\bin\Debug\net9.0-windows\Plugin.BlobDetect.dll
+  Plugin.ImageAcquisition -> D:\C#\VM\Plugins\Plugin.ImageAcquisition\bin\Debug\net9.0-windows\Plugin.ImageAcquisition.dll
+  Plugin.ResultDisplay -> D:\C#\VM\Plugins\Plugin.ResultDisplay\bin\Debug\net9.0-windows\Plugin.ResultDisplay.dll
+  Plugin.CreateRoi -> D:\C#\VM\Plugins\Plugin.CreateRoi\bin\Debug\net9.0-windows\Plugin.CreateRoi.dll
+  Plugin.BeadInspect -> D:\C#\VM\Plugins\Plugin.BeadInspect\bin\Debug\net9.0-windows\Plugin.BeadInspect.dll
+  Plugin.Matching -> D:\C#\VM\Plugins\Plugin.Matching\bin\Debug\net9.0-windows\Plugin.Matching.dll
+  Plugin.Calibration -> D:\C#\VM\Plugins\Plugin.Calibration\bin\Debug\net9.0-windows\Plugin.Calibration.dll
+  Plugin.Motion.Steps -> D:\C#\VM\Plugins\Plugin.Motion.Steps\bin\Debug\net9.0\Plugin.Motion.Steps.dll
+  Plugin.Motion.Virtual -> D:\C#\VM\Plugins\Plugin.Motion.Virtual\bin\Debug\net9.0\Plugin.Motion.Virtual.dll
+  Plugin.Motion.ZMotion -> D:\C#\VM\Plugins\Plugin.Motion.ZMotion\bin\Debug\net9.0\Plugin.Motion.ZMotion.dll
+D:\C#\VM\FlowCanvasChecks\HttpImageSmoke.cs(637,88): warning CS8625: 无法将 null 字面量转换为非 null 的引用类型。 [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+D:\C#\VM\FlowCanvasChecks\LogicBruteforceChecks.cs(1374,34): warning CS8625: 无法将 null 字面量转换为非 null 的引用类型。 [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+D:\C#\VM\FlowCanvasChecks\RenderProbe.cs(920,20): error CS0246: 未能找到类型或命名空间名“ObservableCollection<>”(是否缺少 using 指令或程序集引用?) [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+D:\C#\VM\FlowCanvasChecks\RenderProbe.cs(924,20): error CS0246: 未能找到类型或命名空间名“ObservableCollection<>”(是否缺少 using 指令或程序集引用?) [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+
+生成失败。
+
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+D:\C#\VM\FlowCanvasChecks\HttpImageSmoke.cs(637,88): warning CS8625: 无法将 null 字面量转换为非 null 的引用类型。 [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+D:\C#\VM\FlowCanvasChecks\LogicBruteforceChecks.cs(1374,34): warning CS8625: 无法将 null 字面量转换为非 null 的引用类型。 [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+D:\C#\VM\FlowCanvasChecks\RenderProbe.cs(920,20): error CS0246: 未能找到类型或命名空间名“ObservableCollection<>”(是否缺少 using 指令或程序集引用?) [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+D:\C#\VM\FlowCanvasChecks\RenderProbe.cs(924,20): error CS0246: 未能找到类型或命名空间名“ObservableCollection<>”(是否缺少 using 指令或程序集引用?) [D:\C#\VM\FlowCanvasChecks\FlowCanvasChecks.csproj]
+    3 个警告
+    2 个错误
+
+已用时间 00:00:01.96

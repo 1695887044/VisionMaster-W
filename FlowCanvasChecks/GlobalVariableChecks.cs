@@ -212,7 +212,10 @@ namespace FlowCanvasChecks
         //  ③ 本地来源下的固定列合计 + 星号下限 ≤ 最小窗口的右栏视口
         //    （本地来源下"来源/扫描组/地址"三列被代码后置整列收起，不计入）；
         //  ④ 代码后置的收放线仍在（IsNetworkSource + 三个列名），防静默删线。
-        // 右栏视口 = 窗口宽 −(216+12+296+12) 三栏结构 −(14×2) 外边距 = 宽 −564。
+        //
+        // 右栏视口 = 窗口宽 −(216+12) 两栏结构 −(14×2) 外边距 = 宽 −256。
+        // （2026-10-15 中栏 296+12 撤掉后，固定部分从 564 降到 256——视口反而变宽，
+        //   本条断言随之更宽松，但列宽契约本身没变：星号列仍不许被固定列挤没。）
 
         private static readonly string[] DetailCollapsedInLocalSource =
             { "SourceColumn", "ScanGroupColumn", "AddressColumn" };
@@ -258,11 +261,12 @@ namespace FlowCanvasChecks
 
             var minWidth = double.TryParse(
                 Regex.Match(text, @"Setter Property=""MinWidth"" Value=""(\d+)""").Groups[1].Value, out var mw) ? mw : 0;
-            double localViewport = minWidth - 564;
+            // 两栏结构（2026-10-15）：左栏 216 + 间隔 12 + 外边距 14×2 = 256
+            double localViewport = minWidth - 256;
 
             Check("【列宽】本地来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（当前值列必须始终可见）",
                 localViewport > 0 && fixedSum + starMin <= localViewport,
-                $"固定列=[{string.Join(",", fixedLocal)}] 合计={fixedSum:0} + 星号下限={starMin:0} ≤ 视口({MinWidthText(minWidth)}−564)={localViewport:0}");
+                $"固定列=[{string.Join(",", fixedLocal)}] 合计={fixedSum:0} + 星号下限={starMin:0} ≤ 视口({MinWidthText(minWidth)}−256)={localViewport:0}");
 
             var codeBehind = File.Exists(xamlPath.EndsWith(".xaml", StringComparison.Ordinal)
                 ? xamlPath.Substring(0, xamlPath.Length - 5) + ".xaml.cs"
@@ -405,11 +409,55 @@ namespace FlowCanvasChecks
                 && xaml.Contains("{Binding IsValueDeviated")
                 && !xaml.Contains("WriteValueCommand"),
                 "");
-            Check("【当前值】视图：明细表「初始值」列零残留（DefaultValueText/ChildDefaultValueText 不再被绑定），建表单有「初始值」项",
-                !xaml.Contains("DefaultValueText")
-                && xaml.Contains("{Binding NewInitialValueText")
-                && xaml.Contains("{Binding ShowNewInitialValue"),
+            Check("【当前值】视图：明细表「初始值」列零残留（DefaultValueText/ChildDefaultValueText 不再被绑定）",
+                !xaml.Contains("DefaultValueText"),
                 "");
+
+            // 2026-10-15 新增两条（中栏表单撤掉、「＋ 添加变量」改走属性网格弹窗）：
+            //  ② 录入入口必须在位——它从"中栏底部按钮"搬到"右栏卡片头"，控件换了位置但不能消失；
+            //  ③ 基准入口不能丢——「初始值」从中栏表单搬进弹窗草稿（VariableDraft.InitialValue）。
+            //     原来那条 "{Binding NewInitialValueText}" / "{Binding ShowNewInitialValue}" 是
+            //     "表单长在主视图里"的形状断言，主视图已经没有表单了，继续钉它是钉一个不存在的形状；
+            //     改成钉草稿的**反射契约**（见 ③），证明的是"这个字段真的会被属性网格渲染出来"。
+            //
+            // ① 先剥注释再扫（与同文件 :234 的列宽契约同口径）：不剥的话"把绑定挪进注释"也能保绿。
+            string xamlNoComments = Regex.Replace(xaml, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+            Check("★【当前值】添加变量入口在位：视图 XAML 绑 AddCommand（中栏底部按钮已搬到右栏卡片头）",
+                xamlNoComments.Contains("{Binding AddCommand}"),
+                "");
+
+            //  ③ 判据必须**按属性粒度**：早期写成"整文件同时含 InitialValue 与 [SuperDisplay]"，
+            //     两个关键词各自被别的属性满足 —— 把 [SuperDisplay] 从 InitialValue 上摘掉它照样绿，
+            //     是典型的"改坏了也不红"（R38 那类静默放行口）。
+            //     改成问 FlatPropertyGrid 自己：GetVisibleProperties 只认 [SuperDisplay] 且 Visible==true，
+            //     所以"InitialValue 在可见集里" = "弹窗里真有这一行"（范式照 ParallelGroupConfigChecks W5）。
+            var draft = new LocalVariableDraft();
+            var visibleDraftProps = UI.CustomControl.PropertyGrid.PropertyGridDefaults
+                .GetVisibleProperties(draft)
+                .Select(p => p.Name)
+                .ToList();
+            Check("★【当前值】初始值（基准）入口没丢：添加变量弹窗草稿的 InitialValue 带 [SuperDisplay]（属性网格真会渲染这一行）",
+                visibleDraftProps.Contains(nameof(LocalVariableDraft.InitialValue)),
+                $"草稿可见行 {visibleDraftProps.Count} 个：{string.Join("/", visibleDraftProps)}");
+
+            // 网络草稿多出的设备侧字段同样必须可见（连接/扫描组/存储区/偏移量/位偏移 + 两条只读说明）
+            var netVisible = UI.CustomControl.PropertyGrid.PropertyGridDefaults
+                .GetVisibleProperties(new NetworkVariableDraft(null, null, null, null))
+                .Select(p => p.Name)
+                .ToList();
+            bool netAllShown = new[]
+            {
+                nameof(NetworkVariableDraft.ConnectionName),
+                nameof(NetworkVariableDraft.ScanGroupName),
+                nameof(NetworkVariableDraft.AreaName),
+                nameof(NetworkVariableDraft.Offset),
+                nameof(NetworkVariableDraft.BitOffset),
+                nameof(NetworkVariableDraft.AddressPreview),
+                nameof(NetworkVariableDraft.CoilAreaHint),
+            }.All(netVisible.Contains);
+            Check("★【当前值】网络草稿的设备侧字段全部可见（缺一行 = 弹窗里静默少个输入框）",
+                netAllShown,
+                $"可见 {netVisible.Count} 行：{string.Join("/", netVisible)}");
             Check("【当前值】VM：写值弹窗死命令清干净（WriteValueCommand/ExecuteWriteValue 零残留）",
                 !vm.Contains("WriteValueCommand") && !vm.Contains("ExecuteWriteValue"),
                 "");

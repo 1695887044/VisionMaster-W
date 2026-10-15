@@ -1,0 +1,145 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+  HslCommunication -> D:\C#\VM\DLL\HslCommunication\bin\Debug\HslCommunication.dll
+  Core.Interfaces -> D:\C#\VM\Shard\Core.Interfaces\bin\Debug\net9.0\Core.Interfaces.dll
+  Core.Halcon -> D:\C#\VM\Services\Core.Halcon\bin\Debug\net9.0-windows\Core.Halcon.dll
+  VM.Scada -> D:\C#\VM\Scada\bin\Debug\net9.0\VM.Scada.dll
+  Core.PluginGenerators -> D:\C#\VM\Shard\Core.PluginGenerators\bin\Debug\netstandard2.0\Core.PluginGenerators.dll
+  VM.Scada.Controls -> D:\C#\VM\Scada.Controls\bin\Debug\net9.0-windows\VM.Scada.Controls.dll
+  Plugin.Motion.ZMotion -> D:\C#\VM\Plugins\Plugin.Motion.ZMotion\bin\Debug\net9.0\Plugin.Motion.ZMotion.dll
+  Core.Controls -> D:\C#\VM\Shard\Core.Controls\bin\Debug\net9.0-windows\Core.Controls.dll
+  Plugin.Motion.Virtual -> D:\C#\VM\Plugins\Plugin.Motion.Virtual\bin\Debug\net9.0\Plugin.Motion.Virtual.dll
+  Plugin.Camera.Hikvision -> D:\C#\VM\Plugins\Plugin.Camera.Hikvision\bin\Debug\net9.0-windows\Plugin.Camera.Hikvision.dll
+  Plugin.RunFlow -> D:\C#\VM\Plugins\Plugin.RunFlow\bin\Debug\net9.0\Plugin.RunFlow.dll
+  Plugin.Motion.Steps -> D:\C#\VM\Plugins\Plugin.Motion.Steps\bin\Debug\net9.0\Plugin.Motion.Steps.dll
+  Plugin.Util -> D:\C#\VM\Plugins\Plugin.Utility\bin\Debug\net9.0-windows\Plugin.Util.dll
+  VM.Core -> D:\C#\VM\Core\bin\Debug\net9.0-windows\VM.Core.dll
+  VM.Communication -> D:\C#\VM\Communication\bin\Debug\net9.0-windows\VM.Communication.dll
+  VM.FlowEngine -> D:\C#\VM\Engine\bin\Debug\net9.0-windows\VM.FlowEngine.dll
+  UI -> D:\C#\VM\UI\Controls\bin\Debug\net9.0-windows\UI.dll
+  Plugin.ResultDisplay -> D:\C#\VM\Plugins\Plugin.ResultDisplay\bin\Debug\net9.0-windows\Plugin.ResultDisplay.dll
+  Plugin.PreProcessing -> D:\C#\VM\Plugins\Plugin.PreProcessing\bin\Debug\net9.0-windows\Plugin.PreProcessing.dll
+  Plugin.ResultUpload -> D:\C#\VM\Plugins\Plugin.ResultUpload\bin\Debug\net9.0-windows\Plugin.ResultUpload.dll
+  Plugin.DataRecord -> D:\C#\VM\Plugins\Plugin.DataRecord\bin\Debug\net9.0-windows\Plugin.DataRecord.dll
+  Plugin.ColorCheck -> D:\C#\VM\Plugins\Plugin.ColorCheck\bin\Debug\net9.0-windows\Plugin.ColorCheck.dll
+  Plugin.ColorRegion -> D:\C#\VM\Plugins\Plugin.ColorRegion\bin\Debug\net9.0-windows\Plugin.ColorRegion.dll
+  Plugin.GeometryFinder -> D:\C#\VM\Plugins\Plugin.GeometryFinder\bin\Debug\net9.0-windows\Plugin.GeometryFinder.dll
+  Plugin.Calibration -> D:\C#\VM\Plugins\Plugin.Calibration\bin\Debug\net9.0-windows\Plugin.Calibration.dll
+  Plugin.ExcelExport -> D:\C#\VM\Plugins\Plugin.ExcelExport\bin\Debug\net9.0-windows\Plugin.ExcelExport.dll
+  Plugin.GeometryRelation -> D:\C#\VM\Plugins\Plugin.GeometryRelation\bin\Debug\net9.0-windows\Plugin.GeometryRelation.dll
+  Plugin.ImageScript -> D:\C#\VM\Plugins\Plugin.ImageScript\bin\Debug\net9.0-windows\Plugin.ImageScript.dll
+  Plugin.CodeReader -> D:\C#\VM\Plugins\Plugin.CodeReader\bin\Debug\net9.0-windows\Plugin.CodeReader.dll
+  Plugin.PoseTransform -> D:\C#\VM\Plugins\Plugin.PoseTransform\bin\Debug\net9.0-windows\Plugin.PoseTransform.dll
+  Plugin.CreateRoi -> D:\C#\VM\Plugins\Plugin.CreateRoi\bin\Debug\net9.0-windows\Plugin.CreateRoi.dll
+  Plugin.BlobDetect -> D:\C#\VM\Plugins\Plugin.BlobDetect\bin\Debug\net9.0-windows\Plugin.BlobDetect.dll
+  Plugin.Yolo -> D:\C#\VM\Plugins\Plugin.Yolo\bin\Debug\net9.0-windows\Plugin.Yolo.dll
+  Plugin.CSharpScript -> D:\C#\VM\Plugins\Plugin.CSharpScript\bin\Debug\net9.0-windows\Plugin.CSharpScript.dll
+  已复制         1 个文件。
+  Plugin.Ocr -> D:\C#\VM\Plugins\Plugin.Ocr\bin\Debug\net9.0-windows\Plugin.Ocr.dll
+  Plugin.ImageAcquisition -> D:\C#\VM\Plugins\Plugin.ImageAcquisition\bin\Debug\net9.0-windows\Plugin.ImageAcquisition.dll
+  已复制         1 个文件。
+  Plugin.BeadInspect -> D:\C#\VM\Plugins\Plugin.BeadInspect\bin\Debug\net9.0-windows\Plugin.BeadInspect.dll
+  VisionMaster -> D:\C#\VM\VisionMaster\bin\Debug\net9.0-windows\VisionMaster.dll
+  D:\C#\VM\Plugins\Plugin.CSharpScript\bin\Debug\net9.0-windows\Microsoft.CodeAnalysis.CSharp.dll
+  复制了 5 个文件
+  D:\C#\VM\Plugins\Plugin.CSharpScript\bin\Debug\net9.0-windows\Microsoft.CodeAnalysis.CSharp.Scripting.dll
+  D:\C#\VM\Plugins\Plugin.CSharpScript\bin\Debug\net9.0-windows\Microsoft.CodeAnalysis.dll
+  D:\C#\VM\Plugins\Plugin.CSharpScript\bin\Debug\net9.0-windows\Microsoft.CodeAnalysis.Scripting.dll
+  已复制         4 个文件。
+  复制了 1 个文件
+  Plugin.CaliperMeasure -> D:\C#\VM\Plugins\Plugin.CaliperMeasure\bin\Debug\net9.0-windows\Plugin.CaliperMeasure.dll
+  Plugin.Matching -> D:\C#\VM\Plugins\Plugin.Matching\bin\Debug\net9.0-windows\Plugin.Matching.dll
+  复制了 34 个文件
+  Plugin.DlClassify -> D:\C#\VM\Plugins\Plugin.DlClassify\bin\Debug\net9.0-windows\Plugin.DlClassify.dll
+  复制了 5 个文件
+  CommStress -> D:\C#\VM\CommStress\bin\Debug\net9.0-windows\CommStress.dll
+  CommChecks -> D:\C#\VM\CommChecks\bin\Debug\net9.0-windows\CommChecks.dll
+D:\C#\VM\ScadaChecks\Program.cs(2200,30): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(2215,30): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(4268,61): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(6978,17): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(11855,68): warning CS8603: 可能返回 null 引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(11858,20): warning CS8603: 可能返回 null 引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16090,77): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16091,81): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16096,76): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16097,69): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16099,27): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16099,63): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16107,86): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16108,86): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16139,75): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16144,73): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16144,93): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16145,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16148,77): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16165,83): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16166,20): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16167,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16169,91): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16170,79): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16178,54): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16178,75): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16179,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16182,71): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16183,20): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16186,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16189,75): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16193,81): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16200,50): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16215,69): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16216,20): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16217,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16257,84): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16372,80): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16839,52): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+  ScadaChecks -> D:\C#\VM\ScadaChecks\bin\Debug\net9.0-windows\ScadaChecks.dll
+  FlowCanvasChecks -> D:\C#\VM\FlowCanvasChecks\bin\Debug\net9.0-windows\FlowCanvasChecks.dll
+
+已成功生成。
+
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(2200,30): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(2215,30): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(4268,61): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(6978,17): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(11855,68): warning CS8603: 可能返回 null 引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(11858,20): warning CS8603: 可能返回 null 引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16090,77): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16091,81): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16096,76): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16097,69): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16099,27): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16099,63): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16107,86): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16108,86): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16139,75): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16144,73): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16144,93): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16145,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16148,77): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16165,83): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16166,20): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16167,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16169,91): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16170,79): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16178,54): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16178,75): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16179,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16182,71): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16183,20): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16186,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16189,75): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16193,81): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16200,50): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16215,69): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16216,20): warning CS8602: 解引用可能出现空引用。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16217,17): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16257,84): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16372,80): warning CS8600: 将 null 文本或可能的 null 值转换为不可为 null 类型。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+D:\C#\VM\ScadaChecks\Program.cs(16839,52): warning CS8604: “void Program.Check(string name, bool ok, string detail)”中的形参“detail”可能传入 null 引用实参。 [D:\C#\VM\ScadaChecks\ScadaChecks.csproj]
+    40 个警告
+    0 个错误
+
+已用时间 00:00:03.90

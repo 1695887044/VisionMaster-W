@@ -1,0 +1,36 @@
+[render][diag] flowcanvas-render-A.png 数据线=0 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-A.png
+[render][diag] flowcanvas-render-A2-datalinks.png 数据线=1 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-A2-datalinks.png
+[render][diag] flowcanvas-render-B.png 数据线=0 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-B.png
+[render][diag] flowcanvas-render-C-expand.png 数据线=1 顺序链=4 非法=1 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-C-expand.png
+[render][diag] flowcanvas-render-C-collapse.png 数据线=0 顺序链=4 非法=0 降级=0 折叠隐藏=1
+[render] _renderout\flowcanvas-render-C-collapse.png
+[render][diag] flowcanvas-render-D-10levels.png 数据线=0 顺序链=6 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-D-10levels.png
+[render][diag] flowcanvas-render-E-parallel.png 数据线=2 顺序链=4 非法=2 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-E-parallel.png
+[render][check] 分支卡片被拦截=True（期望 True）；分支箭头被拦截=False（期望 False）；算子卡片被拦截=False（期望 False）
+[render][check] 分支胶囊菜单=True（期望 True：项=2 靶绑定=PlacementTarget.DataContext DataContext=非空）；右键胶囊被拦截=False（期望 False，放行开胶囊菜单）；右键非并行分支被拦截=True（期望 True）
+[render][check] 组头菜单「添加分支」=True（期望 True：命令=AddParallelBranchCommand 靶=SelectStep 可见性=IsParallelNodeSelected）
+[render] _renderout\process-tree-render-F.png
+[render] _renderout\parallel-group-params-render-G.png
+[render][diag] flowcanvas-render-H-parallel-nested.png 数据线=0 顺序链=6 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-H-parallel-nested.png
+[render][check] 嵌套框 ZOrder=6 > 兄弟泳道 ZOrder=4（期望 True）= True
+[render][check] 节点容器=16；Panel.ZIndex 与 VM.ZOrder 一致=True（不一致 0 个）；items 宿主=NodifyCanvas（Panel 才吃 Panel.ZIndex）
+[render][check] 画布节点菜单「模块参数…」存在=True（期望 True）；命令绑定=OpenModuleParametersCommand（期望 OpenModuleParametersCommand）；折叠钮 x:Name=ContainerCollapseToggle 存在=True（期望 True，双击豁免判据）
+[render][check] 双击命中路由：算子卡片→节点 VM（开参数）（期望节点 VM）；折叠钮内文字→null（豁免）（期望 null）；连接点→null（豁免）（期望 null）
+[render] 场景 I：变量管理两栏（左栏来源 2 项 / 右栏明细 5 行，添加变量入口 = 右栏卡片头 AddCommand）
+[render] _renderout\variable-manager-render-I.png
+[render][check] 场景 J 属性网格 Tab 数=3（预期 3：基本 / 网络参数 / 说明）
+[render] 场景 J：添加变量弹窗（网络变量草稿 FlatPropertyGrid，连接=PLC_01 扫描组=快组 (50ms) 存储区=保持寄存器 (4x, 读写字) 地址预览=x=3;100）
+[render] _renderout\variable-add-popup-render-J.png
+[render][diag] perf300 extent=11120x6914 zoom=0.11
+[perf] N=300 节点=300（预期 300） RebuildInPlace=218.3 ms 全帧=876.7 ms
+[render] _renderout\flowcanvas-render-perf-300.png
+[render][diag] perf600 extent=11318x13824 zoom=0.11
+[perf] N=600 节点=600（预期 600） RebuildInPlace=297.1 ms 全帧=1388.6 ms
+[render] _renderout\flowcanvas-render-perf-600.png

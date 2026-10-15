@@ -26,6 +26,10 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
   <!-- 插件私有依赖投递（插件自身 DLL 的投递已由 Plugins\Directory.Build.targets 统一处理） -->
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Exec Command="copy &quot;$(TargetDir)MiniExcel.dll&quot; &quot;$(ModulesDir)&quot; /Y" />

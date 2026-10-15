@@ -1,0 +1,137 @@
+[render][diag] flowcanvas-render-A.png 数据线=0 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-A.png
+[render][diag] flowcanvas-render-A2-datalinks.png 数据线=1 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-A2-datalinks.png
+[render][diag] flowcanvas-render-B.png 数据线=0 顺序链=1 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-B.png
+[render][diag] flowcanvas-render-C-expand.png 数据线=1 顺序链=4 非法=1 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-C-expand.png
+[render][diag] flowcanvas-render-C-collapse.png 数据线=0 顺序链=4 非法=0 降级=0 折叠隐藏=1
+[render] _renderout\flowcanvas-render-C-collapse.png
+[render][diag] flowcanvas-render-D-10levels.png 数据线=0 顺序链=6 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-D-10levels.png
+[render][diag] flowcanvas-render-E-parallel.png 数据线=2 顺序链=4 非法=2 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-E-parallel.png
+[render][check] 分支卡片被拦截=True（期望 True）；分支箭头被拦截=False（期望 False）；算子卡片被拦截=False（期望 False）
+[render][check] 分支胶囊菜单=True（期望 True：项=2 靶绑定=PlacementTarget.DataContext DataContext=非空）；右键胶囊被拦截=False（期望 False，放行开胶囊菜单）；右键非并行分支被拦截=True（期望 True）
+[render][check] 组头菜单「添加分支」=True（期望 True：命令=AddParallelBranchCommand 靶=SelectStep 可见性=IsParallelNodeSelected）
+[render] _renderout\process-tree-render-F.png
+[render] _renderout\parallel-group-params-render-G.png
+[render][diag] flowcanvas-render-H-parallel-nested.png 数据线=0 顺序链=6 非法=0 降级=0 折叠隐藏=0
+[render] _renderout\flowcanvas-render-H-parallel-nested.png
+[render][check] 嵌套框 ZOrder=6 > 兄弟泳道 ZOrder=4（期望 True）= True
+[render][check] 节点容器=16；Panel.ZIndex 与 VM.ZOrder 一致=True（不一致 0 个）；items 宿主=NodifyCanvas（Panel 才吃 Panel.ZIndex）
+[render][check] 画布节点菜单「模块参数…」存在=True（期望 True）；命令绑定=OpenModuleParametersCommand（期望 OpenModuleParametersCommand）；折叠钮 x:Name=ContainerCollapseToggle 存在=True（期望 True，双击豁免判据）
+[render][check] 双击命中路由：算子卡片→节点 VM（开参数）（期望节点 VM）；折叠钮内文字→null（豁免）（期望 null）；连接点→null（豁免）（期望 null）
+Unhandled exception. System.Windows.Markup.XamlParseException: 在“System.Windows.Markup.StaticResourceHolder”上提供值时引发了异常。
+ ---> System.Exception: 无法找到名为“ExpandToggleButtonTemplate”的资源。资源名称区分大小写。
+   at System.Windows.StaticResourceExtension.ProvideValueInternal(IServiceProvider serviceProvider, Boolean allowDeferredReference)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.CallProvideValue(MarkupExtension me, IServiceProvider serviceProvider)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, Uri baseUri)
+   at System.Windows.FrameworkTemplate.LoadTemplateXaml(XamlReader templateReader, XamlObjectWriter currentWriter)
+   at System.Windows.FrameworkTemplate.LoadOptimizedTemplateContent(DependencyObject container, IComponentConnector componentConnector, IStyleConnector styleConnector, List`1 affectedChildren, UncommonField`1 templatedNonFeChildrenField)
+   at System.Windows.FrameworkTemplate.LoadContent(DependencyObject container, List`1 affectedChildren)
+   at System.Windows.StyleHelper.ApplyTemplateContent(UncommonField`1 dataField, DependencyObject container, FrameworkElementFactory templateRoot, Int32 lastChildIndex, HybridDictionary childIndexFromChildID, FrameworkTemplate frameworkTemplate)
+   at System.Windows.FrameworkTemplate.ApplyTemplateContent(UncommonField`1 templateDataField, FrameworkElement container)
+   at System.Windows.FrameworkElement.ApplyTemplate()
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at MS.Internal.Helper.MeasureElementWithSingleChild(UIElement element, Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Border.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Control.MeasureOverride(Size constraint)
+   at System.Windows.Controls.DataGridCell.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.DataGridCellsPanel.MeasureChild(UIElement child, Size constraint)
+   at System.Windows.Controls.DataGridCellsPanel.GenerateChild(IItemContainerGenerator generator, Size constraint, DataGridColumn column, Int32& childIndex, Size& childSize)
+   at System.Windows.Controls.DataGridCellsPanel.GenerateChildren(IItemContainerGenerator generator, Int32 startIndex, Int32 endIndex, Size constraint)
+   at System.Windows.Controls.DataGridCellsPanel.GenerateAndMeasureChildrenForRealizedColumns(Size constraint)
+   at System.Windows.Controls.DataGridCellsPanel.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at MS.Internal.Helper.MeasureElementWithSingleChild(UIElement element, Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Control.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Grid.MeasureCell(Int32 cell, Boolean forceInfinityV)
+   at System.Windows.Controls.Grid.MeasureCellsGroup(Int32 cellsHead, Size referenceSize, Boolean ignoreDesiredSizeU, Boolean forceInfinityV, Boolean& hasDesiredSizeUChanged)
+   at System.Windows.Controls.Grid.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Border.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Control.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.VirtualizingStackPanel.MeasureChild(IItemContainerGenerator& generator, IContainItemStorage& itemStorageProvider, IContainItemStorage& parentItemStorageProvider, Object& parentItem, Boolean& hasUniformOrAverageContainerSizeBeenSet, Double& computedUniformOrAverageContainerSize, Double& computedUniformOrAverageContainerPixelSize, Boolean& computedAreContainersUniformlySized, Boolean& hasAnyContainerSpanChanged, IList& items, Object& item, IList& children, Int32& childIndex, Boolean& visualOrderChanged, Boolean& isHorizontal, Size& childConstraint, Rect& viewport, VirtualizationCacheLength& cacheSize, VirtualizationCacheLengthUnit& cacheUnit, Int64& scrollGeneration, Boolean& foundFirstItemInViewport, Double& firstItemInViewportOffset, Size& stackPixelSize, Size& stackPixelSizeInViewport, Size& stackPixelSizeInCacheBeforeViewport, Size& stackPixelSizeInCacheAfterViewport, Size& stackLogicalSize, Size& stackLogicalSizeInViewport, Size& stackLogicalSizeInCacheBeforeViewport, Size& stackLogicalSizeInCacheAfterViewport, Boolean& mustDisableVirtualization, Boolean isBeforeFirstItem, Boolean isAfterFirstItem, Boolean isAfterLastItem, Boolean skipActualMeasure, Boolean skipGeneration, Boolean& hasBringIntoViewContainerBeenMeasured, Boolean& hasVirtualizingChildren)
+   at System.Windows.Controls.VirtualizingStackPanel.MeasureOverrideImpl(Size constraint, Nullable`1& lastPageSafeOffset, List`1& previouslyMeasuredOffsets, Nullable`1& lastPagePixelSize, Boolean remeasure)
+   at System.Windows.Controls.VirtualizingStackPanel.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at MS.Internal.Helper.MeasureElementWithSingleChild(UIElement element, Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at MS.Internal.Helper.MeasureElementWithSingleChild(UIElement element, Size constraint)
+   at System.Windows.Controls.ScrollContentPresenter.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Grid.MeasureCell(Int32 cell, Boolean forceInfinityV)
+   at System.Windows.Controls.Grid.MeasureCellsGroup(Int32 cellsHead, Size referenceSize, Boolean ignoreDesiredSizeU, Boolean forceInfinityV, Boolean& hasDesiredSizeUChanged)
+   at System.Windows.Controls.Grid.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.ScrollViewer.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Border.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Control.MeasureOverride(Size constraint)
+   at System.Windows.Controls.DataGrid.MeasureOverride(Size availableSize)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Grid.MeasureCell(Int32 cell, Boolean forceInfinityV)
+   at System.Windows.Controls.Grid.MeasureCellsGroup(Int32 cellsHead, Size referenceSize, Boolean ignoreDesiredSizeU, Boolean forceInfinityV, Boolean& hasDesiredSizeUChanged)
+   at System.Windows.Controls.Grid.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Border.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Grid.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Grid.MeasureCell(Int32 cell, Boolean forceInfinityV)
+   at System.Windows.Controls.Grid.MeasureCellsGroup(Int32 cellsHead, Size referenceSize, Boolean ignoreDesiredSizeU, Boolean forceInfinityV, Boolean& hasDesiredSizeUChanged)
+   at System.Windows.Controls.Grid.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Grid.MeasureCell(Int32 cell, Boolean forceInfinityV)
+   at System.Windows.Controls.Grid.MeasureCellsGroup(Int32 cellsHead, Size referenceSize, Boolean ignoreDesiredSizeU, Boolean forceInfinityV, Boolean& hasDesiredSizeUChanged)
+   at System.Windows.Controls.Grid.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at MS.Internal.Helper.MeasureElementWithSingleChild(UIElement element, Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Border.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Control.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at System.Windows.Controls.Border.MeasureOverride(Size constraint)
+   at System.Windows.FrameworkElement.MeasureCore(Size availableSize)
+   at System.Windows.UIElement.Measure(Size availableSize)
+   at FlowCanvasChecks.RenderProbe.RenderScenarioI(String path) in D:\C#\VM\FlowCanvasChecks\RenderProbe.cs:line 781
+   at FlowCanvasChecks.RenderProbe.RenderBoth(String outDir) in D:\C#\VM\FlowCanvasChecks\RenderProbe.cs:line 84
+   at FlowCanvasChecks.RenderProbe.<>c__DisplayClass0_0.<Run>b__0() in D:\C#\VM\FlowCanvasChecks\RenderProbe.cs:line 54

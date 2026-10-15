@@ -12,6 +12,11 @@
     <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>
 
+  <!-- 内置帮助手册：Help\ 下每个 .md 一页，宿主按 {程序集名}.Help. 前缀扫描（页序 = 文件名典序） -->
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
   <!-- 像素格式分类等 internal 成员对断言工程开放（与 VisionMaster 对 ScadaChecks 同一口径） -->
   <ItemGroup>
     <InternalsVisibleTo Include="FlowCanvasChecks" />

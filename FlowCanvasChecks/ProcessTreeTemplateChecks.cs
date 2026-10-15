@@ -82,6 +82,14 @@ namespace FlowCanvasChecks
             Check("U5：StepCollection 分支胶囊模板在座",
                 xaml.Contains(Key("StepCollection")),
                 "分支卡片样式 (StepCollection)");
+
+            // ---- U6：失败自动跳转开关必须有界面入口（搜索行下线后的唯一入口）----
+            // 2026-10-14：搜索行整行下线时把「失败自动跳转」勾选框一起删了，而 VM 里该开关
+            // 默认 true → 失败强制切选中、用户无处可关。删除是**静默的**（界面少个框，
+            // 断言、构建、出图全绿），所以只能静态钉住：XAML 必须存在绑到该属性的勾选框。
+            Check("U6：失败自动跳转开关在界面上有入口（ProcessView 绑 AutoJumpToFailure 的 CheckBox）",
+                xaml.Contains("IsChecked=\"{Binding AutoJumpToFailure}\""),
+                "搜索行下线后这是唯一入口；缺它 = 失败强制切选中且无法关闭");
         }
     }
 }

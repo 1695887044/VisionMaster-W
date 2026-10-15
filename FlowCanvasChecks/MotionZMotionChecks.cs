@@ -301,6 +301,76 @@ namespace FlowCanvasChecks
             Check("★枚举候选从端口**类型**现场推（不依赖 PresetOptions 快照，那条路会拿到空）",
                 bindingVmText.Contains("type.IsEnum") && bindingVmText.Contains("Enum.GetNames(type)"), "");
 
+            // ★ 下拉里必须是中文（2026-10-14 真机截图：「几何查找」的查找类型显示成 Circle、
+            //   拟合算法显示成 Regression）。根因不在插件 —— 成员上本来就标了 [Display(Name="圆")]，
+            //   是**自动参数面板与绑定窗口**把候选喂成 Enum.GetNames 的成员名，等于把已经写好的中文丢掉。
+            //   口径：显示走 [Display]，**值仍是成员名**（流程与 .vms JSON 存成员名、写回走 Enum.Parse，
+            //   拿"圆"当值 = 改一次显示名就打断一条已配好的流程，与 MotionDescriptor 的 Id/显示名同坑）。
+            string kindProbe = "未执行";
+            var kindThread = new Thread(() =>
+            {
+                var port = new InputPort<Plugin.GeometryFinder.GeometryFindKind>(
+                    "Kind", Plugin.GeometryFinder.GeometryFindKind.Line, "查找类型（直线/圆/椭圆）");
+                var editor = new Core.Controls.LinkableValueEditor { Port = port };
+                editor.Measure(new System.Windows.Size(520, 40));
+                editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
+                editor.UpdateLayout();
+                kindProbe = string.Join(" ", editor.EnumOptions.Select(o => $"{o.Value}→{o.Display}"));
+
+                // 按"用户选了圆"走一遍真实写路径：下拉选中 → PortValue → 端口
+                editor.PortValue = "Circle";
+                kindProbe += $" 端口值={port.Value}";
+            });
+            kindThread.SetApartmentState(ApartmentState.STA);
+            kindThread.Start();
+            kindThread.Join(8000);
+
+            Check("★枚举下拉显示 [Display] 的中文名（现场不该看到 Circle 这种认不出含义的英文）",
+                kindProbe.Contains("Line→直线") && kindProbe.Contains("Circle→圆") && kindProbe.Contains("Ellipse→椭圆"),
+                kindProbe);
+
+            Check("★显示中文不串位：下拉选完写进端口的仍是成员名 Circle（存进 .vms 的是稳定键，不是显示名）",
+                kindProbe.Contains("端口值=Circle"), kindProbe);
+
+            var noAttrOption = StepConfigOption.ForEnum(typeof(StringComparison), "Ordinal");
+            Check("没标 [Display] 的成员回退成员名（不是回退成空白 —— 空白等于下拉里看不出选了什么）",
+                noAttrOption.Value == "Ordinal" && noAttrOption.Display == "Ordinal",
+                $"值={noAttrOption.Value} 显示={noAttrOption.Display}");
+
+            Check("★两处枚举候选共用同一个工厂（自动参数面板 + 绑定窗口，不再各写一份 new StepConfigOption(成员名)）",
+                linkableText.Contains("StepConfigOption.ForEnum") && bindingVmText.Contains("StepConfigOption.ForEnum")
+                && !linkableText.Contains("new StepConfigOption(name)"),
+                "两处各写一份 = 改一处漏一处，另一处又退回英文");
+
+            // 下拉涉及的枚举逐个过中文闸门：新增成员忘了标 [Display]，这里立刻红
+            var geoEnumTypes = new[]
+            {
+                typeof(Plugin.GeometryFinder.GeometryFindKind),
+                typeof(Plugin.GeometryFinder.FitAlgorithmKind),
+                typeof(Plugin.GeometryRelation.GeometryOp),
+                typeof(Plugin.GeometryRelation.LineRelationKind),
+                typeof(Plugin.GeometryRelation.ConstructKind),
+                typeof(Plugin.Motion.Steps.MotionMoveMode),
+                typeof(Plugin.Motion.Steps.MotionStopMode),
+                typeof(Plugin.Motion.Steps.MotionIoDirection),
+            };
+            var englishLeft = string.Join(" ", geoEnumTypes
+                .SelectMany(t => Enum.GetNames(t).Select(n => (Type: t, Name: n)))
+                .Where(x =>
+                {
+                    var display = StepConfigOption.ForEnum(x.Type, x.Name).Display;
+                    return !display.Any(c => c >= 0x4E00 && c <= 0x9FFF) || display == x.Name;
+                })
+                .Select(x => $"{x.Type.Name}.{x.Name}"));
+            Check("★几何两插件 + 运动三步骤的枚举成员逐个有中文显示名（HALCON/SDK 字面量只留在注释里，不进界面）",
+                englishLeft.Length == 0 && geoEnumTypes.Sum(t => Enum.GetNames(t).Length) == 23,
+                string.IsNullOrEmpty(englishLeft) ? "23/23 有中文" : "缺中文: " + englishLeft);
+
+            Check("★拟合算法的显示名不再带 HALCON 英文（'regression' 这类只该出现在代码注释与文档里）",
+                StepConfigOption.ForEnum(typeof(Plugin.GeometryFinder.FitAlgorithmKind), "Regression").Display == "最小二乘"
+                && !StepConfigOption.ForEnum(typeof(Plugin.GeometryFinder.FitAlgorithmKind), "Tukey").Display.Contains("("),
+                StepConfigOption.ForEnum(typeof(Plugin.GeometryFinder.FitAlgorithmKind), "Regression").Display);
+
             // 真验证：这条链的前提是"能从类型名解析回枚举类型"，解析失败的话候选永远是空的。
             var enumType = VisionMaster.Helpers.TypeHelper.ResolveType(typeof(StringComparison).AssemblyQualifiedName);
             Check("★类型名能解析回枚举类型（解析不回来，枚举候选就永远是空的）",

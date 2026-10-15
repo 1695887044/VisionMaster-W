@@ -123,8 +123,9 @@ namespace Core.Controls
         /// 用 ObservableCollection 而不是 List：控件是先绑好 ItemsSource、
         /// 之后再设置 Port 的，普通 List 清空重填不会通知界面，下拉会是空的。
         ///
-        /// 元素用 StepConfigOption（值/显示分离）：枚举的显示就是成员名；
-        /// 卡地址的显示是「设备名（IP）」—— 只显示 IP 时几张卡根本认不出谁是谁，
+        /// 元素用 StepConfigOption（值/显示分离）：枚举的显示是成员上的 <c>[Display(Name)]</c>
+        /// （中文"圆"，值仍是成员名 Circle）；卡地址的显示是「设备名（IP）」——
+        /// 只显示 IP 时几张卡根本认不出谁是谁，
         /// 而写进流程的必须是稳定的地址键（见 MotionDescriptor 关于显示名的注释）。
         /// </summary>
         public System.Collections.ObjectModel.ObservableCollection<StepConfigOption> EnumOptions { get; }
@@ -226,7 +227,7 @@ namespace Core.Controls
             if (port.DataType?.IsEnum == true)
             {
                 foreach (var name in Enum.GetNames(port.DataType))
-                    editor.EnumOptions.Add(new StepConfigOption(name));
+                    editor.EnumOptions.Add(StepConfigOption.ForEnum(port.DataType, name));
             }
             else if (port.IsFunctionalEnum && port.OptionKind is { } kind)
             {

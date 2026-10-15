@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Plugin.Motion.Steps
 {
     /// <summary>
@@ -10,9 +12,11 @@ namespace Plugin.Motion.Steps
     public enum MotionMoveMode
     {
         /// <summary>绝对运动：走到指定的坐标点</summary>
+        [Display(Name = "绝对（走到坐标点）")]
         Absolute = 0,
 
         /// <summary>相对运动：从当前位置再走一段（增量，可为负）</summary>
+        [Display(Name = "相对（再走一段）")]
         Relative = 1,
     }
 
@@ -23,9 +27,11 @@ namespace Plugin.Motion.Steps
     public enum MotionStopMode
     {
         /// <summary>减速停：按当前加减速曲线停下 —— 默认，对机械冲击小</summary>
+        [Display(Name = "减速停")]
         Decelerate = 2,
 
         /// <summary>立即停：切断运动立即停止 —— 仅急停/限位等场合使用，对机械冲击大</summary>
+        [Display(Name = "立即停（急停/限位）")]
         Immediate = 3,
     }
 
@@ -33,9 +39,11 @@ namespace Plugin.Motion.Steps
     public enum MotionIoDirection
     {
         /// <summary>写输出（气缸、指示灯等）</summary>
+        [Display(Name = "写输出")]
         WriteOutput = 0,
 
         /// <summary>读输入（传感器、限位等）</summary>
+        [Display(Name = "读输入")]
         ReadInput = 1,
     }
 }

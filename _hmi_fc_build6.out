@@ -1,0 +1,35 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+  HslCommunication -> D:\C#\VM\DLL\HslCommunication\bin\Debug\HslCommunication.dll
+  VM.Scada -> D:\C#\VM\Scada\bin\Debug\net9.0\VM.Scada.dll
+  Core.Interfaces -> D:\C#\VM\Shard\Core.Interfaces\bin\Debug\net9.0\Core.Interfaces.dll
+  Core.PluginGenerators -> D:\C#\VM\Shard\Core.PluginGenerators\bin\Debug\netstandard2.0\Core.PluginGenerators.dll
+  VM.Scada.Controls -> D:\C#\VM\Scada.Controls\bin\Debug\net9.0-windows\VM.Scada.Controls.dll
+  Plugin.Camera.Hikvision -> D:\C#\VM\Plugins\Plugin.Camera.Hikvision\bin\Debug\net9.0-windows\Plugin.Camera.Hikvision.dll
+  Core.Halcon -> D:\C#\VM\Services\Core.Halcon\bin\Debug\net9.0-windows\Core.Halcon.dll
+  Core.Controls -> D:\C#\VM\Shard\Core.Controls\bin\Debug\net9.0-windows\Core.Controls.dll
+  VM.Core -> D:\C#\VM\Core\bin\Debug\net9.0-windows\VM.Core.dll
+  VM.Communication -> D:\C#\VM\Communication\bin\Debug\net9.0-windows\VM.Communication.dll
+  VM.FlowEngine -> D:\C#\VM\Engine\bin\Debug\net9.0-windows\VM.FlowEngine.dll
+  UI -> D:\C#\VM\UI\Controls\bin\Debug\net9.0-windows\UI.dll
+  Plugin.DlClassify -> D:\C#\VM\Plugins\Plugin.DlClassify\bin\Debug\net9.0-windows\Plugin.DlClassify.dll
+  Plugin.Yolo -> D:\C#\VM\Plugins\Plugin.Yolo\bin\Debug\net9.0-windows\Plugin.Yolo.dll
+  Plugin.CodeReader -> D:\C#\VM\Plugins\Plugin.CodeReader\bin\Debug\net9.0-windows\Plugin.CodeReader.dll
+  Plugin.Ocr -> D:\C#\VM\Plugins\Plugin.Ocr\bin\Debug\net9.0-windows\Plugin.Ocr.dll
+  共享违规
+  复制了 0 个文件
+  无法创建目录 - D:\C#\VM\VisionMaster\bin\Debug\net9.0-windows\
+D:\C#\VM\Plugins\Plugin.Yolo\Plugin.Yolo.csproj(75,5): error MSB3073: 命令“xcopy "D:\C#\VM\Plugins\Plugin.Yolo\..\..\DLL\OnnxRuntime" "D:\C#\VM\Plugins\..\VisionMaster\bin\Debug\net9.0-windows\" /Y /Q /I”已退出，代码为 4。
+  复制了 5 个文件
+  复制了 1 个文件
+  VisionMaster -> D:\C#\VM\VisionMaster\bin\Debug\net9.0-windows\VisionMaster.dll
+
+生成失败。
+
+C:\Program Files\dotnet\sdk\9.0.318\Microsoft.Common.CurrentVersion.targets(2433,5): warning MSB3245: 未能解析此引用。未能找到程序集“System.Resources.Extensions”。请检查磁盘上是否存在该程序集。 如果您的代码需要此引用，则可能出现编译错误。 [D:\C#\VM\DLL\HslCommunication\HslCommunication.csproj]
+D:\C#\VM\Plugins\Plugin.Yolo\Plugin.Yolo.csproj(75,5): error MSB3073: 命令“xcopy "D:\C#\VM\Plugins\Plugin.Yolo\..\..\DLL\OnnxRuntime" "D:\C#\VM\Plugins\..\VisionMaster\bin\Debug\net9.0-windows\" /Y /Q /I”已退出，代码为 4。
+    1 个警告
+    1 个错误
+
+已用时间 00:00:01.37

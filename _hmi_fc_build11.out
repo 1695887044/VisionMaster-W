@@ -1,0 +1,10 @@
+FlowCanvasChecks\FlowCanvasChecks.csproj:    <ProjectReference Include="..\VisionMaster\VisionMaster.csproj" />
+FINDSTR: 无法打开 ;
+FINDSTR: 无法打开 echo
+FINDSTR: 无法打开 --- procs above ---
+FINDSTR: 无法打开 ;
+FINDSTR: 无法打开 dotnet
+FINDSTR: 无法打开 build
+FINDSTR: 无法打开 -c
+FINDSTR: 无法打开 Debug
+FINDSTR: 无法打开 --nologo

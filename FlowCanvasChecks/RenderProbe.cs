@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Reflection;
 using System.Threading;
@@ -80,6 +81,8 @@ namespace FlowCanvasChecks
             RenderScenarioF(Path.Combine(outDir, "process-tree-render-F.png"));
             RenderScenarioG(Path.Combine(outDir, "parallel-group-params-render-G.png"));
             RenderScenarioH(Path.Combine(outDir, "flowcanvas-render-H-parallel-nested.png"));
+            RenderScenarioI(Path.Combine(outDir, "variable-manager-render-I.png"));
+            RenderScenarioJ(Path.Combine(outDir, "variable-add-popup-render-J.png"));
 
             // 性能量化（2026-10-12 评审清单第三批）：压力图式 300/600 节点，只量化不优化——
             // RebuildInPlace / 整帧毫秒打 [perf] 行（3 次取中位数），结论供评审拍板"第一刀接不接局部刷新"
@@ -669,6 +672,13 @@ namespace FlowCanvasChecks
             public TreeProbeViewModel(WorkspaceContext workspace) => Workspace = workspace;
 
             public WorkspaceContext Workspace { get; }
+
+            /// <summary>
+            /// 底部工具条的「失败自动跳转」勾选框也绑这个属性（搜索行下线后它是唯一入口）。
+            /// 桩上给真机默认值 true：不给的话绑定静默落空、出图里框是空的，
+            /// 看图的会以为"默认关"——而真机默认是开。
+            /// </summary>
+            public bool AutoJumpToFailure { get; set; } = true;
         }
 
         /// <summary>
@@ -725,6 +735,342 @@ namespace FlowCanvasChecks
             finally
             {
                 Application.Current.Resources.MergedDictionaries.Remove(theme);
+            }
+        }
+
+        /// <summary>
+        /// 场景 I：变量管理弹窗（两栏版）——真 GlobalVariableView + 最小桩 VM 出图。
+        ///
+        /// 为什么要出这张图：2026-10-15 把"三栏（来源 / 新建表单 / 明细）"收成"两栏
+        /// （来源 / 明细）并把录入动作搬进「＋ 添加变量」弹窗，这是**布局级**改动——
+        /// 断言只能守住"控件还在、列宽契约还在"，守不住"左栏 216 下右栏会不会挤、卡片头
+        /// 那颗按钮会不会被搜索框顶出去"。出图供人眼复核。
+        ///
+        /// 桩 VM 提供：SourceNodes（本地 + 一条连接）/ SelectedSource / FilteredDisplayNodes
+        /// （≥4 行：本地标量、本地数组根 + 2 个元素子行、网络变量）/ SearchText / AddCommand。
+        /// 视图用的 Dialog* 资源只在本次渲染期间临时并入（照场景 F 的思路，出图毕即摘）。
+        /// </summary>
+        private static void RenderScenarioI(string path)
+        {
+            // 与场景 F 同款：本视图引用的 Dialog.* 各分册、Button/List 基础控件皮肤
+            // 都挂在 Generic.xaml 的合并链上，所以并 Generic.xaml 一册即可覆盖绝大部分。
+            var theme = new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/UI;component/Themes/Generic.xaml"),
+            };
+            // 但 **ExpandToggleButtonTemplate**（变量名列的展开箭头）与 **LinkButtonStyle**
+            // （"强制覆盖集合..."）只定义在 VisionMaster\App.xaml 的**内联资源**里，
+            // UI 库的合并链上没有——首次出图实测：缺 ExpandToggleButtonTemplate 会让视图
+            // 在解析期抛 XamlParseException（整个场景出不了图）。
+            // 这里按 _ResProbe.AddAppInlineResources 的同一套做法抠出那段内联资源临时并入
+            //（剥掉 MergedDictionaries 段：那部分由探针自己按顺序并）。
+            // 注意 App.xaml 的 Icon 键**不会**顶掉探针设的 MDL2 兜底：ResourceDictionary 的
+            // 直接条目优先于合并字典，所以 A-H 各图的字体不受影响。
+            var appInline = LoadAppInlineResources();
+            Application.Current.Resources.MergedDictionaries.Add(theme);
+            if (appInline != null) Application.Current.Resources.MergedDictionaries.Add(appInline);
+            try
+            {
+                var stub = new VariableManagerProbeViewModel();
+                // 按**视图类型**注册（不是 SetDefaultViewModelFactory）：Prism 的命名约定
+                // 会把 GlobalVariableView 推成 GlobalVariableViewModel，而真 VM 叫
+                // GlobalVariableManagerViewModel（App.xaml.cs 的 RegisterDialog 显式绑的那一对），
+                // 约定解析不出类型 → 工厂根本不会被调用 → DataContext 为 null（首次出图实测：
+                // 整张表空白、来源列表空白）。ScadaChecks 的 ScadaPropertyView 也是这么注册的。
+                Prism.Mvvm.ViewModelLocationProvider.Register<GlobalVariableView>(() => stub);
+
+                var view = new GlobalVariableView();
+                var host = new Border
+                {
+                    Width = 1300,
+                    Height = 700,
+                    Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF)),
+                    Child = view,
+                };
+                host.Measure(new Size(1300, 700));
+                host.Arrange(new Rect(0, 0, 1300, 700));
+                host.UpdateLayout();
+                PumpFrames(6);
+
+                Console.WriteLine(
+                    $"[render] 场景 I：变量管理两栏（左栏来源 {stub.SourceNodes.Count} 项 / 右栏明细 {stub.FilteredDisplayNodes.Count} 行，"
+                    + "添加变量入口 = 右栏卡片头 AddCommand）");
+                SavePng(host, path);
+            }
+            finally
+            {
+                if (appInline != null) Application.Current.Resources.MergedDictionaries.Remove(appInline);
+                Application.Current.Resources.MergedDictionaries.Remove(theme);
+            }
+        }
+
+        /// <summary>
+        /// 把 VisionMaster\App.xaml 的**内联资源**（Icon / ExpandToggleButtonTemplate /
+        /// LinkButtonStyle）抠出来临时并入——这三支键不在 UI 库的合并链上，
+        /// 只在应用级 App.xaml 里。做法与 <c>_ResProbe.AddAppInlineResources</c> 逐字同源
+        /// （剥掉 MergedDictionaries 段，只取 PrismApplication.Resources 的内联条目）。
+        /// 定位不到 App.xaml 时返回 null（场景仍可出图，只是缺那几支键的视图会抛）。
+        /// </summary>
+        private static ResourceDictionary? LoadAppInlineResources()
+        {
+            try
+            {
+                var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+                for (int i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+                {
+                    var candidate = Path.Combine(dir.FullName, @"VisionMaster\App.xaml");
+                    if (!File.Exists(candidate)) continue;
+
+                    var text = File.ReadAllText(candidate);
+                    const string openTag = "<prism:PrismApplication.Resources>";
+                    const string closeTag = "</prism:PrismApplication.Resources>";
+                    int s = text.IndexOf(openTag, StringComparison.Ordinal);
+                    int e = text.IndexOf(closeTag, StringComparison.Ordinal);
+                    if (s < 0 || e < 0) return null;
+
+                    var inner = text.Substring(s + openTag.Length, e - s - openTag.Length);
+                    inner = System.Text.RegularExpressions.Regex.Replace(
+                        inner,
+                        "<ResourceDictionary.MergedDictionaries>.*?</ResourceDictionary.MergedDictionaries>",
+                        string.Empty,
+                        System.Text.RegularExpressions.RegexOptions.Singleline);
+
+                    int bodyStart = inner.IndexOf('>', inner.IndexOf("<ResourceDictionary", StringComparison.Ordinal)) + 1;
+                    int bodyEnd = inner.LastIndexOf("</ResourceDictionary>", StringComparison.Ordinal);
+                    if (bodyStart <= 0 || bodyEnd <= bodyStart) return null;
+
+                    var wrapper =
+                        "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"" +
+                        " xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"" +
+                        " xmlns:prism=\"http://prismlibrary.com/\">" +
+                        inner.Substring(bodyStart, bodyEnd - bodyStart) + "</ResourceDictionary>";
+
+                    return (ResourceDictionary)XamlReader.Parse(wrapper);
+                }
+            }
+            catch
+            {
+                // 探针不该因为"抠不出内联资源"而整体失败：缺键的视图会在解析期自己抛出来
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 场景 J：添加变量弹窗里的属性网格本体（网络变量草稿）。
+        ///
+        /// 弹窗自身是 EasyDialog 动态建的 Window（RenderTargetBitmap 出不了它），
+        /// 出 FlatPropertyGrid 控件即"弹窗里那一屏内容"——与场景 G（并行分组参数面板）同款做法。
+        /// 选网络草稿而不是本地草稿：它多出「网络参数」与「说明」两组，正是本轮新加、
+        /// 也最需要肉眼复核的部分（三个运行期候选下拉 + 地址预览只读行）。
+        /// </summary>
+        private static void RenderScenarioJ(string path)
+        {
+            var theme = new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/UI;component/Themes/Generic.xaml"),
+            };
+            Application.Current.Resources.MergedDictionaries.Add(theme);
+            try
+            {
+                var draft = new NetworkVariableDraft(
+                    new[] { "整数 (int)", "小数 (double)", "布尔 (bool)" },
+                    new[] { "PLC_01", "PLC_02" },
+                    new[] { "默认组", "快组 (50ms)" },
+                    new[] { "保持寄存器 (4x, 读写字)", "线圈 (0x, 读写布尔)" },
+                    d => $"x=3;{d.Offset}")
+                {
+                    VariableName = "Motor1_Speed",
+                    TypeName = "整数 (int)",
+                    InitialValue = "0",
+                    Description = "1 号工位主轴转速",
+                    ConnectionName = "PLC_01",
+                    ScanGroupName = "快组 (50ms)",
+                    AreaName = "保持寄存器 (4x, 读写字)",
+                    Offset = "100",
+                    BitOffset = 0,
+                };
+
+                var grid = new UI.CustomControl.FlatPropertyGrid
+                {
+                    BindingObject = draft,
+                    MinWidth = 450,
+                    MaxHeight = 600,
+                };
+                var host = new Border
+                {
+                    Width = 760,
+                    Height = 640,
+                    Background = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF)),
+                    Child = grid,
+                };
+                host.Measure(new Size(760, 640));
+                host.Arrange(new Rect(0, 0, 760, 640));
+                host.UpdateLayout();
+                PumpFrames(6);
+
+                // 属性网格是**懒加载**的：内容只在对应 Tab 被选中时才构建，
+                // 默认停在第一个 Tab（基本）——不切页的话「网络参数」「说明」两组
+                // 在图上根本看不见，而那正是本轮新增、最需要复核的部分。
+                // 先逐页点一遍（每个 Tab 都真建一次内容：只读行/候选下拉的生成路径全跑到，
+                // 有异常当场抛），最后停在「网络参数」出图。
+                foreach (var tab in EnumeratePropertyGridTabs(host))
+                {
+                    tab.IsSelected = true;
+                    host.UpdateLayout();
+                    PumpFrames(2);
+                }
+                SelectPropertyGridTab(host, "网络参数");
+                host.UpdateLayout();
+                PumpFrames(6);
+
+                // 自检行：三个分组都真建出了内容（懒加载的每个 Tab 都被选中过一次）。
+                // 「说明」组的地址预览与线圈提示是只读行，若生成路径有异常这里就已经抛了；
+                // 这里再把"建了几个 Tab"印出来，作为"三组都跑到"的证据。
+                Console.WriteLine(
+                    $"[render][check] 场景 J 属性网格 Tab 数={EnumeratePropertyGridTabs(host).Count()}"
+                    + $"（预期 3：基本 / 网络参数 / 说明）");
+
+                Console.WriteLine(
+                    $"[render] 场景 J：添加变量弹窗（网络变量草稿 FlatPropertyGrid，"
+                    + $"连接={draft.ConnectionName} 扫描组={draft.ScanGroupName} 存储区={draft.AreaName} 地址预览={draft.AddressPreview}）");
+                SavePng(host, path);
+            }
+            finally
+            {
+                Application.Current.Resources.MergedDictionaries.Remove(theme);
+            }
+        }
+
+        /// <summary>
+        /// 变量管理弹窗的最小桩 VM（照 <see cref="TreeProbeViewModel"/> 的写法）：
+        /// 只提供视图真正绑到的成员，命令缺失时静默空跑。
+        /// 行数据用真 <see cref="VariableNode"/>（视图的单元格模板绑的就是它的属性），
+        /// 模型用真 LocalVariableModel / NetworkVariableModel（质量点、类型名都读它们）。
+        /// </summary>
+        private sealed class VariableManagerProbeViewModel
+        {
+            public VariableManagerProbeViewModel()
+            {
+                SourceNodes.Add(new VariableSourceNode
+                {
+                    Key = "Local",
+                    DisplayName = "本地变量",
+                    Icon = "\uF15B",
+                    Count = 3,
+                    IsOnline = true,
+                });
+                SourceNodes.Add(new VariableSourceNode
+                {
+                    Key = "PLC_01",
+                    DisplayName = "PLC_01",
+                    Icon = "\uF1EB",
+                    IsNetwork = true,
+                    Count = 1,
+                    IsOnline = true,
+                });
+                SelectedSource = SourceNodes[1];   // 选连接：三列（来源/扫描组/地址）都展开
+
+                var localScalar = new LocalVariableModel
+                {
+                    Name = "CycleCount",
+                    DataType = typeof(int),
+                    Description = "节拍计数",
+                    DefaultValue = 12,
+                    Value = 15,
+                };
+                var localArray = new LocalVariableModel
+                {
+                    Name = "Barcode",
+                    DataType = typeof(string[]),
+                    Description = "条码结果",
+                    DefaultValue = new[] { "SN-A", "SN-B" },
+                    Value = new[] { "SN-A", "SN-B" },
+                };
+                var netVar = new NetworkVariableModel
+                {
+                    Name = "Motor1_Speed",
+                    DataType = typeof(int),
+                    Description = "主轴转速",
+                    ConnectionName = "PLC_01",
+                    DefaultValue = 1480,
+                    Value = 1485,
+                };
+
+                FilteredDisplayNodes.Add(Root(localScalar));
+                var arrayRoot = Root(localArray);
+                arrayRoot.IsExpanded = true;
+                FilteredDisplayNodes.Add(arrayRoot);
+                FilteredDisplayNodes.Add(Child(arrayRoot, "[0]", "SN-A", 0));
+                FilteredDisplayNodes.Add(Child(arrayRoot, "[1]", "SN-B", 1));
+                FilteredDisplayNodes.Add(Root(netVar));
+            }
+
+            public ObservableCollection<VariableSourceNode> SourceNodes { get; } = new();
+
+            public VariableSourceNode? SelectedSource { get; set; }
+
+            public ObservableCollection<VariableNode> FilteredDisplayNodes { get; } = new();
+
+            public string SearchText { get; set; } = string.Empty;
+
+            /// <summary>「＋ 添加变量」——桩里不真弹窗，只占位（出图要的是按钮在位）</summary>
+            public DelegateCommand AddCommand { get; } = new(() => { });
+
+            private static VariableNode Root(IVariable model) => new()
+            {
+                OriginalModel = model,
+                Name = model.Name,
+                DataType = model.DataType,
+                TypeName = model.DataType?.Name,
+                Description = model.Description,
+                ChildDefaultValue = model.DefaultValue,
+                ChildValue = model.Value,
+                Level = 0,
+                IsNetwork = model.VariableType == VariableType.Communication,
+                SourceLabel = model.VariableType == VariableType.Communication ? model.ConnectionName : "本地",
+                Address = model.AddressConfig?.Address ?? (model.VariableType == VariableType.Communication ? "x=3;100" : null),
+            };
+
+            private static VariableNode Child(VariableNode parent, string name, string value, int index) => new()
+            {
+                OriginalModel = parent.OriginalModel,
+                Name = name,
+                DataType = parent.DataType?.GetElementType(),
+                TypeName = parent.DataType?.GetElementType()?.Name,
+                ChildValue = value,
+                // ElementIndex 必须给：视图的「当前值」单元格读的是父数组 CurrentValueText[index]，
+                // 不给就是 -1 → 落到根路径 → 显示成数组整体（出图会误导成"元素行显示类型名"）
+                ElementIndex = index,
+                Level = 1,
+                SourceLabel = parent.SourceLabel,
+                IsNetwork = parent.IsNetwork,
+                IsConnected = true,
+            };
+        }
+
+        /// <summary>属性网格的全部 Tab（懒加载：逐页选中即逐页建内容）</summary>
+        private static IEnumerable<TabItem> EnumeratePropertyGridTabs(DependencyObject root)
+        {
+            var tab = FindDescendant<TabControl>(root, _ => true);
+            return tab == null ? Enumerable.Empty<TabItem>() : tab.Items.OfType<TabItem>().ToList();
+        }
+
+        /// <summary>
+        /// 把属性网格切到指定表头的 Tab（属性网格懒加载内容，不切页就看不到那一组）。
+        /// 找不到同名 Tab 时静默不动（图还是能出，只是停在默认页）。
+        /// </summary>
+        private static void SelectPropertyGridTab(DependencyObject root, string header)
+        {
+            var tab = FindDescendant<TabControl>(root, _ => true);
+            if (tab == null) return;
+
+            foreach (var item in tab.Items.OfType<TabItem>())
+            {
+                if (string.Equals(item.Header as string, header, StringComparison.Ordinal))
+                {
+                    tab.SelectedItem = item;
+                    return;
+                }
             }
         }
 

@@ -46,15 +46,15 @@ namespace Plugin.CaliperMeasure
     public enum FitAlgorithmKind
     {
         /// <summary>最小二乘（HALCON 'regression'）：所有点等权，最快但对离群点零抵抗</summary>
-        [Display(Name = "最小二乘(regression)")]
+        [Display(Name = "最小二乘")]
         Regression,
 
         /// <summary>Huber（HALCON 'huber'）：小残差线性降权、大残差常数限幅，折中方案</summary>
-        [Display(Name = "Huber(抗离群)")]
+        [Display(Name = "Huber 抗离群")]
         Huber,
 
         /// <summary>Tukey（HALCON 'tukey'）：大残差点几乎不参与拟合，抗毛刺能力最强（默认）</summary>
-        [Display(Name = "Tukey(抗离群,推荐)")]
+        [Display(Name = "Tukey 抗离群（推荐）")]
         Tukey,
     }
 
@@ -102,19 +102,22 @@ namespace Plugin.CaliperMeasure
     /// <summary>
     /// 亚像素插值方式（直接对应 HALCON gen_measure_rectangle2 的 Interpolation 参数）。
     /// 默认 bilinear：精度与速度的通用折中；nearest 最快但只有整像素，bicubic 最平滑但最慢。
+    ///
+    /// 显示名走中文（下拉框给操作者看），HALCON 的字面量由 CaliperMeasurePlugin 按成员 switch 生成，
+    /// 与显示名无关 —— 改这里不会改到传给算子的参数。
     /// </summary>
     public enum EdgeInterpolation
     {
         /// <summary>最近邻（整像素，最快）</summary>
-        [Display(Name = "nearest")]
+        [Display(Name = "最近邻（整像素）")]
         Nearest,
 
         /// <summary>双线性（亚像素，通用默认）</summary>
-        [Display(Name = "bilinear")]
+        [Display(Name = "双线性（亚像素，默认）")]
         Bilinear,
 
         /// <summary>双三次（亚像素，最平滑）</summary>
-        [Display(Name = "bicubic")]
+        [Display(Name = "双三次（亚像素）")]
         Bicubic,
     }
 

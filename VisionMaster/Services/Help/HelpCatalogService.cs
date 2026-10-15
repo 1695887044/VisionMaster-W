@@ -24,7 +24,9 @@ namespace VisionMaster.Services.Help
     /// ---------
     /// ① <b>约定路径</b>：插件程序集里 <c>Help\</c> 前缀的内嵌资源（每个 <c>.md</c> 一页，
     ///    文件名顺序即页序）——插件只要把 md 丢进工程并 <c>&lt;EmbeddedResource Include="Help\**" /&gt;</c>，
-    ///    连接口都不用实现。图片同样走内嵌资源，按 <c>{程序集}.Help.images.xxx.png</c> 解析；
+    ///    连接口都不用实现。一个程序集里有多个插件时，各插件的手册放 <c>Help\{插件类名}\</c> 子目录
+    ///    （见 <see cref="CollectEmbeddedPages"/>），否则它们会显示同一批页面。
+    ///    图片同样走内嵌资源，按 <c>{程序集}.Help.images.xxx.png</c> 解析；
     /// ② <b>可选接口</b> <see cref="IPluginHelpProvider"/>（运行期生成正文 / 自定义标题顺序）；
     /// ③ <b>兜底自动页</b>：都没有的插件用 <c>[Display]</c> 元数据 + 注册期端口表生成一页，
     ///    保证"合并出来的目录里没有空节点"——不然 27 个插件里 25 个是空白，等于没有帮助。
@@ -223,7 +225,7 @@ namespace VisionMaster.Services.Help
 
             if (type != null)
             {
-                var embedded = CollectEmbeddedPages(type.Assembly, source);
+                var embedded = CollectEmbeddedPages(type.Assembly, source, type);
                 if (embedded.Count > 0)
                 {
                     fromManual = true;
@@ -282,8 +284,15 @@ namespace VisionMaster.Services.Help
         /// <summary>
         /// 约定路径：读程序集里 <c>&lt;程序集名&gt;.Help.</c> 前缀的内嵌资源，一个 .md 一页。
         /// 文件名排序即页序（<c>01-</c>、<c>02-</c> 前缀），标题取正文第一个 <c># </c> 一级标题。
+        ///
+        /// <paramref name="owner"/> 解决"一个程序集里多个插件"的串页问题：工具类程序集
+        /// 有 6 个算子、运动步骤程序集有 7 个，扁平的 <c>Help\</c> 会让它们显示同一批页面。
+        /// 所以这类程序集把分册放进 <c>Help\{插件类名}\</c>（目录名**逐字等于**插件的 C# 类型名——
+        /// 显示名可以随便改、类型名不会改，锚在类型上才不会"改了中文名手册就没了"）。
+        /// 传 owner 时的取页规则：① 本类型子目录里的页；② 没有子目录则收"不在任何类型子目录里"的
+        /// 扁平页（单插件程序集走这条，与既有的 5 份手册完全兼容）；③ 都没有 → 空集合，交给下一档。
         /// </summary>
-        private List<HelpNode> CollectEmbeddedPages(Assembly assembly, string source)
+        private List<HelpNode> CollectEmbeddedPages(Assembly assembly, string source, Type? owner = null)
         {
             var pages = new List<HelpNode>();
             try
@@ -294,6 +303,8 @@ namespace VisionMaster.Services.Help
                                 && n.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(n => n, StringComparer.Ordinal)
                     .ToList();
+                if (owner != null)
+                    names = NarrowToPlugin(names, assembly, prefix, owner);
                 if (names.Count == 0)
                     return pages;
 
@@ -329,6 +340,26 @@ namespace VisionMaster.Services.Help
             }
 
             return pages;
+        }
+
+        /// <summary>
+        /// 按插件类型收窄资源清单（详见 <see cref="CollectEmbeddedPages"/> 的三档规则）。
+        /// </summary>
+        private static List<string> NarrowToPlugin(
+            List<string> names, Assembly assembly, string prefix, Type owner)
+        {
+            var ownPrefix = prefix + owner.Name + ".";
+            var own = names.Where(n => n.StartsWith(ownPrefix, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (own.Count > 0)
+                return own;
+
+            // 程序集里所有类型名当"子目录判据"用：某一段命中类型名 = 那是别人家的分册，不收。
+            // GetTypes() 只读元数据、比资源枚举更便宜，且此刻程序集早已加载完毕。
+            var typeNames = new HashSet<string>(
+                assembly.GetTypes().Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
+            return names
+                .Where(n => !typeNames.Contains(n.Substring(prefix.Length).Split('.')[0]))
+                .ToList();
         }
 
         private static string ReadResourceText(Assembly assembly, string resourceName)

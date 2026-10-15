@@ -16,4 +16,9 @@
     <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>
 
+  <!-- 内置帮助手册：Help\ 下每个 .md 一页，宿主按 {程序集名}.Help. 前缀扫描（页序 = 文件名典序） -->
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
 </Project>

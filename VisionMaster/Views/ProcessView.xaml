@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dd="urn:gong-wpf-dragdrop"
+    xmlns:helpers="clr-namespace:VisionMaster.Helpers"
     xmlns:local="clr-namespace:VisionMaster.Views"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:enums="clr-namespace:VisionMaster;assembly=VM.Core"
@@ -16,6 +17,10 @@
     mc:Ignorable="d">
     <UserControl.Resources>
         <ui:BindingProxy x:Key="ModuleData" Data="{Binding}" />
+
+        <!--  分类名 → 分类专属色画刷（ToolboxCategoryVisuals.BrushFor）：算子行图标按分类上色；
+              分类为 null / 未知时该转换器已回落中性灰（老方案或程序创建的步骤可能没带 Category）。  -->
+        <helpers:CategoryAccentBrushConverter x:Key="CategoryAccentBrushConverter" />
 
         <!--  ==========================================  -->
         <!--  🎨 现代化行容器样式（只作用于本流程栏）  -->
@@ -97,10 +102,10 @@
                                 <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#F5F7FA" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#E8F1FC" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
                                 <Setter TargetName="SelBar" Property="Visibility" Value="Visible" />
                             </Trigger>
                             <MultiTrigger>
@@ -108,8 +113,8 @@
                                     <Condition Property="IsSelected" Value="True" />
                                     <Condition Property="IsSelectionActive" Value="False" />
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Bd" Property="Background" Value="#F0F2F5" />
-                                <Setter TargetName="SelBar" Property="Background" Value="#B8C4CE" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                                <Setter TargetName="SelBar" Property="Background" Value="{StaticResource ScadaSwatchBorderBrush}" />
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -117,62 +122,19 @@
             </Setter>
         </Style>
     </UserControl.Resources>
-    <!--  流程栏 = 搜索行（步骤名/注释定位，三视角评审第二批）+ 步骤树。
-          Delete 快捷键挂在 TreeView 元素级而不是 UserControl 级：焦点在搜索框里敲 Delete
-          是在改文本，不能误删当前选中的模块（元素级绑定只在其子树持焦点时触发）  -->
+    <!--  流程栏 = 步骤树（大纲树观感）+ 底部执行统计。
+          Delete 快捷键挂在 TreeView 元素级而不是 UserControl 级：焦点在别处敲 Delete
+          是在改别的东西，不能误删当前选中的模块（元素级绑定只在其子树持焦点时触发）  -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <!--  第 3 行：执行统计两行（评审清单 B 包交互补齐），200ms tick 顺带刷新  -->
+            <!--  第 2 行：执行统计两行（评审清单 B 包交互补齐），200ms tick 顺带刷新  -->
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  搜索行：TextBox +「上一个 / 下一个」（循环定位，评审清单 B 包交互补齐加了「上一个」）
-              +「失败跳转」开关（G4 的 AutoJumpToFailure，样式用既有令牌不引新色）  -->
-        <Grid Grid.Row="0" Margin="6,6,6,2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBox
-                VerticalContentAlignment="Center"
-                FontSize="12"
-                Padding="6,3"
-                Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                ToolTip="按步骤名 / 注释搜索，点「上一个 / 下一个」循环定位" />
-            <Button
-                Grid.Column="1"
-                Margin="6,0,0,0"
-                Padding="10,3"
-                Command="{Binding SearchPreviousCommand}"
-                Content="上一个"
-                FontSize="12"
-                ToolTip="定位上一个匹配步骤（当前命中之前循环）" />
-            <Button
-                Grid.Column="2"
-                Margin="4,0,0,0"
-                Padding="10,3"
-                Command="{Binding SearchNextCommand}"
-                Content="下一个"
-                FontSize="12"
-                ToolTip="定位下一个匹配步骤（当前命中之后循环）" />
-            <CheckBox
-                Grid.Column="3"
-                Margin="8,0,0,0"
-                VerticalAlignment="Center"
-                VerticalContentAlignment="Center"
-                Content="失败跳转"
-                FontSize="12"
-                IsChecked="{Binding AutoJumpToFailure}"
-                ToolTip="运行出现失败步骤时自动定位到第一个失败" />
-        </Grid>
-
         <TreeView
         x:Name="StepTree"
-        Grid.Row="1"
+        Grid.Row="0"
         dd:DragDrop.DragHandler="{Binding}"
         dd:DragDrop.DropHandler="{Binding}"
         dd:DragDrop.IsDragSource="True"
@@ -248,9 +210,8 @@
             <!--  ==========================================  -->
             <!--  🏃 容器组头运行态共享样式（State 驱动，五类容器头共用一份）。
                   观感与算子卡同一套语言：**运行 = 绿色圆角卡片**（绿底 + 绿边），
-                  左侧身份条与文字在各自模板的 Running 触发器里变绿，状态位转圈。
-                  几何换算（对齐纪律不变）：内容 x 起点 = Border Margin 4 + Padding 2 = 原 StackPanel
-                  左缩进 6；顶 = 8 + 4 = 原 12；底 = 0 + 4 = 原 4。  -->
+                  状态位转圈。几何换算（对齐纪律不变）：内容 x 起点 = Border Margin 4 + Padding 2
+                  = 原 StackPanel 左缩进 6；顶 = 8 + 4 = 原 12；底 = 0 + 4 = 原 4。  -->
             <!--  ==========================================  -->
             <Style x:Key="ContainerHeaderBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="Transparent" />
@@ -261,8 +222,8 @@
                 <Setter Property="Margin" Value="4,8,4,0" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding State}" Value="Running">
-                        <Setter Property="Background" Value="#F0F9EB" />
-                        <Setter Property="BorderBrush" Value="#B3E19D" />
+                        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -278,24 +239,24 @@
                     <DataTrigger Binding="{Binding State}" Value="Running">
                         <Setter Property="Visibility" Value="Visible" />
                         <Setter Property="Text" Value="&#xf1ce;" />
-                        <Setter Property="Foreground" Value="#67C23A" />
+                        <Setter Property="Foreground" Value="{StaticResource FlowCanvasSuccessBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding State}" Value="Success">
                         <Setter Property="Visibility" Value="Visible" />
                         <Setter Property="Text" Value="&#xf00c;" />
-                        <Setter Property="Foreground" Value="#67C23A" />
+                        <Setter Property="Foreground" Value="{StaticResource FlowCanvasSuccessBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding State}" Value="Failed">
                         <Setter Property="Visibility" Value="Visible" />
                         <Setter Property="Text" Value="&#xf06a;" />
-                        <Setter Property="Foreground" Value="#F56C6C" />
+                        <Setter Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
 
             <!--  ==========================================  -->
-            <!--  🧩 普通视觉算子样式 (ActionStep) - 现代化卡片  -->
-            <!--  [状态] [图标色块] [名称/类型两行] [耗时胶囊]  -->
+            <!--  🧩 普通视觉算子样式 (ActionStep) - 大纲树行  -->
+            <!--  [状态点] [分类色图标] [实例名/类型名两行] [耗时胶囊]；失败时名字前加红 ×  -->
             <!--  ==========================================  -->
             <DataTemplate DataType="{x:Type models:ActionStep}">
                 <Border
@@ -314,32 +275,33 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock
-                            x:Name="StatusIcon"
+                        <!--  完成状态点（Idle=灰点；运行蓝 / 成功绿 / 失败红 / 跳过灰）  -->
+                        <Ellipse
+                            x:Name="StatusDot"
                             Grid.Column="0"
-                            Width="14"
+                            Width="8"
+                            Height="8"
+                            Margin="2,0,4,0"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="11"
-                            Visibility="Collapsed" />
+                            Fill="{StaticResource ScadaDisabledTextBrush}" />
 
-                        <!--  图标色块（圆角容器，替代裸图标）；右上角叠断点小红点（DWV 第 1 期）  -->
+                        <!--  分类色图标（圆角方块底，图标前景按 Category 取色）；右上角叠断点小红点（DWV 第 1 期）  -->
                         <Grid
                             Grid.Column="1"
-                            Width="28"
-                            Height="28"
+                            Width="24"
+                            Height="24"
                             Margin="2,0,8,0">
                             <Border
                                 x:Name="IconChip"
-                                Background="#F0F6FF"
-                                CornerRadius="8">
+                                Background="{StaticResource DialogAccentSoftBrush}"
+                                CornerRadius="6">
                                 <TextBlock
                                     x:Name="IconText"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
                                     FontFamily="{StaticResource Icon}"
-                                    FontSize="14"
-                                    Foreground="#409EFF"
+                                    FontSize="12"
+                                    Foreground="{Binding Category, Converter={StaticResource CategoryAccentBrushConverter}}"
                                     Text="{Binding Icon}"
                                     TextOptions.TextFormattingMode="Display" />
                             </Border>
@@ -350,8 +312,8 @@
                                 Margin="0,-2,-2,0"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
-                                Fill="#F56C6C"
-                                Stroke="#FFFFFF"
+                                Fill="{StaticResource FlowCanvasBreakpointBrush}"
+                                Stroke="{StaticResource ScadaSurfaceBrush}"
                                 StrokeThickness="1">
                                 <Ellipse.Style>
                                     <Style TargetType="Ellipse">
@@ -366,38 +328,36 @@
                             </Ellipse>
                         </Grid>
 
-                        <!--  名称 + 类型（上下两行，窄面板更易读）  -->
+                        <!--  实例名（加粗）+ 类型名小字（上下两行，窄面板更易读）；失败时名字前一个红 ×  -->
                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    x:Name="ErrorMark"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogDangerBrush}"
+                                    Text="&#xf00d;"
+                                    TextOptions.TextFormattingMode="Display"
+                                    Visibility="Collapsed" />
+                                <TextBlock
+                                    x:Name="NameText"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource ScadaTextBrush}"
+                                    Text="{Binding StepName}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding StepName}" />
+                            </StackPanel>
                             <TextBlock
-                                x:Name="NameText"
-                                FontSize="13"
-                                FontWeight="SemiBold"
-                                Foreground="#303133"
-                                Text="{Binding StepName}"
-                                TextTrimming="CharacterEllipsis"
-                                ToolTip="{Binding StepName}" />
-                            <TextBlock
-                                x:Name="DescText"
+                                x:Name="TypeText"
                                 Margin="0,1,0,0"
                                 FontSize="11"
-                                Foreground="#909399"
-                                Text="{Binding Description}"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="{Binding PluginName}"
                                 TextTrimming="CharacterEllipsis"
-                                ToolTip="{Binding Description}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Description}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                                ToolTip="{Binding PluginName}" />
                         </StackPanel>
 
                         <!--  耗时胶囊徽章  -->
@@ -406,7 +366,7 @@
                             Grid.Column="3"
                             Padding="8,3"
                             VerticalAlignment="Center"
-                            Background="#F5F7FA"
+                            Background="{StaticResource DialogRowAlternateBrush}"
                             CornerRadius="11"
                             Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal">
@@ -416,14 +376,14 @@
                                     VerticalAlignment="Center"
                                     FontFamily="{StaticResource Icon}"
                                     FontSize="10"
-                                    Foreground="#A8ABB2"
+                                    Foreground="{StaticResource ScadaFaintTextBrush}"
                                     Text="&#xf017;" />
                                 <TextBlock
                                     x:Name="TimeText"
                                     VerticalAlignment="Center"
                                     FontFamily="Consolas"
                                     FontSize="11"
-                                    Foreground="#606266" />
+                                    Foreground="{StaticResource ScadaLabelTextBrush}" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -440,16 +400,14 @@
                     <DataTrigger Binding="{Binding IsRunningFocus}" Value="True">
                         <Setter TargetName="TimeText" Property="Text" Value="{Binding CurrentRunTimeMs, StringFormat='{}{0:0.#} ms'}" />
                         <Setter TargetName="TimeBadge" Property="Visibility" Value="Visible" />
-                        <Setter TargetName="RootBorder" Property="Background" Value="#F0F9EB" />
-                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="#B3E19D" />
-                        <Setter TargetName="IconChip" Property="Background" Value="#E2F3D8" />
-                        <Setter TargetName="IconText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="NameText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="TimeText" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="RootBorder" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
+                        <Setter TargetName="IconChip" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                        <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                        <Setter TargetName="TimeText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                         <Setter TargetName="TimeText" Property="FontWeight" Value="Bold" />
-                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf1ce;" />
-                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#67C23A" />
-                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasRunningBrush}" />
                     </DataTrigger>
 
                     <!--  分支步骤运行中（真并行）：并行分支线程不设 IsRunningFocus（并发安全，
@@ -459,48 +417,41 @@
                     <DataTrigger Binding="{Binding State}" Value="Running">
                         <Setter TargetName="TimeText" Property="Text" Value="{Binding CurrentRunTimeMs, StringFormat='{}{0:0.#} ms'}" />
                         <Setter TargetName="TimeBadge" Property="Visibility" Value="Visible" />
-                        <Setter TargetName="RootBorder" Property="Background" Value="#F0F9EB" />
-                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="#B3E19D" />
-                        <Setter TargetName="IconChip" Property="Background" Value="#E2F3D8" />
-                        <Setter TargetName="IconText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="NameText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="TimeText" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="RootBorder" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
+                        <Setter TargetName="IconChip" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                        <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                        <Setter TargetName="TimeText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                         <Setter TargetName="TimeText" Property="FontWeight" Value="Bold" />
-                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf1ce;" />
-                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#67C23A" />
-                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasRunningBrush}" />
                     </DataTrigger>
 
                     <DataTrigger Binding="{Binding State}" Value="Success">
-                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf00c;" />
-                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#67C23A" />
-                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
                     </DataTrigger>
 
-                    <!--  执行失败：红色警示卡片  -->
+                    <!--  执行失败：红色警示卡片 + 名字前红 ×  -->
                     <DataTrigger Binding="{Binding State}" Value="Failed">
-                        <Setter TargetName="RootBorder" Property="Background" Value="#FEF0F0" />
-                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="#FBC4C4" />
-                        <Setter TargetName="IconChip" Property="Background" Value="#FDE2E2" />
-                        <Setter TargetName="NameText" Property="Foreground" Value="#F56C6C" />
-                        <Setter TargetName="TimeText" Property="Foreground" Value="#F56C6C" />
-                        <Setter TargetName="IconText" Property="Foreground" Value="#F56C6C" />
-                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf00d;" />
-                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#F56C6C" />
-                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="RootBorder" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                        <Setter TargetName="RootBorder" Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                        <Setter TargetName="IconChip" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                        <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                        <Setter TargetName="TimeText" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                        <Setter TargetName="IconText" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasFailedBrush}" />
+                        <Setter TargetName="ErrorMark" Property="Visibility" Value="Visible" />
                     </DataTrigger>
 
                     <DataTrigger Binding="{Binding State}" Value="Skipped">
                         <Setter TargetName="RootBorder" Property="Opacity" Value="0.6" />
-                        <Setter TargetName="StatusIcon" Property="Text" Value="&#xf054;" />
-                        <Setter TargetName="StatusIcon" Property="Foreground" Value="#909399" />
-                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSkippedBrush}" />
                     </DataTrigger>
 
                     <DataTrigger Binding="{Binding IsDisEnable}" Value="True">
                         <Setter TargetName="RootBorder" Property="Opacity" Value="0.4" />
                         <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
-                        <Setter TargetName="StatusIcon" Property="Visibility" Value="Collapsed" />
+                        <Setter TargetName="StatusDot" Property="Visibility" Value="Collapsed" />
                         <Setter TargetName="TimeBadge" Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
 
@@ -508,59 +459,59 @@
             </DataTemplate>
 
             <!--  ==========================================  -->
-            <!--  🔀 If 条件节点容器样式  -->
+            <!--  🔀 If 条件节点容器样式（身份色=灰）  -->
+            <!--  [状态 glyph] [类型标签 chip：图标+中文标签] [实例名]  -->
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:ConditionStep}" ItemsSource="{Binding Children}">
                 <Border Style="{StaticResource ContainerHeaderBorderStyle}">
                     <StackPanel Orientation="Horizontal" ToolTip="点击配置分支输入变量">
-                        <!--  状态位（转圈/勾/叹号，State 驱动）+ 标识条与文字（运行触发器里变绿）；
-                              左起点 = Border Margin 4 + Padding 2 = 6，与算子卡图标色块同竖线  -->
+                        <!--  状态位（转圈/勾/叹号，State 驱动）；左起点 = Border Margin 4 + Padding 2 = 6，
+                              与算子卡图标色块同竖线  -->
                         <Border Width="16" Height="14">
                             <TextBlock Style="{StaticResource ContainerStatusIconStyle}" />
                         </Border>
-                        <Rectangle
-                            x:Name="IdentityBar"
-                            Width="3"
-                            Height="14"
-                            Margin="0,0,8,0"
-                            Fill="#909399"
-                            RadiusX="1.5"
-                            RadiusY="1.5" />
-                        <TextBlock
+                        <!--  类型标签 chip（身份色：灰底灰字）  -->
+                        <Border
                             Margin="0,0,6,0"
+                            Padding="6,1"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="#909399"
-                            Text="{Binding Icon}"
-                            TextOptions.TextFormattingMode="Display" />
-                        <TextBlock
-                            x:Name="HeaderText"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            FontWeight="Bold"
-                            Foreground="#606266"
-                            Text="逻辑路由" />
+                            Background="{StaticResource DialogRowAlternateBrush}"
+                            CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="逻辑路由" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock
                             x:Name="HeaderName"
-                            Margin="6,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="12"
-                            Foreground="#C0C4CC"
-                            Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding StepName}"
+                            TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
                 <HierarchicalDataTemplate.Triggers>
                     <DataTrigger Binding="{Binding State}" Value="Running">
-                        <Setter TargetName="IdentityBar" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="HeaderText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="HeaderName" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="HeaderName" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                     </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
 
             <!--  ==========================================  -->
-            <!--  🔄 While 循环节点容器样式  -->
+            <!--  🔄 While 循环节点容器样式（身份色=橙）  -->
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:WhileStep}" ItemsSource="{Binding Children}">
                 <Border Style="{StaticResource ContainerHeaderBorderStyle}">
@@ -568,49 +519,47 @@
                         <Border Width="16" Height="14">
                             <TextBlock Style="{StaticResource ContainerStatusIconStyle}" />
                         </Border>
-                        <Rectangle
-                            x:Name="IdentityBar"
-                            Width="3"
-                            Height="14"
-                            Margin="0,0,8,0"
-                            Fill="#E6A23C"
-                            RadiusX="1.5"
-                            RadiusY="1.5" />
-                        <TextBlock
+                        <Border
                             Margin="0,0,6,0"
+                            Padding="6,1"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="#E6A23C"
-                            Text="{Binding Icon}"
-                            TextOptions.TextFormattingMode="Display" />
-                        <TextBlock
-                            x:Name="HeaderText"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            FontWeight="Bold"
-                            Foreground="#E6A23C"
-                            Text="While 循环" />
+                            Background="{StaticResource DialogWarningSubtleBrush}"
+                            CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource FlowCanvasWarningBrush}"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource FlowCanvasWarningBrush}"
+                                    Text="While 循环" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock
                             x:Name="HeaderName"
-                            Margin="6,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="12"
-                            Foreground="#C0C4CC"
-                            Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding StepName}"
+                            TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
                 <HierarchicalDataTemplate.Triggers>
                     <DataTrigger Binding="{Binding State}" Value="Running">
-                        <Setter TargetName="IdentityBar" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="HeaderText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="HeaderName" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="HeaderName" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                     </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
 
             <!--  ==========================================  -->
-            <!--  🔢 For 计次循环节点容器样式  -->
+            <!--  🔢 For 计次循环节点容器样式（身份色=绿）  -->
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:ForStep}" ItemsSource="{Binding Children}">
                 <Border Style="{StaticResource ContainerHeaderBorderStyle}">
@@ -618,49 +567,47 @@
                         <Border Width="16" Height="14">
                             <TextBlock Style="{StaticResource ContainerStatusIconStyle}" />
                         </Border>
-                        <Rectangle
-                            x:Name="IdentityBar"
-                            Width="3"
-                            Height="14"
-                            Margin="0,0,8,0"
-                            Fill="#67C23A"
-                            RadiusX="1.5"
-                            RadiusY="1.5" />
-                        <TextBlock
+                        <Border
                             Margin="0,0,6,0"
+                            Padding="6,1"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="#67C23A"
-                            Text="{Binding Icon}"
-                            TextOptions.TextFormattingMode="Display" />
-                        <TextBlock
-                            x:Name="HeaderText"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            FontWeight="Bold"
-                            Foreground="#67C23A"
-                            Text="For 循环" />
+                            Background="{StaticResource DialogSuccessSubtleBrush}"
+                            CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource FlowCanvasSuccessBrush}"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource FlowCanvasSuccessBrush}"
+                                    Text="For 循环" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock
                             x:Name="HeaderName"
-                            Margin="6,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="12"
-                            Foreground="#C0C4CC"
-                            Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding StepName}"
+                            TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
                 <HierarchicalDataTemplate.Triggers>
                     <DataTrigger Binding="{Binding State}" Value="Running">
-                        <Setter TargetName="IdentityBar" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="HeaderText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="HeaderName" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="HeaderName" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                     </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
 
             <!--  ==========================================  -->
-            <!--  ⑂ 并行分组容器样式（二期真并行）  -->
+            <!--  ⑂ 并行分组容器样式（二期真并行，身份色=蓝）  -->
             <!--  2026-10-09 真机事故：此前树里缺这份模板，整行回退 WPF 默认模板把 -->
             <!--  ToString() 原样上屏——显示 "VisionMaster.Models.ParallelStep"，分支也全丢。 -->
             <!--  与 AGENTS.md R19-R22「类型全名上屏」同类，触发点从 GridView 换成类型键模板。 -->
@@ -673,53 +620,50 @@
                         <Border Width="16" Height="14">
                             <TextBlock Style="{StaticResource ContainerStatusIconStyle}" />
                         </Border>
-                        <!--  标识色块：并行身份色取画布泳道同源的蓝（#3B82F6），运行触发器里变绿  -->
-                        <Rectangle
-                            x:Name="IdentityBar"
-                            Width="3"
-                            Height="14"
-                            Margin="0,0,8,0"
-                            Fill="#3B82F6"
-                            RadiusX="1.5"
-                            RadiusY="1.5" />
-                        <TextBlock
+                        <!--  身份色取画布泳道同源的蓝（ScadaAccentBrush）  -->
+                        <Border
                             Margin="0,0,6,0"
+                            Padding="6,1"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="#3B82F6"
-                            Text="{Binding Icon}"
-                            TextOptions.TextFormattingMode="Display" />
-                        <TextBlock
-                            x:Name="HeaderText"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            FontWeight="Bold"
-                            Foreground="#3B82F6"
-                            Text="并行分组" />
+                            Background="{StaticResource DialogAccentSoftBrush}"
+                            CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaAccentBrush}"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource ScadaAccentBrush}"
+                                    Text="并行分组" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock
                             x:Name="HeaderName"
-                            Margin="6,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="12"
-                            Foreground="#C0C4CC"
-                            Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding StepName}"
+                            TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
                 <HierarchicalDataTemplate.Triggers>
                     <DataTrigger Binding="{Binding State}" Value="Running">
-                        <Setter TargetName="IdentityBar" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="HeaderText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="HeaderName" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="HeaderName" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                     </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
 
             <!--  ==========================================  -->
-            <!--  🔀 分支匹配（Case）容器样式  -->
+            <!--  🔀 分支匹配（Case）容器样式（身份色：本仓主题无紫色令牌，取最接近的青蓝 DialogAccentBrush）  -->
             <!--  CaseStep 继承 ConditionStep，类型键模板必须按具体类型给一份
-                  （R23/U2：ProcessTreeTemplateChecks 反射枚举全部具体 StepModel 子类，缺模板即红）。
-                  身份色取紫（#8B5CF6），与灰(If)/橙(While)/绿(For)/蓝(并行) 区分。  -->
+                  （R23/U2：ProcessTreeTemplateChecks 反射枚举全部具体 StepModel 子类，缺模板即红）。  -->
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:CaseStep}" ItemsSource="{Binding Children}">
                 <Border Style="{StaticResource ContainerHeaderBorderStyle}">
@@ -729,52 +673,50 @@
                         <Border Width="16" Height="14">
                             <TextBlock Style="{StaticResource ContainerStatusIconStyle}" />
                         </Border>
-                        <Rectangle
-                            x:Name="IdentityBar"
-                            Width="3"
-                            Height="14"
-                            Margin="0,0,8,0"
-                            Fill="#8B5CF6"
-                            RadiusX="1.5"
-                            RadiusY="1.5" />
-                        <TextBlock
+                        <Border
                             Margin="0,0,6,0"
+                            Padding="6,1"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="#8B5CF6"
-                            Text="{Binding Icon}"
-                            TextOptions.TextFormattingMode="Display" />
-                        <TextBlock
-                            x:Name="HeaderText"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            FontWeight="Bold"
-                            Foreground="#8B5CF6"
-                            Text="分支匹配" />
+                            Background="{StaticResource DialogAccentLightBrush}"
+                            CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogAccentBrush}"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogAccentBrush}"
+                                    Text="分支匹配" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock
                             x:Name="HeaderName"
-                            Margin="6,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="12"
-                            Foreground="#C0C4CC"
-                            Text="{Binding StepName, StringFormat='-[ {0} ]'}" />
+                            Foreground="{StaticResource ScadaTextBrush}"
+                            Text="{Binding StepName}"
+                            TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Border>
                 <HierarchicalDataTemplate.Triggers>
                     <DataTrigger Binding="{Binding State}" Value="Running">
-                        <Setter TargetName="IdentityBar" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="HeaderText" Property="Foreground" Value="#529B2E" />
-                        <Setter TargetName="HeaderName" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="HeaderName" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                     </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
 
             <!--  ==========================================  -->
-            <!--  📦 分支/循环体 卡片样式 (StepCollection)  -->
+            <!--  📦 分支/循环体 胶囊样式 (StepCollection)  -->
             <!--  ==========================================  -->
             <HierarchicalDataTemplate DataType="{x:Type models:StepCollection}" ItemsSource="{Binding Steps}">
-                <!--  卡片主体：左缩进 6（Margin 2 + Padding 4，同算子卡）+ 状态位占位，
+                <!--  胶囊主体：左缩进 6（Margin 2 + Padding 4，同算子卡）+ 状态位占位，
                       指示灯因此与算子卡的图标色块同列；空分支瘦身到 26/150（命中区仍 ≥24，拖入落点不变）。  -->
                 <Border
                     x:Name="BranchContainer"
@@ -782,8 +724,8 @@
                     MinHeight="26"
                     Margin="2,2"
                     Padding="4,4"
-                    Background="#F0F7FF"
-                    BorderBrush="#CBE5FF"
+                    Background="{StaticResource DialogAccentSoftBrush}"
+                    BorderBrush="{StaticResource DialogAccentBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
                     ToolTip="将算子拖入此分支内部">
@@ -801,7 +743,7 @@
                                 <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Parallel">
                                     <Setter Property="ContextMenu" Value="{StaticResource ParallelBranchMenu}" />
                                 </DataTrigger>
-                                <!--  Case 分支（紫身份）：自带分支级右键菜单（改名/删除打在命中的这条分支上）；
+                                <!--  Case 分支（青蓝身份）：自带分支级右键菜单（改名/删除打在命中的这条分支上）；
                                       默认分支是 Else，不命中本触发器 → 无菜单，右键被视图拦截不出错靶菜单。  -->
                                 <DataTrigger Binding="{Binding BranchType}" Value="Case">
                                     <Setter Property="ContextMenu" Value="{StaticResource CaseBranchMenu}" />
@@ -821,7 +763,7 @@
                             Height="8"
                             Margin="0,0,8,0"
                             VerticalAlignment="Center"
-                            Fill="#409EFF" />
+                            Fill="{StaticResource DialogAccentBrush}" />
 
                         <!--  分支文本：StepCollection.DisplayName 已把"分支名 + [ 表达式 / 未绑定条件 ]"
                               拼好（If/ElseIf/Case 带表达式、Else/Default 只有名字），这里不要再叠一块
@@ -831,25 +773,35 @@
                             x:Name="BranchText"
                             VerticalAlignment="Center"
                             FontWeight="SemiBold"
-                            Foreground="#303133"
+                            Foreground="{StaticResource ScadaTextBrush}"
                             Text="{Binding DisplayName}" />
 
-                        <!--  内容量 / 空态提示：同一槽位二选一（触发器按 Steps.Count 切），不许并存——
-                              有算子显示"N 个算子"（徽章灰 #A8ABB2），空分支显示"拖入算子"
-                              （描述行灰 #909399，比统计数字显眼一档：它回答的是"空胶囊为什么空、该怎么办"）。  -->
-                        <TextBlock
-                            x:Name="BranchCountText"
+                        <!--  内容量 pill / 空态提示：同一槽位二选一（触发器按 Steps.Count 切），不许并存——
+                              有算子显示"N 算子"胶囊，空分支显示"拖入算子"
+                              （描述行灰，比统计数字显眼一档：它回答的是"空胶囊为什么空、该怎么办"）。  -->
+                        <!--  内容量 pill：背景 Border 与文字是 Grid 里的**兄弟**节点（不是父子）——
+                              这样文字的"最近 Border 祖先"仍是胶囊本身，探针"取非并行分支文字"的启发式
+                              （判据=最近 Border 无 ContextMenu）不会被这颗 pill 抢走（否则并行分支的计数
+                              文字会被误当非并行分支，探针自检会翻红）。  -->
+                        <Grid
+                            x:Name="BranchCountPill"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
-                            FontSize="11"
-                            Foreground="#A8ABB2"
-                            Text="{Binding Steps.Count, StringFormat='{}{0} 个算子'}" />
+                            Visibility="Collapsed">
+                            <Border Background="{StaticResource DialogRowAlternateBrush}" CornerRadius="8" />
+                            <TextBlock
+                                x:Name="BranchCountText"
+                                Margin="6,1"
+                                FontSize="10"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="{Binding Steps.Count, StringFormat='{}{0} 算子'}" />
+                        </Grid>
                         <TextBlock
                             x:Name="BranchEmptyText"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             FontSize="11"
-                            Foreground="#909399"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
                             Text="拖入算子"
                             Visibility="Collapsed" />
                     </StackPanel>
@@ -860,43 +812,43 @@
                     <!--  场景 0：空分支可辨——Count=0 才是"空"，与"没加载/坏了"区分开。
                           用本文件算子卡已在用的 ui:GreaterThanZeroConverter（不引新转换器）。  -->
                     <DataTrigger Binding="{Binding Steps.Count, Converter={ui:GreaterThanZeroConverter}}" Value="True">
-                        <Setter TargetName="BranchCountText" Property="Visibility" Value="Visible" />
+                        <Setter TargetName="BranchCountPill" Property="Visibility" Value="Visible" />
                         <Setter TargetName="BranchEmptyText" Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Steps.Count, Converter={ui:GreaterThanZeroConverter}}" Value="False">
-                        <Setter TargetName="BranchCountText" Property="Visibility" Value="Collapsed" />
+                        <Setter TargetName="BranchCountPill" Property="Visibility" Value="Collapsed" />
                         <Setter TargetName="BranchEmptyText" Property="Visibility" Value="Visible" />
                     </DataTrigger>
 
-                    <!--  场景 1：Else 分支 (灰色)  -->
+                    <!--  场景 1：Else 分支 (灰)  -->
                     <DataTrigger Binding="{Binding BranchType}" Value="Else">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#F5F7FA" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#E4E7ED" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#A8ABB2" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource ScadaActionCardBorderBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource ScadaFaintTextBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
                     </DataTrigger>
 
-                    <!--  场景 2：循环体卡片 (浅绿) —— Default(For) 与 WhileLoop(While) 都要有身份色  -->
+                    <!--  场景 2：循环体胶囊 (浅绿) —— Default(For) 与 WhileLoop(While) 都要有身份色  -->
                     <DataTrigger Binding="{Binding BranchType}" Value="Default">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#F0F9EB" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#C2E7B0" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding BranchType}" Value="WhileLoop">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#F0F9EB" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#C2E7B0" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#606266" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
                     </DataTrigger>
 
-                    <!--  场景 2b：分支匹配的 Case 分支（紫身份，与容器组头同色）。
+                    <!--  场景 2b：分支匹配的 Case 分支（青蓝身份，与容器组头同色）。
                           分支文本仍只有 DisplayName 一个来源：显示成 "Case 1 [ 100 ]"（R24）。  -->
                     <DataTrigger Binding="{Binding BranchType}" Value="Case">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#F5F3FF" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#DDD6FE" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#8B5CF6" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#303133" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
                     </DataTrigger>
 
                     <!--  场景 2c：并行分组的分支（蓝身份，压掉 Default 的循环绿）——
@@ -905,16 +857,16 @@
                           于是这两个触发器就是"父容器是不是并行分组"的零转换器判别。
                           放在 Default/WhileLoop 之后（后写者赢）、IsConditionMissing 红灯之前（红灯仍最高）。  -->
                     <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Sequential">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#EFF6FF" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#BFDBFE" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#3B82F6" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#303133" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource ScadaAccentBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding DataContext.ExecutionMode, RelativeSource={RelativeSource AncestorType={x:Type TreeViewItem}, AncestorLevel=2}}" Value="Parallel">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#EFF6FF" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#BFDBFE" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#3B82F6" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#303133" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource ScadaAccentBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
                     </DataTrigger>
 
                     <!--  场景 2d：并行分支运行中（真并发）：引擎扇出时给 StepCollection.IsRunning 打标
@@ -922,10 +874,10 @@
                           "运行=绿卡"同一套语言），放在身份触发器之后、IsConditionMissing 红灯之前
                           （红灯仍最高）。顺序退化 / If/While/For 分支不打标（见 StepCollection.IsRunning）。  -->
                     <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#F0F9EB" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#B3E19D" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#67C23A" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#529B2E" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogSuccessBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
                     </DataTrigger>
 
                     <!--  场景 3：缺条件统一红灯——读 StepCollection.IsConditionMissing（P1-⑦）。
@@ -933,10 +885,10 @@
                           现在红点、红字与弹窗校验共用同一属性，一处判定、三处一致。
                           放在绿卡触发器之后：WhileLoop 空条件时红压绿，正确报警  -->
                     <DataTrigger Binding="{Binding IsConditionMissing}" Value="True">
-                        <Setter TargetName="BranchContainer" Property="Background" Value="#FEF0F0" />
-                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="#FBC4C4" />
-                        <Setter TargetName="StatusDot" Property="Fill" Value="#F56C6C" />
-                        <Setter TargetName="BranchText" Property="Foreground" Value="#F56C6C" />
+                        <Setter TargetName="BranchContainer" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                        <Setter TargetName="BranchContainer" Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                        <Setter TargetName="BranchText" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
                     </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
@@ -1036,23 +988,40 @@
     <!--  执行统计两行（评审清单 B 包交互补齐）：规模一行、耗时一行；
           文字用既有正文令牌压透明度，分隔线用最浅边框令牌，不引新色  -->
     <Border
-        Grid.Row="2"
+        Grid.Row="1"
         Margin="8,2,8,4"
         Padding="0,4,0,0"
         BorderBrush="{StaticResource DialogBorderLightBrush}"
         BorderThickness="0,1,0,0">
-        <StackPanel>
-            <TextBlock
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock
+                    FontSize="11"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Opacity="0.75"
+                    Text="{Binding StepCountText}" />
+                <TextBlock
+                    FontSize="11"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Opacity="0.75"
+                    Text="{Binding RunTimeText}" />
+            </StackPanel>
+            <!--  失败自动跳转开关（本批补回）：搜索行整行下线后，此开关一度无 UI 可关
+                  （默认 true → 失败强制切选中）。这里在流程栏底部常驻一个最小入口；
+                  绑定与 VM 语义零改动（AutoJumpToFailure 默认开）  -->
+            <CheckBox
+                Grid.Column="1"
+                Margin="8,0,0,0"
+                VerticalAlignment="Center"
                 FontSize="11"
-                Foreground="{StaticResource TextPrimaryBrush}"
-                Opacity="0.75"
-                Text="{Binding StepCountText}" />
-            <TextBlock
-                FontSize="11"
-                Foreground="{StaticResource TextPrimaryBrush}"
-                Opacity="0.75"
-                Text="{Binding RunTimeText}" />
-        </StackPanel>
+                Content="失败自动跳转"
+                IsChecked="{Binding AutoJumpToFailure}"
+                ToolTip="运行失败时自动把流程栏选中切到失败的步骤；取消勾选则只报警、不切选中" />
+        </Grid>
     </Border>
     </Grid>
 

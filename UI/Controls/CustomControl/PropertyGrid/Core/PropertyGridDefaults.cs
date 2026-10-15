@@ -30,6 +30,10 @@ namespace UI.CustomControl.PropertyGrid
             new EnumGenerator(),
             // 动态候选下拉（轴名 / 卡名）：候选来自宿主注册的来源，随方案变化
             new OptionSourceGenerator(),
+            // 动态候选下拉（连接名 / 扫描组 / 存储区）：候选挂在**绑定对象自己**身上
+            // （弹窗草稿构造时注入），静态 kind 的 OptionSourceGenerator 表达不了这种"随对象变"的候选。
+            // Priority 105 > StructValueGenerator 的 100，否则 string 先被文本框兜走
+            new ComboSourceGenerator(),
             // 数值（int/double/…）：优先于下面的 StructValueGenerator，用 NumericBox 换掉裸文本框
             new NumericGenerator(),
             new StructValueGenerator(),

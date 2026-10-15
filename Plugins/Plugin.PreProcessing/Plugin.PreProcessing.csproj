@@ -17,6 +17,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 插件自带帮助手册：编进本程序集（宿主 HelpCatalogService 按 "<程序集名>.Help." 前缀约定发现，
+      文件名顺序即手册页序，页标题取正文第一个一级标题）。
+      改手册 = 重建本插件工程（与代码改动同一口径，见 AGENTS.md 红线③）。
+    -->
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="halcondotnet">
       <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>
     </Reference>

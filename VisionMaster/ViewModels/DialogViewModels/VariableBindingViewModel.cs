@@ -348,7 +348,7 @@ namespace VisionMaster.ViewModels
         {
             var type = TypeHelper.ResolveType(portDef?.DataTypeName);
             if (type != null && type.IsEnum)
-                return Enum.GetNames(type).Select(n => new StepConfigOption(n)).ToList();
+                return Enum.GetNames(type).Select(n => StepConfigOption.ForEnum(type, n)).ToList();
 
             return (portDef?.PresetOptions ?? new List<string>())
                 .Select(v => new StepConfigOption(v))

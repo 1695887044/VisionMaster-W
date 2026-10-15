@@ -1,5 +1,7 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Windows.Media;
+using Prism.Mvvm;
 using VisionMaster.Models;
 
 namespace VisionMaster.ViewModels
@@ -15,7 +17,7 @@ namespace VisionMaster.ViewModels
     /// 条目绑定的必须仍是原始 <c>ToolItemModel</c> 实例，否则 gong 的拖拽负载会变成 wrapper、
     /// 放置端（FlowCanvasView.FindDraggedTool 硬认 ToolItemModel）拿到 null，拖拽直接断链。
     /// </summary>
-    public class ToolboxGroupViewModel
+    public class ToolboxGroupViewModel : BindableBase
     {
         /// <summary>分组标题（分类名；收藏组固定为"收藏"）</summary>
         public string Name { get; init; } = string.Empty;
@@ -34,5 +36,28 @@ namespace VisionMaster.ViewModels
 
         /// <summary>分组内算子数（分组头右侧的数量胶囊）</summary>
         public int Count => Children.Count;
+
+        private bool _isExpanded;
+
+        /// <summary>
+        /// 分组是否展开（TwoWay 绑到 Expander.IsExpanded）。
+        /// 默认折叠——分类下动辄十几个算子，全展开会把面板撑成一长条；
+        /// 「收藏」组例外（默认展开，它是用户自己挑出来的少数几条）。
+        /// </summary>
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set
+            {
+                if (SetProperty(ref _isExpanded, value))
+                    ExpandedChanged?.Invoke(this, value);
+            }
+        }
+
+        /// <summary>
+        /// 展开态变化回调：父 VM 据此把状态记进字典，**重建分组时不丢**。
+        /// 注意父 VM 在"过滤重建期"会忽略这个回调（否则搜索时的强制展开会污染用户的折叠偏好）。
+        /// </summary>
+        public Action<ToolboxGroupViewModel, bool>? ExpandedChanged { get; init; }
     }
 }

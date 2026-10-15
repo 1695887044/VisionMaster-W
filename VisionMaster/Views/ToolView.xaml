@@ -89,33 +89,14 @@
             <local:CategoryAccentBrushConverter x:Key="CategoryAccentBrushConverter" />
             <local:TypeNameShortenerConverter x:Key="TypeNameShortener" />
 
-            <!--  ============ 悬停预览浮层  ============  -->
-            <!--  内容模板的数据上下文 = 条目本身（ToolTip.Content 绑的是条目）。  -->
-            <!--  注意这里不能像条目模板那样用 RelativeSource 找组 VM 拿分类色：  -->
-            <!--  ToolTip 的内容活在独立 Popup 里，祖先链走不到条目那一侧，  -->
-            <!--  所以分类色从条目自己的 Category 经 CategoryAccentBrushConverter 反查。  -->
+            <!--  ============ 悬停预览浮层的**内容**模板  ============  -->
+            <!--  卡片外框 / 限高 / 滚动条都在文件末尾的 PreviewPopup 上，这里只放"内容"。  -->
+            <!--  数据上下文 = 条目本身（Popup 打开时把 Content 设成条目）。  -->
+            <!--  分类色不能用 RelativeSource 找组 VM：浮层内容活在独立 Popup 里、祖先链走不到条目那一侧，
+                  所以从条目自己的 Category 经 CategoryAccentBrushConverter 反查。  -->
             <DataTemplate x:Key="ToolPreviewTemplate">
-                <Border
-                    MaxWidth="320"
-                    Padding="12"
-                    Background="{StaticResource ScadaSurfaceBrush}"
-                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                    <Border.Effect>
-                        <DropShadowEffect
-                            BlurRadius="16"
-                            Direction="270"
-                            Opacity="0.14"
-                            ShadowDepth="3"
-                            Color="#0F172A" />
-                    </Border.Effect>
-                    <!--  浮层按内容自适应高度（不设限高、不放 ScrollViewer）：
-                          端口可能很多，但 WPF 的 ToolTip 是 Popup，里面的滚动条不可靠
-                          ——鼠标滚轮常被路由到后面的窗口，滚动条点了不动。
-                          宁可让它长一点、把端口一次列全，也不摆一个点了没反应的控件。  -->
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
                             <TextBlock
                                 VerticalAlignment="Center"
                                 FontFamily="{StaticResource Icon}"
@@ -297,35 +278,8 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
-                    </StackPanel>
-                </Border>
+                </StackPanel>
             </DataTemplate>
-
-            <Style x:Key="ToolPreviewTipStyle" TargetType="ToolTip">
-                <!--  条目左侧弹出（工具箱在窗口右侧，浮层落在画布那侧，不遮条目）。
-                     "悬停约 300ms"由 owner 上的 ToolTipService.InitialShowDelay 给
-                     （那是 ToolTipService 的附加属性，不是 ToolTip 自己的属性）。  -->
-                <Setter Property="Placement" Value="Left" />
-                <Setter Property="HasDropShadow" Value="False" />
-                <Setter Property="Padding" Value="0" />
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderThickness" Value="0" />
-                <!--  内容 = 被挂上的那个条目的 DataContext。
-                     这里刻意不用裸 {Binding}（那要赌"ToolTip 会继承 owner 的 DataContext"），
-                     而是显式从 PlacementTarget 取——Popup 里的内容跟条目不在同一棵可视树，
-                     写死来源比依赖隐式继承可靠。  -->
-                <Setter Property="Content" Value="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}" />
-                <Setter Property="ContentTemplate" Value="{StaticResource ToolPreviewTemplate}" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ToolTip">
-                            <!--  默认模板自带系统色边框/内边距，会把浮层自己的圆角卡片顶成双层，  -->
-                            <!--  所以这里只留一个裸 ContentPresenter，外观全交给上面的内容模板。  -->
-                            <ContentPresenter />
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
 
             <!--  ============ 星标按钮  ============  -->
             <!--  显隐：条目悬停时显形；已收藏则常显（且换成主色实心星）。  -->
@@ -372,7 +326,8 @@
                     Margin="0,1"
                     Padding="6,0"
                     CornerRadius="6"
-                    ToolTipService.InitialShowDelay="300">
+                    MouseEnter="OnItemMouseEnter"
+                    MouseLeave="OnItemMouseLeave">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Background" Value="Transparent" />
@@ -383,9 +338,6 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <Border.ToolTip>
-                        <ToolTip Style="{StaticResource ToolPreviewTipStyle}" />
-                    </Border.ToolTip>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -464,7 +416,8 @@
                     Margin="2"
                     Padding="8,7"
                     CornerRadius="8"
-                    ToolTipService.InitialShowDelay="300">
+                    MouseEnter="OnItemMouseEnter"
+                    MouseLeave="OnItemMouseLeave">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Background" Value="{StaticResource ScadaSurfaceBrush}" />
@@ -478,9 +431,6 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <Border.ToolTip>
-                        <ToolTip Style="{StaticResource ToolPreviewTipStyle}" />
-                    </Border.ToolTip>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -910,11 +860,53 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Expander
-                            IsExpanded="True"
+                            IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
                             Style="{StaticResource GroupExpanderStyle}" />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!--  ============ 悬停预览浮层（视图自管的 Popup）  ============  -->
+        <!--  为什么不用 ToolTip：ToolTip 也是 Popup，但它的内容拿不到焦点，
+              里面的 ScrollViewer 收不到鼠标滚轮（真机实测：滚动条在、点了不动）。
+              这里自己开 Popup：悬停条目 ~300ms 弹出（见代码后台），
+              鼠标移进浮层时给 ScrollViewer 焦点——滚轮这才进得来。
+              StaysOpen=True + 关窗延时：鼠标从条目移到浮层（中间有一小段空隙）不会把它关掉。  -->
+        <Popup
+            x:Name="PreviewPopup"
+            AllowsTransparency="True"
+            HorizontalOffset="-6"
+            Placement="Left"
+            PopupAnimation="Fade"
+            StaysOpen="True"
+            MouseEnter="OnPreviewMouseEnter"
+            MouseLeave="OnPreviewMouseLeave">
+            <Border
+                MaxWidth="320"
+                MaxHeight="440"
+                Padding="12"
+                Background="{StaticResource ScadaSurfaceBrush}"
+                BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                PreviewMouseWheel="OnPreviewMouseWheel">
+                <Border.Effect>
+                    <DropShadowEffect
+                        BlurRadius="16"
+                        Direction="270"
+                        Opacity="0.14"
+                        ShadowDepth="3"
+                        Color="#0F172A" />
+                </Border.Effect>
+                <ScrollViewer
+                    x:Name="PreviewScroll"
+                    Focusable="True"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <ContentControl x:Name="PreviewContent" ContentTemplate="{StaticResource ToolPreviewTemplate}" />
+                </ScrollViewer>
+            </Border>
+        </Popup>
     </Grid>
 </UserControl>

@@ -24,15 +24,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
     }
 
     /// <summary>
-    /// 存储区下拉项：把枚举包一层，界面显示中文，取值仍用原始枚举（显示与数据解耦）
-    /// </summary>
-    public class AreaOption
-    {
-        public Enum Value { get; init; }
-        public string DisplayName { get; init; }
-    }
-
-    /// <summary>
     /// 来源树节点：本地池 + 每条通信连接一个子节点
     /// </summary>
     public class VariableSourceNode : BindableBase
@@ -79,13 +70,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 if (SetProperty(ref _selectedSource, value))
                 {
                     UpdateFilteredList();
-                    // 联动新建变量区的本地/网络胶囊：选本地→本地模式，选网络连接→网络模式
+
+                    // 左栏选中项是"要建哪种变量"的唯一决定者（原中栏的本地/网络胶囊已撤）：
+                    // 选本地节点 → IsNetworkSource=false（明细表收起网络三列）；
+                    // 选连接节点 → true，并把「所属连接」跟着换成它（草稿的默认值从这来）
                     if (value != null)
                     {
                         IsNetworkSource = value.IsNetwork;
 
-                        // 来源树是创建表单的上下文。选中网络设备时同步选中对应连接，
-                        // 使网络变量的存储区、地址和协议配置立即可编辑。
                         if (value.IsNetwork)
                             SelectedConnection = Connections.FirstOrDefault(c => c.ConnectionName == value.Key);
                         else
@@ -223,8 +215,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         #region 新建变量（本地/网络双模式）
 
         private bool _isNetworkSource;
-        /// <summary>新建面板当前来源：false=本地 true=网络（胶囊切换，两个 Radio 双向绑定互斥同步）。
-        /// 与左侧来源树双向联动：切本地→选中"本地变量"分组，切网络→选中当前/首个网络连接分组</summary>
+        /// <summary>
+        /// 当前来源是不是网络：false=本地 true=网络。
+        /// <para>由左栏「变量来源」的选中项驱动（见 <see cref="SelectedSource"/> 的 setter），
+        /// 代码后置靠它收放明细表的「来源/扫描组/地址」三列，所以它必须留在 VM 上。</para>
+        /// </summary>
         public bool IsNetworkSource
         {
             get => _isNetworkSource;
@@ -232,15 +227,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (SetProperty(ref _isNetworkSource, value))
                 {
-                    RaisePropertyChanged(nameof(IsLocalSource));
-                    RaisePropertyChanged(nameof(FilteredTypes));
-                    SelectedAreaType = null;
-                    NewBitOffset = 0; // S7 布尔必须带位偏移（M0.0），默认位 0
-
-                    // 网络模式仅支持标量：当前类型（string/数组）不合法时回落到首个合法项
-                    if (value && (SelectedType == null || !FilteredTypes.Contains(SelectedType)))
-                        SelectedType = FilteredTypes.First();
-
                     // 联动来源树：切本地→选中本地分组；切网络→保持当前网络连接或选首个
                     if (value)
                     {
@@ -255,16 +241,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        /// <summary>IsNetworkSource 的反值（供"本地"胶囊直接双向绑定）</summary>
-        public bool IsLocalSource
-        {
-            get => !_isNetworkSource;
-            set => IsNetworkSource = !value;
-        }
-
         public ObservableCollection<CommunicationConfig> Connections { get; } = new();
 
         private CommunicationConfig? _selectedConnection;
+        /// <summary>
+        /// 当前选中的连接（左栏选中连接节点时同步过来）。
+        /// 「添加变量」弹窗的「所属连接」默认值、「管理扫描组」的作用对象都用它。
+        /// </summary>
         public CommunicationConfig? SelectedConnection
         {
             get => _selectedConnection;
@@ -272,9 +255,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (SetProperty(ref _selectedConnection, value))
                 {
-                    RefreshAreaOptions();
                     RefreshNewScanGroupOptions();
-                    NewBitOffset = 0; // S7 布尔必须带位偏移（M0.0），默认位 0
 
                     // 「管理扫描组」的作用对象就是这个连接，命令可用性必须跟着换
                     ManageScanGroupsCommand.RaiseCanExecuteChanged();
@@ -282,11 +263,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        /// <summary>新建面板「扫描组」下拉的选项：当前连接的组表（默认组恒在首位）</summary>
-        public ObservableCollection<string> NewScanGroupOptions { get; } = new();
-
         /// <summary>
-        /// 新建变量时选定的扫描组（显示值，"默认组"= 空串落库）。
+        /// 「添加变量」弹窗里选定的扫描组（显示值，"默认组"= 空串落库）。
         /// <para>建完**不清空**：连续录同一节拍的点位时不用每次重选。组名是连接级资源，
         /// 换连接后若旧组名不存在，<see cref="RefreshNewScanGroupOptions"/> 会回落默认组。</para>
         /// </summary>
@@ -296,25 +274,19 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set => SetProperty(ref field, value);
         } = PollScheduler.DefaultGroupName;
 
+        /// <summary>某连接的组表（默认组恒在首位）；连接名为空时只有默认组</summary>
+        private IReadOnlyList<string> GetScanGroupOptions(string? connectionName)
+            => _communicationManager.GetScanGroupNames(connectionName ?? string.Empty);
+
         /// <summary>
-        /// 刷新「扫描组」下拉，并尽量保住用户上次选的那个组：
-        /// 新连接的组表里还有同名组就继续选中，没有就回落默认组（不留失效值）。
+        /// 归一「添加变量」弹窗要用的扫描组默认值：记住的组在新连接的组表里还有就继续用，
+        /// 没有就回落默认组——否则弹窗会预填一个选不中的组名。
         /// </summary>
         private void RefreshNewScanGroupOptions()
         {
-            NewScanGroupOptions.Clear();
-
-            if (SelectedConnection == null)
-            {
-                SelectedNewScanGroup = PollScheduler.DefaultGroupName;
-                return;
-            }
-
-            foreach (var groupName in _communicationManager.GetScanGroupNames(SelectedConnection.ConnectionName))
-                NewScanGroupOptions.Add(groupName);
-
+            var options = GetScanGroupOptions(SelectedConnection?.ConnectionName);
             string remembered = SelectedNewScanGroup;
-            SelectedNewScanGroup = !string.IsNullOrWhiteSpace(remembered) && NewScanGroupOptions.Contains(remembered)
+            SelectedNewScanGroup = !string.IsNullOrWhiteSpace(remembered) && options.Contains(remembered)
                 ? remembered
                 : PollScheduler.DefaultGroupName;
         }
@@ -347,7 +319,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>
         /// 扫描组编辑器关闭后重算两处「扫描组」下拉。
-        /// <para>① 新建表单的下拉：新加的组要能立刻选到（<see cref="RefreshNewScanGroupOptions"/>）；</para>
+        /// <para>① 添加变量弹窗的默认值：新加的组要能立刻选到（<see cref="RefreshNewScanGroupOptions"/>）；</para>
         /// <para>② 右栏变量列表的下拉：组被改名/删除后，已有变量的可选项要跟上。变量模型里的组名
         /// 已由编辑器级联改好（<c>CascadeRename</c>），这里只负责让界面重新读一遍——
         /// 所以走 <see cref="RefreshTree"/> 重建节点（它按 VariableId 保留展开态），而不是自己造一套局部刷新。</para>
@@ -361,46 +333,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RefreshTree();
         }
 
-        public ObservableCollection<AreaOption> AreaOptions { get; } = new();
-
-        private AreaOption? _selectedAreaType;
-        public AreaOption? SelectedAreaType
-        {
-            get => _selectedAreaType;
-            set
-            {
-                if (SetProperty(ref _selectedAreaType, value))
-                {
-                    RaisePropertyChanged(nameof(IsCoilOrDiscrete));
-                    RaisePropertyChanged(nameof(IsBitMode)); // 存储区切换影响位访问判定（线圈区无位偏移）
-                }
-            }
-        }
-
-        private string _newOffset = "0";
-        public string NewOffset
-        {
-            get => _newOffset;
-            set => SetProperty(ref _newOffset, value);
-        }
-
-        private int _newBitOffset = 0;
-        public int NewBitOffset
-        {
-            get => _newBitOffset;
-            set
-            {
-                if (SetProperty(ref _newBitOffset, value))
-                    RaisePropertyChanged(nameof(IsBitMode));
-            }
-        }
-
-        /// <summary>是否位访问（Boolean+位偏移有效且非线圈区），决定位偏移输入框可见性与地址构造</summary>
-        public bool IsBitMode => SelectedType?.ActualType == typeof(bool) && NewBitOffset >= 0 && !IsCoilOrDiscrete;
-
-        /// <summary>所选存储区是否线圈/离散输入（仅 bool 合法）</summary>
-        public bool IsCoilOrDiscrete => SelectedAreaType?.Value is ModbusArea.Coils or ModbusArea.DiscreteInputs;
-
+        /// <summary>存储区显示名表：界面显示中文，落库仍用原始枚举（显示与数据解耦）</summary>
         private static readonly System.Collections.Generic.Dictionary<Enum, string> AreaDisplayNames = new()
         {
             [ModbusArea.Coils] = "线圈 (0x, 读写布尔)",
@@ -414,109 +347,106 @@ namespace VisionMaster.ViewModels.DialogViewModels
             [S7Area.V] = "V 区 (S7-200 Smart)",
         };
 
-        private void RefreshAreaOptions()
+        /// <summary>某连接的存储区候选（显示名，顺序 = 枚举声明序）；连接为空/协议未实现时给空表</summary>
+        private static IReadOnlyList<string> GetAreaOptions(CommunicationConfig? connection) => connection?.Protocol switch
         {
-            AreaOptions.Clear();
-            switch (SelectedConnection?.Protocol)
+            CommunicationType.ModbusTcp => Enum.GetValues(typeof(ModbusArea)).Cast<ModbusArea>().Select(a => AreaDisplayNames[a]).ToList(),
+            CommunicationType.SiemensS7 => Enum.GetValues(typeof(S7Area)).Cast<S7Area>().Select(a => AreaDisplayNames[a]).ToList(),
+            _ => Array.Empty<string>(),
+        };
+
+        /// <summary>协议的默认存储区显示名（Modbus = 保持寄存器 / S7 = 内部标志位，与旧表单的默认选中一致）</summary>
+        private static string GetDefaultAreaName(CommunicationType protocol) => protocol switch
+        {
+            CommunicationType.ModbusTcp => AreaDisplayNames[ModbusArea.HoldingRegisters],
+            CommunicationType.SiemensS7 => AreaDisplayNames[S7Area.M],
+            _ => string.Empty,
+        };
+
+        /// <summary>
+        /// 显示名 → 存储区枚举值（按该协议的候选表反查）。
+        /// 草稿里存的是显示名（属性网格渲染的是字符串），落库前必须回到枚举——
+        /// 直接拿显示名当值等于把界面文案写进配置。
+        /// </summary>
+        private static bool TryResolveArea(CommunicationType protocol, string? displayName, out Enum area)
+        {
+            area = null!;
+            if (string.IsNullOrWhiteSpace(displayName)) return false;
+
+            if (protocol == CommunicationType.ModbusTcp)
             {
-                case CommunicationType.ModbusTcp:
-                    foreach (ModbusArea a in Enum.GetValues(typeof(ModbusArea)))
-                        AreaOptions.Add(new AreaOption { Value = a, DisplayName = AreaDisplayNames[a] });
-                    SelectedAreaType = AreaOptions.First(o => Equals(o.Value, ModbusArea.HoldingRegisters));
-                    break;
-                case CommunicationType.SiemensS7:
-                    foreach (S7Area a in Enum.GetValues(typeof(S7Area)))
-                        AreaOptions.Add(new AreaOption { Value = a, DisplayName = AreaDisplayNames[a] });
-                    SelectedAreaType = AreaOptions.First(o => Equals(o.Value, S7Area.M));
-                    break;
+                foreach (ModbusArea a in Enum.GetValues(typeof(ModbusArea)))
+                {
+                    if (string.Equals(AreaDisplayNames[a], displayName, StringComparison.Ordinal))
+                    {
+                        area = a;
+                        return true;
+                    }
+                }
             }
+            else if (protocol == CommunicationType.SiemensS7)
+            {
+                foreach (S7Area a in Enum.GetValues(typeof(S7Area)))
+                {
+                    if (string.Equals(AreaDisplayNames[a], displayName, StringComparison.Ordinal))
+                    {
+                        area = a;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
+
+        /// <summary>所选存储区是否线圈/离散输入（仅 bool 合法，且不使用位偏移）</summary>
+        private static bool IsCoilOrDiscreteArea(Enum? area)
+            => area is ModbusArea.Coils or ModbusArea.DiscreteInputs;
 
         #endregion
 
-        /// <summary>数据类型是否布尔（网络模式下决定位偏移输入框显示）</summary>
-        public bool IsBoolType => SelectedType?.ActualType == typeof(bool);
-
-        public string NewVarName
-        {
-            get => field;
-            set => SetProperty(ref field, value);
-        }
-
-        public string NewVarDescription
-        {
-            get => field;
-            set => SetProperty(ref field, value);
-        }
-
-        private string _newInitialValueText = "";
         /// <summary>
-        /// 新建变量的初始值（选填，仅标量类型显示）：
-        /// 「初始值」列从明细表撤掉后，基准（DefaultValue）唯一的设定入口就在这里——
-        /// 留空 = 类型默认值（0 / 空串 / false）。转换规则与"当前值"就地编辑同源（VariableValueConverter）。
-        /// 数组用「强制覆盖集合...」整体维护基准，图像由流程写入，两者都不给文本框。
+        /// 候选类型表（显示名 ↔ CLR 类型）。「添加变量」弹窗的类型候选从它生成，
+        /// 确认时再按显示名反查回来——显示名只活在弹窗内，落库的始终是
+        /// <see cref="DataTypeOption.ActualType"/>（同 R33/R34 的"名字 ≠ 值"口径）。
+        ///
+        /// 图像变量：给"图像显示"图元（Hmi.ImageView）当输入源用。
+        /// 位图没法用文本初始值表达，所以它在变量表里的"初始值"单元格是只读的
+        /// （见 VariableNode.IsEditableNode 的同名判断）。
         /// </summary>
-        public string NewInitialValueText
+        private static readonly List<DataTypeOption> AllTypes = new()
         {
-            get => _newInitialValueText;
-            set => SetProperty(ref _newInitialValueText, value);
-        }
-
-        /// <summary>初始值输入框显隐：数组/图像没有可文本化的初始值</summary>
-        public bool ShowNewInitialValue
-        {
-            get
-            {
-                var t = SelectedType?.ActualType;
-                return t != null && !t.IsArray && !typeof(HImage).IsAssignableFrom(t);
-            }
-        }
-
-        public DataTypeOption SelectedType
-        {
-            get => field;
-            set
-            {
-                if (SetProperty(ref field, value))
-                {
-                    RaisePropertyChanged(nameof(IsBitMode));
-                    RaisePropertyChanged(nameof(IsBoolType));
-                    RaisePropertyChanged(nameof(ShowNewInitialValue));
-                }
-            }
-        }
-
-        public ObservableCollection<DataTypeOption> AvailableTypes { get; } =
-            new()
-            {
-                new DataTypeOption { DisplayName = "整数 (int)", ActualType = typeof(int) },
-                new DataTypeOption { DisplayName = "小数 (double)", ActualType = typeof(double) },
-                new DataTypeOption { DisplayName = "文本 (string)", ActualType = typeof(string) },
-                new DataTypeOption { DisplayName = "布尔 (bool)", ActualType = typeof(bool) },
-                new DataTypeOption { DisplayName = "整数数组 (int[])", ActualType = typeof(int[]) },
-                new DataTypeOption { DisplayName = "小数数组 (double[])", ActualType = typeof(double[]) },
-                new DataTypeOption { DisplayName = "文本数组 (string[])", ActualType = typeof(string[]) },
-                new DataTypeOption { DisplayName = "布尔数组 (bool[])", ActualType = typeof(bool[]) },
-                // 图像变量：给"图像显示"图元（Hmi.ImageView）当输入源用。
-                // 位图没法用文本初始值表达，所以它在变量表里的"初始值"单元格是只读的
-                // （见 VariableNode.IsEditableNode 的同名判断）。
-                new DataTypeOption { DisplayName = "图像 (HImage)", ActualType = typeof(HImage) },
-            };
+            new DataTypeOption { DisplayName = "整数 (int)", ActualType = typeof(int) },
+            new DataTypeOption { DisplayName = "小数 (double)", ActualType = typeof(double) },
+            new DataTypeOption { DisplayName = "文本 (string)", ActualType = typeof(string) },
+            new DataTypeOption { DisplayName = "布尔 (bool)", ActualType = typeof(bool) },
+            new DataTypeOption { DisplayName = "整数数组 (int[])", ActualType = typeof(int[]) },
+            new DataTypeOption { DisplayName = "小数数组 (double[])", ActualType = typeof(double[]) },
+            new DataTypeOption { DisplayName = "文本数组 (string[])", ActualType = typeof(string[]) },
+            new DataTypeOption { DisplayName = "布尔数组 (bool[])", ActualType = typeof(bool[]) },
+            new DataTypeOption { DisplayName = "图像 (HImage)", ActualType = typeof(HImage) },
+        };
 
         /// <summary>
-        /// 当前模式可选类型（新建面板下拉绑定此属性）：
-        /// 网络模式下过滤文本、数组与图像——通信层仅支持标量点读，
+        /// 某来源可选类型（弹窗的类型候选）：
+        /// 网络来源下过滤文本、数组与图像——通信层仅支持标量点读，
         /// ToDataValueType 对 string/数组会兜底成 Int32，导致地址语义错误（隐患修复）；
         /// 图像更是设备侧根本没有对应点位，留着只会让人配出一个永远为空的变量。
         /// </summary>
-        public IEnumerable<DataTypeOption> FilteredTypes =>
-            _isNetworkSource
-                ? AvailableTypes.Where(t =>
+        private static IEnumerable<DataTypeOption> TypesFor(bool isNetwork)
+            => isNetwork
+                ? AllTypes.Where(t =>
                     t.ActualType != typeof(string) &&
                     t.ActualType != typeof(string[]) &&
                     t.ActualType != typeof(HImage) &&
                     !t.ActualType.IsArray)
-                : AvailableTypes;
+                : AllTypes;
+
+        /// <summary>显示名 → CLR 类型；认不出返回 null（弹窗确认时的第一道闸）</summary>
+        private static Type? ResolveType(string? displayName)
+            => string.IsNullOrWhiteSpace(displayName)
+                ? null
+                : AllTypes.FirstOrDefault(t => string.Equals(t.DisplayName, displayName, StringComparison.Ordinal))?.ActualType;
 
         public DelegateCommand AddCommand { get; }
         public DelegateCommand<VariableNode> DeleteCommand { get; }
@@ -556,8 +486,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _communicationManager = communicationManager;
             _bridge = bridge;
             _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
-
-            SelectedType = AvailableTypes.First();
 
             AddCommand = new DelegateCommand(AddVariable);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(new DialogResult(ButtonResult.OK)));
@@ -735,11 +663,38 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private void OnVariablesChangedForCountsHandler(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshSourceCounts();
 
-        #region 新建变量
+        #region 新建变量（左栏来源决定种类 → 弹窗录入）
 
-        private void AddVariable()
+        /// <summary>
+        /// 「＋ 添加变量」入口（同步命令体 → <see cref="AddVariableCore"/> 异步内核）。
+        /// <para>为什么拆两段：<c>EasyDialog.ShowPropertyGridAsync</c> 必须 await（它内部用
+        /// DispatcherPriority.Background 排弹窗，同步阻塞会与路由事件互锁），而
+        /// <see cref="DelegateCommand"/> 只收 Action——与 ExecuteEditArray → ExecuteEditArrayCore
+        /// 同一范式。</para>
+        /// </summary>
+        private void AddVariable() => AddVariableCore();
+
+        /// <summary>
+        /// 按左栏当前选中的来源构造草稿 → 弹属性网格 → 确认后走既有的创建逻辑。
+        ///
+        /// 【为什么校验在弹窗之后】名称/类型/地址这些字段现在都在草稿里，弹窗确认前
+        /// 它们还不存在。校验口径与旧表单逐条对齐（空名 / 大小写不敏感查重 / 类型 /
+        /// 线圈区布尔 / 网络标量限制 / 初始值 / 地址 Validate），只是发生时机往后挪了一步。
+        /// </summary>
+        private async void AddVariableCore()
         {
-            if (string.IsNullOrWhiteSpace(NewVarName))
+            // 无 WPF 应用上下文（headless 断言宿主 / 设计器 / 已关机）：EasyDialog 内部的
+            // InternalExecuteAsync 虽有"Application.Current == null → 返回 false"的保护分支，
+            // 但它的**前置步骤**（Dispatcher.InvokeAsync 建 FlatPropertyGrid）没有——直接调会 NRE。
+            // 这里前置判空走同一口径：无应用上下文 = 弹不出去 = 按"用户取消"处理（草稿丢弃）。
+            if (Application.Current == null) return;
+
+            var draft = CreateDraft();
+            if (draft == null) return;   // 左栏没有任何来源可选
+
+            if (!await EasyDialog.ShowPropertyGridAsync("添加变量", draft)) return;   // 取消 = 草稿丢弃
+
+            if (string.IsNullOrWhiteSpace(draft.VariableName))
             {
                 // 签名是 ShowSync(title, message)：早期这里写反了，标题栏显示的是报错句、正文显示"提示"
                 EasyDialog.ShowSync(title: "提示", message: "变量名不能为空！");
@@ -748,36 +703,89 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             // C3：查重改大小写不敏感——监视栏/搜索匹配均为 OrdinalIgnoreCase，
             // 旧口径(Ordinal)允许 Var 与 var 共存，两套匹配规则互相矛盾
-            if (_workspace.GlobalVariables.Any(s => s.Name.Equals(NewVarName, StringComparison.OrdinalIgnoreCase)))
+            if (_workspace.GlobalVariables.Any(s => s.Name.Equals(draft.VariableName, StringComparison.OrdinalIgnoreCase)))
             {
                 EasyDialog.ShowSync(title: "提示", message: "底层引擎已存在同名变量，请更换名称！");
                 return;
             }
 
-            Type targetType = SelectedType.ActualType;
+            var targetType = ResolveType(draft.TypeName);
+            if (targetType == null)
+            {
+                EasyDialog.ShowSync("请选择数据类型！", "提示");
+                return;
+            }
 
-            if (IsNetworkSource)
-            {
-                AddNetworkVariable(targetType);
-            }
+            if (draft is NetworkVariableDraft networkDraft)
+                AddNetworkVariable(networkDraft, targetType);
             else
-            {
-                AddLocalVariable(targetType);
-            }
+                AddLocalVariable(draft, targetType);
         }
 
-        /// <summary>解析新建表单的初始值文本：留空 = 类型默认值；非法文本返回 false 并给出中文原因</summary>
-        private bool TryGetNewInitialValue(Type targetType, out object? initial, out string error)
+        /// <summary>
+        /// 构造本次「添加变量」的草稿：种类由左栏选中项决定，字段用**当前已有状态**预填
+        /// （连接 = 左栏选中的那条；扫描组 = 上次建完记住的那个；存储区 = 该协议的默认项）。
+        /// </summary>
+        private VariableDraft? CreateDraft()
         {
-            var text = NewInitialValueText?.Trim();
-            if (string.IsNullOrWhiteSpace(text))
+            bool isNetwork = SelectedSource?.IsNetwork == true;
+            var typeOptions = TypesFor(isNetwork).Select(t => t.DisplayName).ToList();
+
+            if (!isNetwork)
+                return new LocalVariableDraft(typeOptions) { TypeName = typeOptions.FirstOrDefault() ?? string.Empty };
+
+            var connection = SelectedConnection
+                ?? Connections.FirstOrDefault(c => c.ConnectionName == SelectedSource?.Key);
+
+            return new NetworkVariableDraft(
+                typeOptions,
+                Connections.Select(c => c.ConnectionName),
+                GetScanGroupOptions(connection?.ConnectionName),
+                GetAreaOptions(connection),
+                BuildAddressPreview)
+            {
+                TypeName = typeOptions.FirstOrDefault() ?? string.Empty,
+                ConnectionName = connection?.ConnectionName ?? string.Empty,
+                // 扫描组默认沿用"建完记住"的那个（RefreshNewScanGroupOptions 已保证它在组表里）
+                ScanGroupName = SelectedNewScanGroup,
+                AreaName = connection == null ? string.Empty : GetDefaultAreaName(connection.Protocol),
+                Offset = "0",
+                BitOffset = 0,
+            };
+        }
+
+        /// <summary>
+        /// 草稿「地址预览」的取值委托：与创建路径共用 <see cref="TryBuildAddress"/> 一份逻辑，
+        /// 所以预览里看到的串就是确认后落库的那个地址（预览与落库劈叉等于预览骗人）。
+        /// 填不全时返回一句"还差什么"，而不是空白或半个地址。
+        /// </summary>
+        private string BuildAddressPreview(NetworkVariableDraft draft)
+        {
+            var connection = Connections.FirstOrDefault(c => c.ConnectionName == draft.ConnectionName);
+            if (connection == null) return "（先选所属连接）";
+
+            var targetType = ResolveType(draft.TypeName);
+            if (targetType == null) return "（先选数据类型）";
+
+            if (!TryResolveArea(connection.Protocol, draft.AreaName, out var area)) return "（先选存储区）";
+
+            return TryBuildAddress(connection.Protocol, area, draft.Offset, draft.BitOffset, targetType, out var address, out var error)
+                ? address.Address
+                : $"（{error}）";
+        }
+
+        /// <summary>解析弹窗草稿里的初始值文本：留空 = 类型默认值；非法文本返回 false 并给出中文原因</summary>
+        private static bool TryGetNewInitialValue(string? text, Type targetType, out object? initial, out string error)
+        {
+            var trimmed = text?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
             {
                 initial = targetType == typeof(string) ? string.Empty : Activator.CreateInstance(targetType);
                 error = "";
                 return true;
             }
 
-            if (VisionMaster.Helpers.VariableValueConverter.TryConvert(text, targetType, out var converted, out error))
+            if (VisionMaster.Helpers.VariableValueConverter.TryConvert(trimmed, targetType, out var converted, out error))
             {
                 initial = converted;
                 return true;
@@ -786,14 +794,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             return false;
         }
 
-        private void AddLocalVariable(Type targetType)
+        private void AddLocalVariable(VariableDraft draft, Type targetType)
         {
             object initValue;
             if (targetType.IsArray)
             {
                 initValue = Array.CreateInstance(targetType.GetElementType(), 0);
             }
-            else if (!TryGetNewInitialValue(targetType, out var parsed, out var initialError))
+            else if (!TryGetNewInitialValue(draft.InitialValue, targetType, out var parsed, out var initialError))
             {
                 EasyDialog.ShowSync($"初始值无效：{initialError}", "提示");
                 return;
@@ -805,37 +813,35 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             var newVar = new LocalVariableModel
             {
-                Name = NewVarName,
+                Name = draft.VariableName,
                 DataType = targetType,
-                Description = NewVarDescription,
+                Description = draft.Description,
                 DefaultValue = initValue,
                 Value = initValue,
             };
 
             _workspace.GlobalVariables.Add(newVar); // 集合事件自动挂监听 + 树刷新
 
-            // 切换到本地来源分组，确保新变量立即可见（此前停留在非本地来源时新变量被过滤器吞掉）
+            // 切换到本地来源分组，确保新变量立即可见（此前停留在非网络来源时新变量被过滤器吞掉）
             SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == "Local");
 
-            NewVarName = string.Empty;
-            NewVarDescription = string.Empty;
-            NewInitialValueText = string.Empty;
             Notifier.ShowSuccess($"本地变量 [{newVar.Name}] 创建成功");
         }
 
-        private void AddNetworkVariable(Type targetType)
+        private void AddNetworkVariable(NetworkVariableDraft draft, Type targetType)
         {
-            if (SelectedConnection == null)
+            var connection = Connections.FirstOrDefault(c => c.ConnectionName == draft.ConnectionName);
+            if (connection == null)
             {
                 EasyDialog.ShowSync("请选择所属连接！", "提示");
                 return;
             }
-            if (SelectedAreaType == null)
+            if (!TryResolveArea(connection.Protocol, draft.AreaName, out var area))
             {
                 EasyDialog.ShowSync("请选择存储区！", "提示");
                 return;
             }
-            if (IsCoilOrDiscrete && targetType != typeof(bool))
+            if (IsCoilOrDiscreteArea(area) && targetType != typeof(bool))
             {
                 EasyDialog.ShowSync("线圈/离散输入区仅支持布尔类型！", "提示");
                 return;
@@ -846,38 +852,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 EasyDialog.ShowSync("网络变量仅支持数值/布尔标量类型，不支持文本与数组！", "提示");
                 return;
             }
-            if (!TryGetNewInitialValue(targetType, out var initial, out var initialError))
+            if (!TryGetNewInitialValue(draft.InitialValue, targetType, out var initial, out var initialError))
             {
                 EasyDialog.ShowSync($"初始值无效：{initialError}", "提示");
                 return;
             }
 
-            DeviceAddressBase address;
             try
             {
-                switch (SelectedConnection.Protocol)
+                if (!TryBuildAddress(connection.Protocol, area, draft.Offset, draft.BitOffset, targetType, out var address, out var addressError))
                 {
-                    case CommunicationType.ModbusTcp:
-                        address = new ModbusAddress
-                        {
-                            Area = (ModbusArea)SelectedAreaType.Value,
-                            Offset = NewOffset,
-                            DataType = ToDataValueType(targetType),
-                            BitOffset = IsBitMode ? NewBitOffset : -1
-                        };
-                        break;
-                    case CommunicationType.SiemensS7:
-                        address = new S7Address
-                        {
-                            Area = (S7Area)SelectedAreaType.Value,
-                            Offset = NewOffset,
-                            DataType = ToDataValueType(targetType),
-                            BitOffset = IsBitMode ? NewBitOffset : -1
-                        };
-                        break;
-                    default:
-                        EasyDialog.ShowSync($"协议 {SelectedConnection.Protocol} 的变量创建暂不支持", "提示");
-                        return;
+                    EasyDialog.ShowSync(addressError, "提示");
+                    return;
                 }
 
                 var (valid, error) = address.Validate();
@@ -888,14 +874,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 }
 
                 var netVar = (NetworkVariableModel)VariableFactory.CreateNetwork(
-                    NewVarName, targetType, SelectedConnection.ConnectionName,
-                    address, NewVarDescription);
+                    draft.VariableName, targetType, connection.ConnectionName,
+                    address, draft.Description);
 
                 // 建的时候就定好节拍：桥接器注册时会把 ScanGroup 抄进 CommunicationVariable，
                 // 事后再改要走 ReRegister，这里一次到位
-                netVar.ScanGroup = ToStoredScanGroup(SelectedNewScanGroup);
+                netVar.ScanGroup = ToStoredScanGroup(draft.ScanGroupName);
 
-                // 基准与起始值同源（表单"初始值"）：此刻尚未 Bind 通信管理器，
+                // 基准与起始值同源（弹窗的「初始值」）：此刻尚未 Bind 通信管理器，
                 // Value setter 的隐式写设备会静默跳过，只落镜像值
                 netVar.DefaultValue = initial;
                 netVar.Value = initial;
@@ -903,16 +889,61 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _workspace.GlobalVariables.Add(netVar); // 桥接器监听集合 → 自动 Bind + RegisterVariable + 镜像接线
 
                 // 切换到对应连接来源分组，确保新变量立即可见
-                SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == SelectedConnection.ConnectionName);
+                SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == connection.ConnectionName);
 
-                NewVarName = string.Empty;
-                NewVarDescription = string.Empty;
-                NewInitialValueText = string.Empty;
-                Notifier.ShowSuccess($"网络变量 [{netVar.Name}] 创建成功（{SelectedConnection.ConnectionName} @ {address.Address}）");
+                // 建完记住本次的组（旧表单"不清空"同语义）：连续录同节拍的点位时，
+                // 下一个弹窗直接预填同一个组。放在切来源之后——切来源会重算该连接的组表。
+                SelectedNewScanGroup = draft.ScanGroupName;
+
+                Notifier.ShowSuccess($"网络变量 [{netVar.Name}] 创建成功（{connection.ConnectionName} @ {address.Address}）");
             }
             catch (Exception ex)
             {
                 EasyDialog.ShowSync($"创建网络变量失败：{ex.Message}", "错误");
+            }
+        }
+
+        /// <summary>
+        /// 按协议构造地址（创建与草稿的「地址预览」共用一份，预览与落库不许劈叉）。
+        /// 位偏移只在"布尔 + 非线圈/离散区"时才真正参与（S7 的 M0.0 形态），
+        /// 其余情况按 -1（无位访问）落库——判据与旧表单的 IsBitMode 同源。
+        /// </summary>
+        private static bool TryBuildAddress(
+            CommunicationType protocol, Enum area, string? offset, int bitOffset, Type targetType,
+            out DeviceAddressBase address, out string error)
+        {
+            address = null!;
+            error = string.Empty;
+
+            int effectiveBitOffset = targetType == typeof(bool) && bitOffset >= 0 && !IsCoilOrDiscreteArea(area)
+                ? bitOffset
+                : -1;
+
+            switch (protocol)
+            {
+                case CommunicationType.ModbusTcp:
+                    address = new ModbusAddress
+                    {
+                        Area = (ModbusArea)area,
+                        Offset = offset ?? "0",
+                        DataType = ToDataValueType(targetType),
+                        BitOffset = effectiveBitOffset
+                    };
+                    return true;
+
+                case CommunicationType.SiemensS7:
+                    address = new S7Address
+                    {
+                        Area = (S7Area)area,
+                        Offset = offset ?? "0",
+                        DataType = ToDataValueType(targetType),
+                        BitOffset = effectiveBitOffset
+                    };
+                    return true;
+
+                default:
+                    error = $"协议 {protocol} 的变量创建暂不支持";
+                    return false;
             }
         }
 

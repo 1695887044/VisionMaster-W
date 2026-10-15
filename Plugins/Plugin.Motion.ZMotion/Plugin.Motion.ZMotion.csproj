@@ -19,6 +19,15 @@
 
   <ItemGroup>
     <!--
+      插件自带帮助手册：编进本程序集（宿主 HelpCatalogService 按 "<程序集名>.Help." 前缀约定发现，
+      文件名顺序即手册页序，页标题取正文第一个一级标题）。
+      手册跟着 DLL 走，就不会出现"换了台机器手册没拷过去"；改手册 = 重建本插件工程。
+    -->
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
       native 依赖（正运动官方库）。
 
       ⚠ 用通配 Sdk\*.dll 而不是逐个列文件名：SDK 不是一个文件，最少要两个 ——

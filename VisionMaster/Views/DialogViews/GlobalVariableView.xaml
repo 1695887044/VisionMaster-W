@@ -15,9 +15,9 @@
         窗口尺寸挂在 Window 上，不写在 UserControl 根节点上。
         UserControl 的 HorizontalAlignment 默认是 Stretch（撑满父容器），
         但一旦显式写了 Width，Stretch 就退化成"居中"——窗口一拉大/最大化，
-        三栏内容就整体居中、四周一圈留白，而且永远不跟着窗口变宽。
+        两栏内容就整体居中、四周一圈留白，而且永远不跟着窗口变宽。
         搬到 Window 后 UserControl 自然撑满，最右一栏（* 列）吸收全部多余宽度；
-        左栏（来源列表 216）与中栏（表单 296）保持固定像素，是主从布局的标准做法。
+        左栏（来源列表 216）保持固定像素，是主从布局的标准做法。
         刻意不用 SizeToContent：它会让窗口随内容自己改大小，且手动放大后内容不重排。
     -->
     <prism:Dialog.WindowStyle>
@@ -45,8 +45,13 @@
 
     <!--
         ============================================================================
-        变量管理（三栏：来源树 / 新建变量 / 变量明细）
+        变量管理（两栏：来源树 / 变量明细）
         ============================================================================
+
+        原"中栏 新建变量表单"整栏已撤（含顶部的「本地/网络」分段胶囊）：
+        变量种类由**左栏当前选中的来源**决定，录入动作改为右栏卡片头的
+        「＋ 添加变量」→ EasyDialog 属性网格弹窗（草稿类见 VariableDraft.cs）。
+        这样右栏明细表拿回了全部横向空间，来源（左）与内容（右）的从属关系也更直白。
 
         本视图不再自带 UserControl.Resources：
         颜色一律取 Colors.xaml 的 Dialog* 令牌节，控件皮肤一律取 DialogStyles.xaml，
@@ -129,12 +134,10 @@
             </Grid>
         </Border>
 
-        <!--  以下即原三栏内容：外层多了一层"行定义"用于放标题栏，所以 Margin 从根 Grid 挪到这里  -->
+        <!--  以下即原两栏内容：外层多了一层"行定义"用于放标题栏，所以 Margin 从根 Grid 挪到这里  -->
         <Grid Grid.Row="1" Margin="14">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="216" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="296" />
             <ColumnDefinition Width="12" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
@@ -193,278 +196,8 @@
             </Border>
         </Grid>
 
-        <!--  ============ 中栏：新建变量  ============  -->
-        <Grid Grid.Column="2">
-            <Border Style="{StaticResource DialogCardShadow}" />
-            <Border Style="{StaticResource DialogCardBorder}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <Border Grid.Row="0" Style="{StaticResource DialogCardHeader}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource DialogCardTitleIcon}" Text="&#xf067;" />
-                            <TextBlock Style="{StaticResource DialogCardTitle}" Text="新建变量" />
-                        </StackPanel>
-                    </Border>
-
-                    <!--  表单区可滚动：窗口高度不足时不会把"创建变量"按钮顶掉  -->
-                    <ScrollViewer
-                        Grid.Row="1"
-                        Padding="16,14,16,12"
-                        HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-
-                            <!--  本地/网络 分段切换：两段常显，选中段填主色  -->
-                            <Border
-                                Height="38"
-                                Margin="0,0,0,16"
-                                Style="{StaticResource DialogSegmentHost}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <RadioButton
-                                        Grid.Column="0"
-                                        Content="本地变量"
-                                        GroupName="SourceCapsule"
-                                        IsChecked="{Binding IsLocalSource, Mode=TwoWay}"
-                                        Style="{StaticResource DialogSegmentRadio}" />
-
-                                    <RadioButton
-                                        Grid.Column="1"
-                                        Content="网络变量"
-                                        GroupName="SourceCapsule"
-                                        IsChecked="{Binding IsNetworkSource, Mode=TwoWay}"
-                                        Style="{StaticResource DialogSegmentRadio}" />
-                                </Grid>
-                            </Border>
-
-                            <!--  变量名称  -->
-                            <TextBlock Style="{StaticResource DialogFormLabel}" Text="变量名称" />
-                            <TextBox
-                                Margin="0,0,0,14"
-                                Style="{StaticResource DialogInput}"
-                                Tag="例如 Motor1_Speed"
-                                Text="{Binding NewVarName, UpdateSourceTrigger=PropertyChanged}" />
-
-                            <!--  数据类型  -->
-                            <TextBlock Style="{StaticResource DialogFormLabel}" Text="数据类型" />
-                            <ComboBox
-                                Margin="0,0,0,14"
-                                ItemTemplate="{StaticResource DialogDisplayNameTemplate}"
-                                ItemsSource="{Binding FilteredTypes}"
-                                SelectedItem="{Binding SelectedType}"
-                                Style="{StaticResource DialogCombo}" />
-
-                            <!--  初始值（选填）：建变量时定基准——明细表 ↺「恢复为初始值」恢复的就是它。
-                                  数组/图像没有可文本化的初始值（数组用「强制覆盖集合」、图像由流程写入），此时隐藏  -->
-                            <TextBlock
-                                Style="{StaticResource DialogFormLabel}"
-                                Text="初始值 (选填)"
-                                Visibility="{Binding ShowNewInitialValue, Converter={ui:BooleanToVisibilityConverter}}" />
-                            <TextBox
-                                Margin="0,0,0,14"
-                                Style="{StaticResource DialogInput}"
-                                Tag="留空 = 类型默认值（0 / 空串 / false）"
-                                Text="{Binding NewInitialValueText, UpdateSourceTrigger=PropertyChanged}"
-                                Visibility="{Binding ShowNewInitialValue, Converter={ui:BooleanToVisibilityConverter}}" />
-
-                            <!--  变量描述  -->
-                            <TextBlock Style="{StaticResource DialogFormLabel}" Text="变量描述 (选填)" />
-                            <TextBox
-                                Height="42"
-                                Margin="0,0,0,14"
-                                AcceptsReturn="True"
-                                Style="{StaticResource DialogInput}"
-                                Tag="给后来接手的人留一句话"
-                                Text="{Binding NewVarDescription, UpdateSourceTrigger=PropertyChanged}"
-                                TextWrapping="Wrap" />
-
-                            <!--  ============ 网络专属配置区（浅蓝分组：分组标题 + 白底控件）  ============  -->
-                            <Border
-                                Padding="14"
-                                Background="{StaticResource DialogAccentSoftBrush}"
-                                BorderBrush="{StaticResource DialogAccentBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="10">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsNetworkSource}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-
-                                <StackPanel>
-                                    <!--  分组标题：与卡片标题形成字体阶梯  -->
-                                    <StackPanel Margin="0,0,0,12" Orientation="Horizontal">
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontFamily="{StaticResource Icon}"
-                                            FontSize="12"
-                                            Foreground="{StaticResource DialogAccentBrush}"
-                                            Text="&#xf0ac;" />
-                                        <TextBlock
-                                            Margin="6,0,0,0"
-                                            VerticalAlignment="Center"
-                                            FontSize="12"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource DialogAccentTextBrush}"
-                                            Text="网络参数" />
-                                    </StackPanel>
-
-                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="所属连接" />
-                                    <ComboBox
-                                        Margin="0,0,0,12"
-                                        ItemTemplate="{StaticResource DialogConnectionOptionTemplate}"
-                                        ItemsSource="{Binding Connections}"
-                                        SelectedItem="{Binding SelectedConnection}"
-                                        Style="{StaticResource DialogComboInGroup}" />
-
-                                    <!--  扫描组：决定这个点位的采集节拍。右侧「管理」直达连接级组表编辑器
-                                          （与「通讯设置 → 操作列 → 扫描组」是同一个弹窗、同一份组表）  -->
-                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="扫描组" />
-                                    <Grid Margin="0,0,0,12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <ComboBox
-                                            Grid.Column="0"
-                                            ItemsSource="{Binding NewScanGroupOptions}"
-                                            SelectedItem="{Binding SelectedNewScanGroup}"
-                                            Style="{StaticResource DialogComboInGroup}"
-                                            ToolTip="决定采集节拍。选「默认组」= 跟随该连接的轮询周期；自定义组的周期在右侧「管理」里维护。建完会记住本次选择，方便连续录同节拍的点位。" />
-                                        <Button
-                                            Grid.Column="1"
-                                            Margin="6,0,0,0"
-                                            VerticalAlignment="Center"
-                                            Command="{Binding ManageScanGroupsCommand}"
-                                            Foreground="{StaticResource DialogAccentBrush}"
-                                            Style="{StaticResource DialogIconButton}"
-                                            ToolTip="管理扫描组：新增 / 改名 / 删除组、改周期（作用对象 = 上面选的「所属连接」）">
-                                            <TextBlock
-                                                FontFamily="{StaticResource Icon}"
-                                                FontSize="14"
-                                                Text="&#xf5fd;" />
-                                        </Button>
-                                    </Grid>
-
-                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="存储区" />
-                                    <ComboBox
-                                        Margin="0,0,0,12"
-                                        ItemTemplate="{StaticResource DialogDisplayNameTemplate}"
-                                        ItemsSource="{Binding AreaOptions}"
-                                        SelectedItem="{Binding SelectedAreaType}"
-                                        Style="{StaticResource DialogComboInGroup}" />
-
-                                    <UniformGrid Margin="0,0,0,12" Columns="2">
-                                        <StackPanel Margin="0,0,10,0">
-                                            <TextBlock Style="{StaticResource DialogFormLabel}" Text="偏移量" />
-                                            <TextBox
-                                                Style="{StaticResource DialogInputInGroup}"
-                                                Text="{Binding NewOffset, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource DialogFormLabel}" Text="位偏移" />
-                                            <TextBox
-                                                Style="{StaticResource DialogInputInGroup}"
-                                                Text="{Binding NewBitOffset, UpdateSourceTrigger=PropertyChanged}" />
-                                        </StackPanel>
-                                    </UniformGrid>
-
-                                    <!--  地址/协议摘要胶囊：边填边预览最终落点，避免"填完创建了才发现地址不对"  -->
-                                    <Border
-                                        Padding="10,7"
-                                        Background="{StaticResource DialogAccentLightBrush}"
-                                        CornerRadius="6">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                FontSize="11.5"
-                                                Foreground="{StaticResource DialogAccentTextBrush}"
-                                                Text="地址" />
-                                            <TextBlock
-                                                Margin="5,0,0,0"
-                                                VerticalAlignment="Center"
-                                                FontFamily="Consolas"
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                Foreground="{StaticResource DialogAccentDarkBrush}"
-                                                Text="{Binding NewOffset}" />
-                                            <Border
-                                                Width="1"
-                                                Margin="12,1"
-                                                Background="{StaticResource DialogAccentBorderBrush}" />
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                FontSize="11.5"
-                                                Foreground="{StaticResource DialogAccentTextBrush}"
-                                                Text="协议" />
-                                            <TextBlock
-                                                Margin="5,0,0,0"
-                                                VerticalAlignment="Center"
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                Foreground="{StaticResource DialogAccentDarkBrush}"
-                                                Text="{Binding SelectedConnection.Protocol}" />
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </Border>
-
-                            <!--  网络模式提示（线圈区布尔说明）：只在"网络 + 线圈/离散区"同时成立时出现  -->
-                            <TextBlock
-                                Margin="2,10,0,0"
-                                FontSize="11"
-                                Foreground="{StaticResource DialogWarningTextBrush}"
-                                Text="线圈/离散输入区仅支持布尔类型，且不使用位偏移"
-                                TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsNetworkSource}" Value="True" />
-                                                    <Condition Binding="{Binding IsCoilOrDiscrete}" Value="True" />
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!--  底部操作区：与表单之间用分割线断开，按钮不再悬在空白里  -->
-                    <Border
-                        Grid.Row="2"
-                        Padding="16,12"
-                        BorderBrush="{StaticResource DialogBorderLightBrush}"
-                        BorderThickness="0,1,0,0">
-                        <Button
-                            Command="{Binding AddCommand}"
-                            Content="＋ 创建变量"
-                            Style="{StaticResource DialogPrimaryButton}" />
-                    </Border>
-                </Grid>
-            </Border>
-        </Grid>
-
         <!--  ============ 右栏：变量明细  ============  -->
-        <Grid Grid.Column="4">
+        <Grid Grid.Column="2">
             <Border Style="{StaticResource DialogCardShadow}" />
             <Border Style="{StaticResource DialogCardBorder}">
                 <Grid>
@@ -502,28 +235,64 @@
                                 占位提示靠 Tag 传进 TextBox 自己的模板里，输入后自动消失。
                                 老写法把提示做成"旁边一个常驻 TextBlock"，用户一输入就出现
                                 "提示和内容并排"的鬼影，而且 TextBox 塞在横向 StackPanel 里宽度不受控。
+
+                                「＋ 添加变量」常驻在搜索框右侧（原来在中栏表单底部）：
+                                它是本弹窗唯一的录入入口，必须一直可见可点——跟着搜索框一起
+                                右对齐，比塞进明细表工具条更不容易被列宽/滚动条挤掉。
                             -->
-                            <Border
-                                Width="220"
+                            <StackPanel
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
-                                Style="{StaticResource DialogSearchChrome}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                                Orientation="Horizontal">
+                                <Border
+                                    Width="220"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource DialogSearchChrome}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            Style="{StaticResource DialogSearchIcon}"
+                                            Text="&#xf002;" />
+                                        <TextBox
+                                            Grid.Column="1"
+                                            Style="{StaticResource DialogSearchInput}"
+                                            Tag="搜索变量名 / 地址"
+                                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                    </Grid>
+                                </Border>
+
+                                <!--  管理扫描组（只对网络来源有意义，本地来源下整颗按钮收起）：
+                                      它原来在中栏「扫描组」下拉旁边，中栏删除后必须在这里补一个常驻入口 ——
+                                      否则用户在添加变量弹窗里发现只有默认组时，没有任何直达组表编辑器的路。
+                                      作用对象 = 左栏选中的连接（VM 侧 SelectedConnection），与选中项天然一致。  -->
+                                <Button
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding ManageScanGroupsCommand}"
+                                    Style="{StaticResource DialogIconButton}"
+                                    ToolTip="管理扫描组：新增 / 改名 / 删除组、改周期（作用对象 = 左栏选中的连接）"
+                                    Visibility="{Binding IsNetworkSource, Converter={ui:BooleanToVisibilityConverter}}">
                                     <TextBlock
-                                        Grid.Column="0"
-                                        Style="{StaticResource DialogSearchIcon}"
-                                        Text="&#xf002;" />
-                                    <TextBox
-                                        Grid.Column="1"
-                                        Style="{StaticResource DialogSearchInput}"
-                                        Tag="搜索变量名 / 地址"
-                                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                </Grid>
-                            </Border>
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="14"
+                                        Foreground="{StaticResource DialogAccentBrush}"
+                                        Text="&#xf5fd;" />
+                                </Button>
+
+                                <!--  变量种类由左栏当前选中的来源决定：选中「本地变量」→ 本地草稿；
+                                      选中某条连接 → 网络草稿（连接默认就是它），弹窗里不再有本地/网络选择  -->
+                                <Button
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding AddCommand}"
+                                    Content="＋ 添加变量"
+                                    Style="{StaticResource DialogPrimaryButton}"
+                                    ToolTip="按左栏当前选中的来源新建变量：选中「本地变量」建本地变量，选中某条连接建该连接的网络变量" />
+                            </StackPanel>
                         </Grid>
                     </Border>
 
@@ -712,14 +481,14 @@
                                 原来元素行是只读 TextBlock —— 改一个数字也得打开整个弹窗，
                                 而那个弹窗又因为 PropertyGrid 不渲染集合而根本用不了（见 VM 注释）。
                             -->
-                            <!--  （"初始值"列已撤：基准在建变量表单的「初始值」项设定，明细表只看当前值）  -->
+                            <!--  （"初始值"列已撤：基准在「＋ 添加变量」弹窗的「初始值（选填）」项设定，明细表只看当前值）  -->
 
                             <!--
                                 当前值：就地编辑（2026-10-11 交互收敛，第二轮：撤掉"初始值"列）。
                                 - 标量根 = 提交式编辑框：回车/失焦提交，本地写内存、网络下发设备，
                                   失败红框如实留痕；编辑中轮询推送暂停，草稿不被冲掉（CellValueEditBehavior）；
                                 - 数组元素行 = 同样的编辑框，就地改这一项（只写 Value，不碰基准）；
-                                - 当前值 ≠ 初始值时才出现 ↺（基准在建变量时的"初始值"表单项设定）；
+                                - 当前值 ≠ 初始值时才出现 ↺（基准在「＋ 添加变量」弹窗的「初始值（选填）」项设定）；
                                 - 数组根 = 强制覆盖集合（增删元素、基准与当前值一起换）。
                                 * 列 + MinWidth=80：这是"固定列吃光视口、星号列静默变 0"事故
                                   （2026-10-11 变量明细显示不全）的守门——低于 80 宁可出横向滚动条。
@@ -773,7 +542,7 @@
                                                     Style="{StaticResource DialogCellInputQuiet}"
                                                     Text="{Binding CurrentValueText, Mode=OneWay}"
                                                     ToolTip="当前值就地编辑：点击进入编辑，回车或移开焦点提交（成功后自动回到读取模式）。本地变量写入内存；网络变量直接下发设备（失败标红并给出原因）。只读存储区（如 Modbus 离散输入）不可编辑。" />
-                                                <!--  回到基准：仅当当前值 ≠ 初始值时出现（基准在建变量表单的「初始值」项设定）  -->
+                                                <!--  回到基准：仅当当前值 ≠ 初始值时出现（基准在「＋ 添加变量」弹窗的「初始值（选填）」项设定）  -->
                                                 <Button
                                                     Command="{Binding DataContext.ResetCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                     CommandParameter="{Binding}"

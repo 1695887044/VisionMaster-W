@@ -22,6 +22,18 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      插件自带帮助手册：Help\ 下的每个 .md 编进本程序集，主界面「帮助」窗口按一页一个文件读它。
+      宿主 HelpCatalogService 按 "<程序集名>.Help." 前缀发现，文件名顺序即页序（01-、02- 前缀），
+      目录树里该页的标题取正文第一个一级标题。本工程只有一个插件类，所以手册扁平放 Help\ 根下。
+      为什么走内嵌资源而不是随目录投放：插件 DLL 由构建约定统一投递到 Modules\，
+      手册跟着 DLL 走就不会出现"换了台机器手册没拷过去"。
+      改手册 = 重建本插件工程（与改源码同一口径，见 AGENTS.md 红线③）。
+    -->
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
   <!--
     本插件**没有需要投递的资源文件**，这是与 Plugin.Ocr 的一个重要差别：
     一维/二维码的模型是 HALCON 用 create_bar_code_model / create_data_code_2d_model

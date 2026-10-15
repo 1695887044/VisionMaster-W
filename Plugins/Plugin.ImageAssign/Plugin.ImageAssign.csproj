@@ -16,6 +16,11 @@
     <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>
 
+  <!-- 内置帮助手册：Help\ 下每个 .md 一页，宿主按 {程序集名}.Help. 前缀扫描（页序 = 文件名典序） -->
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
   <!-- 图像类型来源：halcondotnet 由主程序目录统一提供，
        本工程只做编译期引用，切勿把 halcondotnet.dll 拷进 Modules\（会造成运行期两份同名程序集、类型标识冲突）。
        插件自身 DLL 的投递已由 Plugins\Directory.Build.targets 统一处理，本工程无需写 PostBuild。 -->

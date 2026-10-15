@@ -25,6 +25,13 @@ namespace VisionMaster.Models
         public string Icon { get; init; }
         public string PluginName { get; set; }
 
+        /// <summary>
+        /// 工具箱分类名（来自插件 DisplayAttribute.GroupName，经 ToolItemModel.Category 带入）。
+        /// 仅用于流程栏分类上色（图标按分类取色）；老方案 / 程序创建的步骤可能为 null
+        /// → 上色侧回落中性灰，不影响任何流程语义。
+        /// </summary>
+        public string Category { get; set; }
+
         public string PluginTypeName { get; init; }
 
 

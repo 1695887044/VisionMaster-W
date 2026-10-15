@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Reflection;
 
 namespace Core.Interfaces
 {
@@ -40,6 +42,25 @@ namespace Core.Interfaces
         /// 任何路径落到 ToString() 时显示的都是 Display，而不是类型全名。
         /// </summary>
         public override string ToString() => Display;
+
+        /// <summary>
+        /// 枚举候选：<see cref="Value"/> = 成员名，<see cref="Display"/> = 成员上的
+        /// <see cref="DisplayAttribute.Name"/>（没标就回退成员名）。
+        ///
+        /// 【为什么必须有它】插件的枚举成员注定是英文标识符（Circle / Regression），
+        /// 而成员上本来就标了中文 <c>[Display(Name="圆")]</c> —— 宿主扫描插件名与参数名读的是
+        /// 同一个特性。下拉以前只喂 <c>Enum.GetNames</c> 的成员名，等于把这份已经写好的中文丢掉，
+        /// 现场操作者看到的就是"Circle / Regression"这种认不出含义的英文。
+        ///
+        /// 【为什么值仍然是成员名，不能拿显示名当值】流程与 .vms JSON 存的是成员名
+        /// （枚举写回走 <c>Enum.Parse</c> 按名字解析）。把"圆"当值写进流程，
+        /// 日后改一次中文名就打断一条已配好的流程 —— 与 <see cref="MotionDescriptor"/>
+        /// 那句"引用一律用 Id，不要用显示名"是同一个坑。
+        /// </summary>
+        public static StepConfigOption ForEnum(Type enumType, string memberName)
+            => new(memberName,
+                   enumType?.GetField(memberName, BindingFlags.Public | BindingFlags.Static)
+                           ?.GetCustomAttribute<DisplayAttribute>()?.GetName());
     }
 
     /// <summary>

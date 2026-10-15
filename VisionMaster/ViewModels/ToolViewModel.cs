@@ -44,6 +44,18 @@ namespace VisionMaster.ViewModels
         /// <summary>收藏的算子身份（<see cref="ToolItemModel.ModuleTypeName"/>）。顺序由注册顺序决定，见 BuildFavoritesGroup</summary>
         private readonly HashSet<string> _favorites = new(StringComparer.Ordinal);
 
+        /// <summary>置顶「收藏」组的固定名（也是它在展开态字典里的键）</summary>
+        private const string FavoritesGroupName = "收藏";
+
+        /// <summary>
+        /// 分组的展开态（键 = 分组名）。**只记用户手动切换**——过滤重建期的赋值是程序行为，不写进来
+        /// （见 <see cref="_applyingFilter"/>）。分组实例每次过滤都重建，状态必须留在 VM 里才不丢。
+        /// </summary>
+        private readonly Dictionary<string, bool> _expandedState = new(StringComparer.Ordinal);
+
+        /// <summary>true = 正在重建分组（此时 <see cref="ToolboxGroupViewModel.IsExpanded"/> 的赋值是程序行为）</summary>
+        private bool _applyingFilter;
+
         /// <summary>
         /// 过滤后的插件分组（SearchText / 收藏 变化时重建）。
         /// 有收藏时 [0] 恒为「收藏」组——注意它**不计入 <see cref="TotalCount"/>**
@@ -205,40 +217,62 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private void ApplyFilter()
         {
-            FilteredToolBarSource.Clear();
-
-            var keyword = searchText?.Trim();
-            var hasKeyword = !string.IsNullOrEmpty(keyword);
-
-            int matchedTotal = 0;
-
-            foreach (var group in toolBarSource)
+            // 重建期的 IsExpanded 赋值是程序行为（初值 / 搜索强制展开），不能记进用户的折叠偏好
+            _applyingFilter = true;
+            try
             {
-                var matched = hasKeyword
-                    ? group.Children.Where(t => Matches(t, keyword)).ToList()
-                    : group.Children.ToList();
+                FilteredToolBarSource.Clear();
 
-                if (matched.Count == 0) continue;
+                var keyword = searchText?.Trim();
+                var hasKeyword = !string.IsNullOrEmpty(keyword);
 
-                var copy = new ToolboxGroupViewModel
+                int matchedTotal = 0;
+
+                foreach (var group in toolBarSource)
                 {
-                    Name = group.Name,
-                    Icon = group.Icon,
-                    AccentBrush = group.AccentBrush,
-                };
-                foreach (var tool in matched)
-                {
-                    copy.Children.Add(tool);
+                    var matched = hasKeyword
+                        ? group.Children.Where(t => Matches(t, keyword)).ToList()
+                        : group.Children.ToList();
+
+                    if (matched.Count == 0) continue;
+
+                    var copy = new ToolboxGroupViewModel
+                    {
+                        Name = group.Name,
+                        Icon = group.Icon,
+                        AccentBrush = group.AccentBrush,
+                        ExpandedChanged = OnGroupExpandedChanged,
+                    };
+                    foreach (var tool in matched)
+                    {
+                        copy.Children.Add(tool);
+                    }
+                    // 默认折叠；搜索时强制展开（否则命中结果全压在折叠头下面，等于搜了个寂寞）
+                    copy.IsExpanded = hasKeyword || ResolveExpanded(group.Name);
+                    FilteredToolBarSource.Add(copy);
+                    matchedTotal += matched.Count;
                 }
-                FilteredToolBarSource.Add(copy);
-                matchedTotal += matched.Count;
+
+                TotalCount = matchedTotal;
+
+                // 收藏组置顶：非空才出现，且不计入总数
+                var favorites = BuildFavoritesGroup(keyword);
+                if (favorites != null) FilteredToolBarSource.Insert(0, favorites);
             }
+            finally
+            {
+                _applyingFilter = false;
+            }
+        }
 
-            TotalCount = matchedTotal;
+        /// <summary>分组展开态初值：用户手动切过就按用户的，否则**默认折叠**（「收藏」组默认展开）。</summary>
+        private bool ResolveExpanded(string name)
+            => _expandedState.TryGetValue(name, out var v) ? v : name == FavoritesGroupName;
 
-            // 收藏组置顶：非空才出现，且不计入总数
-            var favorites = BuildFavoritesGroup(keyword);
-            if (favorites != null) FilteredToolBarSource.Insert(0, favorites);
+        private void OnGroupExpandedChanged(ToolboxGroupViewModel group, bool isExpanded)
+        {
+            if (_applyingFilter) return;   // 只记用户的手动切换，程序赋值不算
+            _expandedState[group.Name] = isExpanded;
         }
 
         /// <summary>
@@ -254,10 +288,11 @@ namespace VisionMaster.ViewModels
             var hasKeyword = !string.IsNullOrEmpty(keyword);
             var group = new ToolboxGroupViewModel
             {
-                Name = "收藏",
+                Name = FavoritesGroupName,
                 Icon = ToolboxCategoryVisuals.FavoriteIcon,
                 AccentBrush = ToolboxCategoryVisuals.FavoriteBrush,
                 IsFavorites = true,
+                ExpandedChanged = OnGroupExpandedChanged,
             };
 
             foreach (var source in toolBarSource)
@@ -270,7 +305,10 @@ namespace VisionMaster.ViewModels
                 }
             }
 
-            return group.Children.Count == 0 ? null : group;
+            if (group.Children.Count == 0) return null;
+
+            group.IsExpanded = ResolveExpanded(FavoritesGroupName);
+            return group;
         }
 
         private static bool Matches(ToolItemModel tool, string keyword)
@@ -294,6 +332,7 @@ namespace VisionMaster.ViewModels
                     Name = g.Key,
                     Icon = ToolboxCategoryVisuals.IconFor(g.Key),
                     AccentBrush = ToolboxCategoryVisuals.BrushFor(g.Key),
+                    ExpandedChanged = OnGroupExpandedChanged,
                 };
                 g.ToList().ForEach(p => group.Children.Add(p.Value));
                 toolBarSource.Add(group);

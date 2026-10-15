@@ -15,4 +15,15 @@
     <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      插件自带帮助手册：编进本程序集（宿主 HelpCatalogService 按 "<程序集名>.Help." 前缀约定发现，
+      文件名顺序即手册页序，页标题取正文第一个一级标题）。
+      本程序集里有 7 个步骤插件，所以手册按插件类名分子目录：Help\{插件类名}\01-overview.md，
+      宿主会把"非本类型子目录"的页面自动排除（一个插件一册，互不串页）。
+      改手册 = 重建本插件工程（与原代码改动同一口径，见 AGENTS.md 红线③）。
+    -->
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
 </Project>

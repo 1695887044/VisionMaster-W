@@ -16,6 +16,14 @@
     <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
   </ItemGroup>
 
+  <!--
+    内置帮助手册：Help\ 下的每个 .md 编成内嵌资源，宿主扫到 {程序集名}.Help. 前缀后
+    一页一条渲染进「帮助」窗口（页序 = 文件名字典序，标题 = 正文第一个一级标题）。
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
   <ItemGroup>
     <Reference Include="halcondotnet">
       <HintPath>..\..\DLL\Halcon\halcondotnet.dll</HintPath>

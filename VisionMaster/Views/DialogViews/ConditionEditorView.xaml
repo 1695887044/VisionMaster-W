@@ -38,18 +38,22 @@
         条件逻辑 / 计次循环 配置中心
         ============================================================================
 
-        本次是**整体收编**，不是只换窗框。改前这张视图自带四支本地样式
-        （PrimaryButton / TagButton / ModernTextBox / CardBorder）与满屏硬编码的
-        Element 蓝灰（#409EFF / #DCDFE6 / #909399 / #F5F7FA / #303133），
-        与这套界面的青蓝令牌（Dialog*）不是一套 —— 与变量管理来回切换时像两个软件。
+        本轮是**按设计稿纯换皮**，不是重写逻辑。改动只落在视觉结构上：
+          · 外框从"两行（标题 / 主体，底栏挤在右列里）"改成**三行**
+            （标题 52 / 主体 * / 底栏 Auto）—— 底栏跨整宽、独立成行；
+          · 分区标题由灰底横条（DialogColumnHeader）改扁平白底（DialogSectionHeader，仅下边线）；
+          · 左栏分支卡 232 → 208；
+          · 变量卡头部「+ 新增变量」改主色按钮，行内「重新绑定 / 删除」改图标按钮，
+            变量为空时显示虚线空态框（DataTrigger 切 Visibility，无转换器）；
+          · 快捷插入面板由"单条 WrapPanel + 竖分隔线"改为**按组分行的 5 组**。
 
-        现在：颜色一律走 Colors.xaml 的 Dialog* 令牌，形状一律取 DialogStyles.xaml。
-        保留不变的（改动必须避开的地方）：
+        一行不动的（改动必须避开的地方）：
           · 所有命令与属性名（AddVariable / BindVariable / RemoveVariable /
-            LinkLoopCount / UnlinkLoopCount / Cancel / Save、IsForMode、Branches、
-            SelectedBranch、SelectedBranchNeedsExpression、Variables、LoopCountText…）；
+            LinkLoopCount / UnlinkLoopCount / Cancel / Save、IsForMode、IsCaseMode、
+            Branches、SelectedBranch、SelectedBranchNeedsExpression、Variables、
+            LoopCountText、LoopCountSourceText、HasLoopCountLink、JudgeExpressionDraft…）；
           · AvalonEdit 的 x:Name="txtExpression" 与 TextChanged 事件（code-behind 靠它取文本）；
-          · 快捷插入按钮的 Click="QuickInsert_Click" 与每个 Tag 的精确内容
+          · 每个快捷插入按钮的 Click="QuickInsert_Click" 与 Tag 的精确内容
             （Tag 就是要插进表达式的片段，写错一个字符等于插入一段错代码）。
     -->
 
@@ -57,6 +61,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="52" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!--
@@ -119,6 +124,7 @@
             </Grid>
         </Border>
 
+        <!--  主体（两列：左分支卡 / 右变量 + 表达式）  -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -134,7 +140,7 @@
             -->
             <Border
                 Grid.Column="0"
-                Width="232"
+                Width="208"
                 Margin="20,16,0,16"
                 Style="{StaticResource DialogColumnCard}"
                 Visibility="{Binding IsForMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
@@ -144,7 +150,8 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <Border Style="{StaticResource DialogColumnHeader}">
+                    <!--  分区标题：扁平白底 + 下边线（DialogSectionHeader），不再是灰底横条  -->
+                    <Border Padding="12,0" Style="{StaticResource DialogSectionHeader}">
                         <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                             <TextBlock
                                 Style="{StaticResource DialogColumnTitleIcon}"
@@ -193,7 +200,6 @@
                         MaxHeight="400" />
                     <RowDefinition Height="15" />
                     <RowDefinition Height="2*" MinHeight="200" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!--  1. 变量引脚定义区（For 模式隐藏）  -->
@@ -207,7 +213,7 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <Border Style="{StaticResource DialogColumnHeader}">
+                        <Border Padding="12,0" Style="{StaticResource DialogSectionHeader}">
                             <Grid>
                                 <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                                     <TextBlock
@@ -226,86 +232,130 @@
                                     VerticalAlignment="Center"
                                     Command="{Binding AddVariableCommand}"
                                     Content="+ 新增变量"
-                                    Style="{StaticResource DialogTagButton}"
+                                    Style="{StaticResource DialogPrimaryButton}"
                                     ToolTip="新增一个引脚变量（别名 + 绑定的上游端口）" />
                             </Grid>
                         </Border>
 
-                        <DataGrid
-                            Grid.Row="1"
-                            Margin="12,12,12,12"
-                            CanUserAddRows="False"
-                            ItemsSource="{Binding Variables}"
-                            MinRowHeight="46"
-                            RowHeaderWidth="0"
-                            ScrollViewer.VerticalScrollBarVisibility="Auto"
-                            Style="{StaticResource DialogDataGrid}">
-                            <DataGrid.Columns>
-                                <DataGridTemplateColumn Width="150" Header="别名">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <!--  ValidatesOnDataErrors 接通 VariableItem 的 IDataErrorInfo：打字即红框 + 悬停看原因  -->
-                                            <TextBox
-                                                Style="{StaticResource DialogCellInput}"
-                                                Text="{Binding AliasName, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
-                                                ToolTip="表达式中引用它用的名字" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
+                        <Grid Grid.Row="1">
+                            <!--
+                                表格与空态框叠在同一格，按 Variables.Count 互斥显示。
+                                DataTrigger 直接判 Count（ObservableCollection 的 Count 会随增删通知），
+                                不需要 BooleanToVisibilityConverter。
+                            -->
+                            <DataGrid
+                                Margin="12"
+                                CanUserAddRows="False"
+                                ItemsSource="{Binding Variables}"
+                                MinRowHeight="46"
+                                RowHeaderWidth="0"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <DataGrid.Style>
+                                    <Style BasedOn="{StaticResource DialogDataGrid}" TargetType="DataGrid">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Variables.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Style>
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Width="150" Header="别名">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <!--  ValidatesOnDataErrors 接通 VariableItem 的 IDataErrorInfo：打字即红框 + 悬停看原因  -->
+                                                <TextBox
+                                                    Style="{StaticResource DialogCellInput}"
+                                                    Text="{Binding AliasName, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
+                                                    ToolTip="表达式中引用它用的名字" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Width="*" Header="绑定的上游数据源">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock
-                                                    VerticalAlignment="Center"
-                                                    FontSize="12"
-                                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                                    Text="{Binding SourceAddress, TargetNullValue='尚未绑定上游端口'}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                                <Button
-                                                    Grid.Column="1"
-                                                    Margin="10,0,0,0"
-                                                    Command="{Binding DataContext.BindVariableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}"
-                                                    Style="{StaticResource DialogTagButton}"
-                                                    ToolTip="重新选择这个别名绑定的上游输出端口">
-                                                    <StackPanel Orientation="Horizontal">
+                                    <DataGridTemplateColumn Width="*" Header="绑定的上游数据源">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text="{Binding SourceAddress, TargetNullValue='尚未绑定上游端口'}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <!--  重新绑定：文字按钮 → 图标按钮（链接图标），命令 / 参数 / 提示原样保留  -->
+                                                    <Button
+                                                        Grid.Column="1"
+                                                        Margin="10,0,0,0"
+                                                        Command="{Binding DataContext.BindVariableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource DialogIconButton}"
+                                                        ToolTip="重新选择这个别名绑定的上游输出端口">
                                                         <TextBlock
-                                                            Margin="0,0,6,0"
-                                                            VerticalAlignment="Center"
                                                             FontFamily="{StaticResource Icon}"
-                                                            FontSize="11"
+                                                            FontSize="12"
+                                                            Foreground="{StaticResource DialogAccentBrush}"
                                                             Text="&#xf0c1;" />
-                                                        <TextBlock VerticalAlignment="Center" Text="重新绑定" />
-                                                    </StackPanel>
-                                                </Button>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
 
-                                <DataGridTemplateColumn Width="90" Header="操作">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Button
-                                                HorizontalAlignment="Left"
-                                                Command="{Binding DataContext.RemoveVariableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Content="删除"
-                                                Style="{StaticResource DialogChipButton}"
-                                                Background="{StaticResource DialogDangerSubtleBrush}"
-                                                Foreground="{StaticResource DialogDangerBrush}"
-                                                ToolTip="删除这个引脚变量" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                                    <DataGridTemplateColumn Width="90" Header="操作">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <!--  删除：文字按钮 → 图标按钮（垃圾桶），命令 / 参数 / 提示原样保留  -->
+                                                <Button
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding DataContext.RemoveVariableCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource DialogIconButton}"
+                                                    ToolTip="删除这个引脚变量">
+                                                    <TextBlock
+                                                        FontFamily="{StaticResource Icon}"
+                                                        FontSize="12"
+                                                        Foreground="{StaticResource DialogDangerBrush}"
+                                                        Text="&#xf1f8;" />
+                                                </Button>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!--  空态：虚线框 + 居中提示（Variables.Count == 0 时出现）  -->
+                            <Grid Margin="12">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Variables.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Rectangle
+                                    Fill="Transparent"
+                                    RadiusX="8"
+                                    RadiusY="8"
+                                    Stroke="{StaticResource DialogBorderBrush}"
+                                    StrokeDashArray="3 2"
+                                    StrokeThickness="1" />
+                                <TextBlock
+                                    MaxWidth="360"
+                                    Margin="24"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource DialogHintText}"
+                                    Text="还没有变量 · 点「新增变量」，把上游节点的输出端口绑成别名，表达式里就能直接引用"
+                                    TextAlignment="Center" />
+                            </Grid>
+                        </Grid>
                     </Grid>
                 </Border>
 
@@ -334,7 +384,7 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <Border Style="{StaticResource DialogColumnHeader}">
+                        <Border Padding="12,0" Style="{StaticResource DialogSectionHeader}">
                             <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                                 <TextBlock
                                     Style="{StaticResource DialogColumnTitleIcon}"
@@ -369,243 +419,283 @@
                                 Text="按顺序比对：命中第一条匹配值即执行该分支；都不命中走默认分支" />
                         </StackPanel>
 
-                        <!--  快捷插入面板：点一下就把片段插进表达式（按钮的 Tag 即插入内容）  -->
+                        <!--
+                            快捷插入面板：点一下就把片段插进表达式（按钮的 Tag 即插入内容）。
+                            按组分五行：引用变量 / 逻辑比较 / 数字运算 / 数学函数 / 字符串；
+                            每行 = 固定宽度的组名标签 + 一个可换行的 WrapPanel。
+                        -->
                         <ScrollViewer
                             Grid.Row="2"
-                            MaxHeight="132"
+                            MaxHeight="200"
                             Margin="12,12,12,0"
                             Padding="0,0,4,0"
                             VerticalScrollBarVisibility="Auto"
                             Visibility="{Binding ShowBooleanEditor, Converter={ui:BooleanToVisibilityConverter}}">
-                            <WrapPanel Orientation="Horizontal">
+                            <StackPanel>
 
-                                <TextBlock
-                                    Margin="0,0,8,10"
-                                    VerticalAlignment="Center"
-                                    FontSize="11.5"
-                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                    Text="引脚变量" />
-                                <ItemsControl ItemsSource="{Binding Variables}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Button
-                                                Margin="0,0,8,10"
-                                                Click="QuickInsert_Click"
-                                                Content="{Binding AliasName}"
-                                                Style="{StaticResource DialogTagButton}"
-                                                ToolTip="插入该引脚变量的别名" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <!--  组：引用变量（别名，主色胶囊）  -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,6,0,0"
+                                        VerticalAlignment="Top"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="引用变量" />
+                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Variables}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button
+                                                    Margin="0,0,6,6"
+                                                    Click="QuickInsert_Click"
+                                                    Content="{Binding AliasName}"
+                                                    Style="{StaticResource DialogTagButton}"
+                                                    Background="{StaticResource DialogAccentSoftBrush}"
+                                                    Foreground="{StaticResource DialogAccentBrush}"
+                                                    ToolTip="插入该引脚变量的别名" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
 
-                                <Rectangle
-                                    Width="1"
-                                    Height="18"
-                                    Margin="6,0,14,10"
-                                    VerticalAlignment="Top"
-                                    Fill="{StaticResource DialogBorderBrush}" />
+                                <!--  组：逻辑比较  -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,6,0,0"
+                                        VerticalAlignment="Top"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="逻辑比较" />
+                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="&gt;"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="&gt;"
+                                            ToolTip="大于" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="&lt;"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="&lt;"
+                                            ToolTip="小于" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="=="
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="=="
+                                            ToolTip="等于" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="!="
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="!="
+                                            ToolTip="不等于" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="&amp;&amp;"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="&amp;&amp;"
+                                            ToolTip="并且 (And)" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="||"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="||"
+                                            ToolTip="或者 (Or)" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="!"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="!"
+                                            ToolTip="取反 (Not)" />
+                                    </WrapPanel>
+                                </Grid>
 
-                                <TextBlock
-                                    Margin="0,0,8,10"
-                                    VerticalAlignment="Center"
-                                    FontSize="11.5"
-                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                    Text="逻辑比较" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="&gt;"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="&gt;"
-                                    ToolTip="大于" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="&lt;"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="&lt;"
-                                    ToolTip="小于" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="=="
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="=="
-                                    ToolTip="等于" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="!="
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="!="
-                                    ToolTip="不等于" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="&amp;&amp;"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="&amp;&amp;"
-                                    ToolTip="并且 (And)" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="||"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="||"
-                                    ToolTip="或者 (Or)" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="!"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="!"
-                                    ToolTip="取反 (Not)" />
+                                <!--  组：数字运算  -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,6,0,0"
+                                        VerticalAlignment="Top"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="数字运算" />
+                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="( )"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="()"
+                                            ToolTip="括号 (提高优先级)" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="+"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="+" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="-"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="-" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="*"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="*" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="/"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="/" />
+                                    </WrapPanel>
+                                </Grid>
 
-                                <Rectangle
-                                    Width="1"
-                                    Height="18"
-                                    Margin="6,0,14,10"
-                                    VerticalAlignment="Top"
-                                    Fill="{StaticResource DialogBorderBrush}" />
+                                <!--  组：数学函数  -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,6,0,0"
+                                        VerticalAlignment="Top"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="数学函数" />
+                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="Math.Abs()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="Math.Abs()"
+                                            ToolTip="绝对值 (常用于公差判断)" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="Math.Round()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="Math.Round()"
+                                            ToolTip="四舍五入" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="Math.Sqrt()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="Math.Sqrt()"
+                                            ToolTip="开平方 (常用于算距离)" />
+                                    </WrapPanel>
+                                </Grid>
 
-                                <TextBlock
-                                    Margin="0,0,8,10"
-                                    VerticalAlignment="Center"
-                                    FontSize="11.5"
-                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                    Text="数学运算" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="( )"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="()"
-                                    ToolTip="括号 (提高优先级)" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="+"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="+" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="-"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="-" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="*"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="*" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="/"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="/" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="Math.Abs()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="Math.Abs()"
-                                    ToolTip="绝对值 (常用于公差判断)" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="Math.Round()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="Math.Round()"
-                                    ToolTip="四舍五入" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="Math.Sqrt()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="Math.Sqrt()"
-                                    ToolTip="开平方 (常用于算距离)" />
-
-                                <Rectangle
-                                    Width="1"
-                                    Height="18"
-                                    Margin="6,0,14,10"
-                                    VerticalAlignment="Top"
-                                    Fill="{StaticResource DialogBorderBrush}" />
-
-                                <TextBlock
-                                    Margin="0,0,8,10"
-                                    VerticalAlignment="Center"
-                                    FontSize="11.5"
-                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                    Text="字符串" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="Contains()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag=".Contains()"
-                                    ToolTip="包含某个字符" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="StartsWith()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag=".StartsWith()"
-                                    ToolTip="以...开头" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="IsNullOrEmpty()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag="string.IsNullOrEmpty()"
-                                    ToolTip="是否为空" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="Length"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag=".Length"
-                                    ToolTip="获取字符串长度" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="Trim()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag=".Trim()"
-                                    ToolTip="去除首尾空格" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="ToUpper()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag=".ToUpper()"
-                                    ToolTip="转大写" />
-                                <Button
-                                    Margin="0,0,8,10"
-                                    Click="QuickInsert_Click"
-                                    Content="ToLower()"
-                                    Style="{StaticResource DialogTagButton}"
-                                    Tag=".ToLower()"
-                                    ToolTip="转小写" />
-                            </WrapPanel>
+                                <!--  组：字符串  -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,6,0,0"
+                                        VerticalAlignment="Top"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="字符串" />
+                                    <WrapPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="Contains()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag=".Contains()"
+                                            ToolTip="包含某个字符" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="StartsWith()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag=".StartsWith()"
+                                            ToolTip="以...开头" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="IsNullOrEmpty()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag="string.IsNullOrEmpty()"
+                                            ToolTip="是否为空" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="Length"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag=".Length"
+                                            ToolTip="获取字符串长度" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="Trim()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag=".Trim()"
+                                            ToolTip="去除首尾空格" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="ToUpper()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag=".ToUpper()"
+                                            ToolTip="转大写" />
+                                        <Button
+                                            Margin="0,0,6,6"
+                                            Click="QuickInsert_Click"
+                                            Content="ToLower()"
+                                            Style="{StaticResource DialogTagButton}"
+                                            Tag=".ToLower()"
+                                            ToolTip="转小写" />
+                                    </WrapPanel>
+                                </Grid>
+                            </StackPanel>
                         </ScrollViewer>
 
                         <!--
                             AvalonEdit 表达式编辑器。
                             x:Name 与 TextChanged 事件必须原样保留 —— code-behind 靠它们
                             读写编辑内容并触发实时校验，改名等于把这个弹窗的输入通道切断。
-                            视觉上只做一件事：外面套一层 Dialog 令牌的圆角框，把老式的方角灰边换掉。
+                            ShowLineNumbers 保留（设计稿的实时校验状态条不在本次范围，去掉行号只白丢信息）。
                         -->
                         <Border
                             Grid.Row="3"
-                            Margin="12,12,12,12"
+                            Margin="12"
                             Background="{StaticResource DialogInputBackgroundBrush}"
                             BorderBrush="{StaticResource DialogBorderBrush}"
                             BorderThickness="1"
@@ -630,7 +720,7 @@
                         -->
                         <Border
                             Grid.Row="3"
-                            Margin="12,12,12,12"
+                            Margin="12"
                             Background="{StaticResource DialogInputBackgroundBrush}"
                             BorderBrush="{StaticResource DialogBorderBrush}"
                             BorderThickness="1"
@@ -795,27 +885,28 @@
                             Text="取值范围 1 ~ 99999。若该节点的循环次数输入端口连接了上游变量，运行时以连线值为准，此处仅作未连线时的默认次数。" />
                     </StackPanel>
                 </Border>
-
-                <!--  4. 底部：取消 / 保存并应用  -->
-                <StackPanel
-                    Grid.Row="3"
-                    Margin="0,18,0,0"
-                    HorizontalAlignment="Right"
-                    Orientation="Horizontal">
-                    <Button
-                        MinWidth="96"
-                        Command="{Binding CancelCommand}"
-                        Content="取消"
-                        Style="{StaticResource DialogSecondaryButton}" />
-                    <Button
-                        MinWidth="130"
-                        Margin="12,0,0,0"
-                        Command="{Binding SaveCommand}"
-                        Content="保存并应用"
-                        Style="{StaticResource DialogPrimaryButton}" />
-                </StackPanel>
             </Grid>
         </Grid>
+
+        <!--  4. 底栏：跨整宽，右对齐「取消 / 保存并应用」  -->
+        <Border Grid.Row="2" Style="{StaticResource DialogFooter}">
+            <StackPanel
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <Button
+                    MinWidth="96"
+                    Command="{Binding CancelCommand}"
+                    Content="取消"
+                    Style="{StaticResource DialogSecondaryButton}" />
+                <Button
+                    MinWidth="130"
+                    Margin="12,0,0,0"
+                    Command="{Binding SaveCommand}"
+                    Content="保存并应用"
+                    Style="{StaticResource DialogPrimaryButton}" />
+            </StackPanel>
+        </Border>
     </Grid>
 
 </UserControl>

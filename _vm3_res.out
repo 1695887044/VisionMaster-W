@@ -1,0 +1,41 @@
+APP-INLINE              -> OK (3 keys: ExpandToggleButtonTemplate, LinkButtonStyle, Icon)
+MERGE Core.Halcon Generic  -> OK
+MERGE UI Generic           -> OK
+MERGE .NET9 Fluent         -> OK
+
+KEY DialogCombo                    -> Style
+KEY DialogComboItem                -> Style
+KEY DialogComboInGroup             -> Style
+KEY DialogInput                    -> Style
+KEY DialogInputInGroup             -> Style
+KEY DialogIconFont                 -> FontFamily
+KEY DialogDisplayNameTemplate      -> DataTemplate
+KEY DialogSourceNodeTemplate       -> DataTemplate
+KEY DialogConnectionOptionTemplate -> DataTemplate
+KEY DialogDataGrid                 -> Style
+KEY Icon                           -> FontFamily
+KEY ExpandToggleButtonTemplate     -> ControlTemplate
+KEY LinkButtonStyle                -> Style
+KEY {x:Type Button}                -> Style
+KEY {x:Type ComboBox}              -> Style
+
+TEMPLATE sweep          -> 23 templates loaded, 0 failed
+
+STYLE IconButon                    -> Button         FontFamily=pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid  [icon-font OK]
+STYLE IconToggleButon              -> ToggleButton   FontFamily=pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid  [icon-font OK]
+STYLE DialogMonoText               -> TextBlock      FontFamily=Consolas, Cascadia Mono, Courier New  [NOT the icon font]
+STYLE DialogEmptyStateIcon         -> TextBlock      FontFamily=pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid  [icon-font OK]
+STYLE DialogColumnTitleIcon        -> TextBlock      FontFamily=pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid  [icon-font OK]
+STYLE DialogCardTitleIcon          -> TextBlock      FontFamily=pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid  [icon-font OK]
+STYLE DialogSearchIcon             -> TextBlock      FontFamily=pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid  [icon-font OK]
+STYLE DialogMonoText               -> TextBlock      FontFamily=Consolas, Cascadia Mono, Courier New  [NOT the icon font]
+STYLE DialogEmptyStateIcon         -> TextBlock      FontFamily=pack://application:,,,/UI;component/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf#Font Awesome 6 Pro Solid  [icon-font OK]
+STYLE sweep             -> 105 Dialog* styles applied, 0 failed
+
+VIEW 变量管理 GlobalVariableView            -> CREATED+LAID OUT
+VIEW 连接管理 CommunicationSettingsView     -> CREATED+LAID OUT
+VIEW 相机设置 CameraSettingsView            -> CREATED+LAID OUT
+
+LOGCONSOLE grouped      -> OK (GroupDescriptions=1)
+
+RESULT: ALL_OK

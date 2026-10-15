@@ -372,3 +372,5 @@ FodyWeavers.xsd
 # 测试图像目录（本地样图，体积大、非源码）：不入库
 # 注意：方案 .vms 里引用的是 Image\ 下的绝对路径，换机 clone 后这些图不存在，相关方案需自备图或改路径
 /Image/
+# Qoder CLI 本地作用域配置（个人 MCP 注册，含本机绝对路径，不入库）
+.qoder/settings.local.json

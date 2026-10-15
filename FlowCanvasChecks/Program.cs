@@ -281,6 +281,9 @@ namespace FlowCanvasChecks
             // 坐标变换插件：正反变换/角度/三类失配/位姿跟随（合成标定与合成区域，HALCON 真算子）
             PoseTransformChecks.Run();
 
+            // 插件帮助手册：打包 / 按类型分册 / 页名契约 / 编码与体量（纯静态扫描，见 HelpManualCheck 类注释）
+            HelpManualCheck.Run();
+
             Finish();
             return Environment.ExitCode;
         }
@@ -2589,6 +2592,34 @@ namespace FlowCanvasChecks
             Check("G9 ToggleFavoriteCommand(非 ToolItemModel)：静默空跑、不抛异常",
                 !vm.HasFavorites && vm.FilteredToolBarSource.Count == 2,
                 $"groups={vm.FilteredToolBarSource.Count}");
+
+            // ---- 分组默认折叠 + 展开态在过滤重建后不丢 + 搜索时强制展开 ----
+            Check("G9 分组默认折叠（分类组 IsExpanded=false）",
+                vm.FilteredToolBarSource.Count == 2
+                && vm.FilteredToolBarSource.All(g => !g.IsFavorites && !g.IsExpanded),
+                string.Join(",", vm.FilteredToolBarSource.Select(g => $"{g.Name}:{g.IsExpanded}")));
+
+            // 用户手动展开"逻辑"组 → 状态记账；再触发一次过滤重建（搜索→清空）→ 仍展开
+            var logicGroup = vm.FilteredToolBarSource.FirstOrDefault(g => g.Name == "逻辑");
+            if (logicGroup != null) logicGroup.IsExpanded = true;
+
+            vm.SearchText = "逻辑";
+            Check("G9 搜索时命中分组强制展开（否则结果全压在折叠头下面）",
+                vm.FilteredToolBarSource.Count > 0 && vm.FilteredToolBarSource.All(g => g.IsExpanded),
+                string.Join(",", vm.FilteredToolBarSource.Select(g => $"{g.Name}:{g.IsExpanded}")));
+
+            vm.SearchText = "";
+            var logicAfter = vm.FilteredToolBarSource.FirstOrDefault(g => g.Name == "逻辑");
+            Check("G9 用户展开态在过滤重建后不丢（逻辑组仍展开）",
+                logicAfter != null && logicAfter.IsExpanded,
+                $"logic={logicAfter?.IsExpanded}");
+
+            // 收藏组默认展开（它是用户自己挑出来的少数几条）
+            vm.ToggleFavoriteCommand.Execute(leaf);
+            var favGroup = vm.FilteredToolBarSource.FirstOrDefault(g => g.IsFavorites);
+            Check("G9 收藏组默认展开", favGroup != null && favGroup.IsExpanded,
+                $"fav={favGroup?.IsExpanded}");
+            vm.ToggleFavoriteCommand.Execute(leaf);   // 还原
 
             // ---- 分类观感映射表：13 个分类逐条核对，防"加了分类忘了配色" ----
             var categories = new[]
