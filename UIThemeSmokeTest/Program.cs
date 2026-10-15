@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Xml.Linq;
 using Core.Halcon.Controls;
 using Core.Halcon.Extensions;
 using Core.Halcon.Helpers;
@@ -495,10 +496,11 @@ namespace UIThemeSmokeTest
                 window.UpdateLayout();
                 Console.WriteLine($"=== OK: Shell.xaml 全树模板实例化无异常 (Fluent={_withFluent}) ===");
                 RunPaneLayoutChecks();
+                int shellLayoutFailures = RunShellLayoutChecks();
                 int gridFailures = RunGridViewChecks();
                 int flowCanvasFailures = RunFlowCanvasChecks();
                 int logConsoleFailures = RunLogConsoleChecks();
-                return gridFailures + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
+                return shellLayoutFailures + gridFailures + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -1234,6 +1236,135 @@ namespace UIThemeSmokeTest
             }
 
             Console.WriteLine(failures == 0 ? "=== 多格布局：全部通过 ===" : $"### 多格布局：{failures} 项失败");
+        }
+
+        /// <summary>
+        /// Shell 停靠布局结构闸（2026-10-15「左栏重排」的守门人）。
+        ///
+        /// 为什么必须钉：这次把「程序 / 流程栏」由并排两列改成一列上下堆叠，并把「流程画布」
+        /// 从左侧栏的标签页搬进中央文档区。三处改动全部只活在 Shell.xaml 的结构里——
+        /// 编译期全绿，单看任何一个视图的源码也看不出来；谁把它们挪回去，不会有任何断言变红。
+        /// 判据只认"元素类型 + 谁是谁的父/兄弟"，不写死行号与空白，所以改缩进、改注释都不会误报。
+        /// 用 XDocument 静态判是可行的：LayoutRoot / LayoutPanel / LayoutAnchorablePane /
+        /// LayoutDocument 都是普通对象，不依赖窗口 Show 之后才成型（无窗口夹具里 AvalonDock
+        /// 恰好只建到这一层，再往下才需要 Loaded）。
+        /// </summary>
+        private static int RunShellLayoutChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                string path = Path.Combine(@"d:\C#\VM", "VisionMaster", "Shell.xaml");
+                if (!File.Exists(path))
+                {
+                    Check("Shell.xaml 布局结构闸", false, $"找不到 {path}");
+                    return failures;
+                }
+
+                var doc = XDocument.Load(path);
+                var canvas = ByContentId(doc, "Panel_FlowCanvasView");
+                var image = ByContentId(doc, "Panel_ImageView");
+                var process = ByContentId(doc, "Panel_ProcessView");
+                var flowList = ByContentId(doc, "Panel_FlowListView");
+
+                var canvasParent = canvas == null ? null : canvas.Parent;
+                var imageParent = image == null ? null : image.Parent;
+                var processParent = process == null ? null : process.Parent;
+                var flowListParent = flowList == null ? null : flowList.Parent;
+                var processColumn = processParent == null ? null : processParent.Parent;
+                var flowListColumn = flowListParent == null ? null : flowListParent.Parent;
+
+                Check("流程画布是中央文档区的文档标签（不是左侧栏的标签页）",
+                    canvas != null
+                        && canvas.Name.LocalName == "LayoutDocument"
+                        && canvasParent != null
+                        && canvasParent.Name.LocalName == "LayoutDocumentPane",
+                    $"元素={KindOf(canvas)}，父={KindOf(canvasParent)}");
+
+                Check("流程画布与视觉图像同处一个文档窗格（并列标签，可拖出分屏对照）",
+                    canvasParent != null && ReferenceEquals(canvasParent, imageParent),
+                    $"画布父={KindOf(canvasParent)}，视觉图像父={KindOf(imageParent)}");
+
+                Check("默认选中仍是视觉图像（大小写不敏感：XAML 里写 True/true 都算）",
+                    image != null
+                        && string.Equals((string)image.Attribute("IsSelected"), "True", StringComparison.OrdinalIgnoreCase),
+                    $"视觉图像 IsSelected={(image == null ? "(缺)" : ((string)image.Attribute("IsSelected") ?? "(缺)"))}");
+
+                Check("默认选中唯一：画布身上不得有 IsSelected（否则会和视觉图像抢启动视角）",
+                    canvas != null && canvas.Attribute("IsSelected") == null,
+                    $"画布 IsSelected={((string)canvas?.Attribute("IsSelected") ?? "(无)")}");
+
+                Check("程序与流程栏是两个独立窗格（上下同时可见，不是二选一标签页）",
+                    processParent != null && flowListParent != null
+                        && !ReferenceEquals(processParent, flowListParent)
+                        && processParent.Name.LocalName == "LayoutAnchorablePane"
+                        && flowListParent.Name.LocalName == "LayoutAnchorablePane",
+                    $"程序父={KindOf(flowListParent)}，流程栏父={KindOf(processParent)}");
+
+                Check("程序与流程栏同处左侧一列（竖向 LayoutPanel 上下堆叠）",
+                    processColumn != null && ReferenceEquals(processColumn, flowListColumn)
+                        && processColumn.Name.LocalName == "LayoutPanel"
+                        && (string)processColumn.Attribute("Orientation") == "Vertical",
+                    $"共同祖先={KindOf(processColumn)}，Orientation={(processColumn == null ? "(缺)" : ((string)processColumn.Attribute("Orientation") ?? "(缺)"))}");
+
+                // ---- 活动栏"图标与落点同侧"闸（2026-10-15 拆分左右两条的核心不变量）----
+                // 为什么必须钉：活动栏的图标是"它所管面板在哪一侧"的指示器。历史上曾把三个
+                // 右侧面板（工具箱/图元工具箱/图层）的开关留在左侧竖条里——点最左边图标、
+                // 面板从最右边出来，指示器失效。判据用"文档序 vs 停靠区位置"表达：
+                // 左侧面板的开关必须在 DockingManager 之前、右侧面板的开关必须在它之后。
+                var all = doc.Descendants().ToList();
+                int dockIndex = all.FindIndex(e => e.Name.LocalName == "DockingManager");
+                int IndexOfToggle(string panelId) => all.FindIndex(e =>
+                    e.Name.LocalName == "ToggleButton"
+                    && (string)e.Attribute("CommandParameter") == panelId);
+                int IndexOfTopCommand(string action) => all.FindIndex(e =>
+                    e.Name.LocalName == "Button"
+                    && ((string)e.Attribute("CommandParameter") ?? "").Contains("SystemAction." + action, StringComparison.Ordinal));
+
+                var leftToggles = new[] { "Panel_FlowListView", "Panel_ProcessView" }
+                    .Select(id => (Id: id, Index: IndexOfToggle(id))).ToList();
+                var rightToggles = new[] { "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView" }
+                    .Select(id => (Id: id, Index: IndexOfToggle(id))).ToList();
+
+                Check("活动栏（左）只放左侧栏面板的开关：程序/流程栏的图标在停靠区之前",
+                    dockIndex >= 0 && leftToggles.All(t => t.Index >= 0 && t.Index < dockIndex),
+                    $"停靠区位置={dockIndex}；{string.Join("，", leftToggles.Select(t => $"{t.Id}={t.Index}"))}");
+
+                Check("活动栏（右）只放右侧栏面板的开关：工具箱/图元工具箱/图层的图标在停靠区之后",
+                    dockIndex >= 0 && rightToggles.All(t => t.Index > dockIndex),
+                    $"停靠区位置={dockIndex}；{string.Join("，", rightToggles.Select(t => $"{t.Id}={t.Index}"))}");
+
+                Check("两个全局命令（全局变量/通讯设置）已移出活动栏、落在停靠区之前的顶栏",
+                    dockIndex >= 0
+                        && IndexOfTopCommand("GlobalVariables") is int g && g >= 0 && g < dockIndex
+                        && IndexOfTopCommand("CommSettings") is int c && c >= 0 && c < dockIndex,
+                    $"停靠区位置={dockIndex}；全局变量={IndexOfTopCommand("GlobalVariables")}，通讯设置={IndexOfTopCommand("CommSettings")}");
+            }
+            catch (Exception ex)
+            {
+                Check("Shell.xaml 布局结构闸", false, ex.Message);
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== Shell 布局结构：全部通过 ==="
+                : $"### Shell 布局结构：{failures} 项失败");
+            return failures;
+        }
+
+        private static XElement ByContentId(XDocument doc, string contentId)
+        {
+            return doc.Descendants().FirstOrDefault(e => (string)e.Attribute("ContentId") == contentId);
+        }
+
+        private static string KindOf(XElement element)
+        {
+            return element == null ? "(缺)" : element.Name.LocalName;
         }
 
         /// <summary>

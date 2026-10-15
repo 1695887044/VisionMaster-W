@@ -257,6 +257,10 @@ namespace FlowCanvasChecks
             // 无图关十字不抛 / 十字状态与显示不脱节）
             HalconControlChecks.Run();
 
+            // 共享控件库 Core.Halcon 的 ROI 画布交互（拖拽改大小：冷启动一次手势即可拖、
+            // 偏出手柄不丢选中、点空白结束编辑、内部拖为移动；自带屏幕外真窗口 + HALCON 鼠标事件链路）
+            RoiInteractionChecks.Run();
+
             // 共享离屏烘焙件 Core.Halcon.Helpers.AnnotationBaker（六条硬纪律的像素级/内存级回归网：
             // SetPart 画布保真 / 文字底色框 / 跨轮无残留 / 非 byte 不死白 / 4 通道不抛 / 坏元素降级 / 500 轮不泄漏）
             AnnotationBakerChecks.Run();

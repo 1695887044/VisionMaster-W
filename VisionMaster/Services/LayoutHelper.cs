@@ -36,8 +36,13 @@ namespace VisionMaster.Services
         /// 工具箱从自动隐藏区改为常驻停靠栏"这类重排，ContentId 全部复用，
         /// 旧的 Layout.xml / .vms 内嵌布局照样通过覆盖度检查被原样恢复回来，
         /// 改造在老用户机器上等于没发生。版本属性就是 ContentId 之外的结构指纹。
+        ///
+        /// v3（2026-10-15）：左栏「程序 / 流程栏」由**并排两列**改为**一列上下堆叠**，
+        /// 且「流程画布」从左侧栏的标签页**搬进中央文档区**（与视觉图像 / 组态画面并列）。
+        /// 这次三个面板的 ContentId 一个没改，纯靠覆盖度校验完全拦不住旧布局——
+        /// 磁盘上那份 v2 的 Layout.xml 会把"画布还在左栏标签页里"的老排法原样恢复回来。
         /// </summary>
-        private const int CurrentLayoutSchemaVersion = 2;
+        private const int CurrentLayoutSchemaVersion = 3;
 
         /// <summary>
         /// 布局结构版本的根元素属性名：保存时写入，下发给反序列化器之前摘除。
@@ -380,8 +385,12 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 关键面板 ContentId 集（必须在任何布局中可见，用户不能把它们藏进 Hidden）
-        /// 画布 + 流程栏 = 核心工作流入口，工具箱（ToolView）已改为右侧常驻停靠栏，用户主动收起属合法态不动
+        /// 关键面板 ContentId 集（必须在任何布局中可见，用户不能把它们藏进 Hidden）。
+        /// 口径（2026-10-15 修正）：流程栏是 anchorable，靠本集合兜底"已被持久化成 Hidden 的旧现场"；
+        /// 画布已改为中央文档区（LayoutDocument：CanHide 恒 false + CanClose=False），
+        /// 结构上就进不了 Hidden——下面 `content is LayoutAnchorable` 的判据对它是空转。
+        /// 条目仍然保留，作为"万一被拖成 anchorable 后又隐藏"的廉价双保险；
+        /// 工具箱（ToolView）是右侧常驻停靠栏，用户主动收起属合法态，不在本集合。
         /// </summary>
         private static readonly HashSet<string> CriticalPanelContentIds = new()
         {

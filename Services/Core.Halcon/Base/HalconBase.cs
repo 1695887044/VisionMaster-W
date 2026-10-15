@@ -987,18 +987,66 @@ namespace Core.Halcon.Controls
             if (IsPickMode)
                 return;
             // 容差命中（屏幕像素换算）：点边缘句柄时 TestRegionPoint 对边界点判定不可靠，
-            // 不加容差会误判为点空白 → 摘除句柄 → 矩形/椭圆无法拖拽
-            if (ActiveRoi != null && HitTest(ActiveRoi, e.Row, e.Column, ScreenToleranceToImage(8.0)))
+            // 不加容差会误判为点空白 → 摘除句柄 → 矩形/椭圆无法拖拽。
+            // 容差取值见 RoiHitToleranceScreenPx（旧值 8 与手柄同宽，瞄偏一点就丢选中）
+            if (ActiveRoi != null && HitTest(ActiveRoi, e.Row, e.Column, ScreenToleranceToImage(RoiHitToleranceScreenPx)))
                 return;
 
             var hit = DrawObjectList.FirstOrDefault(x =>
                 x != ActiveRoi && HitTest(x, e.Row, e.Column)
             );
             if (hit != null)
+            {
+                // 到这里必然是换绑：上面挑选时已经排除了 ActiveRoi（x != ActiveRoi），
+                // 而"命中已选中的 ROI"在更前面就 return 了 —— 不存在重复补发的路径。
                 SetCurrentValue(ActiveRoiProperty, hit); // 换绑（DP 回调摘旧挂新并重绘）
+                // 换绑后补发一次鼠标按下：本次手势的 down 已经被 HALCON 处理过了（那时新句柄还没挂上），
+                // 不补发则"直接拖角点"这一整段手势作废 —— 用户得点一次再拖一次（真机反馈的根因）
+                ReplayMouseDownForFreshHandle(e);
+            }
             else if (ActiveRoi != null)
                 SetCurrentValue(ActiveRoiProperty, null); // 点空白结束编辑
         }
+
+        /// <summary>
+        /// 换绑编辑对象后补发一次鼠标按下，让**当前这一手势**继续驱动刚挂上的句柄。
+        ///
+        /// 为什么需要：HSmartWindowControlWPF 的鼠标链路是
+        /// 「控件内部先 SendMouseDownEvent（交给 HALCON 做 drawing object 交互）→ 再触发 HMouseDown」，
+        /// 而 HalconBase 只给 ActiveRoi 挂 HALCON 句柄（见 AttachRoi）。于是在一个**未选中**的 ROI 上
+        /// 按下并拖动时，HALCON 收到 down 的那一刻还没有任何句柄，交互无从开始；等本处理器把句柄挂上，
+        /// down 早已过去，其后的 mouse-move（SendMouseDragEvent）自然拖不动 ——
+        /// 表现就是"必须点一次（选中）、再拖一次（才能改大小）"。
+        ///
+        /// 只在**真的换了编辑对象**时补发：命中已选中的 ROI 时上面已经 return，不会重复补发；
+        /// 补发失败也不影响"本次点击已经完成选中"这件事（用户仍可再拖一次，即旧行为）。
+        /// </summary>
+        private void ReplayMouseDownForFreshHandle(HSmartWindowControlWPF.HMouseEventArgsWPF e)
+        {
+            if (hWindow == null)
+                return;
+            try
+            {
+                // button 编码与控件内部一致（左键 = 1）；本处理器只处理左键，见开头守卫
+                hWindow.SendMouseDownEvent(new HTuple(e.Row), new HTuple(e.Column), 1);
+            }
+            catch
+            {
+                // 窗口未就绪 / 原生调用失败：本次手势退化为旧行为（先选中、再拖一次）
+            }
+        }
+
+        /// <summary>
+        /// ROI 命中容差（**屏幕像素**，经 <see cref="ScreenToleranceToImage"/> 换算成图像坐标）。
+        ///
+        /// HALCON 的 drawing object 手柄约 8px 见方，旧值正好取 8 —— 用户瞄偏一点（&gt;8px）
+        /// 就被判成"点空白"，已选中的 ROI 当场被摘除、得重新点选才能再拖（真机反馈的
+        /// "改大小很不方便"之一）。放宽到 14px，让"擦着手柄点"仍算命中。
+        /// 只作用于"是否摘除**已选中**的 ROI"这一处；挑选其它 ROI 的第二段命中测试**不加容差**
+        /// （否则相邻 ROI 之间会互相误选）。代价是活动 ROI 周围 14px 形成一条"遮蔽带"——
+        /// 两个 ROI 贴得比 14px 还近时，想切到相邻那个要先在空白处点一下结束编辑再点它。
+        /// </summary>
+        private const double RoiHitToleranceScreenPx = 14.0;
 
         /// <summary>
         /// 屏幕像素容差 → 图像坐标容差（按当前窗口缩放比换算；句柄是屏幕尺寸固定的）

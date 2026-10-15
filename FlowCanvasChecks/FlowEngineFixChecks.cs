@@ -31,6 +31,7 @@ namespace FlowCanvasChecks
             HubPreciseRemove();
             SessionReplacementAndSolutionSwitchClearHub();
             ExitChainCanTimeOut();
+            StartupChainTimeoutIsNotFatal();
             BindingWritesGoThroughNotifyingApi();
             CSharpScriptRefusesNativeDlls();
             RunGuardsAreInPlace();
@@ -145,6 +146,83 @@ namespace FlowCanvasChecks
                 log.Infos.Any(m => m.Contains("正常任务")), string.Join(" | ", log.Infos.TakeLast(4)));
 
             release.Set();
+        }
+
+        // ==================================================================
+        //  [E17] ③b 启动链：慢自检项超时不得把进程打死
+        // ==================================================================
+        private static void StartupChainTimeoutIsNotFatal()
+        {
+            Section("[E17] 启动链：慢项超时按声明级别处置（插件扫描 = Warning 放行）");
+
+            // 2026-10-15 真机事故：插件扫描冷读 Modules\（十几 MB DLL）实测 1.1s ~ 28.8s，
+            // 30 秒默认超时正好落在波动带中间，超时被判 Error → Environment.Exit(2)
+            // → 用户看到"第一次启动自己退了、第二次才成功"（第二次磁盘缓存已热）。
+            // 这条断言钉住两个口径：① 超时级别由该项自己声明；② 默认级别仍是 Error（不许被顺手改成全放行）。
+            var log = new StubLog();
+            var lifetime = new AppLifetimeService(log);
+
+            // 故意卡住的自检项，超时 200ms；声明超时按 Warning 处置
+            lifetime.RegisterCheck(new SlowWarningCheck());
+            // 紧跟一个正常项：Warning 放行后，启动链必须继续往下走
+            lifetime.RegisterCheck(new InstantCheck());
+
+            var sw = Stopwatch.StartNew();
+            var result = lifetime.RunStartupChecksAsync().GetAwaiter().GetResult();
+            sw.Stop();
+
+            Check("★慢项超时不再阻断启动（Warning 放行，链继续跑完）",
+                result.Success,
+                $"Success={result.Success}，BlockingReason={result.BlockingReason ?? "(无)"}");
+            Check("★超时被记为警告（Splash/日志能看见，不是静默吞掉）",
+                result.Warnings.Any(w => w.Contains("超时")),
+                result.Warnings.Count == 0 ? "(无警告)" : string.Join(" | ", result.Warnings));
+            Check("超时项之后的检查照常执行（放行不等于终止链）",
+                log.Infos.Any(m => m.Contains("正常项")),
+                string.Join(" | ", log.Infos.TakeLast(3)));
+            Check("慢项按自己的 200ms 超时处置，而不是等满默认 30 秒",
+                sw.Elapsed < TimeSpan.FromSeconds(5), $"链耗时={sw.ElapsedMilliseconds}ms");
+
+            // 反向：默认级别必须仍是 Error —— 否则"任何自检超时都放行"会把单实例/配置校验也放过去
+            var strict = new AppLifetimeService(new StubLog());
+            strict.RegisterCheck(new SlowDefaultCheck());
+            var strictResult = strict.RunStartupChecksAsync().GetAwaiter().GetResult();
+            Check("★未声明放行的项，超时仍按 Error 阻断启动（默认口径没被改掉）",
+                !strictResult.Success && strictResult.BlockingReason != null && strictResult.BlockingReason.Contains("超时"),
+                $"Success={strictResult.Success}，BlockingReason={strictResult.BlockingReason ?? "(无)"}");
+        }
+
+        /// <summary>超时按 Warning 放行的慢自检项（模拟插件扫描）</summary>
+        private sealed class SlowWarningCheck : IStartupCheck
+        {
+            public string Name => "慢项（声明 Warning）";
+            public int TimeoutMs => 200;
+            public CheckLevel TimeoutLevel => CheckLevel.Warning;
+            public async Task<CheckResult> ExecuteAsync(CancellationToken ct)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), ct);
+                return CheckResult.Ok("不该跑到这里");
+            }
+        }
+
+        /// <summary>未声明放行的慢自检项：超时应按默认 Error 阻断</summary>
+        private sealed class SlowDefaultCheck : IStartupCheck
+        {
+            public string Name => "慢项（默认口径）";
+            public int TimeoutMs => 200;
+            public async Task<CheckResult> ExecuteAsync(CancellationToken ct)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), ct);
+                return CheckResult.Ok("不该跑到这里");
+            }
+        }
+
+        /// <summary>瞬时通过的自检项</summary>
+        private sealed class InstantCheck : IStartupCheck
+        {
+            public string Name => "正常项";
+            public Task<CheckResult> ExecuteAsync(CancellationToken ct)
+                => Task.FromResult(CheckResult.Ok("正常项照常执行"));
         }
 
         // ==================================================================

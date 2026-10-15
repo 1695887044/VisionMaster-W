@@ -99,15 +99,26 @@ namespace VisionMaster.Lifetime
                 CheckResult result;
                 try
                 {
-                    // 单项兜底超时 30 秒（检查项内部通常已有更短超时）
+                    // 单项兜底超时：逐项声明（IStartupCheck.TimeoutMs），默认 30 秒。
+                    // 超时的处置级别也由该项声明（IStartupCheck.TimeoutLevel）——插件扫描这类
+                    // "冷读十几 MB DLL、慢盘上可能超过任何合理超时"的项，超时按 Warning 放行：
+                    // 把"磁盘慢"当成"软件打不开"会让用户看到的是"启动两次才成功"这种玄学现象。
                     using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    linked.CancelAfter(30_000);
+                    linked.CancelAfter(check.TimeoutMs);
                     var execTask = check.ExecuteAsync(linked.Token);
                     var winner = await Task.WhenAny(execTask, Task.Delay(Timeout.Infinite, linked.Token));
-                    if (winner != execTask)
-                        result = CheckResult.Fail(CheckLevel.Error, "检查超时（30 秒）");
-                    else
-                        result = execTask.Result;
+
+                    // 超时判定不能只看"谁赢了 WhenAny"：尊重 ct 的实现会在超时取消后**以已取消状态收尾**，
+                    // 此时赢家仍是 execTask，但它并没有跑完——照直取 .Result 会抛，被下面的 catch
+                    // 记成 Error「检查异常」，把 TimeoutLevel 声明的级别整个架空。
+                    // （2026-10-15 由 FlowCanvasChecks 的 StartupChainTimeoutIsNotFatal 抓到。）
+                    bool timedOut = winner != execTask
+                        || (linked.IsCancellationRequested && !ct.IsCancellationRequested
+                            && execTask.Status != TaskStatus.RanToCompletion);
+
+                    result = timedOut
+                        ? CheckResult.Fail(check.TimeoutLevel, $"检查超时（{FormatTimeout(check.TimeoutMs)}）")
+                        : execTask.Result; // 真抛异常则交给下面的 catch（那才是 Error 级）
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -140,6 +151,12 @@ namespace VisionMaster.Lifetime
 
             return new StartupChainResult(true, null, warnings);
         }
+
+        /// <summary>
+        /// 超时文案：不足 1 秒按毫秒显示（断言夹具用 200ms 超时，写"0 秒"看不出是哪里配的）。
+        /// </summary>
+        private static string FormatTimeout(int ms)
+            => ms >= 1000 ? $"{ms / 1000} 秒" : $"{ms} 毫秒";
 
         #endregion
 

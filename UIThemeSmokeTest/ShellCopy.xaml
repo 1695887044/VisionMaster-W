@@ -654,6 +654,22 @@
                     Foreground="#D1242F"
                     Style="{StaticResource TitleButton}"
                     ToolTip="停止" />
+
+                <Rectangle Style="{StaticResource TitleSeparator}" />
+
+                <!--  全局命令：原来挂在左侧活动栏底部，2026-10-15 上移到顶栏（与 Shell.xaml 同步）  -->
+                <Button
+                    Command="{Binding SystemCommand}"
+                    CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
+                    Content="&#xf121;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="全局变量" />
+                <Button
+                    Command="{Binding SystemCommand}"
+                    CommandParameter="{x:Static local:SystemAction.CommSettings}"
+                    Content="&#xf6ff;"
+                    Style="{StaticResource TitleButton}"
+                    ToolTip="通讯设置" />
             </StackPanel>
 
             <!--  居中：当前方案名  -->
@@ -706,68 +722,30 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="48" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="48" />
             </Grid.ColumnDefinitions>
 
-            <!--  活动栏（Activity Bar）  -->
+            <!--  活动栏（左）：只管左侧停靠栏里的面板，图标与落点同侧（与 Shell.xaml 同步）  -->
             <Border
                 Background="#F7F8FA"
                 BorderBrush="#E5E5E5"
                 BorderThickness="0,0,1,0">
-                <DockPanel LastChildFill="False">
-                    <StackPanel DockPanel.Dock="Top">
-                        <ToggleButton
-                            Command="{Binding TogglePanelCommand}"
-                            CommandParameter="Panel_FlowListView"
-                            Content="&#xf00b;"
-                            IsChecked="{Binding IsFlowListActive, Mode=OneWay}"
-                            Style="{StaticResource ActivityToggle}"
-                            ToolTip="程序" />
-                        <ToggleButton
-                            Command="{Binding TogglePanelCommand}"
-                            CommandParameter="Panel_ProcessView"
-                            Content="&#xf0e8;"
-                            IsChecked="{Binding IsProcessActive, Mode=OneWay}"
-                            Style="{StaticResource ActivityToggle}"
-                            ToolTip="流程栏" />
-                        <ToggleButton
-                            Command="{Binding TogglePanelCommand}"
-                            CommandParameter="Panel_ToolView"
-                            Content="&#xf552;"
-                            IsChecked="{Binding IsToolboxActive, Mode=OneWay}"
-                            Style="{StaticResource ActivityToggle}"
-                            ToolTip="工具箱" />
-                        <!--  f1fc = draw-polygon（矢量图元），与菜单里组态画面同一码位、同字体，图形存在性已验证  -->
-                        <ToggleButton
-                            Command="{Binding TogglePanelCommand}"
-                            CommandParameter="Panel_ScadaToolboxView"
-                            Content="&#xf1fc;"
-                            IsChecked="{Binding IsScadaToolboxActive, Mode=OneWay}"
-                            Style="{StaticResource ActivityToggle}"
-                            ToolTip="图元工具箱" />
-                        <!--  f5fd = layer-group，与画布右键菜单「图层」子菜单同一码位、同字体  -->
-                        <ToggleButton
-                            Command="{Binding TogglePanelCommand}"
-                            CommandParameter="Panel_ScadaLayerView"
-                            Content="&#xf5fd;"
-                            IsChecked="{Binding IsScadaLayerActive, Mode=OneWay}"
-                            Style="{StaticResource ActivityToggle}"
-                            ToolTip="图层" />
-                    </StackPanel>
-                    <StackPanel DockPanel.Dock="Bottom">
-                        <Button
-                            Command="{Binding SystemCommand}"
-                            CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
-                            Content="&#xf121;"
-                            Style="{StaticResource ActivityAction}"
-                            ToolTip="全局变量" />
-                        <Button
-                            Command="{Binding SystemCommand}"
-                            CommandParameter="{x:Static local:SystemAction.CommSettings}"
-                            Content="&#xf6ff;"
-                            Style="{StaticResource ActivityAction}"
-                            ToolTip="通讯设置" />
-                    </StackPanel>
-                </DockPanel>
+                <StackPanel>
+                    <ToggleButton
+                        Command="{Binding TogglePanelCommand}"
+                        CommandParameter="Panel_FlowListView"
+                        Content="&#xf00b;"
+                        IsChecked="{Binding IsFlowListActive, Mode=OneWay}"
+                        Style="{StaticResource ActivityToggle}"
+                        ToolTip="程序" />
+                    <ToggleButton
+                        Command="{Binding TogglePanelCommand}"
+                        CommandParameter="Panel_ProcessView"
+                        Content="&#xf0e8;"
+                        IsChecked="{Binding IsProcessActive, Mode=OneWay}"
+                        Style="{StaticResource ActivityToggle}"
+                        ToolTip="流程栏" />
+                </StackPanel>
             </Border>
 
             <!--  停靠区（FluentLight 主题在代码后台应用）  -->
@@ -781,36 +759,42 @@
                 <avalonDock:LayoutRoot>
                     <avalonDock:LayoutPanel Orientation="Horizontal">
 
-                        <!--  1. 左侧双栏：程序 / 流程栏（星号比例：任意分辨率/DPI 下占比恒定，顶层并列避免嵌套宽度失效）  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="13*">
-                            <avalonDock:LayoutAnchorable
-                                Title="程序"
-                                CanClose="False"
-                                CanHide="True"
-                                ContentId="Panel_FlowListView">
-                                <views:FlowListView />
-                            </avalonDock:LayoutAnchorable>
-                        </avalonDock:LayoutAnchorablePane>
-                        <avalonDock:LayoutAnchorablePane DockWidth="17*">
-                            <avalonDock:LayoutAnchorable
-                                Title="流程栏"
-                                CanClose="False"
-                                CanHide="True"
-                                ContentId="Panel_ProcessView">
-                                <views:ProcessView />
-                            </avalonDock:LayoutAnchorable>
-                            <!--  流程节点画布：与流程栏同 pane（标签页），可拖出成上下/左右分屏对照。  -->
-                            <!--  树表达执行顺序（SortId），画布表达数据流（LinkedSources），两者共用同一份 FlowModel  -->
-                            <avalonDock:LayoutAnchorable
-                                Title="流程画布"
-                                CanClose="False"
-                                CanHide="False"
-                                ContentId="Panel_FlowCanvasView">
-                                <views:FlowCanvasView />
-                            </avalonDock:LayoutAnchorable>
-                        </avalonDock:LayoutAnchorablePane>
+                        <!--  1. 左侧栏：程序 / 流程栏 上下堆叠（与设计稿的左栏编排一致）  -->
+                        <!--  为什么上下堆叠而不是各占一列：程序列表只有几条流程、天然矮，流程栏是长树、天然高，  -->
+                        <!--  并排两列会让"矮的那个"白占一整列高度。上下堆叠后两者共享同一列宽度，  -->
+                        <!--  程序固定高度（够放几条流程 + 折叠按钮），流程栏吃掉剩余全部高度。  -->
+                        <!--  为什么用两层 LayoutAnchorablePane 而不是同一个 pane 里放两个 anchorable：  -->
+                        <!--  同一个 pane 里的多个 anchorable 是**标签页**（互斥显示，同一时刻只见一个），  -->
+                        <!--  那是"二选一"；要"同时可见、上下分"必须拆成两个 pane 再套进竖向 LayoutPanel。  -->
+                        <!--  宽度 20*（原来"程序 13* + 流程栏 17*"两列合计 30*）：左栏收成一列后不必再占 30%，  -->
+                        <!--  省下的宽度让给中央文档区——画布搬进去之后，那里才是真正吃面积的地方。  -->
+                        <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="20*">
+                            <avalonDock:LayoutAnchorablePane DockHeight="180">
+                                <avalonDock:LayoutAnchorable
+                                    Title="程序"
+                                    CanClose="False"
+                                    CanHide="True"
+                                    ContentId="Panel_FlowListView">
+                                    <views:FlowListView />
+                                </avalonDock:LayoutAnchorable>
+                            </avalonDock:LayoutAnchorablePane>
+                            <avalonDock:LayoutAnchorablePane>
+                                <avalonDock:LayoutAnchorable
+                                    Title="流程栏"
+                                    CanClose="False"
+                                    CanHide="True"
+                                    ContentId="Panel_ProcessView">
+                                    <views:ProcessView />
+                                </avalonDock:LayoutAnchorable>
+                            </avalonDock:LayoutAnchorablePane>
+                        </avalonDock:LayoutPanel>
 
-                        <!--  2. 中央工作区：视觉图像（文档标签，可拆分/浮动）  -->
+                        <!--  2. 中央工作区：流程画布 / 视觉图像 / 组态画面（文档标签，可拆分/浮动）  -->
+                        <!--  流程画布为什么从左侧栏搬到这里：它是节点编辑器的主工作区，面积需求与视觉图像同级，  -->
+                        <!--  而原来跟流程栏挤在 17* 宽的同一列里做标签页——同一时刻只能看见一个，  -->
+                        <!--  等于"要么看树、要么看画布"，两件事本来是要对照着做的。  -->
+                        <!--  默认选中仍是「视觉图像」（IsSelected=True 在它身上）：画布是编辑入口，但启动视角  -->
+                        <!--  先给实时图像，避免每次开软件都先看到一张空白画布。  -->
                         <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="70*">
                             <avalonDock:LayoutDocumentPane>
                                 <!--  IsSelected 是必要的：一个 pane 里有多个文档时，默认激活哪一个不保证是第一个，  -->
@@ -821,6 +805,13 @@
                                     ContentId="Panel_ImageView"
                                     IsSelected="True">
                                     <views:ImageView />
+                                </avalonDock:LayoutDocument>
+                                <!--  流程节点画布：与视觉图像同为中央文档区，可拖出成分屏对照着调  -->
+                                <avalonDock:LayoutDocument
+                                    Title="流程画布"
+                                    CanClose="False"
+                                    ContentId="Panel_FlowCanvasView">
+                                    <views:FlowCanvasView />
                                 </avalonDock:LayoutDocument>
                                 <!--  组态画面编辑器：与视觉图像同为中央文档区，可拖出成分屏对照着调画面  -->
                                 <avalonDock:LayoutDocument
@@ -914,6 +905,39 @@
                     </avalonDock:LayoutPanel>
                 </avalonDock:LayoutRoot>
             </avalonDock:DockingManager>
+
+            <!--  活动栏（右）：只管右侧停靠栏里的面板（与 Shell.xaml 同步）  -->
+            <Border
+                Grid.Column="2"
+                Background="#F7F8FA"
+                BorderBrush="#E5E5E5"
+                BorderThickness="1,0,0,0">
+                <StackPanel>
+                    <ToggleButton
+                        Command="{Binding TogglePanelCommand}"
+                        CommandParameter="Panel_ToolView"
+                        Content="&#xf552;"
+                        IsChecked="{Binding IsToolboxActive, Mode=OneWay}"
+                        Style="{StaticResource ActivityToggle}"
+                        ToolTip="工具箱" />
+                    <!--  f1fc = draw-polygon（矢量图元），与菜单里组态画面同一码位、同字体  -->
+                    <ToggleButton
+                        Command="{Binding TogglePanelCommand}"
+                        CommandParameter="Panel_ScadaToolboxView"
+                        Content="&#xf1fc;"
+                        IsChecked="{Binding IsScadaToolboxActive, Mode=OneWay}"
+                        Style="{StaticResource ActivityToggle}"
+                        ToolTip="图元工具箱" />
+                    <!--  f5fd = layer-group，与画布右键菜单「图层」子菜单同一码位、同字体  -->
+                    <ToggleButton
+                        Command="{Binding TogglePanelCommand}"
+                        CommandParameter="Panel_ScadaLayerView"
+                        Content="&#xf5fd;"
+                        IsChecked="{Binding IsScadaLayerActive, Mode=OneWay}"
+                        Style="{StaticResource ActivityToggle}"
+                        ToolTip="图层" />
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!--  ============ 状态栏（VS Code 式） ============  -->

@@ -89,6 +89,13 @@ namespace VisionMaster
 
             if (DataContext is ShellViewModel vm)
             {
+                // 无条件补挂一次活动栏监听：布局恢复失败时（首次启动没有 Layout.xml，
+                // 或磁盘上的旧布局被结构版本闸拒绝）LayoutHelper.LayoutLoaded 不会触发，
+                // 只靠构造函数里那一句订阅就没人挂监听 → 五个 Toggle 停在初值 false，
+                // 面板明明都在、活动栏却一个高亮都没有，直到用户点一次开关才恢复。
+                // AttachDockWatchers 先解绑再挂、幂等，重复调用安全；
+                // 事件那一路仍然保留，负责"用户中途加载/重置布局后重挂"（LayoutContent 实例会被换掉）。
+                vm.AttachDockWatchers();
                 await vm.AutoLoadStartupSolutionAsync();
             }
         }

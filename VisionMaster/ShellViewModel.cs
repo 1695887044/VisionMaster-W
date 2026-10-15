@@ -258,9 +258,12 @@ namespace VisionMaster
 
         /// <summary>
         /// 监听程序/工具箱面板的可见性与激活状态，驱动活动栏高亮
-        /// 布局加载/重载后必须重新调用（LayoutContent 实例会被替换）
+        /// 布局加载/重载后必须重新调用（LayoutContent 实例会被替换）。
+        /// 两条调用路径：① LayoutLoaded 事件（成功恢复布局后）；② Shell.OnContentRendered
+        /// 里无条件补挂一次——恢复失败时事件不触发，缺这一路就是"面板在、活动栏不亮"。
+        /// 实现先解绑再挂，因此重复调用是幂等的。
         /// </summary>
-        private void AttachDockWatchers()
+        public void AttachDockWatchers()
         {
             foreach (var (panel, handler) in _dockWatchers)
                 panel.PropertyChanged -= handler;
