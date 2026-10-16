@@ -9,6 +9,7 @@ using Core.Interfaces;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
+using VisionMaster.Services;
 using VisionMaster.Services.Help;
 
 namespace VisionMaster.ViewModels.DialogViewModels
@@ -46,6 +47,30 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly List<HelpPage> _history = new();
 
         /// <summary>
+        /// 软件配置（只为"开发章节显隐"这一项服务，改完即落盘）。
+        /// <b>可以为 null</b>：断言宿主（HelpProbe）直接 <c>new HelpViewModel(catalog, log)</c>，
+        /// 它不该在 <c>bin</c> 里写出 AppConfig.json（密闭性口径见 AppSettingsService 的注释）；
+        /// 为 null 时开关照样能切，只是不持久化、下次打开回到默认档。
+        /// </summary>
+        private readonly AppSettingsService? _settings;
+
+        /// <summary>
+        /// 未经搜索过滤的完整目录（<see cref="HelpCatalogService"/> 合并出来的那棵树）。
+        /// 搜索时 <see cref="Nodes"/> 换成过滤副本，清空搜索就整棵换回来——
+        /// 原树上的展开状态因此不会被搜索污染（用户搜一遍出来，目录全展开是最烦的）。
+        /// </summary>
+        private readonly List<HelpNode> _fullTree = new();
+
+        /// <summary>
+        /// 按"开发章节显隐"裁过一遍的目录（搜索过滤作用于<b>这一棵</b>，不是 <see cref="_fullTree"/>）。
+        ///
+        /// 为什么要单独一层而不是在 <see cref="HelpCatalogService"/> 里就不收开发页：
+        /// 加载永远是全量的（这是内嵌手册能支撑"全局合并"的前提），显隐只是视图态；
+        /// 两层过滤（显隐 → 搜索）各自独立，切换开关时不会把用户的搜索词一起吃掉。
+        /// </summary>
+        private readonly List<HelpNode> _visibleTree = new();
+
+        /// <summary>
         /// 逐页渲染缓存。存的是"文档 + 该文档对应的 markdown"这一对：
         /// 打印要重新渲染一份，用的必须是 <b>当前页</b> 的正文——只缓存文档、正文另存一个字段的话，
         /// "看 A → 看 B → 回退到 A（命中缓存）→ 打印"就会打出 B 的正文而标题写 A。
@@ -55,22 +80,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private HelpNode? _selectedNode;
         private HelpPage? _currentPage;
         private string _currentMarkdown = string.Empty;
+        private string _query = string.Empty;
         private FlowDocument? _document;
         private double _tocWidth = 300;
         private double _lastVisibleTocWidth = 300;
         private double _bodyFontSize = 14;
         private string _fontSizeLabel = "标准";
         private bool _navigating;
+        private bool _showDevDocs;
 
-        public HelpViewModel(HelpCatalogService catalog, ILogService log)
+        public HelpViewModel(HelpCatalogService catalog, ILogService log, AppSettingsService? settings = null)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _log = log ?? throw new ArgumentNullException(nameof(log));
+            _settings = settings;
+            _showDevDocs = settings?.Current?.Help?.ShowDeveloperDocs ?? false;
 
             ToggleTocCommand = new DelegateCommand(ToggleToc);
             BackCommand = new DelegateCommand(GoBack, () => _history.Count > 1);
             PrintCommand = new DelegateCommand(Print);
-            CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
+            CloseCommand = new DelegateCommand(OnEscape);
         }
 
         #region 绑定属性
@@ -102,8 +131,37 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>正文页眉：来源（软件内置 / 插件名）</summary>
         public string PageSource { get; private set; } = string.Empty;
 
+        /// <summary>
+        /// 正文页眉徽章的档位（Host / Plugin / Auto），视图按它给三种画法
+        /// （主色淡底 / 灰底 / 虚线边框）。绑的是枚举的字符串形式而不是枚举本身：
+        /// XAML 里 DataTrigger 直接写 <c>Value="Auto"</c> 就成，不必为一个枚举再引命名空间和转换器。
+        /// </summary>
+        public string PageSourceKind { get; private set; } = string.Empty;
+
         /// <summary>底部状态栏文字</summary>
-        public string StatusText => $"{_catalog.Summary}　·　Ctrl+P 打印当前页，Esc 关闭";
+        public string StatusText => $"{_catalog.Summary}（{(ShowDevDocs ? "已显示" : "已隐藏")}）　·　Ctrl+P 打印当前页，Esc 关闭";
+
+        /// <summary>
+        /// 是否在目录里显示<b>开发章节</b>（工具栏那个勾选框）。
+        ///
+        /// 口径：<b>只裁显示、不裁加载</b>。开发页始终由 <see cref="HelpCatalogService"/> 全量收进目录，
+        /// 这里换的是一棵裁过的视图树——所以切开关不需要重新合并（不重读资源、不重跑 <c>Build</c>），
+        /// 也保证"同一份 DLL 在任何配置下收纳到的手册是同一本"。
+        /// </summary>
+        public bool ShowDevDocs
+        {
+            get => _showDevDocs;
+            set
+            {
+                if (!SetProperty(ref _showDevDocs, value))
+                    return;
+
+                _settings?.SyncHelpSettings(value);
+                RebuildVisibleTree();
+                ApplyFilter(_query);
+                RaisePropertyChanged(nameof(StatusText));
+            }
+        }
 
         /// <summary>
         /// 目录列宽。与 <c>ColumnDefinition.Width</c> <b>双向绑定</b>：用户拖分隔条改的是这一列，
@@ -183,6 +241,223 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(ToggleTocLabel));
         }
 
+        /// <summary>
+        /// Esc 的去向：正在搜索时**先清空搜索**，再按一次才关窗。
+        /// 不这么分的话，在搜索框里按 Esc 会把整个帮助窗关掉——刚打的字连带窗口一起没了。
+        /// </summary>
+        private void OnEscape()
+        {
+            if (IsSearching)
+            {
+                Query = string.Empty;
+                return;
+            }
+            RequestClose.Invoke(ButtonResult.Cancel);
+        }
+
+        #endregion
+
+        #region 目录搜索
+
+        /// <summary>
+        /// 目录搜索关键字（搜索框双向绑定，Ctrl+F 聚焦）。改一次就重算一遍过滤树：
+        /// 目录总量是"分组 → 插件 → 页"约 300 个节点，逐次全量重算比留一份增量索引更省心，
+        /// 也快得看不出延迟。
+        ///
+        /// <b>只搜标题、不搜正文</b>是刻意的：正文由 <see cref="HelpPage.LoadMarkdown"/> 现取
+        /// （见 HelpCatalogService 的"启动只登记标题"），要搜正文就得启动时把上万行手册读进内存建索引。
+        /// </summary>
+        public string Query
+        {
+            get => _query;
+            set
+            {
+                var query = value ?? string.Empty;
+                if (!SetProperty(ref _query, query))
+                    return;
+                ApplyFilter(query);
+            }
+        }
+
+        /// <summary>是否处于搜索状态（Esc 分支与"清空搜索"提示都看它）</summary>
+        public bool IsSearching => _query.Trim().Length > 0;
+
+        /// <summary>搜索状态下一颗命中都没有：目录区给空态，别留一片白让人以为程序卡住</summary>
+        public bool HasNoMatch { get; private set; }
+
+        /// <summary>命中了几页（搜索时显示在搜索框下方，给用户一个"就这些"的落点）</summary>
+        public int MatchPageCount { get; private set; }
+
+        private void ApplyFilter(string rawQuery)
+        {
+            var needle = rawQuery.Trim();
+            Nodes.Clear();
+
+            if (needle.Length == 0)
+            {
+                foreach (var group in _visibleTree)
+                    Nodes.Add(group);
+            }
+            else
+            {
+                foreach (var group in _visibleTree)
+                {
+                    var hit = MatchNode(group, needle);
+                    if (hit != null)
+                        Nodes.Add(hit);
+                }
+            }
+
+            // 选中态按"正文是哪一页"重新认领：过滤把树换了一遍，但 HelpPage 引用没换
+            SelectCurrentPage();
+
+            MatchPageCount = CountPages(Nodes);
+            HasNoMatch = needle.Length > 0 && Nodes.Count == 0;
+            RaisePropertyChanged(nameof(IsSearching));
+            RaisePropertyChanged(nameof(HasNoMatch));
+            RaisePropertyChanged(nameof(MatchPageCount));
+        }
+
+        /// <summary>
+        /// 按 <see cref="ShowDevDocs"/> 重算一遍可见树。
+        /// 开着开发章节时<b>直接用原节点</b>（不克隆）：展开状态存在节点上，来回切开关不该把
+        /// 用户手工展开的那些分组重置掉；只有隐藏开发页时才克隆出裁过的副本。
+        /// </summary>
+        private void RebuildVisibleTree()
+        {
+            _visibleTree.Clear();
+            foreach (var group in _fullTree)
+            {
+                var kept = ShowDevDocs ? group : PruneDevDocs(group);
+                if (kept != null)
+                    _visibleTree.Add(kept);
+            }
+        }
+
+        /// <summary>
+        /// 裁掉一棵子树里的开发章节页；整支裁空了就返回 null（目录里不留空分组，
+        /// 也不留"点不开正文的插件节点"——只有开发页的插件在关闭态就是没内容可看）。
+        /// 与 <c>MatchNode</c> 同一套"副本共用 <see cref="HelpPage"/> 引用"的口径。
+        ///
+        /// **一支子树里一个开发页都没有时返回原节点**，不克隆：展开状态写在节点上，
+        /// 开关不该把用户手工展开的分组重置掉，也不该让"清空搜索后节点引用逐字相同"那条契约失效。
+        /// </summary>
+        private static HelpNode? PruneDevDocs(HelpNode node)
+        {
+            if (node.Page != null)
+                return node.IsDevDoc ? null : node;
+
+            List<HelpNode>? kept = null;
+            var changed = false;
+            foreach (var child in node.Children)
+            {
+                var hit = PruneDevDocs(child);
+                if (!ReferenceEquals(hit, child)) changed = true;
+                if (hit == null) continue;
+                kept ??= new List<HelpNode>();
+                kept.Add(hit);
+            }
+
+            if (kept == null || kept.Count == 0)
+                return null;
+            if (!changed)
+                return node;
+
+            return new HelpNode
+            {
+                Title = node.Title,
+                Icon = node.Icon,
+                Badge = node.Badge,
+                Children = kept,
+            };
+        }
+
+        /// <summary>
+        /// 过滤出一个节点：本节点标题命中、或子树里有命中才保留，否则返回 null（整支剪掉）。
+        ///
+        /// 返回的是<b>副本</b>不是原节点：展开状态与高亮位置都要写在节点上，
+        /// 直接改原树等于"搜一次就把用户的目录展开状态和上次的命中底色留下来"。
+        /// 副本与原节点共用同一个 <see cref="HelpPage"/> 引用——逐页缓存与历史记录都按页引用比对，
+        /// 换页对象会让"回退到看过的页"认不出来（HelpProbe 第 5 节钉的就是这条）。
+        /// </summary>
+        private static HelpNode? MatchNode(HelpNode node, string needle)
+        {
+            var matchIndex = node.Title.IndexOf(needle, StringComparison.OrdinalIgnoreCase);
+
+            var kept = new List<HelpNode>();
+            foreach (var child in node.Children)
+            {
+                var hit = MatchNode(child, needle);
+                if (hit != null)
+                    kept.Add(hit);
+            }
+
+            // 分组/插件名自己命中、但下面一个条目都没命中：整支原样留下。
+            // 只留一个空分组等于把用户正要找的东西藏起来——搜"图像处理"就该看到这个分类里的全部算子。
+            if (matchIndex >= 0 && kept.Count == 0 && node.Children.Count > 0)
+                kept = CloneSubtree(node.Children, needle);
+
+            if (matchIndex < 0 && kept.Count == 0)
+                return null;
+
+            var copy = new HelpNode
+            {
+                Title = node.Title,
+                Icon = node.Icon,
+                Badge = node.Badge,
+                Page = node.Page,
+                IsDevDoc = node.IsDevDoc,
+                Children = kept,
+            };
+            if (kept.Count > 0)
+                copy.IsExpanded = true;   // 搜索结果里的分支必须展开，否则命中的页看不见
+            if (matchIndex >= 0)
+                copy.MarkMatch(matchIndex, needle.Length);
+            return copy;
+        }
+
+        /// <summary>整棵子树照抄（不过滤），顺带把命中的标题标出来、分支展开</summary>
+        private static List<HelpNode> CloneSubtree(List<HelpNode> nodes, string needle)
+        {
+            var copies = new List<HelpNode>(nodes.Count);
+            foreach (var node in nodes)
+            {
+                var copy = new HelpNode
+                {
+                    Title = node.Title,
+                    Icon = node.Icon,
+                    Badge = node.Badge,
+                    Page = node.Page,
+                    IsDevDoc = node.IsDevDoc,
+                    Children = CloneSubtree(node.Children, needle),
+                };
+                if (copy.Children.Count > 0)
+                    copy.IsExpanded = true;
+                var index = node.Title.IndexOf(needle, StringComparison.OrdinalIgnoreCase);
+                if (index >= 0)
+                    copy.MarkMatch(index, needle.Length);
+                copies.Add(copy);
+            }
+            return copies;
+        }
+
+        private static int CountPages(IEnumerable<HelpNode> nodes)
+        {
+            var count = 0;
+            foreach (var node in nodes)
+                count += (node.Page != null ? 1 : 0) + CountPages(node.Children);
+            return count;
+        }
+
+        /// <summary>把目录选中态指回"当前正文那一页"（换树之后按页引用重新认领）。</summary>
+        private void SelectCurrentPage()
+        {
+            var page = _currentPage;
+            if (page == null)
+                return;
+            SelectedNode = FindNodeForPage(page) ?? SelectedNode;
+        }
+
         #endregion
 
         #region 导航
@@ -232,6 +507,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _currentPage = page;
             PageTitle = page.Title;
             PageSource = page.Source;
+            PageSourceKind = page.Kind.ToString();
 
             if (!_renderCache.TryGetValue(page, out var entry))
             {
@@ -246,6 +522,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             Document = entry.Document;
             RaisePropertyChanged(nameof(PageTitle));
             RaisePropertyChanged(nameof(PageSource));
+            RaisePropertyChanged(nameof(PageSourceKind));
         }
 
         private string ReadMarkdownSafe(HelpPage page)
@@ -380,9 +657,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 }
             }
 
+            // 完整目录留一份底：搜索与显隐换的都是副本，清空搜索要整棵换回来
+            _fullTree.Clear();
+            _fullTree.AddRange(_catalog.Groups);
+            RebuildVisibleTree();
+
+            // 搜索词直接清字段、不走 Query setter：此刻 _fullTree 还没就位，
+            // 让 setter 里的 ApplyFilter 空跑一遍会把目录清成空树
+            _query = string.Empty;
+            RaisePropertyChanged(nameof(Query));
+            RaisePropertyChanged(nameof(IsSearching));
+            RaisePropertyChanged(nameof(ShowDevDocs));
+
             Nodes.Clear();
-            foreach (var group in _catalog.Groups)
+            foreach (var group in _visibleTree)
                 Nodes.Add(group);
+
+            MatchPageCount = CountPages(Nodes);
+            HasNoMatch = false;
+            RaisePropertyChanged(nameof(MatchPageCount));
+            RaisePropertyChanged(nameof(HasNoMatch));
 
             RaisePropertyChanged(nameof(StatusText));
             // 字号下拉的选中态在这里重推一次：此刻 ItemsSource 已就位，绑定能把档位稳落到控件上

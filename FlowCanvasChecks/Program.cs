@@ -288,6 +288,14 @@ namespace FlowCanvasChecks
             // 插件帮助手册：打包 / 按类型分册 / 页名契约 / 编码与体量（纯静态扫描，见 HelpManualCheck 类注释）
             HelpManualCheck.Run();
 
+            // 停靠面板可见性恢复的唯一入口（AvalonDock 4.74.1 的 Show() 缺索引下界 → 真机闪退；
+            // 运行时那 5 条在 UIThemeSmokeTest.RunPanelModeChecks，这里守"入口别被绕开"）
+            LayoutVisibilityCheck.Run();
+
+            // 图标字符按钮放进固定格子必须挂样式或显式 Padding（Fluent 隐式 Button 样式的 11,5,11,6
+            // 内边距把 30×30 的「✕」切成残字符，真机三连报；编译期全绿，只有静态算术闸拦得住）
+            GlyphButtonClipCheck.Run();
+
             Finish();
             return Environment.ExitCode;
         }

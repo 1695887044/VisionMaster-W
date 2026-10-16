@@ -1,0 +1,332 @@
+using HalconDotNet;
+using System.Globalization;
+using System.Text;
+
+namespace IntrinsicsProbe;
+
+/// <summary>
+/// 标定板内参标定 · 可行性探针。
+///
+/// 目的（只回答"能不能做"，不产出任何仓库代码）：
+///   ① sim_caltab 合成已知内参的标定板图 → find_calib_object → calibrate_cameras，
+///      恢复出来的参数与真值差多少？（设计文档 §四 a 的判据能不能达到）
+///   ② 最少几张图才解得动？图太少时 HALCON 报什么？
+///   ③ change_radial_distortion_image / _points 的接线形状与去畸变效果
+///   ④ 单个算子链的耗时量级（决定断言能不能放进常规 gate）
+///
+/// 结论以 UTF-8 文件落在本目录 out.txt（控制台中文会被代码页转换）。
+/// </summary>
+internal static class Program
+{
+    private static readonly StringBuilder Log = new();
+    private static readonly string OutPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "out.txt");
+
+    private static void L(string s)
+    {
+        Log.AppendLine(s);
+        Console.WriteLine(s);
+    }
+
+    private static string CalibDir =>
+        Path.Combine(Environment.GetEnvironmentVariable("HALCONROOT") ?? string.Empty, "calib");
+
+    private static void Main()
+    {
+        L($"HALCONROOT = {Environment.GetEnvironmentVariable("HALCONROOT") ?? "(null)"}");
+        L($"calib dir  = {CalibDir} (exists={Directory.Exists(CalibDir)})");
+        HOperatorSet.GetSystem(new HTuple("version"), out HTuple ver);
+        L($"HALCON version = {ver}");
+        L("");
+
+        try
+        {
+            Phase1SelfVerify();
+            Phase2MinImages();
+            Phase3Undistort();
+            Phase4Timing();
+        }
+        catch (Exception ex)
+        {
+            L($"!! 未捕获异常：{ex.GetType().Name}: {ex.Message}");
+            L(ex.StackTrace ?? "");
+        }
+
+        File.WriteAllText(OutPath, Log.ToString(), new UTF8Encoding(false));
+        Console.WriteLine($"--- written: {Path.GetFullPath(OutPath)}");
+    }
+
+    // ── 真值（设计文档 §四 a 的口径）─────────────────────────────────────
+    private const string DescrName = "caltab_100mm.descr";   // 7×7，板宽 0.1 m
+    private const double TrueFocus = 0.052;                  // m
+    private const double TrueKappa = -1500.0;                // 1/m²（division 模型）
+    private const double TrueSx = 5.2e-6;                    // m/px
+    private const double TrueSy = 5.2e-6;
+    private const double TrueCx = 640.0;
+    private const double TrueCy = 512.0;
+    private const int ImgW = 1280;
+    private const int ImgH = 1024;
+
+    private static HTuple MakeTrueCamPar() => new(
+        "area_scan_division", TrueFocus, TrueKappa, TrueSx, TrueSy, TrueCx, TrueCy, ImgW, ImgH);
+
+    /// <summary>覆盖视野四角+中心、含倾斜的位姿表（tx/ty 单位 m，rx/ry 单位 rad）</summary>
+    private static readonly (double Tx, double Ty, double Tz, double Rx, double Ry)[] Poses =
+    {
+        ( 0.000,  0.000, 1.00,  0.00,  0.00),
+        ( 0.020,  0.015, 1.00,  0.30,  0.20),
+        (-0.020,  0.015, 1.00, -0.30,  0.20),
+        ( 0.020, -0.015, 1.00,  0.30, -0.20),
+        (-0.020, -0.015, 1.00, -0.30, -0.20),
+        ( 0.000,  0.000, 0.90,  0.45,  0.00),
+        ( 0.000,  0.000, 1.10,  0.00,  0.45),
+        ( 0.015,  0.000, 0.95, -0.40,  0.30),
+        (-0.015,  0.000, 1.05,  0.40, -0.30),
+        ( 0.000,  0.020, 1.00,  0.00, -0.45),
+        ( 0.000, -0.020, 1.00,  0.50,  0.10),
+        ( 0.018,  0.018, 1.08, -0.25, -0.35),
+        (-0.018, -0.018, 0.92,  0.25,  0.35),
+        ( 0.010, -0.010, 1.02, -0.35,  0.15),
+        (-0.010,  0.010, 0.98,  0.35, -0.15),
+    };
+
+    private static HImage Simulate(int index, HTuple camPar, out HPose pose)
+    {
+        var p = Poses[index];
+        pose = new HPose(new HTuple(p.Tx, p.Ty, p.Tz, p.Rx, p.Ry, 0.0, "gba"));
+        var img = new HImage();
+        img.SimCaltab(Path.Combine(CalibDir, DescrName), new HCamPar(camPar), pose, 128, 80, 224, 1.0);
+        return img;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    private static void Phase1SelfVerify()
+    {
+        L("========== Phase 1：合成自验证（已知内参 → 恢复）==========");
+
+        var truePar = MakeTrueCamPar();
+        L($"真值 CamPar = [{truePar}]");
+
+        int count = 12;
+        var images = new HImage[count];
+        var poses = new HPose[count];
+        for (int i = 0; i < count; i++)
+            images[i] = Simulate(i, truePar, out poses[i]);
+
+        images[0].GetImageSize(out int w, out int h);
+        L($"合成图尺寸 = {w}×{h}（真值 {ImgW}×{ImgH}）");
+
+        var cd = new HCalibData();
+        cd.CreateCalibData("calibration_object", 1, 1);
+        cd.SetCalibDataCamParam(new HTuple(0), new HTuple(), new HCamPar(truePar));
+        cd.SetCalibDataCalibObject(0, new HTuple(Path.Combine(CalibDir, DescrName)));
+
+        int found = 0;
+        for (int i = 0; i < count; i++)
+        {
+            try
+            {
+                cd.FindCalibObject(images[i], 0, 0, i, new HTuple(), new HTuple());
+                found++;
+            }
+            catch (HalconException ex)
+            {
+                L($"  第 {i + 1} 张 find_calib_object 失败：#{ex.GetErrorCode()} {ex.GetErrorMessage()}");
+            }
+        }
+        L($"find_calib_object 成功 {found}/{count}");
+
+        double rms;
+        try
+        {
+            rms = cd.CalibrateCameras();
+            L($"calibrate_cameras 返回 Error（平均重投影误差）= {rms.ToString("0.####", CultureInfo.InvariantCulture)} px");
+        }
+        catch (HalconException ex)
+        {
+            L($"!! calibrate_cameras 失败：#{ex.GetErrorCode()} {ex.GetErrorMessage()}");
+            return;
+        }
+
+        var rec = cd.GetCalibData(new HTuple("camera"), new HTuple(0), new HTuple("params"));
+        L($"恢复 CamPar = [{rec}]");
+
+        var recType = rec[0].S;
+        double rFocus = rec[1].D, rKappa = rec[2].D, rSx = rec[3].D, rSy = rec[4].D;
+        double rCx = rec[5].D, rCy = rec[6].D;
+        int rW = rec[7].I, rH = rec[8].I;
+
+        double fErrPct = Math.Abs(rFocus - TrueFocus) / TrueFocus * 100.0;
+        double kErr = Math.Abs(rKappa - TrueKappa);
+        double cxErr = Math.Abs(rCx - TrueCx);
+        double cyErr = Math.Abs(rCy - TrueCy);
+
+        L($"  type   : {recType}（真值 area_scan_division）{(recType == "area_scan_division" ? " OK" : " !!")}");
+        L($"  focus  : {rFocus:G6} vs {TrueFocus:G6}  → 相对误差 {fErrPct:0.####}%   （判据 <0.5%）{(fErrPct < 0.5 ? " PASS" : " FAIL")}");
+        L($"  kappa  : {rKappa:G6} vs {TrueKappa:G6}  → 绝对误差 {kErr:G4}       （判据 <5e-3 → 注意单位！）");
+        L($"  cx,cy  : ({rCx:0.####}, {rCy:0.####}) vs ({TrueCx}, {TrueCy}) → 偏差 ({cxErr:0.####}, {cyErr:0.####}) px  （判据 <1px）{(cxErr < 1 && cyErr < 1 ? " PASS" : " FAIL")}");
+        L($"  sx,sy  : {rSx:G6}, {rSy:G6} vs {TrueSx:G6}, {TrueSy:G6}");
+        L($"  尺寸   : {rW}×{rH}");
+        L($"  重投影 RMS : {rms:0.####} px   （判据 <0.3px）{(rms < 0.3 ? " PASS" : " FAIL")}");
+
+        // 逐张位姿恢复误差（说明"倾斜位姿是否被正确恢复"）
+        L("  位姿恢复（第 k 张：真值 vs 恢复）——只列前 3 张");
+        for (int i = 0; i < Math.Min(3, count); i++)
+        {
+            var p = cd.GetCalibData(new HTuple("calib_obj_pose"), new HTuple(0, i), new HTuple("pose"));
+            L($"    #{i}: 真值 tx={Poses[i].Tx:0.###} ty={Poses[i].Ty:0.###} tz={Poses[i].Tz:0.###} "
+              + $"| 恢复 [{p}]");
+        }
+
+        // kappa 单位口径：设计文档写 "k1 绝对误差 < 5e-3"，而 division 模型的 kappa 量级是 1e3
+        L($"  ⚠ 口径核对：division 模型的 kappa 真值量级 = {TrueKappa:G4}（设计文档 §四a 的 \"k1 < 5e-3\" 是 polynomial 模型的 k1 口径）");
+
+        foreach (var im in images) im.Dispose();
+        L("");
+    }
+
+    private static void Phase2MinImages()
+    {
+        L("========== Phase 2：最少图数（设计文档 §四c：图数 < 6 必须明确失败）==========");
+        var truePar = MakeTrueCamPar();
+
+        foreach (int n in new[] { 1, 2, 3, 4, 5, 6 })
+        {
+            var images = new HImage[n];
+            for (int i = 0; i < n; i++) images[i] = Simulate(i, truePar, out _);
+
+            var cd = new HCalibData();
+            cd.CreateCalibData("calibration_object", 1, 1);
+            cd.SetCalibDataCamParam(new HTuple(0), new HTuple(), new HCamPar(truePar));
+            cd.SetCalibDataCalibObject(0, new HTuple(Path.Combine(CalibDir, DescrName)));
+
+            int ok = 0;
+            for (int i = 0; i < n; i++)
+            {
+                try { cd.FindCalibObject(images[i], 0, 0, i, new HTuple(), new HTuple()); ok++; }
+                catch (HalconException) { }
+            }
+
+            string verdict;
+            try
+            {
+                double e = cd.CalibrateCameras();
+                var rec = cd.GetCalibData(new HTuple("camera"), new HTuple(0), new HTuple("params"));
+                verdict = $"成功，Error={e:0.####}px，focus={rec[1].D:G6}（真值 {TrueFocus:G6}），kappa={rec[2].D:G6}";
+            }
+            catch (HalconException ex)
+            {
+                verdict = $"失败 #{ex.GetErrorCode()}：{ex.GetErrorMessage().Trim()}";
+            }
+
+            L($"  n={n}（找到标记 {ok}/{n}）→ {verdict}");
+            foreach (var im in images) im.Dispose();
+        }
+        L("");
+    }
+
+    private static void Phase3Undistort()
+    {
+        L("========== Phase 3：去畸变接线（对图 / 对点）==========");
+        var truePar = MakeTrueCamPar();
+
+        // 3.1 对图：change_radial_distortion_image(Image, Region, CamParamIn, CamParamOut)
+        var img = Simulate(0, truePar, out _);
+        try
+        {
+            var domain = img.GetDomain();
+            var rectPar = new HCamPar(truePar).ChangeRadialDistortionCamPar("fixed", 0.0);
+            L($"  [对图] camParOut（去畸变）= [{rectPar.RawData}]");
+            var rect = img.ChangeRadialDistortionImage(domain, new HCamPar(truePar), rectPar);
+            rect.GetImageSize(out int rw, out int rh);
+            L($"  [对图] change_radial_distortion_image OK，尺寸 {rw}×{rh}");
+            rect.Dispose();
+            domain.Dispose();
+        }
+        catch (HalconException ex)
+        {
+            L($"  [对图] !! 失败 #{ex.GetErrorCode()}：{ex.GetErrorMessage().Trim()}");
+        }
+
+        // 3.2 对点：change_radial_distortion_points(Row, Col, CamParamIn, CamParamOut)
+        try
+        {
+            var rectPar = new HCamPar(truePar).ChangeRadialDistortionCamPar("fixed", 0.0);
+            var inPar = new HCamPar(truePar);
+            // 取图像四角 + 中心，看畸变位移量级
+            var rows = new HTuple(0.0, 0.0, (double)ImgH - 1, (double)ImgH - 1, ImgH / 2.0);
+            var cols = new HTuple(0.0, (double)ImgW - 1, 0.0, (double)ImgW - 1, ImgW / 2.0);
+            inPar.ChangeRadialDistortionPoints(rows, cols, rectPar, out var rOut, out var cOut);
+            L("  [对点] change_radial_distortion_points OK");
+            for (int i = 0; i < rows.Length; i++)
+            {
+                double dr = rOut[i].D - rows[i].D, dc = cOut[i].D - cols[i].D;
+                L($"    ({rows[i].D:0.#},{cols[i].D:0.#}) → ({rOut[i].D:0.###},{cOut[i].D:0.###})  位移 {Math.Sqrt(dr * dr + dc * dc):0.###} px");
+            }
+        }
+        catch (HalconException ex)
+        {
+            L($"  [对点] !! 失败 #{ex.GetErrorCode()}：{ex.GetErrorMessage().Trim()}");
+        }
+
+        // 3.3 去畸变后的图能否再被 find_calib_object 找到（判据 b 的前提）
+        try
+        {
+            var cd = new HCalibData();
+            cd.CreateCalibData("calibration_object", 1, 1);
+            cd.SetCalibDataCamParam(new HTuple(0), new HTuple(), new HCamPar(truePar));
+            cd.SetCalibDataCalibObject(0, new HTuple(Path.Combine(CalibDir, DescrName)));
+
+            int ok = 0, total = 8;
+            var rectPar = new HCamPar(truePar).ChangeRadialDistortionCamPar("fixed", 0.0);
+            for (int i = 0; i < total; i++)
+            {
+                var raw = Simulate(i, truePar, out _);
+                var dom = raw.GetDomain();
+                var rect = raw.ChangeRadialDistortionImage(dom, new HCamPar(truePar), rectPar);
+                try { cd.FindCalibObject(rect, 0, 0, i, new HTuple(), new HTuple()); ok++; }
+                catch (HalconException) { }
+                rect.Dispose();
+                dom.Dispose();
+                raw.Dispose();
+            }
+            double e = cd.CalibrateCameras();
+            var rec = cd.GetCalibData(new HTuple("camera"), new HTuple(0), new HTuple("params"));
+            L($"  [去畸变后再标定] 找到 {ok}/{total}，Error={e:0.####}px，恢复 kappa={rec[2].D:G6}（应接近 0）");
+        }
+        catch (HalconException ex)
+        {
+            L($"  [去畸变后再标定] !! 失败 #{ex.GetErrorCode()}：{ex.GetErrorMessage().Trim()}");
+        }
+
+        img.Dispose();
+        L("");
+    }
+
+    private static void Phase4Timing()
+    {
+        L("========== Phase 4：耗时（决定断言能不能进常规 gate）==========");
+        var truePar = MakeTrueCamPar();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        int count = 12;
+        var images = new HImage[count];
+        for (int i = 0; i < count; i++) images[i] = Simulate(i, truePar, out _);
+        L($"  合成 {count} 张：{sw.ElapsedMilliseconds} ms");
+
+        sw.Restart();
+        var cd = new HCalibData();
+        cd.CreateCalibData("calibration_object", 1, 1);
+        cd.SetCalibDataCamParam(new HTuple(0), new HTuple(), new HCamPar(truePar));
+        cd.SetCalibDataCalibObject(0, new HTuple(Path.Combine(CalibDir, DescrName)));
+        for (int i = 0; i < count; i++)
+            cd.FindCalibObject(images[i], 0, 0, i, new HTuple(), new HTuple());
+        L($"  find_calib_object ×{count}：{sw.ElapsedMilliseconds} ms");
+
+        sw.Restart();
+        cd.CalibrateCameras();
+        L($"  calibrate_cameras：{sw.ElapsedMilliseconds} ms");
+
+        foreach (var im in images) im.Dispose();
+        L("");
+    }
+}

@@ -141,6 +141,21 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 帮助手册阅读态的唯一写路径（帮助窗口工具栏的「显示开发章节」）：
+        /// 与 <see cref="SyncFlowCanvasSettings"/> 同一条"改完即存"的保存周期。
+        /// 缺节防御同上：初始化器保证非 null，双保险跳过。
+        /// </summary>
+        public void SyncHelpSettings(bool showDeveloperDocs)
+        {
+            var node = Current?.Help;
+            if (node == null) return;
+
+            node.ShowDeveloperDocs = showDeveloperDocs;
+
+            Save();
+        }
+
+        /// <summary>
         /// 工具箱收藏清单的唯一写路径（工具箱面板的星标）：整份覆写 Toolbox 节并立即落盘——
         /// 与 <see cref="SyncFlowCanvasSettings"/> 同一条"改完即存"的保存周期。
         /// 传进来的 id 是 <c>ToolItemModel.ModuleTypeName</c>，调用方（ToolViewModel）保证它来自

@@ -23,11 +23,121 @@ namespace FlowCanvasChecks
     ///   ③ **取标题**：页名 = 正文第一个 <c># </c> 一级标题，且必须排在第一个正文行之前——
     ///      写在第二段以后的 <c># </c> 宿主不认（它一遇到正文就停止扫描）。
     ///   ④ **不许占位**：手册是给人看的内容，出现 TODO / 待补充 / 行数过薄，等于把兜底页换成更空的页面。
+    ///
+    /// 【读者分层：用户页与开发页】（HM12~HM15）
+    ///   同一插件的手册分两类读者：<b>用户页</b>（怎么用）与<b>开发页</b>（原理、宿主契约、移植清单，
+    ///   给开发者与"接手软件全局合并"的人看）。两类都打进 DLL、宿主加载时<b>全量收集</b>，
+    ///   只在帮助目录里按显隐开关裁显示——开关若裁加载，同一个 DLL 在不同配置下就交出两本不同的书，
+    ///   合并方无法假设"手册是齐的"，正是内嵌手册这套约定要避免的事。
+    ///   判据是<b>文件名</b>：<c>NN-dev-slug.md</c> 是开发页，其余是用户页。
+    ///   为什么不用 <c>Help\dev\</c> 子目录：宿主 <c>NarrowToPlugin</c> 的规则是"本类型子目录有页就只收子目录"，
+    ///   单插件程序集的手册原本是扁平的（<c>Help\01-x.md</c>），一旦多出 <c>Help\{类名}\dev\</c>，
+    ///   <b>全部用户页会凭空消失</b>且不报错——所以这里把"开发页放子目录"也钉成红线。
     /// </summary>
     internal static class HelpManualCheck
     {
         /// <summary>每页/每册正文行数下限（低于它就是占位页，不如让宿主继续显示自动生成页）</summary>
         private const int MinLinesPerManual = 70;
+
+        /// <summary>骨架档位：厚度与页数下限按档浮动，不搞"一刀切 8 页"（口径见方案说明书 §3）</summary>
+        private enum ManualTier
+        {
+            /// <summary>薄条目：纯参数/一次性读写，无画布、无设备驱动</summary>
+            S,
+            /// <summary>标准条目：多端口检测/数据类</summary>
+            M,
+            /// <summary>重条目：自带画布交互、脚本引擎、设备驱动、大体量算法</summary>
+            L,
+        }
+
+        /// <summary>未登记条目按这一档要求——漏登记只会要求更严，不会变成零要求</summary>
+        private const ManualTier DefaultTier = ManualTier.M;
+
+        private static int MinUserPages(ManualTier t) => t switch
+        {
+            ManualTier.L => 5,
+            ManualTier.S => 3,
+            _ => 4,
+        };
+
+        private static int MinDevPages(ManualTier t) => t switch
+        {
+            ManualTier.L => 3,
+            ManualTier.S => 1,
+            _ => 2,
+        };
+
+        private static int MinDevLines(ManualTier t) => t switch
+        {
+            ManualTier.L => 300,
+            ManualTier.S => 100,
+            _ => 150,
+        };
+
+        /// <summary>
+        /// 逐插件类档位表（判据：源码体量 + 是否自带画布/视图 + 是否设备驱动或脚本引擎 + 断言密度）。
+        /// <b>HM16 钉住"每个插件类都在表里"</b>：新增条目必须先登记档位，否则闸门红。
+        /// 改档位数值要同步方案说明书 <c>docs\方案设计\插件帮助手册分层铺开方案说明书.md</c> §3。
+        /// </summary>
+        private static readonly Dictionary<string, ManualTier> Tiers = new(StringComparer.Ordinal)
+        {
+            // —— L 档（重交互 / 硬件 / 脚本 / 大体量）——
+            ["CreateRoiPlugin"] = ManualTier.L,
+            ["BeadInspectPlugin"] = ManualTier.L,
+            ["BlobDetectPlugin"] = ManualTier.L,
+            ["CalibrationPlugin"] = ManualTier.L,
+            ["CaliperMeasurePlugin"] = ManualTier.L,
+            ["ColorCheckPlugin"] = ManualTier.L,
+            ["ImageAcquisitionPlugin"] = ManualTier.L,
+            ["ImageScriptPlugin"] = ManualTier.L,
+            ["MatchingPlugin"] = ManualTier.L,
+            ["PoseTransformPlugin"] = ManualTier.L,
+            ["PreProcessingPlugin"] = ManualTier.L,
+            ["ZMotionCard"] = ManualTier.L,
+
+            // —— M 档（标准检测 / 数据 / 单卡驱动）——
+            ["CSharpScriptPlugin"] = ManualTier.M,
+            ["CodeReaderPlugin"] = ManualTier.M,
+            ["RegionColorPlugin"] = ManualTier.M,
+            ["DataRecordPlugin"] = ManualTier.M,
+            ["DlClassifyPlugin"] = ManualTier.M,
+            ["ExcelExportPlugin"] = ManualTier.M,
+            ["GeometryRelationPlugin"] = ManualTier.M,
+            ["HikvisionCameraDevice"] = ManualTier.M,
+            ["VirtualMotionCard"] = ManualTier.M,
+            ["OcrPlugin"] = ManualTier.M,
+            ["ResultDisplayPlugin"] = ManualTier.M,
+            ["ResultUploadPlugin"] = ManualTier.M,
+            ["VariableAssignmentPlugin"] = ManualTier.M,
+            ["YoloPlugin"] = ManualTier.M,
+
+            // —— S 档（薄工具 / 运动步骤）——
+            ["ComparisonPlugin"] = ManualTier.S,
+            ["DataConversionPlugin"] = ManualTier.S,
+            ["DelayPlugin"] = ManualTier.S,
+            ["LogicOperationPlugin"] = ManualTier.S,
+            ["MathCalculationPlugin"] = ManualTier.S,
+            ["GeometryFinderPlugin"] = ManualTier.S,
+            ["ImageAssignPlugin"] = ManualTier.S,
+            ["NetworkCameraDevice"] = ManualTier.S,
+            ["RunFlowPlugin"] = ManualTier.S,
+            ["MotionEnablePlugin"] = ManualTier.S,
+            ["MotionHomePlugin"] = ManualTier.S,
+            ["MotionIoPlugin"] = ManualTier.S,
+            ["MotionMovePlugin"] = ManualTier.S,
+            ["MotionReadStatusPlugin"] = ManualTier.S,
+            ["MotionStopPlugin"] = ManualTier.S,
+            ["MotionWaitPlugin"] = ManualTier.S,
+        };
+
+        private static ManualTier TierOf(string pluginClass)
+            => Tiers.TryGetValue(pluginClass, out var t) ? t : DefaultTier;
+
+        /// <summary>
+        /// 开发页的文件名标记。<b>与 <c>HelpCatalogService.DeveloperPageMark</c> 同源</b>，
+        /// 两处必须一起改（HM14 钉着宿主那一份还挂着这个名字）。
+        /// </summary>
+        private const string DevPageMark = "dev-";
 
         private static readonly string[] PlaceholderMarks =
             { "TODO", "待补充", "待完善", "（略）", "(略)", "TBD" };
@@ -107,13 +217,29 @@ namespace FlowCanvasChecks
                 .ToList();
             Check("HM5 每页第一行内容就是 `# ` 一级标题（页名取得到）", badTitle.Count == 0, Describe(badTitle));
 
-            // ⑥ 文件名前缀决定页序（宿主按资源名 Ordinal 排序）
+            // ⑥ 文件名前缀决定页序（宿主按资源名 Ordinal 排序）。
+            //   顺带钉死"文件名里除扩展名不许有第二个点"：宿主取页名用的是资源名的最后一个点
+            //   （MSBuild 把目录分隔符换成点，分册目录段就这么粘在页名前面），带点的页名会被截断。
             var badOrder = entries
                 .SelectMany(e => e.MdFiles)
-                .Where(f => !Regex.IsMatch(Path.GetFileName(f), @"^\d\d-"))
+                .Where(f => !Regex.IsMatch(Path.GetFileName(f), @"^\d\d-")
+                            || Path.GetFileNameWithoutExtension(f).Contains('.'))
                 .Select(f => RelativeToRoot(root, f))
                 .ToList();
-            Check("HM6 手册文件名是 `NN-xxx.md`（页序确定）", badOrder.Count == 0, Describe(badOrder));
+            Check("HM6 手册文件名是 `NN-xxx.md`（页序确定、且名字里不许有额外的点）", badOrder.Count == 0, Describe(badOrder));
+
+            // ⑥b 同一分册内不许两张页撞同一个 `NN-` 前缀（铺开时"旧页没退场、新页又写一遍"撞上的）。
+            //    页序 = 资源名 Ordinal 序，撞号后这两页谁在前是随机的，且界面看不出问题。
+            var dupPrefix = new List<string>();
+            foreach (var e in entries)
+                foreach (var cls in e.PluginClasses)
+                    foreach (var g in e.PagesFor(cls)
+                                 .Where(f => Path.GetFileName(f).Length >= 3)
+                                 .GroupBy(f => Path.GetFileName(f).Substring(0, 3))
+                                 .Where(g => g.Count() > 1))
+                        dupPrefix.Add($"{e.ProjectName}/{cls} 前缀「{g.Key}」有 {g.Count()} 张："
+                            + string.Join("、", g.Select(f => Path.GetFileName(f))));
+            Check("HM6b 同一分册内 `NN-` 前缀不重复（页序唯一）", dupPrefix.Count == 0, Describe(dupPrefix));
 
             // ⑦ 编码闸门（AGENTS.md R1~R5 那一族事故：中文被按 ANSI 读再写回 = 静默损坏）
             var badEncoding = new List<string>();
@@ -177,6 +303,112 @@ namespace FlowCanvasChecks
                 : 0;
             Check("HM11 宿主自带手册在册（软件手册分组非空）", hostPages >= 4,
                 $"VisionMaster\\Help 共 {hostPages} 页");
+
+            // ⑫ 开发页判据是"文件名 NN-dev-"，写歪了宿主认不出 = 静默当用户页显示
+            //    （只抓"文件名里有一个整段叫 dev"的错写法；03-devices 这类正常英文名不管）
+            var badDevName = entries
+                .SelectMany(e => e.MdFiles)
+                .Where(f => !IsDevPage(f) && HasDevSegment(f))
+                .Select(f => RelativeToRoot(root, f))
+                .ToList();
+            Check("HM12 开发页文件名是 `NN-dev-xxx.md`（宿主认得出这是开发章节）", badDevName.Count == 0,
+                Describe(badDevName));
+
+            // ⑫b 开发页不许另立子目录：宿主 NarrowToPlugin 是"本类型子目录有页就只收子目录"，
+            //     扁平手册的程序集一旦多出 Help\{类名}\dev\，全部用户页会被静默挤掉（不报错）。
+            var nested = new List<string>();
+            foreach (var e in entries)
+                foreach (var f in e.MdFiles)
+                    if (SubFoldersUnderHelp(e, f) >= 2)
+                        nested.Add(RelativeToRoot(root, f));
+            Check("HM12b 手册最多一层目录（开发页另立子目录会挤掉用户页）", nested.Count == 0, Describe(nested));
+
+            // ⑬ 已交的开发章节必须够厚——**下限按档位浮动**（L 300 / M 150 / S 100 行）。
+            //    一刀切会把薄条目逼成注水文档（违反 R41"事实来源只有源码"），
+            //    所以这里按插件类查档位表；欠账（0 开发页）仍不判红，见 HM15 台账。
+            var thinDev = new List<string>();
+            foreach (var e in entries)
+                foreach (var cls in e.PluginClasses)
+                {
+                    var pages = e.DevPagesFor(cls);
+                    if (pages.Count == 0) continue;
+                    var floor = MinDevLines(TierOf(cls));
+                    var lines = pages.Sum(f => File.ReadLines(f).Count());
+                    if (lines < floor)
+                        thinDev.Add($"{e.ProjectName}/{cls}（{TierOf(cls)} 档）开发章节 {lines} 行 < {floor}");
+                }
+            Check("HM13 已交的开发章节达到所在档位的行数下限（L300/M150/S100，交了就不是随笔）", thinDev.Count == 0,
+                Describe(thinDev));
+
+            // ⑭ 读者分层的链路四处都在：宿主认标记 → 节点带标记 → 视图按标记裁 → 配置存开关。
+            //    断任何一处，症状都是"开关形同虚设"（开发页永远可见 / 永远看不到），编译期全绿。
+            var links = new List<string>();
+            void RequireLink(string relPath, params string[] needles)
+            {
+                var file = Path.Combine(root, relPath);
+                var text = File.Exists(file) ? File.ReadAllText(file) : string.Empty;
+                foreach (var needle in needles)
+                    if (!text.Contains(needle, StringComparison.Ordinal))
+                        links.Add($"{relPath} 缺「{needle}」");
+            }
+            RequireLink(@"VisionMaster\Services\Help\HelpCatalogService.cs",
+                $"DeveloperPageMark = \"{DevPageMark}\"", "IsDeveloperPage", "IsDevDoc");
+            RequireLink(@"VisionMaster\Services\Help\HelpModels.cs", "IsDevDoc");
+            RequireLink(@"VisionMaster\ViewModels\DialogViewModels\HelpViewModel.cs",
+                "PruneDevDocs", "ShowDevDocs", "_visibleTree");
+            RequireLink(@"VisionMaster\Views\DialogViews\HelpView.xaml", "ShowDevDocs");
+            RequireLink(@"Core\Models\AppConfigModel.cs", "ShowDeveloperDocs");
+            Check("HM14 开发章节显隐链路四处齐全（标记→节点→裁树→开关→配置）", links.Count == 0, Describe(links));
+
+            // ⑮ 欠账台账（不判红，只把数字摊开）：工具箱 42 个条目，已交开发章节的只有 X 本。
+            //    判红会把"分批铺开"变成"一次性全有或全线红"，所以这里只做可见性；
+            //    真正的红线是 HM12/HM13——交了的必须合法、必须够厚。
+            var devDone = new List<string>();
+            foreach (var e in entries)
+                foreach (var cls in e.PluginClasses)
+                    if (e.DevPagesFor(cls).Count > 0)
+                        devDone.Add($"{e.ProjectName}/{cls}");
+            Check($"HM15 开发章节覆盖台账（欠账不判红，交了的看 HM12/HM13）", devDone.Count > 0,
+                $"已交 {devDone.Count} / 插件类 {entries.Sum(e => e.PluginClasses.Count)} 个："
+                + string.Join("、", devDone) + "；欠账清单不在此列（逐个补）");
+
+            // ⑯ 档位表必须与插件类一一对应：表里不许留已消失的条目（档位过期），
+            //    新增条目必须先登记档位。漏登记虽然仍按 M 要求（DefaultTier），但那是兜底，
+            //    不是"允许不登记"——不钉这一条，档位表会悄悄和语料脱节，L 档新条目被按 M 放行。
+            var allClasses = entries.SelectMany(e => e.PluginClasses).Distinct(StringComparer.Ordinal).ToList();
+            var unregistered = allClasses.Where(c => !Tiers.ContainsKey(c))
+                .OrderBy(c => c, StringComparer.Ordinal).ToList();
+            var stale = Tiers.Keys.Where(c => !allClasses.Contains(c, StringComparer.Ordinal))
+                .OrderBy(c => c, StringComparer.Ordinal).ToList();
+            Check("HM16 档位表与插件类一一对应（无未登记、无过期条目）",
+                unregistered.Count == 0 && stale.Count == 0,
+                $"插件类 {allClasses.Count} 个 / 表内 {Tiers.Count} 项；"
+                + $"未登记：{Describe(unregistered)}；过期：{Describe(stale)}");
+
+            // ⑰ 骨架完整度闸门（按档位查"用户页数 / 开发页数 / 开发行数"三项）。
+            //    铺开阶段它只是台账（那时判红等于全线红，角色分批交册会被自己的进度拦住），
+            //    2026-10-16 42 条交齐后翻成红线：此后删一页、把开发章节写成随笔，当场拦住。
+            //    判据全部来自 Tiers / Min*（档位按源码体量+断言密度定），"注水凑页"过不了 HM13，
+            //    "整册缩水"过不了这一条——两条合起来才是"按档位铺开"这个口径的完整守门。
+            var shortfall = new List<string>();
+            int met = 0;
+            foreach (var e in entries)
+                foreach (var cls in e.PluginClasses)
+                {
+                    var tier = TierOf(cls);
+                    var pages = e.PagesFor(cls);
+                    var devPages = e.DevPagesFor(cls);
+                    var userPages = pages.Count - devPages.Count;
+                    var devLines = devPages.Sum(f => File.ReadLines(f).Count());
+                    var miss = new List<string>();
+                    if (userPages < MinUserPages(tier)) miss.Add($"用户页 {userPages}<{MinUserPages(tier)}");
+                    if (devPages.Count < MinDevPages(tier)) miss.Add($"开发页 {devPages.Count}<{MinDevPages(tier)}");
+                    if (devLines < MinDevLines(tier)) miss.Add($"开发行 {devLines}<{MinDevLines(tier)}");
+                    if (miss.Count == 0) met++;
+                    else shortfall.Add($"{e.ProjectName}/{cls}（{tier}）：" + string.Join("、", miss));
+                }
+            Check("HM17 骨架完整度闸门（按档位：用户页/开发页/开发行数三项齐）", shortfall.Count == 0,
+                $"达标 {met} / 插件类 {allClasses.Count}；未达档 {shortfall.Count} 条：{Describe(shortfall)}");
         }
 
         // ==================================================================
@@ -201,6 +433,10 @@ namespace FlowCanvasChecks
                     .ToList();
                 return own.Count > 0 ? own : FlatPages;
             }
+
+            /// <summary>某插件类的<b>开发章节</b>页（判据 = 文件名 <c>NN-dev-</c>，与宿主同源）</summary>
+            public List<string> DevPagesFor(string pluginClass)
+                => PagesFor(pluginClass).Where(IsDevPage).ToList();
         }
 
         private static ProjectScan Scan(string dir, string projectName)
@@ -255,6 +491,31 @@ namespace FlowCanvasChecks
         private static bool InBinOrObj(string path)
             => path.Contains("\\obj\\", StringComparison.OrdinalIgnoreCase)
                || path.Contains("\\bin\\", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 开发页判据：去掉 <c>NN-</c> 序号前缀后以 <c>dev-</c> 起头。
+        /// 与宿主 <c>HelpCatalogService.IsDeveloperPage</c> 同一套规则，两处必须同步（HM14 盯宿主那一份）。
+        /// </summary>
+        private static bool IsDevPage(string file)
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (name.Length >= 3 && char.IsAsciiDigit(name[0]) && char.IsAsciiDigit(name[1]) && name[2] == '-')
+                name = name.Substring(3);
+            return name.StartsWith(DevPageMark, StringComparison.Ordinal);
+        }
+
+        /// <summary>文件名里有一个整段叫 <c>dev</c>（标记写歪了位置的开发页，如 <c>11-architecture-dev.md</c>）</summary>
+        private static bool HasDevSegment(string file)
+            => Path.GetFileNameWithoutExtension(file)
+                .Split('-')
+                .Any(s => string.Equals(s, "dev", StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>这页手册落在 Help 下第几层目录里（0 = 扁平，1 = 类型分册，≥2 = 又套了一层）</summary>
+        private static int SubFoldersUnderHelp(ProjectScan e, string file)
+        {
+            var rel = Path.GetRelativePath(Path.Combine(e.Dir, "Help"), file);
+            return rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Length - 1;
+        }
 
         private static bool IsUnder(string file, string folder)
             => Path.GetDirectoryName(file)?.StartsWith(folder + Path.DirectorySeparatorChar,

@@ -31,6 +31,21 @@ namespace VisionMaster.Services.Help
     /// ③ <b>兜底自动页</b>：都没有的插件用 <c>[Display]</c> 元数据 + 注册期端口表生成一页，
     ///    保证"合并出来的目录里没有空节点"——不然 27 个插件里 25 个是空白，等于没有帮助。
     ///
+    /// 两类读者：用户页与开发页（<see cref="DeveloperPageMark"/>）
+    /// ---------
+    /// 同一个插件的手册里，"怎么用它"是给操作员与初学者的，"它内部怎么回事、依赖宿主什么"
+    /// 是给开发者与<b>接手全局合并的人</b>看的。两类内容<b>物理上都在 DLL 里、加载时全量收集</b>，
+    /// 只在目录树上按读者分显隐（开关见 <c>AppConfigModel.HelpSettings</c>）——
+    /// 若做成"配置决定是否加载"，同一个 DLL 在不同配置下会交出两本不同的书，
+    /// 合并方就无法假设"手册是齐的"，正是这套内嵌约定要避免的事。
+    ///
+    /// 判据用<b>文件名</b>而不是正文里的标记行，也不用 <c>Help\dev\</c> 子目录：
+    /// 子目录会把 <see cref="NarrowToPlugin"/> 的"分册优先"规则变成陷阱——单插件程序集原本手册是扁平的
+    /// （<c>Help\01-x.md</c>），一旦多出 <c>Help\{类名}\dev\</c>，"本类型子目录有页就只收子目录"
+    /// 会让<b>全部用户页凭空消失</b>（症状静默，与手册其它失败模式同族）。
+    /// 文件名标记 <c>NN-dev-slug.md</c> 对扁平与分册两种排版都成立；页序仍由 <c>NN-</c> 序号决定
+    /// （开发章节按惯例取更大的序号，排在用户页之后）。
+    ///
     /// 时机与开销
     /// ---------
     /// <see cref="Build"/> 由启动自检链调用（与插件扫描同一阶段，程序集早已加载）。
@@ -41,6 +56,15 @@ namespace VisionMaster.Services.Help
     {
         /// <summary>宿主自带手册在目录里的分组名</summary>
         public const string HostGroupTitle = "软件手册";
+
+        /// <summary>
+        /// 开发章节的文件名标记：页名去掉 <c>NN-</c> 序号前缀后以它起头（如 <c>10-dev-architecture.md</c>）。
+        /// 闸门口径见 <c>FlowCanvasChecks\HelpManualCheck.cs</c>——两处必须同步。
+        /// </summary>
+        public const string DeveloperPageMark = "dev-";
+
+        /// <summary>开发页在目录树上的角标文字（开着"显示开发章节"时看得见是哪类页）</summary>
+        public const string DeveloperPageBadge = "开发";
 
         private readonly IPluginProvider _provider;
         private readonly ILogService _log;
@@ -93,6 +117,13 @@ namespace VisionMaster.Services.Help
         /// <summary>内置流程控制节点数（If/While/For…）。它们不是插件，目录里照样列，但不算进插件计数</summary>
         public int BuiltInCount { get; private set; }
 
+        /// <summary>
+        /// 目录里<b>已收集到的</b>开发章节页数（带 <c>dev-</c> 标记）。
+        /// 它刻意<b>不受显隐开关影响</b>：开关只裁显示，这个数是"合并进来的书到底全不全"的台账，
+        /// 也是"还有哪些插件没交开发章节"的反向依据（总数 = 工具箱条目数才算齐）。
+        /// </summary>
+        public int DeveloperPageCount { get; private set; }
+
         /// <summary>合并目录。可重复调用（幂等：先清空再重建）。失败不抛——帮助不可用不该挡启动。</summary>
         public void Build()
         {
@@ -103,9 +134,10 @@ namespace VisionMaster.Services.Help
                 PluginTotal = 0;
                 PluginManualCount = 0;
                 BuiltInCount = 0;
+                DeveloperPageCount = 0;
 
                 var hostAssembly = typeof(HelpCatalogService).Assembly;
-                var hostPages = CollectEmbeddedPages(hostAssembly, "软件内置");
+                var hostPages = CollectEmbeddedPages(hostAssembly, "软件内置", kind: HelpSourceKind.Host);
                 HostPageCount = hostPages.Count;
                 if (hostPages.Count > 0)
                 {
@@ -146,8 +178,10 @@ namespace VisionMaster.Services.Help
                 }
 
                 IsBuilt = true;
+                DeveloperPageCount = CountDeveloperPages(_groups);
                 Summary = $"宿主 {HostPageCount} 页；插件 {PluginTotal} 个（其中 {PluginManualCount} 个自带手册）"
-                          + (BuiltInCount > 0 ? $"；内置节点 {BuiltInCount} 个" : string.Empty);
+                          + (BuiltInCount > 0 ? $"；内置节点 {BuiltInCount} 个" : string.Empty)
+                          + $"；开发章节 {DeveloperPageCount} 页";
             }
         }
 
@@ -155,6 +189,15 @@ namespace VisionMaster.Services.Help
         {
             var index = Array.IndexOf(CategoryOrder, category);
             return index >= 0 ? index : CategoryOrder.Length;
+        }
+
+        /// <summary>数一数整棵树里有多少页是开发章节（分组 → 插件 → 页，深度不定，递归到底）</summary>
+        private static int CountDeveloperPages(IEnumerable<HelpNode> nodes)
+        {
+            var count = 0;
+            foreach (var node in nodes)
+                count += (node.IsDevDoc && node.Page != null ? 1 : 0) + CountDeveloperPages(node.Children);
+            return count;
         }
 
         private void AbsorbOne(ToolItemModel model, Dictionary<string, List<HelpNode>> byCategory)
@@ -252,6 +295,7 @@ namespace VisionMaster.Services.Help
                                     {
                                         Title = string.IsNullOrWhiteSpace(s.Title) ? source : s.Title,
                                         Source = source,
+                                        Kind = HelpSourceKind.Plugin,
                                         LoadMarkdown = () => s.Markdown,
                                     },
                                 })
@@ -275,6 +319,7 @@ namespace VisionMaster.Services.Help
                     {
                         Title = source,
                         Source = source,
+                        Kind = HelpSourceKind.Auto,
                         LoadMarkdown = () => BuildAutoPageMarkdown(model, type, isBuiltIn),
                     },
                 },
@@ -292,7 +337,8 @@ namespace VisionMaster.Services.Help
         /// 传 owner 时的取页规则：① 本类型子目录里的页；② 没有子目录则收"不在任何类型子目录里"的
         /// 扁平页（单插件程序集走这条，与既有的 5 份手册完全兼容）；③ 都没有 → 空集合，交给下一档。
         /// </summary>
-        private List<HelpNode> CollectEmbeddedPages(Assembly assembly, string source, Type? owner = null)
+        private List<HelpNode> CollectEmbeddedPages(
+            Assembly assembly, string source, Type? owner = null, HelpSourceKind kind = HelpSourceKind.Plugin)
         {
             var pages = new List<HelpNode>();
             try
@@ -317,17 +363,21 @@ namespace VisionMaster.Services.Help
                 foreach (var name in names)
                 {
                     var resourceName = name;
-                    var shortName = Path.GetFileNameWithoutExtension(name.Substring(prefix.Length));
+                    var shortName = GetPageFileName(name.Substring(prefix.Length));
                     var text = ReadResourceText(assembly, resourceName);
                     var title = ExtractTitle(text, shortName);
+                    var isDev = IsDeveloperPage(shortName);
 
                     pages.Add(new HelpNode
                     {
                         Title = title,
+                        IsDevDoc = isDev,
+                        Badge = isDev ? DeveloperPageBadge : null,
                         Page = new HelpPage
                         {
                             Title = title,
                             Source = source,
+                            Kind = kind,
                             LoadMarkdown = () => ReadResourceText(assembly, resourceName),
                             LoadImage = relative => LoadEmbeddedImage(assembly, imageResources, relative),
                         },
@@ -340,6 +390,39 @@ namespace VisionMaster.Services.Help
             }
 
             return pages;
+        }
+
+        /// <summary>
+        /// 从「去掉程序集前缀后的资源名」取出页自己的文件名。
+        /// <para>
+        /// <b>为什么不能用 <c>Path.GetFileNameWithoutExtension</c> 一步到位</b>：MSBuild 把内嵌资源的
+        /// 目录分隔符换成<b>点</b>，所以分册排版下资源名是
+        /// <c>Plugin.Util.Help.DelayPlugin.10-dev-architecture.md</c>——里面根本没有 <c>\</c> 或 <c>/</c>，
+        /// <c>GetFileName</c> 原样返回，分册目录名 <c>DelayPlugin.</c> 会粘在页名前面，
+        /// 于是 <see cref="IsDeveloperPage"/> 认不出 <c>dev-</c> 标记（2026-10-16 实测：
+        /// <c>Plugin.Utility</c> 与 <c>Plugin.Motion.Steps</c> 共 14 张开发页被当成用户页，
+        /// 关着"显示开发章节"也照样上屏）。取最后一段点分才是文件名。
+        /// </para>
+        /// <para>前提是页名里不许有额外的点（<c>04-a.b.md</c> 会被截成 <c>b</c>），由 HM6 的静态断言守。</para>
+        /// </summary>
+        private static string GetPageFileName(string nameAfterPrefix)
+        {
+            var withoutExtension = Path.GetFileNameWithoutExtension(nameAfterPrefix);
+            var lastDot = withoutExtension.LastIndexOf('.');
+            return lastDot < 0 ? withoutExtension : withoutExtension.Substring(lastDot + 1);
+        }
+
+        /// <summary>
+        /// 页名是不是开发章节：去掉 <c>NN-</c> 序号前缀后以 <see cref="DeveloperPageMark"/> 起头。
+        /// 入参必须是 <see cref="GetPageFileName"/> 取出来的纯文件名（分册目录段已剥掉）。
+        /// </summary>
+        private static bool IsDeveloperPage(string fileNameWithoutExtension)
+        {
+            var rest = fileNameWithoutExtension;
+            if (rest.Length >= 3
+                && char.IsAsciiDigit(rest[0]) && char.IsAsciiDigit(rest[1]) && rest[2] == '-')
+                rest = rest.Substring(3);
+            return rest.StartsWith(DeveloperPageMark, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

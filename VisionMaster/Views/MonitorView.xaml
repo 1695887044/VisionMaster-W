@@ -281,6 +281,7 @@
                             Grid.Column="4"
                             Width="20"
                             Height="20"
+                            Padding="0"
                             Background="Transparent"
                             BorderThickness="0"
                             Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"

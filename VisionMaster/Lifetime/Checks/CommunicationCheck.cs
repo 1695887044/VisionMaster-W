@@ -10,11 +10,15 @@ using VisionMaster.Models;
 namespace VisionMaster.Lifetime.Checks
 {
     /// <summary>
-    /// 通讯连通性自检：逐条确认已配置连接是否可用。
+    /// 通讯连通性检测：逐条确认已配置连接是否可用。
     /// <para>执行前提：连接配置与自动连接已由 CommunicationModule 在模块初始化阶段完成
-    /// （必须早于本自检，否则这里只会看到空配置列表）。</para>
+    /// （必须早于本检测，否则这里只会看到空配置列表）。</para>
     /// 失败仅警告（进入主界面后可手动重连），可通过 AppConfig.json 的
-    /// EnableCommunicationStartupCheck 开关关闭以加快启动。
+    /// EnableCommunicationStartupCheck 开关关闭。
+    /// <para>2026-10-16 起**不在启动自检链上**：全 Warning 的诊断项不该决定用户多等多久
+    /// （3 秒追赶窗口 + 每条最多 3 秒，总预算 12 秒）。现由 <c>App.RunCommunicationCheckInBackground</c>
+    /// 在主窗口显示后后台跑一次，结果照旧写 <c>[启动自检] 通讯连通性</c> 日志。
+    /// 仍实现 <see cref="IStartupCheck"/> 是为了留一条"以后要入门禁"的退路，不是当前调用路径。</para>
     /// </summary>
     public class CommunicationCheck : IStartupCheck
     {

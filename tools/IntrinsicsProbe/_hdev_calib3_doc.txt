@@ -1,0 +1,87 @@
+ 
+HDevelop User's Guide - 7.2.2.1 Choosing the Correct Calibration Mode and Basic Parameters 
+HALCON 23.05.0.0 / HDevelop User's Guide / How to Calibrate With the Calibration Assistant 
+ &laquo; previous | next &raquo; 
+7.2.2.1 Choosing the Correct Calibration Mode and Basic Parameters 
+For the calibration setup in the Setup tab, the basic information has to be filled in. Which information is necessary for your application will depend on the answer to the question whether you want to perform a full calibration , whether you have a special setup or you have calibrated before and therefore want to take advantage of the user-defined calibration . Furthermore, information about the calibration plate and the camera is required.
+Choosing the Task for Your Application 
+If you want to calibrate all parameters, for example, if you are calibrating for the first time with your setup, click the radio button Full Calibration: Pose and all Camera Parameters .
+If you are using a special setting or you have already calibrated your system before and want to re-use your resulting parameters, choose User-defined: Select Individual Parameters for Calibration .
+After having decided on your calibration task, proceed with the details about your Calibration Plate .
+[ Calibration Plate Parameters ]
+First, choose the description file for your calibration plate and the calibration plate Thickness (in mm). 
+The name of the description file indicates the size of the plate and the file extension indicates the type of the calibration plate. 
+In particular, the file ending .cpd is used for calibration plates with hexagonally arranged marks and the file extension .descr is used for calibration plates with rectangularly arranged marks. Note that calibration plates with hexagonally arranged marks usually have light marks on a dark background. 
+Nevertheless, also calibration plates with dark marks on a light background are available. Then, you have to choose a description file with the filename ending "_dark_on_light". Calibration plates with rectangularly arranged marks always have dark marks on a light background. 
+With the parameter Thickness , you can modify the position of the world coordinate system and the measurement plane, which is located beneath the calibration plate surface by the value of Thickness in the Reference Image .
+Then proceed to set the Camera Parameters .
+[ Set Camera Parameters ]
+For setting up the camera parameters
+first choose the Camera Model ,
+then set the parameters for a full calibration or
+set the parameters for a user-defined calibration .
+It is also possible to import parameters from a file. If you should decide to do this, just click the Import Parameters button.
+When you have finished this last part of the Setup tab, proceed to the Calibration tab.
+[ Choose your Camera Model ]
+First, choose the Camera Model you are using:
+either Area Scan (Division) ,
+Area Scan (Polynomial) 
+or Line Scan 
+Even though the camera model Area Scan (Division) typically returns good
+results for your application, you can improve the accuracy and lower the error
+rate by using the Area Scan (Polynomial) camera model.
+We therefore recommend for you to use the Area Scan (Polynomial) model if the
+ Mean Error on the Results tab under
+ Calibration Status is too high.
+If you decide for the Area Scan (Polynomial) model, it is especially
+important that you thoroughly cover the field of view with calibration plate
+images and do not leave out the edges.
+Note, that a higher Mean Error might be caused by inappropriate calibration
+images.
+For area scan cameras, the following additional options may be specified:
+If your camera has a tilt lens, tick the checkbox Tilt .
+Then, the Projection Model must be specified (either Projective or
+ Telecentric ).
+Telecentric tilt lens cameras are available in different variations, which must
+be specified in Projection Model :
+Bilateral Telecentric 
+Object Side Telecentric 
+Image Side Telecentric 
+[ Set Parameters for Full Calibration ]
+If you choose a full calibration for an area scan camera, you must specify
+approximate values for the camera parameters.
+These parameters depend on the camera type and are listed in the following
+tables.
+Please have a look at the data sheet of your camera for suitable values.
+Information about the focal length can be found on the lens itself.
+Parameters for projective area scan cameras: 
+Parameter no tilt with tilt 
+Cell width X X 
+Cell height X X 
+Focal length X X 
+Image plane distance X 
+Tilt angle X 
+Rotation angle X 
+Parameters for telecentric area scan cameras: 
+Parameter no tilt bilateral object side image side 
+Cell width X X X X 
+Cell height X X X X 
+Magnification X X X 
+Focal length X 
+Image plane distance X 
+Tilt angle X X X 
+Rotation angle X X X 
+Parameters for line scan cameras: 
+Parameter 
+Cell width X 
+Cell height X 
+Focal length X 
+Motion X X 
+Motion Y X 
+Motion Z X 
+[ Set Parameters for User-Defined Calibration ]
+In the user-defined mode for the area scan camera (division) , you can also choose Center Column (Cx) , Center Row (Cy) and Kappa . The area scan camera (polynomial) model allows you to also choose the lens distortion parameters for radial distortion Radial 2nd Order (K1) , Radial 4th Order (K2) , Radial 6th Order (K3) and the two parameters for tangential distortion Tangential 2nd Order (P1) and Tangential 2nd Order (P2) .
+If you want to change the parameters Cell Width and Cell Height independently from each other, click the chain button.
+&laquo; previous | next &raquo; 
+Copyright &copy; 2023 MVTec Software GmbH 
+ Follow us on

@@ -1,0 +1,58 @@
+﻿>> App.xaml 内联块里夹带的合并字典 3 个已剥掉（否则 --no-fluent 无效）
+>> App.Resources[AccentBrush] = #FF005FB8
+>> App.Resources[TextPrimaryBrush] = #FF202020
+>> 已复刻 ApplyDockTheme（FluentLight 注入 DockingManager）
+=== OK: Shell.xaml 全树模板实例化无异常 (Fluent=True) ===
+[PASS] 九宫格：9 格画布  实际 9 格，窗口号=[1,2,3,4,5,6,7,8,9]
+[PASS] 九宫格：各格绑 1..9  =[1,2,3,4,5,6,7,8,9]
+[PASS] 双画面：2 格且绑 1/2  格数=2，窗口号=[1,2]
+[PASS] 四宫格：每格都有大图（是完整画布）  格数=4，带大图 4 格
+[PASS] 越界布局回落单画面  格数=1，窗口号=1
+[PASS] 单画面：1 格且绑窗口号 1  格数=1，窗口号=1
+=== 多格布局：全部通过 ===
+[PASS] 流程画布是中央文档区的文档标签（不是左侧栏的标签页）  元素=LayoutDocument，父=LayoutDocumentPane
+[PASS] 流程画布与视觉图像同处一个文档窗格（并列标签，可拖出分屏对照）  画布父=LayoutDocumentPane，视觉图像父=LayoutDocumentPane
+[PASS] 默认选中仍是视觉图像（大小写不敏感：XAML 里写 True/true 都算）  视觉图像 IsSelected=True
+[PASS] 默认选中唯一：画布身上不得有 IsSelected（否则会和视觉图像抢启动视角）  画布 IsSelected=(无)
+[PASS] 程序与流程栏是两个独立窗格（上下同时可见，不是二选一标签页）  程序父=LayoutAnchorablePane，流程栏父=LayoutAnchorablePane
+[PASS] 程序与流程栏同处左侧一列（竖向 LayoutPanel 上下堆叠）  共同祖先=LayoutPanel，Orientation=Vertical
+[PASS] 活动栏里不再有「程序/流程栏/图元工具箱/图层」的手工开关（左侧那条已下线；组态三面板改由模式自动收敛）  （无）
+[PASS] 活动栏（右）只留「算子工具箱」一个开关，且它在停靠区之后  停靠区位置=274；Panel_ToolView=311
+[PASS] 两个全局命令（全局变量/通讯设置）已移出活动栏、落在停靠区之前的顶栏  停靠区位置=274；全局变量=259，通讯设置=260
+=== Shell 布局结构：全部通过 ===
+[PASS] 组态设计模式：属性/图层/图元工具箱 都显示，算子工具箱 收起  组态三面板=[可见,可见,可见]，工具箱=隐藏
+[PASS] 非组态模式：只留算子工具箱，属性/图层/图元工具箱 全部收起（两列随之收成 0、画布变宽）  组态三面板=[隐藏,隐藏,隐藏]，工具箱=可见
+[PASS] 来回切换多次后两个模式仍各自收敛到同一条基线（幂等、无累积错）  切回组态=True，切回非组态=True
+[PASS] 「组态画面」是 LayoutDocument（判据走 IsSelected；LayoutAnchorable 没有这个语义）  实际类型=LayoutDocument
+[PASS] 图层面板登记在 ContentFactories 里（缺它 = 每次恢复布局后图层面板变空壳，且覆盖度校验不会拦）  登记项 11 个
+=== Panel 模式：全部通过 ===
+[PASS] 取到 GridListViewStyle（UI 主题里那份给 GridView 让路的样式）  已解析
+[PASS] 三列列头都画出来了（Fluent 的隐式样式在位时这里是 0 个）  列头=[Index/Name/Path]
+[PASS] 列头由 GridViewHeaderRowPresenter 摆放（模板里没有它就没有上面那三个列头）  headerPresenters=1
+[PASS] 每行都挂着 GridViewRowPresenter（列布局靠它；退化成 ContentPresenter 就是类型全名）  行数=2，带列渲染器的行=2
+[PASS] 整棵树里没有任何一处渲染出类型全名  （没有）
+[PASS] 每一列都真的接上了数据（序号 / 名称 / 路径三列各自有值）  Path | Name | Index | 1 | 方案A | D:\A\Main.vms | 2 | 方案B | D:\B\Main.vms
+        （参考：不挂 GridListViewStyle 时列头 = 0 个；行容器样式仍是自带的，故行不受影响）
+[FAIL] 凡用 GridView 的视图都带齐三件套（扫过 11 个含 GridView 的 xaml）  TreeListView.xaml: 没挂 GridListViewStyle（列头会被 Fluent 的隐式 ListView 样式顶掉） | MainWindow.xaml: 没挂 GridListViewStyle（列头会被 Fluent 的隐式 ListView 样式顶掉） | MainWindow.xaml: 行模板缺 GridViewRowPresenter（列布局会塌成一行行类型全名） | MainWindow.xaml: 没挂 GridListViewStyle（列头会被 Fluent 的隐式 ListView 样式顶掉） | MainWindow.xaml: 行模板缺 GridViewRowPresenter（列布局会塌成一行行类型全名） | MainWindow.xaml: 没挂 GridListViewStyle（列头会被 Fluent 的隐式 ListView 样式顶掉）
+### 表格（GridView）冒烟：1 项失败
+[PASS] 连线样式侧没有 ContextMenu 的 Setter/触发器（模板内联菜单是本地值，样式侧再挂必被压掉=右键失灵事故回潮）  nodify:StepConnection
+[PASS] 连线模板挂着每实例右键菜单 + 顺序链 Opening 拦截（编辑绑定/解绑入口）  nodify:StepConnection
+[PASS] 连线样式与触发器都配了 Fill（箭头由 Fill 填充，漏配=空芯箭头）  Property="Fill" setter 数=6
+[PASS] ItemContainerStyle 覆盖了 Nodify 默认 BorderBrush（默认是常驻 DodgerBlue 1px 蓝框）  
+[PASS] 分组表头不再用深色底（#252526 压在亮色日志列表上）  已扫过主题文件（注释除外）
+[PASS] GroupBy 先于 ItemsSource 赋值也能生效（XAML 的属性顺序就是这个顺序）  GroupDescriptions=1
+[PASS] 换源后旧集合默认视图上的过滤委托被摘掉（不摘 = 旧集合被幽灵过滤 + 控件回收不掉）  换源前 attached=True，换源后 filter=null
+[PASS] 等级过滤立即生效（不走防抖）  命中 2/3
+[PASS] 关键字过滤：防抖窗口内不重算，窗口过后命中 1 条  防抖窗口内 2/3（等级=Error），窗口过后 1/3（Error+alpha）
+[PASS] MaxItems 生效：超出后从头部裁掉最旧的  count=3，首条=m7
+[PASS] 拿到模板里的 PART_ScrollViewer  已拿到
+[PASS] AutoScroll 默认开启：首屏就贴在底部（逻辑滚动，ScrollableHeight 以项为单位）  offset=95/95
+[PASS] 用户上翻后新日志不抢镜（粘底策略：不把正在看的位置拽回底部）  新日志到达后 offset=0/96
+[PASS] 翻回底部后自动滚动恢复  offset=97/97
+[PASS] LogView 的三处过滤/开关接线 + 等级筹码都点到点（写错只会静默失效，不报编译错）  5 处绑定 + 筹码 Text/Count 全部对得上
+[PASS] 来源为空的行不再留一个灰块（有来源的行照旧显示来源胶囊）  可见来源块=1（期望 1：只有那条有来源的）
+[PASS] 端到端：真视图 + 真 VM，控件的 AutoScroll/FilterLevel/SearchText 与筹码/勾选初值都对  AutoScroll=True FilterLevel=null SearchText='' 等级选中=VisionMaster.ViewModels.LogLevelFilterOption 勾选=True
+[PASS] 等级筹码的计数跟着日志走（新增 +1、裁剪 -1，且「全部」= 总条数）  加三条后 全部/信息/成功/警告/错误 = 3/2/0/0/1，裁掉一条信息后 = 2/1/0/0/1
+[PASS] 端到端：改 VM 后控件三个依赖属性跟着变，搜索框也显示出新词（派生属性通知链通）  SearchText='abc' FilterLevel=Error AutoScroll=False 搜索框文本=abc
+[PASS] 搜索框有真外形（白底 + 非零描边）—— Fluent 那条 6% 黑底线在浅色条上等于看不见  外框厚=1px bg=#FFFFFFFF
+=== 日志控制台（LogConsole）冒烟：全部通过 ===

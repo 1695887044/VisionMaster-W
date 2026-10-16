@@ -1,6 +1,6 @@
 # 数值比较
 
-> 分类：逻辑判断 ｜ 来源：插件 Plugin.Utility（工程 `Plugin.Util.csproj`，C# 类 `ComparisonPlugin`）
+> 分类：逻辑判断 ｜ 来源：插件 Plugin.Util（工程 `Plugin.Util.csproj`，C# 类 `ComparisonPlugin`）
 
 比较两个 `double` 的大小关系，输出一个布尔判定，并带**浮点容差**——
 这是它区别于"直接写 `a > b`"的关键。
@@ -19,17 +19,21 @@ GreaterThanOrEqual  a ≥ b − tolerance          （大于，或落在容差�
 LessThanOrEqual     a ≤ b + tolerance
 ```
 
-所以把 `Tolerance` 理解成**判定死区/带宽**：`|a−b|` 不超过它的差值一律视为"相等"，
+所以把 `Tolerance` 理解成**判定死区/带宽**：`abs(a−b)` 不超过它的差值一律视为"相等"，
 不影响判定。纯计算、无外部依赖，标了 `[ParallelSafe]`；**没有动态端口**，端口固定五个。
 
 ## 输入端口
 
 | 端口 | 必填 | 说明 |
 | --- | --- | --- |
-| `A` | 否 | 第一个数值（`double`，默认 `0.0`），通常是实测值 |
-| `B` | 否 | 第二个数值（`double`，默认 `0.0`），通常是名义值/限值 |
-| `Type` | 否 | 比较类型（枚举 `ComparisonType`，默认 `Equal`） |
-| `Tolerance` | 否 | 浮点比较容差（`double`，默认 `1E-06`） |
+| `A` | 是 | 第一个数值（`double`，默认 `0.0`），通常是实测值 |
+| `B` | 是 | 第二个数值（`double`，默认 `0.0`），通常是名义值/限值 |
+| `Type` | 是 | 比较类型（枚举 `ComparisonType`，默认 `Equal`） |
+| `Tolerance` | 是 | 浮点比较容差（`double`，默认 `1E-06`） |
+
+四个端口的"必填"来自源码没关必填项（`InputPort` 的 `IsRequired` 初值就是 `true`）。
+"必填"不等于"必须接上游"——填常量也算配置好。刚拖入、还没打开配置面板点过确定时，
+节点会亮黄色叹号角标、编译报 `[参数缺失]`，判据与恢复口径见「端口与参数」与「排障」。
 
 本插件没有自定义配置视图，走宿主自动生成的参数面板：四行按端口名排序显示，
 每行填常量或点链接图标连上游输出。
@@ -53,8 +57,8 @@ LessThanOrEqual     a ≤ b + tolerance
 
 | `Type` 成员名 | 中文含义 | 判据（含容差） |
 | --- | --- | --- |
-| `Equal` | 等于（容差内视为相等） | `|a−b| ≤ tol` |
-| `NotEqual` | 不等于 | `|a−b| > tol` |
+| `Equal` | 等于（容差内视为相等） | `abs(a−b) ≤ tol` |
+| `NotEqual` | 不等于 | `abs(a−b) > tol` |
 | `GreaterThan` | 大于（要超过容差才算） | `a > b + tol` |
 | `LessThan` | 小于 | `a < b − tol` |
 | `GreaterThanOrEqual` | 大于等于 | `a ≥ b − tol` |
@@ -68,8 +72,8 @@ LessThanOrEqual     a ≤ b + tolerance
   表现为"既不等于、也不不等于；既不大、也不小"，这是最容易被误认为节点坏了的现象。
 - **没连线就用默认 `0.0`**：只连了 `A` 而 `B` 留空，等于在跟 0 比。
 - **容差填 0** 退化成严格比较（`Equal` 就再也不会命中浮点数，慎用）。
-- **容差填负数**：`|a−b| ≤ 负数` 恒假 → `Equal` 恒 `false`、`NotEqual` 恒 `true`；
-  `GreaterThan` 反而变松（`a > b − |tol|`）。容差请填非负数。
+- **容差填负数**：`abs(a−b) ≤ 负数` 恒假 → `Equal` 恒 `false`、`NotEqual` 恒 `true`；
+  `GreaterThan` 反而变松（`a > b − abs(tol)`）。容差请填非负数。
 
 ## 典型用法 / 接线
 

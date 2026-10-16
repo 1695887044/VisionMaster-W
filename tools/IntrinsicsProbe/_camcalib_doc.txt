@@ -1,0 +1,441 @@
+ 
+camera_calibration [HALCON Operator Reference / Version 23.05.0.0] 
+HALCON
+ 23.05.0.0 / HALCON Operator Reference / Calibration / Monocular 
+HDevelop 
+ .NET 
+ Python 
+ C++ 
+ C 
+Classes Classes | | Operators 
+camera_calibration T_camera_calibration CameraCalibration CameraCalibration camera_calibration (Operator) 
+ Name 
+ camera_calibration T_camera_calibration CameraCalibration CameraCalibration camera_calibration — Determine all camera parameters by a simultaneous minimization
+process. 
+ Signature 
+camera_calibration ( : : NX , NY , NZ , NRow , NCol , StartCamParam , NStartPose , EstimateParams : CameraParam , NFinalPose , Errors ) 
+Herror T_camera_calibration (const Htuple  NX , const Htuple  NY , const Htuple  NZ , const Htuple  NRow , const Htuple  NCol , const Htuple  StartCamParam , const Htuple  NStartPose , const Htuple  EstimateParams , Htuple*  CameraParam , Htuple*  NFinalPose , Htuple*  Errors ) 
+void CameraCalibration (const HTuple&  NX , const HTuple&  NY , const HTuple&  NZ , const HTuple&  NRow , const HTuple&  NCol , const HTuple&  StartCamParam , const HTuple&  NStartPose , const HTuple&  EstimateParams , HTuple*  CameraParam , HTuple*  NFinalPose , HTuple*  Errors ) 
+HCamPar HCamPar :: CameraCalibration (const HTuple&  NX , const HTuple&  NY , const HTuple&  NZ , const HTuple&  NRow , const HTuple&  NCol , const HPoseArray&  NStartPose , const HTuple&  EstimateParams , HPoseArray*  NFinalPose , HTuple*  Errors ) const 
+HCamPar HCamPar :: CameraCalibration (const HTuple&  NX , const HTuple&  NY , const HTuple&  NZ , const HTuple&  NRow , const HTuple&  NCol , const HPose&  NStartPose , const HTuple&  EstimateParams , HPose*  NFinalPose , double*  Errors ) const 
+static HCamPar HPose :: CameraCalibration (const HTuple&  NX , const HTuple&  NY , const HTuple&  NZ , const HTuple&  NRow , const HTuple&  NCol , const HCamPar&  StartCamParam , const HPoseArray&  NStartPose , const HTuple&  EstimateParams , HPoseArray*  NFinalPose , HTuple*  Errors ) 
+HCamPar HPose :: CameraCalibration (const HTuple&  NX , const HTuple&  NY , const HTuple&  NZ , const HTuple&  NRow , const HTuple&  NCol , const HCamPar&  StartCamParam , const HTuple&  EstimateParams , HPose*  NFinalPose , double*  Errors ) const 
+static void HOperatorSet . CameraCalibration ( HTuple   NX , HTuple   NY , HTuple   NZ , HTuple   NRow , HTuple   NCol , HTuple   startCamParam , HTuple   NStartPose , HTuple   estimateParams , out  HTuple   cameraParam , out  HTuple   NFinalPose , out  HTuple   errors ) 
+HCamPar HCamPar . CameraCalibration ( HTuple   NX , HTuple   NY , HTuple   NZ , HTuple   NRow , HTuple   NCol , HPose[]   NStartPose , HTuple   estimateParams , out  HPose[]   NFinalPose , out  HTuple   errors ) 
+HCamPar HCamPar . CameraCalibration ( HTuple   NX , HTuple   NY , HTuple   NZ , HTuple   NRow , HTuple   NCol , HPose   NStartPose , HTuple   estimateParams , out  HPose   NFinalPose , out double  errors ) 
+static HCamPar HPose . CameraCalibration ( HTuple   NX , HTuple   NY , HTuple   NZ , HTuple   NRow , HTuple   NCol , HCamPar   startCamParam , HPose[]   NStartPose , HTuple   estimateParams , out  HPose[]   NFinalPose , out  HTuple   errors ) 
+HCamPar HPose . CameraCalibration ( HTuple   NX , HTuple   NY , HTuple   NZ , HTuple   NRow , HTuple   NCol , HCamPar   startCamParam , HTuple   estimateParams , out  HPose   NFinalPose , out double  errors ) 
+def  camera_calibration ( nx : Sequence[Union[float, int]], ny : Sequence[Union[float, int]], nz : Sequence[Union[float, int]], nrow : Sequence[Union[float, int]], ncol : Sequence[Union[float, int]], start_cam_param : Sequence[Union[float, int, str]], nstart_pose : Sequence[Union[float, int]], estimate_params : Sequence[str]) -> Tuple[Sequence[Union[float, int, str]], Sequence[Union[float, int]], Sequence[float]] 
+def  camera_calibration_s ( nx : Sequence[Union[float, int]], ny : Sequence[Union[float, int]], nz : Sequence[Union[float, int]], nrow : Sequence[Union[float, int]], ncol : Sequence[Union[float, int]], start_cam_param : Sequence[Union[float, int, str]], nstart_pose : Sequence[Union[float, int]], estimate_params : Sequence[str]) -> Tuple[Sequence[Union[float, int, str]], Sequence[Union[float, int]], float] 
+Description 
+ camera_calibration camera_calibration CameraCalibration CameraCalibration CameraCalibration camera_calibration performs the calibration of a single camera.
+For this, known 3D model points (with coordinates NX NX NX NX NX nx ,
+ NY NY NY NY NY ny , NZ NZ NZ NZ NZ nz ) are projected into the image and the sum
+of the squared distances between the projected 3D-coordinates and
+their corresponding image point coordinates ( NRow NRow NRow NRow NRow nrow ,
+ NCol NCol NCol NCol NCol ncol ) is minimized.
+As initial values for the minimization process the external
+( NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose ) and internal ( StartCamParam StartCamParam StartCamParam StartCamParam startCamParam start_cam_param ) camera
+parameters are used.
+Thereby NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose is an ordered tuple with all initial values for
+the external camera parameters given in the form
+, where
+ ccs denotes the camera coordinate system and
+ wcs the world coordinate system (see
+ Transformations / Poses 
+and “Solution Guide III-C - 3D Vision” ).
+Individual camera parameters can be explicitly
+included or excluded from the minimization with
+ EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params . For a detailed description of the available
+camera models, the different sets of internal camera parameters, and
+general requirements for the setup, see Calibration .
+For a successful calibration, at least one calibration object with
+accurately known metric properties is needed, e.g., a HALCON
+calibration plate. Before calling camera_calibration camera_calibration CameraCalibration CameraCalibration CameraCalibration camera_calibration , take a
+series of images of the calibration object in different orientations
+and make sure that the whole field of view or measurement volume is
+covered. The success of the calibration highly depends on the
+quality of the calibration object and the images. So you might want
+to exercise special diligence during the acquisition of the
+calibration images. See the section “How to take a set of suitable
+images?” in Calibration for further details.
+After a successful calibration, camera_calibration camera_calibration CameraCalibration CameraCalibration CameraCalibration camera_calibration returns
+the optimized internal ( CameraParam CameraParam CameraParam CameraParam cameraParam camera_param ) and external
+( NFinalPose NFinalPose NFinalPose NFinalPose NFinalPose nfinal_pose 
+)
+camera parameters of the camera. Additionally,
+the root mean square error (RMSE) of the back projection of the
+optimization is returned in Errors Errors Errors Errors errors errors (in pixels). This error
+gives a general indication whether the optimization was successful.
+Preparation of the calibration process 
+How to extract the calibration marks in the images? 
+If a HALCON calibration plate is used, you can use the operator
+ find_calib_object find_calib_object FindCalibObject FindCalibObject FindCalibObject find_calib_object to determine the coordinates of the
+calibration marks in each image and to compute a rough estimate for
+the external camera parameters. Using HALCON calibration plates with
+rectangularly arranged marks (see gen_caltab gen_caltab GenCaltab GenCaltab GenCaltab gen_caltab ), a combination
+of the two operators find_caltab find_caltab FindCaltab FindCaltab FindCaltab find_caltab and
+ find_marks_and_pose find_marks_and_pose FindMarksAndPose FindMarksAndPose FindMarksAndPose find_marks_and_pose will have the same effect. In both
+cases, the hereby obtained values can directly be used as initial
+values for the external camera parameters ( NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose ).
+Obviously, images in which the segmentation of the calibration plate
+( find_caltab find_caltab FindCaltab FindCaltab FindCaltab find_caltab ) has failed or the calibration marks have not
+been determined successfully by find_marks_and_pose find_marks_and_pose FindMarksAndPose FindMarksAndPose FindMarksAndPose find_marks_and_pose or
+ find_calib_object find_calib_object FindCalibObject FindCalibObject FindCalibObject find_calib_object should not be used.
+How do you get the required initial values for the
+ calibration? 
+If you use a HALCON calibration plate, the input parameters
+ NX NX NX NX NX nx , NY NY NY NY NY ny , and NZ NZ NZ NZ NZ nz are stored in the
+description file of the calibration plate. You can easily access
+them by calling the operator caltab_points caltab_points CaltabPoints CaltabPoints CaltabPoints caltab_points . Initial values
+for the internal camera parameters ( StartCamParam StartCamParam StartCamParam StartCamParam startCamParam start_cam_param ) can be
+obtained from the specifications of the used camera. Further
+information can be found in Calibration . Initial
+values for the poses of the calibration plate and the coordinates of
+the calibration marks NRow NRow NRow NRow NRow nrow and NCol NCol NCol NCol NCol ncol can be
+calculated using the operator find_calib_object find_calib_object FindCalibObject FindCalibObject FindCalibObject find_calib_object . The tuple
+ NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose is set by the concatenation of all these poses.
+Which camera parameters are estimated? 
+The input parameter EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params is used to select which
+camera parameters to estimate. Usually, this parameter is set to
+ 'all' "all" "all" "all" "all" "all" , i.e., all 6 external camera parameters (translation
+and rotation) and all internal camera parameters are determined. If
+the internal camera parameters already have been determined (e.g.,
+by a previous call to camera_calibration camera_calibration CameraCalibration CameraCalibration CameraCalibration camera_calibration ), it is often
+desired to only determine the pose of the world coordinate system in
+camera coordinates (i.e., the external camera parameters). In this
+case, EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params can be set to 'pose' "pose" "pose" "pose" "pose" "pose" . This
+has the same effect as EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params =
+ ['alpha','beta','gamma','transx','transy','transz'] ["alpha","beta","gamma","transx","transy","transz"] ["alpha","beta","gamma","transx","transy","transz"] ["alpha","beta","gamma","transx","transy","transz"] ["alpha","beta","gamma","transx","transy","transz"] ["alpha","beta","gamma","transx","transy","transz"] .
+Otherwise, EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params contains a tuple of strings that
+indicates the combination of parameters to estimate. In addition,
+parameters can be excluded from estimation by using the prefix
+~. For example, the values
+ ['pose','~transx'] ["pose","~transx"] ["pose","~transx"] ["pose","~transx"] ["pose","~transx"] ["pose","~transx"] 
+have the same effect as
+ ['alpha','beta','gamma','transy','transz'] ["alpha","beta","gamma","transy","transz"] ["alpha","beta","gamma","transy","transz"] ["alpha","beta","gamma","transy","transz"] ["alpha","beta","gamma","transy","transz"] ["alpha","beta","gamma","transy","transz"] . As a different
+example,
+ ['all','~focus'] ["all","~focus"] ["all","~focus"] ["all","~focus"] ["all","~focus"] ["all","~focus"] 
+determines all internal and external parameters except the
+focus. The prefix ~ can be used with all parameter
+values except 'all' "all" "all" "all" "all" "all" .
+Which limitations exist for the determination of the
+ camera parameters? 
+For additional information about general limitations when
+determining camera parameters, please see the section
+“Further Limitations Related to Specific Camera Types” in the chapter
+ Calibration .
+What is the order within the individual parameters? 
+The length of the tuple NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose depends on the number of
+calibration images, e.g., using 15 images leads to a length of the
+tuple NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose equal to 
+(15 times the 7 external camera parameters). The first 7 values
+correspond to the pose of the calibration plate in the first image,
+the next 7 values to the pose in the second image, etc.
+This fixed number of calibration images must be considered within
+the tuples with the coordinates of the 3D model marks and the
+extracted 2D marks. If 15 images are used, the length of the tuples
+ NRow NRow NRow NRow NRow nrow and NCol NCol NCol NCol NCol ncol is 15 times the length of the tuples
+with the coordinates of the 3D model marks ( NX NX NX NX NX nx ,
+ NY NY NY NY NY ny , and NZ NZ NZ NZ NZ nz ). If every image consists 49 marks,
+the length of the tuples NRow NRow NRow NRow NRow nrow and NCol NCol NCol NCol NCol ncol is
+, while the length of the tuples
+ NX NX NX NX NX nx , NY NY NY NY NY ny , and NZ NZ NZ NZ NZ nz is 49. The order of the
+values in NRow NRow NRow NRow NRow nrow and NCol NCol NCol NCol NCol ncol is “image after image”,
+i.e., using 49 marks the first 3D model point corresponds to the
+1st, 50th, 99th, 148th, 197th, 246th, etc. extracted 2D mark.
+What is the meaning of the output parameters? 
+If the camera calibration process has finished successfully, the
+output parameters CameraParam CameraParam CameraParam CameraParam cameraParam camera_param and NFinalPose NFinalPose NFinalPose NFinalPose NFinalPose nfinal_pose 
+contain the adjusted values for the internal and external camera
+parameters. The length of the tuple NFinalPose NFinalPose NFinalPose NFinalPose NFinalPose nfinal_pose corresponds
+to the length of the tuple NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose .
+The representation types of NFinalPose NFinalPose NFinalPose NFinalPose NFinalPose nfinal_pose correspond to the
+representation type of the first tuple of NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose (see
+ create_pose create_pose CreatePose CreatePose CreatePose create_pose ). You can convert the representation type by
+ convert_pose_type convert_pose_type ConvertPoseType ConvertPoseType ConvertPoseType convert_pose_type .
+As an additional parameter, the root mean square error (RMSE)
+( Errors Errors Errors Errors errors errors ) of the back projection of the optimization is
+returned. This parameter reflects the accuracy of the calibration.
+The error value (root mean square error of the position) is measured
+in pixels. If only a single camera is calibrated, an Error in the
+order of 0.1 pixel (the typical detection error by extraction of the
+coordinates of the projected calibration markers) is an indication
+that the optimization fits the observation data well. If
+ Errors Errors Errors Errors errors errors strongly differs from 0.1 pixels, the calibration
+did not perform well. Reasons for this might be, e.g., a poor image
+quality, an insufficient number of calibration images, or an
+inaccurate calibration plate.
+Do I have to use a planar calibration object? 
+No. The operator camera_calibration camera_calibration CameraCalibration CameraCalibration CameraCalibration camera_calibration is designed in a way
+that the input tuples NX NX NX NX NX nx , NY NY NY NY NY ny , NZ NZ NZ NZ NZ nz ,
+ NRow NRow NRow NRow NRow nrow , and NCol NCol NCol NCol NCol ncol can contain any 3D/2D
+correspondences. The order of the single parameters is explained in
+the paragraph “What is the order within the individual
+parameters?”.
+Thus, it makes no difference how the required 3D model marks and the
+corresponding 2D marks are determined. On the one hand, it is
+possible to use a 3D calibration object, on the other hand, you also
+can use any characteristic points (e.g., natural landmarks) with
+known position in the world. By setting EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params to
+ 'pose' "pose" "pose" "pose" "pose" "pose" , it is thus possible to compute the pose of an
+object in camera coordinates! For this, at least three
+3D/2D-correspondences are necessary as input. NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose 
+can, e.g., be generated directly as shown in the program example for
+ create_pose create_pose CreatePose CreatePose CreatePose create_pose .
+Attention 
+ The minimization process of the calibration depends on the initial
+values of the internal ( StartCamParam StartCamParam StartCamParam StartCamParam startCamParam start_cam_param ) and external
+( NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose ) camera parameters. The computed average errors
+ Errors Errors Errors Errors errors errors give an impression of the accuracy of the
+calibration. The errors (deviations in x- and y-coordinates) are
+measured in pixels.
+For line scan cameras, it is possible to set the start value for the
+internal camera parameter Sy to the value 0.0. In this case, it is
+not possible to determine the position of the principal point in
+y-direction. Therefore, EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params must contain the
+term '~cy' "~cy" "~cy" "~cy" "~cy" "~cy" . The effective
+distance of the principle point from the sensor line is then always
+. Further
+information can be found in the section “Further Limitations Related
+to Specific Camera Types” of Calibration . 
+ Execution Information 
+Multithreading type: reentrant (runs in parallel with non-exclusive operators). 
+ Multithreading scope: global (may be called from any thread). 
+ Processed without parallelization. 
+Parameters 
+NX NX NX NX NX nx (input_control)   number-array → HTuple Sequence[Union[float, int]] HTuple Htuple (real / integer) ( double / int / long) ( double / Hlong) ( double / Hlong) 
+Ordered tuple with all x coordinates
+of the calibration marks (in meters). 
+NY NY NY NY NY ny (input_control)   number-array → HTuple Sequence[Union[float, int]] HTuple Htuple (real / integer) ( double / int / long) ( double / Hlong) ( double / Hlong) 
+Ordered tuple with all y coordinates
+of the calibration marks (in meters). 
+ Number of elements:
+ NY == NX 
+NZ NZ NZ NZ NZ nz (input_control)   number-array → HTuple Sequence[Union[float, int]] HTuple Htuple (real / integer) ( double / int / long) ( double / Hlong) ( double / Hlong) 
+Ordered tuple with all z coordinates
+of the calibration marks (in meters). 
+ Number of elements:
+ NZ == NX 
+NRow NRow NRow NRow NRow nrow (input_control)   number-array → HTuple Sequence[Union[float, int]] HTuple Htuple (real / integer) ( double / int / long) ( double / Hlong) ( double / Hlong) 
+Ordered tuple with all row coordinates
+of the extracted calibration marks (in pixels). 
+NCol NCol NCol NCol NCol ncol (input_control)   number-array → HTuple Sequence[Union[float, int]] HTuple Htuple (real / integer) ( double / int / long) ( double / Hlong) ( double / Hlong) 
+Ordered tuple with all column coordinates
+of the extracted calibration marks (in pixels). 
+ Number of elements:
+ NCol == NRow 
+StartCamParam StartCamParam StartCamParam StartCamParam startCamParam start_cam_param (input_control)   campar → HCamPar , HTuple Sequence[Union[float, int, str]] HTuple Htuple (real / integer / string) ( double / int / long / string) ( double / Hlong / HString) ( double / Hlong / char*) 
+Initial values for the internal camera parameters. 
+NStartPose NStartPose NStartPose NStartPose NStartPose nstart_pose (input_control)   pose(-array) → HPose , HTuple Sequence[Union[float, int]] HTuple Htuple (real / integer) ( double / int / long) ( double / Hlong) ( double / Hlong) 
+Ordered tuple with all initial values for the
+external camera parameters. 
+ Number of elements:
+ NStartPose == 7 * NRow / NX 
+EstimateParams EstimateParams EstimateParams EstimateParams estimateParams estimate_params (input_control)   string-array → HTuple Sequence[str] HTuple Htuple (string) ( string ) ( HString ) ( char* ) 
+Camera parameters to be estimated. 
+ Default:
+'all' 
+ "all" 
+ "all" 
+ "all" 
+ "all" 
+ "all" 
+List of values:
+ 'all' "all" "all" "all" "all" "all" , 'alpha' "alpha" "alpha" "alpha" "alpha" "alpha" , 'beta' "beta" "beta" "beta" "beta" "beta" , 'camera' "camera" "camera" "camera" "camera" "camera" , 'cx' "cx" "cx" "cx" "cx" "cx" , 'cy' "cy" "cy" "cy" "cy" "cy" , 'focus' "focus" "focus" "focus" "focus" "focus" , 'gamma' "gamma" "gamma" "gamma" "gamma" "gamma" , 'image_plane_dist' "image_plane_dist" "image_plane_dist" "image_plane_dist" "image_plane_dist" "image_plane_dist" , 'k1' "k1" "k1" "k1" "k1" "k1" , 'k2' "k2" "k2" "k2" "k2" "k2" , 'k3' "k3" "k3" "k3" "k3" "k3" , 'kappa' "kappa" "kappa" "kappa" "kappa" "kappa" , 'magnification' "magnification" "magnification" "magnification" "magnification" "magnification" , 'poly' "poly" "poly" "poly" "poly" "poly" , 'poly_tan_2' "poly_tan_2" "poly_tan_2" "poly_tan_2" "poly_tan_2" "poly_tan_2" , 'pose' "pose" "pose" "pose" "pose" "pose" , 'sx' "sx" "sx" "sx" "sx" "sx" , 'sy' "sy" "sy" "sy" "sy" "sy" , 'tilt' "tilt" "tilt" "tilt" "tilt" "tilt" , 'transx' "transx" "transx" "transx" "transx" "transx" , 'transy' "transy" "transy" "transy" "transy" "transy" , 'transz' "transz" "transz" "transz" "transz" "transz" , 'vx' "vx" "vx" "vx" "vx" "vx" , 'vy' "vy" "vy" "vy" "vy" "vy" , 'vz' "vz" "vz" "vz" "vz" "vz" 
+CameraParam CameraParam CameraParam CameraParam cameraParam camera_param (output_control)   campar → HCamPar , HTuple Sequence[Union[float, int, str]] HTuple Htuple (real / integer / string) ( double / int / long / string) ( double / Hlong / HString) ( double / Hlong / char*) 
+Internal camera parameters. 
+NFinalPose NFinalPose NFinalPose NFinalPose NFinalPose nfinal_pose (output_control)   pose(-array) → HPose , HTuple Sequence[Union[float, int]] HTuple Htuple (real / integer) ( double / int / long) ( double / Hlong) ( double / Hlong) 
+Ordered tuple with all external camera parameters. 
+ Number of elements:
+ NFinalPose == 7 * NRow / NX 
+Errors Errors Errors Errors errors errors (output_control)   real(-array) → HTuple Sequence[float] HTuple Htuple (real) ( double ) ( double ) ( double ) 
+Average error distance in pixels. 
+Example (HDevelop) 
+* Read calibration images.
+read_image(Image1, 'calib/grid_space.cal.k.000')
+read_image(Image2, 'calib/grid_space.cal.k.001')
+read_image(Image3, 'calib/grid_space.cal.k.002')
+* Find calibration pattern.
+find_caltab(Image1, CalPlate1, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image2, CalPlate2, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image3, CalPlate3, 'caltab_big.descr', 3, 112, 5)
+* Find calibration marks and start poses.
+StartCamPar := ['area_scan_division', 0.008, 0.0, 0.000011, 0.000011, \
+ 384, 288, 768, 576]
+find_marks_and_pose(Image1, CalPlate1, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord1, CCoord1, \
+ StartPose1)
+find_marks_and_pose(Image2, CalPlate2, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord2, CCoord2, \
+ StartPose2)
+find_marks_and_pose(Image3, CalPlate3, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord3, CCoord3, \
+ StartPose3)
+* Read 3D positions of calibration marks.
+caltab_points('caltab_big.descr', NX, NY, NZ)
+* Camera calibration.
+camera_calibration(NX, NY, NZ, [RCoord1, RCoord2, RCoord3], \
+ [CCoord1, CCoord2, CCoord3], StartCamPar, \
+ [StartPose1, StartPose2, StartPose3], 'all', \
+ CameraParam, NFinalPose, Errors)
+* Write internal camera parameters to file.
+write_cam_par(CameraParam, 'campar.dat')
+Example (HDevelop) 
+* Read calibration images.
+read_image(Image1, 'calib/grid_space.cal.k.000')
+read_image(Image2, 'calib/grid_space.cal.k.001')
+read_image(Image3, 'calib/grid_space.cal.k.002')
+* Find calibration pattern.
+find_caltab(Image1, CalPlate1, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image2, CalPlate2, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image3, CalPlate3, 'caltab_big.descr', 3, 112, 5)
+* Find calibration marks and start poses.
+StartCamPar := ['area_scan_division', 0.008, 0.0, 0.000011, 0.000011, \
+ 384, 288, 768, 576]
+find_marks_and_pose(Image1, CalPlate1, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord1, CCoord1, \
+ StartPose1)
+find_marks_and_pose(Image2, CalPlate2, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord2, CCoord2, \
+ StartPose2)
+find_marks_and_pose(Image3, CalPlate3, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord3, CCoord3, \
+ StartPose3)
+* Read 3D positions of calibration marks.
+caltab_points('caltab_big.descr', NX, NY, NZ)
+* Camera calibration.
+camera_calibration(NX, NY, NZ, [RCoord1, RCoord2, RCoord3], \
+ [CCoord1, CCoord2, CCoord3], StartCamPar, \
+ [StartPose1, StartPose2, StartPose3], 'all', \
+ CameraParam, NFinalPose, Errors)
+* Write internal camera parameters to file.
+write_cam_par(CameraParam, 'campar.dat')
+Example (HDevelop) 
+* Read calibration images.
+read_image(Image1, 'calib/grid_space.cal.k.000')
+read_image(Image2, 'calib/grid_space.cal.k.001')
+read_image(Image3, 'calib/grid_space.cal.k.002')
+* Find calibration pattern.
+find_caltab(Image1, CalPlate1, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image2, CalPlate2, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image3, CalPlate3, 'caltab_big.descr', 3, 112, 5)
+* Find calibration marks and start poses.
+StartCamPar := ['area_scan_division', 0.008, 0.0, 0.000011, 0.000011, \
+ 384, 288, 768, 576]
+find_marks_and_pose(Image1, CalPlate1, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord1, CCoord1, \
+ StartPose1)
+find_marks_and_pose(Image2, CalPlate2, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord2, CCoord2, \
+ StartPose2)
+find_marks_and_pose(Image3, CalPlate3, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord3, CCoord3, \
+ StartPose3)
+* Read 3D positions of calibration marks.
+caltab_points('caltab_big.descr', NX, NY, NZ)
+* Camera calibration.
+camera_calibration(NX, NY, NZ, [RCoord1, RCoord2, RCoord3], \
+ [CCoord1, CCoord2, CCoord3], StartCamPar, \
+ [StartPose1, StartPose2, StartPose3], 'all', \
+ CameraParam, NFinalPose, Errors)
+* Write internal camera parameters to file.
+write_cam_par(CameraParam, 'campar.dat')
+Example (HDevelop) 
+* Read calibration images.
+read_image(Image1, 'calib/grid_space.cal.k.000')
+read_image(Image2, 'calib/grid_space.cal.k.001')
+read_image(Image3, 'calib/grid_space.cal.k.002')
+* Find calibration pattern.
+find_caltab(Image1, CalPlate1, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image2, CalPlate2, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image3, CalPlate3, 'caltab_big.descr', 3, 112, 5)
+* Find calibration marks and start poses.
+StartCamPar := ['area_scan_division', 0.008, 0.0, 0.000011, 0.000011, \
+ 384, 288, 768, 576]
+find_marks_and_pose(Image1, CalPlate1, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord1, CCoord1, \
+ StartPose1)
+find_marks_and_pose(Image2, CalPlate2, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord2, CCoord2, \
+ StartPose2)
+find_marks_and_pose(Image3, CalPlate3, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord3, CCoord3, \
+ StartPose3)
+* Read 3D positions of calibration marks.
+caltab_points('caltab_big.descr', NX, NY, NZ)
+* Camera calibration.
+camera_calibration(NX, NY, NZ, [RCoord1, RCoord2, RCoord3], \
+ [CCoord1, CCoord2, CCoord3], StartCamPar, \
+ [StartPose1, StartPose2, StartPose3], 'all', \
+ CameraParam, NFinalPose, Errors)
+* Write internal camera parameters to file.
+write_cam_par(CameraParam, 'campar.dat')
+Example (HDevelop) 
+* Read calibration images.
+read_image(Image1, 'calib/grid_space.cal.k.000')
+read_image(Image2, 'calib/grid_space.cal.k.001')
+read_image(Image3, 'calib/grid_space.cal.k.002')
+* Find calibration pattern.
+find_caltab(Image1, CalPlate1, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image2, CalPlate2, 'caltab_big.descr', 3, 112, 5)
+find_caltab(Image3, CalPlate3, 'caltab_big.descr', 3, 112, 5)
+* Find calibration marks and start poses.
+StartCamPar := ['area_scan_division', 0.008, 0.0, 0.000011, 0.000011, \
+ 384, 288, 768, 576]
+find_marks_and_pose(Image1, CalPlate1, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord1, CCoord1, \
+ StartPose1)
+find_marks_and_pose(Image2, CalPlate2, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord2, CCoord2, \
+ StartPose2)
+find_marks_and_pose(Image3, CalPlate3, 'caltab_big.descr', StartCamPar, \
+ 128, 10, 18, 0.9, 15.0, 100.0, RCoord3, CCoord3, \
+ StartPose3)
+* Read 3D positions of calibration marks.
+caltab_points('caltab_big.descr', NX, NY, NZ)
+* Camera calibration.
+camera_calibration(NX, NY, NZ, [RCoord1, RCoord2, RCoord3], \
+ [CCoord1, CCoord2, CCoord3], StartCamPar, \
+ [StartPose1, StartPose2, StartPose3], 'all', \
+ CameraParam, NFinalPose, Errors)
+* Write internal camera parameters to file.
+write_cam_par(CameraParam, 'campar.dat')
+Result 
+ camera_calibration camera_calibration CameraCalibration CameraCalibration CameraCalibration camera_calibration returns 2 (
+ H_MSG_TRUE )
+ if all parameter values are
+correct and the desired camera parameters have been determined by
+the minimization algorithm. If necessary, an exception is raised. 
+ Possible Predecessors 
+find_marks_and_pose find_marks_and_pose FindMarksAndPose FindMarksAndPose FindMarksAndPose find_marks_and_pose , 
+ caltab_points caltab_points CaltabPoints CaltabPoints CaltabPoints caltab_points , 
+ read_cam_par read_cam_par ReadCamPar ReadCamPar ReadCamPar read_cam_par 
+Possible Successors 
+write_pose write_pose WritePose WritePose WritePose write_pose , 
+ pose_to_hom_mat3d pose_to_hom_mat3d PoseToHomMat3d PoseToHomMat3d PoseToHomMat3d pose_to_hom_mat3d , 
+ disp_caltab disp_caltab DispCaltab DispCaltab DispCaltab disp_caltab , 
+ sim_caltab sim_caltab SimCaltab SimCaltab SimCaltab sim_caltab 
+Alternatives 
+calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras 
+See also 
+find_caltab find_caltab FindCaltab FindCaltab FindCaltab find_caltab , 
+ find_marks_and_pose find_marks_and_pose FindMarksAndPose FindMarksAndPose FindMarksAndPose find_marks_and_pose , 
+ disp_caltab disp_caltab DispCaltab DispCaltab DispCaltab disp_caltab , 
+ sim_caltab sim_caltab SimCaltab SimCaltab SimCaltab sim_caltab , 
+ write_cam_par write_cam_par WriteCamPar WriteCamPar WriteCamPar write_cam_par , 
+ read_cam_par read_cam_par ReadCamPar ReadCamPar ReadCamPar read_cam_par , 
+ create_pose create_pose CreatePose CreatePose CreatePose create_pose , 
+ convert_pose_type convert_pose_type ConvertPoseType ConvertPoseType ConvertPoseType convert_pose_type , 
+ write_pose write_pose WritePose WritePose WritePose write_pose , 
+ read_pose read_pose ReadPose ReadPose ReadPose read_pose , 
+ pose_to_hom_mat3d pose_to_hom_mat3d PoseToHomMat3d PoseToHomMat3d PoseToHomMat3d pose_to_hom_mat3d , 
+ hom_mat3d_to_pose hom_mat3d_to_pose HomMat3dToPose HomMat3dToPose HomMat3dToPose hom_mat3d_to_pose , 
+ caltab_points caltab_points CaltabPoints CaltabPoints CaltabPoints caltab_points , 
+ gen_caltab gen_caltab GenCaltab GenCaltab GenCaltab gen_caltab , 
+ calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras 
+Module 
+Calibration 
+Classes Classes | | Operators 
+HALCON Operator Reference 23.05.0.0 Copyright © 1996-2023 MVTec Software GmbH 
+ Follow us on

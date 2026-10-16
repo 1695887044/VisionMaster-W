@@ -629,16 +629,30 @@ namespace VisionMaster.ViewModels
                     RaisePropertyChanged(nameof(DisableToggleHeader));
                     break;
                 case ModuleCommandAction.Delete:
-                    if (CurrentSelectedStepModel == null || Workspace?.CurrentFlow == null)
+                {
+                    // 删除会用掉"这一次"的命令靶，但靶还要用来判断下面该不该清选中——先记住它。
+                    var target = CurrentSelectedStepModel;
+                    if (target == null || Workspace?.CurrentFlow == null)
                         break;
-                    if (
-                        RemoveStepRecursively(Workspace.CurrentFlow.Steps, CurrentSelectedStepModel)
-                    )
-                    {
-                        CurrentSelectedStepModel = null;
-                    }
+
+                    if (!RemoveStepRecursively(Workspace.CurrentFlow.Steps, target))
+                        break;
+
+                    // 2026-10-16 真机：删掉一个算子后再删剩下那个"点了没反应"（尤其只剩最后一步时）。
+                    // 根因是这里的清空**无条件**执行——删除引起的集合变更会让流程树自动改选邻近行
+                    //（WPF ItemsSource 变更后 Selector 保选），那次改选经 BindableSelectedItem 写回
+                    // SelectStep，命令靶已跟着变成"幸存的那一步"；这里再写 null 就把它抹掉了，
+                    // 于是界面高亮着某一行、删除/改名/禁用却全部静默空跑。更阴的是"点同一行"救不回来：
+                    // 那一行本来就选着，不会再触发 SelectedItemChanged。
+                    // 只在"删除期间没人改过选中项"时清空——此时命令靶还停在刚被移出图纸的那一步，
+                    // 留着它就是命令链继续指着已删除对象（改名/禁用会打到孤儿对象上）。
+                    // 清空走 SelectStep 而不是只写字段：顺带把 Workspace.CurrentStep 与菜单可见性
+                    // 通知一起归位，公开属性与命令靶不再各说各话。
+                    if (ReferenceEquals(CurrentSelectedStepModel, target))
+                        SelectStep = null;
 
                     break;
+                }
                 case ModuleCommandAction.AddElseIf:
                 {
                     if (SelectStep is ConditionStep ifNode)

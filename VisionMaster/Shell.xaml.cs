@@ -96,6 +96,11 @@ namespace VisionMaster
                 // AttachDockWatchers 先解绑再挂、幂等，重复调用安全；
                 // 事件那一路仍然保留，负责"用户中途加载/重置布局后重挂"（LayoutContent 实例会被换掉）。
                 vm.AttachDockWatchers();
+
+                // 再按模式收敛右侧面板组：磁盘上的 Layout.xml 会把上次退出时的可见性原样恢复，
+                // 必须在这里盖一次，否则"组态三面板只在组态设计时显示"这条改造对老布局等于没发生。
+                vm.ApplyPanelMode();
+
                 await vm.AutoLoadStartupSolutionAsync();
             }
         }

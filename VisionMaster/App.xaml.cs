@@ -4,8 +4,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -34,7 +32,9 @@ namespace VisionMaster
         private AppLifetimeService? _lifetime;
         private SingleInstanceCheck? _singleInstance;
         private HalconCheck? _halconCheck;
-        private VisionMaster.Lifetime.SplashScreen? _splash;
+        private CommunicationCheck? _communicationCheck;
+        private readonly CancellationTokenSource _postStartupCts = new();
+        private Lifetime.SplashScreen? _splash;
         private readonly List<IAppModule> _modules = new();
 
         protected override Window CreateShell()
@@ -58,7 +58,6 @@ namespace VisionMaster
             // ===== 退出链收尾：未保存草稿转存 =====
             // 注册在"日志落盘收尾"之后 → 逆序执行时先跑，此刻日志服务还活着，转存结果能记进日志。
             // 正常关闭与严重异常退出都会走退出链，所以两条路都受这一项保护。
-            // 超时给 8s（默认 5s）：序列化 + 比对 + 写盘，大方案留点余量，仍在 30s 总看门狗之内。
             _lifetime.RegisterExitTask(ExitTask.Of("未保存草稿转存", () =>
             {
                 var result = Container.Resolve<SolutionDraftService>()
@@ -87,8 +86,6 @@ namespace VisionMaster
             _singleInstance = new SingleInstanceCheck();
             _lifetime.RegisterCheck(_singleInstance);
             _lifetime.RegisterCheck(new ConfigCheck(Container.Resolve<AppSettingsService>(), Container.Resolve<ILogService>()));
-            // 视觉引擎自检：结果判 Warning —— 缺 HALCON 只影响视觉功能，不该把整个软件挡在门外。
-            // 详细说明不在这里弹（Splash 转瞬即逝），留到主界面出来后再弹，见 ShowHalconNotice
             _halconCheck = new HalconCheck(Container.Resolve<ILogService>());
             _lifetime.RegisterCheck(_halconCheck);
             _lifetime.RegisterCheck(new PluginScanCheck(
@@ -100,14 +97,17 @@ namespace VisionMaster
             _lifetime.RegisterCheck(new HelpCatalogCheck(
                 () => Container.Resolve<HelpCatalogService>(),
                 Container.Resolve<ILogService>()));
-            _lifetime.RegisterCheck(new CommunicationCheck(
+            // 通讯连通性**不进启动自检链**（2026-10-16）：它只出 Warning、不拦启动，却要等
+            // 3 秒追赶窗口 + 每条最多 3 秒（总预算 12 秒）——让"只报不拦"的诊断项站在进主界面的
+            // 关键路径上不值得。改由 OnInitialized 在主窗口显示后后台跑，结果写日志（口径不变）。
+            _communicationCheck = new CommunicationCheck(
                 () => Container.Resolve<AdvancedCommunicationManager>(),
                 () => Container.Resolve<AppSettingsService>().Current,
-                Container.Resolve<ILogService>()));
+                Container.Resolve<ILogService>());
 
             // ===== Splash 进度窗 + 自检执行（Dispatcher 帧泵保持 Splash 响应）=====
             // 注意：Splash 在主窗口显示后才关闭（OnInitialized），避免出现“零窗口”触发 Shutdown
-            _splash = new VisionMaster.Lifetime.SplashScreen();
+            _splash = new Lifetime.SplashScreen();
             _splash.InitChecks(_lifetime.Checks);
             _lifetime.CheckCompleted += e => _splash.UpdateCheck(e.Name, e.Passed, e.Result, e.Done, e.Total);
             _splash.Show();
@@ -128,7 +128,6 @@ namespace VisionMaster
 
         protected override void RegisterTypes(IContainerRegistry containerRegistry)
         {
-            // 定时深度清理已禁用：Aggressive GC + LOH 压缩 + 工作集裁剪每 30s 冻结主线程 2~3s，
             // 且 WPF+Halcon 宿主常态内存 >300MB 阈值，表现为"空闲双击也卡"。
             // .NET 自身 GC 对本应用足够高效；如将来确有内存增长问题，再评估温和化巡检。
             // MemoryManager.Instance.Start(300, 30);
@@ -400,8 +399,11 @@ namespace VisionMaster
 
         protected override void OnExit(ExitEventArgs e)
         {
+            // 先叫停后台诊断：通讯连通性检测跑在退出链之外，不取消就会在关闭过程中继续碰连接管理器
+            _postStartupCts.Cancel();
             try { _lifetime?.ExecuteExitChainBlocking("应用退出"); }
             catch { /* 退出链内部已逐项捕获，此处兜底 */ }
+            _postStartupCts.Dispose();
             _singleInstance?.Dispose();
             base.OnExit(e);
         }
@@ -421,6 +423,53 @@ namespace VisionMaster
             // HALCON 不可用的提示：同样延到界面空闲 —— 自检那一刻 Splash 转瞬即逝，
             // 详细说明必须在主界面出来之后才看得见
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(ShowHalconNotice));
+
+            // 通讯连通性：主窗口已显示，自动连接此刻已爬过一会儿，检测放后台跑、不占启动时间
+            RunCommunicationCheckInBackground();
+        }
+
+        /// <summary>
+        /// 后台跑一次通讯连通性检测，结果只写日志——不弹窗、不拦启动。
+        ///
+        /// 为什么不进启动自检链
+        /// ---------
+        /// 它的全部失败出口都是 Warning（`CommunicationCheck` 的 105/112 行）：进得了主界面，只是某条
+        /// 连接不可达。而它的代价是 3 秒追赶窗口 + 每条最多 3 秒（总预算 12 秒）。放在链上，就等于让
+        /// 一个"只报不拦"的诊断项决定用户多等多久；挪到主窗口显示之后，Splash 一关界面就出来了。
+        /// 连接配置与自动连接仍由 CommunicationModule 在模块初始化阶段完成，时序没有变——检测只是晚
+        /// 一点跑，反而更接近"连接已稳定"，误报"不可达"的机会更少。
+        ///
+        /// 口径不变：结果仍按 `[启动自检] 通讯连通性` 写日志，现场排查时的检索词还是同一个。
+        /// </summary>
+        private void RunCommunicationCheckInBackground()
+        {
+            var check = _communicationCheck;
+            if (check == null) return;
+            var log = Container.Resolve<ILogService>();
+            var ct = _postStartupCts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var result = await check.ExecuteAsync(ct);
+                    if (result.Passed)
+                        log.Info($"[启动自检] {check.Name}: {result.Message}");
+                    else if (result.Level == CheckLevel.Error)
+                        log.Error($"[启动自检] {check.Name} 失败：{result.Message}");
+                    else
+                        log.Warn($"[启动自检] {check.Name} 警告：{result.Message}");
+                }
+                catch (OperationCanceledException)
+                {
+                    // 应用正在退出，检测结果没人要了
+                }
+                catch (Exception ex)
+                {
+                    // 后台诊断绝不能把应用带下去：这里只剩一行日志
+                    try { log.Warn($"[启动自检] {check.Name} 异常：{ex.Message}"); } catch { }
+                }
+            }, ct);
         }
 
         /// <summary>

@@ -199,7 +199,10 @@ namespace VisionMaster
 
         #region 活动栏（Activity Bar）
         /// <summary>
-        /// 活动栏按钮高亮状态跟随面板 IsActive（OneWay 绑定，由监听器驱动）
+        /// 活动栏按钮高亮状态跟随面板 IsActive（OneWay 绑定，由监听器驱动）。
+        /// 注意：左侧活动栏已下线、右侧活动栏也只留「工具箱」一个开关，所以当前
+        /// <b>只有 <see cref="IsToolboxActive"/> 被 Shell.xaml 绑定</b>；其余四个仍由
+        /// <see cref="RefreshActivityBar"/> 照常维护（判据已在手），将来重新加回开关即可直接用。
         /// </summary>
         public bool IsFlowListActive
         {
@@ -226,6 +229,19 @@ namespace VisionMaster
         }
 
         public bool IsScadaLayerActive
+        {
+            get { return field; }
+            set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>
+        /// 当前是否处于「组态界面设计」场景（= 中央文档区里选中的是「组态画面」标签）。
+        /// 判据用文档的 IsSelected 而非 IsActive，理由见 <see cref="LayoutHelper.IsDocumentSelected"/>。
+        /// 该属性驱动 <see cref="ApplyPanelMode"/> 收敛右侧三面板；
+        /// 2026-10-15 活动栏整条下线后它暂无 XAML 消费者（保留作模式状态，
+        /// 将来要在界面上显示"设计中"之类提示可直接绑）。
+        /// </summary>
+        public bool IsScadaDesignMode
         {
             get { return field; }
             set { SetProperty(ref field, value); }
@@ -269,22 +285,52 @@ namespace VisionMaster
                 panel.PropertyChanged -= handler;
             _dockWatchers.Clear();
 
-            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView" })
+            // 监听清单：前 5 个驱动活动栏高亮；最后一个是"当前是否在组态界面设计"的判据来源。
+            foreach (var contentId in new[] { "Panel_FlowListView", "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView", "Panel_ScadaEditorView" })
             {
                 // LayoutContent 基类同时兼容停靠面板与文档选项卡（工具箱为文档类型）
                 if (LayoutHelper.FindPanel(contentId) is not LayoutContent panel) continue;
 
+                bool isScadaEditor = contentId == "Panel_ScadaEditorView";
                 PropertyChangedEventHandler handler = (_, e) =>
                 {
                     // 文档类型无 IsVisible 属性，用 IsSelected（标签选中）替代
                     if (e.PropertyName is nameof(LayoutAnchorable.IsVisible) or nameof(LayoutContent.IsActive) or nameof(LayoutDocument.IsSelected))
                         RefreshActivityBar();
+
+                    // 只在"组态画面标签被选中/取消选中"时重收敛面板组。
+                    // 刻意不挂在四个面板自身的 IsVisible 上——Hide 动作会再触发一轮，来回抖动。
+                    if (isScadaEditor && e.PropertyName == nameof(LayoutDocument.IsSelected))
+                        ApplyPanelMode();
                 };
                 panel.PropertyChanged += handler;
                 _dockWatchers.Add((panel, handler));
             }
 
             RefreshActivityBar();
+        }
+
+        /// <summary>
+        /// 按"当前是否处于组态界面设计"收敛右侧面板组（幂等）。
+        /// 触发点三处，覆盖全部边界：① 启动（OnContentRendered）；② 布局加载/重载
+        /// （含方案切换的 .vms 内嵌布局、加载布局、恢复默认布局——见 <see cref="OnLayoutLoaded"/>）；
+        /// ③ 用户在中央文档区切换标签（见 <see cref="AttachDockWatchers"/> 的监听器）。
+        /// 之所以每次都要重收敛：磁盘上的 Layout.xml 会把上次退出时的可见性原样恢复回来。
+        /// </summary>
+        public void ApplyPanelMode()
+        {
+            bool scadaDesign = LayoutHelper.IsDocumentSelected("Panel_ScadaEditorView");
+            IsScadaDesignMode = scadaDesign;
+            LayoutHelper.ApplyScadaPanelMode(scadaDesign);
+        }
+
+        /// <summary>
+        /// 布局加载/重载完成：先重挂监听（反序列化会换掉 LayoutContent 实例），再按模式收敛面板组。
+        /// </summary>
+        private void OnLayoutLoaded()
+        {
+            AttachDockWatchers();
+            ApplyPanelMode();
         }
 
         private void RefreshActivityBar()
@@ -318,7 +364,9 @@ namespace VisionMaster
             SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
             SwitchCanvasCommand = new DelegateCommand<string>(SwitchCanvas);
             TogglePanelCommand = new DelegateCommand<string>(TogglePanel);
-            LayoutHelper.LayoutLoaded += AttachDockWatchers;
+            // 布局加载/重载后：重挂监听 + 按模式收敛面板组（不能只挂 AttachDockWatchers，
+            // 否则磁盘 Layout.xml 恢复出来的旧可见性会盖掉本次改造）
+            LayoutHelper.LayoutLoaded += OnLayoutLoaded;
             this.solutionService = solutionService;
             this.Workspace = workspaceManager;
             this.flowEngine = flowEngine;

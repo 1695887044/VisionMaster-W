@@ -7,7 +7,18 @@
     <ImplicitUsings>enable</ImplicitUsings>
 	<LangVersion>preview</LangVersion>
     <UseWPF>true</UseWPF>
+    <!--
+      窗口/任务栏/Alt-Tab 图标。仓库此前**一份图标资源都没有**，所以主窗口与所有弹窗
+      显示的都是系统默认图标。ApplicationIcon 同时喂 exe 与"没显式设 Icon 的窗口"。
+      产物由 tools\bake_icons.ps1 烘焙（矢量源 → 逐尺寸原生渲染，16px 不是缩出来的）。
+    -->
+    <ApplicationIcon>Resources\Icons\visionmaster.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 帮助弹窗自己的窗口图标：HelpView.xaml 的 Dialog.WindowStyle 用 /VisionMaster;component/... 引它 -->
+    <Resource Include="Resources\Icons\help.ico" />
+  </ItemGroup>
 
   <ItemGroup>
 	<PackageReference Include="AvalonEdit" Version="6.3.1.120" />
@@ -92,6 +103,11 @@
          （2026-10-10 判据放宽为 State==Running，服务并行分支步骤的实时耗时上屏），
          断言直接调它验判据，不走反射——与 CheckLinkOrder 当年"反射直调"的别扭说再见。 -->
     <InternalsVisibleTo Include="FlowCanvasChecks" />
+    <!-- 渲染/主题冒烟（UIThemeSmokeTest）需要 LayoutHelper（internal）：它要对着 ShellCopy.xaml
+         实例化出来的真实 DockingManager 调 ApplyScadaPanelMode / IsPanelVisible，
+         验"组态三面板与算子工具箱按场景互斥"这条可见性矩阵。
+         不开放就等于只能写"XAML 里出现过这段字符串"——那种断言挡不住逻辑写反。 -->
+    <InternalsVisibleTo Include="UIThemeSmokeTest" />
   </ItemGroup>
 
 </Project>

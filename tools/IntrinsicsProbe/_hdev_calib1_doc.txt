@@ -1,0 +1,80 @@
+ 
+HDevelop User's Guide - 7.2.1 Introducing the Calibration Assistant of HDevelop 
+HALCON 23.05.0.0 / HDevelop User's Guide / Calibration Assistant 
+ &laquo; previous | next &raquo; 
+7.2.1 Introducing the Calibration Assistant of HDevelop 
+Most applications that need a previous calibration of the camera system belong to the area of 3D machine vision. These applications require a 3D model of the camera system. Calibration is necessary to gain information about distortions (perspective and lens distortions) in an image and about parameters of the camera system. Calibrating your camera system with the HALCON Calibration Assistant enables you to measure in the world coordinate system with a high accuracy. This task can be performed by taking images of a known object, a calibration plate.
+The Calibration Assistant of HDevelop is a front-end to HALCON's operator camera_calibration .
+Using the Calibration Assistant you can
+either perform a complete calibration or
+take advantage of the user-defined mode and only calibrate chosen parameters, if the rest is already known (for example, if you are using a special setting).
+All you need is a set of suitable calibration images (the number and requirements depend on the used calibration plate, please see the reference manual chapter &ldquo;Calibration&rdquo;).
+ The Calibration Assistant then returns the calibration results and enables you to generate code and insert it into a given program.
+The Calibration Assistant can calibrate vision systems based on standard lenses as well as on telecentric lenses .
+With the HALCON Calibration Assistant you can
+perform a calibration ,
+view the calibration results ,
+generate code for the calibration or for using the calibration results and insert it into a program for further use in a subsequent application.
+A reference to the elements of the Calibration Assistant can be found in the Calibration Assistant Reference .
+For further information about camera calibration, please refer to the reference manual chapter &ldquo;Calibration&rdquo; or the corresponding chapter in the solution guide on 3D Vision.
+ATTENTION: Keep your camera setup (aperture, focus, pose) fixed when you have chosen it! This applies to the calibration process itself as well as to the subsequent application. Any changes will result in the failure of the calibration or, even worse, in wrong output values. 
+In this guide, the following special terms are used:
+Calibration By calibrating a vision system, you extract information about it, for example, its focal length or its position and orientation relative
+ to the &ldquo;world&rdquo;. However, even with such information you cannot fully reconstruct the 3D world from a single image. For example, you can determine the
+ (3D) size of an object only if you know its distance from the vision system (when using a standard lens). Calibration is a preparation for all subsequent image processing applications. The Calibration Assistant needs to grab a set of images of a special calibration object placed in front of your
+ vision system. You can choose between a Full Calibration and a User-Defined Calibration , where known parameters are not calibrated again.
+Calibration Plate This is an object whose shape is known precisely. Two different types of standard HALCON calibration plates are available:
+ Calibration plates with hexagonally arranged marks and calibration plates with
+ rectangularly arranged marks. Transparent calibration
+ plates are available for applications requiring backlight
+ illumination. Additionally, the calibration plates are available in different sizes. Which calibration plate is suited
+ best depends on your machine vision task: As a rule of thumb, if you grab an
+ image of the plane of measurement, calibration plates with hexagonally
+ arranged marks should fill the whole image and calibration plates with rectangularly arranged marks
+ should fill a fourth of the image. The bigger calibration
+ plates (160mm and 320 mm for calibration plates with hexagonally arranged marks
+ and 100mm and 200mm for calibration plates with rectangularly arranged marks,
+ made from aluminum) come together with a file containing
+ their exact measurements
+ ( calplate_160mm.cpd , calplate_320mm.cpd , caltab_100mm.descr , and
+ caltab_200mm.descr ). Please copy this file to the subdirectory calib of
+ the HALCON base directory you chose during the installation. This is not
+ necessary for smaller (ceramics) calibration plates
+ as they can be manufactured very precisely and can therefore use standard
+ description files (.cpd files for calibration plates with hexagonally arranged
+ marks and .descr files for calibration plates with rectangularly arranged
+ marks). If you use your own calibration plate, you have to create the
+ description file yourself and copy it into the subdirectory calib .
+Calibration Plate Extraction Parameters These parameters influence the extraction of the calibration
+ plate. You may change them to improve the extraction of the plate if necessary. We
+ recommend, however, that you try to improve your image quality first.
+Camera Parameters Internal Camera Parameters describe the camera itself, for example, its Focal Length , Cell Width and Cell Height . These parameters are
+ part of the calibration results, initial values for some of them are also needed for the setup of the calibration.
+Camera Pose The position and orientation of the world coordinate system relative to the camera are called the external Camera Parameters . They are part of the calibration results.
+Display Parameters On the Calibration tab, you can choose the display parameters, like colors, as you prefer them. See also
+ Display Parameters .
+Full Calibration In a Full Calibration , the complete camera system is calibrated. The only information needed are approximate values for Camera Type ,
+ Cell Width , Cell Height and Focal Length as well as the question whether you are using a Telecentric 
+ camera (in which case the Focal Length is not required).
+Image Rectification Based on the calibration results, you can remove image distortions. This is called image rectification. Example code is available from the
+ Code Generation tab .
+Pose Estimation When the interior parameters are calibrated, it is possible to estimate the camera pose from a single image. Example code is available from the
+ Code Generation tab .
+Reference Image This image locates the world coordinate system, which then has its origin at the origin of the calibration plate in the reference image. The origin of the calibration plate
+ is the center of the central mark of the first finder pattern for calibration plates with hexagonally arranged marks and the middle
+ of the calibration plate for calibration plates with rectangularly arranged marks. By default, the first calibration image is used as the reference image. However, you can choose any other image of the calibration sequence.
+Standard Lenses A standard lens is similar to the one in the human eye: It performs a perspective projection ; hence, objects become smaller in the image the
+ further they are away.
+Telecentric Lenses Telecentric lenses perform a parallel projection . Therefore, objects have the same size in the image independent of their distance to a camera. This
+ means that they can lie in different planes; only the orientation of the planes relative to the camera must be identical.
+User-Defined Calibration The setup step Calibration Task provides a User-Defined Calibration , which enables you to perform calibrations with special setups or
+ re-use parameters from previous calibrations.
+World Coordinates Measurements and XLD contours can, after finishing the calibration, be transformed into (3D) world coordinates, meaning the
+ coordinates of the world (for example, in millimeters), as opposed to those of an image (in pixels). Example code is available from the Code Generation tab
+ under Sample Usage .
+Quality Issues A high quality of the calibration images is essential not only for the calibration itself but for the quality of the calibration results. Examples for
+ bad image quality are overexposure of the calibration plate , bad mark contrast or very small mark size. These quality issues are listed under Quality Issues on the Calibration tab. Sorting out images with too many defects improves the calibration
+ results.
+&laquo; previous | next &raquo; 
+Copyright &copy; 2023 MVTec Software GmbH 
+ Follow us on

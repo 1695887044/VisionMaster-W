@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Windows;
 using System.Xml.Linq;
 using UI.Core;
@@ -36,11 +37,6 @@ namespace VisionMaster.Services
         /// 工具箱从自动隐藏区改为常驻停靠栏"这类重排，ContentId 全部复用，
         /// 旧的 Layout.xml / .vms 内嵌布局照样通过覆盖度检查被原样恢复回来，
         /// 改造在老用户机器上等于没发生。版本属性就是 ContentId 之外的结构指纹。
-        ///
-        /// v3（2026-10-15）：左栏「程序 / 流程栏」由**并排两列**改为**一列上下堆叠**，
-        /// 且「流程画布」从左侧栏的标签页**搬进中央文档区**（与视觉图像 / 组态画面并列）。
-        /// 这次三个面板的 ContentId 一个没改，纯靠覆盖度校验完全拦不住旧布局——
-        /// 磁盘上那份 v2 的 Layout.xml 会把"画布还在左栏标签页里"的老排法原样恢复回来。
         /// </summary>
         private const int CurrentLayoutSchemaVersion = 3;
 
@@ -72,6 +68,10 @@ namespace VisionMaster.Services
             ["Panel_ScadaEditorView"] = () => new Views.ScadaEditorView(),
             ["Panel_ScadaToolboxView"] = () => new Views.ScadaToolboxView(),
             ["Panel_ScadaPropertyView"] = () => new Views.ScadaPropertyView(),
+            // 图层面板：原先漏登记。反序列化后 FillContents 靠本表回填内容，缺它 = 每次
+            // "从 Layout.xml 恢复布局"之后图层面板变空壳；而覆盖度校验只遍历本表的 Keys，
+            // 也不会因为缺它而拦下那份布局——属于"静默少一个面板"。
+            ["Panel_ScadaLayerView"] = () => new Views.ScadaLayerView(),
             // Panel_DeviceStateView：占位面板，无内容
         };
 
@@ -329,11 +329,17 @@ namespace VisionMaster.Services
         /// <summary>
         /// 按 ContentId 查找布局内容（含浮动窗口与隐藏面板）；找不到返回 null
         /// </summary>
-        public static LayoutContent FindPanel(string contentId)
+        public static LayoutContent FindPanel(string contentId) => FindPanel(FindManager(), contentId);
+
+        /// <summary>
+        /// <see cref="FindPanel(string)"/> 的指定宿主重载。
+        /// 为什么要有它：断言宿主（UIThemeSmokeTest）里的 Shell 窗口从不 Show，也不是
+        /// <c>Application.Current.MainWindow</c>，<see cref="FindManager"/> 在那里取不到管理器；
+        /// 只能显式把"它自己那份 DockingManager"传进来，否则运行时断言无从下手。
+        /// </summary>
+        public static LayoutContent FindPanel(DockingManager? manager, string contentId)
         {
             if (string.IsNullOrEmpty(contentId)) return null;
-
-            var manager = FindManager();
             if (manager == null) return null;
 
             return EnumerateContents(manager)
@@ -344,7 +350,13 @@ namespace VisionMaster.Services
         /// 面板当前是否可见（隐藏面板 / 关闭到自动隐藏区均视为不可见；文档选项卡常驻视为可见）
         /// </summary>
         public static bool IsPanelVisible(string contentId)
-            => FindPanel(contentId) is LayoutContent c
+            => IsPanelVisible(FindManager(), contentId);
+
+        /// <summary>
+        /// <see cref="IsPanelVisible(string)"/> 的指定宿主重载（断言宿主用）
+        /// </summary>
+        public static bool IsPanelVisible(DockingManager? manager, string contentId)
+            => FindPanel(manager, contentId) is LayoutContent c
                && (c is not LayoutAnchorable a || a.IsVisible);
 
         /// <summary>
@@ -356,22 +368,91 @@ namespace VisionMaster.Services
                && c.IsActive;
 
         /// <summary>
+        /// 文档面板是否是「中央文档区里当前选中的那个标签」（文档类型专用；停靠面板恒 false）。
+        ///
+        /// 为什么不能用 <see cref="IsPanelActive"/> 代替：<c>LayoutContent.IsActive</c> 表示
+        /// "整个 DockingManager 的当前活动内容"——用户点一下右侧的「属性」或「图层」面板，
+        /// 文档的 IsActive 就被抢走。拿它当"当前在组态设计"的判据会造成**自毁循环**：
+        /// 判定退出组态 → 随即隐藏用户刚点的那个面板。
+        /// <c>LayoutDocument.IsSelected</c> 只随"文档区的选中标签"变化，点停靠面板不会动它。
+        /// </summary>
+        public static bool IsDocumentSelected(string contentId)
+            => IsDocumentSelected(FindManager(), contentId);
+
+        /// <summary><see cref="IsDocumentSelected(string)"/> 的指定宿主重载（断言宿主用）</summary>
+        public static bool IsDocumentSelected(DockingManager? manager, string contentId)
+            => FindPanel(manager, contentId) is LayoutDocument d && d.IsSelected;
+
+        /// <summary>
+        /// 组态界面设计专属的三个面板（进入组态设计时显示，其余情况收起）。
+        /// 「属性」是"选中图元才有内容"的上下文面板，但它只在组态场景才有意义，故一并收敛。
+        /// </summary>
+        private static readonly string[] ScadaDesignPanels =
+        {
+            "Panel_ScadaPropertyView",   // 属性
+            "Panel_ScadaLayerView",      // 图层
+            "Panel_ScadaToolboxView",    // 图元工具箱
+        };
+
+        /// <summary>算子工具箱（非组态场景下唯一保留的右侧面板）</summary>
+        private const string OperatorToolboxPanel = "Panel_ToolView";
+
+        /// <summary>
+        /// 按"当前是否处于组态界面设计"收敛右侧面板：
+        ///   组态设计 → 显示 属性 / 图层 / 图元工具箱，隐藏 算子工具箱；
+        ///   其它情况 → 只显示 算子工具箱，属性与图层两列随之收成 0（画布变宽）。
+        ///
+        /// 为什么**先 Show 目标、再 Hide 对方**：「工具箱」与「图元工具箱」同处一个
+        /// <c>LayoutAnchorablePane</c> 做标签页——若先 Hide 再 Show，中间会出现"该 pane 两个子项
+        /// 都不可见"的瞬态，空 pane 的列宽会被置 0，表现为整列闪一下。先激活目标就没有这个窗口。
+        ///
+        /// 为什么放在这里而不是 ShellViewModel：断言宿主可以对着**它自己那份** <c>DockingManager</c>
+        /// 直接调用（见下面的指定宿主重载）、验证可见性矩阵；写在 VM 里就只能写"源码里有这段"这种弱断言。
+        ///
+        /// 注意：本方法只改**可见性**，不改任何面板的 pane 归属，因此不触发
+        /// <see cref="CurrentLayoutSchemaVersion"/> 递增（见 R43 的判据）。
+        /// </summary>
+        public static void ApplyScadaPanelMode(bool scadaDesign)
+            => ApplyScadaPanelMode(FindManager(), scadaDesign);
+
+        /// <summary><see cref="ApplyScadaPanelMode(bool)"/> 的指定宿主重载（断言宿主用）</summary>
+        public static void ApplyScadaPanelMode(DockingManager? manager, bool scadaDesign)
+        {
+            if (manager == null) return;
+
+            if (scadaDesign)
+            {
+                foreach (var id in ScadaDesignPanels) ShowPanel(manager, id);
+                HidePanel(manager, OperatorToolboxPanel);
+            }
+            else
+            {
+                ShowPanel(manager, OperatorToolboxPanel);
+                foreach (var id in ScadaDesignPanels) HidePanel(manager, id);
+            }
+        }
+
+        /// <summary>
         /// 隐藏指定面板（活动栏再次点击时收起；停靠面板切自动隐藏，文档切到其他标签）
         /// </summary>
-        public static void HidePanel(string contentId)
+        public static void HidePanel(string contentId) => HidePanel(FindManager(), contentId);
+
+        /// <summary><see cref="HidePanel(string)"/> 的指定宿主重载（断言宿主用）</summary>
+        public static void HidePanel(DockingManager? manager, string contentId)
         {
-            if (FindPanel(contentId) is LayoutAnchorable a && a.IsVisible)
+            if (FindPanel(manager, contentId) is LayoutAnchorable a && a.IsVisible)
                 a.IsVisible = false; // 文档选项卡无"收起"语义（只能切走），仅处理停靠面板
         }
 
         /// <summary>
         /// 激活指定面板（按 ContentId）：隐藏的恢复显示、被遮挡的切到前台
         /// </summary>
-        public static void ShowPanel(string contentId)
+        public static void ShowPanel(string contentId) => ShowPanel(FindManager(), contentId);
+
+        /// <summary><see cref="ShowPanel(string)"/> 的指定宿主重载（断言宿主用）</summary>
+        public static void ShowPanel(DockingManager? manager, string contentId)
         {
             if (string.IsNullOrEmpty(contentId)) return;
-
-            var manager = FindManager();
             if (manager == null) return;
 
             var content = EnumerateContents(manager)
@@ -379,9 +460,137 @@ namespace VisionMaster.Services
             if (content == null) return;
 
             // 停靠面板先恢复可见再激活；文档选项卡直接激活（切标签）
-            if (content is LayoutAnchorable anchorable && !anchorable.IsVisible)
-                anchorable.IsVisible = true;
+            if (content is LayoutAnchorable anchorable)
+                ShowAnchorable(manager, anchorable);
             content.IsActive = true;
+        }
+
+        /// <summary>
+        /// 让一个隐藏中的停靠面板重新可见——**不许在这外面直接写 <c>anchorable.IsVisible = true</c>**。
+        ///
+        /// 为什么要有这一层（2026-10-16 真机崩溃，栈落在 LayoutHelper.ShowPanel）：
+        /// AvalonDock 4.74.1 的 <c>LayoutAnchorable.Show()</c> 把 <c>Hide()</c> 时记下的"回哪一列、第几个位置"
+        /// （<see cref="ILayoutPreviousContainer"/>.PreviousContainer + 内部属性 PreviousContainerIndex）
+        /// 原样喂给 <c>Collection&lt;T&gt;.Insert</c>，**只判上界、不判下界**（index 超过子项数就改成追加，
+        /// 负数照样塞进去）。索引为 <c>-1</c> 时（记忆里那一列已经不含本面板，
+        /// <c>IndexOfChild(this)</c> 当场返回 -1）直接抛 <c>ArgumentOutOfRangeException</c>——真机那条栈。
+        /// 而"清空记忆"的赋值排在插入语句**之后**，异常一抛坏记忆永久留着，本面板此后每 Show 一次炸一次；
+        /// R56 又让"切中央文档区标签"就重收敛一次，等于把一次性故障放大成天天闪退
+        /// （<c>App</c> 没有 DispatcherUnhandledException 兜底，必退）。
+        /// 另一头更阴：记忆里那一列取不到时 <c>Show()</c> 整段跳过插入，不抛、也**不显示**（静默故障）。
+        ///
+        /// 口径：先用库自己的记忆判一次"这次 Show 落不落得回去"，落得回去就走原路（事件齐全）；
+        /// 判废、或原路抛了/压根没生效，就我们自己把它挂回一个仍挂在布局树上的 pane。
+        /// </summary>
+        private static void ShowAnchorable(DockingManager manager, LayoutAnchorable anchorable)
+        {
+            if (anchorable.IsVisible) return;
+            // 既不可见也不隐藏 = Parent 为 null（已从布局上摘干净）：Show() 这一态直接抛 InvalidOperationException
+            if (!anchorable.IsHidden) return;
+
+            var remembered = ReadPreviousContainer(anchorable);
+            var rememberedIndex = ReadPreviousContainerIndex(anchorable);
+
+            // 记忆判废（索引为负、或那一列已经不在当前这棵树上）就不许让库自己插。
+            // 索引反射不到（库版本改了内部属性）时 rememberedIndex 为 null，算"不知道"：让库自己试，抛了照样走修复。
+            bool memoryUnusable = rememberedIndex < 0
+                || (remembered != null && !IsAttachedTo(remembered, manager.Layout));
+
+            if (!memoryUnusable)
+            {
+                try
+                {
+                    anchorable.IsVisible = true;
+                    if (anchorable.IsVisible) return; // 真显示出来了才算成功（记忆为空时库会静默跳过插入）
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"面板 {anchorable.ContentId} 按记忆恢复失败，改用显式挂回：{ex.Message}");
+                }
+            }
+
+            AnchorToHomePane(manager, anchorable, remembered);
+        }
+
+        /// <summary>
+        /// 读 <c>PreviousContainer</c>：出货程序集里它是 <see cref="LayoutContent"/> 上的
+        /// **protected 属性**（getter 非公开；公开接口 <c>ILayoutPreviousContainer</c> 是 internal、
+        /// 外部程序集转不过去——2026-10-16 实测：写成接口强转会 CS0122 编译不过，
+        /// 写成 <c>GetField("PreviousContainer")</c> 会返回 null 静默失效）。
+        /// 取不到返回 null，调用方据此退回"让库自己试"的老路径。**反射只读、不改写库的状态。**
+        /// </summary>
+        private static ILayoutContainer? ReadPreviousContainer(LayoutAnchorable anchorable)
+        {
+            for (var type = anchorable.GetType(); type != null && type != typeof(object); type = type.BaseType)
+            {
+                var property = type.GetProperty("PreviousContainer",
+                    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                if (property?.GetValue(anchorable) is ILayoutContainer container) return container;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 读 <c>PreviousContainerIndex</c>：出货程序集里这条记忆是**公开属性**（基类
+        /// <see cref="LayoutContent"/> 上，属性名同名、底层字段是 <c>_previousContainerIndex</c>）——
+        /// 所以 <c>GetField("PreviousContainerIndex")</c> 同样取不到，必须走属性。
+        /// 取不到返回 null，调用方据此退回"让库自己试"的老路径。**反射只读、不改写库的状态。**
+        /// </summary>
+        private static int? ReadPreviousContainerIndex(LayoutAnchorable anchorable)
+        {
+            for (var type = anchorable.GetType(); type != null && type != typeof(object); type = type.BaseType)
+            {
+                var property = type.GetProperty("PreviousContainerIndex",
+                    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                if (property?.GetValue(anchorable) is int index) return index;
+            }
+            return null;
+        }
+
+        /// <summary>容器是否还挂在这棵布局树上（被 Hide 掏空、或反序列化后作废的 pane 的 Root 取不到当前 LayoutRoot）</summary>
+        private static bool IsAttachedTo(ILayoutContainer container, LayoutRoot root)
+            => ReferenceEquals((container as ILayoutElement)?.Root, root);
+
+        /// <summary>
+        /// 显式把隐藏的面板挂回布局树。落点四档：① 记忆里那一列**且它是空的**（被 Hide 掏空的原列，位置最准）；
+        /// ② 树上第一个空列（本仓设计里被收起的面板都会留下一个空列，<c>Hide()</c> 并不摘除 pane 本身）；
+        /// ③ 记忆里那一列（非空也认，宁可当标签页——至少还在同一侧）；
+        /// ④ 兜底：在根面板末尾新加一列（宁可宽度不对、位置偏右，也不能让面板显示不出来）。
+        /// 为什么要区分"空/非空"：走得到这里说明那条记忆已经判废（索引 -1 多半是"记忆里的列不含本面板"），
+        /// 非空的记忆列很可能压根不是它的家，把它塞进去只是次优解，不如先找一个空列。
+        /// 统一走 <c>InsertChildAt(ChildrenCount, …)</c>——与 <c>Show()</c> 成功路径同一个动作，
+        /// <c>Parent</c> 由集合变更回调赋值，<c>Hidden</c> 的收尾照库自己的路子走。
+        /// 修复之后再 Hide 一次，库会把有效索引重新记回去（本方法不在本仓留任何私有状态）。
+        /// </summary>
+        private static void AnchorToHomePane(DockingManager manager, LayoutAnchorable anchorable, ILayoutContainer? remembered)
+        {
+            // 库可能在抛异常**之前**已经把它插进去了（异常出在插入之后的语句），此时再插一次就是同一 pane 两个副本
+            if (anchorable.IsVisible) return;
+
+            var root = manager.Layout;
+            var rememberedGroup = remembered as ILayoutGroup;
+            bool rememberedUsable = rememberedGroup != null && IsAttachedTo(rememberedGroup, root);
+
+            var emptyRemembered = rememberedUsable && rememberedGroup!.ChildrenCount == 0 ? rememberedGroup : null;
+            var anyEmpty = root.Descendents()
+                .OfType<LayoutAnchorablePane>()
+                .FirstOrDefault(p => p.ChildrenCount == 0 && IsAttachedTo(p, root));
+            var home = emptyRemembered ?? anyEmpty ?? (rememberedUsable ? rememberedGroup : null);
+
+            if (home != null)
+            {
+                home.InsertChildAt(home.ChildrenCount, anchorable);
+                anchorable.IsSelected = true;
+                anchorable.IsActive = true;
+                return;
+            }
+
+            if (root.RootPanel == null) return;
+            var newPane = new LayoutAnchorablePane(anchorable) { DockWidth = new GridLength(260) };
+            root.RootPanel.InsertChildAt(root.RootPanel.ChildrenCount, newPane);
+            anchorable.IsSelected = true;
+            anchorable.IsActive = true;
+            Console.WriteLine($"面板 {anchorable.ContentId} 找不到可用的列，已在根面板末尾新建一列承载");
         }
 
         /// <summary>
@@ -404,14 +613,15 @@ namespace VisionMaster.Services
         /// </summary>
         private static void EnsureCriticalPanelsVisible(DockingManager manager)
         {
-            foreach (var content in EnumerateContents(manager))
+            // 先快照：恢复可见会动布局树（挂回原列/新建列），拿惰性迭代器边遍历边改就是自毁
+            foreach (var content in EnumerateContents(manager).ToList())
             {
-                if (!CriticalPanelContentIds.Contains(content.ContentId)) continue;
-                if (content is LayoutAnchorable anchorable && !anchorable.IsVisible)
-                {
-                    anchorable.IsVisible = true;
-                    Console.WriteLine($"关键面板 {content.ContentId} 从 Hidden 区强制恢复可见");
-                }
+                if (content is not LayoutAnchorable anchorable) continue;
+                if (!CriticalPanelContentIds.Contains(anchorable.ContentId)) continue;
+                if (anchorable.IsVisible) continue;
+
+                ShowAnchorable(manager, anchorable);
+                Console.WriteLine($"关键面板 {anchorable.ContentId} 从 Hidden 区强制恢复可见（{(anchorable.IsVisible ? "成功" : "失败：仍未显示")}）");
             }
         }
 

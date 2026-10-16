@@ -324,9 +324,12 @@
                         Foreground="{StaticResource PanelMutedBrush}"
                         Text="本次运行" />
 
+                    <!--  Padding 显式归零：不挂样式的按钮吃 Fluent 隐式 Button 样式的 11,5,11,6 内边距，  -->
+                    <!--  24×24 的格子只剩 2×11，「×」会被模板里带圆角的 Border 切掉（探针实测内容区 0×11）。  -->
                     <Button
                         Width="24"
                         Height="24"
+                        Padding="0"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Background="Transparent"

@@ -32,6 +32,7 @@ namespace FlowCanvasChecks
             SessionReplacementAndSolutionSwitchClearHub();
             ExitChainCanTimeOut();
             StartupChainTimeoutIsNotFatal();
+            CommunicationCheckRunsAfterShell();
             BindingWritesGoThroughNotifyingApi();
             CSharpScriptRefusesNativeDlls();
             RunGuardsAreInPlace();
@@ -190,6 +191,70 @@ namespace FlowCanvasChecks
             Check("★未声明放行的项，超时仍按 Error 阻断启动（默认口径没被改掉）",
                 !strictResult.Success && strictResult.BlockingReason != null && strictResult.BlockingReason.Contains("超时"),
                 $"Success={strictResult.Success}，BlockingReason={strictResult.BlockingReason ?? "(无)"}");
+        }
+
+        // ==================================================================
+        //  [E18] 通讯连通性：不站在启动关键路径上，改为主窗口显示后后台跑
+        // ==================================================================
+        /// <summary>
+        /// 2026-10-16 用户问"启动自检串行太慢，能不能并行"。查下来最大的收益不是并行，而是
+        /// 把"只报不拦"的通讯连通性检测挪出启动链：它全部失败出口都是 Warning，代价却是
+        /// 3 秒追赶窗口 + 每条最多 3 秒（总预算 12 秒）。
+        /// 这套约定全是静默失效型的——有人把 RegisterCheck 加回去、或删掉后台那一次调用，
+        /// 编译都照过，只是启动又慢回去（或者通讯再也不被检测）。所以五条断言逐个钉住：
+        /// ①链上不许有它 ②OnInitialized 必须真的跑一次 ③OnExit 必须叫停 ④它仍全 Warning
+        /// （前提一旦变成 Error 就该回链上）⑤其余五项不许被顺手一起删。
+        /// </summary>
+        private static void CommunicationCheckRunsAfterShell()
+        {
+            Section("[E18] 通讯连通性：移出启动链 + 主窗口显示后后台跑一次");
+
+            var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\.."));
+            var appPath = Path.Combine(repoRoot, @"VisionMaster\App.xaml.cs");
+            var checkPath = Path.Combine(repoRoot, @"VisionMaster\Lifetime\Checks\CommunicationCheck.cs");
+            var app = File.Exists(appPath) ? File.ReadAllText(appPath) : "";
+            var check = File.Exists(checkPath) ? File.ReadAllText(checkPath) : "";
+
+            Check("★启动自检链里没有通讯连通性（RegisterCheck 不许加回来）",
+                app.Length > 0 && !app.Contains("RegisterCheck(new CommunicationCheck"),
+                app.Length == 0 ? "App.xaml.cs 没找到" : "链上注册行存在=启动又慢回去");
+
+            var onInitialized = MethodBody(app, "protected override void OnInitialized()");
+            Check("主窗口显示后确实跑一次（OnInitialized 里调用后台入口）",
+                onInitialized.Contains("RunCommunicationCheckInBackground()"),
+                $"OnInitialized 体长={onInitialized.Length}");
+
+            var onExit = MethodBody(app, "protected override void OnExit(ExitEventArgs e)");
+            Check("退出时叫停后台检测（不许在关闭过程中继续碰连接管理器）",
+                onExit.Contains("_postStartupCts.Cancel()"),
+                $"OnExit 体长={onExit.Length}");
+
+            // 反向前提：这个挪动成立的全部理由是"它只出 Warning"。哪天它开始拦启动，就必须回链上。
+            int errorInCheck = check.Split(new[] { "CheckLevel.Error" }, StringSplitOptions.None).Length - 1;
+            Check("★它的所有失败出口仍全是 Warning（变成 Error 就该回启动链，这条会红提醒你）",
+                errorInCheck == 0 && check.Contains("CheckLevel.Warning"),
+                $"CheckLevel.Error 出现 {errorInCheck} 次 / Warning 存在={check.Contains("CheckLevel.Warning")}");
+
+            // 反向：只挪走这一项，其余五项（单实例/配置/HALCON/插件扫描/帮助手册）必须还在链上
+            int registered = app.Split(new[] { "RegisterCheck(" }, StringSplitOptions.None).Length - 1;
+            Check("其余启动自检项没被顺手删掉（链上仍有 5 项注册）",
+                registered == 5, $"RegisterCheck( 出现 {registered} 次（含 _singleInstance 那一次）");
+        }
+
+        /// <summary>取某个方法的源码体（从签名后的第一个 { 起按花括号配对截）；找不到返回空串</summary>
+        private static string MethodBody(string source, string signature)
+        {
+            int at = source.IndexOf(signature, StringComparison.Ordinal);
+            if (at < 0) return "";
+            int open = source.IndexOf('{', at);
+            if (open < 0) return "";
+            int depth = 0;
+            for (int i = open; i < source.Length; i++)
+            {
+                if (source[i] == '{') depth++;
+                else if (source[i] == '}' && --depth == 0) return source.Substring(open, i - open + 1);
+            }
+            return source.Substring(open);
         }
 
         /// <summary>超时按 Warning 放行的慢自检项（模拟插件扫描）</summary>

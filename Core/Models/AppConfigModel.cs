@@ -412,6 +412,16 @@ namespace VisionMaster.Models
         /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路（AppConfigModel.cs 三次踩坑史）。
         /// </summary>
         public ToolboxSettings Toolbox { get; set; } = new();
+
+        /// <summary>
+        /// 帮助手册的阅读态（开发章节显隐），见 <see cref="HelpSettings"/>。
+        ///
+        /// <b>不能为 null</b>：与上面几节同一理由——HelpViewModel 打开时会直接点着用
+        /// （<c>Current.Help.ShowDeveloperDocs</c>），而老版本的 AppConfig.json 里没有这个节，
+        /// Newtonsoft 遇到缺失的引用类型只留 null 不会自动 new。
+        /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路。
+        /// </summary>
+        public HelpSettings Help { get; set; } = new();
     }
 
     /// <summary>
@@ -451,6 +461,27 @@ namespace VisionMaster.Models
         /// 插件升级/卸载后老配置里的类型名会失效，留着只会在界面上多出一个拖不动的死条目。
         /// </summary>
         public List<string> Favorites { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 帮助手册的阅读态（AppConfig.json 的 <c>Help</c> 节）。
+    ///
+    /// 为什么开发章节要留开关（而不是"干脆不打进 DLL"）：插件手册随插件程序集内嵌分发，
+    /// 软件在启动时把所有插件的手册合并成一本书（见 <c>HelpCatalogService</c>）。
+    /// "方便以后全局合并"要求<b>加载永远是全量的</b>——同一个 DLL 在不同配置下交出两份不同的目录，
+    /// 接手合并的人就无法假设"这本书是完整的"。所以裁剪发生在<b>显示</b>层而不是加载层：
+    /// 开发章节照常收集、照常进目录，只是默认不在目录里显示。
+    ///
+    /// 默认 <c>false</c>（= 现场操作员看到的那本书与改版之前逐字一致）：
+    /// 一次升级不该把内部实现细节忽然摊给产线上查手册的人。
+    /// </summary>
+    public class HelpSettings
+    {
+        /// <summary>
+        /// 是否在帮助目录里显示<b>开发章节</b>（文件名带 <c>dev-</c> 标记的那些页，
+        /// 讲实现原理、宿主契约与移植清单，见 <c>HelpCatalogService.DeveloperPageMark</c>）。
+        /// </summary>
+        public bool ShowDeveloperDocs { get; set; } = false;
     }
 
     /// <summary>

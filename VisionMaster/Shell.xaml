@@ -753,51 +753,23 @@
                     Style="{StaticResource WindowControlButton}" />
                 <Button
                     Command="{x:Static SystemCommands.CloseWindowCommand}"
-                    Content="M 0 0 L 10 10 M 0 10 L 0 10"
+                    Content="M 0 0 L 10 10 M 0 10 L 10 0"
                     Style="{StaticResource WindowControlButton}"
                     Tag="Close" />
             </StackPanel>
         </Grid>
 
-        <!--  ============ 主体：活动栏 + 停靠区 ============  -->
+        <!--  ============ 主体：停靠区（活动栏已于 2026-10-15 整条下线） ============  -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="48" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="48" />
             </Grid.ColumnDefinitions>
 
-            <!--  活动栏（左）：只管左侧停靠栏里的面板，图标与落点同侧  -->
-            <!--  2026-10-15 拆分：原来一条竖条塞了 5 个面板开关，其中「工具箱/图元工具箱/图层」  -->
-            <!--  管的面板在右侧停靠栏——点最左边图标、面板从最右边冒出来，图标不再指示落点。  -->
-            <!--  现按"活动栏放在它所管面板的那一侧"拆成左右两条（VS Code 惯例）：左条只留左栏两项。  -->
-            <!--  原来底部那两个命令按钮（全局变量/通讯设置）已上移到顶部横条——它们是命令、没有面板落点。  -->
-            <Border
-                Background="#F7F8FA"
-                BorderBrush="#E5E5E5"
-                BorderThickness="0,0,1,0">
-                <StackPanel>
-                    <ToggleButton
-                        Command="{Binding TogglePanelCommand}"
-                        CommandParameter="Panel_FlowListView"
-                        Content="&#xf00b;"
-                        IsChecked="{Binding IsFlowListActive, Mode=OneWay}"
-                        Style="{StaticResource ActivityToggle}"
-                        ToolTip="程序" />
-                    <ToggleButton
-                        Command="{Binding TogglePanelCommand}"
-                        CommandParameter="Panel_ProcessView"
-                        Content="&#xf0e8;"
-                        IsChecked="{Binding IsProcessActive, Mode=OneWay}"
-                        Style="{StaticResource ActivityToggle}"
-                        ToolTip="流程栏" />
-                </StackPanel>
-            </Border>
 
             <!--  停靠区（FluentLight 主题在代码后台应用）  -->
             <avalonDock:DockingManager
                 x:Name="dockManager"
-                Grid.Column="1"
+                Grid.Column="0"
                 AllowMixedOrientation="True"
                 AutoWindowSizeWhenOpened="True"
                 IsVirtualizingAnchorable="True"
@@ -951,43 +923,6 @@
                     </avalonDock:LayoutPanel>
                 </avalonDock:LayoutRoot>
             </avalonDock:DockingManager>
-
-            <!--  活动栏（右）：只管右侧停靠栏里的面板（工具箱 / 图元工具箱 / 图层）  -->
-            <!--  为什么新增一条而不是把这三个图标留在左侧：图标要贴在它所管面板的旁边——  -->
-            <!--  否则"点最左边、面板从最右边出来"，图标就丧失了"落点指示"这个根本语义。  -->
-            <!--  为什么只有这三个：右侧三栏里「属性」(ScadaPropertyView) 是"选中图元才有内容"的  -->
-            <!--  上下文面板，历来没有活动栏项，本轮也不新增（避免为它多占一个图标位）。  -->
-            <Border
-                Grid.Column="2"
-                Background="#F7F8FA"
-                BorderBrush="#E5E5E5"
-                BorderThickness="1,0,0,0">
-                <StackPanel>
-                    <ToggleButton
-                        Command="{Binding TogglePanelCommand}"
-                        CommandParameter="Panel_ToolView"
-                        Content="&#xf552;"
-                        IsChecked="{Binding IsToolboxActive, Mode=OneWay}"
-                        Style="{StaticResource ActivityToggle}"
-                        ToolTip="工具箱" />
-                    <!--  f1fc = draw-polygon（矢量图元），与菜单里组态画面同一码位、同字体  -->
-                    <ToggleButton
-                        Command="{Binding TogglePanelCommand}"
-                        CommandParameter="Panel_ScadaToolboxView"
-                        Content="&#xf1fc;"
-                        IsChecked="{Binding IsScadaToolboxActive, Mode=OneWay}"
-                        Style="{StaticResource ActivityToggle}"
-                        ToolTip="图元工具箱" />
-                    <!--  f5fd = layer-group，与画布右键菜单「图层」子菜单同一码位、同字体  -->
-                    <ToggleButton
-                        Command="{Binding TogglePanelCommand}"
-                        CommandParameter="Panel_ScadaLayerView"
-                        Content="&#xf5fd;"
-                        IsChecked="{Binding IsScadaLayerActive, Mode=OneWay}"
-                        Style="{StaticResource ActivityToggle}"
-                        ToolTip="图层" />
-                </StackPanel>
-            </Border>
         </Grid>
 
         <!--  ============ 状态栏（VS Code 式） ============  -->

@@ -1,0 +1,1158 @@
+ 
+Calibration [HALCON Operator Reference / Version 23.05.0.0] 
+HALCON
+ 23.05.0.0 / HALCON Operator Reference 
+HDevelop 
+ .NET 
+ Python 
+ C++ 
+ C 
+Classes Classes | | Operators 
+Calibration 
+ List of Sections ↓ 
+ This chapter provides information regarding camera calibration.
+General Objectives 
+To achieve maximum accuracy of measurement for your camera setup, you have
+to calibrate it accordingly.
+Therefore, a camera model is determined, which describes the projection
+of a 3D world point into a (sub-)pixel in the image.
+HALCON provides a wide range of operators to approach diverse tasks related
+to calibration, such as
+describing and finding a calibration object
+( Calibration / Calibration Object ),
+the projection of points from the 3D scene onto the image plane and
+the other way around ( Calibration / Projection ,
+ Calibration / Inverse Projection ),
+compensating perspective and radial distortions
+( Calibration / Rectification ),
+handling the camera parameters
+( Calibration / Camera Parameters ),
+performing a self-calibration
+( Calibration / Self-Calibration ), and
+calibrating different setups consisting of
+one camera ( Calibration / Monocular ),
+multiple cameras ( Calibration / Binocular ,
+ Calibration / Multi-View ), or
+a camera in combination with a robot
+( Calibration / Hand-Eye ).
+This chapter gives guidance regarding the basic
+concept of retrieving the internal and external parameters of your camera.
+The following paragraphs state how to successfully calibrate a camera.
+In particular, they describe
+the needed calibration object,
+the individual steps to calibrate the cameras, including
+how to prepare the calibration input data,
+how to perform the actual calibration with
+ calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras , and
+how to check the success of the calibration,
+the camera parameters,
+additional information about the calibration process, including
+how to obtain an appropriate calibration plate,
+how to take a set of suitable images, and
+which distortion model to use,
+the available 3D camera models and how 3D points are transformed
+into the image coordinate system, and
+limitations related to specific camera types.
+Calibration Object 
+ For a successful calibration of your camera setup, at least one calibration
+object with accurately known metric properties is needed, e.g., a HALCON
+calibration plate.
+For the calibration, take a series of images of the calibration
+object in different positions and orientations.
+The success of the calibration highly depends on the quality of the
+calibration object and the images. So you might want to exercise special
+diligence during the acquisition of the calibration images.
+See the section “How to take a set of suitable images?” for further
+information.
+A calibration plate is covered by multiple calibration marks, which are
+extracted in the calibration images in order to retrieve their coordinates.
+The orientation of the plate has to be known distinctively, hence, a
+finder pattern is also part of the imprint.
+Your distributor can provide you with two different types of standard
+HALCON calibration plates:
+Calibration plate with hexagonally arranged marks: 
+As finder pattern, there are special groups of mark hexagons where some of
+the marks contain dot-shaped holes (see create_caltab create_caltab CreateCaltab CreateCaltab CreateCaltab create_caltab ).
+One finder pattern has to be visible to locate the calibration plate.
+To make sure the plate is not inverted, at least a second one needs to be
+seen, but the plate does not have to be fully visible in the image.
+The origin of the coordinate system is located at the center of the central
+mark of the first finder pattern.
+The z-axis of the coordinate system is pointing into
+the calibration plate, its x-axis is pointing to the right, and
+its y-axis is pointing downwards with the direction of view along
+the z-axis.
+When using camera_calibration camera_calibration CameraCalibration CameraCalibration CameraCalibration camera_calibration instead of
+ calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras , this calibration plate is not applicable.
+HALCON calibration plate with hexagonally arranged marks.
+Calibration plate with rectangularly arranged marks: 
+The finder pattern consists of the surrounding frame and the triangular
+corner marker (see gen_caltab gen_caltab GenCaltab GenCaltab GenCaltab gen_caltab ).
+Thus, the plate has to be fully visible in the image.
+The origin is located in the middle of the surface of the calibration plate.
+The z-axis of the coordinate system is pointing into
+the calibration plate, its x-axis is pointing to the right, and
+its y-axis is pointing downwards with the direction of view along
+the z-axis.
+HALCON calibration plate with rectangularly arranged marks.
+When acquiring your calibration images, note that there are different
+recommendations on how to take them, depending on your used calibration
+plate (see section “How to take a set of suitable images?”).
+Preparing the Calibration Input Data 
+ Before calling a calibration operator (e.g., calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras ), you
+must create and adapt the calibration data model with the following steps:
+Create a calibration data model with the operator
+ create_calib_data create_calib_data CreateCalibData CreateCalibData CreateCalibData create_calib_data , specifying the number of cameras in the
+setup and the number of used calibration objects.
+Specify the camera type and the initial internal
+ camera parameters with the operator
+ set_calib_data_cam_param set_calib_data_cam_param SetCalibDataCamParam SetCalibDataCamParam SetCalibDataCamParam set_calib_data_cam_param .
+Specify the description of all calibration objects 
+with the operator set_calib_data_calib_object set_calib_data_calib_object SetCalibDataCalibObject SetCalibDataCalibObject SetCalibDataCalibObject set_calib_data_calib_object .
+Collect observation data with the operators
+ find_calib_object find_calib_object FindCalibObject FindCalibObject FindCalibObject find_calib_object or set_calib_data_observ_points set_calib_data_observ_points SetCalibDataObservPoints SetCalibDataObservPoints SetCalibDataObservPoints set_calib_data_observ_points ,
+i.e., obtain the image coordinates of the extracted calibration marks of
+the calibration object and a roughly estimated pose of the
+calibration object relative to the observing camera.
+Configure the calibration process , e.g., exclude certain
+camera parameters from the optimization.
+You can specify these parameters with the operator set_calib_data set_calib_data SetCalibData SetCalibData SetCalibData set_calib_data .
+For example, if the image sensor cell size of camera 0 is known precisely
+and only the rest of the parameters needs to be calibrated, you call
+set_calib_data(CalibDataID, 'camera', 0, 'excluded_settings', ['sx','sy']) set_calib_data(CalibDataID, "camera", 0, "excluded_settings", ["sx","sy"]) SetCalibData(CalibDataID, "camera", 0, "excluded_settings", ["sx","sy"]) SetCalibData(CalibDataID, "camera", 0, "excluded_settings", ["sx","sy"]) SetCalibData(CalibDataID, "camera", 0, "excluded_settings", ["sx","sy"]) set_calib_data(CalibDataID, "camera", 0, "excluded_settings", ["sx","sy"]) .
+Performing the Actual Camera Calibration and Obtaining its Results 
+Using all the information stored within the calibration data model, the
+actual calibration can be performed calling calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras .
+Thereby, the input model is modified by optimizing the initial internal
+camera parameters, computing and adding further data like the external
+camera parameters or standard deviations.
+Furthermore, the standard deviations and covariances of the calibrated
+internal parameters and the root mean square error of the back projection
+are calculated in order to check the success of the calibration.
+The results can then be queried with the operator get_calib_data get_calib_data GetCalibData GetCalibData GetCalibData get_calib_data .
+Checking the Success of the Calibration 
+ After a successful calibration, the root mean square error (RMSE) of
+the back projection of the optimization is returned in
+ Error Error Error Error error error (in pixels). The error gives a general indication
+whether the optimization was successful as it corresponds to the average
+distance (in pixels) between the back projected calibration points and their
+extracted image coordinates.
+If only a single camera is calibrated, an Error Error Error Error error error in the
+order of 0.1 pixel (the typical detection error by extraction of the
+coordinates of the projected calibration markers) is an indication
+that the optimization fits the observation data well. If
+ Error Error Error Error error error strongly differs from 0.1 pixels, the calibration did
+not perform well. Reasons for this might be, e.g., a poor image
+quality, an insufficient number of calibration images, or an
+inaccurate calibration plate.
+For information about how to check the success of the calibration
+using a multi-view camera setup, see the respective section in the
+chapter Calibration / Multi-View .
+Camera Parameters 
+ Regarding camera parameters, you can distinguish between internal and
+external camera parameters.
+Internal camera parameters: 
+These parameters describe the characteristics of the used camera,
+especially the dimension of the sensor itself and the projection
+properties of the used combination of lens, camera, and frame
+grabber. Below is an overview of all available camera types and
+their respective parameters CameraParam . In the list,
+“projective cameras” refers to the property that the lens
+performs a perspective projection on the object-side of the lens,
+while “telecentric cameras” refers to the property that the lens
+performs a telecentric projection on the object-side of the lens.
+Area scan cameras 
+have 9 to 16 internal parameters depending on the camera type.
+For reasons explained below, parameters that are marked with an *
+asterisk are fixed and not estimated by the algorithm.
+Area scan cameras with regular lenses 
+Projective area scan cameras with regular lenses 
+'area_scan_division' "area_scan_division" "area_scan_division" "area_scan_division" "area_scan_division" "area_scan_division" :
+ ['area_scan_division', Focus, Kappa, Sx, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_division", Focus, Kappa, Sx, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_division", Focus, Kappa, Sx, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_division", Focus, Kappa, Sx, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_division", Focus, Kappa, Sx, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_division", Focus, Kappa, Sx, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] 
+'area_scan_polynomial' "area_scan_polynomial" "area_scan_polynomial" "area_scan_polynomial" "area_scan_polynomial" "area_scan_polynomial" :
+ ['area_scan_polynomial', Focus, K1, K2, K3, P1, P2,
+ Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] 
+Telecentric area scan cameras with regular lenses 
+'area_scan_telecentric_division' "area_scan_telecentric_division" "area_scan_telecentric_division" "area_scan_telecentric_division" "area_scan_telecentric_division" "area_scan_telecentric_division" :
+ ['area_scan_telecentric_division', Magnification,
+ Kappa, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_division", Magnification,
+ Kappa, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_division", Magnification,
+ Kappa, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_division", Magnification,
+ Kappa, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_division", Magnification,
+ Kappa, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_division", Magnification,
+ Kappa, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] 
+'area_scan_telecentric_polynomial' "area_scan_telecentric_polynomial" "area_scan_telecentric_polynomial" "area_scan_telecentric_polynomial" "area_scan_telecentric_polynomial" "area_scan_telecentric_polynomial" :
+ ['area_scan_telecentric_polynomial', Magnification,
+ K1, K2, K3, P1, P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_polynomial", Magnification,
+ K1, K2, K3, P1, P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_polynomial", Magnification,
+ K1, K2, K3, P1, P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_polynomial", Magnification,
+ K1, K2, K3, P1, P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_polynomial", Magnification,
+ K1, K2, K3, P1, P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_telecentric_polynomial", Magnification,
+ K1, K2, K3, P1, P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] 
+Area scan cameras with tilt lenses 
+Projective area scan cameras with tilt lenses 
+'area_scan_tilt_division' "area_scan_tilt_division" "area_scan_tilt_division" "area_scan_tilt_division" "area_scan_tilt_division" "area_scan_tilt_division" :
+ ['area_scan_tilt_division', Focus, Kappa,
+ ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_division", Focus, Kappa,
+ ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_division", Focus, Kappa,
+ ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_division", Focus, Kappa,
+ ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_division", Focus, Kappa,
+ ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_division", Focus, Kappa,
+ ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] 
+'area_scan_tilt_polynomial' "area_scan_tilt_polynomial" "area_scan_tilt_polynomial" "area_scan_tilt_polynomial" "area_scan_tilt_polynomial" "area_scan_tilt_polynomial" :
+ ['area_scan_tilt_polynomial', Focus, K1, K2, K3, P1,
+ P2, ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight] ["area_scan_tilt_polynomial", Focus, K1, K2, K3, P1,
+ P2, ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight] ["area_scan_tilt_polynomial", Focus, K1, K2, K3, P1,
+ P2, ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight] ["area_scan_tilt_polynomial", Focus, K1, K2, K3, P1,
+ P2, ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight] ["area_scan_tilt_polynomial", Focus, K1, K2, K3, P1,
+ P2, ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight] ["area_scan_tilt_polynomial", Focus, K1, K2, K3, P1,
+ P2, ImagePlaneDist, Tilt, Rot, Sx, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight] 
+'area_scan_tilt_image_side_telecentric_division' "area_scan_tilt_image_side_telecentric_division" "area_scan_tilt_image_side_telecentric_division" "area_scan_tilt_image_side_telecentric_division" "area_scan_tilt_image_side_telecentric_division" "area_scan_tilt_image_side_telecentric_division" :
+['area_scan_tilt_image_side_telecentric_division',
+ Focus, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_division",
+ Focus, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_division",
+ Focus, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_division",
+ Focus, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_division",
+ Focus, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_division",
+ Focus, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight] 
+'area_scan_tilt_image_side_telecentric_polynomial' "area_scan_tilt_image_side_telecentric_polynomial" "area_scan_tilt_image_side_telecentric_polynomial" "area_scan_tilt_image_side_telecentric_polynomial" "area_scan_tilt_image_side_telecentric_polynomial" "area_scan_tilt_image_side_telecentric_polynomial" :
+['area_scan_tilt_image_side_telecentric_polynomial',
+ Focus, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_polynomial",
+ Focus, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_polynomial",
+ Focus, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_polynomial",
+ Focus, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_polynomial",
+ Focus, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_image_side_telecentric_polynomial",
+ Focus, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] 
+Telecentric area scan cameras with tilt lenses 
+'area_scan_tilt_bilateral_telecentric_division' "area_scan_tilt_bilateral_telecentric_division" "area_scan_tilt_bilateral_telecentric_division" "area_scan_tilt_bilateral_telecentric_division" "area_scan_tilt_bilateral_telecentric_division" "area_scan_tilt_bilateral_telecentric_division" :
+['area_scan_tilt_bilateral_telecentric_division',
+ Magnification, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_division",
+ Magnification, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_division",
+ Magnification, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_division",
+ Magnification, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_division",
+ Magnification, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_division",
+ Magnification, Kappa, Tilt, Rot, Sx*, Sy*, Cx, Cy,
+ ImageWidth, ImageHeight] 
+'area_scan_tilt_bilateral_telecentric_polynomial' "area_scan_tilt_bilateral_telecentric_polynomial" "area_scan_tilt_bilateral_telecentric_polynomial" "area_scan_tilt_bilateral_telecentric_polynomial" "area_scan_tilt_bilateral_telecentric_polynomial" "area_scan_tilt_bilateral_telecentric_polynomial" :
+['area_scan_tilt_bilateral_telecentric_polynomial',
+ Magnification, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] ["area_scan_tilt_bilateral_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, Tilt, Rot, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight] 
+'area_scan_tilt_object_side_telecentric_division' "area_scan_tilt_object_side_telecentric_division" "area_scan_tilt_object_side_telecentric_division" "area_scan_tilt_object_side_telecentric_division" "area_scan_tilt_object_side_telecentric_division" "area_scan_tilt_object_side_telecentric_division" :
+['area_scan_tilt_object_side_telecentric_division',
+ Magnification, Kappa, ImagePlaneDist, Tilt, Rot, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_division",
+ Magnification, Kappa, ImagePlaneDist, Tilt, Rot, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_division",
+ Magnification, Kappa, ImagePlaneDist, Tilt, Rot, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_division",
+ Magnification, Kappa, ImagePlaneDist, Tilt, Rot, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_division",
+ Magnification, Kappa, ImagePlaneDist, Tilt, Rot, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_division",
+ Magnification, Kappa, ImagePlaneDist, Tilt, Rot, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] 
+'area_scan_tilt_object_side_telecentric_polynomial' "area_scan_tilt_object_side_telecentric_polynomial" "area_scan_tilt_object_side_telecentric_polynomial" "area_scan_tilt_object_side_telecentric_polynomial" "area_scan_tilt_object_side_telecentric_polynomial" "area_scan_tilt_object_side_telecentric_polynomial" :
+['area_scan_tilt_object_side_telecentric_polynomial',
+ Magnification, K1, K2, K3, P1, P2, ImagePlaneDist, Tilt,
+ Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, ImagePlaneDist, Tilt,
+ Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, ImagePlaneDist, Tilt,
+ Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, ImagePlaneDist, Tilt,
+ Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, ImagePlaneDist, Tilt,
+ Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_tilt_object_side_telecentric_polynomial",
+ Magnification, K1, K2, K3, P1, P2, ImagePlaneDist, Tilt,
+ Rot, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] 
+Area scan cameras with hypercentric lenses 
+Projective area scan cameras with hypercentric lenses 
+'area_scan_hypercentric_division' "area_scan_hypercentric_division" "area_scan_hypercentric_division" "area_scan_hypercentric_division" "area_scan_hypercentric_division" "area_scan_hypercentric_division" :
+ ['area_scan_hypercentric_division', Focus, Kappa, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_division", Focus, Kappa, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_division", Focus, Kappa, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_division", Focus, Kappa, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_division", Focus, Kappa, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_division", Focus, Kappa, Sx, Sy*,
+ Cx, Cy, ImageWidth, ImageHeight] 
+'area_scan_hypercentric_polynomial' "area_scan_hypercentric_polynomial" "area_scan_hypercentric_polynomial" "area_scan_hypercentric_polynomial" "area_scan_hypercentric_polynomial" "area_scan_hypercentric_polynomial" :
+ ['area_scan_hypercentric_polynomial', Focus, K1, K2, K3, P1,
+ P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_polynomial", Focus, K1, K2, K3, P1,
+ P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_polynomial", Focus, K1, K2, K3, P1,
+ P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_polynomial", Focus, K1, K2, K3, P1,
+ P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_polynomial", Focus, K1, K2, K3, P1,
+ P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] ["area_scan_hypercentric_polynomial", Focus, K1, K2, K3, P1,
+ P2, Sx, Sy*, Cx, Cy, ImageWidth, ImageHeight] 
+Description of the internal camera parameters of area scan cameras: 
+CameraType: 
+Type of the camera, as listed above.
+Focus: 
+Focal length of the lens (only for lenses that perform a
+perspective projection on the object side of the lens). 
+The initial value is the nominal focal length of the used lens,
+e.g., 0.008m.
+Magnification: 
+Magnification of the lens (only for lenses that perform a
+telecentric projection on the object side of the lens). 
+The initial value is the nominal magnification of the used
+telecentric lens (the image size divided by the object size),
+e.g., 0.2.
+Kappa 
+: 
+Distortion coefficient to model the radial lens distortions
+(only for the division model). 
+Use 0.0 
+as initial value.
+K1, K2, K3, P1, P2: 
+Distortion coefficients to model the radial 
+and decentering 
+lens distortions (only for the
+polynomial model). 
+Use 0.0 as initial value for all five coefficients.
+ImagePlaneDist: 
+Distance of the exit pupil of the lens to
+the image plane. The exit pupil is the (virtual) image of the
+aperture stop (typically the diaphragm), as viewed from the
+image side of the lens. Typical values are in the order of a
+few centimeters to very large values if the lens is close to
+being image-side telecentric.
+Tilt, Rot: 
+The tilt angle 
+describes the angle by which the optical
+axis is tilted with respect to the normal of the sensor plane
+(corresponds to a rotation around the x-axis).
+The rotation angle 
+describes the rotation around the optical axis
+(z-axis).
+For a rotation 
+the optical
+axis gets tilted vertically down with respect to the camera
+housing, 
+corresponds to the optical
+axis being tilted horizontally to the left (direction of view along the
+z-axis), 
+corresponds to the optical
+axis being tilted vertically up, and 
+corresponds to the optical axis being tilted horizontally to
+the right. 
+These parameters are only used if a tilt lens is part of the camera
+setup.
+image/svg+xml 
+y 
+ x 
+ z 
+y 
+ x 
+ z 
+2. tilt 
+ 1. rot 
+ImagePlaneDist 
+The tilt of the lens is described by the parameters 
+, 
+and ImagePlaneDist .
+describes the orientation of the tilt axis in
+relation to the x-axis of the sensor and has to be applied first.
+describes the actual tilt of
+the lens. ImagePlaneDist is the distance of the
+exit pupil of the lens to the image plane.
+These angles are typically roughly known based on the
+considerations that led to the use of the tilt lens or can be
+read off from the mechanism by which the lens is tilted.
+Sx, Sy: 
+Scale factors. They correspond to the horizontal and vertical
+distance between two neighboring cells on the sensor. Since in
+most cases the image signal is sampled line-synchronously,
+is determined by the dimension of the sensor and
+does not need to be estimated by the calibration process. 
+The initial values depend on the dimensions of the used chip of
+the camera. See the technical specification of your camera for
+the actual values. Attention: These values increase if the
+image is subsampled! 
+As projective cameras are described through the pinhole camera
+model, it is impossible to determine
+ Focus Focus Focus Focus focus focus , 
+, and 
+simultaneously.
+Therefore, the algorithm will keep 
+fixed. 
+For telecentric lenses , it is
+impossible to determine Magnification ,
+, and 
+simultaneously. Therefore,
+the algorithm will keep 
+fixed. 
+For image-side telecentric tilt lenses (see chapter “Basics”,
+section “Camera Model and Parameters” in the
+ “Solution Guide III-C 3D Vision” for an overview of different
+types of tilt lenses), it is impossible
+to determine Focus Focus Focus Focus focus focus , 
+, 
+,
+and the tilt parameters 
+and 
+simultaneously. Therefore, additionally to 
+, the
+algorithm will keep 
+fixed. 
+For bilateral telecentric tilt lenses ,
+it is impossible to determine Magnification ,
+, 
+, and the tilt parameters
+and 
+simultaneously. Therefore,
+additionally to 
+, the algorithm will keep 
+fixed.
+Cx, Cy: 
+Column ( 
+) and row ( 
+) coordinate of
+the principal point of the image (center of the radial
+distortion). 
+Use the half image width and height as initial values.
+Attention: These values decrease if the image is subsampled!
+ImageWidth, Image Height: 
+Width and height of the sampled image. Attention: These values
+decrease if the image is subsampled!
+Line scan cameras 
+have 12 or 16 internal parameters depending on the camera type.
+For reasons explained below, parameters that are marked with an *
+asterisk are fixed and not estimated by the algorithm.
+Line scan cameras with regular lenses 
+Projective line scan cameras with regular lenses 
+'line_scan_division' "line_scan_division" "line_scan_division" "line_scan_division" "line_scan_division" "line_scan_division" :
+ ['line_scan_division', Focus, Kappa, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_division", Focus, Kappa, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_division", Focus, Kappa, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_division", Focus, Kappa, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_division", Focus, Kappa, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_division", Focus, Kappa, Sx*, Sy*, Cx,
+ Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] 
+'line_scan_polynomial' "line_scan_polynomial" "line_scan_polynomial" "line_scan_polynomial" "line_scan_polynomial" "line_scan_polynomial" :
+ ['line_scan_polynomial', Focus, K1, K2, K3, P1, P2,
+ Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] ["line_scan_polynomial", Focus, K1, K2, K3, P1, P2,
+ Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz] 
+Telecentric line scan cameras with regular lenses 
+'line_scan_telecentric_division' "line_scan_telecentric_division" "line_scan_telecentric_division" "line_scan_telecentric_division" "line_scan_telecentric_division" "line_scan_telecentric_division" :
+ ['line_scan_telecentric_division', Magnification,
+ Kappa, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_division", Magnification,
+ Kappa, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_division", Magnification,
+ Kappa, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_division", Magnification,
+ Kappa, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_division", Magnification,
+ Kappa, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_division", Magnification,
+ Kappa, Sx*, Sy*, Cx, Cy, ImageWidth, ImageHeight, Vx, Vy, Vz*] 
+'line_scan_telecentric_polynomial' "line_scan_telecentric_polynomial" "line_scan_telecentric_polynomial" "line_scan_telecentric_polynomial" "line_scan_telecentric_polynomial" "line_scan_telecentric_polynomial" :
+ ['line_scan_telecentric_polynomail', Magnification,
+ K1, K2, K3, P1, P2, Sx*, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_polynomail", Magnification,
+ K1, K2, K3, P1, P2, Sx*, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_polynomail", Magnification,
+ K1, K2, K3, P1, P2, Sx*, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_polynomail", Magnification,
+ K1, K2, K3, P1, P2, Sx*, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_polynomail", Magnification,
+ K1, K2, K3, P1, P2, Sx*, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight, Vx, Vy, Vz*] ["line_scan_telecentric_polynomail", Magnification,
+ K1, K2, K3, P1, P2, Sx*, Sy*, Cx, Cy, ImageWidth,
+ ImageHeight, Vx, Vy, Vz*] 
+Description of the internal camera parameters of line scan cameras: 
+CameraType: 
+Type of the camera, as listed above.
+Focus: 
+Focal length of the lens (only for lenses that perform a
+perspective projection on the object side of the lens). 
+The initial value is the nominal focal length of the used lens,
+e.g., 0.008m.
+Magnification: 
+Magnification of the lens (only for lenses that perform a
+telecentric projection on the object side of the lens). 
+The initial value is the nominal magnification of the used
+telecentric lens (the image size divided by the object size),
+e.g., 0.2.
+Kappa 
+: 
+Distortion coefficient of the division model to model the radial
+lens distortions. 
+Use 0.0 
+as initial value.
+K1, K2, K3, P1, P2: 
+Distortion coefficients to model the radial 
+and decentering 
+lens distortions (only for the
+polynomial model). 
+Use 0.0 as initial value for all five coefficients.
+Sx: 
+Scale factor. Corresponds to the horizontal distance between two
+neighboring cells on the sensor. Note that Focus or
+ Magnification , respectively, and 
+cannot
+be determined simultaneously. Therefore, 
+is
+kept fixed in the calibration. The initial value for
+can be taken from the technical specifications
+of the camera. Attention: This value increases if the image is
+subsampled!
+Sy: 
+Scale factor. During the calibration, it appears only in the
+form 
+.
+Consequently, 
+and 
+cannot be
+determined simultaneously. Therefore, in the calibration,
+is kept fixed. 
+describes the
+distance of the image center point from the sensor line in
+meters. The initial value for 
+can be taken from
+the technical specifications of the camera. Attention: This
+value increases if the image is subsampled!
+Cx: 
+Column coordinate of the image center point (center of the
+radial distortions). Use half of the image width as the initial value
+for 
+. Attention: This value decreases if the
+image is subsampled!
+Cy: 
+Distance of the image center point (center of the radial
+distortions) from the sensor line in scanlines. The initial
+value can normally be set to 0.
+ImageWidth, ImageHeight: 
+Width and height of the sampled image. Attention: These values
+decrease if the image is subsampled!
+Vx, Vy, Vz: 
+X-, Y-, and Z-component of the motion vector. 
+The initial values for the x-, y-, and z-component of the motion
+vector depend on the image acquisition setup. Assuming a camera
+that looks perpendicularly onto a conveyor belt and that is
+rotated around its optical axis such that the sensor line is
+perpendicular to the conveyor belt, i.e., the y-axis of the
+camera coordinate system is parallel to the conveyor belt, use
+the initial values 
+. The
+initial value for 
+can then be determined, e.g.,
+from a line scan image of an object with known size (e.g.,
+calibration plate, ruler):
+With
+If, compared to the above setup, the camera is rotated 30
+degrees around its optical axis, i.e., around the z-axis of the
+camera coordinate system, the above determined initial values
+must be changed as follows:
+If, compared to the first setup, the camera is rotated -20
+degrees around the x-axis of the camera coordinate system, the
+following initial values result:
+The quality of the initial values for 
+,
+, and 
+are crucial for the success
+of the whole calibration. If they are not precise enough, the
+calibration may fail.
+Note that for telecentric line scan cameras, the value of
+has no influence on the image position of 3D
+points and therefore cannot be determined. Consequently,
+is not optimized and left at its initial
+value for telecentric line scan cameras. Therefore, the
+initial value of 
+should be set to
+ 0 . For setups with multiple telecentric line scan
+cameras that share a common motion vector (for a detailed
+explanation, see Calibration / Multi-View ), however,
+can be determined based on the camera poses.
+Therefore, in this case 
+is optimized.
+Restrictions for internal camera parameters 
+Note that the term focal length is not quite correct and
+would be appropriate only for an infinite object distance. To
+simplify matters, always the term focal length is used even
+if the image distance is meant.
+For all operators that use camera parameters as input
+the respective parameter values are checked as to whether they fulfill the
+following restrictions:
+For some operators the restrictions differ slightly. In
+particular, for operators that do not support line scan cameras
+the following restriction applies:
+External camera parameters: 
+The following 6 parameters describe the 3D pose, i.e., the position and
+orientation of the world coordinate system relative to the camera
+coordinate system. The x- and y-axis of the camera coordinate system are
+parallel to the column and row axes of the image, while the z-axis is
+perpendicular to the image plane. For line scan cameras, the pose of the
+world coordinate system refers to the camera coordinate system of the
+first image line.
+TransX: 
+Translation along the x-axis of the camera coordinate system.
+TransY: 
+Translation along the y-axis of the camera coordinate system.
+TransZ: 
+Translation along the z-axis of the camera coordinate system.
+RotX: 
+Rotation around the x-axis of the camera coordinate system.
+RotY: 
+Rotation around the y-axis of the camera coordinate system.
+RotZ: 
+Rotation around the z-axis of the camera coordinate system.
+The pose tuple contains one more element, which is the
+representation type of the pose. It codes the combination of the
+parameters OrderOfTransform OrderOfTransform OrderOfTransform OrderOfTransform orderOfTransform order_of_transform , OrderOfRotation OrderOfRotation OrderOfRotation OrderOfRotation orderOfRotation order_of_rotation , and
+ ViewOfTransform ViewOfTransform ViewOfTransform ViewOfTransform viewOfTransform view_of_transform . See create_pose create_pose CreatePose CreatePose CreatePose create_pose for more information
+about 3D poses.
+When using a standard HALCON calibration plate, the world
+coordinate system is defined by the coordinate system of the
+calibration plate.
+See the section “Calibration Object” above for further information.
+If a HALCON calibration plate is used, you can use the operator
+ find_calib_object find_calib_object FindCalibObject FindCalibObject FindCalibObject find_calib_object to determine initial values for all
+parameters. Using HALCON calibration plates with rectangularly
+arranged marks, a combination of the two operators find_caltab find_caltab FindCaltab FindCaltab FindCaltab find_caltab 
+and find_marks_and_pose find_marks_and_pose FindMarksAndPose FindMarksAndPose FindMarksAndPose find_marks_and_pose will have the same effect.
+Parameter units: 
+HALCON calibration plates use meters as unit.
+The camera parameters use corresponding units.
+Of course, calibration can be done using different units, but in this case
+the related parameters have to be adapted.
+Here, we list the HALCON default units for the different camera
+parameters:
+Parameter 
+ Unit 
+External 
+ RotX, RotY, RotZ
+, 
+, 
+TransX, TransY, TransZ
+, 
+, 
+Internal 
+ Cx, Cy 
+, 
+Focus 
+ImagePlaneDist 
+ImageWidth, ImageHeight 
+, 
+K1, K2, K3
+, 
+, 
+Kappa 
+P1, P2 
+, 
+Magnification 
+ - (scalar) 
+Sx, Sy 
+, 
+Tilt, Rot 
+, 
+Vx, Vy, Vz
+,
+,
+Additional Information about the Calibration Process 
+ The use of calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras leads to some questions, which
+are addressed in the following sections:
+How to obtain an appropriate calibration plate? 
+You can obtain high-precision calibration plates in various sizes
+and materials from your local distributor. These calibration
+plates come with associated description files and can be easily
+extracted with find_calib_object find_calib_object FindCalibObject FindCalibObject FindCalibObject find_calib_object .
+It is also possible to use any arbitrary object for
+calibration. The only requirement is that the object has
+characteristic points that can be robustly detected in the image
+and that the 3D world position of these points is known with high
+accuracy. See the “Solution Guide III-C 3D Vision” for details.
+Self-printed calibration objects are usually not accurate enough
+for high-precision applications.
+How to take a set of suitable images? 
+With the combination of lens (fixed focus
+setting!), camera, and frame grabber to be calibrated, a set of
+images of the calibration plate must be taken (see
+ open_framegrabber open_framegrabber OpenFramegrabber OpenFramegrabber OpenFramegrabber open_framegrabber and grab_image grab_image GrabImage GrabImage GrabImage grab_image ).
+Your local distributor can provide you with two different types of
+standard HALCON calibration plates: Calibration plates with hexagonally
+arranged marks (see create_caltab create_caltab CreateCaltab CreateCaltab CreateCaltab create_caltab ) and calibration plates
+with rectangularly arranged marks (see gen_caltab gen_caltab GenCaltab GenCaltab GenCaltab gen_caltab ). Since
+these two calibration plates substantially differ from each other,
+in some cases additional particularities apply (see below).
+The parameters and hints listed below should be considered when taking
+the calibration images.
+For a successful calibration, the setup and the used set of images should
+have certain qualities. These qualities may vary for the specific task and
+demand. In order to give guidance, values and hints suitable for a basic
+monocular camera setup are mentioned.
+Regarding the camera setup: 
+Aperture 
+The aperture of the camera must not be changed during the
+acquisition of the images. If the aperture is changed after
+the calibration, the camera must be calibrated anew.
+Camera pose 
+The position of the camera must not be changed during the
+image acquisition.
+Focus 
+The calibration images should be sharply focused, i.e., transitions
+between objects should be clearly delimited. The focus, respectively
+the focal length, must not be changed during the image acquisition.
+Regarding the placement of the calibration plates: 
+Field of view coverage and orientation 
+Within the set of calibration images, every part of the field of view
+should be covered by the plate at least once.
+The calibration plate may also fill the entire image.
+The orientation of the plate should vary within the set of images.
+Tilt angles 
+The set of calibration images should also contain images with tilted
+calibration plates. Thereby the plate should be tilted in different
+directions at an angle of about 30-45°.
+Note, that if the recommended angle cannot be realized due to, e.g.,
+limited depth of field, you should at least tilt your plate as steeply
+as possible with your setup.
+Number of images/ calibration plate poses 
+Plate with hexagonally arranged marks: At least 6 images
+(Not all, but at least 4 of them with tilted calibration plates).
+Plate with rectangularly arranged marks: At least 15 images.
+Nevertheless, you must make sure that the poses of the
+calibration plates also fulfill the other requirements.
+Inverted acquisition of the calibration plate 
+The calibration marks must not be acquired inverted. This can,
+e.g., happen if a calibration plate made of glass is acquired
+from its backside or if a line scan camera is not moving
+downwards with respect to the image coordinate system (i.e.,
+is negative).
+Regarding image properties and content: 
+Pattern coverage 
+How much of the calibration pattern must at least be contained in
+the images depends on the used plate.
+Plate with hexagonally arranged marks: At least one finder
+pattern needs to be visible. If at least two finder patterns
+are visible in the image, it is possible to detect whether
+the calibration plate is mirrored or not.
+In a mirrored case, a suitable error will be returned.
+Plate with rectangularly arranged marks: Plate needs to be
+completely visible, as the finder pattern is the frame
+surrounding the point marks.
+Nevertheless, of course, the more of the calibration pattern is
+visible to the camera and the more of the field of view is
+filled by the calibration plate, the better.
+Mark diameter 
+The marks of the calibration plates should have a diameter of at
+least 20 pixels in each image. This requirement is essential for a
+successful calibration.
+Contrast 
+The contrast between the light and dark areas of the calibration
+plate should be at least 100 gray values (regarding byte images).
+Overexposure 
+To avoid overexposed images, make sure that gray values of the light
+parts of the calibration plate do not exceed 240 (regarding byte
+images), especially not in the neighborhood of the calibration marks.
+Homogeneity 
+The calibration plate should be illuminated homogeneously and
+reflections should be avoided. As a rule of thumb, the range
+of gray values of the light parts of the plate should not
+exceed 45 (regarding byte images).
+Regarding image format and preprocessing: 
+Image format 
+Calibration images should be saved in an uncompressed format.
+Compression artifacts which occur, e.g., when using JPG format
+and high compression rates need to be avoided.
+Preprocessing 
+Calibration images should not be preprocessed. If image properties
+like contrast or focus are insufficient (see above),
+the issues need to be resolved by adjusting the camera setup
+instead of processing the images ahead of the calibration.
+Which distortion model should be used? 
+Two distortion models can be used: The division model and the
+polynomial model. The division model uses one parameter to model
+the radial distortions while the polynomial model uses five
+parameters to model radial and decentering distortions (see the
+sections “Camera parameters” and “The Used 3D camera model”).
+The advantages of the division model are that the distortions can be
+applied faster, especially the inverse distortions, i.e., if world
+coordinates are projected into the image plane. Furthermore, if
+only few calibration images are used or if the field of view is not
+covered sufficiently, the division model typically yields more
+stable results than the polynomial model. The main advantage of the
+polynomial model is that it can model the distortions more
+accurately because it uses higher order terms to model the radial
+distortions and because it also models the decentering distortions.
+Note that the polynomial model cannot be inverted analytically.
+Therefore, the inverse distortions must be calculated iteratively,
+which is slower than the calculation of the inverse distortions with
+the (analytically invertible) division model.
+Typically, the division model should be used for the calibration.
+If the accuracy of the calibration is not high enough, the
+polynomial model can be used. Note, however, that the calibration
+sequence used for the polynomial model must provide an even better
+coverage of the area in which measurements will later be
+performed. The distortions may be modeled inaccurately outside of
+the area that was covered by the calibration plate. This holds for
+the image border as well as for areas inside the field of view that
+were not covered by the calibration plate.
+The Used 3D Camera Model 
+ In general, camera calibration means the exact determination of the
+parameters that model the (optical) projection of any 3D world point
+into a (sub-)pixel (r,c) in the
+image. This is important if the original 3D pose of an object must be
+computed from the image (e.g., for measuring industrial parts).
+The appropriate projection model depends on the camera type used
+in your setup.
+For the modeling of this projection process, which is determined by
+the used combination of camera, lens, and frame grabber, HALCON
+provides the following 3D camera models:
+Area scan pinhole camera: 
+The combination of an area scan camera with a lens that effects a
+perspective projection on the object side of the lens and that may
+show radial and decentering distortions. The lens may be a tilt
+lens, i.e., the optical axis of the lens may be tilted with respect
+to the camera's sensor (this is sometimes called a Scheimpflug
+lens). Since hypercentric lenses also perform a perspective
+projection, cameras with hypercentric lenses are pinhole cameras.
+The models for regular (i.e., non-tilt) pinhole and
+image-side telecentric lenses are identical. In contrast, the
+models for pinhole and image-side telecentric tilt lenses differ
+substantially, as described below.
+Area scan telecentric camera: 
+The combination of an area scan camera with a lens that is
+telecentric on the object-side of the lens, i.e., that effects a
+parallel projection on the object-side of the lens, and that may
+show radial and decentering distortions. The lens may be a tilt
+lens. The models for regular (i.e., non-tilt) bilateral and
+object-side telecentric lenses are identical. In contrast, the
+models for bilateral and object-side telecentric tilt lenses differ
+substantially, as described below.
+Line scan pinhole camera: 
+The combination of a line scan camera with a lens that effects a
+perspective projection and that may show radial distortions. Tilt
+lenses are currently not supported for line scan cameras.
+Line scan telecentric camera: 
+The combination of a line scan camera with a lens that effects a
+telecentric projection and that may show radial distortions. Tilt
+lenses are currently not supported for line scan cameras.
+To transform a 3D point 
+which is given in world coordinates, into a 2D point 
+,
+which is given in pixel coordinates, a chain of transformations is
+needed:
+3D world point 
+Transformed into camera coordinate
+system 
+Projected into image plane (2D point,
+still in metric coordinates) 
+Lens distortion applied 
+If tilted lens is used, the point is
+projected on a tilted image plane. In this case the distorted point
+only lies on a virtual image
+plane of a system without tilt. 
+Pixel coordinates
+The following paragraphs describe these steps in more detail for area scan
+cameras and subsequently for line scan cameras.
+For a even more detailed description of the different 3D camera models as
+well as some explanatory diagrams please refer to the chapter “Basics”,
+section “Camera Model and Parameters” in the
+ “Solution Guide III-C 3D Vision” .
+Transformation step 1: 
+The point 
+is transformed from world
+into camera coordinates (points as homogeneous vectors, compare
+ affine_trans_point_3d affine_trans_point_3d AffineTransPoint3d AffineTransPoint3d AffineTransPoint3d affine_trans_point_3d ) by :
+with 
+and 
+being
+the rotation and translation matrices (refer to
+the chapter “Basics”, section “3D Transformations and Poses`” in the
+ “Solution Guide III-C 3D Vision” for detailed information).
+Transformation step 2: 
+If the underlying camera model is an area scan pinhole
+ camera , the projection of 
+into the image plane is described by the following equation:
+where 
+. For cameras with
+hypercentric lenses, the following equation holds instead:
+If an area scan telecentric camera is used, the
+corresponding equation is:
+where 
+.
+Transformation step 3: 
+For all types of cameras, the lens distortions can be modeled
+either by the division model or by the polynomial model.
+The division model uses one parameter Kappa Kappa Kappa Kappa kappa kappa 
+to model the radial distortions.
+The following equations transform the distorted image plane
+coordinates into undistorted image plane coordinates if the division
+model is used:
+These equations can be inverted analytically, which leads to the
+following equations that transform undistorted coordinates into
+distorted coordinates:
+The polynomial model uses three parameters ( 
+) to model the radial distortions and two
+parameters ( 
+) to model the decentering
+distortions.
+The following equations transform the distorted image plane
+coordinates into undistorted image plane coordinates if the
+polynomial model is used:
+with 
+These equations cannot be inverted analytically. Therefore,
+distorted image plane coordinates must be calculated from
+undistorted image plane coordinates numerically.
+Additional transformation step for tilt lenses: 
+If the camera lens is a tilt lens , the tilt of the lens with
+respect to the image plane is described by the rotation
+angle 
+and the tilt angle 
+.
+In this step you have to further distinguish between different types of tilt
+lenses as described below. See chapter “Basics”, section “Camera Model and
+Parameters” in the “Solution Guide III-C 3D Vision” for an
+overview of different types of tilt lenses.
+For projective tilt lenses and object-side
+ telecentric tilt lenses (which perform a perspective projection on
+the image side of the lens) the projection of 
+into the point 
+, which lies
+in the tilted image plane, is described by a projective 2D
+transformation, i.e., by the homogeneous 3×3
+matrix 
+(see
+ projective_trans_point_2d projective_trans_point_2d ProjectiveTransPoint2d ProjectiveTransPoint2d ProjectiveTransPoint2d projective_trans_point_2d ):
+where 
+is the additional coordinate from the
+projective transformation of a homogeneous point.
+where 
+and
+with 
+and 
+.
+For image-side telecentric tilt lenses and
+ bilateral telecentric tilt lenses (which perform a parallel
+projection on the image side of the lens), the projection onto the
+tilted image plane is described by a linear 2D transformation, i.e.,
+by a 2×2 matrix:
+where 
+is defined as above for projective
+lenses.
+Transformation step 4: 
+/ 
+Finally, the point 
+(or 
+if a
+tilt lens is present) is transformed from the image plane coordinate
+system into the image coordinate system (the pixel coordinate
+system):
+For line scan cameras , also the relative motion between the
+camera and the object must be modeled. In HALCON, the following
+assumptions for this motion are made:
+The camera moves with constant velocity along a straight
+line.
+The orientation of the camera is constant.
+The motion is equal for all images.
+The motion is described by the motion vector 
+that must be given in [meter/row]
+in the camera coordinate system. The motion vector describes the
+motion of the camera, assuming a fixed object. In fact, this is
+equivalent to the assumption of a fixed camera with the object
+traveling along 
+.
+The camera coordinate system of line scan cameras is defined as
+follows: The origin of the coordinate system is the center of
+projection (for pinhole cameras) or the center of distortion (for
+telecentric cameras), respectively. The z-axis is identical to the
+optical axis and directed so that the visible points have positive z
+coordinates. The y-axis is perpendicular to the sensor line and to
+the z-axis. It is directed so that the motion vector has a positive
+y-component. The x-axis is perpendicular to the y- and z-axis, so
+that the x-, y-, and z-axis form a right-handed coordinate system.
+As the camera moves over the object during the image acquisition,
+also the camera coordinate system moves relatively to the object,
+i.e., each image line has been imaged from a different
+position. This means there would be an individual pose for each
+image line. To make things easier, in HALCON all transformations
+from world coordinates into camera coordinates and vice versa are
+based on the pose of the first image line only. The motion 
+is
+taken into account during the projection of the point
+into the image. Consequently, only
+the pose of the first image line is computed by the operator
+ find_calib_object find_calib_object FindCalibObject FindCalibObject FindCalibObject find_calib_object (and stored by calibrate_cameras calibrate_cameras CalibrateCameras CalibrateCameras CalibrateCameras calibrate_cameras 
+in the calibration results).
+For line scan cameras , the transformation from world to
+camera coordinates ( 
+) works in the same way. Therefore, you can
+also apply transformation step 1 as described for area scan cameras
+above.
+For line scan pinhole cameras , the projection of the point
+that is given in the camera
+coordinate system into (sub-)pixel coordinates 
+in the
+image is modeled as follows:
+Assuming
+the following set of equations must be solved for 
+,
+, and 
+:
+were 
+and
+are the undistortion
+functions that are described above for area scan cameras and 
+.
+For line scan telecentric cameras , the following set of
+equations must be solved for 
+and 
+:
+with 
+,
+and 
+as
+defined above. Note that neither 
+nor 
+influence the projection for telecentric cameras.
+The above formulas already include the compensation for image
+distortions.
+Finally, the point is transformed into the image coordinate system,
+i.e., the pixel coordinate system:
+Further Limitations Related to Specific Camera Types 
+ For pinhole cameras , if the calibration plates are parallel
+to each other in all images (in particular, if they all lie in the
+same plane), it is impossible to determine Focus Focus Focus Focus focus focus together
+with all six of the external camera parameters. For example, it is
+impossible to determine Focus Focus Focus Focus focus focus and the distance of the
+calibration plates to the camera in this case. To be able to
+calibrate all camera parameters uniquely, make sure that you acquire
+images of the calibration plate tilted in different orientations.
+For telecentric lenses , the distance of the calibration
+plate from the camera cannot be determined. Therefore, the
+z-component of the resulting calibration plate pose is set to 1 m in
+the calibration results. Furthermore, as described previously, for
+telecentric line scan cameras, 
+cannot be determined
+and is left at its initial value, except for multi-camera setups
+that have a common motion vector, in which case 
+can
+be determined.
+For tilt lenses , the greater the lens distortion is, the
+more accurately the tilt can be determined. For lenses with small
+distortions, the tilt cannot be determined robustly. Therefore, the
+optimized tilt parameters may differ significantly from the nominal
+tilt parameters of the setup. If this is the case, please check
+ Error Error Error Error error error . If Error Error Error Error error error is small, the resulting camera
+parameters describe the imaging geometry consistently within the
+calibrated volume and can be used for accurate measurements.
+For perspective tilt lenses and object-side
+telecentric tilt lenses , the image plane distance can only be
+determined uniquely if the tilt is not 0 degrees. The smaller the tilt, the
+less accurately the image plane distance can be determined.
+Therefore, the optimized image plane distance may differ
+significantly from the nominal image plane distance of the setup.
+If this is the case, please check Error Error Error Error error error . If Error Error Error Error error error 
+is small, the resulting camera parameters describe the imaging
+geometry consistently within the calibrated volume and can be used
+for accurate measurements.
+For perspective tilt lenses and object-side
+telecentric tilt lenses that are tilted around the horizontal or
+vertical axis, i.e., for which the rotation angle is 0, 90, 180, or
+270 degrees, the tilt angle 
+, scale factor 
+,
+the focal length 
+(for perspective tilt lenses) or the
+magnification 
+(for object-side telecentric tilt lenses),
+and the distance of the tilted image plane from the perspective
+projection center 
+cannot be determined uniquely. In this
+case, 
+should be excluded from the optimization by
+calling 
+set_calib_data(CalibDataID, 'camera', 'general', 'excluded_settings', 'sx') set_calib_data(CalibDataID, "camera", "general", "excluded_settings", "sx") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "sx") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "sx") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "sx") set_calib_data(CalibDataID, "camera", "general", "excluded_settings", "sx") .
+Additionally, note that for tilt lenses it is only possible to
+determine 
+and 
+simultaneously. This
+is an implementation choice that makes the optimization numerically
+more robust. Consequently, the parameters 
+and
+are excluded simultaneously from the optimization by
+calling 
+set_calib_data(CalibDataID, 'camera', 'general', 'excluded_settings', 'tilt') set_calib_data(CalibDataID, "camera", "general", "excluded_settings", "tilt") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "tilt") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "tilt") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "tilt") set_calib_data(CalibDataID, "camera", "general", "excluded_settings", "tilt") .
+Pinhole cameras with tilt lenses with large focal lengths have
+nearly telecentric projection characteristics. Therefore, as
+described before, 
+and the tilt
+parameters 
+and 
+are correlated and
+can only be determined imprecisely simultaneously. In this case, it
+is again advisable to exclude 
+from the optimization.
+For telecentric lenses, there are always two possible poses of a calibration
+plate for a single image. Therefore, it is not possible to
+decide which one of the two poses is actually present in the image.
+This ambiguity also effects the tilt parameters 
+and
+of a telecentric tilt lens. Consequently, depending
+on the initial parameters for 
+and 
+the camera calibration may return the alternative parameters instead
+of the nominal ones. If this is the case, please check
+ Error Error Error Error error error . If Error Error Error Error error error is small, the resulting camera
+parameters describe the imaging geometry consistently within the
+calibrated volume and can be used for accurate measurements.
+For line scan cameras with the polynomial distortion model 
+(for cameras with perspective as well as telecentric lenses), the
+parameters 
+and 
+are highly correlated
+with other parameters in the camera model. Therefore, they
+typically cannot be determined reliably and should be excluded from
+the calibration by calling 
+set_calib_data(CalibDataID, 'camera', 'general', 'excluded_settings', 'poly_tan_2') set_calib_data(CalibDataID, "camera", "general", "excluded_settings", "poly_tan_2") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "poly_tan_2") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "poly_tan_2") SetCalibData(CalibDataID, "camera", "general", "excluded_settings", "poly_tan_2") set_calib_data(CalibDataID, "camera", "general", "excluded_settings", "poly_tan_2") .
+List of Sections 
+Binocular 
+ Calibration Object 
+ Camera Parameters 
+ Hand-Eye 
+ Inverse Projection 
+ Monocular 
+ Multi-View 
+ Projection 
+ Rectification 
+ Self-Calibration 
+Classes Classes | | Operators 
+HALCON Operator Reference 23.05.0.0 Copyright © 1996-2023 MVTec Software GmbH 
+ Follow us on

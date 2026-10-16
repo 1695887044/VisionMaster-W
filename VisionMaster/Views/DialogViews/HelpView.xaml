@@ -11,8 +11,14 @@
     mc:Ignorable="d">
 
     <!--
-        「帮助手册」弹窗：左目录 / 右正文（CHM 观感，但正文是 WPF 原生的 FlowDocument）。
+        「帮助手册」弹窗：左目录（带搜索）/ 右正文，正文是 WPF 原生的 FlowDocument。
         构成：宿主自带手册 + 各插件自带手册 + 未写手册插件的自动生成页（见 HelpCatalogService）。
+
+        版式照网页文档那套排：正文定宽 780 居中（一行的字数比窗口宽度重要）、
+        行高 1.8、标题落差拉开、表格只画横线加隔行淡底、提示块用主色竖条定性；
+        目录行选中改成"左边 2px 主色竖条"，分组行右侧给子项数。
+        配色仍走全局 Dialog* 令牌（蓝色系），没有为手册另起一套色板。
+
         窗口按"能读长文"给尺寸（1120×740）——手册正文里的表格与端口表都比较宽，
         默认再窄一点就要横向滚动。
     -->
@@ -20,6 +26,12 @@
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <!--
+                窗口图标（Alt-Tab / 任务栏那一枚，不是标题栏里那枚蓝方块）：整仓只有帮助弹窗
+                带自己的图标，其余窗口照旧走 ApplicationIcon。图标与标题栏徽块同源——
+                同一个 Font Awesome U+F02D 书本 + 同一支主色渐变，由 tools\bake_icons.ps1 烘焙。
+            -->
+            <Setter Property="Icon" Value="/VisionMaster;component/Resources/Icons/help.ico" />
             <Setter Property="Width" Value="1120" />
             <Setter Property="Height" Value="740" />
             <Setter Property="MinWidth" Value="760" />
@@ -39,15 +51,15 @@
 
     <UserControl.Resources>
 
-        <!--  工具栏按钮：图标 + 文字，无边框；悬停浅灰底（对照 CHM 顶部那排）  -->
+        <!--  工具栏按钮：图标 + 文字，无边框；悬停浅灰底（对照网页手册那排工具条）  -->
         <Style x:Key="ToolButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="28" />
             <Setter Property="Padding" Value="10,0" />
-            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Margin" Value="0,0,2,0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Foreground" Value="#303133" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -64,10 +76,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#F0F2F5" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#E4E7ED" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.4" />
@@ -79,17 +92,30 @@
             </Setter>
         </Style>
 
+        <!--  工具栏分组之间的竖线：网页那排是"隐藏目录 | 上一步 下一步 | 打印 | 字号"，靠竖线分块  -->
+        <Style x:Key="ToolDividerStyle" TargetType="Border">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Margin" Value="6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource DialogBorderBrush}" />
+        </Style>
+
         <!--
             目录树行容器：必须自带模板（OverridesDefaultStyle）。
             理由与 ListView 那条同源（2026-10-06 事故）：App 合并了 Fluent 主题，
             它给 TreeViewItem 也留了隐式样式；行容器模板一旦被顶掉，
             缩进/展开箭头/选中态就都不受本视图控制，观感随主题版本漂移。
             自带模板后，外观只由这份 XAML 决定。
+
+            选中态改成"左边一条 2px 主色竖条 + 淡蓝底"（网页文档的写法），
+            竖条**常驻**（未选中时是透明描边占位）：留 2px 边框再按状态换色，
+            比"选中才加边框"少一次布局变化，点选时文字不会横向抖一下。
         -->
         <Style x:Key="HelpTreeItemStyle" TargetType="TreeViewItem">
             <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Padding" Value="3,3" />
-            <Setter Property="Foreground" Value="#303133" />
+            <Setter Property="Padding" Value="4,4" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -97,7 +123,9 @@
                         <StackPanel>
                             <Border
                                 x:Name="RowBorder"
-                                CornerRadius="6"
+                                BorderBrush="Transparent"
+                                BorderThickness="2,0,0,0"
+                                CornerRadius="4"
                                 SnapsToDevicePixels="True">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -123,7 +151,7 @@
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
                                                         Data="M 0,0 L 0,8 L 6,4 Z"
-                                                        Fill="#909399"
+                                                        Fill="{StaticResource DialogTextMutedBrush}"
                                                         RenderTransformOrigin="0.5,0.5" />
                                                 </Border>
                                                 <ControlTemplate.Triggers>
@@ -142,12 +170,13 @@
                                     <ContentPresenter
                                         Grid.Column="1"
                                         Margin="{TemplateBinding Padding}"
-                                        HorizontalAlignment="Left"
+                                        HorizontalAlignment="Stretch"
                                         VerticalAlignment="Center"
                                         ContentSource="Header" />
                                 </Grid>
                             </Border>
-                            <ItemsPresenter x:Name="ItemsHost" Margin="12,0,0,0" />
+                            <!--  每级缩进 16：网页目录是 8 / 24 / 40，级差同样是 16  -->
+                            <ItemsPresenter x:Name="ItemsHost" Margin="16,1,0,1" />
                         </StackPanel>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsExpanded" Value="False">
@@ -157,10 +186,11 @@
                                 <Setter TargetName="Expander" Property="Visibility" Value="Hidden" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RowBorder" Property="Background" Value="#F0F2F5" />
+                                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="RowBorder" Property="Background" Value="#E8F2FE" />
+                                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                <Setter TargetName="RowBorder" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -168,47 +198,78 @@
             </Setter>
         </Style>
 
-        <!--  目录节点：图标（插件自带 FA 码点）+ 标题 + 角标（"自动生成"）  -->
+        <!--
+            目录节点：图标 + 标题 + 右侧（角标 / 子项计数）。
+            标题写成三个相邻的 Run（命中前 / 命中段 / 命中后）：
+            ① 换底色只作用在命中的那一截，转换器做不到；
+            ② 三个 Run 之间**不留空白**——XAML 会把元素之间的那点缩进折成一个空格，
+               标题里就会凭空多出缝隙（"图 像 处 理"这种）。改这段的人请守住这条。
+            截断交给最外层 TextBlock 的 TextTrimming，所以标题那一段是 DockPanel 的填充子项。
+        -->
         <HierarchicalDataTemplate
             x:Key="HelpNodeTemplate"
             DataType="{x:Type help:HelpNode}"
             ItemsSource="{Binding Children}">
-            <StackPanel Margin="2,1" Orientation="Horizontal">
+            <DockPanel LastChildFill="True">
                 <TextBlock
                     Width="18"
                     VerticalAlignment="Center"
+                    DockPanel.Dock="Left"
                     FontFamily="{StaticResource Icon}"
                     FontSize="12"
-                    Foreground="#5B8FF9"
+                    Foreground="{StaticResource DialogAccentBrush}"
                     Text="{Binding Icon}" />
-                <TextBlock
-                    VerticalAlignment="Center"
-                    FontSize="13"
-                    Text="{Binding Title}" />
+
+                <!--  先声明的先占右侧位：角标比计数更靠边  -->
                 <Border
                     Margin="6,0,0,0"
                     Padding="5,1"
                     VerticalAlignment="Center"
-                    Background="#FFF4E5"
+                    Background="{StaticResource DialogWarningSubtleBrush}"
                     CornerRadius="7"
+                    DockPanel.Dock="Right"
                     Visibility="{Binding HasBadge, Converter={ui:BooleanToVisibilityConverter}}">
                     <TextBlock
                         FontSize="10"
-                        Foreground="#B26A00"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
                         Text="{Binding Badge}" />
                 </Border>
-            </StackPanel>
+
+                <TextBlock
+                    Margin="6,0,2,0"
+                    VerticalAlignment="Center"
+                    DockPanel.Dock="Right"
+                    FontSize="11"
+                    Foreground="{StaticResource DialogTextMutedBrush}"
+                    Text="{Binding ChildCountText}"
+                    Visibility="{Binding HasChildCount, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                <TextBlock
+                    Margin="2,0,0,0"
+                    VerticalAlignment="Center"
+                    FontSize="13"
+                    TextTrimming="CharacterEllipsis"><Run Text="{Binding TitleHead, Mode=OneWay}" /><Run
+                        Background="{StaticResource DialogAccentBorderBrush}"
+                        FontWeight="SemiBold"
+                        Text="{Binding TitleMatch, Mode=OneWay}" /><Run
+                        Text="{Binding TitleTail, Mode=OneWay}" /></TextBlock>
+            </DockPanel>
         </HierarchicalDataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="12">
+    <!--
+        外圈只留 6px：弹窗是无系统边框的白底窗口，这圈空白唯一的作用是给卡片投影落幅，
+        留 12px 在现场看就是"窗台与容器之间一道空缝"（2026-10-16 真机反馈）。
+        投影跟着收到 BlurRadius 10 / ShadowDepth 2 —— 再大就被这 6px 裁出硬边。
+    -->
+    <Grid Margin="6">
         <Border Background="White" CornerRadius="10">
             <Border.Effect>
                 <DropShadowEffect
-                    BlurRadius="18"
+                    BlurRadius="10"
                     Direction="270"
                     Opacity="0.16"
-                    ShadowDepth="3"
+                    ShadowDepth="2"
                     Color="{StaticResource DialogShadowColor}" />
             </Border.Effect>
 
@@ -235,19 +296,20 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
+                        <!--  标题徽块：主色实底 + 白字（网页手册的那枚方块是"实心主色"，浅底蓝图标压不住标题）  -->
                         <Border
                             Grid.Column="0"
                             Width="30"
                             Height="30"
                             VerticalAlignment="Center"
-                            Background="{StaticResource DialogAccentLightBrush}"
-                            CornerRadius="9">
+                            Background="{StaticResource DialogAccentBrush}"
+                            CornerRadius="8">
                             <TextBlock
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 FontFamily="{StaticResource Icon}"
                                 FontSize="14"
-                                Foreground="{StaticResource DialogAccentBrush}"
+                                Foreground="White"
                                 Text="&#xf02d;" />
                         </Border>
 
@@ -268,20 +330,22 @@
                                 TextTrimming="CharacterEllipsis" />
                         </StackPanel>
 
+                        <!--
+                            关闭按钮同样必须显式挂样式：不挂就走 Fluent 的隐式 Button 模板
+                            （自带 11,5,11,6 内边距与 MinWidth），30×30 的格子里那个「✕」会被切。
+                            复用工具栏那支无边框按钮样式，悬停浅灰底；字色交给样式下发，
+                            这样悬停时"次要→正文"的加深能跟着走（写死在 TextBlock 上就吃不到）。
+                        -->
                         <Button
                             Grid.Column="2"
                             Width="30"
                             Height="30"
                             VerticalAlignment="Center"
-                            Background="Transparent"
-                            BorderThickness="0"
                             Command="{Binding CloseCommand}"
-                            Cursor="Hand"
+                            FontSize="14"
+                            Style="{StaticResource ToolButtonStyle}"
                             ToolTip="关闭（Esc）">
-                            <TextBlock
-                                FontSize="14"
-                                Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                Text="✕" />
+                            <TextBlock Text="✕" />
                         </Button>
                     </Grid>
                 </Border>
@@ -314,6 +378,8 @@
                                 </StackPanel>
                             </Button>
 
+                            <Border Style="{StaticResource ToolDividerStyle}" />
+
                             <Button
                                 Command="{Binding BackCommand}"
                                 Style="{StaticResource ToolButtonStyle}"
@@ -328,6 +394,8 @@
                                     <TextBlock VerticalAlignment="Center" Text="上一步" />
                                 </StackPanel>
                             </Button>
+
+                            <Border Style="{StaticResource ToolDividerStyle}" />
 
                             <Button
                                 Command="{Binding PrintCommand}"
@@ -344,25 +412,54 @@
                                 </StackPanel>
                             </Button>
 
+                            <Border Style="{StaticResource ToolDividerStyle}" />
+
                             <!--
                                 「选项」= 正文字号三档。
-                                为什么做成常驻下拉而不是 CHM 那样的"选项(O)"下拉菜单：
-                                Fluent 主题下 Menu 的隐式样式在本窗里没渲染出表头（实测截图为空），
-                                而字号是唯一选项——做成常驻下拉既看得见当前档位，也不依赖菜单样式。
+                                为什么做成常驻下拉而不是网页那排"75% 90% 100%"的分段按钮：
+                                字号进的是 FlowDocument 的属性（要重渲染），百分比缩放得套 LayoutTransform；
+                                而 Fluent 主题下 Menu 的隐式样式在本窗里又没渲染出表头（实测截图为空），
+                                字号是唯一选项——做成常驻下拉既看得见当前档位，也不依赖菜单样式。
                             -->
                             <TextBlock
-                                Margin="10,0,8,0"
+                                Margin="6,0,8,0"
                                 VerticalAlignment="Center"
                                 FontSize="12"
                                 Foreground="{StaticResource DialogTextMutedBrush}"
                                 Text="正文字号" />
+                            <!--
+                                字号下拉必须显式挂 DialogCombo：不挂就走 Fluent 的隐式 ComboBox 模板，
+                                那套模板自带较大的内边距与 MinHeight，压到工具栏的 28 高就把"标准"两个字
+                                上下各切掉一截（2026-10-16 真机截图）。DialogCombo 是我们自己的模板
+                                （选中框 + 右侧箭头 + VerticalContentAlignment=Center），高度随工具栏缩得动。
+                            -->
                             <ComboBox
-                                Width="78"
-                                Height="26"
+                                Width="88"
+                                Height="28"
+                                Padding="8,0,26,0"
                                 VerticalAlignment="Center"
                                 FontSize="12"
+                                Style="{StaticResource DialogCombo}"
                                 ItemsSource="{Binding FontSizeOptions}"
                                 SelectedItem="{Binding SelectedFontSize, Mode=TwoWay}" />
+
+                            <Border Style="{StaticResource ToolDividerStyle}" />
+
+                            <!--
+                                「显示开发章节」：手册里讲实现原理 / 宿主契约 / 移植清单的那几页
+                                （文件名带 dev- 标记）默认收起。
+                                为什么给开关而不是干脆不收：开发页始终随插件 DLL 全量收集
+                                （合并方要能假设"这本书是齐的"），这里裁的只是目录树的显示。
+                                必须显式挂 DialogCheckBox：不挂就走 Fluent 的隐式 CheckBox 模板，
+                                与字号下拉同一族坑（自带内边距，压进 28 高的工具栏就切字）。
+                            -->
+                            <CheckBox
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Style="{StaticResource DialogCheckBox}"
+                                Content="显示开发章节"
+                                IsChecked="{Binding ShowDevDocs, Mode=TwoWay}"
+                                ToolTip="显示讲实现原理、宿主契约与移植清单的页面（默认只给开发者看，产线查手册可不开）" />
                         </StackPanel>
 
                         <TextBlock
@@ -370,7 +467,7 @@
                             VerticalAlignment="Center"
                             FontSize="12"
                             Foreground="{StaticResource DialogTextMutedBrush}"
-                            Text="Ctrl+P 打印当前页" />
+                            Text="Ctrl+P 打印当前页 · Ctrl+F 搜索目录" />
                     </Grid>
                 </Border>
 
@@ -384,27 +481,91 @@
 
                     <Border
                         Grid.Column="0"
-                        Background="#FBFCFD"
+                        Background="{StaticResource DialogInputBackgroundBrush}"
                         BorderBrush="{StaticResource DialogBorderLightBrush}"
                         BorderThickness="0,0,1,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="30" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <TextBlock
-                                Grid.Row="0"
-                                Margin="14,0,0,0"
-                                VerticalAlignment="Center"
-                                FontSize="12"
-                                FontWeight="SemiBold"
-                                Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                Text="目录(C)" />
+                            <!--  目录抬头：左边是标题，右边只在搜索时给一个命中数  -->
+                            <Grid Grid.Row="0">
+                                <TextBlock
+                                    Margin="14,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="目录" />
+                                <TextBlock
+                                    Margin="0,0,14,0"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="{Binding MatchPageCount, StringFormat=命中 {0} 页}"
+                                    Visibility="{Binding IsSearching, Converter={ui:BooleanToVisibilityConverter}}" />
+                            </Grid>
+
+                            <!--
+                                搜索框：图标压在左边、占位文字靠数据触发（Query 为空才显示）。
+                                占位块必须 IsHitTestVisible=False，否则它盖在输入框上把点击吃掉，
+                                光标就点不进去了。
+                            -->
+                            <Border
+                                Grid.Row="1"
+                                Height="30"
+                                Margin="10,2,10,8"
+                                Background="{StaticResource DialogSurfaceBrush}"
+                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                <Grid>
+                                    <TextBox
+                                        x:Name="SearchBox"
+                                        Margin="27,0,8,0"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                        Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock
+                                        Margin="27,0,8,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        IsHitTestVisible="False"
+                                        Text="搜索目录（只搜标题）">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Query}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock
+                                        Margin="9,0,0,0"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        IsHitTestVisible="False"
+                                        Text="&#xf002;" />
+                                </Grid>
+                            </Border>
 
                             <TreeView
                                 x:Name="TocTree"
-                                Grid.Row="1"
+                                Grid.Row="2"
                                 Padding="6,0,6,10"
                                 Background="Transparent"
                                 BorderThickness="0"
@@ -413,6 +574,15 @@
                                 ItemsSource="{Binding Nodes}"
                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                 ui:TreeViewBehavior.BindableSelectedItem="{Binding SelectedNode}" />
+
+                            <TextBlock
+                                Grid.Row="2"
+                                Margin="0,40,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="没有匹配的目录"
+                                Visibility="{Binding HasNoMatch, Converter={ui:BooleanToVisibilityConverter}}" />
                         </Grid>
                     </Border>
 
@@ -451,22 +621,76 @@
                                     Foreground="#303133"
                                     Text="{Binding PageTitle}"
                                     TextTrimming="CharacterEllipsis" />
-                                <Border
+                                <Grid
                                     Grid.Column="1"
-                                    Padding="8,2"
                                     VerticalAlignment="Center"
-                                    Background="{StaticResource DialogAccentLightBrush}"
-                                    CornerRadius="8">
-                                    <TextBlock
-                                        FontSize="11"
-                                        Foreground="{StaticResource DialogAccentBrush}"
-                                        Text="{Binding PageSource}" />
-                                </Border>
+                                    Margin="10,0,0,0">
+                                    <!--
+                                        "自动生成"这一档用虚线描边（另外两档是实心底），
+                                        网页手册就是这么把"这不是插件写的"标出来的。
+                                        判据绑 PageSourceKind（枚举名），不绑 PageSource 的文字：
+                                        显示名改一次，判据就错一档。
+                                    -->
+                                    <Rectangle
+                                        Margin="-1"
+                                        RadiusX="8"
+                                        RadiusY="8"
+                                        Stroke="{StaticResource DialogTextMutedBrush}"
+                                        StrokeDashArray="2 2"
+                                        StrokeThickness="1">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PageSourceKind}" Value="Auto">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
+                                    <Border Padding="9,3" CornerRadius="8">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <!--  默认档 = 插件自带：灰底  -->
+                                                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PageSourceKind}" Value="Host">
+                                                        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding PageSourceKind}" Value="Auto">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock FontSize="11" Text="{Binding PageSource}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding PageSourceKind}" Value="Host">
+                                                            <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
                             </Grid>
                         </Border>
 
+                        <!--
+                            正文定宽居中：宽度取自 MarkdownToFlowDocument.ViewerMaxWidth（= 正文 780 + 两侧留白），
+                            与渲染器共用同一个数，改一处就两边一起变。
+                            超宽窗口下两侧留白，读的是行宽而不是窗口宽度——长文一眼能跟住下一行。
+                        -->
                         <FlowDocumentScrollViewer
+                            x:Name="BodyViewer"
                             Grid.Row="1"
+                            MaxWidth="{x:Static help:MarkdownToFlowDocument.ViewerMaxWidth}"
+                            HorizontalAlignment="Center"
                             Background="White"
                             BorderThickness="0"
                             Document="{Binding Document}"
@@ -487,13 +711,24 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock
+                        <StackPanel
                             Grid.Column="0"
                             VerticalAlignment="Center"
-                            FontSize="11"
-                            Foreground="{StaticResource DialogTextMutedBrush}"
-                            Text="手册由软件在启动时合并：软件内置 + 各插件自带；标「自动生成」的节点尚未提供手册。"
-                            TextTrimming="CharacterEllipsis" />
+                            Orientation="Horizontal">
+                            <!--  主色小圆点：状态栏左侧那个"活着"的记号（网页手册的页脚同款）  -->
+                            <Ellipse
+                                Width="6"
+                                Height="6"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                Fill="{StaticResource DialogAccentBrush}" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="手册由软件在启动时合并：软件内置 + 各插件自带；标「自动生成」的节点尚未提供手册，标「开发」的页是原理与移植参考。"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
                         <TextBlock
                             Grid.Column="1"
                             VerticalAlignment="Center"

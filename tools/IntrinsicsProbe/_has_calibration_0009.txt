@@ -1,0 +1,24 @@
+ 
+HDevelop User's Guide - 7.2.3.2 Camera Parameters 
+HALCON 23.05.0.0 / HDevelop User's Guide / Results of the Calibration 
+ &laquo; previous | next &raquo; 
+7.2.3.2 Camera Parameters 
+The internal camera parameters include
+ Cell Width (Sx) and Cell Height (Sy) in &mu; m,
+ Focal Length in mm,
+ Center Column (Cx) and Center Row (Cy) ,
+ Image Width and Image Height in pixels. They also include
+ Kappa in m &thinsp;&minus;&thinsp;2 or instead of Kappa , the distortion parameters
+ Radial 2nd Order (K1) in m &thinsp;&minus;&thinsp;2 ,
+ Radial 4th Order (K2) in m &thinsp;&minus;&thinsp;4 ,
+ Radial 6th Order in m &thinsp;&minus;&thinsp;6 ,
+ Tangential 2nd Order (P1) and
+ Tangential 2nd Order (P2) in m &thinsp;&minus;&thinsp;2 
+for the polynomial area scan camera model.
+If you have a line scan camera, additionally to the values of the
+ area scan camera (division) model, values for the motion parameters
+ Motion x (Vx) , Motion y (Vy) and Motion z (Vz) in &mu; /pixel
+will be returned.
+&laquo; previous | next &raquo; 
+Copyright &copy; 2023 MVTec Software GmbH 
+ Follow us on

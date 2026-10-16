@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Threading;
 using Core.Events;
 using Prism.Dialogs;
 using VisionMaster;
@@ -462,6 +467,186 @@ namespace FlowCanvasChecks
                 {
                     vm.Deactivate();
                 }
+            }
+
+            DeleteKeepsCommandTargetAlive();
+        }
+
+        // ==================================================================
+        //  V10：删除后"命令靶"必须跟着流程树自动改选的那一步走
+        //
+        //  背景（2026-10-16 真机：「流程栏选中算子右键删除没反应，尤其只剩最后一个算子时」）：
+        //  删除引起的集合变更会让 TreeView 自动改选邻近行（WPF Selector 在 ItemsSource 变更后
+        //  自动保选），那次改选经 BindableSelectedItem 写回 SelectStep，命令靶已经变成"幸存的那一步"；
+        //  而 Delete 分支随后无条件 `CurrentSelectedStepModel = null` 把它抹掉 —— 于是：
+        //    · 界面上幸存那行**高亮着**（树自己的选中），命令靶却是 null；
+        //    · 删除/改名/禁用全部静默空跑（`if (CurrentSelectedStepModel == null) break;`）；
+        //    · 最阴的是"再点一次那一行"救不回来：它本来就选着，不会再触发 SelectedItemChanged。
+        //  只剩最后一步时必然复现（删完只剩唯一一行，且它一定被自动选上）。
+        //
+        //  本断言必须在**真视图 + 真 TreeView** 上跑：症状的成因是"树的自动改选回写 VM"，
+        //  纯 VM 直调（像 V5/V7 那样赋 SelectStep）根本产生不了那次回写——缺了树这一环就是假绿。
+        //  不出图、不开窗口也能跑：TreeView 的容器生成不依赖 Window / Application，
+        //  在 ASSERT 宿主里 Measure/Arrange 一遍就够（已实测）。
+        // ==================================================================
+        private static void DeleteKeepsCommandTargetAlive()
+        {
+            var results = new List<(string Name, bool Ok, string Detail)>();
+            var sta = new Thread(() =>
+            {
+                try { RunDeleteTargetProbe(results); }
+                catch (Exception ex)
+                {
+                    lock (results) results.Add(("STA 运行", false, ex.GetType().Name + ": " + ex.Message));
+                }
+            });
+            sta.SetApartmentState(ApartmentState.STA);
+            sta.Start();
+            sta.Join();
+
+            foreach (var r in results)
+                Check("V10：" + r.Name, r.Ok, r.Detail);
+        }
+
+        private static void RunDeleteTargetProbe(List<(string Name, bool Ok, string Detail)> results)
+        {
+            void R(string name, bool ok, string detail)
+            {
+                lock (results) results.Add((name, ok, detail));
+            }
+
+            var h = new Harness();
+            var vm = new ProcessViewModel(h.Workspace, new RecordingDialogService());
+
+            // 真 TreeView 接上流程树（复刻 ProcessView.xaml 的两条绑定：选中项双向 + Delete 键命令）。
+            // 刻意不 new Application：断言宿主是控制台进程，第二个 Application 会卡初始化/挂退出
+            //（同 BlobDetectChecks 与 ParallelContainerChecks 的纪律）；本探针只做布局不出图，
+            // 主题资源也用不到——判据全在数据侧（命令靶字段 / 步骤集合），不依赖任何样式。
+            var tree = new TreeView { ItemsSource = h.Flow.Steps };
+            BindingOperations.SetBinding(
+                tree,
+                UI.Behaviors.TreeViewBehavior.BindableSelectedItemProperty,
+                new Binding(nameof(ProcessViewModel.SelectStep))
+                {
+                    Source = vm,
+                    Mode = BindingMode.TwoWay,
+                });
+
+            // 容器生成要跑一次布局（无窗口宿主也算数：Measure/Arrange 后 ItemContainerGenerator 就有容器了）
+            var host = new Border { Width = 420, Height = 700, Child = tree };
+            host.Measure(new Size(420, 700));
+            host.Arrange(new Rect(0, 0, 420, 700));
+            host.UpdateLayout();
+            PumpProbeFrames(6);
+
+            try
+            {
+                var first = h.Add(new ActionStep("\uE700", "延时", StubPluginProvider.LeafPlugin, "延时_1"));
+                var second = h.Add(new ActionStep("\uE700", "变量赋值", StubPluginProvider.LeafPlugin, "变量赋值_2"));
+                PumpProbeFrames(8);
+
+                // ---- ① 选中第一行（等价左键点选）→ 命令靶跟上 ----
+                SelectProbeRow(tree, 0);
+                bool targetFollowsSelection = ReferenceEquals(CommandTarget(vm), first);
+                R("选中某行 → 命令靶就是它（前置条件）",
+                    targetFollowsSelection,
+                    $"靶={Describe(CommandTarget(vm))}（期望 {first.StepName}）");
+
+                // ---- ② 删除它：树会自动改选幸存行，命令靶必须跟过去（旧实现这里被清成 null）----
+                bool removed = ExecuteProbeDelete(vm);
+                PumpProbeFrames(6);
+                var target = CommandTarget(vm);
+                var selected = tree.SelectedItem;
+
+                R("删除后命令靶 = 树自动改选的那一步（不是 null，也不是已删除的那一步）",
+                    removed && h.Flow.Steps.Count == 1
+                    && ReferenceEquals(target, second) && ReferenceEquals(selected, second),
+                    $"已删={removed} 剩={h.Flow.Steps.Count} 步；树选中={Describe(selected)}；命令靶={Describe(target)}");
+
+                // ---- ③ 接着删幸存的那一步（用户实际动作：界面已高亮，直接再点删除）----
+                //  旧实现在这一步静默空跑（靶为 null），Steps 仍是 1 —— 真机"点了没反应"。
+                bool removedAgain = ExecuteProbeDelete(vm);
+                PumpProbeFrames(6);
+                R("再删剩下那一步 → 真的删掉（旧实现靶为 null，静默空跑）",
+                    removedAgain && h.Flow.Steps.Count == 0,
+                    $"已删={removedAgain} 删后={h.Flow.Steps.Count} 步（期望 0）；命令靶={Describe(CommandTarget(vm))}");
+
+                // ---- ④ 反向钉住"该清空时必须清空"：删掉唯一的一步后，命令靶不许留着孤儿对象 ----
+                //  若把 ② 的修法写成"删除后一律不清空"，这里会留下一个已移出图纸的 StepModel，
+                //  后续改名/禁用就会打在孤儿对象上（错靶）——所以清空分支必须还在。
+                var only = h.Add(new ActionStep("\uE700", "延时", StubPluginProvider.LeafPlugin, "唯一_1"));
+                PumpProbeFrames(8);
+                SelectProbeRow(tree, 0);
+                ExecuteProbeDelete(vm);
+                PumpProbeFrames(6);
+                bool clearedToNull = CommandTarget(vm) == null && h.Flow.Steps.Count == 0;
+                R("删掉唯一的一步（无人接手选中）→ 命令靶清空，不留孤儿对象",
+                    clearedToNull,
+                    $"剩={h.Flow.Steps.Count} 步；命令靶={Describe(CommandTarget(vm))}（期望 null）");
+
+                // ---- ⑤ 删光后重新加一步，选中即可删（"删到最后一步卡死"的完整回归）----
+                var fresh = h.Add(new ActionStep("\uE700", "延时", StubPluginProvider.LeafPlugin, "新算子_1"));
+                PumpProbeFrames(8);
+                // 上一步删空后树里已无选中项，这里点选新加的那一步（用户拖入算子后再点它）
+                SelectProbeRow(tree, 0);
+                bool selectable = ReferenceEquals(CommandTarget(vm), fresh);
+                ExecuteProbeDelete(vm);
+                PumpProbeFrames(6);
+                R("删光后再拖入一步：选中即可删（最后一步不是终点）",
+                    selectable && h.Flow.Steps.Count == 0,
+                    $"选中生效={selectable} 删后={h.Flow.Steps.Count} 步（期望 0）");
+            }
+            finally
+            {
+                vm.Deactivate();
+            }
+        }
+
+        /// <summary>命令靶：ModuleActionCommand 真正取参的那个私有字段（SelectStep 是它的公开投影，两者曾经各说各话）</summary>
+        private static StepModel CommandTarget(ProcessViewModel vm)
+            => typeof(ProcessViewModel)
+                .GetField("CurrentSelectedStepModel", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.GetValue(vm) as StepModel;
+
+        private static string Describe(object o)
+            => o == null ? "null" : o is StepModel s ? $"{s.StepName}({s.GetType().Name})" : o.ToString();
+
+        /// <summary>点选第 index 行：真 TreeView 的选中会经 BindableSelectedItem 写回 VM（与用户点击同一条链）</summary>
+        private static void SelectProbeRow(TreeView tree, int index)
+        {
+            if (index >= tree.Items.Count) return;
+            if (tree.ItemContainerGenerator.ContainerFromIndex(index) is TreeViewItem item)
+            {
+                item.IsSelected = true;
+                PumpProbeFrames(4);
+            }
+        }
+
+        /// <summary>走真命令（等价菜单项/Delete 键）：抛异常按 false 记（由调用方按期望值判红）</summary>
+        private static bool ExecuteProbeDelete(ProcessViewModel vm)
+        {
+            if (!vm.ModuleActionCommand.CanExecute(ModuleCommandAction.Delete))
+                return false;
+
+            try
+            {
+                vm.ModuleActionCommand.Execute(ModuleCommandAction.Delete);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static void PumpProbeFrames(int n)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                var frame = new DispatcherFrame();
+                Dispatcher.CurrentDispatcher.BeginInvoke(
+                    DispatcherPriority.Background, new Action(() => frame.Continue = false));
+                Dispatcher.PushFrame(frame);
             }
         }
 

@@ -146,11 +146,14 @@
                 </Border>
 
                 <!--  关闭  -->
+                <!--  Padding 显式归零：不挂样式的按钮吃 Fluent 隐式 Button 样式的 11,5,11,6 内边距，  -->
+                <!--  30×30 的格子只剩 6×17，「✕」需求 11.4×17.8 → 被模板里带圆角的 Border 切掉。  -->
                 <Button
                     Grid.Column="3"
                     Width="30"
                     Height="30"
                     Margin="14,0,0,0"
+                    Padding="0"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     Background="Transparent"

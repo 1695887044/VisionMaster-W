@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -30,6 +31,14 @@ namespace UIThemeSmokeTest
     internal static class Program
     {
         private static bool _withFluent;
+
+        /// <summary>
+        /// ShellCopy.xaml 实例化出来的那份 DockingManager（Main 里在测量前抓住）。
+        /// 为什么要缓存：LayoutHelper 的公开重载都从 Application.Current.MainWindow 找管理器，
+        /// 而本宿主里的窗口从不 Show、也不是 MainWindow，那条路走不通——
+        /// 面板显隐断言必须显式传"它自己这份"（LayoutHelper 的指定宿主重载）。
+        /// </summary>
+        private static AvalonDock.DockingManager? _shellDock;
 
         [STAThread]
         private static int Main(string[] args)
@@ -470,6 +479,7 @@ namespace UIThemeSmokeTest
             try
             {
                 var dock = FindDockingManager(window);
+                _shellDock = dock;
                 if (dock != null)
                 {
                     dock.Theme = new HarnessDockTheme(new ResourceDictionary
@@ -497,10 +507,11 @@ namespace UIThemeSmokeTest
                 Console.WriteLine($"=== OK: Shell.xaml 全树模板实例化无异常 (Fluent={_withFluent}) ===");
                 RunPaneLayoutChecks();
                 int shellLayoutFailures = RunShellLayoutChecks();
+                int panelModeFailures = RunPanelModeChecks();
                 int gridFailures = RunGridViewChecks();
                 int flowCanvasFailures = RunFlowCanvasChecks();
                 int logConsoleFailures = RunLogConsoleChecks();
-                return shellLayoutFailures + gridFailures + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
+                return shellLayoutFailures + panelModeFailures + gridFailures + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -1313,38 +1324,54 @@ namespace UIThemeSmokeTest
                         && (string)processColumn.Attribute("Orientation") == "Vertical",
                     $"共同祖先={KindOf(processColumn)}，Orientation={(processColumn == null ? "(缺)" : ((string)processColumn.Attribute("Orientation") ?? "(缺)"))}");
 
-                // ---- 活动栏"图标与落点同侧"闸（2026-10-15 拆分左右两条的核心不变量）----
-                // 为什么必须钉：活动栏的图标是"它所管面板在哪一侧"的指示器。历史上曾把三个
-                // 右侧面板（工具箱/图元工具箱/图层）的开关留在左侧竖条里——点最左边图标、
-                // 面板从最右边出来，指示器失效。判据用"文档序 vs 停靠区位置"表达：
-                // 左侧面板的开关必须在 DockingManager 之前、右侧面板的开关必须在它之后。
+                // ---- 活动栏闸（2026-10-15 三度改版后的现状：整条下线）----
+                // 沿革：先"一条竖条塞 5 个开关"（其中 3 个管的面板在最右边 = 落点指示失效）→
+                // 拆成左右两条 → 左条下线、右条只留「工具箱」→ **整条下线**（当前）。
+                // 现状判据：主体 Grid 只有一列；文件里不得再有任何 TogglePanelCommand 开关。
+                // 组态三面板的显隐改由模式自动收敛（见 RunPanelModeChecks），不再需要手工开关。
                 var all = doc.Descendants().ToList();
                 int dockIndex = all.FindIndex(e => e.Name.LocalName == "DockingManager");
-                int IndexOfToggle(string panelId) => all.FindIndex(e =>
-                    e.Name.LocalName == "ToggleButton"
-                    && (string)e.Attribute("CommandParameter") == panelId);
                 int IndexOfTopCommand(string action) => all.FindIndex(e =>
                     e.Name.LocalName == "Button"
                     && ((string)e.Attribute("CommandParameter") ?? "").Contains("SystemAction." + action, StringComparison.Ordinal));
 
-                var leftToggles = new[] { "Panel_FlowListView", "Panel_ProcessView" }
-                    .Select(id => (Id: id, Index: IndexOfToggle(id))).ToList();
-                var rightToggles = new[] { "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView" }
-                    .Select(id => (Id: id, Index: IndexOfToggle(id))).ToList();
+                var gridCols = all.FirstOrDefault(e => e.Name.LocalName == "Grid" && (string)e.Attribute("Grid.Row") == "1")
+                    ?.Elements().FirstOrDefault(c => c.Name.LocalName == "Grid.ColumnDefinitions")?.Elements().Count() ?? -1;
 
-                Check("活动栏（左）只放左侧栏面板的开关：程序/流程栏的图标在停靠区之前",
-                    dockIndex >= 0 && leftToggles.All(t => t.Index >= 0 && t.Index < dockIndex),
-                    $"停靠区位置={dockIndex}；{string.Join("，", leftToggles.Select(t => $"{t.Id}={t.Index}"))}");
+                Check("活动栏已整条下线：主体 Grid 只有一列（没有竖条占宽）",
+                    gridCols == 1, $"Grid.Row=1 的列数={gridCols}");
 
-                Check("活动栏（右）只放右侧栏面板的开关：工具箱/图元工具箱/图层的图标在停靠区之后",
-                    dockIndex >= 0 && rightToggles.All(t => t.Index > dockIndex),
-                    $"停靠区位置={dockIndex}；{string.Join("，", rightToggles.Select(t => $"{t.Id}={t.Index}"))}");
+                var panelToggles = all.Where(e => e.Name.LocalName == "ToggleButton"
+                        && (string)e.Attribute("CommandParameter") is string cp && cp.StartsWith("Panel_", StringComparison.Ordinal))
+                    .ToList();
+                Check("活动栏已整条下线：文件里没有任何面板开关（组态三面板改由模式自动收敛）",
+                    panelToggles.Count == 0,
+                    panelToggles.Count == 0 ? "（无）" : string.Join("，", panelToggles.Select(e => (string)e.Attribute("CommandParameter"))));
 
-                Check("两个全局命令（全局变量/通讯设置）已移出活动栏、落在停靠区之前的顶栏",
+                Check("两个全局命令（全局变量/通讯设置）落在停靠区之前的顶栏",
                     dockIndex >= 0
                         && IndexOfTopCommand("GlobalVariables") is int g && g >= 0 && g < dockIndex
                         && IndexOfTopCommand("CommSettings") is int c && c >= 0 && c < dockIndex,
                     $"停靠区位置={dockIndex}；全局变量={IndexOfTopCommand("GlobalVariables")}，通讯设置={IndexOfTopCommand("CommSettings")}");
+
+                // ---- 窗口控制按钮的几何闸（2026-10-16 真机："关闭显示不全"）----
+                // 症状看着像被裁切，其实那三个按钮的 Content 是**几何字符串**（Path.Data 直接吃它），
+                // 关闭按钮原本写的是 `M 0 0 L 10 10 M 0 10 L 0 10`——第二笔起点=终点，长度 0，
+                // 于是 ✕ 只画出一条对角线，屏幕上就是一个 `\`。**编译期全绿、StaticResource 全绿、
+                // 模板同源全绿**（样式与模板都没错，错的是数据），只有眼睛能看见。
+                // 所以闸只能问几何本身：不许出现零长度线段。ShellCopy.xaml 一起扫（R44：副本会照抄原件的错）。
+                var captionBad = CaptionGeometryOffenders(doc);
+                Check("标题栏三个按钮的几何没有「少一笔」（零长度线段）",
+                    captionBad.Count == 0,
+                    captionBad.Count == 0 ? "（无）" : string.Join("；", captionBad));
+
+                var copyPath = Path.Combine(@"d:\C#\VM", "UIThemeSmokeTest", "ShellCopy.xaml");
+                var copyBad = File.Exists(copyPath)
+                    ? CaptionGeometryOffenders(XDocument.Load(copyPath))
+                    : new List<string> { "找不到 " + copyPath };
+                Check("同一道几何闸也过 ShellCopy.xaml（结构副本不许照抄原件的错）",
+                    copyBad.Count == 0,
+                    copyBad.Count == 0 ? "（无）" : string.Join("；", copyBad));
             }
             catch (Exception ex)
             {
@@ -1357,9 +1384,243 @@ namespace UIThemeSmokeTest
             return failures;
         }
 
+        /// <summary>
+        /// 标题栏按钮几何里的「零长度线段」（线段的起点=终点）——画出来什么都没有，等于图标少一笔。
+        /// 2026-10-16 真机：关闭按钮的 ✕ 只剩一条对角线（屏幕上是个 `\`），因为第二笔写成 `M 0 10 L 0 10`。
+        /// 样式、模板、StaticResource 那时全绿，错的是喂给 `Path.Data` 的**数据**，所以只能按几何判。
+        /// </summary>
+        private static List<string> CaptionGeometryOffenders(XDocument doc)
+        {
+            var offenders = new List<string>();
+            foreach (var button in doc.Descendants().Where(e => e.Name.LocalName == "Button"
+                         && ((string)e.Attribute("Style") ?? "").Contains("WindowControlButton", StringComparison.Ordinal)))
+            {
+                var content = (string)button.Attribute("Content") ?? string.Empty;
+                var label = (string)button.Attribute("Tag")
+                            ?? (string)button.Attributes().FirstOrDefault(a => a.Name.LocalName == "Name")
+                            ?? "(未命名按钮)";
+                foreach (Match m in Regex.Matches(content, @"M\s*([-\d.]+)[,\s]+([-\d.]+)\s+L\s*([-\d.]+)[,\s]+([-\d.]+)"))
+                {
+                    var p = new double[4];
+                    for (var i = 0; i < 4; i++)
+                        p[i] = double.Parse(m.Groups[i + 1].Value, CultureInfo.InvariantCulture);
+                    if (p[0] == p[2] && p[1] == p[3])
+                        offenders.Add($"「{label}」的 {m.Value}");
+                }
+            }
+            return offenders;
+        }
+
         private static XElement ByContentId(XDocument doc, string contentId)
         {
             return doc.Descendants().FirstOrDefault(e => (string)e.Attribute("ContentId") == contentId);
+        }
+
+        /// <summary>
+        /// 「组态三面板 vs 算子工具箱」按场景互斥的运行时闸（2026-10-15）。
+        ///
+        /// 为什么必须真调一遍而不是只扫 XAML：这条逻辑的载体是 AvalonDock 的**可见性模型**
+        /// （`LayoutAnchorable.IsVisible`，隐藏即移入 LayoutRoot.Hidden），XAML 里根本看不出对错；
+        /// 而写反了（组态/非组态两组的 Show/Hide 对调）在编译期与静态扫描下**全绿**，
+        /// 屏幕上却是"调流程时冒出图层属性、进组态反而只剩算子工具箱"。
+        ///
+        /// 为什么能在这里跑：本宿主加载的是 ShellCopy.xaml，它带一份真实的 DockingManager
+        /// 与全部 LayoutAnchorable（注意：应用里的面板内容由 LayoutHelper.FillContents 回填，
+        /// 这里不依赖内容，只依赖 ContentId）。
+        /// </summary>
+        private static int RunPanelModeChecks()
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                var dock = _shellDock;
+                if (dock == null)
+                {
+                    Check("Panel 模式（组态三面板 vs 算子工具箱）", false, "没抓到 DockingManager");
+                    return failures;
+                }
+
+                // 组态三面板 / 算子工具箱 的 ContentId（与 LayoutHelper 里的口径保持一致）
+                var scadaPanels = new[] { "Panel_ScadaPropertyView", "Panel_ScadaLayerView", "Panel_ScadaToolboxView" };
+
+                string Snapshot()
+                    => "组态三面板=[" + string.Join(",", scadaPanels.Select(id => VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id) ? "可见" : "隐藏"))
+                       + "]，工具箱=" + (VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView") ? "可见" : "隐藏");
+
+                // ---- ① 组态设计模式：三个组态面板可见、算子工具箱隐藏 ----
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, true);
+                Check("组态设计模式：属性/图层/图元工具箱 都显示，算子工具箱 收起",
+                    scadaPanels.All(id => VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id))
+                    && !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView"),
+                    Snapshot());
+
+                // ---- ② 非组态模式：反之 ----
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
+                Check("非组态模式：只留算子工具箱，属性/图层/图元工具箱 全部收起（两列随之收成 0、画布变宽）",
+                    VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView")
+                    && scadaPanels.All(id => !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id)),
+                    Snapshot());
+
+                // ---- ③ 来回切两次后仍与基线一致（防"隐藏了就再也显示不回来"的累积错） ----
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, true);
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, true);
+                bool backToScada = scadaPanels.All(id => VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id))
+                                   && !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView");
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
+                bool backToNormal = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView")
+                                    && scadaPanels.All(id => !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id));
+                Check("来回切换多次后两个模式仍各自收敛到同一条基线（幂等、无累积错）",
+                    backToScada && backToNormal,
+                    $"切回组态={backToScada}，切回非组态={backToNormal}");
+
+                // ---- ④ 判据闸：文档的 IsSelected 才是"当前在组态设计"，IsActive 不是 ----
+                // 这条钉的是"为什么不能用 IsPanelActive 当判据"：点一下右侧停靠面板就会把
+                // 文档的 IsActive 抢走（AvalonDock 语义），拿它当判据会自毁循环。
+                // 这里只验语义可用性：ShellCopy 里组态画面是 LayoutDocument、可取 IsSelected。
+                var scadaDoc = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaEditorView");
+                Check("「组态画面」是 LayoutDocument（判据走 IsSelected；LayoutAnchorable 没有这个语义）",
+                    scadaDoc is AvalonDock.Layout.LayoutDocument,
+                    $"实际类型={scadaDoc?.GetType().Name ?? "(没找到)"}");
+
+                // ---- ⑤ 图层面板在 ContentFactories 里登记了（否则恢复布局后它变空壳） ----
+                // 反证方式：改坏 LayoutHelper.ContentFactories 里 Panel_ScadaLayerView 那条 → 本断言红。
+                var factoryProbe = typeof(VisionMaster.Services.LayoutHelper)
+                    .GetField("ContentFactories", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                    ?.GetValue(null) as System.Collections.IDictionary;
+                Check("图层面板登记在 ContentFactories 里（缺它 = 每次恢复布局后图层面板变空壳，且覆盖度校验不会拦）",
+                    factoryProbe != null && factoryProbe.Contains("Panel_ScadaLayerView"),
+                    factoryProbe == null ? "(反射取不到 ContentFactories)" : $"登记项 {factoryProbe.Count} 个");
+
+                // ---- ⑥⑦⑧ AvalonDock 4.74.1 的 Show() 只判上界不判下界（2026-10-16 真机闪退） ----
+                // 现场：LayoutAnchorable.Show() 把 Hide 时记下的"回哪一列、第几个位置"原样喂给
+                // Collection<T>.Insert，索引 -1 时抛 ArgumentOutOfRangeException，且异常出在
+                // "清空记忆"那两行之前 → 坏记忆永久留着，本面板此后每 Show 一次炸一次；而 R56 让
+                // "切中央文档区标签"就重收敛一次，于是变成天天炸。防护在 LayoutHelper.ShowAnchorable。
+                const string dirtyId = "Panel_ScadaLayerView";
+                var dirtyPanel = VisionMaster.Services.LayoutHelper.FindPanel(dock, dirtyId)
+                    as AvalonDock.Layout.LayoutAnchorable;
+
+                // 口径必须与产线**逐字一致**（LayoutHelper.ReadPreviousContainer / ReadPreviousContainerIndex）：
+                //   · `PreviousContainer` 是 `LayoutContent` 上的 **protected 属性**（公开接口
+                //     `ILayoutPreviousContainer` 是 internal，外部程序集转不过去 → CS0122）；
+                //   · `PreviousContainerIndex` 是 **public 属性**（底层字段 `_previousContainerIndex`）。
+                //   两者都**不是**同名字段——2026-10-16 第一版断言写成 `GetField(...)` 取不到，
+                //   直接假红（`字段=(缺)/(缺)`）；产线同款写法则会让"记忆判废"整条分支静默失效。
+                var prevContainerProp = typeof(AvalonDock.Layout.LayoutContent)
+                    .GetProperty("PreviousContainer",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var prevIndexProp = typeof(AvalonDock.Layout.LayoutContent)
+                    .GetProperty("PreviousContainerIndex",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+                if (dirtyPanel == null || prevContainerProp == null || prevIndexProp == null)
+                {
+                    // 故意判红不判"跳过"：反射口径失效说明 AvalonDock 换了版本（可能已修这条），
+                    // 那正是"防护该重审/该摘"的时刻，静默放行等于给未来回归留门（R38）。
+                    Check("脏记忆断言可用（图层面板 + PreviousContainer/PreviousContainerIndex 属性取得到）",
+                        false,
+                        $"面板={(dirtyPanel == null ? "(没找到)" : "有")}，属性={prevContainerProp?.Name ?? "(缺)"}/{prevIndexProp?.Name ?? "(缺)"}");
+                }
+                else
+                {
+                    // ---- ⑥ 索引打成 -1（记忆里的列已不含本面板） ----
+                    VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false); // 图层此刻隐藏，记忆有效
+                    prevIndexProp.SetValue(dirtyPanel, -1);
+
+                    // ⑥a 反证：先证明"没有防护时库自己就炸"。这条红了 = 脏索引的前提不成立 =
+                    // 下面的防护断言是空转，必须重审（R38：绿灯要有可反证的前提）。
+                    string raw6 = "没抛异常（库这一版免疫？防护前提要重审）";
+                    try { dirtyPanel.IsVisible = true; }
+                    catch (Exception ex) { raw6 = ex.GetType().Name; }
+                    Check("脏索引下直接写 IsVisible=true 当场抛 ArgumentOutOfRangeException（真机那条栈的复现，证明防护不是空转）",
+                        raw6 == "ArgumentOutOfRangeException", raw6);
+
+                    // ⑥b 防护：ShowPanel 不许抛、且面板必须真的显示回来
+                    if (dirtyPanel.IsVisible)
+                    {
+                        dirtyPanel.IsVisible = false; // ⑥a 居然没抛（库行为变了）：重新造脏再验防护
+                        prevIndexProp.SetValue(dirtyPanel, -1);
+                    }
+                    string dirty6 = "";
+                    bool threw6 = false;
+                    try
+                    {
+                        VisionMaster.Services.LayoutHelper.ShowPanel(dock, dirtyId);
+                    }
+                    catch (Exception ex)
+                    {
+                        threw6 = true;
+                        dirty6 = $"{ex.GetType().Name}: {ex.Message}";
+                    }
+                    bool shown6 = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, dirtyId);
+                    Check("记忆索引 = -1 时 ShowPanel 不抛异常、图层面板照样显示回来（库的 Show() 缺下界判据，真机闪退那一条）",
+                        !threw6 && shown6,
+                        threw6 ? $"抛了 {dirty6}" : (shown6 ? "未抛、已显示" : "未抛但没显示（静默故障）"));
+
+                    // ---- ⑦ 整条记忆抹掉（PreviousContainer = null） ----
+                    dirtyPanel.IsVisible = false; // 重新隐藏，让 Hide 把有效记忆写回去（下面再抹）
+                    prevContainerProp.SetValue(dirtyPanel, null);
+                    prevIndexProp.SetValue(dirtyPanel, -1);
+
+                    // ⑦a 反证：这一态库**不抛、也不显示**——"没抛异常"不等于"面板回来了"，
+                    // 所以防护不能只 catch，必须自己把它挂回去。
+                    bool silent7 = false;
+                    try
+                    {
+                        dirtyPanel.IsVisible = true;
+                        silent7 = !dirtyPanel.IsVisible;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"（⑦a 备注：这一态库改成抛 {ex.GetType().Name} 了）");
+                    }
+                    Check("记忆为空时库自己 Show() 是静默不显示（所以防护不许只 catch 不挂回）",
+                        silent7, silent7 ? "确认静默不显示" : "这一态没复现静默（库行为变了，重审防护口径）");
+
+                    string dirty7 = "";
+                    bool threw7 = false;
+                    try
+                    {
+                        VisionMaster.Services.LayoutHelper.ShowPanel(dock, dirtyId);
+                    }
+                    catch (Exception ex)
+                    {
+                        threw7 = true;
+                        dirty7 = $"{ex.GetType().Name}: {ex.Message}";
+                    }
+                    bool shown7 = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, dirtyId);
+                    Check("整条记忆被抹平时 ShowPanel 不抛异常、图层面板仍显示回来（旧行为是静默显示不出来）",
+                        !threw7 && shown7,
+                        threw7 ? $"抛了 {dirty7}" : (shown7 ? "未抛、已显示" : "未抛但没显示（静默故障）"));
+
+                    // ⑧ 修完之后收敛照常工作（反证修复没把布局搞坏：Hide 会重新记下有效索引）
+                    VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, true);
+                    bool scadaOk = scadaPanels.All(id => VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id))
+                                   && !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView");
+                    VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
+                    bool normalOk = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView")
+                                    && scadaPanels.All(id => !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id));
+                    Check("两轮脏记忆修复后，两种模式的收敛仍各自回到基线（修复没留下坏状态）",
+                        scadaOk && normalOk,
+                        $"切组态={scadaOk}，切非组态={normalOk}，{Snapshot()}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Check("Panel 模式（组态三面板 vs 算子工具箱）", false, ex.Message);
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== Panel 模式：全部通过 ==="
+                : $"### Panel 模式：{failures} 项失败");
+            return failures;
         }
 
         private static string KindOf(XElement element)
