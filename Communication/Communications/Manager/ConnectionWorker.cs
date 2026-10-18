@@ -64,7 +64,9 @@ namespace VisionMaster.Communications
         private volatile bool _autoReconnect = true; // 外部策略：断裂/建连失败后是否允许退避重连（Manager 按配置注入）
         private long _nextConnectTick;               // 下次允许发起连接的时刻（TickCount64，Volatile 访问）
 
-        private int _reconnectAttempt;
+        // P-T1：UI 线程写 0（Connect）/ Worker 线程读写，加 volatile 保证可见性。
+        // 自增只在 Worker 一侧（ScheduleReconnect），计数精度无关紧要，故不引入 Interlocked。
+        private volatile int _reconnectAttempt;
         private long _lastSuccessTicks;              // 最近一次真实通信成功的 DateTime.Ticks（Interlocked 访问）
         private bool _disposed;
 

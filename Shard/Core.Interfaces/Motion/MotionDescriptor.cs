@@ -162,10 +162,36 @@ namespace Core.Interfaces
 
                 Axes.Add(new AxisMapping
                 {
+                    // 身份在建轴那一刻就定下，此后改名/换物理轴号都不变（见 MotionAxisId 的说明）。
+                    AxisId = Guid.NewGuid(),
                     LogicalName = PickUnusedLogicalName(i, isNameTaken),
                     PhysicalIndex = i,
                 });
             }
+        }
+
+        /// <summary>
+        /// 给历史轴补齐稳定身份（旧 .vms 里没有 AxisId 字段）。
+        ///
+        /// 只在加载/建索引时调用一次；已经有的轴一律不动。返回本次补了几根。
+        ///
+        /// 为什么不在这里 <c>Guid.NewGuid()</c>：历史轴必须"每次打开都得到同一个 Id"，
+        /// 否则第一次运行建好的 SCADA 绑定/系统变量引用在重启后全部失联。
+        /// 确定性规则见 <see cref="MotionAxisId.ForLegacy"/>。
+        /// </summary>
+        public int EnsureAxisIds()
+        {
+            int assigned = 0;
+
+            foreach (var axis in Axes)
+            {
+                if (axis.AxisId != Guid.Empty) continue;
+
+                axis.AxisId = MotionAxisId.ForLegacy(Id, axis.PhysicalIndex);
+                assigned++;
+            }
+
+            return assigned;
         }
 
         /// <summary>
@@ -211,6 +237,16 @@ namespace Core.Interfaces
     /// </summary>
     public class AxisMapping
     {
+        /// <summary>
+        /// 轴的稳定身份：一经创建永不改变，随方案落盘。
+        ///
+        /// 为什么在 LogicalName 之外还要 Id：轴名是给人看的标签，用户可以随时改；
+        /// 而 SCADA 画面绑定、系统变量、将来的外部引用都需要一个"改名不动"的锚点。
+        /// 新建轴给新 Guid；历史轴（旧 .vms 没有本字段）由
+        /// <see cref="MotionDescriptor.EnsureAxisIds"/> 按 (卡 Id, 物理轴号) 确定性补齐。
+        /// </summary>
+        public Guid AxisId { get; set; }
+
         /// <summary>逻辑轴名（流程步骤引用它，如 "X" / "上料轴"）</summary>
         public string LogicalName { get; set; } = string.Empty;
 

@@ -170,6 +170,9 @@ namespace FlowCanvasChecks
             ExecutionChecks.SessionStateTransitionSemantics();
             ExecutionChecks.ContractHygieneAndStepCollection();
 
+            // 等待节点（BuiltIn_Wait）：编译门禁 / 先求值后等待 / 轮询 / 超时两种处置 / 输出端口 / 停止
+            WaitNodeChecks.Run();
+
             // S3：FlowModel 版本链（嵌套 / 后加分支 / 改序 / 清空 / 替换集合 / 反序列化往返后订阅重扫）
             FlowModelVersionChecks.Run();
 
@@ -295,6 +298,16 @@ namespace FlowCanvasChecks
             // 图标字符按钮放进固定格子必须挂样式或显式 Padding（Fluent 隐式 Button 样式的 11,5,11,6
             // 内边距把 30×30 的「✕」切成残字符，真机三连报；编译期全绿，只有静态算术闸拦得住）
             GlyphButtonClipCheck.Run();
+
+            // 插件清单缓存（层 3 启动提速）：指纹失效三态 / 缓存产物与全量扫描逐项一致 /
+            // 构造器无副作用前提（缓存路径跳过实例化，这个前提一破就必须当场红）
+            PluginCacheChecks.Run();
+
+            // 内参标定（标定板内参标定，二期③）：契约良构 + DTO 往返（纯托管）
+            // + 合成自验证（sim_caltab 已知内参 → 完整标定链 → 比对恢复值）
+            // + 去畸变正/反/往返与两模型分档 + 端到端串联（含「跳过去畸变结果必须不同」的反证）。
+            // 需 HALCONROOT\calib 的标定板描述文件；缺失时按 R38 明确跳过并写反证依据。
+            IntrinsicsChecks.Run();
 
             Finish();
             return Environment.ExitCode;
@@ -1982,6 +1995,10 @@ namespace FlowCanvasChecks
                 $"{par4?.ExecutionMode}");
             Check("BuiltIn_If → ConditionStep（容器兜底）",
                 StepFactory.CreateFromTool(NewTool("BuiltIn_If", container: true), "步骤_0") is ConditionStep, "");
+            // 等待节点是**非容器但不是算子**：工厂必须先认 ModuleTypeName，再走 !IsContainer 兜底，
+            // 写反了会静默变成 ActionStep（编译期才报"找不到插件 BuiltIn_Wait"）。
+            Check("BuiltIn_Wait（非容器）→ WaitStep",
+                StepFactory.CreateFromTool(NewTool("BuiltIn_Wait", container: false), "步骤_0") is WaitStep, "");
             var leaf4 = StepFactory.CreateFromTool(NewTool("VM.CanvasStub.Leaf", container: false), "步骤_4");
             Check("非容器 → ActionStep，且步骤名原样落上",
                 leaf4 is ActionStep && leaf4.StepName == "步骤_4", $"{leaf4.GetType().Name}/{leaf4.StepName}");

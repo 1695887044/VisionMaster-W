@@ -22,8 +22,12 @@ namespace VisionMaster.Scada
         /// 2：图元快照新增 <see cref="ScadaElementSnapshot.Animations"/>（含「外观变化」的档位表）。
         /// 版本号是给模板文件用的——老版本存下的模板读进来时 Animations 为空表，
         /// 恰好就是"那个版本本来就没有动画"的正确解释，不需要额外的迁移代码。
+        ///
+        /// 3：图元快照新增 <see cref="ScadaElementSnapshot.ParentSlot"/>（底板父子归属）。
+        /// 同样是向后兼容的：老模板读进来取默认值 <c>NoParentSlot</c>（顶层），
+        /// 正是"那个版本没有底板"的正确解释。
         /// </remarks>
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         public int Version { get; set; } = CurrentVersion;
 
@@ -46,10 +50,12 @@ namespace VisionMaster.Scada
     /// "切一次标签剪贴板就空"。静态持有的是<b>纯数据</b>（不含任何画面/文档引用），
     /// 所以不存在"钉住一个已关闭的方案"这类泄漏，与 <c>ScadaEditHistory</c> 是同一形态。
     ///
-    /// <b>物化的三条重映射纪律</b>（都写在 <see cref="Materialize"/> 里）
+    /// <b>物化的四条重映射纪律</b>（都写在 <see cref="Materialize"/> 里）
     /// ---------
     /// ① <c>ElementId</c> 一律重生成；② <c>GroupId</c> 按槽位现造新 Guid；
-    /// ③ <c>LayerId</c> 按层名回查、查不到落默认图层。
+    /// ③ <c>LayerId</c> 按层名回查、查不到落默认图层；
+    /// ④ <c>ParentId</c> 按父槽位现造新 Guid，但<b>只认也在本次拷贝里的那些底板</b>
+    ///    （只拷了子图元、没拷底板时，子图元回到顶层）。
     /// </summary>
     public static class ScadaClipboard
     {
@@ -92,12 +98,28 @@ namespace VisionMaster.Scada
 
             var slots = new Dictionary<Guid, int>();
 
+            // 父槽位分两趟发号，因为"谁是父"与"谁先被遍历到"无关：
+            // 子图元完全可能排在底板前面，一趟边走边发的话，
+            // 子图元拿到的号与底板后来给自己发的号会对不上。
+            // 第一趟只回答"这次拷贝里有哪些元素是别人的父"，一次定完号；
+            // 第二趟才逐个抓快照，此时父子两边的号都已经定了。
+            var parentSlots = new Dictionary<Guid, int>();
+
             foreach (var element in elements)
             {
                 if (element == null)
                     continue;
 
-                payload.Items.Add(CaptureOne(page, element, counts, slots));
+                if (ContainsChildIn(elements, element.ElementId) && !parentSlots.ContainsKey(element.ElementId))
+                    parentSlots[element.ElementId] = parentSlots.Count;
+            }
+
+            foreach (var element in elements)
+            {
+                if (element == null)
+                    continue;
+
+                payload.Items.Add(CaptureOne(page, element, counts, slots, elements, parentSlots));
             }
 
             return payload;
@@ -107,7 +129,9 @@ namespace VisionMaster.Scada
             ScadaPage page,
             ScadaElement element,
             Dictionary<Guid, int> counts,
-            Dictionary<Guid, int> slots)
+            Dictionary<Guid, int> slots,
+            IReadOnlyList<ScadaElement> captured,
+            Dictionary<Guid, int> parentSlots)
         {
             int slot = ScadaElementSnapshot.NoGroupSlot;
 
@@ -121,6 +145,24 @@ namespace VisionMaster.Scada
                     slots[element.GroupId] = slot;
                 }
             }
+
+            // 父槽位：只认"父也在本次拷贝里"的归属。
+            // 只拷了一个子图元而没拷它的底板时，那个归属搬过去没有意义——
+            // 目标画面里没有那只底板，物化出来会是一批挂在不存在父上的图元。
+            // 按 NoParentSlot 落顶层，用户的观感就是"我拷了这个图元、它自己站出来了"，
+            // 比"拷过来就不见了"或"位置跳到别处"都好得多。
+            int parentSlot = ScadaElementSnapshot.NoParentSlot;
+            int ownSlot = ScadaElementSnapshot.NoParentSlot;
+
+            if (element.ParentId != Guid.Empty
+                && ContainsElementId(captured, element.ParentId)
+                && parentSlots.TryGetValue(element.ParentId, out var resolvedSlot))
+            {
+                parentSlot = resolvedSlot;
+            }
+
+            if (parentSlots.TryGetValue(element.ElementId, out var selfSlot))
+                ownSlot = selfSlot;
 
             var snapshot = new ScadaElementSnapshot
             {
@@ -136,6 +178,8 @@ namespace VisionMaster.Scada
                 RequiredRole = element.RequiredRole,
                 LayerName = page.ResolveLayer(element)?.Name,
                 GroupSlot = slot,
+                ParentSlot = parentSlot,
+                OwnSlot = ownSlot,
             };
 
             // 属性袋逐键搬：不走 SetProperty（那是"编辑"，带守卫与记账），
@@ -179,6 +223,10 @@ namespace VisionMaster.Scada
                         Value = action.Value,
                         TargetPageId = action.TargetPageId,
                         TargetPageName = action.TargetPageName,
+                        AxisId = action.AxisId,
+                        AxisName = action.AxisName,
+                        TargetMm = action.TargetMm,
+                        VelocityMmPerS = action.VelocityMmPerS,
                     });
                 }
 
@@ -306,6 +354,11 @@ namespace VisionMaster.Scada
 
             var groupIds = new Dictionary<int, Guid>();
 
+            // 父槽位 → 新底板的 ElementId。与组槽位不同，这里不发号随机 Guid，
+            // 而是记"那只底板物化出来之后的 ElementId"——子图元的 ParentId 必须逐字等于它。
+            // 于是物化顺序有硬要求：父必须排在子前面（见下面的排序）。
+            var parentIds = new Dictionary<int, Guid>();
+
             int topZ = 0;
             foreach (var existing in page.Elements)
             {
@@ -317,7 +370,14 @@ namespace VisionMaster.Scada
             {
                 // OrderBy 是稳定排序：源 ZIndex 相同的图元保持负载里的原有次序，
                 // 于是"同一层的几个东西"粘出来仍然按拷贝时的先后叠着。
-                foreach (var snapshot in payload.Items.OrderBy(item => item?.ZIndex ?? 0))
+                //
+                // 带子的底板（<see cref="ScadaElementSnapshot.OwnSlot"/> 非负）要排在前面：
+                // 子图元的 ParentId 是<b>父物化之后才生成的 ElementId</b>，父没造出来就没得填。
+                // 排序键用 OwnSlot 而不是 ZIndex——ZIndex 是（也应该是）用户决定的叠放次序，
+                // 与物化先后无关；拿它兼职排序键，遇到"底板叠在上面"的合法画面就会把子排到父前面。
+                foreach (var snapshot in payload.Items
+                    .OrderBy(item => item != null && item.OwnSlot >= 0 ? 0 : 1)
+                    .ThenBy(item => item?.ZIndex ?? 0))
                 {
                     if (snapshot == null)
                         continue;
@@ -326,19 +386,53 @@ namespace VisionMaster.Scada
 
                     int z = topZ;
                     Guid groupId = ResolveGroupId(snapshot.GroupSlot, groupCounts, groupIds);
+                    Guid parentId = ResolveParentId(snapshot.ParentSlot, parentIds);
 
                     // 构造走 Detached：此刻图元还没进文档，给它填初始值既不是"编辑"
                     //（否则撤销栈里会先冒出一串 "Name: '' → '按钮'" 的垃圾记录），
                     // 也不该被严格写守卫拦下。构造与编辑是两件事，这是那条分界线。
                     var element = ScadaChangeScope.Detached(
-                        () => Build(page, snapshot, offsetX, offsetY, z, groupId));
+                        () => Build(page, snapshot, offsetX, offsetY, z, groupId, parentId));
 
                     if (page.TryAddElement(element, out _))
+                    {
                         created.Add(element);
+
+                        // 记下"这个父槽位物化成了哪个 Id"，供后面那些 ParentSlot 指向它的子图元取用
+                        if (snapshot.OwnSlot >= 0)
+                            parentIds[snapshot.OwnSlot] = element.ElementId;
+                    }
                 }
             }
 
             return created;
+        }
+
+        private static Guid ResolveParentId(int slot, Dictionary<int, Guid> assigned)
+            => slot >= 0 && assigned.TryGetValue(slot, out var parentId) ? parentId : Guid.Empty;
+
+        /// <summary>这批图元里有没有 ElementId 等于给定值的（拷贝范围内的父子归属判定用）</summary>
+        private static bool ContainsElementId(IReadOnlyList<ScadaElement> elements, Guid elementId)
+        {
+            for (int i = 0; i < elements.Count; i++)
+            {
+                if (elements[i] != null && elements[i].ElementId == elementId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>这批图元里有没有"装在给定图元里"的（判断它算不算本次拷贝要带上的一只底板）</summary>
+        private static bool ContainsChildIn(IReadOnlyList<ScadaElement> elements, Guid parentId)
+        {
+            for (int i = 0; i < elements.Count; i++)
+            {
+                if (elements[i] != null && elements[i].ParentId == parentId)
+                    return true;
+            }
+
+            return false;
         }
 
         private static Guid ResolveGroupId(
@@ -364,7 +458,8 @@ namespace VisionMaster.Scada
             double offsetX,
             double offsetY,
             int zIndex,
-            Guid groupId)
+            Guid groupId,
+            Guid parentId)
         {
             // ElementId 刻意不赋值：字段初值就是 Guid.NewGuid()，正是"重编身份"想要的语义。
             // 名字在这里就地查重：本方法每造一个就立刻被 TryAddElement 收进画面，
@@ -383,6 +478,7 @@ namespace VisionMaster.Scada
                 RequiredRole = snapshot.RequiredRole,
                 LayerId = ResolveLayerId(page, snapshot.LayerName),
                 GroupId = groupId,
+                ParentId = parentId,
             };
 
             foreach (var pair in snapshot.Properties)
@@ -424,6 +520,10 @@ namespace VisionMaster.Scada
                         Value = action.Value,
                         TargetPageId = action.TargetPageId,
                         TargetPageName = action.TargetPageName,
+                        AxisId = action.AxisId,
+                        AxisName = action.AxisName,
+                        TargetMm = action.TargetMm,
+                        VelocityMmPerS = action.VelocityMmPerS,
                     });
                 }
 

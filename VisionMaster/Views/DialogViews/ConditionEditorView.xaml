@@ -420,6 +420,121 @@
                         </StackPanel>
 
                         <!--
+                            等待节点（BuiltIn_Wait）参数区：仅等待模式可见。
+                            与 Case 判据同占 Grid.Row="1"：该行在 If/While/For 下本来就是 0 高度
+                            （行高 Auto 且两者都折叠）；Case 模式下这一行被判据输入占用，
+                            而 IsWaitMode 与 IsCaseMode 互斥（不会同时为 true），所以不影响既有布局。
+                            MaxHeight + 竖向滚动是兜底：高 DPI / 字体放大时参数区不无限长高，
+                            超出就滚动，别把下面的表达式编辑器挤没。
+                        -->
+                        <ScrollViewer
+                            Grid.Row="1"
+                            MaxHeight="132"
+                            Margin="12,12,12,0"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto"
+                            Visibility="{Binding IsWaitMode, Converter={ui:BooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <!--  第一行：轮询间隔 / 最大超时 / 超时处理方式  -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" MinWidth="140" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogFormLabel}"
+                                        Text="轮询间隔(ms)" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Margin="8,0,16,0"
+                                        Style="{StaticResource DialogInput}"
+                                        Text="{Binding PollIntervalText, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="条件不成立时每隔多少毫秒重新判断一次（编译期下限 10ms）" />
+
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogFormLabel}"
+                                        Text="最大超时(ms，0=不限)" />
+                                    <TextBox
+                                        Grid.Column="3"
+                                        Margin="8,0,16,0"
+                                        Style="{StaticResource DialogInput}"
+                                        Text="{Binding TimeoutText, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="等待超过该时长仍未成立则按右侧方式处理；0 表示一直等" />
+
+                                    <TextBlock
+                                        Grid.Column="4"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogFormLabel}"
+                                        Text="超时处理" />
+                                    <ComboBox
+                                        Grid.Column="5"
+                                        Margin="8,0,0,0"
+                                        DisplayMemberPath="Display"
+                                        ItemsSource="{Binding TimeoutActionOptions}"
+                                        SelectedValue="{Binding TimeoutActionValue}"
+                                        SelectedValuePath="Value"
+                                        Style="{StaticResource DialogCombo}"
+                                        ToolTip="超时后的处置：终止流程，或继续执行（后续用 If 判断 TimedOut 走异常分支）" />
+                                </Grid>
+
+                                <!--  第二行：超时说明 / 报警变量名（都可选，留空即不写日志/不写变量）  -->
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogFormLabel}"
+                                        Text="超时说明(可选)" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Margin="8,0,16,0"
+                                        Style="{StaticResource DialogInput}"
+                                        Text="{Binding TimeoutMessageDraft, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="追加到超时日志/异常文案里，便于现场定位在等什么" />
+
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogFormLabel}"
+                                        Text="报警变量名(可选)" />
+                                    <!--
+                                        报警变量名是「名字」语义（R33）：手填 + 候选下拉，不挂通用绑定弹窗。
+                                        候选由 VM 从工作区里现取（只列全局 bool 用户变量）；可编辑是为了
+                                        允许"变量还没建、先把名字写上"的场景，保存时 SaveWait 会校验存在性与类型。
+                                    -->
+                                    <ComboBox
+                                        Grid.Column="3"
+                                        Margin="8,0,0,0"
+                                        IsEditable="True"
+                                        ItemsSource="{Binding AlarmVariableCandidates}"
+                                        Style="{StaticResource DialogCombo}"
+                                        Text="{Binding AlarmVariableNameDraft, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="已存在的全局 bool 变量名（下拉里可选）；超时时把它置为 true" />
+                                </Grid>
+
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    Style="{StaticResource DialogHintText}"
+                                    Text="{Binding WaitHintText}" />
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!--
                             快捷插入面板：点一下就把片段插进表达式（按钮的 Tag 即插入内容）。
                             按组分五行：引用变量 / 逻辑比较 / 数字运算 / 数学函数 / 字符串；
                             每行 = 固定宽度的组名标签 + 一个可换行的 WrapPanel。

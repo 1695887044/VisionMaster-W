@@ -83,6 +83,19 @@ namespace Core.Interfaces
                     catch { /* 释放失败不应打断整体资源回收 */ }
                 }
             }
+
+            // 退订输入端口对上游 LinkedSource 的 ValueChanged 订阅。
+            // 缺了这一步：上游 OutputPort 若被长生命周期根（如跨 session 的
+            // RuntimeVariableProxyPort）持有，事件委托会反向钉住本插件实例，
+            // 构成逐轮编译累积的托管泄漏（InputPort<T>.Dispose 内做幂等退订）。
+            foreach (var port in _inputs.Values)
+            {
+                if (port is IDisposable d)
+                {
+                    try { d.Dispose(); }
+                    catch { /* 退订失败不应打断整体资源回收 */ }
+                }
+            }
         }
 
         /// <summary>

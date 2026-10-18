@@ -52,6 +52,21 @@ namespace VisionMaster.Services
         public ObservableCollection<IVariable> GlobalVariables { get; set; }
 
         /// <summary>
+        /// 系统变量集合：运行态**派生出来的只读量**（本批是运动轴状态投影，见
+        /// <c>VisionMaster.Binding.SystemVariableCatalog</c>）。
+        ///
+        /// 三条口径（越界就会出事）：
+        /// ① **不落盘**——它不是方案内容，绝不进 <c>SolutionModel</c> / <c>.vms</c> /
+        ///    「变量管理」的用户清单。每次启动都由轴表重建，"上次退出时轴在哪"没有任何保存价值。
+        /// ② **不并入 <see cref="GlobalVariables"/>**——那份集合会随方案序列化，
+        ///    混进去就等于让系统变量跟着落盘（见 ①）；而解析侧统一走
+        ///    <see cref="VariableRegistry"/>，两处来源在索引里合并，消费方不必知道区别。
+        /// ③ **只读集合属性（不给 set）**——集合实例从工作区构造起就固定，
+        ///    变量注册表在构造时挂接的就是这一个；可替换会让索引挂在一个随即被丢弃的旧集合上。
+        /// </summary>
+        ObservableCollection<IVariable> SystemVariables { get; }
+
+        /// <summary>
         /// 变量解析索引：与 <see cref="GlobalVariables"/> 是同一份数据，额外提供 Id/Name 双路查找，
         /// 并把"连线引用 → 变量对象"的解析收敛到一处。
         ///
@@ -84,6 +99,16 @@ namespace VisionMaster.Services
     public class WorkspaceContext : BindableBase, IWorkspaceManager
     {
         private ObservableCollection<IVariable> _globalVariables = new();
+
+        /// <summary>
+        /// 系统变量集合（派生只读量，不落盘）。
+        /// 实例在字段初始化时固定、永不替换：变量注册表挂的是这一个，
+        /// 换实例会让"目录写进的系统变量"与"注册表能解析到的系统变量"分裂成两份。
+        /// </summary>
+        private readonly ObservableCollection<IVariable> _systemVariables = new();
+
+        /// <summary>系统变量集合（见 <see cref="IWorkspaceManager.SystemVariables"/> 的三条口径）</summary>
+        public ObservableCollection<IVariable> SystemVariables => _systemVariables;
 
         /// <summary>
         /// 全局变量集合。
@@ -146,6 +171,12 @@ namespace VisionMaster.Services
             // 索引必须在变量初始化之后建立：InitializeCommonVariables 会整体替换集合实例，
             // 先建索引就会挂在一个随即被丢弃的旧集合上（看得见 12 个演示变量，看不见真实变量）
             _variableRegistry = new VariableRegistry(_globalVariables);
+
+            // 系统变量作为第二索引源挂上（派生只读量，不落盘）。
+            // 必须在构造期挂：连线编译 / 监视项 / 画面绑定都只查注册表一处，
+            // 晚挂一分钟就意味着这一分钟里"按 Id 找不到轴状态变量"。
+            // 集合实例是 readonly 字段，此后不会换，所以这里不需要（也没有）重挂路径。
+            _variableRegistry.AttachSystem(_systemVariables);
             GlobalEventBus.Subscribe<StepRenamedMessage>(OnStepRenamed);
 
             // 变量改名的级联入口。为什么订阅注册表的实例事件而不是走 GlobalEventBus：

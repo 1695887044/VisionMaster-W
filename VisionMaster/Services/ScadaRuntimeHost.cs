@@ -200,6 +200,13 @@ namespace VisionMaster.Services
         /// </summary>
         private static readonly TimeSpan AlarmBeatInterval = TimeSpan.FromMilliseconds(ScadaBeatSource.DefaultIntervalMilliseconds);
 
+        /// <summary>
+        /// 本轮的运动轴快照源（单例）。宿主只把它塞进 <see cref="ScadaRuntimeContext"/>，
+        /// 自己不读轴——"当前显示哪根轴"是轴面板自己的选择状态。
+        /// 没接运动模块时可以是 null（轴面板会显示"未接入运动数据"）。
+        /// </summary>
+        private readonly IScadaAxisSource? _axisSource;
+
         public ScadaRuntimeHost(
             ILogService log,
             IUserNotifier notifier,
@@ -210,7 +217,8 @@ namespace VisionMaster.Services
             ScadaNavigator navigator,
             IScadaAccessPolicy accessPolicy,
             ScadaAuditWriter audit,
-            AppSettingsService appSettings)
+            AppSettingsService appSettings,
+            IScadaAxisSource? axisSource = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -221,6 +229,7 @@ namespace VisionMaster.Services
             _accessPolicy = accessPolicy ?? throw new ArgumentNullException(nameof(accessPolicy));
             _audit = audit ?? throw new ArgumentNullException(nameof(audit));
             _appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
+            _axisSource = axisSource;
             _onScadaEvent = OnScadaEvent;
 
             // 三个都是单例，这条订阅不会把谁钉住（不存在"宿主早于工作区被回收"的情况），
@@ -476,7 +485,8 @@ namespace VisionMaster.Services
             // 权限出口（第四个）也一起装进去：图元要"写前先查"，可它只攥着这个上下文，
             // 够不着会话（_accessPolicy 在本类里，图元不认识本类）。它与写通道同一时机进出，
             // 且会话对象是活的——"此刻是谁"由它每次现问，登录/登出立刻生效。
-            window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(engine, beat, _valueWriter, _accessPolicy);
+            window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, _valueWriter, _accessPolicy, _axisSource);
 
             engine.Attach();
             beat.Start();

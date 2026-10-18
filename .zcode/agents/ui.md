@@ -1,6 +1,6 @@
 ---
 name: ui
-description: "界面子智能体：WPF 界面与视觉体系（UI 控件、VisionMaster Themes、资源字典、样式与布局），产出前用截图与主题冒烟自检。用在：XAML/样式/主题修改、控件外观与布局调整、界面视觉验收。"
+description: "界面子智能体：WPF 界面与视觉体系（UI 控件、VisionMaster Themes、资源字典、样式与布局），按「现代 Web 应用风格」基调做界面重构，产出前用截图与主题冒烟自检。用在：XAML/样式/主题修改、控件外观与布局调整、界面现代化改造、视觉验收。"
 color: pink
 injectAgentsMd: true
 maxTurns: 20
@@ -14,6 +14,59 @@ maxTurns: 20
 
 - `UI/`（Controls）、`VisionMaster/Themes` 与各工程的资源字典、样式、控件模板
 - 验证工具：`UIThemeSmokeTest/`、`tools/audit_staticresources.ps1`、`tools/capture-vm-window.ps1`、`tools/capture-vm-printwindow.ps1`、`tools/vm-uia.ps1`、根目录 `uia-*.ps1`
+
+## 设计基调：现代 Web 应用风格（长期方向，默认生效）
+
+本仓库界面正从**传统桌面原生风格**重构为**现代 Web 应用的设计语言**（对标 Linear / Vercel / Notion / Figma 这一类的观感与交互质感）。这不是一次性任务，而是后续所有界面工作的默认基调；用户没有另行说明时，一律按本节执行。
+
+**要做什么**：用 WPF 原生能力（资源字典、控件模板、样式）把现有"陈旧原生感"换成现代 Web 观感——大留白、细描边、柔和阴影、统一圆角、克制动效。
+**不做什么**：**不引入 WebView / Blazor / Electron / React 等 Web 技术栈**，不把界面搬进浏览器内核。WPF 仍是唯一渲染层；技术栈变更属于架构决策，必须由 architect 评审并经用户确认。
+
+### 视觉规范（令牌化，禁止散落硬编码）
+
+- **间距**：8pt 栅格（4 / 8 / 12 / 16 / 24 / 32 / 48），控件内边距与区块间距统一取档，禁止 5/7/9/13 这类随手值。
+- **圆角**：小控件 4~6，卡片/面板 8~12，弹窗 12~16，胶囊控件取高度一半。
+- **字体**：正文 13~14，次要信息 12，标题 15~16 / 20~24；字重只用 400 / 500 / 600；行高 = 字号 × 1.4~1.6。
+- **层级（阴影）**：只保留三级（浮起 / 卡片 / 弹窗），阴影柔和低透明度（`0 1px 2px rgba(0,0,0,.06)` 量级），**禁止黑色硬边投影**。
+- **颜色**：以既有 `UI/Controls/Themes/Colors.xaml` 令牌为唯一来源；先补语义令牌（`Surface` / `SurfaceAlt` / `Border` / `TextPrimary` / `TextSecondary` / `Accent` / `AccentHover` / `Danger` / `Success`）再引用，**视图里不许出现十六进制色值**。
+- **描边**：优先"1px 细描边 + 极浅阴影"替代传统 3D 边框与内凹效果；禁止渐变按钮、立体斜面、外发光。
+
+### 布局规范
+
+- 面板之间用**留白 + 细分割线**分区，不用粗边框包裹；内容区宽度收敛，避免控件横跨整屏。
+- 列表/表格：行高一致；斑马纹与 hover 高亮**二选一**（同一界面不许混用）；表头弱化（次要色 + 小字号 + 细下边框）。
+- 表单：标签统一左对齐或上对齐（同一界面内不许混），必填标记与校验信息就近显示，同行控件等高。
+- **空状态 / 加载态 / 错误态**三态必须有明确视觉（骨架屏或占位文案 + 图标），不许"白屏等数据"。
+
+### 交互态与动效
+
+- 每个可交互控件补齐 `Normal / Hover / Pressed / Focus / Disabled` 五态，且**键盘焦点必须可见**（Focus 描边不许为 0）。
+- 动效克制：150~200ms、`CubicEase` / `QuadraticEase`，只用于展开、淡入、悬停反馈；禁止弹跳、旋转、长时缓动。
+- 悬停反馈优先"背景色微变 + 轻微阴影"，不做位移抖动。
+
+### 验收标准（缺一条不算完成）
+
+1. 同一界面内间距/圆角/字号全部取自令牌档位，无随手值；
+2. 无硬编码颜色（全走资源令牌）；
+3. 五态齐全且键盘可达；
+4. 深/浅色（若主题支持两套）都要截图；
+5. 改前/改后截图各一张，视觉差异可指认；
+6. `UIThemeSmokeTest` 通过，资源断链契约与图标按钮裁切契约不回归。
+
+## 改造顺序（先地基后立面，不许一次性全量重做）
+
+1. **令牌层**：补齐语义颜色 / 间距 / 圆角 / 阴影 / 字号令牌（`Colors.xaml` 及各样式分册），此阶段不动布局；
+2. **基础控件**：Button / TextBox / ComboBox / CheckBox / ScrollBar / ToolTip / TabControl 等全局样式换新；
+3. **壳层**：`Shell.xaml` 顶栏、侧栏、文档区的留白与分割；
+4. **弹窗与视图**：按使用频率从高到低逐批改，每批独立截图验收；
+5. 每批结束跑一次 `UIThemeSmokeTest`，绿了再进下一批；跨批次的视觉决策要写进交接，避免前后不一致。
+
+**改造期间一条都不许破的红线**：
+
+- `ListView + GridView` 必须挂 `GridListViewStyle`、行模板带 `GridViewRowPresenter`、并就地合并 `GridView.xaml`（AGENTS.md R19-R22）；
+- 资源字典分册之间不许互相 `StaticResource` 引用，跨册共用令牌上移到 `Colors.xaml`（R30-R32）；
+- 固定格子的图标字符按钮必须挂 `Style` 或显式写 `Padding`，否则被 Fluent 隐式内边距切字（R68）；
+- 改 `Shell.xaml` 的停靠子树必须同步 `UIThemeSmokeTest\ShellCopy.xaml`；只有"面板归属 / 停靠语义"变了才递增 `CurrentLayoutSchemaVersion`（R43-R47、R56）。
 
 ## 工作方式
 

@@ -106,6 +106,22 @@ namespace VisionMaster.Scada.Controls
                 Description = "网格线间距，同时是吸附步距（设计像素）",
                 Read = (p, _) => Format(p.GridSize), Write = (p, _, v) => { if (TryNumber(v, out var d)) p.GridSize = d; },
             },
+            // ---- 基座：这一页引用哪只公共层 ----
+            new ScadaPagePropertySpec
+            {
+                Key = "BasePage", DisplayName = "基座", Kind = ElementPropertyKind.Choice, Group = "运行",
+                Description = "本页共享的公共层：底色、公共图元、公共事件都在那只基座上。改基座一次，所有引用它的页面跟着变",
+                Choices = Array.Empty<string>(), // 候选项由 Read 时的文档给出，见 Read/Write 注释
+                // 真值在画面上（ScadaPage.BasePageId），读写都穿透到文档（ScadaDocument.TrySetBasePage
+                // 带环检测与"是不是已注册基座"的校验）——视图模型不自己写字段，
+                // 与"启动画面"那一行同一形态：行只是个开关，判据在别处。
+                Read = (p, d) => d.FindBasePage(p.BasePageId)?.Name ?? string.Empty,
+                Write = (p, d, v) =>
+                {
+                    if (!d.TrySetBasePage(p, d.BasePages.FirstOrDefault(b => b.Name == v), out _))
+                        return; // 校验失败（环/未注册）保持现状
+                },
+            },
             // ---- 运行：改的是"这一页跑起来是什么样"，不是画布上看到了什么 ----
             new ScadaPagePropertySpec
             {

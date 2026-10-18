@@ -1708,7 +1708,7 @@ namespace VisionMaster.ViewModels
             }
         }
 
-        /// <summary>输入端口显示名：条件节点键是变量 Guid，显示用别名；For 是循环次数；普通算子就是键名</summary>
+        /// <summary>输入端口显示名：条件/等待节点键是变量 Guid，显示用别名；For 是循环次数；普通算子就是键名</summary>
         private static string DescribeInput(StepModel consumer, string key)
         {
             switch (consumer)
@@ -1716,6 +1716,10 @@ namespace VisionMaster.ViewModels
                 case ConditionStep condition:
                     var local = condition.LocalVariables.FirstOrDefault(v => v.Id.ToString() == key);
                     return local?.Name ?? key;
+                // 等待节点不是 ConditionStep（无子分支），但条件变量的键口径与 If 完全一致
+                case WaitStep wait:
+                    var waitLocal = wait.LocalVariables.FirstOrDefault(v => v.Id.ToString() == key);
+                    return waitLocal?.Name ?? key;
                 case ForStep:
                     return key == "LoopCount" ? "循环次数" : key;
                 default:

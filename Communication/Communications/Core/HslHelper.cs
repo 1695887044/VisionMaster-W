@@ -2,6 +2,7 @@ using HslCommunication;
 using HslCommunication.Core;
 using System;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
 namespace VisionMaster.Communications
@@ -59,14 +60,15 @@ namespace VisionMaster.Communications
         };
 
         /// <summary>
-        /// <para>把设备返回的线路字节流（wire）重排成"逻辑大端序"字节数组 V（V[0] 为最高位字节）。</para>
+        /// <para>把设备返回的线路字节流（wire）**原地**重排成"逻辑大端序"字节序列 V（V[0] 为最高位字节）。</para>
         /// <para>命名含义：ABCD 表示逻辑值字节 A(最高)~D(最低) 在【线路上】的排列顺序，故换算规则为：</para>
         /// <para>ABCD → V = wire；BADC → 相邻两字节两两交换；CDAB → 相邻两个 16 位寄存器整体倒排；DCBA → V = reverse(wire)。</para>
         /// <para>16 位时自动退化：ABCD≡CDAB（V=wire）、BADC≡DCBA（V=reverse），与 HSL ByteTransDataFormat2 的分支一致。</para>
+        /// <para>P-A3：所有四种变换都是**对合**（再算一次即还原），故原地重排与"先复制再重排"结果相同；
+        /// 旧实现每次 <c>Clone()</c> 一次堆分配，现改为直接改调用方的栈缓冲。</para>
         /// </summary>
-        private static byte[] ToLogicalBigEndian(byte[] wire, ByteOrderFormat order)
+        private static void ToLogicalBigEndian(Span<byte> v, ByteOrderFormat order)
         {
-            var v = (byte[])wire.Clone();
             switch (order)
             {
                 case ByteOrderFormat.ABCD:
@@ -88,57 +90,73 @@ namespace VisionMaster.Communications
                     break;
 
                 case ByteOrderFormat.DCBA:
-                    Array.Reverse(v); // 全字节倒排：DCBA → ABCD
+                    v.Reverse(); // 全字节倒排：DCBA → ABCD
                     break;
             }
-            return v;
         }
 
         /// <summary>
         /// 将设备返回的线路字节数组按指定字序转换为目标类型。
         /// 修复点：旧实现要求 data 至少 2 字节，导致 1 字节的 bool/byte 读取恒返回 default；
         /// 且整体反转在数据长于需求时（批量段切片）会取错位置——现在只取类型所需的头部字节。
+        /// <para>P-A3：本重载只是便捷入口，实际解码委托给 <see cref="ConvertTo{T}(ReadOnlySpan{byte}, ByteOrderFormat)"/>，
+        /// 不再在内部复制数组。</para>
         /// </summary>
         /// <param name="data">设备返回的原始字节流（起点 = 本变量首字节）</param>
         /// <param name="order">多寄存器数值的线路字序（16 位及以下时 ABCD 与 CDAB 等价）</param>
         public static T ConvertTo<T>(byte[] data, ByteOrderFormat order) where T : struct
+            => data == null ? default : ConvertTo<T>(data.AsSpan(), order);
+
+        /// <summary>
+        /// Span 版解码（P-A3：热路径零分配重载）。段轮询里每个数值变量每轮调用一次，
+        /// 旧实现内部 <c>Clone()</c> + <c>new byte[need]</c> 共 2 次堆分配
+        /// （2 万点 @10Hz ≈ 40 万次/秒，是实测分配速率 27MB/s 的大头之一）。
+        /// 现在在栈上重排（最大 8 字节），无任何堆分配；返回值经 <see cref="Unsafe.As{TFrom,TTo}"/> 直转，避免装箱。
+        /// </summary>
+        public static T ConvertTo<T>(ReadOnlySpan<byte> data, ByteOrderFormat order) where T : struct
         {
             int need = MinByteCount(typeof(T));
-            if (need == 0 || data == null || data.Length < need)
+            if (need == 0 || data.Length < need)
                 return default;
 
             // 只截取本类型所需的头部字节，先按字序还原成逻辑大端序，再反转成小端交给 BitConverter
-            var be = new byte[need];
-            Array.Copy(data, 0, be, 0, need);
-            be = ToLogicalBigEndian(be, order);
+            Span<byte> be = stackalloc byte[8];   // need 最大 8（Int64/UInt64/Double），栈上零分配
+            data.Slice(0, need).CopyTo(be);
+            be = be.Slice(0, need);
+            ToLogicalBigEndian(be, order);
             if (BitConverter.IsLittleEndian && need > 1)
-                Array.Reverse(be);
+                be.Reverse();
 
-            var typeCode = Type.GetTypeCode(typeof(T));
-            return typeCode switch
+            // 按类型直转：Unsafe.As 与下面的分支一一对应（大小相同），避免 (T)(object) 的装箱
+            switch (Type.GetTypeCode(typeof(T)))
             {
-                TypeCode.Boolean => (T)(object)(be[0] != 0),
-                TypeCode.Byte => (T)(object)be[0],
-                TypeCode.SByte => (T)(object)(sbyte)be[0],
-                TypeCode.Int16 => (T)(object)BitConverter.ToInt16(be, 0),
-                TypeCode.UInt16 => (T)(object)BitConverter.ToUInt16(be, 0),
-                TypeCode.Int32 => (T)(object)BitConverter.ToInt32(be, 0),
-                TypeCode.UInt32 => (T)(object)BitConverter.ToUInt32(be, 0),
-                TypeCode.Single => (T)(object)BitConverter.ToSingle(be, 0),
+                case TypeCode.Boolean: { byte v = be[0]; return Unsafe.As<byte, T>(ref v); }
+                case TypeCode.Byte: { byte v = be[0]; return Unsafe.As<byte, T>(ref v); }
+                case TypeCode.SByte: { sbyte v = (sbyte)be[0]; return Unsafe.As<sbyte, T>(ref v); }
+                case TypeCode.Int16: { short v = BitConverter.ToInt16(be); return Unsafe.As<short, T>(ref v); }
+                case TypeCode.UInt16: { ushort v = BitConverter.ToUInt16(be); return Unsafe.As<ushort, T>(ref v); }
+                case TypeCode.Int32: { int v = BitConverter.ToInt32(be); return Unsafe.As<int, T>(ref v); }
+                case TypeCode.UInt32: { uint v = BitConverter.ToUInt32(be); return Unsafe.As<uint, T>(ref v); }
+                case TypeCode.Single: { float v = BitConverter.ToSingle(be); return Unsafe.As<float, T>(ref v); }
                 // 修复点：Int64/UInt64 原先落到 default 分支，导致 long/ulong 变量恒解出 0
                 //（MinByteCount/RegisterCount 都按 8 字节 4 寄存器读，读回来了却解不出值）
-                TypeCode.Int64 => (T)(object)BitConverter.ToInt64(be, 0),
-                TypeCode.UInt64 => (T)(object)BitConverter.ToUInt64(be, 0),
-                TypeCode.Double => (T)(object)BitConverter.ToDouble(be, 0),
-                _ => default
-            };
+                case TypeCode.Int64: { long v = BitConverter.ToInt64(be); return Unsafe.As<long, T>(ref v); }
+                case TypeCode.UInt64: { ulong v = BitConverter.ToUInt64(be); return Unsafe.As<ulong, T>(ref v); }
+                case TypeCode.Double: { double v = BitConverter.ToDouble(be); return Unsafe.As<double, T>(ref v); }
+                default: return default;
+            }
         }
 
         /// <summary>
         /// 非泛型解码入口（批量规划器用，避免每轮反射 MakeGenericMethod）；
         /// 仅覆盖 struct 数值类型，string/byte[] 由调用方单独处理。
+        /// <para>P-A3：byte[] 重载委托给 Span 版，不再复制数组。</para>
         /// </summary>
         public static object? ConvertToByType(byte[] data, Type type, ByteOrderFormat order)
+            => data == null ? null : ConvertToByType(data.AsSpan(), type, order);
+
+        /// <summary>Span 版非泛型解码入口（P-A3：调用方直接传段内切片，零中间数组）</summary>
+        public static object? ConvertToByType(ReadOnlySpan<byte> data, Type type, ByteOrderFormat order)
         {
             var t = Nullable.GetUnderlyingType(type) ?? type;
             return Type.GetTypeCode(t) switch

@@ -1,4 +1,4 @@
-using Core.Interfaces.Core;
+using Core.Interfaces;
 using Newtonsoft.Json;
 
 namespace Plugin.Calibration.Models

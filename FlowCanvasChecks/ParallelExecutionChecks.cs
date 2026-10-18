@@ -680,7 +680,10 @@ namespace FlowCanvasChecks
 
             // ---- P11：分支内 If 取影子值（条件引用运行时变量 X） ----
             {
-                // 分支1：写 X=7；分支2：内嵌 If（X > 5 → 计数）——若求值取到父域快照 X=0 则不进分支
+                // 分支1：写 X=7；分支2：内嵌 If（X == 3 → 计数）。
+                // 父域预置 X=3.0 → 分支2 的影子从父域种子 3 → 条件成立、计数跑 1 次；
+                // 若连线被丢（2026-10-18 H1：LinkPorts 不递归 ParallelStep），条件变量拿默认 0，
+                // "X == 3" 必不成立 → Runs==0，这条断言当场变红（旧版 "X > 5" 在两种情况下都是 0，是假绿）。
                 VarWritePlugin.VarName = "X";
                 VarWritePlugin.Value = 7;
                 CountingPlugin.Reset();
@@ -693,7 +696,7 @@ namespace FlowCanvasChecks
                 var localVar = new LocalVariableItem { Name = "X", DataTypeName = "System.Double" };
                 localVar.Id = Guid.NewGuid();
                 ifStep.LocalVariables.Add(localVar);
-                ifStep.Children[0].Expression = "X > 5";
+                ifStep.Children[0].Expression = "X == 3";
                 ifStep.SetLink(localVar.Id.ToString(), new LinkReference(
                     LinkKind.RuntimeVariable, LinkProtocol.RuntimeVariableMarkerGuid, "X", "Runtime.X"));
 
@@ -703,14 +706,16 @@ namespace FlowCanvasChecks
                 if (!run.Compiled) return;
 
                 var ctx = run.NewContext(new StubLog());
+                // 父域预置 3.0：分支2 的影子以它为种子（兄弟分支的 7 在汇合前不可见）
+                ctx.LocalVariables["X"] = 3.0;
                 run.Engine!.Run(ctx);
 
-                // 分支2 的 If 求值取的是"分支2 影子里的 X"——种子自父域（未写时=父域值）。
-                // 父域没有 X（7 只写进了分支1 影子并合并）→ 分支2 求值取类型默认 0 → 不进分支。
-                // 断言口径：影子隔离下分支2 读不到分支1 的写入。
-                Check("分支内 If 求值取影子值（读不到兄弟写入 → X 未定义取默认不进分支）",
-                    CountingPlugin.Runs == 0, $"runs={CountingPlugin.Runs}");
-                Check("分支1 的 X=7 合并回父域",
+                // 分支2 的 If 求值取的是"分支2 影子里的 X"——种子自父域 3.0。
+                // 这条断言同时钉住两件事：① 影子隔离（读不到兄弟分支的 7）；
+                // ② **分支内连线真的被编译进来了**（H1 修复前 UpstreamLinks 为空 → 默认 0 → 不成立）。
+                Check("P11：分支内 If 读影子种子（父域 X=3 → 条件成立 → 计数 1 次）",
+                    CountingPlugin.Runs == 1, $"runs={CountingPlugin.Runs}");
+                Check("P11：分支1 的 X=7 合并回父域（父域最终 X==7）",
                     Equals(ctx.LocalVariables.TryGetValue("X", out var xv) ? xv : null, 7), $"X={xv}");
             }
         }

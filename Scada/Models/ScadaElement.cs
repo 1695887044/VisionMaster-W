@@ -32,6 +32,7 @@ namespace VisionMaster.Scada
         private Guid _elementId = Guid.NewGuid();
         private Guid _layerId;
         private Guid _groupId;
+        private Guid _parentId;
         private string _name = string.Empty;
         private string _typeKey = string.Empty;
         private double _x;
@@ -137,6 +138,43 @@ namespace VisionMaster.Scada
         {
             get => _groupId;
             set => SetProperty(ref _groupId, value);
+        }
+
+        /// <summary>
+        /// 所属<b>底板</b>（容器图元）的稳定身份。<c>Guid.Empty</c> = 顶层（不装在底板里）。
+        ///
+        /// 与 <see cref="LayerId"/> / <see cref="GroupId"/> 同构：只存一个 Guid 引用，
+        /// 不在别处再挂一份成员集合（存两处必然出现"成员表里有它、ParentId 却指向别的底板"的双主状态）。
+        ///
+        /// <b>与另外两个 Guid 的分工（三者互不相干，别混）</b>
+        /// ---------
+        /// · <see cref="LayerId"/> 管<b>渲染归属</b>（跟图层一起显隐/锁定）；
+        /// · <see cref="GroupId"/> 管<b>编辑关系</b>（点一下选中谁、拖一下搬走谁），不参与运行态；
+        /// · <c>ParentId</c> 管<b>视觉嵌套</b>——装在底板里的图元会被底板裁剪、跟着底板移动，
+        ///   它是<b>要落盘、要在运行态生效</b>的结构关系，所以与另两个都不同类。
+        ///
+        /// <b>只支持一层</b>：底板自己不能再有父（写入时由 <c>ScadaPage</c> 拒绝）。
+        /// 多层嵌套要递归遍历与环检测，而"画面上再套一层框"这件事，
+        /// 用两个并排的底板 + 图层就能表达；真出现必须嵌套的场景再加。
+        ///
+        /// <b>坐标仍然是画面绝对坐标</b>：子图元的 X/Y 不改成"相对底板"。
+        /// 这条决定很关键——它让对齐/分布/等尺寸/等间距/吸附/方向键微调这六条既有路径
+        /// <b>一行都不用改</b>（它们全都直接读写绝对坐标），
+        /// "相对"只在渲染时减一次底板位置（见 <c>ScadaElementBase.ApplyGeometry</c>）。
+        /// 若改成相对坐标，那六条路径全部要按父子关系重算基准，改动面与出错面都大得多。
+        ///
+        /// <b>悬空不清理</b>：底板被删除后，子图元的 ParentId 会指向一个不存在的图元。
+        /// 这与 <see cref="GroupId"/> 的"悬空不清理"同一口径——脏数据不该被悄悄改写
+        /// （清理了就再也无法用撤销把底板找回来）。渲染侧的降级是明确的：
+        /// 找不到父就按顶层画（见 <c>ScadaCanvas</c> 的挂载逻辑），画面不会因此崩或丢图元。
+        ///
+        /// 旧 .vms 里没有这个字段，反序列化后自然取 <c>Guid.Empty</c>（顶层），
+        /// 与既有画面完全兼容，不需要迁移代码、也不需要升 SchemaVersion。
+        /// </summary>
+        public Guid ParentId
+        {
+            get => _parentId;
+            set => SetProperty(ref _parentId, value);
         }
 
         /// <summary>

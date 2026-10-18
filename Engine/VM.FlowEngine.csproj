@@ -13,4 +13,9 @@
     <ProjectReference Include="..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 断言工程要直调 internal 的 PluginCache（缓存指纹/产物一致性的守门断言） -->
+    <InternalsVisibleTo Include="FlowCanvasChecks" />
+  </ItemGroup>
+
 </Project>

@@ -1475,6 +1475,14 @@ namespace Plugin.ImageAcquisition
         #region 推送实现
 
         /// <summary>
+        /// 推送测试共享的 HttpClient。每次推送都 new 一个的话，Dispose 后底层 socket 进入
+        /// TIME_WAIT，产线调试连点会累积套接字（教科书级反模式）。
+        /// 超时不能放实例级 <see cref="HttpClient.Timeout"/>（共享实例要留给每请求不同的值），
+        /// 改为每请求 <see cref="CancellationTokenSource.CancelAfter"/>。
+        /// </summary>
+        private static readonly HttpClient PushHttpClient = new();
+
+        /// <summary>
         /// 本地图片推送测试：选一张本机图片，按 HTTP 收图服务端的契约真发一次 POST。
         ///
         /// 为什么走真 HTTP 而不是直接把图塞进 ImageHub
@@ -1550,9 +1558,12 @@ namespace Plugin.ImageAcquisition
                 request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
 
                 // 客户端超时必须大于服务端等待上限：否则服务端还在跑流程、客户端先断，
-                // 用户看到的"超时"就分不清是流程慢还是网络断
-                using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeoutMs + 5000) };
-                using var response = await client.SendAsync(request);
+                // 用户看到的"超时"就分不清是流程慢还是网络断。
+                // 静态共享实例后超时不能放 HttpClient.Timeout（实例级、且共享实例不能改），
+                // 用每请求的 CancelAfter；超时抛 TaskCanceledException，由下方 catch 统一收尾。
+                using var timeoutCts = new System.Threading.CancellationTokenSource();
+                timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(timeoutMs + 5000));
+                using var response = await PushHttpClient.SendAsync(request, timeoutCts.Token);
 
                 var body = await response.Content.ReadAsStringAsync();
                 stopwatch.Stop();

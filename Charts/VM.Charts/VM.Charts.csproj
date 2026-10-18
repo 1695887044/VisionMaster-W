@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    VM.Charts —— ScottPlot 5 的 MVVM 封装（曲线/柱状/饼图/热力图/仪表盘）。
+
+    来源：本库原先以探针工程（_ChartProbe5，net48 单目标）的形态存在，用来验证
+    "ScottPlot 能不能包成 MVVM 友好的控件"。结论是能，于是提升为正式库供 SCADA 曲线图元使用。
+
+    三条设计约束（来自探针期的结论，改代码前先读 Charts\README.md）：
+      · ViewModel 里零 ScottPlot 类型 —— VM 只提供数据/状态，控件负责把数据变化翻译成绘图调用；
+      · 全部 ScottPlot 类型都关在 ChartView.cs 一个文件里 —— 升级换库只重写它；
+      · 所有 VM 的 INPC 都可能来自后台线程（采集线程），控件内部统一 Dispatcher 封送，宿主不要另加。
+
+    为什么不并入 VM.Scada.Controls：图元库的 csproj 注释明写"刻意不引用 UI 工程，
+    要能在纯净宿主里单独加载"。曲线要拖 SkiaSharp 原生库（win-x64 等一整套 runtimes），
+    那是重依赖，不该随图元库进所有引用方的输出与交付包。分开放，不用曲线的宿主就不付这个代价。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RootNamespace>VM.Charts</RootNamespace>
+    <!-- 探针期按 net48 写、Nullable 关闭：这份代码风格与仓库其它 WPF 库不同，
+         提升为正式库时不做一次性重写（2500 行的 ChartView 重写风险远大于收益）。
+         新增文件请沿用本库风格，不要混入 nullable enable 的写法。 -->
+
+    <!--
+      NU1701：ScottPlot.WPF 5.1.59 的传递依赖 SkiaSharp.Views.WPF 3.119.0 只带 net4x 资产
+      （net9 走的是 SkiaSharp 的 net8.0-windows 资产，Views.WPF 这一层没有对应 TFM）。
+      实测在 net9.0-windows 下功能正常（SkiaSharp 原生库按 runtimes/ 分目录加载，
+      与包装程序集的 TFM 无关），只是 NuGet 会提示"可能不完全兼容"。
+      抑制而不是压版本：换掉它会同时换掉 ScottPlot 所依赖的那一整套绘图栈。
+    -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
+  </ItemGroup>
+
+</Project>

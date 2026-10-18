@@ -416,6 +416,22 @@ namespace FlowCanvasChecks
             par.Children[0].Steps.Add(branchWhile);
             par.Children[0].Steps.Add(branchBreak);
 
+            // ---- 失败态对照（2026-10-18）：红边留白 vs 旧整卡红底——
+            // 与用户真机截图同图式：并行分组的两个相邻分支各挂一张失败延时卡，
+            // 验证"两张失败卡相邻时不再压过容器层级"（旧观感=两片红底抢第一眼）。
+            var failDelay = new ActionStep("", "延时", StubPluginProvider.LeafPlugin, "延时_0")
+            {
+                State = StepState.Failed,
+                Description = "延时",
+            };
+            par.Children[1].Steps.Add(failDelay);
+            var failDelay2 = new ActionStep("", "延时", StubPluginProvider.LeafPlugin, "延时_1")
+            {
+                State = StepState.Failed,
+                Description = "延时",
+            };
+            par.Children[2].Steps.Add(failDelay2);
+
             // ---- 顶层容器行：If（一实两空）对照分支胶囊的"N 个算子"与灰/蓝身份色 ----
             var topIf = new ConditionStep("\uE7C1", "结果判断", StubPluginProvider.IfPlugin, "If_1");
             topIf.Children[0].Expression = "Score > 80";

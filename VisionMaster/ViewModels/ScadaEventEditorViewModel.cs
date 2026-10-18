@@ -12,7 +12,7 @@ namespace VisionMaster.ViewModels
     /// <summary>
     /// 「事件 + 动作表」编辑器（公共控件 <c>ScadaEventEditor</c> 的视图模型）：
     /// 一个勾选框 = "这个事件有没有配钩子"，勾上之后内联展开一张<b>动作表</b>
-    /// （增 / 删 / 改类型 / 改日志文案 / 调顺序 / 选变量 / 选画面）。
+    /// （增 / 删 / 改类型 / 改日志文案 / 调顺序 / 选变量 / 选画面 / 选流程 / 选轴）。
     ///
     /// <b>为什么单独抽这一层</b>：同一套编辑逻辑现在有两个消费者——属性面板的事件行
     /// （图元事件、画面事件）和独立的「变量事件」弹窗（变量级 5 类事件）。
@@ -45,6 +45,11 @@ namespace VisionMaster.ViewModels
         /// <param name="eventType">本编辑器对应的组态事件</param>
         /// <param name="displayName">勾选框上显示的事件名（与运行日志里那句同一个出处）</param>
         /// <param name="description">悬停说明</param>
+        /// <param name="axisPicker">
+        /// 「选轴」入口（运动命令族用）。<b>可选</b>：它是在"运动命令族"之后才加的依赖，
+        /// 而本类的既有消费者（属性面板的事件行、变量事件弹窗）与断言工程都在按老签名构造。
+        /// 为 null 时「选轴」按钮不可用（而不是静默空跑）——见 <see cref="PickAxisCommand"/>。
+        /// </param>
         public ScadaEventEditorViewModel(
             IScadaEventHost host,
             ScadaEventType eventType,
@@ -52,7 +57,8 @@ namespace VisionMaster.ViewModels
             string? description,
             IScadaVariablePicker picker,
             IScadaPagePicker pagePicker,
-            IScadaFlowPicker flowPicker)
+            IScadaFlowPicker flowPicker,
+            IScadaAxisPicker? axisPicker = null)
         {
             Host = host ?? throw new ArgumentNullException(nameof(host));
             EventType = eventType;
@@ -61,6 +67,7 @@ namespace VisionMaster.ViewModels
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
             _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
+            _axisPicker = axisPicker;
 
             AddActionCommand = new DelegateCommand(OnAddAction);
             RemoveActionCommand = new DelegateCommand<ScadaAction>(OnRemoveAction, a => IndexOf(a) >= 0);
@@ -69,6 +76,8 @@ namespace VisionMaster.ViewModels
             PickVariableCommand = new DelegateCommand<ScadaAction>(OnPickVariable, a => a != null);
             PickPageCommand = new DelegateCommand<ScadaAction>(OnPickPage, a => a != null);
             PickFlowCommand = new DelegateCommand<ScadaAction>(OnPickFlow, a => a != null);
+            // 没接选轴入口时按钮必须是"灰的"：能点却什么都不发生，用户只会怀疑软件坏了。
+            PickAxisCommand = new DelegateCommand<ScadaAction>(OnPickAxis, a => a != null && _axisPicker != null);
         }
 
         /// <summary>「选变量」入口（弹窗怎么弹、弹哪个由这一层决定，见 IScadaVariablePicker）</summary>
@@ -79,6 +88,9 @@ namespace VisionMaster.ViewModels
 
         /// <summary>「选流程」入口（弹窗怎么弹、弹哪个由这一层决定，见 IScadaFlowPicker）</summary>
         private readonly IScadaFlowPicker _flowPicker;
+
+        /// <summary>「选轴」入口（运动命令族用）；可为 null = 没接（见构造参数说明）</summary>
+        private readonly IScadaAxisPicker? _axisPicker;
 
         /// <summary>本次编辑的目标宿主（接口而不是具体类型，理由见类注释）</summary>
         public IScadaEventHost Host { get; }
@@ -152,6 +164,13 @@ namespace VisionMaster.ViewModels
 
         /// <summary>「选流程」：参数是那条流程动作（弹窗确认后回填它的 Id 与名字）</summary>
         public DelegateCommand<ScadaAction> PickFlowCommand { get; }
+
+        /// <summary>
+        /// 「选轴」：参数是那条运动动作（弹窗确认后回填它的 Id 与名字）。
+        /// 走<b>单选</b>：一条运动动作只操作一根轴（见 <see cref="IScadaAxisPicker.PickSingle"/>）。
+        /// 没接选轴入口时 CanExecute 为假（按钮灰掉），不会出现"点了没反应"。
+        /// </summary>
+        public DelegateCommand<ScadaAction> PickAxisCommand { get; }
 
         /// <summary>
         /// 勾选框真值的文本形态：供 <see cref="ScadaEventRow"/> 沿用基类
@@ -275,6 +294,34 @@ namespace VisionMaster.ViewModels
                 using (Host.BeginEdit($"选择目标流程 [{name}]"))
                 {
                     action.BindFlow(id, name);
+                }
+            });
+        }
+
+        /// <summary>
+        /// 「选轴」：把这条运动动作当前的目标轴交给选择器，选中后回填。
+        /// 与「选变量」/「选画面」/「选流程」同一口径：Id 是权威身份，名字只作显示与兜底寻址。
+        /// 取消时回调<b>一次都不触发</b>（取消不该被翻译成"清空原绑定"这种破坏性动作）。
+        ///
+        /// 走 <see cref="IScadaAxisPicker.PickSingle"/>：一条运动动作只操作一根轴。
+        /// 入参是"当前已选的那一根"（没选则空表），让弹窗能预选并让用户看出现在配的是哪根。
+        /// </summary>
+        private void OnPickAxis(ScadaAction? action)
+        {
+            if (action == null || _axisPicker == null) return;
+
+            var current = action.HasAxis
+                ? new[] { new ScadaAxisRef(action.AxisId, action.AxisName) }
+                : Array.Empty<ScadaAxisRef>();
+
+            _axisPicker.PickSingle(current, picked =>
+            {
+                if (picked == null) return;
+
+                // 回填要走作用域：Id 与名字是两次属性写，不包的话"选轴"这个动作压根撤不回来
+                using (Host.BeginEdit($"选择轴 [{picked.Name}]"))
+                {
+                    action.BindAxis(picked.AxisId, picked.Name);
                 }
             });
         }

@@ -17,6 +17,7 @@ using VisionMaster.Services;
 using VisionMaster.Services.Help;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
+using VisionMaster.Services.Motion;
 using VisionMaster.ViewModels;
 using VisionMaster.ViewModels.DialogViewModels;
 using VisionMaster.Views;
@@ -33,6 +34,7 @@ namespace VisionMaster
         private SingleInstanceCheck? _singleInstance;
         private HalconCheck? _halconCheck;
         private CommunicationCheck? _communicationCheck;
+        private HelpCatalogCheck? _helpCatalogCheck;
         private readonly CancellationTokenSource _postStartupCts = new();
         private Lifetime.SplashScreen? _splash;
         private readonly List<IAppModule> _modules = new();
@@ -82,6 +84,14 @@ namespace VisionMaster
             // 会一直等到有人点开图像页时才消失，很难查。
             Container.Resolve<ImageCollectionService>();
 
+            // ===== 曲线图元注册（必须显式调，见 ScadaChartElements 的类注释）=====
+            // 曲线图元在另一个程序集里，跨程序集的类型静态构造不会因为"引用了 DLL"就跑，
+            // 所以不像内置图元那样自动注册。这里调一次；结果是"工具箱里有没有曲线"，
+            // 忘了调不报任何错——由 ScadaChecks 的断言兜住（那边也会调一次）。
+            VisionMaster.Scada.Controls.Charts.ScadaChartElements.Register();
+            foreach (var chartError in VisionMaster.Scada.Controls.Charts.ScadaChartElements.Errors)
+                Container.Resolve<ILogService>().Warn($"曲线图元注册失败：{chartError}");
+
             // ===== 启动自检链（按执行顺序注册）=====
             _singleInstance = new SingleInstanceCheck();
             _lifetime.RegisterCheck(_singleInstance);
@@ -92,11 +102,14 @@ namespace VisionMaster
                 () => Container.Resolve<PluginService>(),
                 () => Container.Resolve<IPluginProvider>(),
                 Container.Resolve<ILogService>()));
-            // 帮助手册合并：必须排在插件扫描之后——它按插件的注册元数据分组，
-            // 且此刻插件程序集已加载，读内嵌手册不必二次 LoadFrom（见 HelpCatalogCheck 注释）。
-            _lifetime.RegisterCheck(new HelpCatalogCheck(
+            // 帮助手册合并**不进启动自检链**（2026-10-16，与通讯连通性同一先例 R57）：
+            // 它只给帮助弹窗供数、失败全是 Warning，实测却要约 1.2 秒——让"只报不拦"的项守在
+            // 进主界面的关键路径上不值得。改由 OnInitialized 在主窗口显示后后台跑；
+            // 且 HelpViewModel.OnDialogOpened 已有懒构建兜底（!IsBuilt → Build），
+            // 后台没跑完时用户打开帮助会当场构建，行为不降级。
+            _helpCatalogCheck = new HelpCatalogCheck(
                 () => Container.Resolve<HelpCatalogService>(),
-                Container.Resolve<ILogService>()));
+                Container.Resolve<ILogService>());
             // 通讯连通性**不进启动自检链**（2026-10-16）：它只出 Warning、不拦启动，却要等
             // 3 秒追赶窗口 + 每条最多 3 秒（总预算 12 秒）——让"只报不拦"的诊断项站在进主界面的
             // 关键路径上不值得。改由 OnInitialized 在主窗口显示后后台跑，结果写日志（口径不变）。
@@ -223,7 +236,11 @@ namespace VisionMaster
                 c.Resolve<IScadaValueSource>(),
                 c.Resolve<IScadaNavigator>(),
                 c.Resolve<ScadaAuditWriter>(),
-                c.Resolve<IScadaFlowRunner>()));
+                c.Resolve<IScadaFlowRunner>(),
+                // 运动命令族执行器：同样是可选参数（断言工程里 16 处 4~5 参构造不该为它解析运动依赖）。
+                // 这里显式传进去——交给容器去猜的结果是编译能过、运行起来点「轴定位」只记一行
+                // "未接入运动模块"（而且不报错）。它持有"哪根轴在点动"的状态与看门狗，所以是单例。
+                c.Resolve<MotionActionExecutor>()));
             // 运行态的切页出口：分发器是长命单例，运行态会话是每次点"运行"现建、关窗口即废，
             // 中间得有人记住"此刻活着的是哪一个会话"。宿主 Start 时 Attach、关窗口收尾时摘掉。
             // 也必须是单例：两份实例各记一个会话，动作落到哪一份上就变成了随机。
@@ -274,6 +291,11 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<IScadaVariablePicker, ScadaVariablePicker>();
             containerRegistry.RegisterDialog<ScadaVariablePickerView, ScadaVariablePickerViewModel>(
                 ScadaVariablePicker.DialogName);
+            // 组态「选轴」入口：轴面板的设计期候选清单。候选来自 MotionAxisRegistry（只列已启用轴），
+            // 与变量选择器同一手法——面板不依赖 Prism 弹窗，也不认识运动模块。
+            containerRegistry.RegisterSingleton<IScadaAxisPicker, ScadaAxisPicker>();
+            containerRegistry.RegisterDialog<ScadaAxisPickerView, ScadaAxisPickerViewModel>(
+                ScadaAxisPicker.DialogName);
             // 组态「选画面」入口：与「选变量」同一手法——清单来源不同（画面来自当前方案，
             // 变量来自工程变量表），所以是两个入口而不是一个带枚举的入口：
             // 运行态两边的"选得到就一定生效"承诺各自成立，混成一个反而要在这层判类型。
@@ -358,7 +380,10 @@ namespace VisionMaster
                     Container.Resolve<IScadaPagePicker>(),
                     Container.Resolve<IScadaFlowPicker>(),
                     Container.Resolve<ScadaAuditWriter>(),
-                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
+                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName,
+                    // 第四个 picker（轴）：运动命令动作行的「选轴」用。同样是可选参数，
+                    // 漏传的表现是"按钮灰着、点了没反应"，而不是编译错误。
+                    Container.Resolve<IScadaAxisPicker>()));
             // 报警配置弹窗同一手法。它同样"每一次编辑都当场写回模型"，没有统一的提交点，
             // 所以 audit / actorProvider 两个可选参数漏接的话，一条线索都不会留下。
             // picker 也必须显式传：它是"为报警选监视变量"那个按钮用的，
@@ -377,9 +402,10 @@ namespace VisionMaster
             containerRegistry.RegisterDialog<ScadaLoginView, ScadaLoginViewModel>("ScadaLoginView");
             containerRegistry.RegisterDialog<ScadaUserManagerView, ScadaUserManagerViewModel>("ScadaUserManagerView");
             containerRegistry.RegisterDialog<PluginConfigShellView, PluginConfigShellViewModel>("PluginConfigShell");
-            // 帮助手册：目录由启动自检链合并（HelpCatalogCheck 调 HelpCatalogService.Build），
-            // 这里提供服务与弹窗两件事。服务走工厂显式传依赖，与上面几处"可选参数显式传"同一手法——
-            // 交给容器去猜的结果是编译能过、运行起来目录永远空着（Build 没人调）。
+            // 帮助手册：目录合并已从启动自检链挪到主窗口显示后后台跑（OnInitialized →
+            // RunHelpCatalogCheckInBackground），这里注册服务与弹窗两件事。服务走工厂显式传依赖，
+            // 与上面几处"可选参数显式传"同一手法——交给容器去猜的结果是编译能过、运行起来目录永远空着。
+            // 懒构建兜底在 HelpViewModel.OnDialogOpened（后台没跑完时当场 Build）。
             containerRegistry.RegisterSingleton<HelpCatalogService>(c => new HelpCatalogService(
                 c.Resolve<IPluginProvider>(),
                 c.Resolve<ILogService>()));
@@ -426,6 +452,60 @@ namespace VisionMaster
 
             // 通讯连通性：主窗口已显示，自动连接此刻已爬过一会儿，检测放后台跑、不占启动时间
             RunCommunicationCheckInBackground();
+
+            // 帮助手册合并：与通讯连通性同一先例——只报不拦、不站在启动关键路径上（见 OnInitialized 的注释）
+            RunHelpCatalogCheckInBackground();
+        }
+
+        /// <summary>
+        /// 后台跑一次帮助手册合并，结果只写日志——不弹窗、不拦启动。
+        ///
+        /// 为什么挪出启动自检链
+        /// ---------
+        /// 它只给帮助弹窗供数：合并出来的目录是给「帮助」窗口看的，不是主界面可用的前提。
+        /// 失败出口全是 Warning（读不出来只影响"查手册"），而实测成本约 1.2 秒（253 页内嵌资源）。
+        /// 放在链上等于让一个"只报不拦"的项决定用户多等多久。
+        ///
+        /// 时序不变式
+        /// ---------
+        /// 它仍然排在插件扫描**之后**：合并要按插件的注册元数据分组，而主窗口只能在
+        /// CreateShell 返回后出现——那一刻插件扫描早已跑完（它在自检链上），所以挪到后台
+        /// 不改变"插件程序集已在内存里"这个前提，读内嵌手册依旧不必二次 LoadFrom。
+        ///
+        /// 兜底
+        /// ----
+        /// 后台没跑完时用户就打开帮助窗口？HelpViewModel.OnDialogOpened 已有懒构建
+        ///（!IsBuilt → Build），窗口会当场构建目录，行为不降级——两条路径共用同一份 Build。
+        /// </summary>
+        private void RunHelpCatalogCheckInBackground()
+        {
+            var check = _helpCatalogCheck;
+            if (check == null) return;
+            var log = Container.Resolve<ILogService>();
+            var ct = _postStartupCts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var result = await check.ExecuteAsync(ct);
+                    if (result.Passed)
+                        log.Info($"[启动自检] {check.Name}: {result.Message}");
+                    else if (result.Level == CheckLevel.Error)
+                        log.Error($"[启动自检] {check.Name} 失败：{result.Message}");
+                    else
+                        log.Warn($"[启动自检] {check.Name} 警告：{result.Message}");
+                }
+                catch (OperationCanceledException)
+                {
+                    // 应用正在退出，目录没人要了
+                }
+                catch (Exception ex)
+                {
+                    // 后台合并绝不能把应用带下去：这里只剩一行日志
+                    try { log.Warn($"[启动自检] {check.Name} 异常：{ex.Message}"); } catch { }
+                }
+            }, ct);
         }
 
         /// <summary>

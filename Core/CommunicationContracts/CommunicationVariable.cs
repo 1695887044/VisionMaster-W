@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Newtonsoft.Json;
 
 namespace VisionMaster.Communications
@@ -50,9 +51,9 @@ namespace VisionMaster.Communications
         public VariableAccessMode AccessMode { get; set; } = VariableAccessMode.ReadOnly;
 
         /// <summary>
-        /// 当前值
+        /// 当前值（Worker 线程写、任意线程读：走 <see cref="Volatile"/> 保证可见性）
         /// </summary>
-        public object? CurrentValue { get; private set; }
+        public object? CurrentValue => Volatile.Read(ref _currentValue);
 
         /// <summary>
         /// 镜像回调（可选）：轮询读到新值时推送给绑定的网络变量（NetworkVariableModel.UpdateMirrorValue），
@@ -74,12 +75,22 @@ namespace VisionMaster.Communications
         /// Bad = 连接断开或从未读到。只在发生切换时推送 <see cref="QualityCallback"/>。</para>
         /// </summary>
         [JsonIgnore]
-        public VariableQuality Quality { get; private set; } = VariableQuality.Bad;
+        public VariableQuality Quality => (VariableQuality)Volatile.Read(ref _quality);
 
         /// <summary>
-        /// 最后更新时间
+        /// 最后更新时间。
+        /// <para>与 <see cref="CurrentValue"/> <b>配对发布</b>：写者先写值、再写时间戳；
+        /// 读者按"先时间戳、后值"的顺序读取时，时间戳非默认即保证值非 null——
+        /// 不会读到"新值 + 旧时间戳"这种不属于同一轮的撕裂组合（F2）。</para>
         /// </summary>
-        public DateTime LastUpdateTime { get; private set; }
+        public DateTime LastUpdateTime
+        {
+            get
+            {
+                long ticks = Interlocked.Read(ref _lastUpdateTicks);
+                return ticks == 0 ? default : new DateTime(ticks);
+            }
+        }
 
         /// <summary>
         /// 值变化事件
@@ -88,7 +99,14 @@ namespace VisionMaster.Communications
 
         /// <summary>是否已推送过首次值（首次无论是否变化都强制推送，保证 UI 拿到设备真实初值）</summary>
         [JsonIgnore]
-        private bool _hasPublished;
+        private int _hasPublished;
+
+        // F2：值 / 时间戳 / 质量戳的跨线程发布（Worker 线程写，UI / SCADA / 诊断任意线程读）。
+        // 不能再用自动属性——DateTime 是 8 字节 struct，直接读写会撕裂；
+        // 且"值与时间戳"之间没有发布顺序，UI 会读到"新值 + 旧时间戳"这种不属于同一轮的组合。
+        private object? _currentValue;
+        private long _lastUpdateTicks;                  // DateTime.Ticks；0 = 从未更新
+        private int _quality = (int)VariableQuality.Bad;
 
         /// <summary>
         /// 变化死区（百分比，0 = 关闭）。
@@ -111,11 +129,14 @@ namespace VisionMaster.Communications
 
             // 首次强制推送（设备值与初始默认相等时也通知，否则 UI 一直显示空/旧值）；
             // 之后仅在值变化时触发事件通知
-            if (!_hasPublished || ValueReallyChanged(newValue))
+            if (Volatile.Read(ref _hasPublished) == 0 || ValueReallyChanged(newValue))
             {
-                _hasPublished = true;
-                CurrentValue = newValue;
-                LastUpdateTime = DateTime.Now;
+                // F2 发布顺序：先发布值（release），再写时间戳（full fence）。
+                // 读者"先读时间戳、再读值"时，时间戳非默认即保证读到本次的值。
+                Volatile.Write(ref _hasPublished, 1);
+                Volatile.Write(ref _currentValue, newValue);
+                Interlocked.Exchange(ref _lastUpdateTicks, DateTime.Now.Ticks);
+
                 MirrorCallback?.Invoke(newValue);
                 ValueChanged?.Invoke(this, newValue);
             }
@@ -130,8 +151,9 @@ namespace VisionMaster.Communications
         /// <summary>质量切换只在真正变化时推送回调（幂等：重复标记不产生事件/UI 刷新）</summary>
         private void SetQuality(VariableQuality quality)
         {
-            if (Quality == quality) return;
-            Quality = quality;
+            // 幂等：重复标记不产生回调。Exchange 保证"写"本身原子；
+            // 只有值真的变化时才通知（并发下两个线程写不同值的极端情况会各发一次，可接受）
+            if (Interlocked.Exchange(ref _quality, (int)quality) == (int)quality) return;
             QualityCallback?.Invoke(quality);
         }
 

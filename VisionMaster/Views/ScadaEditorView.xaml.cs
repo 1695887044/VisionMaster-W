@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
 using VisionMaster.Services;
@@ -36,6 +37,24 @@ namespace VisionMaster.Views
 
         private void OnViewLoaded(object sender, RoutedEventArgs e)
             => (DataContext as ScadaEditorViewModel)?.Activate();
+
+        /// <summary>
+        /// 「新建」右侧的 ▾：把挂在该按钮上的菜单从下方弹出来。
+        ///
+        /// 为什么走 code-behind 而不是给按钮再挂一个命令：WPF 没有内建的"分裂按钮"，
+        /// 而"点一下弹菜单"是纯视图动作（菜单本身的位置由控件决定），放进视图模型只会多一层转发。
+        /// 菜单里的两项仍是命令绑定（`AddPageCommand` / `AddBasePageCommand`），
+        /// 业务判断一条都不在这里。
+        /// </summary>
+        private void OnNewMenuClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { ContextMenu: { } menu } button)
+                return;
+
+            menu.PlacementTarget = button;
+            menu.Placement = PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
 
         private void OnViewUnloaded(object sender, RoutedEventArgs e)
             => (DataContext as ScadaEditorViewModel)?.Deactivate();

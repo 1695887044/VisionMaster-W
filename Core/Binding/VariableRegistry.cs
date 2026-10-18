@@ -20,14 +20,27 @@ namespace VisionMaster.Binding
     ///    锁只保护索引本身，绝不在锁内抛事件（见 <see cref="NotifyRenamed"/>）。
     /// 3) **增量 vs 全量**：Add/Remove 走增量（万级变量逐个灌入时不至于 O(n²)），
     ///    Clear/整体替换走全量重建（这两种动作下增量维护没有收益且容易漏键）。
+    /// 4) **两个来源、两张表**：用户变量（<see cref="Attach"/>，会落盘）与系统变量
+    ///    （<see cref="AttachSystem"/>，运行态派生量）各占一张 Id/Name 表，查找时**用户优先**。
+    ///    为什么不做成"一张合并表"：用户集合的"先出现者赢"是既有且被断言钉住的行为，
+    ///    合并后必须让"后加的用户变量反压已有的系统变量"，两套优先级规则会在一张表里打架；
+    ///    分成两张表后，合并规则只剩查找时的一句"先用户、再系统"，不会误改既有语义。
     /// </summary>
     public sealed class VariableRegistry : IVariableRegistry
     {
         private readonly object _gate = new();
 
         private ObservableCollection<IVariable>? _source;
+        private ObservableCollection<IVariable>? _systemSource;
         private Dictionary<Guid, IVariable> _byId = new();
         private Dictionary<string, IVariable> _byName = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>系统变量索引（第二来源）。与用户表分开存，见类注释 4)</summary>
+        private Dictionary<Guid, IVariable> _systemById = new();
+        private Dictionary<string, IVariable> _systemByName = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>最近一次 Rebuild 发现的问题（只读快照，供宿主做加载期体检）</summary>
+        private IReadOnlyList<string> _lastProblems = Array.Empty<string>();
 
         /// <summary>绑定到变量集合（构造即完成一次全量索引）</summary>
         public VariableRegistry(ObservableCollection<IVariable> source)
@@ -40,7 +53,7 @@ namespace VisionMaster.Binding
             get
             {
                 lock (_gate)
-                    return _byId.Count;
+                    return _byId.Count + _systemById.Count;
             }
         }
 
@@ -71,6 +84,29 @@ namespace VisionMaster.Binding
             Rebuild();
         }
 
+        /// <inheritdoc />
+        public void AttachSystem(ObservableCollection<IVariable>? source)
+        {
+            lock (_gate)
+            {
+                // 幂等：同一个实例重复挂接是空操作；传 null 表示摘掉系统源
+                if (ReferenceEquals(_systemSource, source))
+                    return;
+
+                if (_systemSource != null)
+                    _systemSource.CollectionChanged -= OnSystemSourceChanged;
+
+                _systemSource = source;
+
+                if (_systemSource != null)
+                    _systemSource.CollectionChanged += OnSystemSourceChanged;
+            }
+
+            // 只重建系统表：用户表与它无关（换系统源不该重扫用户集合，
+            // 那会在"UI 线程正在改用户集合"时把一次无害的挂接变成枚举异常）
+            RebuildSystem();
+        }
+
         public IVariable? FindById(Guid variableId)
         {
             // Guid.Empty 是"无身份"的哨兵（旧工程数据、常量引用），索引里不存在该键
@@ -78,7 +114,13 @@ namespace VisionMaster.Binding
                 return null;
 
             lock (_gate)
-                return _byId.TryGetValue(variableId, out var variable) ? variable : null;
+            {
+                // 用户变量优先：同名同 Id 的脏数据场景下，行为必须与 AttachSystem 的合并口径一致
+                if (_byId.TryGetValue(variableId, out var variable))
+                    return variable;
+
+                return _systemById.TryGetValue(variableId, out var system) ? system : null;
+            }
         }
 
         public IVariable? FindByName(string? name)
@@ -87,7 +129,14 @@ namespace VisionMaster.Binding
                 return null;
 
             lock (_gate)
-                return _byName.TryGetValue(name!, out var variable) ? variable : null;
+            {
+                // 用户变量优先（见类注释 4)）。冲突时系统变量被遮住，
+                // 但那种情况在 Rebuild 里已经记过一条诊断，不是静默行为
+                if (_byName.TryGetValue(name!, out var variable))
+                    return variable;
+
+                return _systemByName.TryGetValue(name!, out var system) ? system : null;
+            }
         }
 
         public IVariable? Resolve(Guid preferredId, string? fallbackName)
@@ -137,6 +186,17 @@ namespace VisionMaster.Binding
             if (variable is not IRenameableVariable renameable)
             {
                 error = $"变量类型 {variable.GetType().Name} 不允许改名";
+                return false;
+            }
+
+            // 保留前缀：`Motion.` 归系统变量（运行态派生的轴状态投影）。
+            // 放行会造出"用户变量遮住系统变量"的同名冲突，而遮住之后的表现是
+            // "轴在动、画面上的数值不变"——现场几乎不可能自己定位到重名。
+            // 判据放在"能不能改名"之后：系统变量自己改名时应先报"不允许改名"，
+            // 而不是报一个与它的只读语义无关的前缀问题。
+            if (SystemVariableCatalog.IsReservedName(target))
+            {
+                error = $"「{SystemVariableCatalog.NamePrefix}」前缀是系统变量保留前缀，请更换名称";
                 return false;
             }
 
@@ -201,31 +261,141 @@ namespace VisionMaster.Binding
             lock (_gate)
                 source = _source;
 
-            if (source == null)
-                return;
-
             var byId = new Dictionary<Guid, IVariable>();
             var byName = new Dictionary<string, IVariable>(StringComparer.OrdinalIgnoreCase);
 
             // 先建新字典再整体换引用，让读方永远看到"完整的一份"而不是"清空重建的中途"
-            foreach (var variable in source)
+            if (source != null)
             {
-                if (variable == null)
-                    continue;
+                foreach (var variable in source)
+                {
+                    if (variable == null)
+                        continue;
 
-                if (variable.VariableId != Guid.Empty && !byId.TryAdd(variable.VariableId, variable))
-                    ReportDuplicateId(variable.VariableId, variable);
+                    if (variable.VariableId != Guid.Empty && !byId.TryAdd(variable.VariableId, variable))
+                        ReportDuplicateId(variable.VariableId, variable);
 
-                // 同名以集合中靠前者为准（TryAdd 不覆盖）：新增变量时的重名拦截是大小写不敏感的，
-                // 走到这里还重名只可能来自旧方案数据，保持"先出现者赢"这一确定行为
-                if (!string.IsNullOrEmpty(variable.Name))
-                    byName.TryAdd(variable.Name, variable);
+                    // 同名以集合中靠前者为准（TryAdd 不覆盖）：新增变量时的重名拦截是大小写不敏感的，
+                    // 走到这里还重名只可能来自旧方案数据，保持"先出现者赢"这一确定行为
+                    if (!string.IsNullOrEmpty(variable.Name))
+                        byName.TryAdd(variable.Name, variable);
+                }
             }
 
             lock (_gate)
             {
                 _byId = byId;
                 _byName = byName;
+
+                // 用户表换了，同名冲突要重新算一遍。**只读系统表的键、不枚举系统集合**——
+                // 系统集合由发布器在后台线程改写，这里（通常是 UI 线程）去枚举它就是
+                // "集合已修改，无法枚举"。系统表本身的增删由 OnSystemSourceChanged 负责。
+                var problems = new List<string>();
+                foreach (var name in _systemByName.Keys)
+                {
+                    if (_byName.ContainsKey(name))
+                        problems.Add(
+                            $"用户变量「{name}」与系统变量同名，解析一律取用户变量（系统变量被遮住）；请把用户变量改名");
+                }
+
+                _lastProblems = problems;
+            }
+        }
+
+        /// <summary>
+        /// 只重建**系统变量表**（用户表不动）。
+        ///
+        /// 为什么系统集合的变化不走全量 <see cref="Rebuild"/>：系统集合由发布器在**后台线程**上
+        /// 改写（轴表变化时 Clear+Add），而全量 Rebuild 要遍历用户集合（UI 线程维护）。
+        /// 后台线程去遍历 UI 正在改的 ObservableCollection，就是"集合已修改，无法枚举"。
+        /// 这里只碰系统集合（改动它的正是当前线程），再用锁内的 <c>_byName</c> 做一次
+        /// 只读的同名冲突查询——不遍历用户表，跨线程安全。
+        /// </summary>
+        private void RebuildSystem()
+        {
+            ObservableCollection<IVariable>? systemSource;
+            lock (_gate)
+                systemSource = _systemSource;
+
+            var systemById = new Dictionary<Guid, IVariable>();
+            var systemByName = new Dictionary<string, IVariable>(StringComparer.OrdinalIgnoreCase);
+
+            if (systemSource != null)
+            {
+                // 撞上"发布器正在改集合"时重试；三次都失败就保留上一版系统索引
+                // （宁可少一个刚加的轴，也不让"改运动卡设置"把发布线程打断）
+                for (var attempt = 0; attempt < 3; attempt++)
+                {
+                    systemById.Clear();
+                    systemByName.Clear();
+
+                    try
+                    {
+                        foreach (var variable in systemSource)
+                        {
+                            if (variable == null)
+                                continue;
+
+                            if (variable.VariableId != Guid.Empty
+                                && !systemById.TryAdd(variable.VariableId, variable))
+                            {
+                                System.Diagnostics.Debug.WriteLine(
+                                    $"[VariableRegistry] 系统变量身份 {variable.VariableId} 重复（'{variable.Name}'），索引保留先出现者");
+                            }
+
+                            if (!string.IsNullOrEmpty(variable.Name)
+                                && !systemByName.TryAdd(variable.Name, variable))
+                            {
+                                System.Diagnostics.Debug.WriteLine(
+                                    $"[VariableRegistry] 系统变量名「{variable.Name}」重复，索引保留先出现者");
+                            }
+                        }
+
+                        break;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        if (attempt == 2)
+                            return;
+                    }
+                }
+            }
+
+            var problems = new List<string>();
+
+            lock (_gate)
+            {
+                _systemById = systemById;
+                _systemByName = systemByName;
+
+                // ★ 用户变量优先：同名时系统变量被遮住（FindByName 先查用户表）。
+                // 不抛异常——脏数据不该让方案打不开；但必须留痕，
+                // 否则表现是"轴在动、画面上的数值不变"，现场无从定位。
+                foreach (var name in systemByName.Keys)
+                {
+                    if (_byName.ContainsKey(name))
+                        problems.Add(
+                            $"用户变量「{name}」与系统变量同名，解析一律取用户变量（系统变量被遮住）；请把用户变量改名");
+                }
+
+                _lastProblems = problems;
+            }
+
+            // 锁外落诊断：Debug.WriteLine 本身不重，但重建可能被高频调用
+            foreach (var problem in problems)
+                System.Diagnostics.Debug.WriteLine($"[VariableRegistry] {problem}");
+        }
+
+        /// <summary>
+        /// 最近一次重建发现的**既有**问题（重名/重复身份，用于宿主加载期体检）。
+        /// 只记录、不自动修正：自动替用户改名的后果比"某个变量解析不到"更难解释。
+        /// </summary>
+        public IReadOnlyList<string> LastProblems
+        {
+            get
+            {
+                lock (_gate)
+                    return _lastProblems;
             }
         }
 
@@ -255,6 +425,37 @@ namespace VisionMaster.Binding
                 default:
                     // Replace / Move 等罕见动作：不写"部分更新"的半正确逻辑，直接全量重建
                     Rebuild();
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// 系统变量集合的变化：与用户集合同构（Add/Remove 增量、其余全量）。
+        /// 增量只动系统表——用户表的键不会因此变化，改它反而会让"用户优先"的规则出现瞬时空洞。
+        /// </summary>
+        private void OnSystemSourceChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            switch (e.Action)
+            {
+                case NotifyCollectionChangedAction.Add:
+                case NotifyCollectionChangedAction.Remove:
+                    lock (_gate)
+                    {
+                        if (e.OldItems != null)
+                            foreach (IVariable old in e.OldItems)
+                                RemoveFromSystemIndex(old);
+
+                        if (e.NewItems != null)
+                            foreach (IVariable added in e.NewItems)
+                                AddToSystemIndex(added);
+                    }
+                    break;
+
+                case NotifyCollectionChangedAction.Reset:
+                default:
+                    // 只重建系统表：这条回调由系统集合自己触发，用户集合可能正被 UI 线程改，
+                    // 全量 Rebuild 会去遍历它（见 RebuildSystem 的注释）
+                    RebuildSystem();
                     break;
             }
         }
@@ -312,6 +513,57 @@ namespace VisionMaster.Binding
             )
             {
                 _byName.Remove(variable.Name);
+            }
+
+            // 用户变量走了、同名的系统变量还在：查找会自动落回系统表（FindByName 先用户后系统），
+            // 不需要在这里补任何键——这正是"两张表 + 查找时合并"相对"一张合并表"的好处：
+            // 摘除一侧的键不会留下"另一半被永久遮住"的幽灵状态。
+        }
+
+        /// <summary>系统索引写入（须在锁内调用）。规则与 <see cref="AddToIndex"/> 一致</summary>
+        private void AddToSystemIndex(IVariable variable)
+        {
+            if (variable == null)
+                return;
+
+            if (variable.VariableId != Guid.Empty && !_systemById.TryAdd(variable.VariableId, variable))
+                ReportDuplicateId(variable.VariableId, variable);
+
+            if (string.IsNullOrEmpty(variable.Name))
+                return;
+
+            _systemByName.TryAdd(variable.Name, variable);
+
+            // 用户优先：用户表里已有同名键时留痕（不抛、不覆盖）
+            if (_byName.ContainsKey(variable.Name))
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[VariableRegistry] 用户变量「{variable.Name}」与系统变量同名，解析一律取用户变量；请把用户变量改名");
+            }
+        }
+
+        /// <summary>系统索引摘除（须在锁内调用）。按引用比对，避免误删同键的其它对象</summary>
+        private void RemoveFromSystemIndex(IVariable variable)
+        {
+            if (variable == null)
+                return;
+
+            if (
+                variable.VariableId != Guid.Empty
+                && _systemById.TryGetValue(variable.VariableId, out var byId)
+                && ReferenceEquals(byId, variable)
+            )
+            {
+                _systemById.Remove(variable.VariableId);
+            }
+
+            if (
+                !string.IsNullOrEmpty(variable.Name)
+                && _systemByName.TryGetValue(variable.Name, out var byName)
+                && ReferenceEquals(byName, variable)
+            )
+            {
+                _systemByName.Remove(variable.Name);
             }
         }
     }

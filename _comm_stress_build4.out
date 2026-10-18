@@ -1,0 +1,100 @@
+  正在确定要还原的项目…
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+  所有项目均是最新的，无法还原。
+D:\C#\VM\CommStress\Program.cs(983,19): warning CS0219: 变量“varsPerConn”已被赋值，但从未使用过它的值 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [TargetFramework=net9.0-windows]
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [TargetFramework=net9.0-windows]
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+  CommStress -> D:\C#\VM\CommStress\bin\Release\net9.0-windows\CommStress.dll
+
+已成功生成。
+
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\CommStress\Program.cs(983,19): warning CS0219: 变量“varsPerConn”已被赋值，但从未使用过它的值 [D:\C#\VM\CommStress\CommStress.csproj]
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Scada\VM.Scada.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls.Charts\VM.Scada.Controls.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Controls\Core.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Core\VM.Core.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Scada.Controls\VM.Scada.Controls.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.Interfaces\Core.Interfaces.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Engine\VM.FlowEngine.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\UI\Controls\UI.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Charts\VM.Charts\VM.Charts.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。 [TargetFramework=net9.0-windows]
+D:\C#\VM\Services\Core.Halcon\Core.Halcon.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。 [TargetFramework=net9.0-windows]
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://repo.huaweicloud.com/repository/nuget/v3/index.json 的服务索引。
+D:\C#\VM\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj : warning NU1900: 获取包漏洞数据时出错: 无法加载源 https://api.nuget.org/v3/index.json 的服务索引。
+    45 个警告
+    0 个错误
+
+已用时间 00:00:01.66

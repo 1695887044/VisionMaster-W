@@ -29,7 +29,8 @@ namespace VisionMaster.Services
     /// 分支口径：
     ///  · ActionStep → 插件实例 + 插件视图（有自定义视图用插件的；没有则框架兜底 AutoPortConfigView）
     ///    +「PluginConfigShell」；
-    ///  · ConditionStep（含 WhileStep）/ ForStep →「ConditionEditor」+ Node；
+    ///  · ConditionStep（含 WhileStep）/ ForStep / WaitStep →「ConditionEditor」+ Node
+    ///    （WaitStep 走同一编辑器的「等待模式」：条件 + 轮询间隔 + 超时 + 报警变量）；
     ///  · ParallelStep → EasyDialog 属性网格弹窗（执行模式 / 失败聚合 / 汇合超时；
     ///    2026-10-09 起从专属视图面板 ParallelGroupConfigView 收编为标准属性面板：
     ///    FlatPropertyGrid 反射渲染 ParallelGroupEditModel 草稿，不占用 Prism 弹窗注册名）；
@@ -86,7 +87,9 @@ namespace VisionMaster.Services
 
             // 条件编辑器认哪些节点，口径与 ConditionEditorViewModel.OnDialogOpened 的类型判定逐字对齐
             // （多一种进来就是"窗口打开了但里面一片空白"）。
-            if (selectStep is ConditionStep || selectStep is ForStep)
+            // WaitStep 不是 ConditionStep（无子分支），必须显式列出——它的等待条件/轮询/超时
+            // 都在同一个编辑器的「等待模式」里配置。
+            if (selectStep is ConditionStep || selectStep is ForStep || selectStep is WaitStep)
             {
                 var parameters = new DialogParameters();
                 parameters.Add("Node", selectStep);

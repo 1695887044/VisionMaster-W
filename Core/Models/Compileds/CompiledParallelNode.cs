@@ -144,6 +144,11 @@ namespace VisionMaster.Models
                     branchContexts[i] = new ParallelBranchExecutionContext((ExecutionContext)context, i, groupCts.Token);
 
                 // ===== 调度（评审高危 6）：D = min(n-1, 核数-1) 条 Task.Run，末分支在 join 线程就地执行 =====
+                // 【并发不变量 · 端口层】并行期间上游端口只读：分支消费的上游 OutputPort
+                // 在并行分组之前已由父序列写完；RuntimeVariableProxyPort 每节点一个实例、
+                // 变量写走各分支影子字典（ParallelBranchExecutionContext.LocalVariables）。
+                // 因此 InputPort 的无锁字段在并行期只被本分支线程读——这是端口层不加锁的前提，
+                // 若日后引入"并行期间写上游端口"的路径，必须先重审 InputPort 的同步策略。
                 int n = Branches.Count;
                 int taskCount = Math.Min(n - 1, Environment.ProcessorCount - 1);
                 if (taskCount < 0) taskCount = 0;

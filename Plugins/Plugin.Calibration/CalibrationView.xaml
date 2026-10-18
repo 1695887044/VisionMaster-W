@@ -387,10 +387,226 @@
                     </StackPanel>
                 </Border>
 
-                <!--  ③ 质量与标定信息  -->
+                <!--  ③ 内参标定（去畸变，二期③）  -->
                 <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 质量与标定信息" />
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="③ 内参标定（去畸变）" />
+
+                        <!--  标定板 + 相机模型  -->
+                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="标定板" />
+                            <ComboBox
+                                Width="260"
+                                DisplayMemberPath="Display"
+                                IsEnabled="{Binding IsEditable}"
+                                ItemsSource="{Binding CaltabDescriptorOptions}"
+                                SelectedValue="{Binding CaltabDescrFile}"
+                                SelectedValuePath="Value"
+                                ToolTip="列表来自本机 HALCON 的 calib 目录。旧式板（caltab_*.descr）标记暗/板面亮；新式板（calplate_*.cpd）标记亮/板面暗——极性配反会报 #8431 / #8397。落盘存的是文件名，换机器只要 HALCON 里有同名板就能用" />
+                        </StackPanel>
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="{Binding CaltabDescrStatusText}"
+                            TextWrapping="Wrap" />
+
+                        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="相机模型" />
+                            <!--
+                                用 RadioButton + EnumConverter（与本文件 ① 卡片的模式选择同一范式）。
+                                不用 ComboBox + StepConfigOption：它的 Value 是 **string**，而
+                                IntrinsicsModel 是枚举——SelectedValue 走 Equals 比较，string 与枚举成员
+                                永远不等 → 下拉里**一个都不选中**（界面看不出选了什么，比英文更糟）。
+                            -->
+                            <RadioButton
+                                Content="单系数（division）"
+                                IsChecked="{Binding IntrinsicsModel, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:IntrinsicsCameraModel.Division}}"
+                                IsEnabled="{Binding IsEditable}"
+                                ToolTip="单系数（kappa）：广角/低畸变镜头常用，可解析求逆" />
+                            <RadioButton
+                                Margin="16,0,0,0"
+                                Content="多系数（polynomial）"
+                                IsChecked="{Binding IntrinsicsModel, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:IntrinsicsCameraModel.Polynomial}}"
+                                IsEnabled="{Binding IsEditable}"
+                                ToolTip="多系数（k1 k2 k3 p1 p2）：强畸变或需切向项的场合，只能迭代反解。参数多、对图数更敏感（建议 ≥12 张）。与单系数一样可用于「取点前先去畸变」" />
+                            <TextBlock
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="像元(µm)" />
+                            <ui:NumericBox
+                                Width="70"
+                                Style="{StaticResource PluginNumericBox}"
+                                Value="{Binding IntrinsicsPixelSizeUm}"
+                                ToolTip="像元尺寸假设（µm）。calibrate_cameras 把 sx/sy 当已知量固定：焦距按比值等比缩放——单相机下 focus 与 sx 只以比值出现，物理上不可分。但去畸变结果对这套重参数化精确不变（实测差 0px），所以填错不影响去畸变，只影响焦距/kappa 的报告单位" />
+                        </StackPanel>
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="{Binding IntrinsicsModelHintText}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Margin="0,2,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="{Binding IntrinsicsPixelSizeText}"
+                            TextWrapping="Wrap" />
+
+                        <!--  标定图来源  -->
+                        <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Style="{StaticResource PluginFieldLabel}"
+                                Text="标定图文件夹" />
+                            <TextBox
+                                Width="220"
+                                Style="{StaticResource PluginNumericBox}"
+                                IsEnabled="{Binding IsEditable}"
+                                Text="{Binding IntrinsicsImageFolder, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="放十几张从不同角度拍到完整标定板的照片（bmp/jpg/png/tif）；扫描按文件名排序，结果可复现" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                IsEnabled="{Binding IsEditable}"
+                                Command="{Binding BrowseIntrinsicsFolderCommand}"
+                                Content="浏览…" />
+                        </StackPanel>
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="{Binding IntrinsicsImageSourceText}"
+                            TextWrapping="Wrap" />
+
+                        <!--  图列表（可选，优先级高于文件夹）  -->
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="图列表（可选；每行一个路径，# 开头为注释。填了就优先于上面的文件夹）"
+                            TextWrapping="Wrap" />
+                        <TextBox
+                            Height="46"
+                            Margin="0,2,0,0"
+                            AcceptsReturn="True"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            IsEnabled="{Binding IsEditable}"
+                            Text="{Binding IntrinsicsImageList, UpdateSourceTrigger=LostFocus}"
+                            TextWrapping="Wrap"
+                            VerticalScrollBarVisibility="Auto" />
+
+                        <!--  动作按钮  -->
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button
+                                Padding="10,2"
+                                Command="{Binding RunIntrinsicsCalibrationCommand}"
+                                Content="开始内参标定"
+                                IsEnabled="{Binding IsIntrinsicsIdle}"
+                                ToolTip="读图 → find_calib_object → calibrate_cameras → 落内参。逐张记失败原因（哪几张没找到、为什么），有效图数少于 6 张直接失败" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                Command="{Binding RunIntrinsicsSelfVerifyCommand}"
+                                Content="合成自验证"
+                                IsEnabled="{Binding IsIntrinsicsIdle}"
+                                ToolTip="用 HALCON 合成已知内参的 12 张标定板图跑完整标定链，与真值比对——不接相机就能自证本机标定环境可用（约 2 秒）" />
+                            <Button
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                IsEnabled="{Binding IsEditable}"
+                                Command="{Binding ClearIntrinsicsCommand}"
+                                Content="清除内参"
+                                ToolTip="清除已标定的内参，并同时关掉「取点前先去畸变」（内参没了那个开关必然失败）" />
+                        </WrapPanel>
+
+                        <!--  内参质量区  -->
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontSize="{StaticResource PluginLabelFontSize}"
+                            Text="{Binding IntrinsicsQualityText}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource PluginOkBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasIntrinsics}" Value="False">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--  标定结果（多行：成功摘要 / 失败逐张诊断）  -->
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Text="{Binding IntrinsicsResultText}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource PluginLabelTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IntrinsicsResultLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IntrinsicsResultLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--  自验证误差表  -->
+                        <TextBlock
+                            Margin="0,6,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Text="{Binding IntrinsicsSelfVerifyText}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource PluginLabelTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IntrinsicsSelfVerifyLevel}" Value="{x:Static local:StatusLevel.Warning}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginWarningBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IntrinsicsSelfVerifyLevel}" Value="{x:Static local:StatusLevel.Error}">
+                                            <Setter Property="Foreground" Value="{StaticResource PluginErrorBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--  取点前先去畸变  -->
+                        <CheckBox
+                            Margin="0,10,0,0"
+                            Content="取点前先去畸变（标定矩阵定义在去畸变域）"
+                            IsChecked="{Binding UndistortBeforeCalibration}"
+                            IsEnabled="{Binding IsEditable}"
+                            ToolTip="打开后：取到的图像点先经内参去畸变再求解，产出的标定 Kind 变成对应的 *Undistorted 成员并带上内参——下游据此知道像素是去畸变域的。内参缺失/尺寸不符时运行期**明确失败**（绝不静默退回不去畸变）" />
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="{StaticResource PluginHintFontSize}"
+                            Foreground="{StaticResource PluginLabelTextBrush}"
+                            Text="{Binding UndistortHintText}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!--  ④ 质量与标定信息  -->
+                <Border Margin="{StaticResource PluginSectionMargin}" Style="{StaticResource PluginCard}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PluginCardTitle}" Text="④ 质量与标定信息" />
                         <TextBlock
                             Margin="0,8,0,0"
                             FontSize="{StaticResource PluginLabelFontSize}"

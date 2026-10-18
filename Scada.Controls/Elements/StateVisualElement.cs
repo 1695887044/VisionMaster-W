@@ -46,49 +46,48 @@ namespace VisionMaster.Scada.Controls
     /// 枚举单独一处定义，因为它是<b>词汇</b>——泵、电机、管道必须说同一种话；
     /// 本类收的是<b>这套词汇的用法</b>：怎么挑色、什么时候重算。
     /// </summary>
-    public abstract class StateVisualElement : ScadaElementBase
+    public abstract partial class StateVisualElement : ScadaElementBase
     {
-        // 默认色必须冻结：依赖属性默认值被所有实例共享，未冻结的 Freezable 被某实例改到会串到别的实例。
-        private static readonly Brush DefaultTrackColor = ScadaBrushes.Frozen("#FF3A3A3A");
-        private static readonly Brush DefaultStoppedColor = ScadaBrushes.Frozen("#FF7A7A7A");
-        private static readonly Brush DefaultRunningColor = ScadaBrushes.Frozen("#FF34C759");
-        private static readonly Brush DefaultFaultColor = ScadaBrushes.Frozen("#FFE03A2B");
+        // 默认色由 ScadaPropertyDefaults.Resolve 在类型静态构造期解析并冻结（见 [ScadaProperty] 的 DefaultValue），
+        // 所以不再需要手写静态 Brush 字段。
 
         #region 输入
 
         /// <summary>运行状态（停 / 转 / 故障）</summary>
-        public static readonly DependencyProperty StateProperty = DependencyProperty.Register(
-            nameof(State), typeof(DeviceState), typeof(StateVisualElement),
-            new FrameworkPropertyMetadata(
-                DeviceState.Stopped, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+        [ScadaProperty(Key = "State", DisplayName = "状态", Kind = ElementPropertyKind.Choice,
+                       Group = "数据", DefaultValue = "Stopped",
+                       Choices = new[] { "Stopped", "Running", "Fault" }, IsBindable = true,
+                       Description = "运行态把工程变量绑到这里：整数 0=停止 1=运行 2=故障，写枚举名（Running/Fault）也认；" +
+                                     "认不出的值按停止收敛，坏数据不会把整页渲染打断")]
+        public partial DeviceState State { get; set; }
 
         #endregion
 
         #region 外观输入
 
         /// <summary>底色（随状态切换的那一层之外，露出来的那一层）</summary>
-        public static readonly DependencyProperty TrackColorProperty = DependencyProperty.Register(
-            nameof(TrackColor), typeof(Brush), typeof(StateVisualElement),
-            new FrameworkPropertyMetadata(
-                DefaultTrackColor, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+        [ScadaProperty(Key = "TrackColor", DisplayName = "底色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF3A3A3A",
+                       Description = "随状态切换的那一层之外露出来的底色")]
+        public partial Brush? TrackColor { get; set; }
 
         /// <summary>停机色（随状态切换的那一层）</summary>
-        public static readonly DependencyProperty StoppedColorProperty = DependencyProperty.Register(
-            nameof(StoppedColor), typeof(Brush), typeof(StateVisualElement),
-            new FrameworkPropertyMetadata(
-                DefaultStoppedColor, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+        [ScadaProperty(Key = "StoppedColor", DisplayName = "停机色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF7A7A7A",
+                       Description = "停机 / 停流时的颜色；灰色 = 没在动，与多态灯同一个语汇")]
+        public partial Brush? StoppedColor { get; set; }
 
         /// <summary>运行色（随状态切换的那一层）</summary>
-        public static readonly DependencyProperty RunningColorProperty = DependencyProperty.Register(
-            nameof(RunningColor), typeof(Brush), typeof(StateVisualElement),
-            new FrameworkPropertyMetadata(
-                DefaultRunningColor, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+        [ScadaProperty(Key = "RunningColor", DisplayName = "运行色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF34C759",
+                       Description = "运行 / 流动时的颜色；绿色 = 在动")]
+        public partial Brush? RunningColor { get; set; }
 
         /// <summary>故障色（随状态切换的那一层）</summary>
-        public static readonly DependencyProperty FaultColorProperty = DependencyProperty.Register(
-            nameof(FaultColor), typeof(Brush), typeof(StateVisualElement),
-            new FrameworkPropertyMetadata(
-                DefaultFaultColor, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+        [ScadaProperty(Key = "FaultColor", DisplayName = "故障色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FFE03A2B",
+                       Description = "故障 / 异常时的颜色；红色 = 跳闸 / 过载 / 联锁断开")]
+        public partial Brush? FaultColor { get; set; }
 
         #endregion
 
@@ -117,57 +116,25 @@ namespace VisionMaster.Scada.Controls
         // 所以几何必须在所有输入落地之后重算一次（与阀门、棒图、表盘同一个理由）。
         protected override void OnElementRefreshed() => RebuildStateVisual();
 
-        /// <summary>运行状态（见 <see cref="StateProperty"/>）</summary>
-        public DeviceState State
-        {
-            get => (DeviceState)GetValue(StateProperty);
-            set => SetValue(StateProperty, value);
-        }
-
-        /// <summary>底色（见 <see cref="TrackColorProperty"/>）</summary>
-        public Brush? TrackColor
-        {
-            get => (Brush?)GetValue(TrackColorProperty);
-            set => SetValue(TrackColorProperty, value);
-        }
-
-        /// <summary>停机色（见 <see cref="StoppedColorProperty"/>）</summary>
-        public Brush? StoppedColor
-        {
-            get => (Brush?)GetValue(StoppedColorProperty);
-            set => SetValue(StoppedColorProperty, value);
-        }
-
-        /// <summary>运行色（见 <see cref="RunningColorProperty"/>）</summary>
-        public Brush? RunningColor
-        {
-            get => (Brush?)GetValue(RunningColorProperty);
-            set => SetValue(RunningColorProperty, value);
-        }
-
-        /// <summary>故障色（见 <see cref="FaultColorProperty"/>）</summary>
-        public Brush? FaultColor
-        {
-            get => (Brush?)GetValue(FaultColorProperty);
-            set => SetValue(FaultColorProperty, value);
-        }
-
         /// <summary>随状态切换的那一层的颜色（只读，见 <see cref="StateBrushProperty"/>）</summary>
         public Brush? StateBrush => (Brush?)GetValue(StateBrushProperty);
+
+        // 五个输入共用同一条副作用：任一项变了都要重挑状态色、并让派生类重算几何。
+        partial void OnStatePropertyChanged() => RefreshStateVisual();
+        partial void OnTrackColorPropertyChanged() => RefreshStateVisual();
+        partial void OnStoppedColorPropertyChanged() => RefreshStateVisual();
+        partial void OnRunningColorPropertyChanged() => RefreshStateVisual();
+        partial void OnFaultColorPropertyChanged() => RefreshStateVisual();
 
         /// <summary>
         /// 本图元任一外观输入变化时重算：先按状态挑色，再让派生类重算几何。
         ///
-        /// 派生类自己的视觉输入（例如管道的 <c>Direction</c>）也可以直接挂这个回调——
-        /// 它要做的正是「重算一遍」。
+        /// 派生类自己的视觉输入（例如管道的 <c>Direction</c>）在它的
+        /// <c>On&lt;属性名&gt;PropertyChanged</c> 钩子里直接调本方法即可——它要做的正是"重算一遍"。
+        /// （迁移到 [ScadaProperty] 之前这里是一条静态依赖属性回调；现在每个属性各有一条钩子，
+        /// 不再需要那个静态签名。）
         /// </summary>
-        protected static void OnVisualInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((StateVisualElement)d).RefreshStateVisual();
-
-        /// <summary>
-        /// 重算状态色，再让派生类重算几何。
-        /// </summary>
-        private void RefreshStateVisual()
+        protected void RefreshStateVisual()
         {
             SetValue(StateBrushPropertyKey, PickStateColor() ?? Brushes.Transparent);
             RebuildStateVisual();

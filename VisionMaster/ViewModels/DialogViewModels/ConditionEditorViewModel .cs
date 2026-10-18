@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Core.Interfaces;
@@ -19,6 +20,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private ConditionStep _targetNode;
         private ForStep _targetForNode;
 
+        /// <summary>等待节点靶（IsWaitMode 时的活模型引用；条件/轮询/超时写回用）</summary>
+        private WaitStep? _targetWaitNode;
         /// <summary>分支匹配靶节点（IsCaseMode 时的活模型引用；判据写回用）</summary>
         private CaseStep _targetCaseNode;
         private readonly IDialogService dialogService;
@@ -49,6 +52,88 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// P1-⑥：For 节点并入本弹窗——为 true 时隐藏"变量+表达式"区，显示"循环次数"卡片
         /// </summary>
         public bool IsForMode { get => field; set => SetProperty(ref field, value); }
+
+        // ------------------------------------------------------------------
+        //  等待节点模式（BuiltIn_Wait）：与 If/While 共用"草稿→校验→写回→Version++"事务管线，
+        //  只是除条件表达式之外还要编辑轮询间隔 / 超时 / 超时处置 / 超时说明 / 报警变量。
+        //
+        //  【为什么复用本弹窗而不是新建视图】条件表达式编辑器（AvalonEdit + 变量表 + 快捷插入）
+        //  已经把这套东西做全了；等待节点缺的只是几个数字框。Wait 模式下 Branches 里只有
+        //  **一条合成草稿**（BranchType.If、StepName="等待条件"），code-behind 写
+        //  SelectedBranch.Expression 的既有路径零改动即可用。
+        // ------------------------------------------------------------------
+
+        /// <summary>等待模式（靶节点是 WaitStep）</summary>
+        public bool IsWaitMode
+        {
+            get => field;
+            set
+            {
+                if (!SetProperty(ref field, value))
+                    return;
+                RaisePropertyChanged(nameof(Title));
+            }
+        }
+
+        /// <summary>轮询间隔草稿（字符串承载：输入中途非数字也不会被绑定引擎吞掉，保存时统一 TryParse）</summary>
+        public string PollIntervalText
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = "50";
+
+        /// <summary>最大超时草稿（毫秒；0 = 不限）</summary>
+        public string TimeoutText
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = "60000";
+
+        /// <summary>超时说明草稿（追加到超时日志/异常文案）</summary>
+        public string TimeoutMessageDraft
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
+
+        /// <summary>报警全局变量名草稿（可空；超时时写 true）</summary>
+        public string AlarmVariableNameDraft
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = string.Empty;
+
+        /// <summary>
+        /// 超时处置草稿（**成员名**，不是显示文本）。
+        /// 值必须仍是成员名：写进流程的是枚举成员名，改一次中文显示名不该打断已配好的流程（R40 口径①）。
+        /// </summary>
+        public string TimeoutActionValue
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = nameof(WaitTimeoutAction.TerminateFlow);
+
+        /// <summary>
+        /// 超时处置候选：显示走 [Display(Name)]、值走成员名（StepConfigOption.ForEnum，R40）。
+        /// 绑定口径：DisplayMemberPath="Display" + SelectedValuePath="Value" + SelectedValue="{Binding TimeoutActionValue}"。
+        /// </summary>
+        public IReadOnlyList<StepConfigOption> TimeoutActionOptions { get; } =
+            Enum.GetValues(typeof(WaitTimeoutAction))
+                .Cast<WaitTimeoutAction>()
+                .Select(v => StepConfigOption.ForEnum(typeof(WaitTimeoutAction), v.ToString()))
+                .ToList();
+
+        /// <summary>等待模式的固定提示文案（UI 直接绑这个属性，避免文案散落在 xaml 里）</summary>
+        public string WaitHintText { get; } =
+            "条件成立后继续；超时=0 表示不限；报警变量必须是已存在的全局 bool 变量";
+
+        /// <summary>
+        /// 报警变量候选：**用户可写的全局 bool 变量**名（系统变量是运行态派生的只读量，写不进去）。
+        /// 打开等待节点时现取（变量可能在方案里随时新增/改名）；UI 用它做下拉候选，
+        /// SaveWait 用它做"名字必须存在且类型正确"的校验——两处同一个来源，避免
+        /// "下拉里选不到但手填能过"或反过来。
+        /// </summary>
+        public ObservableCollection<string> AlarmVariableCandidates { get; } = new();
 
         // ------------------------------------------------------------------
         //  分支匹配（Case）模式：与 If/While 共用"草稿→校验→写回→Version++"事务管线，
@@ -148,7 +233,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>For 模式：解除循环次数连线（只清草稿，保存时才动活模型）</summary>
         public DelegateCommand UnlinkLoopCountCommand { get; }
 
-        public string Title => IsForMode ? "For 循环配置" : (IsCaseMode ? "分支匹配配置" : "条件逻辑配置中心");
+        public string Title => IsForMode
+            ? "For 循环配置"
+            : IsWaitMode
+                ? "等待条件配置"
+                : (IsCaseMode ? "分支匹配配置" : "条件逻辑配置中心");
         public DialogCloseListener RequestClose { get; set; }
         public event EventHandler<StepCollection> BranchChanged;
 
@@ -161,9 +250,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return;
 
             // 模式先归零：Prism 一般每弹一次给一个新实例，但宿主复用同一实例时
-            // 上一轮的 Case/For 模式会残留（标题、编辑区显隐全错），这里显式复位
+            // 上一轮的 Case/For/等待模式会残留（标题、编辑区显隐全错），这里显式复位
             IsCaseMode = false;
             _targetCaseNode = null;
+            IsWaitMode = false;
+            _targetWaitNode = null;
 
             // P1-⑥：For 节点并入——同一弹窗、同一套"草稿→校验→写回→Version++"事务管线，只是编辑内容换成循环次数
             if (nodeModel is ForStep forStep)
@@ -176,6 +267,71 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 LoopCountSourceText = _loopCountLinkDraft?.DisplayAddress;
                 RaisePropertyChanged(nameof(Title));
                 RaisePropertyChanged(nameof(HasLoopCountLink));
+                return;
+            }
+
+            // 等待节点：不是 ConditionStep（无子分支），走同一个编辑器的「等待模式」。
+            // 条件表达式复用现有编辑器：Branches 里只放一条合成草稿，SelectedBranch 指向它，
+            // code-behind 的 TxtExpression_TextChanged（写 SelectedBranch.Expression）零改动可用。
+            if (nodeModel is WaitStep waitStep)
+            {
+                IsForMode = false;
+                _targetWaitNode = waitStep;
+                IsWaitMode = true;
+
+                var waitDraft = new StepCollection
+                {
+                    BranchType = BranchType.If,
+                    StepName = "等待条件",
+                    Expression = waitStep.ConditionExpression,
+                };
+                Branches = new ObservableCollection<StepCollection> { waitDraft };
+                SelectedBranch = waitDraft;
+
+                Variables.Clear();
+                foreach (var localVar in waitStep.LocalVariables)
+                {
+                    var item = new VariableItem
+                    {
+                        Id = localVar.Id,
+                        AliasName = localVar.Name,
+                        DataTypeName = localVar.DataTypeName,
+                    };
+                    if (waitStep.LinkedSources.TryGetValue(item.Id.ToString(), out var link))
+                    {
+                        item.SourceAddress = link.DisplayAddress;
+                        item.OriginalLink = link;
+                    }
+                    AttachDupCheck(item);
+                    Variables.Add(item);
+                }
+
+                // 五个参数抄进草稿（条件表达式已随合成分支进 Branches）：弹窗期间只改草稿，取消即丢弃
+                PollIntervalText = waitStep.PollIntervalMs.ToString(CultureInfo.InvariantCulture);
+                TimeoutText = waitStep.TimeoutMs.ToString(CultureInfo.InvariantCulture);
+                TimeoutMessageDraft = waitStep.TimeoutMessage ?? string.Empty;
+                AlarmVariableNameDraft = waitStep.AlarmVariableName ?? string.Empty;
+                TimeoutActionValue = waitStep.TimeoutAction.ToString();
+
+                // 报警变量候选现取：只列**用户可写**的全局 bool 变量。
+                // 系统变量（VariableType.System）是运行态派生只读量，写不进去，列出来只会让人选了保存失败。
+                AlarmVariableCandidates.Clear();
+                if (_workspace?.GlobalVariables != null)
+                {
+                    foreach (var variable in _workspace.GlobalVariables)
+                    {
+                        if (variable == null || string.IsNullOrWhiteSpace(variable.Name))
+                            continue;
+                        if (variable.VariableType == VariableType.System)
+                            continue;
+                        if (variable.DataType != typeof(bool))
+                            continue;
+                        if (!AlarmVariableCandidates.Contains(variable.Name))
+                            AlarmVariableCandidates.Add(variable.Name);
+                    }
+                }
+
+                RaisePropertyChanged(nameof(Title));
                 return;
             }
 
@@ -346,12 +502,58 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 SaveForLoop();
                 return;
             }
+            if (IsWaitMode)
+            {
+                SaveWait();
+                return;
+            }
             if (_targetNode == null) return;
 
             // ==============================================
             // P0-④：保存前校验（快速失败）——语法、别名、空条件全部在弹窗内说清楚，
             // 而不是让脏数据流进 FlowCompiler，等到运行时才以"编译失败"的面目爆出来
             // ==============================================
+            var errors = ValidateDraft(_targetNode.RuntimeVariableRefs);
+
+            if (errors.Count > 0)
+            {
+                EasyDialog.ShowSync("校验未通过", string.Join("\n", errors));
+                return; // 停留在弹窗，草稿保留，用户改好再存
+            }
+
+            // ==============================================
+            // 校验全部通过：草稿 → 活模型，一次性写回
+            // ==============================================
+            for (int i = 0; i < Branches.Count && i < _targetNode.Children.Count; i++)
+            {
+                // P1-⑤：Else/For 循环体（编译器不在乎条件的分支）写回时强制清空表达式，
+                // 抹掉历史遗留的"看起来生效其实被丢弃"的脏数据，重开弹窗不再被旧文字误导
+                _targetNode.Children[i].Expression =
+                    Branches[i].RequiresExpression ? Branches[i].Expression : string.Empty;
+            }
+
+            // 分支匹配：判据写回（走 setter → FlowModel 版本链自动递增；末尾还有一次手动 Version++
+            // 兜底，与分支表达式的既有口径一致）
+            if (_targetCaseNode != null)
+                _targetCaseNode.JudgeExpression = (JudgeExpressionDraft ?? string.Empty).Trim();
+
+            WriteBackVariables(_targetNode.LocalVariables, _targetNode.LinkedSources);
+
+            // P0-①：FlowModel.Version 只订阅了顶层 Steps 的 PropertyChanged，
+            // 条件表达式/变量都在 Children、LocalVariables 里，引擎永远感知不到变更 →
+            // 保存成功后手动推进版本号，触发"需要重新编译"提示，杜绝"试运行对、正式跑错"
+            if (_workspace?.CurrentFlow != null)
+                _workspace.CurrentFlow.Version++;
+
+            RequestClose.Invoke(new DialogResult(ButtonResult.OK));
+        }
+
+        /// <summary>
+        /// 保存前校验（If/While/Case/等待共用）：变量表（别名/重复/类型）+ 分支表达式语法。
+        /// runtimeVariableRefs 由调用方给——等待节点不是 ConditionStep，运行时变量表在它自己身上。
+        /// </summary>
+        private List<string> ValidateDraft(IEnumerable<LocalVariableItem> runtimeVariableRefs)
+        {
             var errors = new List<string>();
             var usedNames = new HashSet<string>(StringComparer.Ordinal);
             var delegateParams = new List<Parameter>();
@@ -393,12 +595,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             // 运行时变量引用（本弹窗不编辑它们，但表达式合法性检查必须带上，否则会误报"未知标识符"）
-            foreach (var runtimeVar in _targetNode.RuntimeVariableRefs)
+            if (runtimeVariableRefs != null)
             {
-                if (string.IsNullOrWhiteSpace(runtimeVar?.Name)) continue;
-                Type rt = TypeHelper.GetActualTypeFromLink(runtimeVar.DataTypeName);
-                if (usedNames.Add(runtimeVar.Name))
-                    delegateParams.Add(new Parameter(runtimeVar.Name, rt));
+                foreach (var runtimeVar in runtimeVariableRefs)
+                {
+                    if (string.IsNullOrWhiteSpace(runtimeVar?.Name)) continue;
+                    Type rt = TypeHelper.GetActualTypeFromLink(runtimeVar.DataTypeName);
+                    if (usedNames.Add(runtimeVar.Name))
+                        delegateParams.Add(new Parameter(runtimeVar.Name, rt));
+                }
             }
 
             // 条件必填判定统一走 StepCollection.RequiresExpression（与流程栏红灯、弹窗灰条同一标准）：
@@ -433,37 +638,26 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 }
             }
 
-            if (errors.Count > 0)
-            {
-                EasyDialog.ShowSync("校验未通过", string.Join("\n", errors));
-                return; // 停留在弹窗，草稿保留，用户改好再存
-            }
+            return errors;
+        }
 
-            // ==============================================
-            // 校验全部通过：草稿 → 活模型，一次性写回
-            // ==============================================
-            for (int i = 0; i < Branches.Count && i < _targetNode.Children.Count; i++)
-            {
-                // P1-⑤：Else/For 循环体（编译器不在乎条件的分支）写回时强制清空表达式，
-                // 抹掉历史遗留的"看起来生效其实被丢弃"的脏数据，重开弹窗不再被旧文字误导
-                _targetNode.Children[i].Expression =
-                    Branches[i].RequiresExpression ? Branches[i].Expression : string.Empty;
-            }
-
-            // 分支匹配：判据写回（走 setter → FlowModel 版本链自动递增；末尾还有一次手动 Version++
-            // 兜底，与分支表达式的既有口径一致）
-            if (_targetCaseNode != null)
-                _targetCaseNode.JudgeExpression = (JudgeExpressionDraft ?? string.Empty).Trim();
-
-            _targetNode.LocalVariables.Clear();
-            _targetNode.LinkedSources.Clear();
+        /// <summary>
+        /// 变量表写回（If/While/Case/等待共用）：LocalVariables 与 LinkedSources 的变量 Guid 键
+        /// 一次性重建——两处各写一份的下场是"变量存了、连线没存"（条件恒取默认值）。
+        /// </summary>
+        private void WriteBackVariables(
+            ObservableCollection<LocalVariableItem> localVariables,
+            IDictionary<string, LinkReference> linkedSources)
+        {
+            localVariables.Clear();
+            linkedSources.Clear();
 
             foreach (var v in Variables)
             {
                 string alias = v.AliasName?.Trim();
                 if (string.IsNullOrEmpty(alias)) continue;
 
-                _targetNode.LocalVariables.Add(new LocalVariableItem
+                localVariables.Add(new LocalVariableItem
                 {
                     Id = v.Id,
                     Name = alias,
@@ -472,13 +666,90 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 if (v.OriginalLink != null)
                 {
-                    _targetNode.LinkedSources[v.Id.ToString()] = v.OriginalLink;
+                    linkedSources[v.Id.ToString()] = v.OriginalLink;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 等待模式保存：条件表达式（复用 ValidateDraft 的分支校验）+ 轮询/超时/超时处置/说明/报警变量。
+        /// 校验失败一律停在弹窗（草稿保留），绝不把"50ms 写成 5"这种错误流进编译器。
+        /// </summary>
+        private void SaveWait()
+        {
+            if (_targetWaitNode == null) return;
+
+            var errors = ValidateDraft(_targetWaitNode.RuntimeVariableRefs);
+
+            // 数值解析一律 InvariantCulture：区域设置不该改变"5000 是五千"这件事
+            if (!int.TryParse(
+                    (PollIntervalText ?? string.Empty).Trim(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int pollIntervalMs))
+            {
+                errors.Add("轮询间隔必须是整数（毫秒）");
+            }
+            else if (pollIntervalMs < 10)
+            {
+                errors.Add($"轮询间隔不能小于 10ms（当前 {pollIntervalMs}ms）");
+            }
+
+            if (!int.TryParse(
+                    (TimeoutText ?? string.Empty).Trim(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int timeoutMs))
+            {
+                errors.Add("超时时间必须是整数（毫秒；0 表示不限）");
+            }
+            else if (timeoutMs < 0)
+            {
+                errors.Add($"超时时间不能为负（当前 {timeoutMs}ms；0 表示不限）");
+            }
+
+            var timeoutAction = WaitTimeoutAction.TerminateFlow;
+            if (!string.IsNullOrWhiteSpace(TimeoutActionValue))
+            {
+                // TryParse 会把数字串（"99"）也认成"成功"，所以必须再判 IsDefined——
+                // 否则手填/旧数据里的非法值会静默落进流程，运行期按"不是 Continue 就终止"处理。
+                if (!Enum.TryParse(TimeoutActionValue, out timeoutAction)
+                    || !Enum.IsDefined(typeof(WaitTimeoutAction), timeoutAction))
+                {
+                    errors.Add($"超时处理方式 '{TimeoutActionValue}' 不是有效的选项");
                 }
             }
 
-            // P0-①：FlowModel.Version 只订阅了顶层 Steps 的 PropertyChanged，
-            // 条件表达式/变量都在 Children、LocalVariables 里，引擎永远感知不到变更 →
-            // 保存成功后手动推进版本号，触发"需要重新编译"提示，杜绝"试运行对、正式跑错"
+            // 报警变量：非空就必须是"已存在的用户全局 bool 变量"。
+            // 这里与打开时填充的 AlarmVariableCandidates 是同一来源——
+            // 不做这一步的后果是"手打一个不存在的名字，保存成功、跑起来只落一条 Warn"，
+            // 现场以为报警配好了，实际超时那一刻什么都没写。
+            string alarmVariableName = (AlarmVariableNameDraft ?? string.Empty).Trim();
+            if (alarmVariableName.Length > 0 && !AlarmVariableCandidates.Contains(alarmVariableName))
+            {
+                errors.Add(
+                    $"报警变量「{alarmVariableName}」不存在或不是全局 bool 变量（请先在变量管理里创建）");
+            }
+
+            if (errors.Count > 0)
+            {
+                EasyDialog.ShowSync("校验未通过", string.Join("\n", errors));
+                return; // 停留在弹窗，草稿保留
+            }
+
+            _targetWaitNode.ConditionExpression =
+                (Branches.Count > 0 ? Branches[0].Expression : string.Empty)?.Trim() ?? string.Empty;
+            _targetWaitNode.PollIntervalMs = pollIntervalMs;
+            _targetWaitNode.TimeoutMs = timeoutMs;
+            _targetWaitNode.TimeoutAction = timeoutAction;
+            _targetWaitNode.TimeoutMessage = (TimeoutMessageDraft ?? string.Empty).Trim();
+            _targetWaitNode.AlarmVariableName = alarmVariableName;
+
+            WriteBackVariables(_targetWaitNode.LocalVariables, _targetWaitNode.LinkedSources);
+
+            // 版本号兜底推进：六个语义属性（条件表达式 + 轮询/超时/处置/说明/报警变量）
+            // 各自会触发一次版本链，这里多推一次是"打开又直接确认"也必然重编译的保险
+            //（与 ConditionStep 保存段同款）
             if (_workspace?.CurrentFlow != null)
                 _workspace.CurrentFlow.Version++;
 

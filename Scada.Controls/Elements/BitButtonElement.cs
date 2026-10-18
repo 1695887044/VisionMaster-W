@@ -47,7 +47,7 @@ namespace VisionMaster.Scada.Controls
     /// 按下ON / 按下OFF 这类<b>瞬动</b>模式在滑开时要把值复位，否则会留下一个"手已经移开、
     /// 量还按着"的假象（现场表现为电机一直转），那是不可接受的。
     /// </summary>
-    public class BitButtonElement : ScadaElementBase
+    public partial class BitButtonElement : ScadaElementBase
     {
         /// <summary>模式取值：置位（释放时写 1）</summary>
         public const string ModeSet = "置位";
@@ -69,63 +69,67 @@ namespace VisionMaster.Scada.Controls
 
         // 默认色必须冻结（Freeze）：依赖属性默认值会被所有实例共享，
         // 未冻结的 Freezable 一旦被某个实例改到，其余实例会跟着变（见 ScadaBrushes 的类注释）。
-        private static readonly Brush DefaultOnFill = ScadaBrushes.Frozen("#FF2D7DD2");
-        private static readonly Brush DefaultOffFill = ScadaBrushes.Frozen("#FF4A5568");
-        private static readonly Brush DefaultOnForeground = ScadaBrushes.Frozen("#FFFFFFFF");
-        private static readonly Brush DefaultOffForeground = ScadaBrushes.Frozen("#FFFFFFFF");
+        // 迁移到 [ScadaProperty] 之后默认值由 ScadaPropertyDefaults.Resolve 解析并冻结，这里不再需要静态字段。
+
+        // 声明次序 = 属性面板里的行序（生成器按源码次序收集）：常规 → 状态，
+        // 与原先手写描述符的排版口径一致（「读变量」排在「输出反向」之前）。
 
         /// <summary>模式（见 <see cref="ModeSet"/> 等五个常量）</summary>
-        public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
-            nameof(Mode), typeof(string), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(ModePressOn));
-
-        /// <summary>输出反向：勾选则对读取的值取反后再判状态（只影响显示，不影响写出去的值）</summary>
-        public static readonly DependencyProperty OutputInvertProperty = DependencyProperty.Register(
-            nameof(OutputInvert), typeof(bool), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                false, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "Mode", DisplayName = "模式", Kind = ElementPropertyKind.Choice,
+                       Group = "常规", DefaultValue = BitButtonElement.ModePressOn,
+                       Choices = new[]
+                       {
+                           BitButtonElement.ModeSet, BitButtonElement.ModeReset, BitButtonElement.ModeInvert,
+                           BitButtonElement.ModePressOn, BitButtonElement.ModePressOff,
+                       },
+                       AffectsRender = false,
+                       Description = "置位/复位/取反在释放时写一次；按下ON/按下OFF是瞬动（按下写一侧、释放写另一侧）。" +
+                                     "「切换窗口」不在本控件里：切画面要动运行态导航，那是按钮动作表的活")]
+        public partial string? Mode { get; set; }
 
         /// <summary>状态（true = 状态1）；运行态把工程变量的布尔值绑到这里</summary>
-        public static readonly DependencyProperty IsOnProperty = DependencyProperty.Register(
-            nameof(IsOn), typeof(bool), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                false, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "IsOn", DisplayName = "读变量", Kind = ElementPropertyKind.Bool,
+                       Group = "状态", DefaultValue = "False", IsBindable = true,
+                       Description = "运行态把工程变量的布尔值绑到这里；本控件也按它回写（读写同一根变量）")]
+        public partial bool IsOn { get; set; }
+
+        /// <summary>输出反向：勾选则对读取的值取反后再判状态（只影响显示，不影响写出去的值）</summary>
+        [ScadaProperty(Key = "OutputInvert", DisplayName = "输出反向", Kind = ElementPropertyKind.Bool,
+                       Group = "状态", DefaultValue = "False",
+                       Description = "对读取的值取反后再判状态（只影响显示与取反写回，不改写出去的字面量）")]
+        public partial bool OutputInvert { get; set; }
 
         /// <summary>状态1（ON）时显示的文字；留空表示沿用「文字」</summary>
-        public static readonly DependencyProperty OnTextProperty = DependencyProperty.Register(
-            nameof(OnText), typeof(string), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                string.Empty, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "OnText", DisplayName = "状态1文字", Kind = ElementPropertyKind.Text,
+                       Group = "状态", DefaultValue = "", IsBindable = true,
+                       Description = "状态为 1 时显示的文字；留空则沿用「文字」")]
+        public partial string? OnText { get; set; }
 
         /// <summary>状态0（OFF）时显示的文字；留空表示沿用「文字」</summary>
-        public static readonly DependencyProperty OffTextProperty = DependencyProperty.Register(
-            nameof(OffText), typeof(string), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                string.Empty, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "OffText", DisplayName = "状态0文字", Kind = ElementPropertyKind.Text,
+                       Group = "状态", DefaultValue = "", IsBindable = true,
+                       Description = "状态为 0 时显示的文字；留空则沿用「文字」")]
+        public partial string? OffText { get; set; }
 
         /// <summary>状态1（ON）时的背景色</summary>
-        public static readonly DependencyProperty OnFillProperty = DependencyProperty.Register(
-            nameof(OnFill), typeof(Brush), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                DefaultOnFill, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "OnFill", DisplayName = "状态1背景", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FF2D7DD2", IsBindable = true)]
+        public partial Brush? OnFill { get; set; }
 
         /// <summary>状态0（OFF）时的背景色</summary>
-        public static readonly DependencyProperty OffFillProperty = DependencyProperty.Register(
-            nameof(OffFill), typeof(Brush), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                DefaultOffFill, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "OffFill", DisplayName = "状态0背景", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FF4A5568", IsBindable = true)]
+        public partial Brush? OffFill { get; set; }
 
         /// <summary>状态1（ON）时的文字颜色</summary>
-        public static readonly DependencyProperty OnForegroundProperty = DependencyProperty.Register(
-            nameof(OnForeground), typeof(Brush), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                DefaultOnForeground, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "OnForeground", DisplayName = "状态1文字色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FFFFFFFF", IsBindable = true)]
+        public partial Brush? OnForeground { get; set; }
 
         /// <summary>状态0（OFF）时的文字颜色</summary>
-        public static readonly DependencyProperty OffForegroundProperty = DependencyProperty.Register(
-            nameof(OffForeground), typeof(Brush), typeof(BitButtonElement),
-            new FrameworkPropertyMetadata(
-                DefaultOffForeground, FrameworkPropertyMetadataOptions.AffectsRender, OnDisplayInputChanged));
+        [ScadaProperty(Key = "OffForeground", DisplayName = "状态0文字色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FFFFFFFF", IsBindable = true)]
+        public partial Brush? OffForeground { get; set; }
 
         private static readonly DependencyPropertyKey DisplayTextPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(DisplayText), typeof(string), typeof(BitButtonElement),
@@ -178,69 +182,6 @@ namespace VisionMaster.Scada.Controls
         /// 于是 ApplyTargetProperty 发现"值没变"会跳过 SetValue，那些变更回调一个都不会响。
         /// </summary>
         public BitButtonElement() => UpdateDisplay();
-
-        /// <summary>模式（见 <see cref="ModeProperty"/>）</summary>
-        public string? Mode
-        {
-            get => (string?)GetValue(ModeProperty);
-            set => SetValue(ModeProperty, value);
-        }
-
-        /// <summary>输出反向（见 <see cref="OutputInvertProperty"/>）</summary>
-        public bool OutputInvert
-        {
-            get => (bool)GetValue(OutputInvertProperty);
-            set => SetValue(OutputInvertProperty, value);
-        }
-
-        /// <summary>状态（见 <see cref="IsOnProperty"/>）</summary>
-        public bool IsOn
-        {
-            get => (bool)GetValue(IsOnProperty);
-            set => SetValue(IsOnProperty, value);
-        }
-
-        /// <summary>状态1文字（见 <see cref="OnTextProperty"/>）</summary>
-        public string? OnText
-        {
-            get => (string?)GetValue(OnTextProperty);
-            set => SetValue(OnTextProperty, value);
-        }
-
-        /// <summary>状态0文字（见 <see cref="OffTextProperty"/>）</summary>
-        public string? OffText
-        {
-            get => (string?)GetValue(OffTextProperty);
-            set => SetValue(OffTextProperty, value);
-        }
-
-        /// <summary>状态1背景色（见 <see cref="OnFillProperty"/>）</summary>
-        public Brush? OnFill
-        {
-            get => (Brush?)GetValue(OnFillProperty);
-            set => SetValue(OnFillProperty, value);
-        }
-
-        /// <summary>状态0背景色（见 <see cref="OffFillProperty"/>）</summary>
-        public Brush? OffFill
-        {
-            get => (Brush?)GetValue(OffFillProperty);
-            set => SetValue(OffFillProperty, value);
-        }
-
-        /// <summary>状态1文字颜色（见 <see cref="OnForegroundProperty"/>）</summary>
-        public Brush? OnForeground
-        {
-            get => (Brush?)GetValue(OnForegroundProperty);
-            set => SetValue(OnForegroundProperty, value);
-        }
-
-        /// <summary>状态0文字颜色（见 <see cref="OffForegroundProperty"/>）</summary>
-        public Brush? OffForeground
-        {
-            get => (Brush?)GetValue(OffForegroundProperty);
-            set => SetValue(OffForegroundProperty, value);
-        }
 
         /// <summary>当前显示文字（只读，见 <see cref="DisplayTextProperty"/>）</summary>
         public string? DisplayText => (string?)GetValue(DisplayTextProperty);
@@ -374,6 +315,18 @@ namespace VisionMaster.Scada.Controls
         private bool IsMode(string mode)
             => string.Equals(Mode, mode, StringComparison.OrdinalIgnoreCase);
 
+        // 八个显示输入共用同一条副作用：任一项变了都要重算显示串与三个推导画刷。
+        // Mode 不在此列——它只在按下/释放时被读，原手写依赖属性也没挂变更回调。
+        partial void OnIsOnPropertyChanged() => UpdateDisplay();
+        partial void OnOutputInvertPropertyChanged() => UpdateDisplay();
+        partial void OnOnTextPropertyChanged() => UpdateDisplay();
+        partial void OnOffTextPropertyChanged() => UpdateDisplay();
+        partial void OnOnFillPropertyChanged() => UpdateDisplay();
+        partial void OnOffFillPropertyChanged() => UpdateDisplay();
+        partial void OnOnForegroundPropertyChanged() => UpdateDisplay();
+        partial void OnOffForegroundPropertyChanged() => UpdateDisplay();
+
+        // 基类 Text 的元数据覆盖仍走这个静态回调（OverrideMetadata 只认标准回调签名）。
         private static void OnDisplayInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((BitButtonElement)d).UpdateDisplay();
 

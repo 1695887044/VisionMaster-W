@@ -1,0 +1,152 @@
+================================================================
+ CommPerf — VisionMaster 通信层 × DeviceSimulator 压测台
+ 时间: 2026-10-18 00:04:06   PID=5812   核数=16
+ 目标: Modbus 127.0.0.1:10010-10019   S7 127.0.0.1:10000-10009
+================================================================
+== C1 Modbus 正确性：HR40 特征值 123.5（按各端口字节序解码） ==
+  MB 10010 [ABCD] conn=True HR40=   0.000 **MISMATCH** HR10=1136 HR30=-2027421695 | 心跳线圈 flip=True(376ms) OK 离散 flip=True(998ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10011 [CDAB] conn=True HR40= 123.500 OK HR10=2138 HR30=200138 | 心跳线圈 flip=True(990ms) OK 离散 flip=True(996ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10012 [BADC] conn=True HR40=   0.000 **MISMATCH** HR10=17420 HR30=1821639680 | 心跳线圈 flip=True(999ms) OK 离散 flip=True(995ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10013 [DCBA] conn=True HR40=-3934787463108424062245766749487104.000 **MISMATCH** HR10=11792 HR30=100666907 | 心跳线圈 flip=True(1063ms) OK 离散 flip=True(1002ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10014 [ABCD] conn=True HR40=   0.000 **MISMATCH** HR10=5144 HR30=-1582301177 | 心跳线圈 flip=True(1000ms) OK 离散 flip=True(997ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10015 [CDAB] conn=True HR40= 123.500 OK HR10=6146 HR30=600146 | 心跳线圈 flip=True(996ms) OK 离散 flip=True(995ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10016 [BADC] conn=True HR40=   0.000 **MISMATCH** HR10=60443 HR30=-189920768 | 心跳线圈 flip=True(991ms) OK 离散 flip=True(997ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10017 [DCBA] conn=True HR40=-3934787463108424062245766749487104.000 **MISMATCH** HR10=54815 HR30=201365045 | 心跳线圈 flip=True(1055ms) OK 离散 flip=True(991ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10018 [ABCD] conn=True HR40=   0.000 **MISMATCH** HR10=9152 HR30=-1137180659 | 心跳线圈 flip=True(994ms) OK 离散 flip=True(998ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  MB 10019 [CDAB] conn=True HR40= 123.500 OK HR10=10154 HR30=1000154 | 心跳线圈 flip=True(1055ms) OK 离散 flip=True(993ms) OK | 写回环 float@100=123.500 OK int16@300=-123 OK
+  >>> Modbus 正确性：3/10 通过（特征值口径），失败 7
+
+== C2 S7 正确性：DB1.DBW30 特征字 0x4242 ==
+  S7 10000 conn=True DBW30=0x4242 OK DBW0=1156 DBD10= 30.878 DBD20=100156 MB100=1 | 心跳M101 flip=True(990ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10001 conn=True DBW30=0x4242 OK DBW0=2157 DBD10= 33.660 DBD20=200157 MB100=1 | 心跳M101 flip=True(999ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10002 conn=True DBW30=0x4242 OK DBW0=3158 DBD10= 34.945 DBD20=300158 MB100=1 | 心跳M101 flip=True(988ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10003 conn=True DBW30=0x4242 OK DBW0=4159 DBD10= 34.511 DBD20=400159 MB100=1 | 心跳M101 flip=True(1054ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10004 conn=True DBW30=0x4242 OK DBW0=5160 DBD10= 32.431 DBD20=500160 MB100=1 | 心跳M101 flip=True(991ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10005 conn=True DBW30=0x4242 OK DBW0=6161 DBD10= 29.067 DBD20=600161 MB100=1 | 心跳M101 flip=True(992ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10006 conn=True DBW30=0x4242 OK DBW0=7162 DBD10= 25.000 DBD20=700162 MB100=1 | 心跳M101 flip=True(1139ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10007 conn=True DBW30=0x4242 OK DBW0=8163 DBD10= 20.933 DBD20=800163 MB100=1 | 心跳M101 flip=True(917ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10008 conn=True DBW30=0x4242 OK DBW0=9164 DBD10= 17.569 DBD20=900164 MB100=1 | 心跳M101 flip=True(578ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  S7 10009 conn=True DBW30=0x4242 OK DBW0=10165 DBD10= 15.489 DBD20=1000165 MB100=1 | 心跳M101 flip=True(1053ms) OK | 写回环 float@DBD100=123.500 OK byte@M20=0x5A OK bit@M10.3=True OK
+  >>> S7 正确性：10/10 通过（特征字口径），失败 0
+
+== C0 线路字节转储（ReadBytes 原始字节，不重排）：HR40 float 特征值 / HR30 int32 / HR10 ushort ==
+  MB 10010: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=87-46-00-01-00-00-00-00  HR10(2B)=04-8E-00-00
+  MB 10011: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=0D-E6-00-03-00-00-00-00  HR10(2B)=08-76-00-00
+  MB 10012: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=94-86-00-04-00-00-00-00  HR10(2B)=0C-5E-00-00
+  MB 10013: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=1B-26-00-06-00-00-00-00  HR10(2B)=10-46-00-00
+  MB 10014: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=A1-C6-00-07-00-00-00-00  HR10(2B)=14-2E-00-00
+  MB 10015: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=28-66-00-09-00-00-00-00  HR10(2B)=18-16-00-00
+  MB 10016: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=AF-06-00-0A-00-00-00-00  HR10(2B)=1B-FE-00-00
+  MB 10017: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=35-A6-00-0C-00-00-00-00  HR10(2B)=1F-E6-00-00
+  MB 10018: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=BC-46-00-0D-00-00-00-00  HR10(2B)=23-CE-00-00
+  MB 10019: conn=True  HR40(4B)=00-00-42-F7-00-00-00-00  HR30(4B)=42-E6-00-0F-00-00-00-00  HR10(2B)=27-B6-00-00
+
+  交叉验证：全部 10 端口统一按 CDAB 配置 → HR40 / HR0 温度 ==
+  MB 10010 [CDAB]: HR40= 123.500 OK  HR0温度=  15.055
+  MB 10011 [CDAB]: HR40= 123.500 OK  HR0温度=  15.865
+  MB 10012 [CDAB]: HR40= 123.500 OK  HR0温度=  17.569
+  MB 10013 [CDAB]: HR40= 123.500 OK  HR0温度=  20.000
+  MB 10014 [CDAB]: HR40= 123.500 OK  HR0温度=  22.921
+  MB 10015 [CDAB]: HR40= 123.500 OK  HR0温度=  26.045
+  MB 10016 [CDAB]: HR40= 123.500 OK  HR0温度=  29.067
+  MB 10017 [CDAB]: HR40= 123.500 OK  HR0温度=  31.691
+  MB 10018 [CDAB]: HR40= 123.500 OK  HR0温度=  33.660
+  MB 10019 [CDAB]: HR40= 123.500 OK  HR0温度=  34.781
+  >>> 统一 CDAB 口径：10/10 端口 HR40=123.5
+
+== L1 单连接顺序读延迟（VM 连接类 vs 裸 HSL 基线） ==
+  [Modbus VM] Connect=True
+  Read<float> x=3;40 (2 reg)         n=  600  avg=   0.101  P50=   0.094  P95=   0.177  max=    0.394  min=  0.048 (ms)
+  ReadBytes x=3;10 len32 (段读形态)      n=  600  avg=   0.111  P50=   0.085  P95=   0.173  max=    8.169  min=  0.052 (ms)
+  [Modbus 裸HSL] ConnectServer=True
+  raw.Read x=3;40 (2 reg)            n=  600  avg=   0.114  P50=   0.088  P95=   0.201  max=    5.138  min=  0.057 (ms)
+  [S7 VM] Connect=True
+  Read<ushort> DB1.DBW30 (2 byte)    n=  600  avg=   0.107  P50=   0.090  P95=   0.212  max=    0.544  min=  0.052 (ms)
+  [S7 裸HSL] ConnectServer=True
+  raw.Read DB1.DBW30 (2 byte)        n=  600  avg=   0.111  P50=   0.084  P95=   0.206  max=    4.524  min=  0.052 (ms)
+
+== W1 写操作延迟（VM 连接类） ==
+  [Modbus VM] Connect=True  写 float HR100 ×250
+  Write("x=3;100", float)            n=  250  avg=   0.562  P50=   0.320  P95=   0.866  max=    8.860  min=  0.179 (ms)
+  末次回读 HR100 = 123.500（≈123.5 即 OK）
+  [S7 VM] Connect=True  写 float DB1.DBD100 ×250
+  Write("DB1.DBD100", float)         n=  250  avg=   0.512  P50=   0.285  P95=   0.691  max=   11.928  min=  0.172 (ms)
+  末次回读 DBD100 = 123.500（≈123.5 即 OK）
+
+== P1 并发轮询：Modbus×10 + S7×10 @200ms 默认组，持续 60s ==
+  20 连接并发建连（RequestConnect 非阻塞）：20/20 就绪，用时 239 ms
+  … 15s: Connected=20/20  事件累计=710  WS=56MB
+  … 30s: Connected=20/20  事件累计=1338  WS=56MB
+  … 45s: Connected=20/20  事件累计=1935  WS=56MB
+  … 60s: Connected=20/20  事件累计=2541  WS=56MB
+
+  每连接扫描组实测（轮询吞吐）:
+    P_MB00_10010     变量  3 段 1 目标  200ms 实测  204ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB01_10011     变量  3 段 1 目标  200ms 实测  207ms 达成 97% 坏段0 请求/s=   4.8
+    P_MB02_10012     变量  3 段 1 目标  200ms 实测  204ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB03_10013     变量  3 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB04_10014     变量  3 段 1 目标  200ms 实测  204ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB05_10015     变量  3 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB06_10016     变量  3 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB07_10017     变量  3 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB08_10018     变量  3 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_MB09_10019     变量  3 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S700_10000     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S701_10001     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S702_10002     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S703_10003     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S704_10004     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S705_10005     变量  4 段 1 目标  200ms 实测  204ms 达成 98% 坏段0 请求/s=   4.9
+    P_S706_10006     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S707_10007     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S708_10008     变量  4 段 1 目标  200ms 实测  205ms 达成 98% 坏段0 请求/s=   4.9
+    P_S709_10009     变量  4 段 1 目标  200ms 实测  203ms 达成 99% 坏段0 请求/s=   4.9
+  合计: QPS=97.7  实测窗口 60.6s  值变化事件 2431（40/s）  CPU=0.2%  分配=0.21 MB/s  WS 56→56MB（Δ+0MB）  线程 26→26
+  期间通信库日志: 141 行 / ERROR 0 / WARNING 0
+
+== R1 幽灵端口（127.0.0.1:19999 无监听）：失败耗时与退避重连节奏 ==
+  Manager.Connect（同步等待首建，TimeoutMs=2000）→ False，耗时 1999 ms
+  LastError(Worker) = 
+  8s 观察期状态迁移: Disconnected→Disconnected@0ms → Disconnected→Connecting@206ms → Connecting→Reconnecting@2259ms
+
+== R2 静默对端（accept 后不回包 19998）：半开场景的读/建连超时行为 ==
+  Modbus Connect → True，耗时 0 ms（无协议握手，TCP 通即成）
+  Read<float> → 失败=True，耗时 3015 ms（ReadTimeoutMs=3000 应兜底）  msg=Socket Exception -> Socket Exception -> 由于连接方在一段时间后没有正确答复或连接的主机没有反应，连接尝试失败。 Time…
+  S7 Connect → False，耗时 3003 ms（COTP 握手等回包，≈ReadTimeoutMs=3000）  LastError≈SiemensS7[127.0.0.1:19998(S1200)]
+  Modbus Connect(幽灵端口) → False，耗时 2056 ms（TCP 拒绝，应秒败）
+
+== R3 掐线/恢复（relay 17010 → 10010，轮询中连接） ==
+  经 relay 建连 → True
+  [A] 掐线 → 掉线检测 0 ms（轮询 200ms + 读超时 3000ms 量级）
+  [B] 恢复 relay → 重连成功 660 ms（退避基准 1000ms）
+  [C] relay 静默（半开） → 掉线检测 3080 ms（下限=ReadTimeoutMs 3000）
+  [D] 解除静默 → 恢复 640 ms
+  状态迁移轨迹: Disconnected→Disconnected@6ms → Disconnected→Connecting@213ms → Connecting→Connected@214ms → Connected→Reconnecting@2241ms → Reconnecting→Connected@5888ms → Connected→Reconnecting@8970ms → Reconnecting→Connected@9630ms
+  恢复后坏段=0  最后错误=无
+
+== F1 KeepAlive 落地运行时验证（本机 TcpListener 靶子） ==
+  [开启] Connect=True  SO_KEEPALIVE=True  IOControl-GET 不支持(SocketException)，以 SO_KEEPALIVE 为准（期望 True，间隔 5000ms 由 HSL IOControl 下发）
+  [关闭] Connect=True  SO_KEEPALIVE=False  IOControl-GET 不支持(SocketException)，以 SO_KEEPALIVE 为准（期望 False，未启用时与落地前零变化）
+
+== F2 ConnectionRefused 识别（127.0.0.1:1 无监听；本机 OS/代理层拒绝延迟 ~2s，裸 socket 实测 2030ms） ==
+  Modbus Connect(幽灵端口) → False，耗时 2051 ms  分类Refused=True  LastError=[ConnectionRefused] Socket Connect 127.0.0.1:1 Exception -> 由于目标计算机积极拒绝，无法连接。 12…
+  S7 Connect(幽灵端口) → False，耗时 2043 ms  分类Refused=True  LastError=[ConnectionRefused] Socket Connect 127.0.0.1:1 Exception -> 由于目标计算机积极拒绝，无法连接。 12…
+  Manager.Connect(19999, TimeoutMs=3000) → False，耗时 2271 ms（旧实现陪等满 TimeoutMs）  LastError=[ConnectionRefused] Socket Connect 127.0.0.1:19999 Exception -> 由于目标计算机积极拒绝，无法连接…
+
+== J1 communications.json 反序列化容错 ==
+  [J-ok       ] 加载 1 条  Port=10010 TO=2500
+  [J-未实现协议] 加载 1 条  Port=10010 TO=3000
+        [ERROR] [Comm] 加载连接配置失败: 第 2 条 J_B | 连接配置验证失败: 协议 OmronFins 尚未实现，当前可用：ModbusTcp …
+  [J-截断坏JSON] 加载 0 条  
+        [ERROR] [Comm] 配置文件 JSON 解析失败（整份损坏），本次加载 0 条连接: Unterminated string. Expected de…
+  [J-缺字段    ] 加载 1 条  Port=502 TO=3000
+  [J-协议=7越界] 加载 1 条  Port=10010 TO=3000
+        [ERROR] [Comm] 加载连接配置失败: 第 2 条 J_D | 连接配置验证失败: 协议 7 尚未实现，当前可用：ModbusTcp / Modbus…
+  [J-S7 $type  ] 加载 1 条  
+  [J-$type 越权] 加载 0 条  
+        [ERROR] [Comm] 加载连接配置失败: 第 1 条 J_E | Error resolving type specified in JSON 'Sys…
+  [J-$type越权+好条] 加载 1 条  Port=10010 TO=2500
+        [ERROR] [Comm] 加载连接配置失败: 第 1 条 J_E | Error resolving type specified in JSON 'Sys…
+
+== NOTES ==
+== LIB LOG == lines=436 error=9 warn=12

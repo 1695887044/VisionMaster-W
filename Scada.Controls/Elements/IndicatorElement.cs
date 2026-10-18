@@ -31,7 +31,7 @@ namespace VisionMaster.Scada.Controls
     /// </summary>
     [TemplatePart(Name = PartLampCircle, Type = typeof(Ellipse))]
     [TemplatePart(Name = PartLampSquare, Type = typeof(Rectangle))]
-    public class IndicatorElement : ScadaElementBase
+    public partial class IndicatorElement : ScadaElementBase
     {
         /// <summary>模板部件名：圆形灯体</summary>
         public const string PartLampCircle = "LampCircle";
@@ -39,34 +39,29 @@ namespace VisionMaster.Scada.Controls
         /// <summary>模板部件名：方形灯体</summary>
         public const string PartLampSquare = "LampSquare";
 
-        // 默认色必须是冻结（Freeze）的：依赖属性默认值会被所有实例共享，
-        // 未冻结的 Freezable 一旦被某个实例的样式/动画改到，其余实例会跟着变。
-        private static readonly Brush DefaultOnColor = ScadaBrushes.Frozen("#FF34C759");
-        private static readonly Brush DefaultOffColor = ScadaBrushes.Frozen("#FF3A3A3A");
-
-        /// <summary>点亮色</summary>
-        public static readonly DependencyProperty OnColorProperty = DependencyProperty.Register(
-            nameof(OnColor), typeof(Brush), typeof(IndicatorElement),
-            new FrameworkPropertyMetadata(
-                DefaultOnColor, FrameworkPropertyMetadataOptions.AffectsRender, OnLampInputChanged));
-
-        /// <summary>熄灭色</summary>
-        public static readonly DependencyProperty OffColorProperty = DependencyProperty.Register(
-            nameof(OffColor), typeof(Brush), typeof(IndicatorElement),
-            new FrameworkPropertyMetadata(
-                DefaultOffColor, FrameworkPropertyMetadataOptions.AffectsRender, OnLampInputChanged));
+        // 三个输入属性的声明次序 = 属性面板里的行序（生成器按源码次序收集），
+        // 所以「点亮」排在最前：操作员配指示灯时先关心"绑哪根量"，再才是两个颜色。
 
         /// <summary>当前状态（true = 点亮）</summary>
-        public static readonly DependencyProperty IsOnProperty = DependencyProperty.Register(
-            nameof(IsOn), typeof(bool), typeof(IndicatorElement),
-            new FrameworkPropertyMetadata(
-                false, FrameworkPropertyMetadataOptions.AffectsRender, OnLampInputChanged));
+        [ScadaProperty(Key = "IsOn", DisplayName = "点亮", Kind = ElementPropertyKind.Bool,
+                       Group = "状态", DefaultValue = "False", IsBindable = true,
+                       Description = "运行态把工程变量的布尔值绑到这里")]
+        public partial bool IsOn { get; set; }
+
+        /// <summary>点亮色</summary>
+        [ScadaProperty(Key = "OnColor", DisplayName = "点亮色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FF34C759", IsBindable = true)]
+        public partial Brush? OnColor { get; set; }
+
+        /// <summary>熄灭色</summary>
+        [ScadaProperty(Key = "OffColor", DisplayName = "熄灭色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FF3A3A3A", IsBindable = true)]
+        public partial Brush? OffColor { get; set; }
 
         /// <summary>灯体形状</summary>
-        public static readonly DependencyProperty ShapeProperty = DependencyProperty.Register(
-            nameof(Shape), typeof(IndicatorShape), typeof(IndicatorElement),
-            new FrameworkPropertyMetadata(
-                IndicatorShape.Circle, FrameworkPropertyMetadataOptions.AffectsRender, OnShapeChanged));
+        [ScadaProperty(Key = "Shape", DisplayName = "形状", Kind = ElementPropertyKind.Choice,
+                       Group = "外观", DefaultValue = "Circle", Choices = new[] { "Circle", "Square" })]
+        public partial IndicatorShape Shape { get; set; }
 
         private static readonly DependencyPropertyKey LampBrushPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(LampBrush), typeof(Brush), typeof(IndicatorElement),
@@ -82,34 +77,6 @@ namespace VisionMaster.Scada.Controls
                 new FrameworkPropertyMetadata(typeof(IndicatorElement)));
         }
 
-        /// <summary>点亮色（见 <see cref="OnColorProperty"/>）</summary>
-        public Brush? OnColor
-        {
-            get => (Brush?)GetValue(OnColorProperty);
-            set => SetValue(OnColorProperty, value);
-        }
-
-        /// <summary>熄灭色（见 <see cref="OffColorProperty"/>）</summary>
-        public Brush? OffColor
-        {
-            get => (Brush?)GetValue(OffColorProperty);
-            set => SetValue(OffColorProperty, value);
-        }
-
-        /// <summary>当前状态（见 <see cref="IsOnProperty"/>）</summary>
-        public bool IsOn
-        {
-            get => (bool)GetValue(IsOnProperty);
-            set => SetValue(IsOnProperty, value);
-        }
-
-        /// <summary>灯体形状（见 <see cref="ShapeProperty"/>）</summary>
-        public IndicatorShape Shape
-        {
-            get => (IndicatorShape)GetValue(ShapeProperty);
-            set => SetValue(ShapeProperty, value);
-        }
-
         /// <summary>当前灯色（只读，见 <see cref="LampBrushProperty"/>）</summary>
         public Brush? LampBrush => (Brush?)GetValue(LampBrushProperty);
 
@@ -121,11 +88,13 @@ namespace VisionMaster.Scada.Controls
             UpdateShapeVisibility();
         }
 
-        private static void OnLampInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((IndicatorElement)d).UpdateLampBrush();
-
-        private static void OnShapeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((IndicatorElement)d).UpdateShapeVisibility();
+        // 三个输入属性共用同一条副作用：任一项变了都要重算灯色。
+        // 生成器给每个属性一个独立钩子，所以这里是三行转调——比原先"一个静态回调挂三处"多两行，
+        // 换来的是"每个属性各自可挂不同副作用"，且不再需要手写静态回调签名。
+        partial void OnIsOnPropertyChanged() => UpdateLampBrush();
+        partial void OnOnColorPropertyChanged() => UpdateLampBrush();
+        partial void OnOffColorPropertyChanged() => UpdateLampBrush();
+        partial void OnShapePropertyChanged() => UpdateShapeVisibility();
 
         /// <summary>
         /// 圆/方两块灯体同一时刻只显示一块。形状是个纯模板层的选择，但本环境下

@@ -826,7 +826,9 @@
                         <!--  竖向面板里的子项只有高度方向说话（DockHeight），宽度会被整个面板拉平，  -->
                         <!--  属性栏就会跟着日志栏一起吞掉工作区宽度。定像素（不用星号）是因为  -->
                         <!--  一列"标签 + 输入框"需要的是稳定可读宽度，1080 与 2560 下都是 260 最舒服。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="260">
+                        <!--  最窄 240：再窄下去 64px 标签列 + 24px 行尾槽位 + 两侧 12px 内边距会吃掉
+                              一半宽度，编辑器只剩 100 出头，"1920" 加一个数值框的步进就顶满了。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="260" DockMinWidth="240">
                             <avalonDock:LayoutAnchorable
                                 Title="属性"
                                 CanClose="False"

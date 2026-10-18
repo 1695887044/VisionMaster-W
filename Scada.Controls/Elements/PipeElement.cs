@@ -72,7 +72,7 @@ namespace VisionMaster.Scada.Controls
     /// 因此上提到了 <see cref="StateVisualElement"/>；本类只留 <see cref="Direction"/>
     /// 与管身、箭头两段几何。
     /// </summary>
-    public class PipeElement : StateVisualElement
+    public partial class PipeElement : StateVisualElement
     {
         /// <summary>管身圆角半径（上限另按管高折半夹一次：管子很细时圆角不能大过半个管高）</summary>
         private const double TubeRadius = 3d;
@@ -95,10 +95,12 @@ namespace VisionMaster.Scada.Controls
         #region 输入
 
         /// <summary>流向（正 / 反 / 不画箭头）</summary>
-        public static readonly DependencyProperty DirectionProperty = DependencyProperty.Register(
-            nameof(Direction), typeof(PipeFlowDirection), typeof(PipeElement),
-            new FrameworkPropertyMetadata(
-                PipeFlowDirection.LeftToRight, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+        [ScadaProperty(Key = "Direction", DisplayName = "流向", Kind = ElementPropertyKind.Choice,
+                       Group = "数据", DefaultValue = "LeftToRight",
+                       Choices = new[] { "LeftToRight", "RightToLeft", "None" },
+                       Description = "介质往哪走：LeftToRight=箭头朝右，RightToLeft=箭头朝左，None=只要管身不画箭头；" +
+                                     "配管定死的走向，属于设计期属性，所以不参与变量绑定")]
+        public partial PipeFlowDirection Direction { get; set; }
 
         #endregion
 
@@ -131,12 +133,8 @@ namespace VisionMaster.Scada.Controls
                 new FrameworkPropertyMetadata(typeof(PipeElement)));
         }
 
-        /// <summary>流向（见 <see cref="DirectionProperty"/>）</summary>
-        public PipeFlowDirection Direction
-        {
-            get => (PipeFlowDirection)GetValue(DirectionProperty);
-            set => SetValue(DirectionProperty, value);
-        }
+        // 流向变化要重算箭头几何：转调基类那条"重算一遍"的回调（与迁移前挂在依赖属性上的那条一致）。
+        partial void OnDirectionPropertyChanged() => RefreshStateVisual();
 
         /// <summary>管身几何（只读，见 <see cref="TubeGeometryProperty"/>）</summary>
         public Geometry? TubeGeometry => (Geometry?)GetValue(TubeGeometryProperty);

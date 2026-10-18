@@ -399,8 +399,10 @@ namespace Plugin.ImageScript
         public IInputPort GetInputPort(string name) =>
             !string.IsNullOrEmpty(name) && Inputs.TryGetValue(name, out var p) ? p : null;
 
-        /// <summary>声明类型枚举值（供视图类型下拉 ItemsSource 绑定）。</summary>
-        public Array ScriptVarTypes => Enum.GetValues(typeof(ScriptVarType));
+        /// <summary>声明类型候选项（供视图类型下拉 ItemsSource 绑定；值=成员名，显示=中文）。
+        /// 走 StepConfigOption.ForEnum：读成员上的 [Display(Name)]，而不是裸 Enum.GetValues 上屏成英文成员名。</summary>
+        public IReadOnlyList<StepConfigOption> ScriptVarTypes =>
+            Enum.GetNames(typeof(ScriptVarType)).Select(n => StepConfigOption.ForEnum(typeof(ScriptVarType), n)).ToList();
 
         private void EnsureSelectedProcedure()
         {

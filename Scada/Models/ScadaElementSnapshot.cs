@@ -33,6 +33,9 @@ namespace VisionMaster.Scada
         /// <summary>未分组 / 无组槽位</summary>
         public const int NoGroupSlot = -1;
 
+        /// <summary>未装进任何底板（顶层图元）</summary>
+        public const int NoParentSlot = -1;
+
         /// <summary>图元类型键（决定物化出来的是个什么东西）</summary>
         public string TypeKey { get; set; } = string.Empty;
 
@@ -78,6 +81,37 @@ namespace VisionMaster.Scada
         /// </summary>
         public int GroupSlot { get; set; } = NoGroupSlot;
 
+        /// <summary>
+        /// 父槽位（我在谁的画布里）：<see cref="NoParentSlot"/> = 顶层；
+        /// 与 <see cref="OwnSlot"/> 配套——子图元填"那只底板的 <see cref="OwnSlot"/>"，就能在物化时接上。
+        ///
+        /// 与 <see cref="GroupSlot"/> 是<b>两套独立的槽位编号</b>，不要合并成一个表：
+        /// 组槽位记的是"编辑期捆在一起的这一伙"，父槽位记的是"视觉上装在谁的画布里"，
+        /// 两者可以任意交叉（一个组可以分散在两个底板里；一个底板里也可以有好几组）。
+        /// 合并编号会让"拷了一个底板 + 它里面的一组图元"粘出错误的归属。
+        ///
+        /// 为什么不搬 <c>ParentId</c>：与 <see cref="GroupSlot"/> 同一个理由（Guid 出了源画面就失效），
+        /// 而父子关系还多一条硬约束——<b>父必须也在这一次拷贝里</b>。
+        /// 只拷了子图元没拷底板时，物化出来的子图元应当回到顶层，
+        /// 否则它们会挂在一个不存在的父上。
+        /// </summary>
+        public int ParentSlot { get; set; } = NoParentSlot;
+
+        /// <summary>
+        /// <b>我自己的槽位号</b>：我是一只"这次拷贝里有子图元装在里面的底板"时，
+        /// 这里是它的编号；否则是 <see cref="NoParentSlot"/>。
+        ///
+        /// 为什么要在快照上显式记下来、而不是物化时反推：子图元的 <see cref="ParentSlot"/>
+        /// 必须指向"父物化之后的 ElementId"，而那个 Id 是物化时才生成的。
+        /// 反推（"谁是负载里第一个被引用的父"）要求物化侧重复一遍 Capture 的发号规则，
+        /// 两处一旦走偏就是静默错挂（子图元装到了别的底板上）。
+        /// 显式记一个整数，两边都只读同一个事实。
+        ///
+        /// 与 <see cref="GroupSlot"/> 的对称性：那一个是"我属于哪一组"（每个成员都记），
+        /// 这一个是"我是哪只底板"（只有带子的底板记）。
+        /// </summary>
+        public int OwnSlot { get; set; } = NoParentSlot;
+
         /// <summary>图元特有属性袋（逐键搬运）</summary>
         public Dictionary<string, string> Properties { get; set; } = new();
 
@@ -121,7 +155,7 @@ namespace VisionMaster.Scada
 
     /// <summary>
     /// 动作快照。<see cref="ScadaAction"/> 是扁平类（类型字段 + 各类型参数并排摆着），
-    /// 所以这里也照原样搬全部 7 个字段，不按 <see cref="Type"/> 挑字段搬——
+    /// 所以这里也照原样搬全部字段，不按 <see cref="Type"/> 挑字段搬——
     /// 挑着搬就等于在"哪些字段对哪种类型有意义"这件事上留下第二份口径，
     /// 而领域层本来就刻意不认识这套对应关系（见 <see cref="ScadaAction"/> 类注释）。
     /// </summary>
@@ -140,6 +174,22 @@ namespace VisionMaster.Scada
         public Guid TargetPageId { get; set; }
 
         public string? TargetPageName { get; set; }
+
+        // —— 运动命令族（2026-10-18 追加）——
+        // 复制粘贴/模板必须连这几个字段一起搬：少了它们，粘贴出来的"轴定位"按钮
+        // 会变成一条"没选轴"的空动作——界面上看着还在、运行时必然跳过，最难查。
+
+        /// <summary>目标轴稳定身份（Id 优先，见 <see cref="ScadaAction.AxisId"/>）</summary>
+        public Guid AxisId { get; set; }
+
+        /// <summary>目标轴名（展示 + 旧数据兜底）</summary>
+        public string? AxisName { get; set; }
+
+        /// <summary>目标位置 / 相对增量 / 点动方向（正负号）</summary>
+        public double? TargetMm { get; set; }
+
+        /// <summary>速度（mm/s；null = 用卡级默认）</summary>
+        public double? VelocityMmPerS { get; set; }
     }
 
     /// <summary>

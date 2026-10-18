@@ -290,3 +290,74 @@
 | R68 | **写了 `Width`/`Height` 的图标字符按钮（✕ × ＋ ↑ 这类单个非字母字符，含 FA 私有区码点），必须挂 `Style` 或显式写 `Padding`**——两者都不写就是吃 Fluent 隐式样式的 `11,5,11,6`。两条修法都对：`Padding="0"`（本轮标题栏/收起钮用的，格子多大字就占多大）或挂 `DialogIconButton`（内边距 6,4,6,4，`CameraSettingsView` 等五颗标题钮走这一档）。**不定宽的不算违规**（自动长开吸收内边距）。守门人：`FlowCanvasChecks\GlyphButtonClipCheck.cs` 的 **GB0~GB5**（进常规 gate 基线）——GB3 全仓扫违规、GB4 把"写了 Padding 但写大了"也算过账（内容区 ≥ 字形需求，需求按实测比例 宽≈0.85Fs、高≈1.30Fs）、GB5 反向钉住五处事故点仍带防护、**GB2 反向钉住解析器本身**（命中数与固定格子子集必须非空，否则"0 违规"可能只是"0 命中"的假绿）。算术前提由 `HelpProbe.RunGlyphClipChecks` 四档运行时对照钉住（裸 30×30 **必切** / `Padding=0` **必完整** / 裸 24×24 内容区**归零** / `DialogIconButton` **必完整**）——Fluent 换版本或主题不再合并时这几条会红，那是"判据该重审"的提醒而不是继续挂绿灯（R38）。变异反证已做：摘掉 `MotionBoardView` 的 `Padding="0"` → **GB3 + GB5 准确变红**、其余绿灯。 |
 | R69 | **量"文字被切"不许看内层 `TextBlock` 的 `ActualWidth`**——它被父级挤了也**不会改自己的实得宽**（本轮第一版量具因此把全部形状判成"完整"，白跑一轮）。正解两条：① 需求宽由一个**不受约束的参照 `TextBlock`**（`Measure(infinite)`）量出来，`DesiredSize` 记录的是"上一次受限 Measure 下要了多少"，不能当参照；② 判据用**算式**"内容区 = 按钮实得尺寸 − 生效 `Padding` − `BorderThickness`"，与 `ActualWidth` 无关。另：`Application.Current.Resources[typeof(Button)]` 取到的那支隐式样式**读不到 Padding Setter**（值在合并链更深处），所以判据必须从**按钮自己**的生效值（`button.Padding`）取，别从样式 Setter 取。 |
 | R70 | **标题栏按钮的 `Path` 几何不许有零长度线段**（`M x y L x y` 且起=终 = 那一笔根本不画）。改 `Shell.xaml` 的 `WindowControlButton` 按钮 `Content` 必须同时改 `UIThemeSmokeTest\ShellCopy.xaml`（R44：结构副本手工维护）。守门人：`UIThemeSmokeTest\Program.cs` 的 `RunShellLayoutChecks()` 末尾两条——同一道 `CaptionGeometryOffenders()` 判据跑两遍（原件 + 副本），命中"零长度线段"即红。**这条闸是数据级扫描**，与 R30/R32 那族资源级闸正交：资源键全对、模板同源也能切/缺笔画，两族都要过。 |
+
+---
+
+## 23. SCADA 图元属性源生成器与容器图元（2026-10-17）
+
+**起因**：用户裁定「源生成器 B 也做」「容器图元可以做，一个界面可以有多个底板」「曲线可以参考 `_ChartProbe5`」。三条一起落地：`Shard\Core.ScadaGenerators`（`[ScadaProperty]` → DP + CLR 包装 + 描述符条目）、`Hmi.Panel` 底板容器、`Hmi.ChartTrend` 趋势曲线（`Charts\VM.Charts` 从探针工程提升为正式库）。细节见 `docs\code-changes\2026-10-17-SCADA容器图元与曲线图元与属性源生成器.md`。
+
+| # | 规则 |
+| --- | --- |
+| R71 | **改 `Shard\Core.ScadaGenerators` 后必须重建全部引用它的图元工程**（`VM.Scada.Controls`、`VM.Scada.Controls.Charts`）——生成物（依赖属性字段 / CLR 包装 / 描述符条目）在 DLL 里编译期展开，不重建则运行的是旧 DLL。与 R16（插件生成器）同族，也与红线③「产物陈旧」同源。判据不能只看构建退出码。 |
+| R72 | **图元私有属性走 `[ScadaProperty]`；基类已有的外观属性（Fill / Stroke / FontSize / Text / …）走 `AppearanceProperties` / `TextProperties` 打包助手，绝不许用 `[ScadaProperty]` 再声明一遍**。生成器会报 **SPG0006** 拦住后者——遮蔽基类依赖属性的后果是 `{TemplateBinding Fill}` 绑到子类新属性上、基类那份永远不动（表现是"属性面板改了没反应"），编译期全绿、运行期不报错。诊断 SPG0001~SPG0006 一律 Error、不静默跳过。**同一基类属性在不同图元里叫不同名字**（泵「泵壳色」/ 电机「机身色」/ 管道「管身色」）用 `AppearanceProperties.Rename(Collect(...), ("Key", "标签", "说明"))` 换标签，**只换 DisplayName/Description，不许另写一份描述符**——Key / 默认值 / `TargetProperty` 必须仍只有基类一处事实来源（返回新数组，不就地改：`Collect` 的结果是按类型缓存的实例）。守门人：`ScadaChecks` 的 `[G]` 段（生成器契约，含"故意漏 partial 必报 SPG0001"的变异反证）+ `[R]` 段的 **18 条描述符快照**（全部内置图元的「Key 顺序 + DisplayName + DefaultValue」字面快照；行序或默认值漂移必红，改它必须是有意改快照）。 |
+| R73 | **新增图元控件类必须写静态构造覆盖 `DefaultStyleKeyProperty`**（`DefaultStyleKeyProperty.OverrideMetadata(typeof(X), new FrameworkPropertyMetadata(typeof(X)))`）。基类 `ScadaElementBase` 在 Generic.xaml 里有一条隐式样式，派生类的 `DefaultStyleKey` 默认**继承**基类那份——不覆盖就会套上基类的 `ContentPresenter` 模板，于是 `GetTemplateChild("你的部件")` 永远返回 null。**症状极静默**：控件照样显示、属性照样落地、编译期全绿，只有"模板部件相关的行为"不对（本轮 `PanelElement` 就栽在这里：模板"套上了"、`visChildren=1`，但子图元一直装不进去）。 |
+| R74 | **把控件挂到新父之前必须先 `ScadaElementBase.DetachFromParent`**。WPF 对**可视**父会自动解绑，但对**逻辑**子元素直接抛「指定的元素已经是另一个元素的逻辑子元素。请先将其断开连接」（`Panel.Children.Add` 走逻辑树）。本仓两处需要它：画布重挂（`RelinkToParents`）与容器认领（`PanelElement.TakeChild`）。另：**不要在布局过程中改正在被枚举的集合**——容器模板是在 `MeasureCore` 里就绪的，那一刻元素层的 `Canvas` 正在枚举子级，从它里面摘孩子会抛「集合已更改，枚举器无效」（实测栈在 `Canvas.MeasureOverride`）。正解是"有父的子图元直接交给容器、不经过元素层"，容器把模板没就绪的孩子排队等 `OnApplyTemplate`。 |
+| R75 | **曲线图元在独立程序集，必须由宿主显式调 `ScadaChartElements.Register()`**（`App.cs` 启动处一处、`ScadaChecks` 一处）。跨程序集的类型静态构造**不会**因为"引用了 DLL"就跑，忘了调的表现是"工具箱里少一个曲线图元"且**不报任何错**。守门人：`ScadaChecks` 的 `[V]` 段（注册成功 + 幂等 + 描述符自检 + 能造控件实例）。 |
+| R76 | **底板容器：坐标保持画面绝对坐标，"父带动子"由 `ScadaPage.CascadeContainerMove` 在模型层做，且撤销回放时必须跳过**（判据 `ScadaChangeScope.IsReplaying`）。三条不许变形：① 子图元的 X/Y **不**改成相对底板（否则对齐/分布/微调等六条路径全要按父子重算基准）；② 选中簇**不**展开子图元（分组管"选中谁"、底板管"谁跟着走"，两套一起生效就是双重位移）；③ 回放时**不**联动（父与子各自有自己的记录要写回，再联动一次就是同一段位移推两遍）。守门人：`ScadaChecks` 的 `[C]` 段（联动位移 + 走真实 `ScadaEditHistory.Undo/Redo` 验"不重复联动"）与 `[X]` 段（像素级：嵌套位置、裁剪、联动后位置）。 |
+| R77 | **曲线图元的视口由它自己推，不许依赖库的 `AutoScroll`**——那条跟随模式只认**定采样率的信号系列**（按 `SampleRate` 外推当前时刻），散点系列不参与；而趋势图走的是散点语义（X 是每个值真实到达的时刻），靠它画面会永远停在默认轴范围上，**数据全在视野外、看起来就是"一条曲线都没画"**。另：**曲线的像素级验证在无头宿主里做不到**——底层 ScottPlot → SkiaSharp 的 `WpfPlot` 在没有真实渲染目标的进程里画不出内容（离屏 `RenderTargetBitmap` 里只有底色，连坐标轴与网格都没有，实测）。所以断言只钉到"数据进了缓冲 + 描述符与绑定通道齐备"，**不钉像素**；曲线的视觉验证交给 `_ChartProbe5` 探针工程与真机。**不许**写一条在无头环境永远为假的像素断言（那比没有断言更糟，会让人习惯性忽略红条，见 R38）。 |
+
+---
+
+## 24. 启动关键路径上的自检项：插桩落日志、只报不拦的挪出去（2026-10-16）
+
+**起因**：用户问「启动加载算子插件很慢，有什么提速方案吗」。先量再动：日志实测插件扫描同机波动 1.07~28.83 秒（153 样本）、极值 90 秒（冷缓存/杀软离群）——**离群值代码救不了，那是运维层的事**（Defender 排除 / SSD / 预读）；代码层能省的是反射与重复物化。本批做了层 0（插桩）+ 层 2（速赢），层 3（清单缓存）留待后续。细节、真机启动日志对比与插桩分解见 `docs\code-changes\2026-10-16-启动提速第一批（插桩与三个速赢）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R78 | **启动期的插桩必须落 `ILogService`（写日志文件），不许走 `IUserNotifier`（右下角弹泡）**——弹泡 3 秒就消，启动时根本来不及看，第一版插桩因此一行日志都没留下。同一教训适用于一切"事后要查"的启动诊断：弹泡只配给"用户要立刻看到"的事。 |
+| R79 | **"全部失败出口都是 Warning"的自检项不许站在启动关键路径上**。本批把帮助手册合并挪出启动链（实测 1.2 秒，只给帮助弹窗供数），与 2026-10-16 挪走的通讯连通性**同一形状、同一先例**（R57/E18）：① 链上删注册；② `OnInitialized` 补后台调用；③ `OnExit` 里 `_postStartupCts.Cancel()`；④ 异常只落一行 Warn。**挪动前必须先确认懒构建兜底在位**（本例 `HelpViewModel.OnDialogOpened` 的 `!IsBuilt → Build()`）——它是"后台没跑完用户就打开帮助"时的行为保底，删了它就该回链上。守门人：`FlowCanvasChecks\FlowEngineFixChecks.cs` 的 **E19 三条**（链上没有它 / OnInitialized 真的跑了 / 懒构建兜底还在），E18 第 ⑤ 条计数同步改为 4。 |
+| R80 | **扫描插件程序集时，目录枚举必须带名字过滤（`GetFiles(dir, "Plugin*.dll")`），反射元数据只物化一次**。Modules\ 里躺着 Roslyn（9MB）/MiniExcel 这类插件依赖，不过滤就连"逐个 FileInfo 再 return"都要扫一遍；算子/相机驱动/运动驱动三类扫描各调一次 `GetTypes()` 是启动期最隐蔽的浪费——取一次类型数组、三处各写各的过滤器。 |
+
+---
+
+## 25. 插件清单缓存：命中路径跳过反射与实例化（2026-10-17）
+
+**起因**：用户裁定层 3（插件清单缓存）按设计落地。查实的关键前提是"缓存命中时连 `Assembly.LoadFrom` 都不能省"——下游三处（相机/运动卡自动连接、流程编译、帮助合并读内嵌资源）都依赖"程序集已在内存里"。所以缓存路径**仍 LoadFrom 全部插件**，只省 `GetTypes()` 反射与 42 个 `Activator.CreateInstance`（插桩实测这两项约 2.5 秒，是大头）。细节、真机两态对比与断言口径收窄过程见 `docs\code-changes\2026-10-17-插件清单缓存（层3-命中路径跳过反射与实例化）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R81 | **插件清单缓存的正确性全部押在指纹失效判据上，且必须是断言而不是口头约定**。四道全满足才命中（SchemaVersion / 每个 DLL 的大小+mtime / 磁盘上没多出未登记的 `Plugin*.dll` / 宿主契约版本），任一不满足即全量重扫并重写缓存——不做"部分失效部分缓存"（两份状态并存比慢更糟）。失效原因要写进日志（`[插件扫描] 缓存失效（mtime 变了 Plugin.X.dll），全量重扫`），现场要能看出是"指纹对不上"还是"文件损坏"。守门人：`FlowCanvasChecks\PluginCacheChecks.cs` 的 **PC1~PC8**（进常规 gate 基线）。 |
+| R82 | **缓存路径跳过实例化的成立前提是"插件构造器无副作用"（只建端口表），这个前提必须由静态扫描钉住**。判据收窄到**构造器体**（不是全文件）：运行期方法里的 `Process.Start`/`HttpClient` 是合法业务（导出后打开文件夹、推送图像），缓存路径只跳过"构造"这一步、运行期照样跑——全文件扫会误伤这两个插件（本轮 PC8 初版就误报了它们）。守门人：PC8（构造器体里出现 进程/网络/程序集加载 调用即红）。 |
+| R83 | **缓存产物与全量扫描必须逐项一致，比对时要剔除内置节点**。内置节点（If/Case/While/For/Parallel/Break/Continue/Return）不进缓存（缓存只存 DLL 产物，内置节点每次 `RegisterBuiltInNodes()` 照常跑）——PC6 初版没剔它们，把"46 = 38 插件 + 8 内置"误报成"缓存丢了 8 个"。抽查端口表的对象也必须是**插件**（内置节点不在缓存里，不能当抽查对象）。 |
+
+---
+
+## 26. 枚举中文显示名：先查清上屏路径再补特性（2026-10-18）
+
+**起因**：用户裁定 R40 欠账清单做掉。盘点发现清单里是**三类不同形态**，修法各不相同——盲目全补会白做一半。细节与逐条对账见 `docs\code-changes\2026-10-18-枚举中文显示名欠账核销（R40清单清零）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R84 | **枚举上屏路径有三条，补特性前先查清目标枚举走哪条**：① `InputPort<T>` → `LinkableValueEditor` → `StepConfigOption.ForEnum` 读 **`[Display(Name)]`**；② `FlatPropertyGrid` 的 `EnumGenerator` 读 **`[Description]`**；③ 视图手写 `LabelConverter` 映射（不走任何特性）。**`ForEnum` 与 `EnumGenerator` 读的不是同一个特性**——PreProcessing 标了 `[Description]`，在 ForEnum 那条路上照样显示英文。只补 `[Display]` 对走 `[Description]` 的枚举无效，反之亦然。 |
+| R85 | **裸 `Enum.GetValues` 数组上屏的枚举（如脚本插件的 `ScriptVarType`），光补 `[Display]` 不够，还要把视图改走 `ForEnum`**：`ItemsSource` 改成 `IReadOnlyList<StepConfigOption>`（`ForEnum` 候选），ComboBox 改 `DisplayMemberPath="Display"` + `SelectedValuePath="Value"` + `SelectedValue="{Binding Type}"`（值仍是成员名，R40 口径①）。`StepConfigOption.ToString()` 已兜底成 `Display`，收起状态的选中项不会退回类型全名。 |
+| R86 | **断言工程要读插件枚举上的特性，必须让插件工程进引用集**——不在引用集里就反射解析不到类型（`TypeHelper.ResolveType` 返回 null），闸门会假绿或崩掉。本批给 `FlowCanvasChecks.csproj` 补了 `Plugin.CSharpScript` / `Plugin.ImageScript` 两个引用（"生产加载器能打开方案"那条断言也因此恢复——`ScriptVarDef` 的 `$type` 解析需要程序集已加载）。反射解析不到时闸门必须**红着说清是哪个类型没找到**，不许让 `null` 混进 `Enum.GetNames` 让断言自己崩（那就分不清是"缺中文"还是"闸门坏了"）。 |
+
+---
+
+## 27. 组态基座画面：跨页公共层（2026-10-18）
+
+**起因**：用户反馈「底板不符合预期」，要的是"所有页面的统一基座"（实时引用、改一次全部生效），
+而 `Hmi.Panel` 是**单页内**的容器图元。两者是不同层的东西，本轮补的是"基座"这一层，
+`Hmi.Panel` 保留不动。细节、接入路径与断言台账见 `docs\code-changes\2026-10-18-组态基座画面（跨页公共层）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R87 | **基座 = 组合 + 实时引用，不许做成页面继承**。基座本身就是一份普通 `ScadaPage`（进 `Pages`、能编辑、能落盘），页面只多一个 `BasePageId` 指向它；`ScadaDocument.BasePages` 单独存"可作为基座"的子集（不与 `Pages` 合并）。**悬空不清理**：基座被摘除/删除时 `BasePageId` 留着（撤销能找回），渲染侧 `ResolveBase` 返回 null → 按"无基座"降级，本页内容一条不丢。**为什么不做继承**：基座是运行时数据不是编译期类型，变成类型树要写 `$type`、改名要改类型名、撤销要回退"类型"；而且会把"基座图元"与"本页图元"揉进同一个 `Elements`，之后每次复制/删除/撤销都要重新回答"这图元是谁的"（两份真相）。**集合订阅必须挂在 `[JsonConstructor]` 里那份字段实例上**（`_basePages.CollectionChanged += OnBasePagesChanged`），只在属性 setter 里挂 = 新建文档（不走反序列化）永远收不到变更 → 注册/摘除基座不进撤销栈、删页时集合不摘除，**且不报错**（2026-10-18 被三条断言当场抓到）；注册/摘除基座各自包一层 `BeginEdit`，`TryRemovePage` 在同一个作用域里把 `_pages` 与 `_basePages` 一起摘（一次撤销两边恢复）。 |
+| R88 | **一层限制（基座不能再引用基座）必须在两个入口都拦，外加加载期拆链**。`TryAddBasePage`（该页自己已引用基座 → 拒）与 `TrySetBasePage`（引用方本身是基座 → 拒）是同一不变量的两个入口，只拦一边，另一条路径就能造出"模型里有链、画面上只画一层"的静默故障（渲染侧只合成两层：基座压底 + 本页，链上第二层会被**静默丢掉**，现场看到的是"基座改了没反应"）。`EnsureIdentity` 加载期再兜两道：`BasePages` 里不在 `Pages` 里的幽灵条目摘掉、基座画面上的 `BasePageId` 清成 `Empty`。`CreatesCycle` 保留作防御（手改过的 `.vms` 可能带链）。 |
+| R89 | **导航口径唯一：`FindNavigablePage` / `FindNavigablePageByName` / `IsNavigable`；`FindPage` 只给"编辑与持久化"用**。基座画面同时也在 `Pages` 里（要落盘、要能进编辑器），所以按 Id 一定找得到它——但它是公共层不是终点，单独显示它 = 一张没有本页内容的画面。五个消费点必须走可导航判据：`ScadaRuntime.Navigate(Guid…)`、`Navigate(page)`、`GoBack()`（运行中某页可能被改成基座）、`ResolveStartupPage()` 的回落、`SetStartupPage()`、以及 `ScadaPagePickerViewModel` 的跳转候选。**"可寻址"与"可导航"是两件事**，混成一个方法的后果是其中一边必然错。目标恰好是基座时给**专属原因**（"目标画面是基座画面（公共层），不能作为跳转目标"），不许报"方案里没有叫 X 的画面"——它明明在列表里。 |
+| R90 | **基座图元必须进 `ScadaCanvas.EnumerateItems()`（基座先出、本页后出），这是"数据泵零改动"的前提**。`EnumerateControls()` 枚举同一批 → `ScadaRuntimeBinder` 建表时看到的就是"全量渲染的图元"，基座上的曲线/报警条/公共指示灯才会活。叠放次序由**产出顺序**表达（先画的在下），不要靠 ZIndex 全局重排。**画面级钩子只对 `CurrentPage` 触发**：基座永远不是当前页，所以它的 `Loaded`/`Unloaded` 不随引用页响——断言里必须有一正一反两条（本页命中 1 次 / 基座命中 0 次），否则"钩子机制没跑"会伪装成通过。**底色边界**：画布底色始终取本页的 `Background`，基座的 `Background` 不参与合成（两页各有背景时谁压谁都会静默吃掉对方）；基座要底色就放一个铺满画面的矩形图元。 |
+| R91 | **WPF `SelectedItem` 绑定的候选项类型必须与选中项类型一致；禁止用 `CompositeCollection` + `ComboBoxItem` 占位去"清空"强类型属性**。2026-10-18 实测形状：基座下拉用 `ComboBoxItem`（「（无基座）」）占位、`SelectedItem` 绑 `ScadaPage?`，选占位项时 WPF 把 `ComboBoxItem` 往 `ScadaPage` 里塞 → 绑定引擎转换失败 → 源属性**收不到通知**、模型不变、界面还显示「（无基座）」，**不报错**。正解是让候选项与选中项同一个类型（`BasePageOption`，`Page == null` 表示"无基座"，静态单例 `None` 判等），包装项订阅底层画面的 `Name` 变更转发通知（改名即时可见），重建集合时先 `Detach()` 再 `Clear()`（否则旧项被画面钉住）。**同一处连带坑**：`SelectedBasePage` 从 `ScadaPage?` 变成 `BasePageOption?` 之后，画布的 `BasePage` 绑定必须改成 `SelectedBasePage.Page`——漏改的表现是"基座配了但画布不合成"（绑定类型不匹配、静默为 null）。 |
+| R92 | **基座图元在"引用它的页面"上必须只读，三个闸门缺一不可**：① `SelectedElementsProperty` 的 Coerce（`TrimForeignBaseElements`）——挡住框选/宿主赋值/绑定回写；② `SelectedElementProperty` 的 Coerce——挡住点选/右键（**只拦集合不拦主选中**会分叉成"集合空、主选中是基座图元"，而属性面板读的是主选中，于是用户在引用页上改到了公共层）；③ `CanEditElement`（拖动/改尺寸手柄/"锁住"样式三处都读它）+ 左右键命中判据（`OnPreviewMouseLeftButtonDown` 命中基座图元按"点空白"处理；右键命中基座图元要**清选中**让菜单退回画面级，不能只是"不选中"——那会让菜单继续挂在上一批选中上，改到别的东西）。判据只有一处 `IsForeignBaseElement`（属于 `BasePage.Elements` 且不属于 `Page.Elements`）；基座自己的编辑器 `BasePage == null` 所以那边照常可编辑，**不要**另开"是否基座编辑态"的开关。守门人：`ScadaChecks` 的 `[X]` 四条（引用页主选中→null / 集合→剔空 / 本页图元照常可选 / 基座自己的编辑界面照常可选）。 |
+| R93 | **「新建基座」= 新建一份空白公共层，不是"把当前页提升为基座"**（`ScadaEditorViewModel.AddBasePageCommand`）。理由：基座是独立的公共层，把画好的一页提升为基座会让那页的**业务图元**突然变成所有页面共享的东西——一次误操作影响整个方案。命名走「基座_N」取未被占用的最小号（与 `ScadaDocument.NextPageName` 同一口径）。建完必须**立刻选中它**：基座图元只有基座自己那一页能改（R92），不切过去用户会以为"新建了但画布没变、也放不进东西"。 |
+| R94 | **视图渲染探针三条纪律**（`ScadaChecks` 的 `[T]` 段，2026-10-18 三条都是当场踩出来的）：① **`Activate()` 过的视图模型必须 `Deactivate()` 摘干净**——它订阅的是**静态** `ScadaEditHistory.Changed`，探针跑在自己的 STA 线程上，不摘的话后面任何一段改模型都会回调到一条没人泵的 Dispatcher，**一次连红三段**（"调用线程无法访问此对象"）；② **菜单命令的断言要先给 `PlacementTarget` 再泵 Dispatcher**——`ContextMenu` 不在可视树上，`DataContext` 靠 `PlacementTarget.DataContext` 的 Self 绑定拿，而绑定目标值的刷新是排队的（真机上 Dispatcher 一直在跑，探针里必须手动泵）；不泵就会得到"命令全是 null"的假红；③ **视图不许依赖 `App.xaml` 的内联资源**（本例 `Icon` 字体）：断言宿主没有 `Application`，取不到就是**XAML 解析期**整棵视图失败。正解是把令牌搬进 `Colors.xaml`（R31 的第一层令牌字典）并在视图 `<UserControl.Resources>` 里就地合并（`/UI;component/Themes/Colors.xaml`——UI 工程的资源根是 `Themes`，不是 `Controls/Themes`），再用 `{StaticResource DialogIconFont}`；与 R22 同一族，别再往视图里塞字面量字体 URI。 |

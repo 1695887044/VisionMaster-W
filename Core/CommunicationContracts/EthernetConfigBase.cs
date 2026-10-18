@@ -38,6 +38,10 @@ namespace VisionMaster.Communications
         /// <summary>
         /// <para>获取或设置心跳间隔时间（毫秒）。</para>
         /// <para>默认值：30000ms (30秒)</para>
+        /// <para>⚠ 语义：HSL 的 <c>SetKeepAlive(time, interval)</c> 两个参数都取本值（P-Q2）——
+        /// 它同时是<b>首次探测前的空闲时长</b>（Win32 <c>keepalivetime</c>）与<b>探测间隔</b>
+        /// （<c>keepaliveinterval</c>）。所以默认 30s 意味着"链路空闲 30 秒后才发第一个探测包"，
+        /// 对半开链路的检测贡献弱于"心跳间隔"这个名字给人的直觉；要更快发现半开可调小本值。</para>
         /// </summary>
         [SuperDisplay(Name = "心跳间隔(ms)", Group = new string[] { "网络参数" }, Order = 4, ColSpan = 6)]
         public int KeepAliveIntervalMs { get; set; } = 30000;

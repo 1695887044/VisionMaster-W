@@ -30,6 +30,12 @@ namespace Core.Interfaces
         /// <summary>轴名（**全局唯一**，对外唯一标识）</summary>
         public string Name { get; }
 
+        /// <summary>
+        /// 轴的稳定身份（取自 <see cref="AxisMapping.AxisId"/>）。
+        /// 改名/换卡/换物理轴号都不变；SCADA 绑定与系统变量一律按它寻址。
+        /// </summary>
+        public Guid AxisId => Mapping.AxisId;
+
         /// <summary>所属板卡的内部稳定身份（寻址一律用它，不用地址 —— 见 <see cref="CardAddress"/> 的说明）</summary>
         public Guid CardId { get; }
 
@@ -203,19 +209,34 @@ namespace Core.Interfaces
             }
         }
 
-        /// <summary>方案指纹：卡 Id + 每根轴的（逻辑名, 轴号）。名字/轴号任一变化都能被捕捉到</summary>
+        /// <summary>方案指纹：卡 Id + 每根轴的（稳定身份, 逻辑名, 轴号）。任一变化都能被捕捉到</summary>
         private string ComputeFingerprintLocked()
         {
+            // 历史轴补齐身份必须发生在算指纹之前：Id 也是指纹的一部分，
+            // 补完不重算会让索引停在"补之前"的那一版上。
+            EnsureAxisIdsLocked();
+
             var builder = new System.Text.StringBuilder();
             foreach (var card in EnumerateCards())
             {
                 builder.Append('C').Append(card.Id.ToString("N"));
                 foreach (var axis in card.Axes)
-                    builder.Append('|').Append(axis.LogicalName).Append('#').Append(axis.PhysicalIndex);
+                    builder.Append('|').Append(axis.AxisId.ToString("N"))
+                           .Append('@').Append(axis.LogicalName).Append('#').Append(axis.PhysicalIndex);
                 builder.Append(';');
             }
 
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// 给历史轴补齐稳定身份（旧 .vms 没有 AxisId）。
+        /// 调用方必须持 <see cref="_gate"/>；规则见 <see cref="MotionDescriptor.EnsureAxisIds"/>。
+        /// </summary>
+        private void EnsureAxisIdsLocked()
+        {
+            foreach (var card in EnumerateCards())
+                card.EnsureAxisIds();
         }
 
         /// <summary>
@@ -241,6 +262,9 @@ namespace Core.Interfaces
         private List<MotionAxisProblem> RebuildLocked()
         {
             var problems = new List<MotionAxisProblem>();
+
+            // 直接调用 Reload() 时也要补（ComputeFingerprintLocked 那条路已经补过一次，这里是幂等的）。
+            EnsureAxisIdsLocked();
 
             _byName.Clear();
             _bySlot.Clear();
@@ -453,7 +477,13 @@ namespace Core.Interfaces
                         $"卡「{card.Caption}」的轴号 {axisIndex} 已被轴「{occupant}」占用："
                         + "两根逻辑轴指向同一个物理轴会互相打架，请换一个轴号");
 
-                var mapping = new AxisMapping { LogicalName = name, PhysicalIndex = axisIndex };
+                var mapping = new AxisMapping
+                {
+                    // 新注册的轴在创建那一刻就拿到稳定身份；此后 Update（换卡/换轴号）不动它。
+                    AxisId = Guid.NewGuid(),
+                    LogicalName = name,
+                    PhysicalIndex = axisIndex,
+                };
                 card.Axes.Add(mapping);
 
                 Admit(name, card, mapping);

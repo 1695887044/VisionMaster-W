@@ -6,12 +6,12 @@ namespace VisionMaster.Plugins.Util
 {
     public enum ComparisonType
     {
-        Equal,
-        NotEqual,
-        GreaterThan,
-        LessThan,
-        GreaterThanOrEqual,
-        LessThanOrEqual
+        [Display(Name = "等于")] Equal,
+        [Display(Name = "不等于")] NotEqual,
+        [Display(Name = "大于")] GreaterThan,
+        [Display(Name = "小于")] LessThan,
+        [Display(Name = "大于等于")] GreaterThanOrEqual,
+        [Display(Name = "小于等于")] LessThanOrEqual
     }
 
     [Display(

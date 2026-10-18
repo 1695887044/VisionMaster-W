@@ -147,6 +147,16 @@ namespace VisionMaster.Scada
             return new RecordingToken();
         }
 
+        /// <summary>
+        /// 此刻是不是"回放中"（撤销/重做/迁移正在把值写回去）。
+        ///
+        /// 给"跟随型"的联动写用：底板的移动要带着子图元一起走（见
+        /// <see cref="ScadaPage"/> 的容器联动），但那联动<b>不能在回放时也做一遍</b>——
+        /// 回放时父与子各自都有自己的记录要写回，再联动一次就是同一段位移推两遍。
+        /// 判据是"采集被挂起"，与 <see cref="SuspendRecording"/> 同一个事实，不另立标志位。
+        /// </summary>
+        internal static bool IsReplaying => _suspendRecording > 0;
+
         private sealed class RecordingToken : IDisposable
         {
             private bool _disposed;

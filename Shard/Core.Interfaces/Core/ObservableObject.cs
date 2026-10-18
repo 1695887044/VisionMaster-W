@@ -6,8 +6,15 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Core.Interfaces.Core
+namespace Core.Interfaces
 {
+    /// <summary>
+    /// 全仓唯一的 ObservableObject 基类（2026-10-17 合并自原 Core.Interfaces.Core 命名空间）。
+    /// 比较语义取功能全的这份：SetProperty 支持数组逐元素比较、枚举 Enum.Equals、字符串 Ordinal。
+    /// 原 Core.Interfaces 根命名空间下的弱版（仅 EqualityComparer 引用/默认比较）已删除，
+    /// VisionPluginBase 与 PreprocessOperator 两支随之从"引用比"切换为"内容比"——
+    /// 这两支不持有数组字段，实测无回归。
+    /// </summary>
     public abstract class ObservableObject : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;

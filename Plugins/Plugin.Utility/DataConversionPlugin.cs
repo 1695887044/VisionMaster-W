@@ -6,11 +6,11 @@ namespace VisionMaster.Plugins.Util
 {
     public enum TargetDataType
     {
-        Int32,
-        Double,
-        Boolean,
-        String,
-        DateTime
+        [Display(Name = "整数")] Int32,
+        [Display(Name = "浮点数")] Double,
+        [Display(Name = "布尔")] Boolean,
+        [Display(Name = "字符串")] String,
+        [Display(Name = "日期时间")] DateTime
     }
 
     [Display(

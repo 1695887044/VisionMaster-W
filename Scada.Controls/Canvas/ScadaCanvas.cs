@@ -274,7 +274,8 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty SelectedElementProperty = DependencyProperty.Register(
             nameof(SelectedElement), typeof(ScadaElement), typeof(ScadaCanvas),
             new FrameworkPropertyMetadata(null,
-                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedElementChanged));
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+                OnSelectedElementChanged, CoerceSelectedElement));
 
         /// <summary>
         /// 当前选中的<b>全部</b>图元（默认双向：画布用框选/Ctrl 点选改它，宿主的视图模型用它驱动批量操作）。
@@ -294,7 +295,8 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty SelectedElementsProperty = DependencyProperty.Register(
             nameof(SelectedElements), typeof(IReadOnlyList<ScadaElement>), typeof(ScadaCanvas),
             new FrameworkPropertyMetadata(Array.Empty<ScadaElement>(),
-                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedElementsChanged));
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+                OnSelectedElementsChanged, CoerceSelectedElements));
 
         /// <summary>只读态（运行预览）：不吃选中、不能拖动改尺寸，图元自己的交互照常工作</summary>
         public static readonly DependencyProperty IsReadOnlyProperty = DependencyProperty.Register(
@@ -317,6 +319,23 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty PageProperty = DependencyProperty.Register(
             nameof(Page), typeof(ScadaPage), typeof(ScadaCanvas),
             new FrameworkPropertyMetadata(null, OnPageChanged));
+
+        /// <summary>
+        /// 本页引用的<b>基座画面</b>（跨页共享的公共层；null = 不引用）。
+        ///
+        /// <b>它在画布上干两件事</b>：
+        /// ① <b>叠底</b>——基座的图元画在本页图元之下（按渲染先后次序，基座先画）；
+        /// ② <b>复用</b>——基座图元照常进 <see cref="EnumerateControls"/>，运行态数据泵照常给它们建表，
+        ///    于是共享画面里的曲线、报警条、公共指示灯都能活。
+        ///
+        /// <b>为什么不把基座图元并进 ItemsSource</b>：那样做会让"这页到底有哪些图元"变成
+        /// 两份真相（模型里一份、画布里合并一份），复制/粘贴/删除/撤销全都要重新解释
+        /// "这个图元到底是这页的还是基座的"。基座与本页是两个独立集合，渲染时按先后叠，
+        /// 叠放关系由渲染次序天然表达，不需要把它们揉成一棵树。
+        /// </summary>
+        public static readonly DependencyProperty BasePageProperty = DependencyProperty.Register(
+            nameof(BasePage), typeof(ScadaPage), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnBasePageChanged));
 
         /// <summary>图元来源集合</summary>
         public IEnumerable? ItemsSource
@@ -341,6 +360,13 @@ namespace VisionMaster.Scada.Controls
         {
             get => (Brush?)GetValue(PageBackgroundProperty);
             set => SetValue(PageBackgroundProperty, value);
+        }
+
+        /// <summary>本页引用的基座画面（null = 不引用）。见 <see cref="BasePageProperty"/>。</summary>
+        public ScadaPage? BasePage
+        {
+            get => (ScadaPage?)GetValue(BasePageProperty);
+            set => SetValue(BasePageProperty, value);
         }
 
         public bool ShowGrid
@@ -408,6 +434,45 @@ namespace VisionMaster.Scada.Controls
         private static void OnPageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ScadaCanvas)d).OnPageChangedCore((ScadaPage?)e.OldValue, (ScadaPage?)e.NewValue);
 
+        private static void OnBasePageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((ScadaCanvas)d).OnBasePageChangedCore((ScadaPage?)e.OldValue, (ScadaPage?)e.NewValue);
+
+        /// <summary>
+        /// 基座换人：摘旧基座的订阅，挂新基座的订阅，并把整张画布按"本页 + 新基座"重画一遍。
+        ///
+        /// 换基座必须<b>全量重建</b>而不是增删那几条：基座图元压在本页之下，
+        /// 增删会让"本页的某一条"被挤到基座的某一条上面——叠放次序就错了。
+        /// 全量重建走 RebuildElements 这条已被反复验证的路径，代价是一次控件重建
+        /// （换基座是低频动作，不是每帧）。
+        /// </summary>
+        private void OnBasePageChangedCore(ScadaPage? oldBase, ScadaPage? newBase)
+        {
+            if (oldBase != null)
+                oldBase.PropertyChanged -= OnBasePagePropertyChanged;
+
+            if (newBase != null)
+                newBase.PropertyChanged += OnBasePagePropertyChanged;
+
+            RebuildElements();
+        }
+
+        /// <summary>
+        /// 基座内容变了 → 整张画布重画。
+        ///
+        /// 只认"图元集合变了"与"基座的尺寸/底色变了"这两类；基座自己的事件钩子/图层
+        /// 由它自己消化，与本画布无关（本画布只按基座的 Elements + Background 画公共层）。
+        /// </summary>
+        private void OnBasePagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ScadaPage.Elements)
+                || e.PropertyName == nameof(ScadaPage.Background)
+                || e.PropertyName == nameof(ScadaPage.Width)
+                || e.PropertyName == nameof(ScadaPage.Height))
+            {
+                RebuildElements();
+            }
+        }
+
         private static void OnItemsSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ScadaCanvas)d).OnItemsSourceChangedCore((IEnumerable?)e.OldValue, (IEnumerable?)e.NewValue);
 
@@ -465,6 +530,112 @@ namespace VisionMaster.Scada.Controls
 
         private static void OnSelectedElementsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
             => ((ScadaCanvas)d).RefreshSelection();
+
+        /// <summary>
+        /// 选中集合的<b>强制规整</b>：不许同时含"底板"和"装在这只底板里的子图元"。
+        ///
+        /// <b>为什么放在 Coerce 回调而不是某个 setter 里</b>：选中集合的写入口不止一个
+        /// （点选、框选、全选、宿主直接赋值、双向绑定回写），而 Coerce 是 WPF 在<b>值落库之前</b>
+        /// 必然经过的那一道——放在这里，任何路径都自动受同一条不变式约束，
+        /// 不必逐个入口记得处理（这正是"收口在一处"的价值）。
+        ///
+        /// <b>为什么必须剔</b>：子图元靠<b>模型级联</b>跟着底板走
+        /// （<c>ScadaPage.CascadeContainerMove</c>）。若集合里同时有父与子，
+        /// 批量写入（拖动/对齐/分布）会给子图元再写一次，叠加成<b>双重位移</b>，
+        /// 而且错得跟 <c>Elements</c> 里的先后有关（子排在父前/后结果不同）——
+        /// 属"时对时错"里最难查的一类。谁会把父子同时选上：<b>框选</b>
+        /// （按包围盒收图元，框一片区域时底板与里面的东西必然同时命中）。
+        ///
+        /// 剔的是<b>子</b>而不是父：底板是用户框中的那块区域，主选中与尺寸手柄都该落在它身上；
+        /// 而子图元本来就会跟着动，留在集合里没有额外作用。
+        /// </summary>
+        private static object CoerceSelectedElements(DependencyObject d, object baseValue)
+        {
+            var canvas = (ScadaCanvas)d;
+            var items = (IReadOnlyList<ScadaElement>?)baseValue ?? Array.Empty<ScadaElement>();
+
+            return canvas.TrimNestedChildren(canvas.TrimForeignBaseElements(items));
+        }
+
+        /// <summary>
+        /// 主选中的强制规整：基座图元在"引用它的页面"里不许被选中（null 表示没有主选中）。
+        ///
+        /// 与 <see cref="CoerceSelectedElements"/> 同一个理由：选中集合的写入口不止一个
+        /// （点选、框选、宿主赋值、双向绑定回写），Coerce 是 WPF 在值落库之前必然经过的那一道。
+        /// 只拦集合不拦主选中，就会出现"集合是空的、主选中却是基座图元"的分叉——
+        /// 属性面板读的是主选中，于是用户在引用页上改到了公共层的图元。
+        /// </summary>
+        private static object? CoerceSelectedElement(DependencyObject d, object baseValue)
+            => ((ScadaCanvas)d).IsForeignBaseElement((ScadaElement?)baseValue) ? null : baseValue;
+
+        /// <summary>
+        /// 剔掉"只属于基座、不属于本页"的图元（见 <see cref="IsForeignBaseElement"/>）。
+        /// 常态不分配新表（与 <see cref="TrimNestedChildren"/> 同一条热路径纪律）。
+        /// </summary>
+        private IReadOnlyList<ScadaElement> TrimForeignBaseElements(IReadOnlyList<ScadaElement> items)
+        {
+            if (BasePage == null || items.Count == 0)
+                return items;
+
+            List<ScadaElement>? kept = null;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (IsForeignBaseElement(items[i]))
+                {
+                    if (kept == null)
+                    {
+                        kept = new List<ScadaElement>(items.Count);
+
+                        for (int j = 0; j < i; j++)
+                            kept.Add(items[j]);
+                    }
+
+                    continue;
+                }
+
+                kept?.Add(items[i]);
+            }
+
+            return kept ?? items;
+        }
+
+        /// <summary>
+        /// 剔掉"其父也在同一集合里"的子图元（见 <see cref="CoerceSelectedElements"/>）。
+        ///
+        /// 常态（集合里没有父子关系）不分配新表，原样返回——选中变更发生在每次点击与框选上，
+        /// 不该为一条偶尔成立的不变式在热路径上白分配。
+        /// </summary>
+        private IReadOnlyList<ScadaElement> TrimNestedChildren(IReadOnlyList<ScadaElement> items)
+        {
+            if (items.Count < 2 || Page is not { } page)
+                return items;
+
+            List<ScadaElement>? trimmed = null;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var element = items[i];
+
+                var parent = element.ParentId != Guid.Empty ? page.FindElement(element.ParentId) : null;
+
+                if (parent is null || !ContainsRef(items, parent))
+                {
+                    trimmed?.Add(element);
+                    continue;
+                }
+
+                if (trimmed is null)
+                {
+                    trimmed = new List<ScadaElement>(items.Count);
+
+                    for (int j = 0; j < i; j++)
+                        trimmed.Add(items[j]);
+                }
+            }
+
+            return trimmed ?? items;
+        }
 
         /// <summary>选中变了以后要跟着动的两件事：订阅面（哪些图元要盯着）与视觉面（框画在哪）</summary>
         private void RefreshSelection()
@@ -619,8 +790,19 @@ namespace VisionMaster.Scada.Controls
             return new Point(Math.Round(left / step) * step, Math.Round(top / step) * step);
         }
 
-        /// <summary>当前元素层里的图元控件数（断言与"渲染是否跟上了数据"的自检用）</summary>
-        public int RenderedElementCount => _elementLayer?.Children.Count ?? 0;
+        /// <summary>
+        /// 当前已挂载的图元容器数（断言与"渲染是否跟上了数据"的自检用）。
+        ///
+        /// <b>算的是"元素层的全量同步视图"这个不变式，不是"索引里有几个控件"</b>：
+        /// 类型未注册的图元渲成占位框（不是 <see cref="ScadaElementBase"/>，不进索引），
+        /// 但它照样是一次渲染，也必须计入——"隐藏图层不摘控件、画布永远是数据的全量视图"
+        /// 这条既有不变式（以及依赖它的若干断言）说的正是这个数。
+        ///
+        /// 装了底板的图元同样计入（它们只是挂到了子画布上，没有被丢掉）。
+        /// 所以这个计数在容器引入后<b>语义不变</b>，只是实现从"数元素层的直接子级"
+        /// 换成了"数挂了几个容器"——因为容器让"直接子级"不再等于"全部图元"。
+        /// </summary>
+        public int RenderedElementCount => _mountedCount;
 
         /// <summary>
         /// 运行态诊断角标层（S6）：宿主/绑定器用它标记"哪个图元没接上、哪个值转不过去"。
@@ -630,6 +812,29 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>诊断角标层部件（<see cref="ScadaDiagnosticOverlay"/> 内部用；自定义模板缺此部件时为 null）</summary>
         internal Canvas? DiagnosticLayer => _diagnosticLayer;
+
+        /// <summary>
+        /// 模型 → 承载控件的反查索引。
+        ///
+        /// <b>为什么必须有它</b>：容器图元（底板）让"控件挂在哪一层"不再固定——
+        /// 顶层图元挂在元素层，装了底板的挂在底板自己的画布上。于是"按模型找控件"
+        /// 从"遍历元素层的直接子级"变成了"要递归整棵可视树"，而这是<b>高频路径</b>：
+        /// 拖动一个图元每帧都会触发选中视觉重算，一次重算里每个选中项都要判"渲染出来了吗"。
+        /// 递归遍历 + 引用比较在 M 个选中项、N 个图元时是 O(M·N)；用字典是 O(M)。
+        ///
+        /// 索引在<b>同一个地方</b>维护：容器被造出来时登记（<see cref="CreateContainer"/>）、
+        /// 被摘掉时注销（<see cref="RemoveContainerFor"/>）、全量重建时清空重填
+        /// （<see cref="RebuildElements"/>）。挂载/卸载必须都走这三处，
+        /// 否则索引与实际可视树就会分家——那时表现是"图元明明在屏幕上，却选不中/拖不动"。
+        /// </summary>
+        private readonly Dictionary<ScadaElement, ScadaElementBase> _containerIndex = new();
+
+        /// <summary>
+        /// 已挂载的容器数（含占位框），见 <see cref="RenderedElementCount"/>。
+        /// 单独维护而不是数 <c>_elementLayer.Children.Count</c>：容器图元让子控件挂到了别处，
+        /// 直接子级数不再等于"渲染了几个图元"。
+        /// </summary>
+        private int _mountedCount;
 
         private ScadaRuntimeContext? _runtimeContext;
 
@@ -668,18 +873,12 @@ namespace VisionMaster.Scada.Controls
         /// 绑定表是按 ElementId 写的，而刷值必须落到控件上，中间就差这一次反查。
         /// 类型未注册的图元渲染成占位框（不是 <see cref="ScadaElementBase"/>），自然不会出现在这里——
         /// 这正是想要的：占位框不跟随模型刷新，往它身上写值没有意义。
+        ///
+        /// <b>装了底板的子图元也要枚举到</b>：它们同样要建绑定表（绑了变量的曲线图元
+        /// 完全可能被装进底板里）。所以这里走 <see cref="_containerIndex"/> 而不是
+        /// "元素层的直接子级"——索引里就是全部已渲染的图元控件，与挂在哪一层无关。
         /// </summary>
-        public IEnumerable<ScadaElementBase> EnumerateControls()
-        {
-            if (_elementLayer == null)
-                yield break;
-
-            foreach (var child in _elementLayer.Children)
-            {
-                if (child is ScadaElementBase control)
-                    yield return control;
-            }
-        }
+        public IEnumerable<ScadaElementBase> EnumerateControls() => _containerIndex.Values;
 
         #endregion
 
@@ -826,7 +1025,12 @@ namespace VisionMaster.Scada.Controls
             {
                 case NotifyCollectionChangedAction.Add:
                     foreach (var item in Enumerate(e.NewItems))
-                        _elementLayer.Children.Add(CreateContainer(item));
+                        CreateContainer(item);
+
+                    // 新加的可能是"装了底板的子图元"，也可能是"新底板"（它的子已经在画布上了）。
+                    // 两种情况都要重新收敛一次父子挂载——全量重挂只依赖最终 ParentId，
+                    // 比在这里分别判"加的是父还是子"更少分支、更少漏判。
+                    RelinkToParents();
                     break;
 
                 case NotifyCollectionChangedAction.Remove:
@@ -836,8 +1040,11 @@ namespace VisionMaster.Scada.Controls
                     if (e.Action == NotifyCollectionChangedAction.Replace)
                     {
                         foreach (var item in Enumerate(e.NewItems))
-                            _elementLayer.Children.Add(CreateContainer(item));
+                            CreateContainer(item);
                     }
+
+                    // 删掉的可能是底板：它的子图元 ParentId 悬空，要按顶层重新挂回来。
+                    RelinkToParents();
                     break;
 
                 default:
@@ -860,10 +1067,204 @@ namespace VisionMaster.Scada.Controls
             // 控件全被换掉，角标上绑的是旧控件的几何，留着就是指向空气的标记
             Diagnostics.Clear();
 
+            // 反查索引与可视树同生共死：清空可视树之前先把索引里那些控件的父引用摘干净
+            // （否则旧控件仍挂着 ParentContainer 订阅，而它们已经不在树上了——那是泄漏）
+            foreach (var pair in _containerIndex)
+            {
+                if (pair.Value.ParentContainer is IElementContainer owner)
+                    owner.ReleaseChild(pair.Value);
+
+                pair.Value.ParentContainer = null;
+                pair.Value.ParentChanged -= OnContainerParentChanged;
+            }
+
+            _containerIndex.Clear();
             _elementLayer.Children.Clear();
+            _mountedCount = 0;
+
+            // 两趟：先造并挂全部控件，再按 ParentId 决定"谁装进谁"。
+            //
+            // 为什么必须分两趟：子图元的容器要先存在（且已套上模板、ChildrenHost 可用）
+            // 才能被挂进底板。一趟走到底的话，遇到"子的模型排在父前面"（集合次序无关）
+            // 就只能挂到元素层，然后再靠一次全量重排纠正——那等于白建一次。
+            foreach (var element in EnumerateItems())
+                CreateContainer(element);
+
+            RelinkToParents();
+        }
+
+        /// <summary>
+        /// 按 <see cref="ScadaElement.ParentId"/> 把已造好的容器重新挂到各自的父画布下。
+        ///
+        /// 一次全量重挂（先全部归位到元素层，再按父子关系往下挂）而不是逐个比对，
+        /// 是因为"父子关系变更"的来源很多（装入、移出、撤销、重做、模板物化、打开文件），
+        /// 逐个比对本就要覆盖这些来源；全量重挂只依赖"最后的 ParentId 是什么"这一个事实，
+        /// 无论中间经过多少次变更，结果都一致。
+        ///
+        /// <b>悬空降级</b>：ParentId 指向的图元不在本画面上（底板被删了、或文件是手工改的）
+        /// 时按顶层渲染——画面不会因此崩，也不会丢图元（与 <see cref="ScadaElement.ParentId"/>
+        /// 注释里"悬空不清理"的口径配套：数据留着，渲染降级）。
+        /// </summary>
+        private void RelinkToParents()
+        {
+            if (_elementLayer == null)
+                return;
+
+            // 先取快照再遍历：认领动作会动可视树，而可视树的变化可能反过来触发
+            // 又一次重挂（例如容器模板就绪时的补挂），直接遍历 _containerIndex
+            // 会在那种路径上抛"集合已更改，枚举器无效"。
+            var snapshot = new KeyValuePair<ScadaElement, ScadaElementBase>[_containerIndex.Count];
+            ((ICollection<KeyValuePair<ScadaElement, ScadaElementBase>>)_containerIndex).CopyTo(snapshot, 0);
+
+            foreach (var pair in snapshot)
+            {
+                var element = pair.Key;
+                var control = pair.Value;
+
+                var parentControl = ResolveParentContainer(element);
+                var container = parentControl as IElementContainer;
+
+                // 先摘再挂：一个控件在可视树上只能有一个父，且 WPF 对"已是别人逻辑子元素"
+                // 的控件直接抛异常（见 ScadaElementBase.DetachFromParent 的注释）。
+                //
+                // 摘之前先让<b>旧的</b>容器解除认领：控件可能还排在旧容器的待挂队列里
+                // （模板尚未就绪时来的），只 DetachFromParent 对"Parent==null"的它是空操作，
+                // 旧容器会一直记着它、等模板就绪时又把它认领回去——那时模型说"在别处"、
+                // 屏幕却在旧容器里。与 RebuildElements 里那处 ReleaseChild 对齐。
+                if (control.ParentContainer is IElementContainer previousOwner)
+                    previousOwner.ReleaseChild(control);
+
+                ScadaElementBase.DetachFromParent(control);
+
+                // ParentContainer 要在挂载之前设：它的 setter 会立刻按新父重算相对偏移
+                // （见 ScadaElementBase.ApplyGeometry），于是挂上去的那一刻位置就是对的，
+                // 不会出现"先挂到 (0,0) 再跳到位"的一帧错位。
+                control.ParentContainer = parentControl;
+
+                // 有父的<b>不</b>放进元素层，直接交给容器认领：
+                //
+                // 放进去再搬出来是不行的——容器的模板是在布局过程中（MeasureCore 里
+                // ApplyTemplate）才就绪的，那一刻元素层的 Canvas 正在枚举自己的子级，
+                // 此时从它里面摘孩子会抛"集合已更改，枚举器无效"（实测栈就在
+                // Canvas.MeasureOverride 的 VisualCollection 枚举上）。
+                //
+                // 直接交给容器则没有这个问题：容器把还没就绪的孩子排队，等自己的
+                // OnApplyTemplate 一到就挂进自己的画布——而那是它自己的 MeasureOverride
+                // <b>之前</b>发生的，挂的是自己的孩子，不碰任何正在被枚举的集合。
+                //
+                // 代价：模板始终不就绪时这个子图元不可见。这是可接受的降级——
+                // 那种情形意味着"这个图元的样式压根没注册"，那本来就是更严重的问题，
+                // 而且它不会比"从画布上消失"更糟（后者是静默丢图元）。
+                if (container is null)
+                    _elementLayer.Children.Add(control);
+                else
+                    container.TakeChild(control);
+            }
+        }
+
+        /// <summary>
+        /// 找出某图元该装进哪只底板控件。
+        ///
+        /// 返回 null 表示"按顶层处理"，三种情形都<b>不报错</b>——画面宁可位置不对，
+        /// 也不能丢图元或崩掉：父不在本画面（底板被删了）、父不是容器（文件被手工改过）、
+        /// 以及最普通的那一类：本来就没有父。
+        ///
+        /// 注意这里<b>不判</b> <c>ChildrenHost</c> 是否为 null：模板没就绪是正常的中间态，
+        /// 由容器自己排队等模板（见 <see cref="IElementContainer.TakeChild"/>）。
+        /// 在这里判 null 会把"模板还没套上"误当成"装不进去"，那正是实测踩过的坑。
+        /// </summary>
+        private ScadaElementBase? ResolveParentContainer(ScadaElement element)
+        {
+            if (element.ParentId == Guid.Empty)
+                return null;
+
+            var parent = FindElementById(element.ParentId);
+            if (parent is null)
+                return null;
+
+            return _containerIndex.TryGetValue(parent, out var parentControl) ? parentControl : null;
+        }
+
+        /// <summary>按 ElementId 找模型（线性扫描；只在挂载与父相关操作上调用，不是热路径）</summary>
+        private ScadaElement? FindElementById(Guid elementId)
+        {
+            if (elementId == Guid.Empty)
+                return null;
 
             foreach (var element in EnumerateItems())
-                _elementLayer.Children.Add(CreateContainer(element));
+            {
+                if (element.ElementId == elementId)
+                    return element;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 图元的归属（<c>ParentId</c>）变了 → 重挂一次父子关系。
+        ///
+        /// <b>为什么不能省这一步</b>：装入/移出底板改的是模型字段，而控件早已挂在某个画布上。
+        /// 不重挂的表现是"点了【放入底板】但画面纹丝不动"——模型对了、屏幕没变，
+        /// 而用户判断功能有没有生效只看屏幕。
+        ///
+        /// 全量重挂而不是"只把这一个从旧父摘到新父"：全量走的是一条已被反复验证的路径
+        /// （见 <see cref="RelinkToParents"/>），而增量版本要自己处理"旧父已被删"
+        /// "新父还没造出来"这类边角，多出来的分支没有任何收益。
+        /// 归属变更是低步频动作（点一次菜单），全量的代价可以忽略。
+        /// </summary>
+        private void OnContainerParentChanged(object? sender, ScadaElement element)
+        {
+            // 只处理"当前画面里的图元"：撤销可能把已经删掉的图元重新挂上引用，
+            // 那种图元不在索引里，重挂一次没有意义（它压根没渲染出来）
+            if (!_containerIndex.ContainsKey(element))
+                return;
+
+            RelinkToParents();
+            UpdateSelectionVisual();
+        }
+
+        /// <summary>
+        /// 造承载控件并挂进元素层。
+        /// 类型键未注册时画"未知图元"占位框而不是抛异常——
+        /// 低版本软件打开高版本 .vms 必须还能看见画面结构（S2 定的降级口径落在这里）。
+        ///
+        /// 为什么从 static 改成实例方法：容器光"按类型键造对应控件"时确实不需要实例状态；
+        /// 有了图层之后，造完还得把<b>本画布</b>的可见性判定注入控件（判定源是实例的 <see cref="Page"/>），
+        /// 静态方法拿不到。三个调用点（Add / Replace / Rebuild）本来就是实例方法，签名改动不外溢。
+        /// </summary>
+        private UIElement CreateContainer(ScadaElement element)
+        {
+            var container = ElementRegistry.IsRegistered(element.TypeKey)
+                ? (UIElement)ElementRegistry.CreateControl(element)
+                : CreateUnknownPlaceholder(element);
+
+            if (container is ScadaElementBase control)
+            {
+                control.LayerVisibilityResolver = IsElementShown;
+
+                // 运行态一起带出去：宿主是在 Show() 之前装配的，那时容器一个都还没造，
+                // 全靠这里逐个补发；造完才装配（收场换人）那条路由 RuntimeContext 的 setter 兜。
+                control.RuntimeContext = _runtimeContext;
+
+                // 归属变更要重挂：装入底板 / 移出底板改的是模型的 ParentId，
+                // 而控件已经挂在某个画布上了——不重挂就"模型变了、画面没变"，
+                // 用户看到的是"点了放入底板但东西没动"。
+                // 挂在这里而不是画布的页订阅上，是因为 ParentId 是<b>图元自己的</b>属性，
+                // 每个图元各管自己的（与 ApplyGeometry 订阅 X/Y 是同一条理由）。
+                control.ParentChanged += OnContainerParentChanged;
+
+                _containerIndex[element] = control;
+            }
+
+            // 新建/复用的容器必须当场定一次可见性：它可能落在一个正被隐藏的图层上
+            container.Visibility = IsElementShown(element) ? Visibility.Visible : Visibility.Collapsed;
+
+            // 先挂元素层：立刻可见。父子归属由调用方随后的 RelinkToParents 收敛
+            // （单条 Add 走这里，全量重建走完后也统一收敛一次）。
+            _elementLayer.Children.Add(container);
+            _mountedCount++;
+
+            return container;
         }
 
         private static IEnumerable<ScadaElement> Enumerate(IList? items)
@@ -880,6 +1281,16 @@ namespace VisionMaster.Scada.Controls
 
         private IEnumerable<ScadaElement> EnumerateItems()
         {
+            // 基座的图元<b>先</b>出：叠放次序由渲染先后天然表达（先画的在下面），
+            // 而画布内部按"先造的是底"的顺序铺进可视树——基座的公共层压在最底。
+            // 它走与本页同一条装配路径（CreateContainer → 索引 → 裁剪/联动），
+            // 所以运行态数据泵也照常接到它们身上（EnumerateControls 枚举同一批）。
+            if (BasePage is { } basePage)
+            {
+                foreach (var element in basePage.Elements)
+                    yield return element;
+            }
+
             if (ItemsSource is not { } source)
                 yield break;
 
@@ -906,10 +1317,45 @@ namespace VisionMaster.Scada.Controls
             if (_elementLayer == null)
                 return;
 
-            var container = FindContainer(element);
+            if (!_containerIndex.TryGetValue(element, out var container))
+            {
+                // 不在索引里 = 占位框（未注册类型）。它同样占了 _mountedCount 一格，
+                // 所以要走一遍"按 Tag 找、摘掉、计数减一"，不能直接 return。
+                RemovePlaceholderFor(element);
+                return;
+            }
 
-            if (container != null)
-                _elementLayer.Children.Remove(container); // 一个图元只应有一个容器；找到就收工
+            // 摘父引用要在移出可视树之前：它会解掉底板的 ElementChanged 订阅
+            // （见 ScadaElementBase.ParentContainer 的 setter）
+            if (container.ParentContainer is IElementContainer owner)
+                owner.ReleaseChild(container);
+
+            container.ParentContainer = null;
+            container.ParentChanged -= OnContainerParentChanged;
+
+            ScadaElementBase.DetachFromParent(container);
+
+            _containerIndex.Remove(element);
+            _mountedCount--;
+        }
+
+        /// <summary>摘掉未注册类型的占位框（它不在 <see cref="_containerIndex"/> 里，靠 Tag 反查）</summary>
+        private void RemovePlaceholderFor(ScadaElement element)
+        {
+            if (_elementLayer == null)
+                return;
+
+            for (int i = 0; i < _elementLayer.Children.Count; i++)
+            {
+                if (_elementLayer.Children[i] is FrameworkElement box
+                    && box is not ScadaElementBase
+                    && ReferenceEquals(box.Tag, element))
+                {
+                    _elementLayer.Children.RemoveAt(i);
+                    _mountedCount--;
+                    return;
+                }
+            }
         }
 
         /// <summary>
@@ -917,20 +1363,13 @@ namespace VisionMaster.Scada.Controls
         ///
         /// 为什么用引用而不是 Id：Id 要遍历一遍模型再查索引，引用一次比较就够；
         /// 而"同一个模型被渲染两次"本来就是不成立的状态，用引用比对反而能把它暴露出来。
+        ///
+        /// <b>O(1)</b>：走 <see cref="_containerIndex"/> 而不是遍历元素层的直接子级——
+        /// 装了底板的图元不在元素层上，遍历直接子级会找不到它（返回 null 的后果是
+        /// "图元在屏幕上却选不中、也判不出它渲染出来没有"）。
         /// </summary>
         private ScadaElementBase? FindContainer(ScadaElement element)
-        {
-            if (_elementLayer == null)
-                return null;
-
-            foreach (var child in _elementLayer.Children)
-            {
-                if (child is ScadaElementBase control && ReferenceEquals(control.Element, element))
-                    return control;
-            }
-
-            return null;
-        }
+            => element != null && _containerIndex.TryGetValue(element, out var control) ? control : null;
 
         /// <summary>
         /// 该图元当前是否被渲染成了可编辑控件。
@@ -939,35 +1378,6 @@ namespace VisionMaster.Scada.Controls
         /// 让它可编辑会得到一个更糟的结果：拖动时模型改了而占位框不动，选中框与实际位置分家。
         /// </summary>
         private bool IsRendered(ScadaElement element) => FindContainer(element) != null;
-
-        /// <summary>
-        /// 造承载控件。类型键未注册时画"未知图元"占位框而不是抛异常——
-        /// 低版本软件打开高版本 .vms 必须还能看见画面结构（S2 定的降级口径落在这里）。
-        ///
-        /// 为什么从 static 改成实例方法：容器光"按类型键造对应控件"时确实不需要实例状态；
-        /// 有了图层之后，造完还得把<b>本画布</b>的可见性判定注入控件（判定源是实例的 <see cref="Page"/>），
-        /// 静态方法拿不到。三个调用点（Add / Replace / Rebuild）本来就是实例方法，签名改动不外溢。
-        /// </summary>
-        private UIElement CreateContainer(ScadaElement element)
-        {
-            var container = ElementRegistry.IsRegistered(element.TypeKey)
-                ? (UIElement)ElementRegistry.CreateControl(element)
-                : CreateUnknownPlaceholder(element);
-
-            if (container is ScadaElementBase control)
-            {
-                control.LayerVisibilityResolver = IsElementShown;
-
-                // 运行态一起带出去：宿主是在 Show() 之前装配的，那时容器一个都还没造，
-                // 全靠这里逐个补发；造完才装配（收场换人）那条路由 RuntimeContext 的 setter 兜。
-                control.RuntimeContext = _runtimeContext;
-            }
-
-            // 新建/复用的容器必须当场定一次可见性：它可能落在一个正被隐藏的图层上
-            container.Visibility = IsElementShown(element) ? Visibility.Visible : Visibility.Collapsed;
-
-            return container;
-        }
 
         private static readonly Brush UnknownFill = ScadaBrushes.Frozen(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
         private static readonly Brush UnknownStroke = ScadaBrushes.Frozen(Color.FromRgb(0xC0, 0x60, 0x60));
@@ -1137,23 +1547,55 @@ namespace VisionMaster.Scada.Controls
             => Page is not { } page || page.IsElementVisible(element);
 
         /// <summary>
+        /// 这个图元是不是"只属于基座"（本页没有它）。
+        ///
+        /// <b>基座图元在引用它的页面上只渲染、不可编辑</b>：点不中、选不上、拖不动、改不了属性。
+        /// 要改公共层就切到基座自己那一页去改——这是"改一次、全部页面生效"的语义前提；
+        /// 在本页改会变成"只改这一页看到的那一份"，而用户以为改的是公共层。
+        ///
+        /// 基座自己的编辑器 <see cref="BasePage"/> 为 null（一层限制：基座不引用基座），
+        /// 所以那边照常可编辑，不需要另开一个"是否基座编辑态"的开关。
+        /// </summary>
+        private bool IsForeignBaseElement(ScadaElement? element)
+        {
+            if (element == null || BasePage is not { } basePage)
+                return false;
+
+            // 本页自己的图元当然归本页（同一对象不可能同时属于两页；先判本页让口径自解释）
+            if (Page?.Elements.Contains(element) == true)
+                return false;
+
+            return basePage.Elements.Contains(element);
+        }
+
+        /// <summary>
         /// 图元此刻能不能被编辑（图层锁定与图元锁定是<b>或</b>关系）。
         ///
         /// 判定权整个交给 <see cref="ScadaPage.IsElementEditable"/>，画布自己不再写一遍
         /// <c>!element.IsLocked</c>：唯一口径只有一份（S3-e2 决策 ⑧）。
         /// 传不进画面（纯控件库用法）才退回图元自身的锁。
+        ///
+        /// 基座图元在引用页上一律不可编辑（见 <see cref="IsForeignBaseElement"/>）：
+        /// 这条同时挡住拖动、改尺寸手柄与"锁住"样式——三处读的都是这一个方法。
         /// </summary>
         private bool CanEditElement(ScadaElement element)
-            => Page is { } page ? page.IsElementEditable(element) : !element.IsLocked;
+            => !IsForeignBaseElement(element)
+               && (Page is { } page ? page.IsElementEditable(element) : !element.IsLocked);
 
         /// <summary>
         /// 按当前图层状态重算所有容器的可见性。
         ///
         /// 一个必须记住的语义决定：隐藏图层<b>不</b>把控件从 <c>Children</c> 里摘掉，只置 Collapsed。
-        /// 于是元素层永远是 <see cref="ItemsSource"/> 的全量同步视图
+        /// 于是画布永远是 <see cref="ItemsSource"/> 的全量同步视图
         /// （<see cref="RenderedElementCount"/> == 数据条数），上面那套 Add/Remove/Reset 的同步逻辑
         /// 不必再长出一个"过滤"例外分支。代价是隐藏层的控件仍占可视树；
         /// 换来的是"图层一开，图元立刻回来"——万级图元下"隐藏再显示"若走重建，是一次几百毫秒的白等。
+        ///
+        /// <b>容器图元的两条额外口径</b>：
+        /// ① 装在底板里的子图元也要刷（它们不在元素层的直接子级上，靠索引才枚举得到）；
+        /// ② 底板的可见性只管自己：底板被隐藏时，WPF 的 <c>Collapsed</c> 会让整棵子树都不显示，
+        ///    子图元自己的 Visible 值不需要跟着改——那种"父藏了但子还是 Visible"的状态
+        ///    在 WPF 里是正常的，子图元单独拿出来用时（比如移出底板）立刻就对。
         /// </summary>
         public void ApplyLayerVisibility()
         {
@@ -1165,11 +1607,14 @@ namespace VisionMaster.Scada.Controls
             if (_elementLayer == null)
                 return;
 
+            foreach (var control in _containerIndex.Values)
+                control.RefreshLayerVisibility(); // 走控件自己那条路，判定仍是下面注入的这一份
+
+            // 占位框不是 ScadaElementBase（不进索引），单独扫元素层。
+            // 占位框永远只可能在元素层上：它代表的是"未注册类型"，而能当底板的图元必然是已注册的。
             foreach (var child in _elementLayer.Children)
             {
-                if (child is ScadaElementBase control)
-                    control.RefreshLayerVisibility(); // 走控件自己那条路，判定仍是下面注入的这一份
-                else if (child is FrameworkElement placeholder && placeholder.Tag is ScadaElement element)
+                if (child is FrameworkElement placeholder && placeholder.Tag is ScadaElement element)
                     placeholder.Visibility = IsElementShown(element) ? Visibility.Visible : Visibility.Collapsed;
             }
 
@@ -1349,6 +1794,9 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private void SetSelection(IReadOnlyList<ScadaElement>? items)
         {
+            // 不用在这里规整："不许同时选中底板与其子图元"这条不变式由
+            // SelectedElementsProperty 的 Coerce 回调统一保证（见 CoerceSelectedElements）——
+            // 放在这里只会覆盖这一条路径，而框选、宿主直接赋值都绕过它。
             var next = items ?? Array.Empty<ScadaElement>();
 
             SetCurrentValue(SelectedElementsProperty, next);
@@ -1356,45 +1804,25 @@ namespace VisionMaster.Scada.Controls
         }
 
         /// <summary>
-        /// 把"点中了某一个图元"展开成"真正该选上的那一批"——它在一组里就是整组，否则就是它自己。
+        /// 把"点中了某一个图元"展开成"真正该选上的那一批"——它所在的整组（**不含**子图元）。
         ///
-        /// <b>为什么展开只发生在"点选"这一条路上，不写进 <see cref="SetSelection"/> 内部</b>：
+        /// <b>展开规则本身在领域层</b>（<see cref="ScadaPage.ExpandSelectionCluster"/>）：
+        /// 这里只留一句调用。原先画布与视图模型各有一份私有实现、靠注释约定"逐字对齐"，
+        /// 各写一份就是多处要同步——不同步的表现是"画布认这一批、菜单认另一批"。
+        ///
+        /// <b>为什么不展开底板里的子图元</b>：子图元靠<b>模型级联</b>跟着底板走
+        /// （见 <c>ScadaPage.CascadeContainerMove</c>），把它并进选中集合会让批量写入
+        /// 与级联各推一次 → 双重位移。详见 <see cref="NormalizeSelection"/> 的注释。
+        ///
+        /// <b>展开只发生在"点选"这一条路上，不在 <see cref="SetSelection"/> 内部</b>：
         /// 框选也走 <see cref="SetSelection"/>，而框选的语义是"框住谁就是谁"——
         /// 框住一个组员却把整组拉进来，用户就再也没法用框选只挑出组里的一个。
-        /// 同理 <see cref="PruneSelection"/> 收缩出来的结果也不该被重新撑开。
         ///
         /// <b>被点中的那个排首位</b>：<see cref="SetSelection"/> 拿首项当主选中，
-        /// 属性面板、尺寸手柄、以单目标为准的命令全跟着主选中走。把它排到组内其他成员后面，
-        /// 就会变成"我点的是 B，属性面板显示的是 A"。
-        ///
-        /// 图层隐藏的成员<b>不并进来</b>：与 <see cref="ApplyLayerVisibility"/> 收缩选中用的是同一判据
-        /// （<see cref="IsElementShown"/>）。否则点一下就会把一批看不见的图元顶成选中态，
-        /// 紧接着 Delete 与方向键作用在它们身上，而屏幕上找不到任何线索解释"我这一下动了什么"。
-        /// 锁住的成员<b>照并</b>：单击本来就选得中锁住的图元（只是拖不动），
-        /// 这里若把它们剔掉，同一个组在不同时候会选中不同的人（组里混锁时尤其明显）。
+        /// 属性面板、尺寸手柄、以单目标为准的命令全跟着主选中走。
         /// </summary>
         private IReadOnlyList<ScadaElement> ExpandPointSelection(ScadaElement element)
-        {
-            if (Page is not { } page)
-                return new[] { element };
-
-            var members = page.GetGroupMembers(element);
-
-            if (members.Count <= 1)
-                return new[] { element }; // 未分组，或组里只剩它自己（单成员组与未分组行为等价）
-
-            var expanded = new List<ScadaElement>(members.Count) { element };
-
-            foreach (var member in members)
-            {
-                if (ReferenceEquals(member, element) || !IsElementShown(member))
-                    continue;
-
-                expanded.Add(member);
-            }
-
-            return expanded;
-        }
+            => Page is { } page ? page.ExpandSelectionCluster(element) : new[] { element };
 
         /// <summary>该图元此刻在不在选中集合里</summary>
         private bool IsSelected(ScadaElement element) => ContainsRef(SelectedElements, element);

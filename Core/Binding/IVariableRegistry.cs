@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using Core.Interfaces;
 using VisionMaster.Models;
 
@@ -41,7 +42,11 @@ namespace VisionMaster.Binding
     /// </summary>
     public interface IVariableRegistry
     {
-        /// <summary>索引里的变量总数</summary>
+        /// <summary>
+        /// 索引里的变量总数。
+        /// <b>含系统变量</b>（它统计的是"能解析到多少个变量"）；只要用户变量就自己遍历
+        /// <c>GlobalVariables</c>，本属性不是给"用户变量有多少个"用的。
+        /// </summary>
         int Count { get; }
 
         /// <summary>
@@ -104,6 +109,23 @@ namespace VisionMaster.Binding
         /// 全量重建索引。方案整体切换 / 批量灌入变量后调用。
         /// </summary>
         void Rebuild();
+
+        /// <summary>
+        /// 挂接<b>系统变量</b>集合（派生只读量的第二索引源，见 <c>SystemVariableCatalog</c>）。
+        ///
+        /// 为什么需要第二源而不是把系统变量塞进 <see cref="FindByName"/> 背后的那份用户集合：
+        /// 用户集合会随方案落盘，而系统变量是运行态派生量，绝不能进 <c>.vms</c>。
+        /// 但解析侧（连线编译、监视项、画面绑定）必须"一次查找就能找到两种变量"——
+        /// 让每处消费者自己决定"要不要再查一下系统变量"，必然出现某处忘了查、
+        /// 表现为"画面绑了轴位置却永远不刷新"。
+        ///
+        /// 口径：
+        /// - <b>用户变量优先</b>：同名时用户变量胜出，冲突会记一条诊断（不抛异常，脏数据不该让方案打不开）；
+        /// - <see cref="Count"/> 含系统变量（它统计的是"能解析到多少个变量"）；
+        /// - 幂等：重复传同一个集合是空操作；传 <c>null</c> 表示摘掉系统源（只剩用户变量）。
+        /// </summary>
+        /// <param name="source">系统变量集合（<c>IWorkspaceManager.SystemVariables</c>）；null = 摘掉</param>
+        void AttachSystem(ObservableCollection<IVariable>? source);
 
         /// <summary>
         /// 变量被改名（新名已生效）。订阅方据此刷新依赖该变量的引用与画面绑定。

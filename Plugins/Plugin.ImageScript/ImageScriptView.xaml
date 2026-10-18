@@ -139,7 +139,9 @@
                                             VerticalContentAlignment="Center"
                                             ItemStringFormat="{}{0}"
                                             ItemsSource="{Binding DataContext.ScriptVarTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            SelectedItem="{Binding Type}"
+                                            DisplayMemberPath="Display"
+                                            SelectedValuePath="Value"
+                                            SelectedValue="{Binding Type}"
                                             ToolTip="声明类型" />
                                         <cv:LinkableValueEditor
                                             Grid.Column="2"
@@ -200,7 +202,9 @@
                                             Margin="4,0"
                                             VerticalContentAlignment="Center"
                                             ItemsSource="{Binding DataContext.ScriptVarTypes, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            SelectedItem="{Binding Type}"
+                                            DisplayMemberPath="Display"
+                                            SelectedValuePath="Value"
+                                            SelectedValue="{Binding Type}"
                                             ToolTip="声明类型" />
                                         <!--  图形类输出（HImage/HRegion/HXld/HObject）都有"显示到窗口"下拉  -->
                                         <ComboBox

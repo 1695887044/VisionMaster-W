@@ -32,77 +32,81 @@ namespace VisionMaster.Scada.Controls
     /// 运行时的接法（S6）：把 <see cref="Value"/> 绑到工程变量上，指针就活了。
     /// </summary>
     [TemplatePart(Name = PartValueLabel, Type = typeof(TextBlock))]
-    public class GaugeElement : ScadaElementBase
+    public partial class GaugeElement : ScadaElementBase
     {
         /// <summary>模板部件名：表盘下方的数值文字</summary>
         public const string PartValueLabel = "ValueLabel";
 
-        private static readonly Brush DefaultTrackColor = ScadaBrushes.Frozen("#FF3A3A3A");
-        private static readonly Brush DefaultScaleColor = ScadaBrushes.Frozen("#FF9AA5B1");
-
-        #region 输入
+        // 声明次序 = 属性面板里的行序（生成器按源码次序收集）：数据 → 刻度 → 外观 → 文字，
+        // 与原先手写描述符的分组次序一致。
 
         /// <summary>当前值</summary>
-        public static readonly DependencyProperty ValueProperty = DependencyProperty.Register(
-            nameof(Value), typeof(double), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
+        [ScadaProperty(Key = "Value", DisplayName = "当前值", Kind = ElementPropertyKind.Number,
+                       Group = "数据", DefaultValue = "0", IsBindable = true,
+                       Description = "运行态把工程变量绑到这里；指针角度 = 起始角 + 扫过角 × " +
+                                     "(当前值 − 下限) ÷ (上限 − 下限)，超出量程按两端收敛")]
+        public partial double Value { get; set; }
 
         /// <summary>量程下限</summary>
-        public static readonly DependencyProperty MinimumProperty = DependencyProperty.Register(
-            nameof(Minimum), typeof(double), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
+        [ScadaProperty(Key = "Minimum", DisplayName = "量程下限", Kind = ElementPropertyKind.Number,
+                       Group = "数据", DefaultValue = "0",
+                       Description = "下限不小于上限时指针停在起始角，而不是让非法量程把整页渲染打断")]
+        public partial double Minimum { get; set; }
 
         /// <summary>量程上限</summary>
-        public static readonly DependencyProperty MaximumProperty = DependencyProperty.Register(
-            nameof(Maximum), typeof(double), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(100d, FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
+        [ScadaProperty(Key = "Maximum", DisplayName = "量程上限", Kind = ElementPropertyKind.Number,
+                       Group = "数据", DefaultValue = "100")]
+        public partial double Maximum { get; set; }
 
         /// <summary>数值格式串</summary>
-        public static readonly DependencyProperty ValueFormatProperty = DependencyProperty.Register(
-            nameof(ValueFormat), typeof(string), typeof(GaugeElement),
-            new FrameworkPropertyMetadata("0.#", FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
+        [ScadaProperty(Key = "ValueFormat", DisplayName = "数值格式", Kind = ElementPropertyKind.Text,
+                       Group = "数据", DefaultValue = "0.#",
+                       Description = "标准 .NET 数字格式串（0.0 定一位小数、F2 补零到两位）；" +
+                                     "写错了退回通用格式，不会让画面出错")]
+        public partial string? ValueFormat { get; set; }
 
         /// <summary>单位（跟在数值后面的一小段字）</summary>
-        public static readonly DependencyProperty UnitProperty = DependencyProperty.Register(
-            nameof(Unit), typeof(string), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
+        [ScadaProperty(Key = "Unit", DisplayName = "单位", Kind = ElementPropertyKind.Text,
+                       Group = "数据", DefaultValue = "",
+                       Description = "跟在数值后面的一小段字（MPa / rpm / ℃）；留空则只显数值")]
+        public partial string? Unit { get; set; }
 
         /// <summary>起始角（度，WPF 约定：0° 向右、顺时针为正）</summary>
-        public static readonly DependencyProperty StartAngleProperty = DependencyProperty.Register(
-            nameof(StartAngle), typeof(double), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(135d, FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
+        [ScadaProperty(Key = "StartAngle", DisplayName = "起始角", Kind = ElementPropertyKind.Number,
+                       Group = "刻度", DefaultValue = "135", Min = -360, Max = 360,
+                       Description = "度。0° 指向右（3 点钟方向）、角度顺时针增加，所以 135° 是左下（7 点半）；" +
+                                     "默认 135° 配 270° 缺口落在正下方，正是放读数的地方")]
+        public partial double StartAngle { get; set; }
 
         /// <summary>扫过角度（度；负值表示逆时针）</summary>
-        public static readonly DependencyProperty SweepAngleProperty = DependencyProperty.Register(
-            nameof(SweepAngle), typeof(double), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(270d, FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
+        [ScadaProperty(Key = "SweepAngle", DisplayName = "扫过角", Kind = ElementPropertyKind.Number,
+                       Group = "刻度", DefaultValue = "270", Min = -360, Max = 360,
+                       Description = "度。正数顺时针、负数逆时针，绝对值 360 画整圈；超出 ±360 会收敛（刻度不会绕回来叠在一起）")]
+        public partial double SweepAngle { get; set; }
 
         /// <summary>刻度格数（格数 + 1 = 刻度线根数；0 = 不画刻度）</summary>
-        public static readonly DependencyProperty TickDivisionsProperty = DependencyProperty.Register(
-            nameof(TickDivisions), typeof(int), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(5, FrameworkPropertyMetadataOptions.AffectsRender, OnDialInputChanged));
-
-        /// <summary>是否显示数值</summary>
-        public static readonly DependencyProperty ShowValueProperty = DependencyProperty.Register(
-            nameof(ShowValue), typeof(bool), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(
-                true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowValueChanged));
-
-        #endregion
-
-        #region 外观输入
+        [ScadaProperty(Key = "TickDivisions", DisplayName = "刻度格数", Kind = ElementPropertyKind.Number,
+                       Group = "刻度", DefaultValue = "5", Min = 0, Max = 60,
+                       Description = "格数 + 1 = 刻度线根数（含两端），所以默认 5 格就是 0/20/40/60/80/100 六个读数点；0 = 不画刻度")]
+        public partial int TickDivisions { get; set; }
 
         /// <summary>表盘底色</summary>
-        public static readonly DependencyProperty TrackColorProperty = DependencyProperty.Register(
-            nameof(TrackColor), typeof(Brush), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(DefaultTrackColor, FrameworkPropertyMetadataOptions.AffectsRender));
+        [ScadaProperty(Key = "TrackColor", DisplayName = "盘底色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF3A3A3A",
+                       Description = "表盘面的填充色；浅色画面上要调亮，否则刻度线看不出来")]
+        public partial Brush? TrackColor { get; set; }
 
         /// <summary>刻度色（刻度线与量程弧）</summary>
-        public static readonly DependencyProperty ScaleColorProperty = DependencyProperty.Register(
-            nameof(ScaleColor), typeof(Brush), typeof(GaugeElement),
-            new FrameworkPropertyMetadata(DefaultScaleColor, FrameworkPropertyMetadataOptions.AffectsRender));
+        [ScadaProperty(Key = "ScaleColor", DisplayName = "刻度色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF9AA5B1",
+                       Description = "量程弧与刻度线的颜色；要和盘底色拉开，否则操作员读不出格")]
+        public partial Brush? ScaleColor { get; set; }
 
-        #endregion
+        /// <summary>是否显示数值</summary>
+        [ScadaProperty(Key = "ShowValue", DisplayName = "显示数值", Kind = ElementPropertyKind.Bool,
+                       Group = "文字", DefaultValue = "True",
+                       Description = "关掉只留指针（读数由旁边的数值域承担），一个没有读数的表盘在工业现场几乎没用，所以默认开")]
+        public partial bool ShowValue { get; set; }
 
         #region 推导结果（只读）
 
@@ -174,83 +178,6 @@ namespace VisionMaster.Scada.Controls
             UpdateDial();
         }
 
-        /// <summary>当前值（见 <see cref="ValueProperty"/>）</summary>
-        public double Value
-        {
-            get => (double)GetValue(ValueProperty);
-            set => SetValue(ValueProperty, value);
-        }
-
-        /// <summary>量程下限（见 <see cref="MinimumProperty"/>）</summary>
-        public double Minimum
-        {
-            get => (double)GetValue(MinimumProperty);
-            set => SetValue(MinimumProperty, value);
-        }
-
-        /// <summary>量程上限（见 <see cref="MaximumProperty"/>）</summary>
-        public double Maximum
-        {
-            get => (double)GetValue(MaximumProperty);
-            set => SetValue(MaximumProperty, value);
-        }
-
-        /// <summary>数值格式串（见 <see cref="ValueFormatProperty"/>）</summary>
-        public string? ValueFormat
-        {
-            get => (string?)GetValue(ValueFormatProperty);
-            set => SetValue(ValueFormatProperty, value);
-        }
-
-        /// <summary>单位（见 <see cref="UnitProperty"/>）</summary>
-        public string? Unit
-        {
-            get => (string?)GetValue(UnitProperty);
-            set => SetValue(UnitProperty, value);
-        }
-
-        /// <summary>起始角（见 <see cref="StartAngleProperty"/>）</summary>
-        public double StartAngle
-        {
-            get => (double)GetValue(StartAngleProperty);
-            set => SetValue(StartAngleProperty, value);
-        }
-
-        /// <summary>扫过角度（见 <see cref="SweepAngleProperty"/>）</summary>
-        public double SweepAngle
-        {
-            get => (double)GetValue(SweepAngleProperty);
-            set => SetValue(SweepAngleProperty, value);
-        }
-
-        /// <summary>刻度格数（见 <see cref="TickDivisionsProperty"/>）</summary>
-        public int TickDivisions
-        {
-            get => (int)GetValue(TickDivisionsProperty);
-            set => SetValue(TickDivisionsProperty, value);
-        }
-
-        /// <summary>是否显示数值（见 <see cref="ShowValueProperty"/>）</summary>
-        public bool ShowValue
-        {
-            get => (bool)GetValue(ShowValueProperty);
-            set => SetValue(ShowValueProperty, value);
-        }
-
-        /// <summary>表盘底色（见 <see cref="TrackColorProperty"/>）</summary>
-        public Brush? TrackColor
-        {
-            get => (Brush?)GetValue(TrackColorProperty);
-            set => SetValue(TrackColorProperty, value);
-        }
-
-        /// <summary>刻度色（见 <see cref="ScaleColorProperty"/>）</summary>
-        public Brush? ScaleColor
-        {
-            get => (Brush?)GetValue(ScaleColorProperty);
-            set => SetValue(ScaleColorProperty, value);
-        }
-
         /// <summary>表盘面几何（只读，见 <see cref="FaceGeometryProperty"/>）</summary>
         public Geometry? FaceGeometry => (Geometry?)GetValue(FaceGeometryProperty);
 
@@ -287,13 +214,20 @@ namespace VisionMaster.Scada.Controls
             return double.IsFinite(ratio) ? Math.Clamp(ratio, 0d, 1d) : 0d;
         }
 
-        private static void OnDialInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((GaugeElement)d).UpdateDial();
+        // 八个输入共用同一条副作用（指针角度、刻度几何、读数都要重算）；
+        // TrackColor / ScaleColor 只影响渲染，没有副作用钩子（原手写依赖属性也只挂了 AffectsRender）。
+        partial void OnValuePropertyChanged() => UpdateDial();
+        partial void OnMinimumPropertyChanged() => UpdateDial();
+        partial void OnMaximumPropertyChanged() => UpdateDial();
+        partial void OnValueFormatPropertyChanged() => UpdateDial();
+        partial void OnUnitPropertyChanged() => UpdateDial();
+        partial void OnStartAnglePropertyChanged() => UpdateDial();
+        partial void OnSweepAnglePropertyChanged() => UpdateDial();
+        partial void OnTickDivisionsPropertyChanged() => UpdateDial();
 
         // 「显不显数值」是个纯模板层的开关，但本环境下 ControlTemplate.Triggers 里的 DataTrigger
         // 不触发（见 ScadaElementBase.SetPartVisible），所以由代码翻，模板里也不写 Visibility 初值。
-        private static void OnShowValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((GaugeElement)d).SetPartVisible(PartValueLabel, ((GaugeElement)d).ShowValue);
+        partial void OnShowValuePropertyChanged() => SetPartVisible(PartValueLabel, ShowValue);
 
         private void UpdateDial()
         {

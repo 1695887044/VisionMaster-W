@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -69,6 +70,9 @@ namespace CommChecks
             SerialByteOrderFollowsConfig();
             S7ByteCountFollowsHelperTable();
             FaultedSegmentHealth();
+            PublishFailureIsolation();
+            ValueTimestampPublication();
+            SpanDecodeEquivalence();
             WritePriorityAndBackpressure();
             WaitSchedulingAndLogThrottleKey();
             GapToleranceByTransport();
@@ -1070,6 +1074,178 @@ namespace CommChecks
                 return new bool[count];
             }
         }
+
+        #endregion
+
+        #region C19 轮询派发异常隔离（F1）
+
+        /// <summary>
+        /// <para>F1：<c>PollBatchPlanner</c> 的"解码"与"派发（UpdateValue → 下游订阅者）"必须分开兜底。</para>
+        /// <para>旧实现共用一个 try：下游订阅者（UI 绑定 / SCADA / 报警）抛异常时，值其实已经读到并写进变量，
+        /// 变量却被 <c>MarkUncertain()</c>（UI 黄点"读取失败"）并记一条误导性的"解码失败"日志。</para>
+        /// <para>断言用桩连接 + 一个故意抛异常的 <c>ValueChanged</c> 订阅者，覆盖段读路径（<c>ApplyBytes</c>）。</para>
+        /// </summary>
+        private static void PublishFailureIsolation()
+        {
+            Section("C19 轮询派发异常隔离（F1：下游订阅者抛异常不污染质量戳）");
+
+            var cfg = MakeConfig(1000);
+            var v1 = MakeVar("V1", "", 0);
+            var v2 = MakeVar("V2", "", 1);   // 相邻寄存器 → 与 V1 同段，一次段读覆盖两个变量
+            var logs = new List<string>();
+            var sched = PollScheduler.Create(new[] { v1, v2 }, cfg, logs.Add)!;
+
+            Check("C19-0 前提：两个相邻地址合并为 1 段（同一次段读，异常隔离可对照）",
+                sched.TotalSegments == 1 && sched.TotalFallbacks == 0, sched.Describe());
+
+            v1.ValueChanged += (_, _) => throw new InvalidOperationException("模拟下游订阅者异常");
+
+            using var conn = new FaultyConnection("PLC1", _ => false);
+            sched.ResetAllDue();
+            bool ok = sched.Run(conn);
+
+            Check("C19-1 派发异常不影响 Poll 返回值（通信本身成功，不该触发重连）", ok, $"Run 返回 {ok}");
+            Check("C19-2 派发异常不把变量降级为 Uncertain（值已读到，质量戳必须保持 Good）",
+                v1.Quality == VariableQuality.Good, $"实际 {v1.Quality}");
+            Check("C19-3 值已更新（异常发生在派发阶段，写值先于回调）",
+                v1.CurrentValue is short s && s == 0, $"当前值 {v1.CurrentValue ?? "null"}");
+            Check("C19-4 同段其它变量不受牵连（异常隔离到单个变量）",
+                v2.Quality == VariableQuality.Good && v2.CurrentValue != null,
+                $"V2 质量 {v2.Quality} / 值 {v2.CurrentValue ?? "null"}");
+            Check("C19-5 日志不误报「解码失败」，而是指向下游处理",
+                logs.All(l => !l.Contains("解码失败")) && logs.Any(l => l.Contains("下游处理异常")),
+                string.Join(" || ", logs));
+        }
+
+        #endregion
+
+        #region C20 值与时间戳发布配对（F2）
+
+        /// <summary>
+        /// F2：<c>CommunicationVariable</c> 的值 / 时间戳 / 质量戳跨线程读写必须成对发布。
+        /// <para>旧实现用自动属性：<c>DateTime</c>（8 字节 struct）读写可撕裂，且"值"与"时间戳"之间没有发布顺序，
+        /// UI 会读到"新值 + 旧时间戳"这种不属于同一轮的组合。</para>
+        /// <para>断言：并发写者持续 <c>UpdateValue</c>，读者按"先时间戳、后值"的顺序读——
+        /// 时间戳非默认即必须读到非 null 值（写者先发布值、再写时间戳）。</para>
+        /// </summary>
+        private static void ValueTimestampPublication()
+        {
+            Section("C20 值与时间戳发布配对（F2：并发读不到撕裂组合）");
+
+            var v = new CommunicationVariable();
+            Check("C20-0 初始状态：值 null / 时间戳 default / 质量 Bad",
+                v.CurrentValue == null && v.LastUpdateTime == default && v.Quality == VariableQuality.Bad,
+                $"值 {v.CurrentValue ?? "null"} / 时间戳 {v.LastUpdateTime:O} / 质量 {v.Quality}");
+
+            v.UpdateValue((short)42);
+            Check("C20-1 更新后三项同步可见（值 / 时间戳 / 质量）",
+                v.CurrentValue is short s && s == 42 && v.LastUpdateTime != default && v.Quality == VariableQuality.Good,
+                $"值 {v.CurrentValue ?? "null"} / 时间戳 {v.LastUpdateTime:O} / 质量 {v.Quality}");
+
+            const int rounds = 200_000;
+            var gate = new ManualResetEventSlim(false);
+            bool violated = false;
+
+            var writer = Task.Run(() =>
+            {
+                gate.Wait();
+                for (int i = 0; i < rounds; i++)
+                    v.UpdateValue((short)i);
+            });
+            var reader = Task.Run(() =>
+            {
+                gate.Wait();
+                // 一直读到写者收工：保证采样窗口覆盖整个并发期
+                while (!writer.IsCompleted && !violated)
+                {
+                    var stamp = v.LastUpdateTime;
+                    var value = v.CurrentValue;
+                    if (stamp != default && value == null)
+                        violated = true;
+                }
+            });
+
+            gate.Set();
+            Task.WaitAll(writer, reader);
+
+            Check($"C20-2 并发读写（写 {rounds:N0} 轮）：时间戳非默认 ⇒ 值必非 null（发布配对无撕裂）",
+                !violated, violated ? "抓到「时间戳已更新但值为 null」的撕裂组合" : "未观察到撕裂");
+        }
+
+        #endregion
+
+        #region C21 热路径解码（P-A3）
+
+        /// <summary>
+        /// P-A3：<c>HslHelper</c> 必须提供 <c>ReadOnlySpan&lt;byte&gt;</c> 版解码入口（热路径零中间数组），
+        /// 且新实现与旧实现的解码结果逐值等价（16 位退化、四种字序）。
+        /// </summary>
+        private static void SpanDecodeEquivalence()
+        {
+            Section("C21 热路径解码零分配重载（P-A3：Span 入口 + 行为等价）");
+
+            var helper = typeof(AdvancedCommunicationManager).Assembly
+                .GetType("VisionMaster.Communications.HslHelper", throwOnError: false);
+            Check("C21-0 前提：能定位 internal HslHelper 类型（取不到就红，不静默跳过）",
+                helper != null, helper?.FullName ?? "未找到 VisionMaster.Communications.HslHelper");
+            if (helper == null) return;
+
+            var convertMethods = helper.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            bool hasSpanConvert = convertMethods.Any(m =>
+                m.Name == "ConvertTo"
+                && m.GetParameters().Length == 2
+                && m.GetParameters()[0].ParameterType.IsByRefLike);
+            bool hasSpanByType = convertMethods.Any(m =>
+                m.Name == "ConvertToByType"
+                && m.GetParameters().Length == 3
+                && m.GetParameters()[0].ParameterType.IsByRefLike);
+
+            Check("C21-1 ConvertTo 存在 ReadOnlySpan<byte> 重载（不再 Clone + new byte[]）", hasSpanConvert,
+                string.Join("；", convertMethods.Where(m => m.Name == "ConvertTo").Select(DescribeParams)));
+            Check("C21-2 ConvertToByType 存在 ReadOnlySpan<byte> 重载（段内切片直接解码）", hasSpanByType,
+                string.Join("；", convertMethods.Where(m => m.Name == "ConvertToByType").Select(DescribeParams)));
+
+            // 行为等价：byte[] 重载现在委托给 Span 版，逐值对照手算期望
+            var byType = helper.GetMethod("ConvertToByType",
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+                null, new[] { typeof(byte[]), typeof(Type), typeof(ByteOrderFormat) }, null);
+            Check("C21-3 能取到 byte[] 版 ConvertToByType（行为等价测试入口）",
+                byType != null, byType?.ToString() ?? "null");
+            if (byType == null) return;
+
+            var cases = new (byte[] Wire, ByteOrderFormat Order, Type Type, object Expected)[]
+            {
+                (new byte[] { 0x12, 0x34 }, ByteOrderFormat.ABCD, typeof(short), (short)0x1234),
+                (new byte[] { 0x12, 0x34 }, ByteOrderFormat.BADC, typeof(short), (short)0x3412),
+                (new byte[] { 0x12, 0x34 }, ByteOrderFormat.CDAB, typeof(short), (short)0x1234),   // 16 位退化
+                (new byte[] { 0x12, 0x34 }, ByteOrderFormat.DCBA, typeof(short), (short)0x3412),   // 16 位退化
+                (new byte[] { 0x12, 0x34, 0x56, 0x78 }, ByteOrderFormat.ABCD, typeof(int), 0x12345678),
+                (new byte[] { 0x12, 0x34, 0x56, 0x78 }, ByteOrderFormat.BADC, typeof(int), unchecked((int)0x34127856)),
+                (new byte[] { 0x12, 0x34, 0x56, 0x78 }, ByteOrderFormat.CDAB, typeof(int), 0x56781234),
+                (new byte[] { 0x12, 0x34, 0x56, 0x78 }, ByteOrderFormat.DCBA, typeof(int), unchecked((int)0x78563412)),
+                (new byte[] { 0x3F, 0x80, 0x00, 0x00 }, ByteOrderFormat.ABCD, typeof(float), 1.0f),
+                (new byte[] { 0x00, 0x00, 0x80, 0x3F }, ByteOrderFormat.DCBA, typeof(float), 1.0f),
+            };
+
+            int mismatch = 0;
+            string firstMismatch = string.Empty;
+            foreach (var c in cases)
+            {
+                object? actual = byType.Invoke(null, new object[] { c.Wire, c.Type, c.Order });
+                if (!Equals(actual, c.Expected))
+                {
+                    mismatch++;
+                    if (firstMismatch.Length == 0)
+                        firstMismatch = $"{c.Type.Name}/{c.Order}: 期望 {c.Expected}，实际 {actual ?? "null"}";
+                }
+            }
+
+            Check($"C21-4 解码行为等价：{cases.Length} 组（4 种字序 × short/int/float）逐值一致",
+                mismatch == 0, mismatch == 0 ? "全部一致" : $"{mismatch} 组不一致；首个：{firstMismatch}");
+        }
+
+        private static string DescribeParams(MethodInfo method)
+            => method.Name + "(" + string.Join(", ", method.GetParameters().Select(p => p.ParameterType.Name)) + ")";
 
         #endregion
 

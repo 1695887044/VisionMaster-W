@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -109,6 +109,10 @@
       引用它也让构建顺带把 Plugin.ResultDisplay.dll 刷新到 Modules。
     -->
     <ProjectReference Include="..\Plugins\Plugin.ResultDisplay\Plugin.ResultDisplay.csproj" />
+    <!-- 两个脚本插件：枚举中文闸门要读它们 ScriptVarType 上的 [Display]，
+         必须让编译期拿到类型、运行时程序集在 AppDomain 里（不走 Modules\\ 反射加载）。 -->
+    <ProjectReference Include="..\Plugins\Plugin.CSharpScript\Plugin.CSharpScript.csproj" />
+    <ProjectReference Include="..\Plugins\Plugin.ImageScript\Plugin.ImageScript.csproj" />
   </ItemGroup>
 
   <ItemGroup>

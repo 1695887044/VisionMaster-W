@@ -15,10 +15,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
     ///
     /// 三条口径（与运行态寻址保持一致，避免"选得到却切不过去"这类错位）
     /// ---------
-    /// ① **清单就是可寻址的那一份**：只列当前方案文档的 <c>Pages</c>。
-    ///    运行态 <c>ScadaRuntime.Navigate</c> 背后的寻址正是同一份文档（<c>ScadaDocument.FindPage</c> /
-    ///    <c>FindPageByName</c>），所以这里列出来的每一页，运行时都切得过去；
-    ///    反过来不在清单里的，选了也是白选。
+    /// ① **清单就是可寻址的那一份**：只列当前方案文档里<b>可导航</b>的画面——<c>Pages</c> 减去
+    ///    已注册的基座画面（判据在 <c>ScadaDocument.FindNavigablePage</c> / <c>IsNavigable</c>）。
+    ///    运行态 <c>ScadaRuntime.Navigate</c> 背后的寻址正是同一条判据，所以这里列出来的每一页，
+    ///    运行时都切得过去；反过来不在清单里的，选了也是白选（基座跳过去只是一张没有本页内容的公共层）。
     /// ② **Id 是权威**：确认时回传的是 <c>PageId</c>（外加当时的名字，仅作旧数据兜底与展示）。
     ///    画面改名不会让已配好的动作断链——名字只是"快照"，Id 才是锚点。
     /// ③ **预选走 Id 优先、名字兜底**：与 <c>ScadaRuntime.Navigate</c> 同一顺序
@@ -144,7 +144,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 foreach (var page in document.Pages)
                 {
-                    if (page != null)
+                    // 基座画面不参与跳转（与 ScadaRuntime.Navigate 的寻址口径同源）：
+                    // 它是叠在本页下面的公共层，不是终点。列出来只会让人配一条"点了跳到一张空画面"的动作。
+                    if (page != null && !document.IsBasePage(page))
                         _all.Add(new ScadaPageRow(page, ReferenceEquals(page, startup)));
                 }
             }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Core.Interfaces;
 using Newtonsoft.Json;
@@ -25,7 +26,7 @@ namespace VisionMaster.Services
     ///    指向子树外部的整条删除——粘贴即造悬空引用不如粘贴即过滤（编译期本会报，但不该由粘贴制造）；
     ///    全局变量/常量/运行时变量连线的 TargetStepId 是哨兵值不参与寻址，不受此条影响；
     /// ③ 条件/循环容器的 LocalVariableItem.Id 与 LinkedSources 的 Guid 键子树内重映射
-    ///    （变量键与原步骤不冲突）；
+    ///    （变量键与原步骤不冲突）；等待节点（WaitStep）同样适用；
     /// ④ 根节点按 {模板名}_{同型计数} 口径重命名，撞名递增（内层步骤名保持原样）；
     /// ⑤ [RuntimeState] 运行期字段全部复位——粘贴件不是运行现场。
     ///
@@ -175,7 +176,12 @@ namespace VisionMaster.Services
 
             // ③ 条件/循环容器的变量键重映射（While/Case 都继承 ConditionStep，一并覆盖）
             if (step is ConditionStep condition)
-                RemapLocalVariableKeys(condition);
+                RemapLocalVariableKeys(condition.LocalVariables, condition.RuntimeVariableRefs, condition.LinkedSources);
+            // 等待节点不是 ConditionStep（无子分支），但它同样持有条件变量表——
+            // 漏掉这一支的后果是粘贴件沿用源步骤的变量 Guid：与源步骤的连线键撞车、
+            // 且粘贴件自己的连线键对不上（条件恒取默认值 → 永远等到超时）。
+            else if (step is WaitStep wait)
+                RemapLocalVariableKeys(wait.LocalVariables, wait.RuntimeVariableRefs, wait.LinkedSources);
 
             // ⑤ 运行期复位：粘贴件不是运行现场（State 反序列化可能带出源的终态）
             step.ResetState();
@@ -185,27 +191,36 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 条件容器变量键重映射：LocalVariableItem.Id 换新 Guid，LinkedSources 里以旧 Guid
+        /// 条件变量键重映射：LocalVariableItem.Id 换新 Guid，LinkedSources 里以旧 Guid
         /// 字符串为键的连线同步换键。键口径：ConditionEditorViewModel 写入与 FlowCompiler
         /// 读取都用 <c>Id.ToString()</c>（默认 D 格式，Guid.TryParse 双向兼容）。
+        ///
+        /// 参数化（而不是只吃 ConditionStep）：等待节点（WaitStep）不是 ConditionStep，
+        /// 但持有同构的两份变量表 + LinkedSources，必须走同一条重映射——
+        /// 各写一份的后果是"粘贴等待节点后变量键仍是源步骤的 Guid"（静默串键）。
         /// </summary>
-        private static void RemapLocalVariableKeys(ConditionStep condition)
+        private static void RemapLocalVariableKeys(
+            ObservableCollection<LocalVariableItem> localVariables,
+            ObservableCollection<LocalVariableItem> runtimeVariableRefs,
+            IDictionary<string, LinkReference> links)
         {
             var varMap = new Dictionary<Guid, Guid>();
-            CollectVariableIds(condition.LocalVariables, varMap);
-            CollectVariableIds(condition.RuntimeVariableRefs, varMap);
+            CollectVariableIds(localVariables, varMap);
+            CollectVariableIds(runtimeVariableRefs, varMap);
             if (varMap.Count == 0) return;
 
-            ApplyVariableIds(condition.LocalVariables, varMap);
-            ApplyVariableIds(condition.RuntimeVariableRefs, varMap);
+            ApplyVariableIds(localVariables, varMap);
+            ApplyVariableIds(runtimeVariableRefs, varMap);
 
-            foreach (var kvp in condition.LinkedSources.ToList())
+            if (links == null) return;
+
+            foreach (var kvp in links.ToList())
             {
                 // 端口名键（"In" 等）解析不成 Guid 自然跳过；变量 Guid 键命中映射表才换
                 if (Guid.TryParse(kvp.Key, out var oldKey) && varMap.TryGetValue(oldKey, out var newKey))
                 {
-                    condition.LinkedSources.Remove(kvp.Key);
-                    condition.LinkedSources[newKey.ToString()] = kvp.Value;
+                    links.Remove(kvp.Key);
+                    links[newKey.ToString()] = kvp.Value;
                 }
             }
         }

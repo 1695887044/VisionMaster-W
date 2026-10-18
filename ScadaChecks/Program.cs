@@ -71,7 +71,7 @@ namespace ScadaChecks
     /// 前提与 FlowCanvasChecks 相同：被测代码不得依赖 Application.Current / Dispatcher。
     /// VariablePersistenceService 只做内存集合搬运，控制台进程里可直接调用。
     /// </summary>
-    internal class Program
+    internal partial class Program
     {
         private static int _pass, _fail;
 
@@ -107,7 +107,11 @@ namespace ScadaChecks
             ScadaPersistenceRoundTrip();
             ScadaRenameCascade();
             ElementRegistryChecks();
+            ContainerElementChecks();
+            BasePageChecks();
+            ScadaEditorToolbarChecks();
             ElementControlChecks();
+            AxisPanelChecks();
             DragDropChecks();
             PropertyPanelChecks();
             LayerAndPageChecks();
@@ -2400,8 +2404,9 @@ namespace ScadaChecks
                 "Hmi.Rectangle", "Hmi.Ellipse", "Hmi.Text", "Hmi.Button", "Hmi.BitButton", "Hmi.Indicator",
                 "Hmi.ProgressBar", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
                 "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner", "Hmi.ImageView",
+                "Hmi.Panel", "Hmi.AxisPanel",
             };
-            Check("17 个内置图元全部注册",
+            Check("19 个内置图元全部注册（含容器图元 Hmi.Panel 与轴面板 Hmi.AxisPanel）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -2457,6 +2462,143 @@ namespace ScadaChecks
                 ElementRegistry.All.SelectMany(d => d.Properties)
                     .Where(p => p.Kind == ElementPropertyKind.Choice)
                     .All(p => p.Choices.Count > 0), "");
+
+            // --- 描述符快照：属性面板的行序与默认值 ---
+            //
+            // 为什么需要一张快照对账：描述符的 <c>Properties</c> 顺序就是属性面板的行序
+            // （分组按首现次序排），默认值则是 .vms 没配时兜出来的那个。这两个量改起来太容易了——
+            // 打包助手换个传参次序、[ScadaProperty] 声明换个位置、Rename 换个标签——
+            // 而改坏的后果是<b>静默</b>的：面板行序漂了（老用户的肌肉记忆找不到了）、
+            // 旧画面颜色变了（默认值变了，没配过的图元跟着变样）。这类变化<b>必须</b>经过
+            // 有意的"改快照"这一步，而不是顺手滑进去。
+            //
+            // 快照核对的是 Key 顺序 + DisplayName + DefaultValue 三元组（Kind/Min/Max/Choices
+            // 已由上面各条专项覆盖；TargetProperty 由注册期 Validate 兜底）。
+            string DescriptorSnapshot(ElementDescriptor d)
+                => string.Join(";",
+                    d.Properties.Select(p => $"{p.Key}:{p.DisplayName}={p.DefaultValue}"));
+
+            var expectedSnapshots = new Dictionary<string, string>
+            {
+                ["Hmi.Rectangle"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Fill:填充色=#FFFFFFFF;Stroke:边框色=#FF7A7A7A;StrokeThickness:边框粗细=1;" +
+                    "CornerRadius:圆角=0;Text:文字=;Foreground:文字颜色=#FF202020;FontSize:字号=12",
+                ["Hmi.Ellipse"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Fill:填充色=#FFFFFFFF;Stroke:边框色=#FF7A7A7A;StrokeThickness:边框粗细=1;" +
+                    "Text:文字=;Foreground:文字颜色=#FF202020;FontSize:字号=12",
+                ["Hmi.Text"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Text:内容=文本;Foreground:文字颜色=#FF202020;FontSize:字号=14;" +
+                    "FontWeight:字重=Normal;TextAlignment:水平对齐=Center;VerticalContentAlignment:垂直对齐=Center",
+                ["Hmi.Button"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Text:文字=按钮;Fill:填充色=#FF2D7DD2;Stroke:边框色=#FF1F5C9E;StrokeThickness:边框粗细=1;" +
+                    "CornerRadius:圆角=3;Foreground:文字颜色=#FFFFFFFF;FontSize:字号=12;FontWeight:字重=Normal",
+                ["Hmi.Indicator"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "IsOn:点亮=False;OnColor:点亮色=#FF34C759;OffColor:熄灭色=#FF3A3A3A;Shape:形状=Circle;" +
+                    "Stroke:边框色=#FF5A5A5A;StrokeThickness:边框粗细=1;" +
+                    "Text:标签=;Foreground:标签颜色=#FF202020;FontSize:标签字号=12",
+                ["Hmi.Lamp"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "State:状态=Off;OffColor:熄灭色=#FF3A3A3A;OnColor:点亮色=#FF34C759;" +
+                    "WarningColor:警告色=#FFFFB020;AlarmColor:报警色=#FFE03A2B;Shape:形状=Circle;" +
+                    "Stroke:边框色=#FF5A5A5A;StrokeThickness:边框粗细=1;" +
+                    "Text:标签=;Foreground:标签颜色=#FF202020;FontSize:标签字号=12;FontWeight:标签字重=Normal",
+                ["Hmi.Clock"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Format:格式=yyyy-MM-dd HH:mm:ss;Interval:刷新节拍=1;" +
+                    "Text:标签=;Foreground:文字颜色=#FF202020;FontSize:字号=16;" +
+                    "FontWeight:字重=SemiBold;TextAlignment:水平对齐=Center",
+
+                // 下面 11 个是"存量图元迁移到 [ScadaProperty]"那一批的锚点。
+                // 它们的描述符现在是「生成器收集（私有属性）+ 打包助手（基类外观）」两段拼出来的，
+                // 行序 = 声明次序 + 打包传参次序——两处任一改动都会静默改掉面板行序。
+                ["Hmi.BitButton"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Mode:模式=按下ON;IsOn:读变量=False;OutputInvert:输出反向=False;" +
+                    "OnText:状态1文字=;OffText:状态0文字=;" +
+                    "OnFill:状态1背景=#FF2D7DD2;OffFill:状态0背景=#FF4A5568;" +
+                    "OnForeground:状态1文字色=#FFFFFFFF;OffForeground:状态0文字色=#FFFFFFFF;" +
+                    "Text:文字=按钮;FontSize:字号=12;FontWeight:字重=Normal;" +
+                    "Stroke:边框色=#FF1F5C9E;StrokeThickness:边框粗细=1;CornerRadius:圆角=3",
+                ["Hmi.ProgressBar"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Value:当前值=0;Minimum:量程下限=0;Maximum:量程上限=100;ValueFormat:数值格式=0.#;" +
+                    "Orientation:走向=Horizontal;TrackColor:空槽色=#FF3A3A3A;ShowValue:显示数值=True;" +
+                    "Fill:填充色=#FF2D7DD2;Stroke:边框色=#FF5A5A5A;StrokeThickness:边框粗细=1;CornerRadius:圆角=2;" +
+                    "Foreground:数值颜色=#FFFFFFFF;FontSize:数值字号=11;FontWeight:数值字重=Bold",
+                ["Hmi.IOField"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Value:数值=0;ValueFormat:数值格式=0.##;Unit:单位=;Mode:模式=Output;FormatType:格式类型=Decimal;" +
+                    "Gain:增益=1;Offset:偏移量=0;HasMinimum:启用下限=False;Minimum:下限=0;" +
+                    "UnderMinColor:下限以下颜色=#FFFB8C00;HasMaximum:启用上限=False;Maximum:上限=100;" +
+                    "OverMaxColor:上限以上颜色=#FFE53935;" +
+                    "Text:说明字=;Foreground:文字颜色=#FF202020;FontSize:字号=14;FontWeight:字重=Normal;" +
+                    "TextAlignment:数值对齐=Right;Fill:填充色=#FFFFFFFF;Stroke:边框色=#FF7A7A7A;" +
+                    "StrokeThickness:边框粗细=1;CornerRadius:圆角=2",
+                ["Hmi.Gauge"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Value:当前值=0;Minimum:量程下限=0;Maximum:量程上限=100;ValueFormat:数值格式=0.#;Unit:单位=;" +
+                    "StartAngle:起始角=135;SweepAngle:扫过角=270;TickDivisions:刻度格数=5;" +
+                    "TrackColor:盘底色=#FF3A3A3A;ScaleColor:刻度色=#FF9AA5B1;ShowValue:显示数值=True;" +
+                    "Fill:指针色=#FFE03A2B;Stroke:外圈色=#FF5A5A5A;StrokeThickness:外圈粗细=1;" +
+                    "Foreground:数值颜色=#FFFFFFFF;FontSize:数值字号=13;FontWeight:数值字重=SemiBold;" +
+                    "TextAlignment:数值对齐=Center",
+                ["Hmi.Valve"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Opening:开度=0;OpeningFormat:开度格式=0.#;" +
+                    "TrackColor:空腔色=#FF3A3A3A;ThrottleColor:中间位色=#FF2F80ED;OpenColor:全开色=#FF34C759;" +
+                    "ShowValue:显示开度=True;Stroke:轮廓色=#FF5A5A5A;StrokeThickness:轮廓粗细=1;" +
+                    "Text:位号=;Foreground:文字颜色=#FFFFFFFF;FontSize:字号=12;FontWeight:字重=SemiBold",
+                ["Hmi.Pump"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "State:状态=Stopped;TrackColor:泵壳色=#FF3A3A3A;StoppedColor:停机色=#FF7A7A7A;" +
+                    "RunningColor:运行色=#FF34C759;FaultColor:故障色=#FFE03A2B;" +
+                    "Stroke:轮廓色=#FF5A5A5A;StrokeThickness:轮廓粗细=1;" +
+                    "Text:位号=;Foreground:文字颜色=#FF202020;FontSize:字号=12;FontWeight:字重=SemiBold",
+                ["Hmi.Motor"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "State:状态=Stopped;TrackColor:机身色=#FF3A3A3A;StoppedColor:停机色=#FF7A7A7A;" +
+                    "RunningColor:运行色=#FF34C759;FaultColor:故障色=#FFE03A2B;" +
+                    "Stroke:轮廓色=#FF5A5A5A;StrokeThickness:轮廓粗细=1;" +
+                    "Text:位号=;Foreground:文字颜色=#FF202020;FontSize:字号=12;FontWeight:字重=SemiBold",
+                ["Hmi.Pipe"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "State:流动状态=Stopped;TrackColor:管身色=#FF3A3A3A;StoppedColor:停流色=#FF7A7A7A;" +
+                    "RunningColor:流动色=#FF34C759;FaultColor:异常色=#FFE03A2B;Direction:流向=LeftToRight;" +
+                    "Stroke:管壁色=#FF5A5A5A;StrokeThickness:管壁粗细=1",
+                ["Hmi.AlarmBanner"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "MaxRows:最多显示=5;EmptyText:无报警提示=系统正常;" +
+                    "NormalColor:正常色=#FF34C759;InfoColor:提示色=#FF3B82F6;" +
+                    "WarningColor:警告色=#FFFFB020;CriticalColor:严重色=#FFE03A2B;" +
+                    "Fill:底色=#FFFFFFFF;Stroke:边框色=#FF7A7A7A;StrokeThickness:边框粗细=1;CornerRadius:圆角=4;" +
+                    "Text:标题=实时报警;Foreground:文字色=#FF202020;FontSize:字号=12;FontWeight:字重=SemiBold",
+                ["Hmi.Panel"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "TitleText:标题=;TitleHeight:标题栏高度=24;" +
+                    "TitleFill:标题栏底色=#FF2D3748;TitleForeground:标题文字色=#FFFFFFFF;" +
+                    "Fill:填充色=#FF1E2530;Stroke:边框色=#FF3A4455;StrokeThickness:边框粗细=1;CornerRadius:圆角=3",
+                ["Hmi.ImageView"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Source:图像=;Stretch:缩放方式=Uniform;PlaceholderText:无图提示=无图像;" +
+                    "Fill:底色=#00FFFFFF;Stroke:边框色=#FF7A7A7A;StrokeThickness:边框粗细=1;CornerRadius:圆角=0",
+            };
+
+            foreach (var (typeKey, expected) in expectedSnapshots)
+            {
+                var actual = ElementRegistry.Find(typeKey) is { } descriptor
+                    ? DescriptorSnapshot(descriptor)
+                    : "(未注册)";
+
+                // 明细里给出第一处差异的位置，红的时候不用逐字对
+                Check($"描述符快照一致：{typeKey} 的行序与默认值（属性面板布局的回归锚点）",
+                    actual == expected,
+                    actual == expected ? "" : FirstDiff(expected, actual));
+            }
 
             // 候选是落盘值（Circle、Output 这类英文），面板要显示中文——译名在 ScadaChoiceNames 那张
             // 全局词汇表里。判据取"纯 ASCII"：候选本来就是中文的（位按钮的模式：置位/复位/取反）天然通过，
@@ -2526,10 +2668,669 @@ namespace ScadaChecks
         }
 
         // ==================================================================
+        //  [G] 源生成器契约：一处 [ScadaProperty] 声明产出 DP + 包装 + 描述符
+        // ==================================================================
+        /// <summary>
+        /// 生成器是"静默失效"型机制——生成没生效时编译照样过，只是属性少一个、
+        /// 面板少一行、绑定引擎找不到它。所以它的产出必须由断言逐项钉住：
+        /// 形状（DP 存在且类型对）、默认值（解析成了正确对象且冻结）、描述符条目（键/分组/边界齐）、
+        /// 钩子（值变化后被调到）、继承收集（基类的属性也收得到）。
+        ///
+        /// 探针图元是 <c>GeneratorProbeElement</c>（internal、不进工具箱、不注册），
+        /// 它的唯一职责就是让"生成器坏了"在常规构建里立刻可见。
+        /// </summary>
+        private static void GeneratorContractChecks()
+        {
+            Section("[G] [ScadaProperty] 源生成器契约（探针图元）");
+
+            var controlType = typeof(VisionMaster.Scada.Controls.ScadaElementBase).Assembly
+                .GetType("VisionMaster.Scada.Controls.GeneratorProbeElement");
+
+            Check("生成器的探针图元存在（生成器没生效时它连类型都凑不齐）",
+                controlType != null, controlType?.FullName ?? "(找不到 GeneratorProbeElement)");
+
+            if (controlType is null)
+                return;
+
+            // ① 依赖属性：名字、类型、默认值都必须由生成器产出
+            var colorField = controlType.GetField("ProbeColorProperty");
+            var sizeField = controlType.GetField("ProbeSizeProperty");
+            var shapeField = controlType.GetField("ProbeShapeProperty");
+
+            Check("生成器产出依赖属性字段（ProbeColorProperty / ProbeSizeProperty / ProbeShapeProperty）",
+                colorField != null && sizeField != null && shapeField != null,
+                $"color={colorField != null} size={sizeField != null} shape={shapeField != null}");
+
+            if (colorField?.GetValue(null) is not System.Windows.DependencyProperty colorProp
+                || sizeField?.GetValue(null) is not System.Windows.DependencyProperty sizeProp
+                || shapeField?.GetValue(null) is not System.Windows.DependencyProperty shapeProp)
+            {
+                Check("依赖属性字段能取出 DependencyProperty 实例", false, "字段取值不是 DependencyProperty");
+                return;
+            }
+
+            Check("依赖属性的类型按属性声明生成（Brush / double / IndicatorShape）",
+                colorProp.PropertyType == typeof(System.Windows.Media.Brush)
+                && sizeProp.PropertyType == typeof(double)
+                && shapeProp.PropertyType == typeof(VisionMaster.Scada.Controls.IndicatorShape),
+                $"{colorProp.PropertyType.Name} / {sizeProp.PropertyType.Name} / {shapeProp.PropertyType.Name}");
+
+            // ② 默认值：字符串 → 目标类型，且 Freezable 必须冻结
+            var defaultColor = colorProp.DefaultMetadata.DefaultValue;
+            var isFrozenBrush = defaultColor is System.Windows.Media.SolidColorBrush brush && brush.IsFrozen;
+            Check("颜色型默认值解析成已冻结的画刷（未冻结会被实例间互相改色）",
+                isFrozenBrush,
+                defaultColor is System.Windows.Media.SolidColorBrush b
+                    ? $"#{b.Color.A:X2}{b.Color.R:X2}{b.Color.G:X2}{b.Color.B:X2} frozen={b.IsFrozen}"
+                    : $"{defaultColor?.GetType().Name ?? "null"}");
+
+            Check("数值型默认值按字符串解析（\"3\" → 3.0）",
+                Equals(sizeProp.DefaultMetadata.DefaultValue, 3d),
+                $"{sizeProp.DefaultMetadata.DefaultValue}");
+
+            Check("枚举型默认值按成员名解析（Square → IndicatorShape.Square）",
+                Equals(shapeProp.DefaultMetadata.DefaultValue, VisionMaster.Scada.Controls.IndicatorShape.Square),
+                $"{shapeProp.DefaultMetadata.DefaultValue}");
+
+            // ③ 描述符条目：由生成器收集器按继承链收集
+            var collected = VisionMaster.Scada.Controls.ScadaPropertyCatalog.Collect(controlType);
+
+            Check("生成器产出描述符条目（键齐、值取自特性参数）",
+                collected.Count == 3
+                && collected.Any(p => p.Key == "ProbeColor" && p.DisplayName == "探针颜色"
+                                      && p.Kind == VisionMaster.Scada.Controls.ElementPropertyKind.Color
+                                      && p.IsBindable)
+                && collected.Any(p => p.Key == "ProbeSize" && p.Min == 0 && p.Max == 20)
+                && collected.Any(p => p.Key == "ProbeShape" && p.Choices.Count == 2),
+                string.Join("、", collected.Select(p => $"{p.Key}({p.Kind})")));
+
+            Check("描述符条目的 TargetProperty 指向生成出来的那个依赖属性（不是手写的另一份）",
+                collected.All(p => p.TargetProperty != null)
+                && collected.First(p => p.Key == "ProbeColor").TargetProperty == colorProp
+                && collected.First(p => p.Key == "ProbeSize").TargetProperty == sizeProp,
+                "");
+
+            Check("生成器按继承链收集：子类能收到基类声明的属性（StateVisualElement 那类中间基类靠它）",
+                VisionMaster.Scada.Controls.ScadaPropertyCatalog
+                    .Collect(typeof(VisionMaster.Scada.Controls.ScadaElementBase)).Count == 0,
+                "基类自己不带 [ScadaProperty]，应为空表");
+
+            // ④ 钩子：值变化后必须被调到；同值不写时不调（与 SetValue 的等值语义一致）
+            var instance = Activator.CreateInstance(controlType);
+            var colorClr = controlType.GetProperty("ProbeColor")!;
+            var sizeClr = controlType.GetProperty("ProbeSize")!;
+            var countProp = controlType.GetProperty("ColorChangeCount")!;
+
+            colorClr.SetValue(instance, System.Windows.Media.Brushes.Red);
+            int afterChange = (int)countProp.GetValue(instance)!;
+
+            Check("生成的钩子在值变化后被调到一次",
+                afterChange == 1, $"ColorChangeCount={afterChange}");
+
+            colorClr.SetValue(instance, System.Windows.Media.Brushes.Red);
+            int afterSame = (int)countProp.GetValue(instance)!;
+
+            Check("同值写入不触发钩子（与依赖属性 SetValue 的等值语义一致）",
+                afterSame == afterChange, $"写同值后 ColorChangeCount={afterSame}");
+
+            // ⑤ 反证：生成器不是"照抄属性名"——Key 与属性名不同也能正确落盘
+            var descriptor = collected.First(p => p.Key == "ProbeSize");
+            Check("属性袋键取自特性的 Key（可以与属性名不同，这是改属性名不丢配置的前提）",
+                descriptor.Key == "ProbeSize" && sizeClr.Name == "ProbeSize",
+                $"Key={descriptor.Key} / 属性名={sizeClr.Name}");
+        }
+
+        // ==================================================================
+        //  [C] 容器图元：父子归属（模型层 + 选中簇展开 + 剪贴板槽位）
+        // ==================================================================
+        /// <summary>
+        /// 容器图元（底板）的模型层语义。这里只测<b>不需要 WPF 可视树</b>的那部分——
+        /// 画布上的挂载/裁剪/跟随由渲染探针覆盖，本段保证"归属关系本身"与
+        /// "选中簇展开"这两条既有产品语义正确（它们是所有编辑动作的基础）。
+        /// </summary>
+        private static void ContainerElementChecks()
+        {
+            Section("[C] 容器图元：父子归属与选中簇展开");
+
+            var page = new ScadaPage { Name = "容器页" };
+
+            var panel = ElementRegistry.CreateElement("Hmi.Panel", 100, 200);
+            var child = ElementRegistry.CreateElement("Hmi.Rectangle", 140, 260);
+            var outside = ElementRegistry.CreateElement("Hmi.Rectangle", 500, 500);
+            var inner = ElementRegistry.CreateElement("Hmi.Text", 160, 300);
+
+            page.TryAddElement(panel, out _);
+            page.TryAddElement(child, out _);
+            page.TryAddElement(outside, out _);
+            page.TryAddElement(inner, out _);
+
+            Check("新建图元默认在顶层（ParentId 为空）",
+                panel.ParentId == Guid.Empty && child.ParentId == Guid.Empty, "");
+
+            // ① 装进底板
+            Check("把两个图元装进底板",
+                page.TrySetParent(panel, new[] { child, inner }, out var dockError), dockError);
+
+            Check("装入后 ParentId 指向底板的 ElementId",
+                child.ParentId == panel.ElementId && inner.ParentId == panel.ElementId,
+                $"{child.ParentId} / {panel.ElementId}");
+
+            Check("未参与的图元不受影响",
+                outside.ParentId == Guid.Empty, $"{outside.ParentId}");
+
+            Check("GetChildElements 取到直接子图元（不含顶层图元）",
+                page.GetChildElements(panel).Count == 2
+                && page.GetChildElements(panel).Contains(child)
+                && !page.GetChildElements(panel).Contains(outside),
+                string.Join("、", page.GetChildElements(panel).Select(e => e.Name)));
+
+            // ② 坐标仍是画面绝对坐标（这是对齐/分布/微调等六条既有路径不用改的前提）
+            Check("子图元坐标仍存画面绝对坐标（不因装入底板而变）",
+                Math.Abs(child.X - 140) < 1e-9 && Math.Abs(child.Y - 260) < 1e-9,
+                $"({child.X}, {child.Y})");
+
+            // ③ 一层限制：底板不能再装进底板
+            var panel2 = ElementRegistry.CreateElement("Hmi.Panel", 10, 10);
+            page.TryAddElement(panel2, out _);
+
+            Check("底板不能再装进另一只底板（一层限制）",
+                !page.TrySetParent(panel2, new[] { panel }, out var nestError) && nestError.Length > 0,
+                nestError);
+
+            // ④ 自引用必须被拒（否则渲染侧父子判定会绕圈）
+            Check("不能把底板装进它自己",
+                !page.TrySetParent(panel, new[] { panel }, out _), "");
+
+            // ⑤ 幂等：重复装入不产生第二次写入
+            int versionBefore = page.Version;
+            page.TrySetParent(panel, new[] { child }, out _);
+            Check("重复装入同一子图元是空操作（不产生改动）",
+                page.Version == versionBefore, $"Version {versionBefore} → {page.Version}");
+
+            // ⑥ 移出底板
+            Check("把子图元移出底板",
+                page.TryClearParent(new[] { child }, out _), "");
+            Check("移出后回到顶层",
+                child.ParentId == Guid.Empty && inner.ParentId == panel.ElementId,
+                $"child={child.ParentId} inner={inner.ParentId}");
+
+            int versionBeforeNoop = page.Version;
+            page.TryClearParent(new[] { outside }, out _);
+            Check("移出本来就在顶层的图元是空操作",
+                page.Version == versionBeforeNoop, "");
+
+            // ⑦ 选中簇：点底板只选中底板自己（子图元靠"底板联动"跟随，不进选中集合）
+            child.ParentId = panel.ElementId; // 装回去
+            var cluster = page.ExpandSelectionCluster(panel);
+
+            Check("点中底板时只选中底板自己（子图元不进选中集合，见 ExpandSelectionCluster 的注释）",
+                cluster.Count == 1 && ReferenceEquals(cluster[0], panel),
+                string.Join("、", cluster.Select(e => e.Name)));
+
+            Check("点中底板里的子图元时也不会把底板反向拉进选中",
+                !page.ExpandSelectionCluster(child).Contains(panel), "");
+
+            // ⑧ 底板联动：底板挪多少，子图元挪多少（所有写 X/Y 的路径一次覆盖）
+            double childX = child.X;
+            double childY = child.Y;
+
+            panel.X += 50;
+            panel.Y += 30;
+
+            Check("底板联动：底板挪动时子图元跟着挪同样的位移",
+                Math.Abs(child.X - (childX + 50)) < 1e-9 && Math.Abs(child.Y - (childY + 30)) < 1e-9,
+                $"底板 ({panel.X}, {panel.Y}) / 子图元 ({child.X}, {child.Y})，期望 ({childX + 50}, {childY + 30})");
+
+            Check("底板联动：不在底板里的图元不受牵连",
+                outside.X == 500 && outside.Y == 500, $"({outside.X}, {outside.Y})");
+
+            // ⑨ 撤销/重做回放时不联动：回放会把父与子各自的旧值分别写回，
+            //    那时再联动一次就是同一段位移推两遍。
+            //    <b>走真实撤销路径</b>而不是直接调挂起 API——这条断言的目的是
+            //    "用户按 Ctrl+Z 之后画面回到按下之前"，那就该按 Ctrl+Z 来验。
+            ScadaEditHistory.Clear();
+
+            double beforeUndoPanelX = panel.X;
+            double beforeUndoChildX = child.X;
+
+            using (panel.BeginEdit("移动底板"))
+            {
+                panel.X += 100; // 联动会把子图元也推 +100
+            }
+
+            Check("底板联动的位移与底板一起落进同一条撤销记录（一次拖动仍是一条）",
+                ScadaEditHistory.UndoCount == 1
+                && Math.Abs(child.X - (beforeUndoChildX + 100)) < 1e-9,
+                $"撤销栈 {ScadaEditHistory.UndoCount} 条 / 子图元 X={child.X}");
+
+            ScadaEditHistory.Undo();
+
+            Check("撤销一步之后底板与子图元都回到原位（回放不重复联动，否则子图元会多退一段）",
+                Math.Abs(panel.X - beforeUndoPanelX) < 1e-9
+                && Math.Abs(child.X - beforeUndoChildX) < 1e-9,
+                $"底板 X={panel.X}（期望 {beforeUndoPanelX}）/ 子图元 X={child.X}（期望 {beforeUndoChildX}）");
+
+            ScadaEditHistory.Redo();
+
+            Check("重做一步同样正确（父与子各自按记录写回，联动不再叠加一次）",
+                Math.Abs(panel.X - (beforeUndoPanelX + 100)) < 1e-9
+                && Math.Abs(child.X - (beforeUndoChildX + 100)) < 1e-9,
+                $"底板 X={panel.X} / 子图元 X={child.X}");
+
+            ScadaEditHistory.Undo();
+
+            // ⑩ 分组 + 选中簇：同组的成员仍会被一起选中（分组语义没被容器改动影响）
+            page.TryGroupElements(new[] { child, outside }, out _);
+            var mixed = page.ExpandSelectionCluster(child);
+
+            Check("选中簇仍按分组展开（同组的即使不在底板里也并进来）",
+                mixed.Contains(outside), string.Join("、", mixed.Select(e => e.Name)));
+
+            // ⑪ 悬空归属：底板被删后，子图元仍在本画面（按顶层渲染，数据不丢）
+            page.TryRemoveElement(panel, out _);
+
+            Check("底板被删后子图元仍在画面上（悬空归属不清理，数据不丢）",
+                page.FindElement(child.ElementId) != null && child.ParentId == panel.ElementId,
+                $"child.ParentId={child.ParentId}");
+
+            // 底板已不在本画面上 → 它的 X 变更不再通知任何人（订阅已随移除摘掉），
+            // 于是子图元不会被一段"来自画面外的位移"推着走。
+            double orphanX = child.X;
+            panel.X += 70;
+
+            Check("已移出画面的底板不再联动（订阅随移除摘掉，不会有幽灵位移）",
+                Math.Abs(child.X - orphanX) < 1e-9,
+                $"子图元 X={child.X}，期望 {orphanX}");
+        }
+
+        // ==================================================================
+        //  [B] 基座画面：跨页共享的公共层（模型层 + 画布合成）
+        // ==================================================================
+        /// <summary>
+        /// 基座（母版）的模型语义：引用、注册、环检测、降级、实时传导。
+        /// 画布层的合成渲染（基座压底 + 本页在上 + 数据泵接到基座图元）由渲染段单验。
+        /// </summary>
+        private static void BasePageChecks()
+        {
+            // 撤销栈是静态的，跨段不清会串味：上一段（容器）留了一条记录，
+            // 这里的"引用又改回来"会被那条记录一并撤销。
+            ScadaEditHistory.Clear();
+
+            Section("[B] 基座画面：引用 / 实时传导 / 环检测 / 降级");
+
+            var doc = new ScadaDocument();
+            var basePage = doc.AddPage("公共层");
+            var pageA = doc.AddPage("产线A");
+            var pageB = doc.AddPage("产线B");
+
+            // ① 注册：普通画面 → 基座
+            Check("普通画面注册为基座",
+                doc.TryAddBasePage(basePage, out _), "");
+
+            Check("注册后出现在基座集合里（编辑态下拉框的候选源）",
+                doc.BasePages.Contains(basePage), "");
+
+            Check("重复注册是幂等的（不产第二条）",
+                doc.TryAddBasePage(basePage, out _) && doc.BasePages.Count == 1, "");
+
+            // ② 引用：两页指向同一只基座
+            Check("产线A 引用基座",
+                doc.TrySetBasePage(pageA, basePage, out _), "");
+
+            Check("产线B 也引用同一只基座（一份基座、多页共享）",
+                doc.TrySetBasePage(pageB, basePage, out _),
+                "");
+
+            Check("两页的 BasePageId 都指向同一只基座",
+                pageA.BasePageId == basePage.PageId && pageB.BasePageId == basePage.PageId, "");
+
+            // ③ 实时传导：改基座一次，两页都跟着变（这是"实时引用"的核心承诺）
+            basePage.Background = "#FF203040";
+            Check("改基座的背景，两页都看到新值（基座改一次、全部页面生效）",
+                pageA.ResolveBase(doc)?.Background == "#FF203040"
+                && pageB.ResolveBase(doc)?.Background == "#FF203040",
+                $"A={pageA.ResolveBase(doc)?.Background} / B={pageB.ResolveBase(doc)?.Background}");
+
+            // ④ 一层限制：基座不能再引用基座（渲染侧只合成两层，链上第二层会被静默丢掉）
+            var base2 = doc.AddPage("另一个基座");
+            doc.TryAddBasePage(base2, out _);
+
+            Check("基座再引用基座被拒（一层限制：渲染只合成两层，链上第二层会被静默丢掉）",
+                !doc.TrySetBasePage(basePage, base2, out var nestedError)
+                && basePage.BasePageId == Guid.Empty
+                && nestedError.Contains("一层"),
+                nestedError);
+
+            Check("已引用基座的画面不能再注册为基座（同一不变量的另一个入口，只拦一边就是静默故障）",
+                !doc.TryAddBasePage(pageA, out var addNestedError) && addNestedError.Contains("一层"),
+                addNestedError);
+
+            Check("环引用被拒（两页互相引用在结构上不可能：只有非基座才能引用基座）",
+                !doc.TrySetBasePage(pageA, pageB, out var cycleError) && cycleError.Length > 0,
+                cycleError);
+
+            Check("自引用被拒（基座引用它自己）",
+                !doc.TrySetBasePage(basePage, basePage, out var selfError) && selfError.Length > 0,
+                selfError);
+
+            // ⑤ 降级：基座摘除后，引用它的页面按"无基座"降级（不崩、不丢本页内容）
+            Check("摘除基座后引用字段不清理（数据留着，撤销能找回来）",
+                doc.TryRemoveBasePage(basePage, out _) && pageA.BasePageId == basePage.PageId, "");
+
+            Check("降级渲染：引用字段悬空时 ResolveBase 返回 null，画面按无基座照常显示",
+                pageA.ResolveBase(doc) == null, "");
+
+            // ⑥ 重新注册并重新挂上（撤销回滚的另一半）
+            bool reAddOk = doc.TryAddBasePage(basePage, out var reAddError);
+
+            bool reSetOk = doc.TrySetBasePage(pageA, basePage, out var reSetError);
+            var reResolved = pageA.ResolveBase(doc);
+            Check("重新注册 + 重新引用后，画面又看到基座（撤销回滚没有把数据弄丢）",
+                reAddOk && reSetOk && reResolved != null && reResolved.Background == "#FF203040",
+                $"reAdd={reAddOk} addErr={reAddError} reSet={reSetOk} setErr={reSetError} "
+                + $"ResolveBase={(reResolved == null ? "null" : reResolved.Background)}");
+
+            // ⑦ 未注册的画面不能被引用
+            var notRegistered = doc.AddPage("普通页");
+            Check("未注册的画面不能被设为基座（基座必须先注册进 BasePages）",
+                !doc.TrySetBasePage(pageB, notRegistered, out var notRegError) && notRegError.Length > 0,
+                notRegError);
+
+            // ⑧ 新建页面默认沿用当前页的基座（编辑态的常态）
+            var pageC = doc.AddPage("产线C", basePage.PageId);
+            Check("新建画面带上指定基座（AddPage 重载）",
+                pageC.BasePageId == basePage.PageId, "");
+
+            // ⑨ 导航口径：基座是公共层、不是终点（判据只在 FindNavigablePage / IsNavigable 一处）
+            Check("基座不参与导航寻址：按 Id 找不到它，普通页照常找得到",
+                doc.FindNavigablePage(basePage.PageId) == null
+                && ReferenceEquals(doc.FindNavigablePage(pageA.PageId), pageA), "");
+
+            Check("基座不参与导航寻址：按名也找不到它",
+                doc.FindNavigablePageByName("公共层") == null, "");
+
+            var startupBefore = doc.StartupPageId;
+            doc.SetStartupPage(basePage);
+            Check("基座不能当启动画面（设了等于没设，启动画面仍是原值）",
+                doc.StartupPageId == startupBefore,
+                $"{doc.StartupPageId:N} / 原值 {startupBefore:N}");
+
+            // ⑩ 运行态：投影、拒绝跳转、回落跳过、钩子只对本页
+            var navDoc = new ScadaDocument();
+            var navBase = navDoc.AddPage("公共层");
+            var navA = navDoc.AddPage("A 产线");
+            var navB = navDoc.AddPage("B 产线");
+            navDoc.TryAddBasePage(navBase, out _);
+            navDoc.TrySetBasePage(navA, navBase, out _);
+            navDoc.TrySetBasePage(navB, navBase, out _);
+
+            // 基座上配两条画面级钩子：它们**不该**随引用页的加载/卸载被触发（基座不是"被打开的画面"）。
+            // 本页也配一条 Loaded，作为"钩子确实会响"的对照——否则基座那 0 次可能只是"钩子机制没跑"。
+            navBase.AddEventHook(ScadaEventType.Loaded).Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
+            navBase.AddEventHook(ScadaEventType.Unloaded).Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
+            navA.AddEventHook(ScadaEventType.Loaded).Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
+
+            Check("没指定启动画面时回落第一页要跳过基座（否则一按运行先看到一张孤零零的公共层）",
+                ReferenceEquals(navDoc.ResolveStartupPage(), navA),
+                navDoc.ResolveStartupPage()?.Name ?? "null");
+
+            var navRt = new ScadaRuntime(navDoc);
+            int baseNotices = 0;
+            var pageEvents = new List<string>();
+            navRt.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ScadaRuntime.CurrentBasePage))
+                    baseNotices++;
+            };
+            navRt.PageEventRaised += (p, h) => pageEvents.Add($"{h.Event}:{p.Name}");
+
+            navRt.Start();
+
+            Check("运行态把当前页的基座投影出来（画布靠它合成两棵树）",
+                ReferenceEquals(navRt.CurrentBasePage, navBase), navRt.CurrentBasePage?.Name ?? "null");
+
+            // 宿主在首帧画完后把 Loaded 报进来（Start 自己不发）；基座永远不是 CurrentPage，
+            // 所以它的画面级钩子不可能被触发——这正是"公共层"与"被打开的画面"的分界线。
+            navRt.RaisePageEvent(navA, ScadaEventType.Loaded);
+            var firedOnBase = navRt.RaisePageEvent(navBase, ScadaEventType.Loaded);
+
+            Check("基座的画面级钩子不随引用页触发（基座是公共层，不是被打开的画面）",
+                firedOnBase == 0 && pageEvents.Count == 1 && pageEvents[0] == "Loaded:A 产线",
+                $"基座命中 {firedOnBase} 次 / 事件 {string.Join("|", pageEvents)}");
+
+            Check("跳到基座画面被拒，并给出专属原因（不能报「方案里没有叫 X 的画面」——它明明在列表里）",
+                !navRt.Navigate(navBase.PageId, "公共层", out var baseReason)
+                && baseReason == "目标画面是基座画面（公共层），不能作为跳转目标"
+                && ReferenceEquals(navRt.CurrentPage, navA),
+                baseReason ?? "null");
+
+            Check("按对象跳基座同样被拒（页面级动作拿到基座引用也不该切过去）",
+                !navRt.Navigate(navBase) && ReferenceEquals(navRt.CurrentPage, navA), "");
+
+            var noticesBefore = baseNotices;
+            Check("切到另一页：CurrentBasePage 重新投影并发通知（画布要跟着换基座）",
+                navRt.Navigate(navB)
+                && ReferenceEquals(navRt.CurrentBasePage, navBase)
+                && baseNotices > noticesBefore,
+                $"{navRt.CurrentBasePage?.Name ?? "null"} / 通知 {baseNotices - noticesBefore} 次");
+
+            // 运行中也能改方案：把上一页改成基座，回退必须跳过它
+            navDoc.TrySetBasePage(navA, null, out _);
+            navDoc.TryAddBasePage(navA, out _);
+            Check("运行中某页被改成基座：回退跳过它（不把人送到一张没有本页内容的画面上）",
+                !navRt.GoBack() && ReferenceEquals(navRt.CurrentPage, navB),
+                $"{navRt.CurrentPage?.Name ?? "null"} / 栈 {navRt.PageStackDepth}");
+
+            navRt.Stop();
+
+            // ⑪ 删除画面 = 连带摘掉基座登记（否则被删的画面仍能被引用），撤销两边一起恢复
+            ScadaEditHistory.Clear();
+
+            var delDoc = new ScadaDocument();
+            var delBase = delDoc.AddPage("要删的基座");
+            var delPage = delDoc.AddPage("引用页");
+            delDoc.TryAddBasePage(delBase, out _);
+            delDoc.TrySetBasePage(delPage, delBase, out _);
+
+            Check("注册基座可撤销（撤销后不再出现在候选里）",
+                delDoc.TryRemoveBasePage(delBase, out _) && ScadaEditHistory.UndoCount > 0,
+                $"撤销栈 {ScadaEditHistory.UndoCount} 条");
+
+            ScadaEditHistory.Undo();
+            Check("撤销一次把基座登记恢复回来（撤销不是只回退引用字段）",
+                delDoc.IsBasePage(delBase) && ReferenceEquals(delPage.ResolveBase(delDoc), delBase), "");
+
+            Check("删除基座画面成功（方案还剩一页，允许删）",
+                delDoc.TryRemovePage(delBase, out var delError), delError);
+
+            Check("删掉的画面同时从基座集合摘除（否则它仍能被引用、下拉框里留一条幽灵候选）",
+                !delDoc.IsBasePage(delBase) && delDoc.BasePages.Count == 0,
+                $"基座 {delDoc.BasePages.Count} 条");
+
+            Check("降级：基座画面被删后引用页按「无基座」照常显示（引用字段留着，数据不丢）",
+                delPage.BasePageId == delBase.PageId && delPage.ResolveBase(delDoc) == null, "");
+
+            ScadaEditHistory.Undo();
+            Check("撤销一次把画面与基座登记一起恢复（同一条记录里两件事）",
+                delDoc.Pages.Contains(delBase) && delDoc.IsBasePage(delBase)
+                && ReferenceEquals(delPage.ResolveBase(delDoc), delBase),
+                $"画面在={delDoc.Pages.Contains(delBase)} / 基座在={delDoc.IsBasePage(delBase)}");
+        }
+
+        // ==================================================================
+        //  [T] 编辑器顶栏：标签 / 基座下拉 / 新建分裂按钮（视觉验收）
+        // ==================================================================
+        /// <summary>
+        /// 把编辑器顶栏真装一遍并出图。
+        ///
+        /// 为什么值得单开一段：顶栏是纯 XAML 布局，<b>编译期全绿、逻辑断言一条都碰不到它</b>——
+        /// "两个并排的下拉框分不清哪个是基座""三个文字按钮里最容易误点的是删除"这类问题
+        /// 只有真渲染出来才看得见（用户就是这么发现的）。
+        ///
+        /// 视图引用了 App 级的 <c>{StaticResource Icon}</c>，所以必须确认在无 Application 的
+        /// 断言宿主里也能解析；解析不了会当场抛 XamlParseException，那本身就是一条要修的红。
+        /// </summary>
+        private static void ScadaEditorToolbarChecks()
+        {
+            Section("[T] 编辑器顶栏：标签、基座下拉、新建分裂按钮");
+
+            Exception? failure = null;
+
+            var thread = new Thread(() =>
+            {
+                try { RunScadaEditorToolbarChecks(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            thread.Join();
+
+            if (failure != null)
+                Check("顶栏渲染全程未抛异常（视图引用的资源都能解析）", false, failure.ToString());
+        }
+
+        private static void RunScadaEditorToolbarChecks()
+        {
+            var workspace = new WorkspaceContext();
+
+            var doc = new ScadaDocument();
+            var basePage = doc.AddPage("基座_1");
+            doc.TryAddBasePage(basePage, out _);
+            var page = doc.AddPage("画面_1", basePage.PageId);
+
+            var solution = new SolutionModel { Scada = doc };
+            workspace.SwitchSolution(solution);
+
+            var vm = new ScadaEditorVM(workspace, new FakeRuntimeHost());
+            vm.Activate();
+            vm.SelectedPage = page; // 停在引用页上：基座下拉这时是可选的（基座页上会置灰）
+
+            // 视图带 prism:ViewModelLocator.AutoWireViewModel="True"，而它的 VM 没有无参构造：
+            // 直接 new 会在 XAML 初始化期抛 MissingMethodException。注册一个工厂让 AutoWire 用现成实例
+            // （与 ScadaPropertyView / ScadaVariablePickerView 两处同一手法）。
+            ViewModelLocationProvider.Register<VisionMaster.Views.ScadaEditorView>(() => vm);
+
+            var view = new VisionMaster.Views.ScadaEditorView();
+            var host = new Border { Width = 1280, Height = 140, Child = view };
+            host.Measure(new Size(1280, 140));
+            host.Arrange(new Rect(0, 0, 1280, 140));
+            host.UpdateLayout();
+
+            Check("顶栏给两个下拉框各配了标签（画面 / 基座）——没有标签时两个并排的下拉框分不清谁是谁",
+                FindVisual<TextBlock>(view, t => t.Text == "画面") != null
+                && FindVisual<TextBlock>(view, t => t.Text == "基座") != null, "");
+
+            var newMenuButton = FindVisual<Button>(view, b => b.Name == "NewMenuButton");
+            var menu = newMenuButton?.ContextMenu;
+
+            Check("「新建」右侧有下拉按钮，菜单里是「新建画面 / 新建基座」两项",
+                menu != null && menu.Items.Count == 2,
+                menu != null
+                    ? string.Join("、", menu.Items.OfType<MenuItem>().Select(i => i.Header))
+                    : "找不到 NewMenuButton 或它的菜单");
+
+            // 菜单不在可视树上，DataContext 靠 `PlacementTarget.DataContext` 那条 Self 绑定拿；
+            // 而 PlacementTarget 要等"真正弹出"才有值——所以先手动给上，再验命令是否接上。
+            // 这一步也是**打开菜单的真实前提**：漏了它，菜单项就是一排灰的（Command 为 null）。
+            // 绑定引擎把目标值刷到 UI 线程是排队的，所以给完要泵一下 Dispatcher（真机上它一直在跑）。
+            if (newMenuButton != null && menu != null)
+            {
+                menu.PlacementTarget = newMenuButton;
+                PumpDispatcher(60);
+            }
+
+            Check("下拉按钮的菜单项都绑到了命令（菜单不是摆设）",
+                menu != null && menu.Items.OfType<MenuItem>().All(i => i.Command != null),
+                menu == null
+                    ? "没有菜单"
+                    : string.Join("、", menu.Items.OfType<MenuItem>().Select(i => $"{i.Header}:{i.Command != null}")));
+
+            Check("基座下拉在引用页上可用（置灰只发生在编辑基座自己那一页时）",
+                vm.CanSelectBasePage && vm.SelectedBasePage?.Page == basePage,
+                $"CanSelectBasePage={vm.CanSelectBasePage} / 选中={vm.SelectedBasePage?.Name}");
+
+            vm.SelectedPage = basePage;
+
+            Check("编辑基座自己那一页时基座下拉置灰（一层限制：基座不能再引用基座）",
+                !vm.CanSelectBasePage, $"CanSelectBasePage={vm.CanSelectBasePage}");
+
+            vm.SelectedPage = page;
+
+            string dir = Path.Combine(AppContext.BaseDirectory, "artifacts");
+            Directory.CreateDirectory(dir);
+
+            var frame = RenderToBitmap(host, 1280, 140);
+            string png = Path.Combine(dir, "scada-editor-toolbar.png");
+            SavePng(frame, png);
+            Console.WriteLine($"        （顶栏证据：{png}）");
+
+            // 必须摘干净：`Activate()` 订阅了**静态**的 ScadaEditHistory.Changed，
+            // 而本探针跑在自己的 STA 线程上。不摘的话，后面任何一段改模型都会回调到这里，
+            // 顺着 WPF 绑定摸到一条已经没人泵的 Dispatcher —— 后面几段会集体抛
+            // "调用线程无法访问此对象"（2026-10-18 实测，一次连红三段）。
+            vm.Deactivate();
+        }
+
+        // ==================================================================
+        //  [V] 曲线图元库：注册入口必须被调到
+        // ==================================================================
+        /// <summary>
+        /// 曲线图元在<b>另一个程序集</b>里，跨程序集的类型静态构造不会因为"引用了 DLL"就跑，
+        /// 所以它不像内置图元那样自动注册——必须显式调 <c>ScadaChartElements.Register()</c>。
+        /// 忘了调的表现是"工具箱里少一个曲线图元"，<b>不报任何错</b>，
+        /// 所以这条断言是那句话唯一的守门人（与 AGENTS.md 里"产物陈旧"那族同一性质）。
+        /// </summary>
+        private static void ChartElementChecks()
+        {
+            Section("[V] 曲线图元库：显式注册与描述符");
+
+            VisionMaster.Scada.Controls.Charts.ScadaChartElements.Register();
+
+            Check("显式注册曲线图元库（忘了调 = 工具箱里没有曲线，且不报错）",
+                VisionMaster.Scada.Controls.Charts.ScadaChartElements.Errors.Count == 0,
+                string.Join(" | ", VisionMaster.Scada.Controls.Charts.ScadaChartElements.Errors));
+
+            Check("Hmi.ChartTrend 已注册进图元注册表",
+                ElementRegistry.IsRegistered("Hmi.ChartTrend"), "");
+
+            var chart = ElementRegistry.Find("Hmi.ChartTrend");
+
+            // Validate 是 internal，走注册表的公开全量复检——它对本图元同样生效
+            Check("曲线图元描述符通过注册期自检（几何键齐全、默认值可转）",
+                chart != null && !ElementRegistry.ValidateAll().Any(e => e.Contains("Hmi.ChartTrend")),
+                string.Join(" | ", ElementRegistry.ValidateAll()));
+
+            Check("曲线图元声明了「数值」并标可绑（这是它的唯一数据入口）",
+                chart?.Properties.Any(p => p.Key == "Value" && p.IsBindable) == true,
+                string.Join("、", chart?.Properties.Select(p => p.Key) ?? Array.Empty<string>()));
+
+            Check("曲线图元的属性来自源生成器（非几何属性全部带 TargetProperty）",
+                chart != null && chart.Properties.Where(p => !p.IsGeometry).All(p => p.TargetProperty != null),
+                "");
+
+            Check("重复调用注册是安全的（幂等，不报重复注册错）",
+                RunIdempotentChartRegister(), "");
+
+            // 二次反证：注册表里的曲线类型能被真正实例化（CS0102 那类生成缺陷会在这里暴露）
+            var control = ElementRegistry.CreateControl(ElementRegistry.CreateElement("Hmi.ChartTrend"));
+            Check("曲线图元能按 TypeKey 造出控件实例",
+                control is VisionMaster.Scada.Controls.Charts.ChartTrendElement,
+                control.GetType().Name);
+        }
+
+        private static bool RunIdempotentChartRegister()
+        {
+            var before = ElementRegistry.All.Count;
+            VisionMaster.Scada.Controls.Charts.ScadaChartElements.Register();
+            return ElementRegistry.All.Count == before
+                   && VisionMaster.Scada.Controls.Charts.ScadaChartElements.Errors.Count == 0;
+        }
+
+        // ==================================================================
         //  [S] 图元控件层：描述符 → 控件 → 依赖属性（在独立 STA 线程内执行）
         // ==================================================================
-        private static void ElementControlChecks()
-        {
+        private static void ElementControlChecks()        {
             Section("[S] 图元控件层：模型 → 控件 → 依赖属性");
 
             Exception? failure = null;
@@ -2538,7 +3339,18 @@ namespace ScadaChecks
             // 既满足 WPF 的房间要求，也不必把 Main 标成 STAThread 去改变 S0/S1 断言的既有运行环境。
             var thread = new Thread(() =>
             {
-                try { RunElementControlChecks(); }
+                try
+                {
+                    RunElementControlChecks();
+
+                    // 生成器契约也在这里跑：它要实例化一个图元控件（探针）来验钩子，
+                    // 而 Control 的构造函数要求 WPF 的房间。放同一个 STA 线程而不是新起一个，
+                    // 是为了让"图元控件层"这一族断言在日志里聚在一处，失败时不用满屏找。
+                    GeneratorContractChecks();
+
+                    // 曲线图元同理：注册 + 造控件实例都要 WPF 房间（ChartView 里有 DispatcherTimer）。
+                    ChartElementChecks();
+                }
                 catch (Exception ex) { failure = ex; }
             });
             thread.SetApartmentState(ApartmentState.STA);
@@ -4421,7 +5233,7 @@ namespace ScadaChecks
             var picker = new FakeVariablePicker();
             var pagePicker = new FakePagePicker();
             var flowPicker = new FakeFlowPicker();
-            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker, flowPicker);
+            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker, flowPicker, new FakeAxisPicker());
 
             static int Total(ScadaPropertyVM vm) => vm.Groups.Sum(g => g.Rows.Count);
 
@@ -4655,22 +5467,15 @@ namespace ScadaChecks
                 eventRow.Actions!.Count == 1 && eventRow.Actions[0].Text == "甲",
                 $"{eventRow.Actions.Count} 条 / 剩「{eventRow.Actions[0].Text}」");
 
-            Check("类型下拉六项与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话",
-                eventRow.ActionTypeChoices.Count == 6
-                && eventRow.ActionTypeChoices.Select(o => o.Type).Distinct().Count() == 6
+            Check("类型下拉与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话",
+                eventRow.ActionTypeChoices.Count == Enum.GetValues<ScadaActionType>().Length
+                && eventRow.ActionTypeChoices.Select(o => o.Type).Distinct().Count() == eventRow.ActionTypeChoices.Count
                 && eventRow.ActionTypeChoices.Select(o => o.DisplayName).SequenceEqual(
-                    new[] { ScadaActionType.Log, ScadaActionType.WriteVariable, ScadaActionType.Navigate,
-                            ScadaActionType.StartFlow, ScadaActionType.StopFlow, ScadaActionType.RunFlowOnce }
-                        .Select(t => t.DisplayName())),
+                    Enum.GetValues<ScadaActionType>().Select(t => t.DisplayName())),
                 string.Join("/", eventRow.ActionTypeChoices.Select(o => o.DisplayName)));
 
-            Check("六条动作现在都已接通（S6 写变量、S8 切换画面、流程启停三条），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
-                new ScadaAction { Type = ScadaActionType.Log }.PendingReason == null
-                && new ScadaAction { Type = ScadaActionType.WriteVariable }.PendingReason == null
-                && new ScadaAction { Type = ScadaActionType.Navigate }.PendingReason == null
-                && new ScadaAction { Type = ScadaActionType.StartFlow }.PendingReason == null
-                && new ScadaAction { Type = ScadaActionType.StopFlow }.PendingReason == null
-                && new ScadaAction { Type = ScadaActionType.RunFlowOnce }.PendingReason == null
+            Check("十五条动作现在都已接通（含 2026-10-18 追加的九条运动命令），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
+                Enum.GetValues<ScadaActionType>().All(t => new ScadaAction { Type = t }.PendingReason == null)
                 && new ScadaAction { Type = (ScadaActionType)99 }.PendingReason == "本版本不认识该动作",
                 new ScadaAction { Type = ScadaActionType.Navigate }.PendingReason ?? "null");
 
@@ -4912,8 +5717,8 @@ namespace ScadaChecks
 
             var menu = editor.BuildElementContextMenu();
 
-            Check("右键菜单十三栏且次序冻结：图层 + 叠放次序（标题带当前位次）+ 对齐与分布 + 等尺寸 + 等间距 + 对齐网格 + 复制 + 粘贴 + 再制 + 存为模板… + 锁定/解锁 + 组合/取消组合 + 删除图元（删除放末尾，免得误点）",
-                menu.Count == 13 && menu[0].Name == "图层"
+            Check("右键菜单十五栏且次序冻结：图层 + 叠放次序（标题带当前位次）+ 对齐与分布 + 等尺寸 + 等间距 + 对齐网格 + 复制 + 粘贴 + 再制 + 存为模板… + 锁定/解锁 + 组合/取消组合 + 放入底板 + 移出底板 + 删除图元（删除放末尾，免得误点）",
+                menu.Count == 15 && menu[0].Name == "图层"
                 && menu[1].Name.StartsWith("叠放次序（", StringComparison.Ordinal)
                 && menu[2].Name == "对齐与分布"
                 && menu[3].Name == "等尺寸"
@@ -4925,7 +5730,9 @@ namespace ScadaChecks
                 && menu[9].Name == "存为模板…"
                 && (menu[10].Name == "锁定图元" || menu[10].Name == "解锁图元")
                 && (menu[11].Name == "组合" || menu[11].Name == "取消组合")
-                && menu[12].Name == "删除图元",
+                && menu[12].Name == "放入底板"
+                && menu[13].Name == "移出底板"
+                && menu[14].Name == "删除图元",
                 string.Join(" / ", menu.Select(m => m.Name)));
 
             Check("前五栏是分组项：各带图标、自己不执行任何动作，点开才见子项",
@@ -5796,7 +6603,7 @@ namespace ScadaChecks
             var pageUnloadRow = (ScadaEventRow)Row("Event.1");
 
             Check("画面事件清单长出的行落在「运行」组（与「启动画面」同处），图元事件另有「事件」组——分组是宿主清单给的，不是写死在行里",
-                panel.Groups.Single(g => g.Name == "运行").Rows.Count == 1 + ScadaPageEvents.All.Count
+                panel.Groups.Single(g => g.Name == "运行").Rows.Count == 2 + ScadaPageEvents.All.Count
                 && pageLoadedRow.Group == ScadaPageEvents.Group
                 && ScadaEventRow.ElementGroup == "事件",
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
@@ -5977,36 +6784,69 @@ namespace ScadaChecks
                     $"间隙 {gapAbove:0.#}px（编辑器底 {hostEditor.Bottom:0.#} / 带顶 {chipRect.Top:0.#}）");
             }
 
-            // ƒx：同一颗按钮两种状态。绑过的是蓝的、没绑的是灰的——这里既看视觉树上的 Foreground，
-            // 也看画面上有没有那片蓝，两头都钉住才算"用户真的看见蓝了"。
+            // 绑定按钮：同一颗按钮两种状态。绑过的是实心主色 + 白链、没绑的是白底灰链——
+            // 这里既看视觉树上的底/图标色，也看画面上有没有那片蓝，两头都钉住才算"用户真的看见蓝了"。
+            // 定位锚点用 Tag 而不是 Content：内容已经从文字 ƒx 换成了链接图标（矢量 Path），
+            // 按 Content 找按钮会静默返回 null，断言会变成"什么都没验到还全绿"。
             var boundFx = FindVisual<Button>(view,
-                b => Equals(b.Content, "ƒx") && (b.DataContext as ScadaPropertyRowBase)?.Key == "IsOn");
+                b => Equals(b.Tag, "BindVariable") && (b.DataContext as ScadaPropertyRowBase)?.Key == "IsOn");
             var freeFx = FindVisual<Button>(view,
-                b => Equals(b.Content, "ƒx") && (b.DataContext as ScadaPropertyRowBase)?.Key == "OnColor");
+                b => Equals(b.Tag, "BindVariable") && (b.DataContext as ScadaPropertyRowBase)?.Key == "OnColor");
 
-            Check("绑过那行的 ƒx 转成蓝色 SemiBold（一眼看出这行的值已被变量接管）",
-                boundFx?.Foreground is SolidColorBrush bf && SameColor(bf.Color, "#FF2A6BB5")
-                && boundFx!.FontWeight == FontWeights.SemiBold,
-                boundFx == null ? "找不到 ƒx" : ColorName((boundFx.Foreground as SolidColorBrush)?.Color ?? Colors.Transparent));
-            Check("没绑那行的 ƒx 仍是灰色常态（不是所有行都亮成蓝色）",
-                freeFx?.Foreground is SolidColorBrush ff && SameColor(ff.Color, "#FF909399")
-                && freeFx!.FontWeight != FontWeights.SemiBold,
-                freeFx == null ? "找不到 ƒx" : ColorName((freeFx.Foreground as SolidColorBrush)?.Color ?? Colors.Transparent));
+            Check("绑过那行的绑定按钮是实心主色底 + 白图标（一眼看出这行的值已被变量接管）",
+                boundFx?.Background is SolidColorBrush bf && SameColor(bf.Color, "#FF3B82F6")
+                && boundFx!.Foreground is SolidColorBrush bfg && SameColor(bfg.Color, "#FFFFFFFF"),
+                boundFx == null
+                    ? "找不到绑定按钮"
+                    : $"底={ColorName((boundFx.Background as SolidColorBrush)?.Color ?? Colors.Transparent)} / 图标={ColorName((boundFx.Foreground as SolidColorBrush)?.Color ?? Colors.Transparent)}");
+            Check("没绑那行的绑定按钮仍是白底灰链（不是所有行都亮成蓝色）",
+                freeFx?.Background is SolidColorBrush ff && SameColor(ff.Color, "#FFFFFFFF")
+                && freeFx!.Foreground is SolidColorBrush ffg && SameColor(ffg.Color, "#FF66708A"),
+                freeFx == null
+                    ? "找不到绑定按钮"
+                    : $"底={ColorName((freeFx.Background as SolidColorBrush)?.Color ?? Colors.Transparent)} / 图标={ColorName((freeFx.Foreground as SolidColorBrush)?.Color ?? Colors.Transparent)}");
 
             if (boundFx != null && freeFx != null)
             {
                 var boundRect = BoundsIn(boundFx, view);
                 var freeRect = BoundsIn(freeFx, view);
-                Check("蓝的 ƒx 在画面上真的画出来了（那一格里采得到 #FF2A6BB5）",
-                    HasColorIn(shot, boundRect, "#FF2A6BB5", 90), RectText(boundRect));
-                Check("灰的 ƒx 那一格里采不到蓝（对照组成立，否则上一条可能只是别处漏过来的颜色）",
-                    !HasColorIn(shot, freeRect, "#FF2A6BB5", 90), RectText(freeRect));
+                Check("实心的那颗绑定按钮在画面上真的画出来了（那一格里采得到 #FF3B82F6）",
+                    HasColorIn(shot, boundRect, "#FF3B82F6", 90), RectText(boundRect));
+                Check("白底那颗绑定按钮那一格里采不到蓝（对照组成立，否则上一条可能只是别处漏过来的颜色）",
+                    !HasColorIn(shot, freeRect, "#FF3B82F6", 90), RectText(freeRect));
             }
 
             // 留证据图供人眼复核（不参与判定）：属性面板整幅的样子——行距、分组、变量带与 ƒx 的配色。
             string shotDir = Path.Combine(AppContext.BaseDirectory, "artifacts");
             Directory.CreateDirectory(shotDir);
             SavePng(shot, Path.Combine(shotDir, "scada-property-panel.png"));
+
+            // 同一张面板还有第二种形态：没选中图元时列的是"画面"属性（分组更多，而且
+            // 「启动画面」这种 Bool 行与「加载完成/卸载」这种事件行混在同一组里）。
+            // 这张图专门留给排版复核——Bool 行改成"整行可点的勾选框"之后，
+            // 同一分组里的几条基线是否真的收成一条，只有画面形态看得全。
+            {
+                var keepSelection = editor.SelectedElement;
+                editor.SelectedElement = null;   // 触发 Rebuild：面板切到画面模式
+
+                var pageView = new ScadaPropertyView { DataContext = panel };
+                //  量两轮：分组体的模板容器（Expander 的 ContentPresenter、事件行那个 UserControl）
+                //  是第一轮 Arrange 里才实例化的，只量一轮得到的高度会比最终内容矮一截——
+                //  出图上就是"面板画到一半突然断了，下面一条透明带"，看着像布局坏了。
+                pageView.Measure(new Size(260, double.PositiveInfinity));
+                pageView.Arrange(new Rect(0, 0, 260, Math.Ceiling(Math.Max(1, pageView.DesiredSize.Height))));
+                pageView.UpdateLayout();
+
+                pageView.Measure(new Size(260, double.PositiveInfinity));
+                int pageShotH = (int)Math.Ceiling(Math.Max(1, pageView.DesiredSize.Height));
+                pageView.Arrange(new Rect(0, 0, 260, pageShotH));
+                pageView.UpdateLayout();
+
+                SavePng(RenderToBitmap(pageView, 260, pageShotH),
+                    Path.Combine(shotDir, "scada-property-page-panel.png"));
+
+                editor.SelectedElement = keepSelection;   // 还原：后面几节还要按图元行取参
+            }
 
             // ---- ⑪B 右键菜单的"长相"：描述翻成控件之后，图标/勾选/判灰/子菜单都还在 ----
             //
@@ -6136,9 +6976,9 @@ namespace ScadaChecks
             var spacingMenu = BuildMenu(menuDesc[4].Children);
 
             var headerItems = headerMenu.Items.OfType<MenuItem>().ToList();
-            Check("顶层十三栏都翻成了控件：前五栏是分组项（各有子项、自己不带命令），第六栏起是叶子项"
-                + "（对齐网格 + 剪贴板三件 + 存模板 + 锁定 + 组合 + 删除）",
-                headerItems.Count == 13
+            Check("顶层十五栏都翻成了控件：前五栏是分组项（各有子项、自己不带命令），第六栏起是叶子项"
+                + "（对齐网格 + 剪贴板三件 + 存模板 + 锁定 + 组合 + 放入/移出底板 + 删除）",
+                headerItems.Count == 15
                 && headerItems.All(m => m.Icon is string icon && icon.Length > 0)
                 && headerItems.Take(5).All(m => m.Items.Count > 0 && m.Command == null)
                 && headerItems[0].Items.Count == menuDesc[0].Children.Count
@@ -8363,13 +9203,306 @@ namespace ScadaChecks
                 SameColor(Sample(frame, DesignToViewport(pipe.X + pipeInset + pipeWidth * 3 / 8, pipeCy)), "#FF3A3A3A"),
                 ColorName(Sample(frame, DesignToViewport(pipe.X + pipeInset + pipeWidth * 3 / 8, pipeCy))));
 
-            // ---------------- ③ 留一份证据图，供人眼复核（不参与判定） ----------------
+            // ---------------- ②-4 容器图元：嵌套 / 裁剪 / 坐标换算 ----------------
+            //
+            // 容器图元的三条语义都只有"真画一遍"才验得了，而且三条都有各自的静默失效形态：
+            // ① 子图元确实装进了底板（没装进去 = 子图元照样铺在画面上，看起来"没生效"）；
+            // ② 超出底板边界的子图元被裁掉（不裁 = 溢出到隔壁区域，现场最难发现的画错）；
+            // ③ 子图元的位置换算减了底板坐标（不减 = 子图元整体偏一个底板位置，
+            //    画面看着"乱了一块"，而模型里的坐标全是对的）。
+            //
+            // 采样点全用<b>画面绝对坐标</b>算——这正是"内部用绝对坐标"这条设计的检验：
+            // 断言写的坐标与模型里写的是同一套，不必关心它渲染时被减了多少。
 
+            var containerPanel = AddRenderElement(page, layer, "Hmi.Panel", 1200, 200, 300, 200);
+            containerPanel.SetProperty("TitleText", "站1");
+            containerPanel.SetProperty("TitleHeight", "24");
+            containerPanel.SetProperty("Fill", "#FF1E2530");
+
+            // 底板里放一个椭圆：位置在底板内（相对左上角 (60,70)）
+            var insideChild = AddRenderElement(page, layer, "Hmi.Ellipse", 1260, 270, 60, 60);
+            insideChild.SetProperty("Fill", "#FF34C759");
+            page.TrySetParent(containerPanel, new[] { insideChild }, out _);
+
+            // 再放一个"一半在底板里、一半在底板外"的椭圆：用来验裁剪。
+            // 它的左半边该看得见，右半边该被切掉（露出底板底色或画面底色）。
+            var clippingChild = AddRenderElement(page, layer, "Hmi.Ellipse", 1450, 300, 80, 60);
+            clippingChild.SetProperty("Fill", "#FFE03A2B");
+            page.TrySetParent(containerPanel, new[] { clippingChild }, out _);
+
+            // 重建画布：父子关系是在模型上改的，第一份 host 是在改之前造的。
+            // 真实路径上"装入底板"会让已渲染的画布自动重挂（见 ScadaCanvas 的 ParentChanged 订阅），
+            // 这里另起一个实例是为了顺带验"打开一个已经存好的画面"那条路——两条路都要对。
+            host = NewCanvas();
+            host.Width = viewportW;
+            host.Height = viewportH;
+            host.Style = (Style)theme[typeof(ScadaCanvas)];
+            host.ApplyTemplate();
+
+            host.Measure(new Size(viewportW, viewportH));
+            host.Arrange(new Rect(0, 0, viewportW, viewportH));
+            host.UpdateLayout();
+
+            // 缩放与取景在<b>布局之后</b>设，与第一份 host 的次序一致：
+            // 画布有个"首次布局自动居中"的单向闩锁，先设 Offset 会被它在布局里覆盖掉
+            // （实测 Offset 变成 (16,84)），而采样点全按 DesignToViewport（Zoom=0.4、Offset=0）
+            // 反推——镜头偏了六条断言全红，真正的原因却是探针没对准。
+            host.Zoom = 0.4;
+            host.Offset = new Point(0, 0);
+            host.UpdateLayout();
+
+            frame = RenderToBitmap(host, (int)viewportW, (int)viewportH);
+
+            Check("底板：底色被真的画上（300×200 那块区域采到底板深蓝灰）",
+                SameColor(Sample(frame, DesignToViewport(containerPanel.X + 250, containerPanel.Y + 150)), "#FF1E2530"),
+                ColorName(Sample(frame, DesignToViewport(containerPanel.X + 250, containerPanel.Y + 150))));
+
+            Check("底板：标题栏底色被真的画上（顶边那一条是更深的标题色）",
+                SameColor(Sample(frame, DesignToViewport(containerPanel.X + 250, containerPanel.Y + 12)), "#FF2D3748"),
+                ColorName(Sample(frame, DesignToViewport(containerPanel.X + 250, containerPanel.Y + 12))));
+
+            // ① 嵌套：子图元画在底板里，采样点用它的画面绝对坐标算（圆心）
+            Check("底板：装进去的子图元被真的画上（位置按画面绝对坐标算，说明减掉底板偏移的换算对了）",
+                SameColor(Sample(frame, DesignToViewport(insideChild.X + 30, insideChild.Y + 30)), "#FF34C759"),
+                ColorName(Sample(frame, DesignToViewport(insideChild.X + 30, insideChild.Y + 30))));
+
+            // ② 裁剪：这个椭圆宽 80、左边缘在 1450，而底板右边缘在 1500
+            //    → 底板内的那 50 宽该是红的，1500 往右那 30 宽该被裁掉（露出画面底色）。
+            Check("底板：超出边界的部分被裁掉（底板右边缘之外采不到子图元的红色）",
+                !HasColorIn(frame, new Rect(
+                    DesignToViewport(1502, 300).X, DesignToViewport(1502, 300).Y,
+                    DesignToViewport(1525, 355).X - DesignToViewport(1502, 300).X,
+                    DesignToViewport(1525, 355).Y - DesignToViewport(1502, 300).Y), "#FFE03A2B"),
+                "底板右边缘外的区域不该出现子图元的红");
+
+            Check("底板：边界之内那部分照常可见（裁剪只切溢出的，不是把子图元整个吞了）",
+                HasColorIn(frame, new Rect(
+                    DesignToViewport(1455, 310).X, DesignToViewport(1455, 310).Y,
+                    DesignToViewport(1495, 350).X - DesignToViewport(1455, 310).X,
+                    DesignToViewport(1495, 350).Y - DesignToViewport(1455, 310).Y), "#FFE03A2B"),
+                "底板内的部分该采得到子图元的红");
+
+            // ③ 底板位置变化时，子图元跟着走。
+            //
+            // 联动在<b>模型层</b>做（见 ScadaPage.CascadeContainerMove）：底板挪多少、子图元挪多少，
+            // 于是子图元在底板的画布里保持自己的相对位置——这正是"底板是个装东西的容器"该有的样子。
+            //
+            // 这里<b>重建一份画布</b>再渲染，而不是就地重渲染：离屏宿主里没有窗口，
+            // 控件的 Loaded 不触发 → 控件不会订阅模型变更（真实运行时是 Loaded 时订阅的，
+            // 见 ScadaElementBase.SyncSubscription）。重建等价于"重新打开这张画面"，
+            // 走的正是"模型 → 控件"这条要验的路。
+            double childBeforeX = insideChild.X;
+            double childBeforeY = insideChild.Y;
+            containerPanel.X += 200;
+            containerPanel.Y += 100;
+
+            host = NewCanvas();
+            host.Width = viewportW;
+            host.Height = viewportH;
+            host.Style = (Style)theme[typeof(ScadaCanvas)];
+            host.ApplyTemplate();
+            host.Measure(new Size(viewportW, viewportH));
+            host.Arrange(new Rect(0, 0, viewportW, viewportH));
+            host.UpdateLayout();
+            host.Zoom = 0.4;
+            host.Offset = new Point(0, 0);
+            host.UpdateLayout();
+            frame = RenderToBitmap(host, (int)viewportW, (int)viewportH);
+
+            Check("底板：挪动底板时子图元跟着走（联动在模型层，模型坐标也跟着变了）",
+                SameColor(Sample(frame, DesignToViewport(childBeforeX + 200 + 30, childBeforeY + 100 + 30)), "#FF34C759")
+                && Math.Abs(insideChild.X - (childBeforeX + 200)) < 1e-9
+                && Math.Abs(insideChild.Y - (childBeforeY + 100)) < 1e-9,
+                ColorName(Sample(frame, DesignToViewport(childBeforeX + 230, childBeforeY + 130)))
+                + $" / 子图元模型 ({insideChild.X}, {insideChild.Y})");
+
+            // ④ 选中集合不变式：框选会同时命中底板与其子图元，而批量写入 + 模型级联
+            //    叠加起来是双重位移（且错得与 Elements 先后有关）。这条不变式由
+            //    SelectedElementsProperty 的 Coerce 回调统一保证。
+            host.SelectedElements = new[] { containerPanel, insideChild };
+
+            Check("选中集合不变式：同时选中底板与其子图元时，子图元被剔掉（否则批量写入与级联叠加成双重位移）",
+                host.SelectedElements.Count == 1
+                && ReferenceEquals(host.SelectedElements[0], containerPanel),
+                string.Join("、", host.SelectedElements.Select(e => e.Name)));
+
+            Check("选中集合不变式：只选子图元（父不在集合里）时不受影响",
+                SelectOnlyChildKeepsIt(host, insideChild), "");
+
+            // ---------------- ③ 曲线图元：真喂数据、真出图 ----------------
+            //
+            // 曲线图元的渲染由它内部的 30ms 渲染调度器驱动（拉模型：控件每帧轮询 Version，
+            // 有变化才画）。所以这条断言必须<b>泵一会儿 Dispatcher</b>让计时器跑几帧，
+            // 否则拿到的是空白图——那种红会让人以为是"曲线画不出来"，其实只是没给它时间。
+            //
+            // 数据走的是与运行态完全相同的那条路：TryApplyRuntimeValue（数据泵的落点）。
+            // 这样"变量 → 曲线"整条链一次覆盖，而不是只测控件能不能造出来。
             string dir = Path.Combine(AppContext.BaseDirectory, "artifacts");
             Directory.CreateDirectory(dir);
+
+            // ---------------- ③ 基座合成：基座压底、本页在上 ----------------
+            //
+            // 合成只有"真画一遍"才验得了，而且两种失败形态都很安静：
+            // ① 基座图元没叠进来 = 公共层"配了但看不见"（用户会以为基座功能没生效）；
+            // ② 叠放反了 = 本页内容被基座盖住（看起来像"本页图元丢了"）。
+            //
+            // 底色边界（有意为之，写在这里免得日后被当 bug 回炉）：画布底色始终取<b>本页</b>的
+            // Background（两页各有背景时，谁压谁都会静默吃掉对方的设置）。基座要底色就放一个
+            // 铺满画面的矩形图元——它是内容，会被正常叠进合成里。
+            var basePage = doc.AddPage("公共基座");
+            basePage.Width = 1920;
+            basePage.Height = 1080;
+            basePage.Background = "#FF101820";
+
+            var baseLayer = basePage.Layers.FirstOrDefault() ?? basePage.AddLayer();
+            var baseBlock = AddRenderElement(basePage, baseLayer, "Hmi.Rectangle", 1500, 900, 200, 150);
+            baseBlock.SetProperty("Fill", "#FFE03A2B");
+
+            // 本页在同一处压一个绿块：重叠区域看绿（本页在上），只有红块的那块看红（基座在下面）
+            var topBlock = AddRenderElement(page, layer, "Hmi.Rectangle", 1550, 930, 100, 90);
+            topBlock.SetProperty("Fill", "#FF34C759");
+
+            bool baseAdded = doc.TryAddBasePage(basePage, out var baseAddError);
+            bool baseSet = doc.TrySetBasePage(page, basePage, out var baseSetError);
+
+            Check("基座引用设置成功（画布合成的前置条件）",
+                baseAdded && baseSet,
+                baseAddError + baseSetError);
+
+            var composite = new ScadaCanvas
+            {
+                PageWidth = page.Width,
+                PageHeight = page.Height,
+                PageBackground = (Brush)new BrushConverter().ConvertFromString(page.Background)!,
+                ItemsSource = page.Elements,
+                Page = page,
+                BasePage = basePage,
+                ShowGrid = false,
+                SnapToGrid = false,
+            };
+            composite.Style = (Style)theme[typeof(ScadaCanvas)];
+
+            var compositeHost = new Border { Width = viewportW, Height = viewportH, Child = composite };
+            compositeHost.Measure(new Size(viewportW, viewportH));
+            compositeHost.Arrange(new Rect(0, 0, viewportW, viewportH));
+            compositeHost.UpdateLayout();
+            composite.Zoom = 0.4;
+            composite.Offset = new Point(0, 0);
+            compositeHost.UpdateLayout();
+
+            var compositeFrame = RenderToBitmap(compositeHost, (int)viewportW, (int)viewportH);
+
+            Check("基座图元被叠进画面（公共层不是「配了但看不见」）",
+                SameColor(Sample(compositeFrame, DesignToViewport(1520, 960)), "#FFE03A2B"),
+                ColorName(Sample(compositeFrame, DesignToViewport(1520, 960))));
+
+            Check("叠放关系是「基座在下、本页在上」（重叠处看到的是本页那块）",
+                SameColor(Sample(compositeFrame, DesignToViewport(1600, 980)), "#FF34C759"),
+                ColorName(Sample(compositeFrame, DesignToViewport(1600, 980))));
+
+            Check("基座图元与本页图元一起进 EnumerateControls（运行态数据泵靠它给基座建表）",
+                composite.EnumerateControls().Count(c => ReferenceEquals(c.Element, baseBlock)) == 1,
+                $"基座图元命中 {composite.EnumerateControls().Count(c => ReferenceEquals(c.Element, baseBlock))} 次"
+                + $" / 共 {composite.RenderedElementCount} 个已挂载");
+
+            // 只读口径：基座图元在"引用它的页面"上点不中、选不上（要改就切到基座自己那一页）
+            composite.SelectedElement = baseBlock;
+
+            Check("引用页上点不中基座图元：主选中被强制为 null（属性面板没有可改的目标）",
+                composite.SelectedElement == null,
+                composite.SelectedElement?.Name ?? "null");
+
+            composite.SelectedElements = new[] { baseBlock };
+
+            Check("引用页上框选不到基座图元：选中集合被剔空（拖 / 删 / 对齐都打不到公共层）",
+                composite.SelectedElements.Count == 0,
+                string.Join("、", composite.SelectedElements.Select(e => e.Name)));
+
+            composite.SelectedElement = topBlock;
+
+            Check("本页自己的图元照常可选（限制只针对基座图元，不是把整张画布锁了）",
+                ReferenceEquals(composite.SelectedElement, topBlock),
+                composite.SelectedElement?.Name ?? "null");
+
+            // 基座自己的编辑界面（BasePage 为 null）里，基座图元照常可选——那是唯一能改公共层的地方
+            var baseEditor = new ScadaCanvas
+            {
+                PageWidth = basePage.Width,
+                PageHeight = basePage.Height,
+                PageBackground = (Brush)new BrushConverter().ConvertFromString(basePage.Background)!,
+                ItemsSource = basePage.Elements,
+                Page = basePage,
+                ShowGrid = false,
+                SnapToGrid = false,
+            };
+            baseEditor.Style = (Style)theme[typeof(ScadaCanvas)];
+
+            var baseEditorHost = new Border { Width = viewportW, Height = viewportH, Child = baseEditor };
+            baseEditorHost.Measure(new Size(viewportW, viewportH));
+            baseEditorHost.Arrange(new Rect(0, 0, viewportW, viewportH));
+            baseEditorHost.UpdateLayout();
+
+            baseEditor.SelectedElement = baseBlock;
+
+            Check("基座自己的编辑界面里基座图元照常可选（这是唯一能改公共层的地方）",
+                ReferenceEquals(baseEditor.SelectedElement, baseBlock),
+                baseEditor.SelectedElement?.Name ?? "null");
+
+            SavePng(compositeFrame, Path.Combine(dir, "scada-base-page-composite.png"));
+            Console.WriteLine($"        （基座合成证据：{Path.Combine(dir, "scada-base-page-composite.png")}）");
+
+            var chartElement = new VisionMaster.Scada.Controls.Charts.ChartTrendElement
+            {
+                Width = 420,
+                Height = 220,
+            };
+            var chartHost = new Border { Width = 420, Height = 220, Child = chartElement };
+
+            chartHost.Measure(new Size(420, 220));
+            chartHost.Arrange(new Rect(0, 0, 420, 220));
+            chartHost.UpdateLayout();
+
+            var chartValueDescriptor = ElementRegistry.FindProperty("Hmi.ChartTrend", "Value");
+            bool chartFeedOk = chartValueDescriptor != null;
+
+            for (int i = 0; chartValueDescriptor != null && i < 240; i++)
+            {
+                // 一条正弦：有起伏才看得见"曲线"而不是一条直线
+                double sample = 50 + 40 * Math.Sin(i / 12.0);
+                if (!chartElement.TryApplyRuntimeValue(chartValueDescriptor, sample, null, out _))
+                    chartFeedOk = false;
+            }
+
+            Check("曲线图元：数据泵能把变量值写进去（走的就是运行态那条 TryApplyRuntimeValue）",
+                chartFeedOk, chartValueDescriptor == null ? "找不到 Value 属性描述符" : "");
+
+            PumpDispatcher(200); // 让 30ms 渲染调度器跑几帧
+
+            Check("曲线图元：240 个样本全部进了缓冲（值没变不记点由数据泵的等值守卫保证）",
+                chartElement.SampleCount == 240, $"SampleCount={chartElement.SampleCount}");
+
+            // <b>这一条刻意不钉"像素里有没有曲线色"</b>：曲线的绘制面是 ScottPlot → SkiaSharp 的
+            // WpfPlot，而 SkiaSharp 在没有真实渲染目标的进程里画不出内容——实测离屏
+            // RenderTargetBitmap 里整幅图只有底色，连坐标轴与网格都没有。
+            // 那种环境下按像素判红，红的是"探针环境不支持"，不是"曲线坏了"——
+            // 一条永远为假的断言比没有断言更糟（见 AGENTS.md R38：跳过/环境闸门必须能被反证）。
+            //
+            // 所以曲线的视觉验证交给两处：① VM.Charts 探针工程已有的渲染证据；
+            // ② 真机运行。本断言只钉"数据进了缓冲"这一层（上一条）。
+            Console.WriteLine("        （曲线绘制面是 SkiaSharp，无头宿主不出图；视觉验证见探针工程 _ChartProbe5 与真机）");
+
+            // ---------------- ④ 留一份证据图，供人眼复核（不参与判定） ----------------
+
             string png = Path.Combine(dir, "scada-canvas-render.png");
             SavePng(frame, png);
             Console.WriteLine($"        （渲染证据：{png}）");
+        }
+
+        /// <summary>选中集合规整的对照：只选子图元（父不在集合里）时必须原样保留。</summary>
+        private static bool SelectOnlyChildKeepsIt(ScadaCanvas host, ScadaElement child)
+        {
+            host.SelectedElements = new[] { child };
+            return host.SelectedElements.Count == 1 && ReferenceEquals(host.SelectedElements[0], child);
         }
 
         /// <summary>往画面里放一个图元，坐标尺寸写死成断言要的形态，并归入给定图层。</summary>
@@ -8390,19 +9523,36 @@ namespace ScadaChecks
         private static Point DesignToViewport(double x, double y)
             => new Point(x * 0.4, y * 0.4);
 
-        /// <summary>从元素层里找出某个图元对应的容器控件。</summary>
+        /// <summary>
+        /// 从画布里找出某个图元对应的容器控件。
+        ///
+        /// <b>必须递归找</b>：装了底板的图元挂在底板自己的 Canvas 上，不在元素层的直接子级里。
+        /// 只扫直接子级会让"底板里的图元"在所有渲染断言里都找不到——表现为断言红，
+        /// 而真正的原因是探针自己没看对地方（那种红比不写断言更浪费时间）。
+        /// </summary>
         private static FrameworkElement? FindContainer(ScadaCanvas host, ScadaElement element)
         {
             var layer = host.Template?.FindName("PART_ElementLayer", host) as Panel;
             if (layer == null)
                 return null;
 
-            foreach (var child in layer.Children)
+            return FindIn(layer, element);
+        }
+
+        private static FrameworkElement? FindIn(DependencyObject root, ScadaElement element)
+        {
+            if (root is ScadaElementBase control && ReferenceEquals(control.Element, element))
+                return control;
+
+            if (root is FrameworkElement placeholder && ReferenceEquals(placeholder.Tag, element))
+                return placeholder;
+
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
             {
-                if (child is ScadaElementBase control && ReferenceEquals(control.Element, element))
-                    return control;
-                if (child is FrameworkElement placeholder && ReferenceEquals(placeholder.Tag, element))
-                    return placeholder;
+                var found = FindIn(VisualTreeHelper.GetChild(root, i), element);
+                if (found != null)
+                    return found;
             }
 
             return null;
@@ -8795,8 +9945,8 @@ namespace ScadaChecks
 
             var payload = ScadaClipboard.Capture(clipPage, new[] { clipSource });
 
-            Check("剪贴板负载版本升到 2（动画是 v2 新增的一段，老负载没有这一段要能照样读）",
-                payload.Version == ScadaClipboardPayload.CurrentVersion && ScadaClipboardPayload.CurrentVersion == 2,
+            Check("剪贴板负载版本升到 3（v2 加动画、v3 加底板父子槽位；老负载缺哪一段都照样读）",
+                payload.Version == ScadaClipboardPayload.CurrentVersion && ScadaClipboardPayload.CurrentVersion == 3,
                 $"v{payload.Version}");
 
             var snapshot = payload.Items[0];
@@ -11767,6 +12917,30 @@ namespace ScadaChecks
         }
 
         /// <summary>
+        /// 假的「选轴」选择器：与三个既有替身同构。取消 = 回调一次都不触发；
+        /// 确认 = 回传预置的轴清单（Id + 名字），用于断言面板把轴清单写进了属性袋。
+        /// </summary>
+        private sealed class FakeAxisPicker : IScadaAxisPicker
+        {
+            /// <summary>下一次 Pick 要回传的轴；null 表示"用户点了取消"</summary>
+            public IReadOnlyList<ScadaAxisRef>? NextAxes { get; set; }
+
+            public int PickCalls { get; private set; }
+
+            public IReadOnlyList<ScadaAxisRef> LastCurrent { get; private set; } = Array.Empty<ScadaAxisRef>();
+
+            public void Pick(IReadOnlyList<ScadaAxisRef> current, Action<IReadOnlyList<ScadaAxisRef>> onPicked)
+            {
+                PickCalls++;
+                LastCurrent = current;
+
+                if (NextAxes == null) return;
+
+                onPicked(NextAxes);
+            }
+        }
+
+        /// <summary>
         /// 假的「流程启停」出口：不碰任何引擎对象，按方法各自的预置结果回报并记账。
         ///
         /// 分发器只认 <see cref="IScadaFlowRunner"/> 三个方法（它拿不到引擎，也不该拿到），
@@ -13263,7 +14437,7 @@ namespace ScadaChecks
                     editor.SelectedElements = new[] { e1 };
 
                     var panel = new ScadaPropertyVM(
-                        editor, new RecordingNotifier(), new FakeVariablePicker(), new FakePagePicker(), new FakeFlowPicker());
+                        editor, new RecordingNotifier(), new FakeVariablePicker(), new FakePagePicker(), new FakeFlowPicker(), new FakeAxisPicker());
 
                     ScadaEditHistory.Clear();
                     ScadaWriteGuard.Strict = true;
@@ -14121,12 +15295,18 @@ namespace ScadaChecks
                         && changed == 1 && File.Exists(store.StorePath),
                         $"{savedAInfo?.Name} / {savedAInfo?.ItemCount} 件 / Changed={changed} / {saveAError}");
 
-                    store.TrySave("三通阀", payload, out var savedBInfo, out _);
+                    store.TrySave("三通阀", payload, out var savedBInfo, out string? saveBError);
 
                     Check("重名自动避让成「三通阀_2」——存模板不该因为撞名就失败（用户只是想再存一个差不多的），"
                         + "更不该悄悄覆盖掉原来那一个",
                         savedBInfo?.Name == "三通阀_2" && changed == 2,
-                        $"{savedBInfo?.Name} / Changed={changed}");
+                        $"{savedBInfo?.Name} / Changed={changed} / {saveBError}");
+
+                    // 后面几段全部按 Id 寻址。这里把 Id 落成不可空的值：万一上面两次保存真失败了
+                    // （写盘被占用等），Guid.Empty 会一路走到 TryRename/TryRemove 的"模板不存在"分支，
+                    // 让断言以一句可读的失败收场，而不是在这里抛 NRE 把整段 [CP] 断言连坐掉。
+                    Guid savedAId = savedAInfo?.TemplateId ?? Guid.Empty;
+                    Guid savedBId = savedBInfo?.TemplateId ?? Guid.Empty;
 
                     string? longNameError = null;
                     string? emptyPayloadError = null;
@@ -14156,7 +15336,7 @@ namespace ScadaChecks
                         names.Length == 2 && names[0] == "三通阀" && names[1] == "三通阀_2",
                         string.Join("/", names));
 
-                    var fetched = store.GetPayload(savedAInfo!.TemplateId);
+                    var fetched = store.GetPayload(savedAId);
 
                     Check("GetPayload 按 Id 取回负载（3 件、头一件就是当初那件「底图」），取一个不存在的 Id 返回 null",
                         fetched != null && fetched.Items.Count == 3 && fetched.Items[0].Name == "底图"
@@ -14165,7 +15345,7 @@ namespace ScadaChecks
 
                     int beforeNoopRename = changed;
 
-                    bool sameName = store.TryRename(savedAInfo.TemplateId, "  三通阀  ", out string? sameNameError);
+                    bool sameName = store.TryRename(savedAId, "  三通阀  ", out string? sameNameError);
 
                     Check("改成同名（Trim 之后相同）：算成功但是空操作——不写盘、不发 Changed"
                         + "（在改名框里按一下回车、没改字，是最常见的一次误操作，不该换来一次无意义的文件替换）",
@@ -14173,7 +15353,7 @@ namespace ScadaChecks
                         && store.Templates[0].Name == "三通阀",
                         $"{sameNameError ?? "null"} / Changed={changed}");
 
-                    bool dupRename = store.TryRename(savedAInfo.TemplateId, "三通阀_2", out string? dupRenameError);
+                    bool dupRename = store.TryRename(savedAId, "三通阀_2", out string? dupRenameError);
 
                     Check("改成另一个已存在的名字：拒绝并给出「已有名为「三通阀_2」的模板」——"
                         + "改名不像存新模板那样可以避让：用户明确输入的名字被悄悄改成别的，才是真正糟糕的事",
@@ -14186,7 +15366,7 @@ namespace ScadaChecks
                         !missingRename && missingError != null && missingError.Contains("模板不存在"),
                         $"{missingError}");
 
-                    bool renamed = store.TryRename(savedBInfo!.TemplateId, "三通阀_备用", out _);
+                    bool renamed = store.TryRename(savedBId, "三通阀_备用", out _);
 
                     Check("正常改名：名字落库、广播一次 Changed",
                         renamed && changed == beforeNoopRename + 1
@@ -14205,8 +15385,8 @@ namespace ScadaChecks
 
                     int beforeRemove = changed;
 
-                    bool removed = store.TryRemove(savedBInfo.TemplateId, out _);
-                    bool removeAgain = store.TryRemove(savedBInfo.TemplateId, out string? removeAgainError);
+                    bool removed = store.TryRemove(savedBId, out _);
+                    bool removeAgain = store.TryRemove(savedBId, out string? removeAgainError);
 
                     Check("删除：清单少一条、广播一次 Changed；再删同一个 Id 给出「模板不存在，可能已被删除」",
                         removed && store.Templates.Count == 1 && changed == beforeRemove + 1

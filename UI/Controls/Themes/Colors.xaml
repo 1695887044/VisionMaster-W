@@ -48,13 +48,21 @@
     <SolidColorBrush x:Key="ScadaPanelBackgroundBrush" Color="#F7F8FA" />
     <SolidColorBrush x:Key="ScadaTitleBarBrush" Color="#F5F7FA" />
     <SolidColorBrush x:Key="ScadaSurfaceBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="ScadaPanelBorderBrush" Color="#DCE0E6" />
+    <SolidColorBrush x:Key="ScadaPanelBorderBrush" Color="#D7E0EF" />
     <SolidColorBrush x:Key="ScadaActionCardBorderBrush" Color="#E4E7ED" />
+    <!--  分隔线：比描边更浅一档。分组之间、组头与行之间用它，视觉上"分开但不框住"——
+         卡片描边（DCE0E6）围一圈会把每组分成立体卡片，260 宽的面板里三层面板感就是这么来的  -->
+    <SolidColorBrush x:Key="ScadaHairlineBrush" Color="#E9ECF1" />
+    <!--  计数徽标底：与分隔线同族，比面板底深一点，11px 的字压上去仍清楚  -->
+    <SolidColorBrush x:Key="ScadaBadgeBackgroundBrush" Color="#E6EBF2" />
 
     <!--  文字：正文 / 标签 / 次要说明 / 占位与禁用  -->
     <SolidColorBrush x:Key="ScadaTextBrush" Color="#303133" />
     <SolidColorBrush x:Key="ScadaLabelTextBrush" Color="#606266" />
-    <SolidColorBrush x:Key="ScadaSecondaryTextBrush" Color="#909399" />
+    <!--  次要文字：取 web 参考项目 muted-foreground 的 #66708A（在 #FFFFFF 上 4.93:1）。
+         旧值 #909399 只有 3.07:1，11~12px 的小字压在白底上达不到 WCAG AA 的 4.5:1；
+         属性面板里大把"未绑定 / 已由变量提供 / 色板"这类说明文字都吃这一档。  -->
+    <SolidColorBrush x:Key="ScadaSecondaryTextBrush" Color="#66708A" />
     <SolidColorBrush x:Key="ScadaFaintTextBrush" Color="#A8ABB2" />
     <SolidColorBrush x:Key="ScadaDisabledTextBrush" Color="#C0C4CC" />
 

@@ -14,30 +14,39 @@
     mc:Ignorable="d">
 
     <UserControl.Resources>
-        <!--  格式工具栏的图标按钮：只显示图标，文字交给 ToolTip。  -->
-        <!--  18 颗按钮若都照顶栏那样写"图标 TextBlock + 文字 TextBlock"，一行绝对放不下；  -->
-        <!--  而格式工具栏本来就是"扫一眼图标就懂"的地方，只挂图标是 Word / VS 一路的通行做法。  -->
-        <!--  Content 里只有 Font Awesome 码点、没有中文，所以可以整串塞进 Content——  -->
-        <!--  顶栏那条"图标与文字必须拆成两个 TextBlock"的规矩，防的是图标字体里没有中文字形。  -->
-        <Style x:Key="FormatToolButton" TargetType="Button">
-            <Setter Property="Width" Value="28" />
-            <Setter Property="Height" Value="24" />
-            <Setter Property="Margin" Value="1,0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="FontFamily" Value="{StaticResource Icon}" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="#FF303133" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--  图标字体令牌（DialogIconFont）在 Colors.xaml 里。就地合并的理由见 R22：
+                      只写 {StaticResource} 而不自合并，在没有 Application 的断言宿主里会在 XAML
+                      解析期抛"找不到资源"（本视图 2026-10-18 的顶栏渲染探针就是这么红的）。  -->
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
-        <!--  工具栏分组之间的竖线：宽高色与顶栏那三条一致，两行看着才像同一套东西  -->
-        <Style x:Key="ToolSeparator" TargetType="Rectangle">
-            <Setter Property="Width" Value="1" />
-            <Setter Property="Height" Value="16" />
-            <Setter Property="Margin" Value="6,0" />
-            <Setter Property="Fill" Value="#FFDCE0E6" />
-        </Style>
+            <!--  格式工具栏的图标按钮：只显示图标，文字交给 ToolTip。  -->
+            <!--  18 颗按钮若都照顶栏那样写"图标 TextBlock + 文字 TextBlock"，一行绝对放不下；  -->
+            <!--  而格式工具栏本来就是"扫一眼图标就懂"的地方，只挂图标是 Word / VS 一路的通行做法。  -->
+            <!--  Content 里只有 Font Awesome 码点、没有中文，所以可以整串塞进 Content——  -->
+            <!--  顶栏那条"图标与文字必须拆成两个 TextBlock"的规矩，防的是图标字体里没有中文字形。  -->
+            <Style x:Key="FormatToolButton" TargetType="Button">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Margin" Value="1,0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="#FF303133" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+
+            <!--  工具栏分组之间的竖线：宽高色与顶栏那三条一致，两行看着才像同一套东西  -->
+            <Style x:Key="ToolSeparator" TargetType="Rectangle">
+                <Setter Property="Width" Value="1" />
+                <Setter Property="Height" Value="16" />
+                <Setter Property="Margin" Value="6,0" />
+                <Setter Property="Fill" Value="#FFDCE0E6" />
+            </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <!--  ==========================================  -->
@@ -113,18 +122,69 @@
                         Selector.IsSynchronizedWithCurrentItem="False"
                         ItemsSource="{Binding Pages}"
                         SelectedItem="{Binding SelectedPage, Mode=TwoWay}" />
+                    <!--  基座下拉框：带自己的标签（与"画面"同款）。
+                          没有标签时两个并排的下拉框看起来像"两个画面选择器"，用户根本分不清哪个是基座。
+                          候选是 ScadaDocument.BasePages（已注册的基座），不是全部画面——
+                          那样"随便挑一张当基座"就会把删掉它时牵连一整批页面的风险埋进去。
+                          刻意留出"（无基座）"这一档：不让"必须选一个"成为新建页的负担。
+                          候选项统一是 BasePageOption（含「（无基座）」那一项），
+                          不用 CompositeCollection + ComboBoxItem 占位——那种写法选占位项时
+                          会把 ComboBoxItem 往 ScadaPage 里塞，转换失败且不报错（见 VM 注释）。
+                          编辑基座自己那一页时置灰：基座不能再引用基座（一层限制），
+                          先置灰比"选了再弹回"清楚得多。  -->
+                    <TextBlock
+                        Margin="12,0,6,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="#FF606266"
+                        Text="基座" />
+                    <ComboBox
+                        x:Name="BasePageSelector"
+                        Width="140"
+                        VerticalAlignment="Center"
+                        DisplayMemberPath="Name"
+                        IsEnabled="{Binding CanSelectBasePage}"
+                        Selector.IsSynchronizedWithCurrentItem="False"
+                        ItemsSource="{Binding BasePageOptions}"
+                        SelectedItem="{Binding SelectedBasePage, Mode=TwoWay}"
+                        ToolTip="本页引用的基座（公共层）；选「（无基座）」即不引用（基座画面自身不能再引用基座）" />
+
+                    <!--  新建：主按钮 = 新建画面（一次点击，现场最常用的动作），
+                          右侧 ▾ = 更多新建方式（新建基座）。
+                          两个并排的文字按钮（新建 / 新建基座）在顶栏里读起来像"同一件事的两个说法"，
+                          而"新建基座"是低频动作，不该占常驻按钮位。  -->
                     <Button
                         Margin="6,0,0,0"
                         Padding="8,2"
                         Command="{Binding AddPageCommand}"
-                        Content="新建"
-                        ToolTip="在当前方案里新建一个画面" />
+                        Content="＋ 新建"
+                        ToolTip="新建画面（默认沿用当前页的基座）" />
+                    <Button
+                        x:Name="NewMenuButton"
+                        Padding="6,2"
+                        Click="OnNewMenuClick"
+                        Content="▾"
+                        ToolTip="更多新建方式：新建基座（跨页公共层）">
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Command="{Binding AddPageCommand}" Header="新建画面" />
+                                <MenuItem Command="{Binding AddBasePageCommand}" Header="新建基座（跨页公共层）" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    <!--  删除改成图标按钮：顶栏里三个文字按钮（新建 / 新建基座 / 删除）并列，
+                          最容易被误点的恰是"删除"，图标 + 悬停说明能把它从视觉重心上降下来。  -->
                     <Button
                         Margin="4,0,0,0"
                         Padding="8,2"
                         Command="{Binding RemovePageCommand}"
-                        Content="删除"
-                        ToolTip="删除当前画面" />
+                        ToolTip="删除当前画面（可撤销）">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Text="&#xF1F8;" />
+                    </Button>
 
                     <!--  撤销/重做与"画面"并排而不是挤进取景组：它覆盖的不只是画布上的改动，
                           还包括新建/删除画面、改图元属性——是"文档级"的操作，不是取景工具。
@@ -142,7 +202,7 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock
                                 VerticalAlignment="Center"
-                                FontFamily="{StaticResource Icon}"
+                                FontFamily="{StaticResource DialogIconFont}"
                                 FontSize="12"
                                 Text="&#xF0E2;" />
                             <TextBlock
@@ -159,7 +219,7 @@
                         <StackPanel Orientation="Horizontal">
                             <TextBlock
                                 VerticalAlignment="Center"
-                                FontFamily="{StaticResource Icon}"
+                                FontFamily="{StaticResource DialogIconFont}"
                                 FontSize="12"
                                 Text="&#xF01E;" />
                             <TextBlock
@@ -415,23 +475,24 @@
         <!--  TypeConverter（BrushConverter）自动换算，无需自写转换器：领域层也因此不必引用 WPF。  -->
         <!--  Page 是图层上下文：画布只有 ItemsSource 时只知道"一堆图元"，不知道它们属于哪一页，  -->
         <!--  图层的可见/锁定规则在渲染侧就无从落地。不接这一行，图层开关等于没生效。  -->
-        <controls:ScadaCanvas
-            x:Name="Canvas"
-            Grid.Row="2"
-            AllowDrop="True"
-            ContextMenuOpening="OnCanvasContextMenuOpening"
-            DragOver="OnCanvasDragOver"
-            Drop="OnCanvasDrop"
-            GridSize="{Binding SelectedPage.GridSize}"
-            ItemsSource="{Binding SelectedPage.Elements}"
-            Page="{Binding SelectedPage}"
-            PageBackground="{Binding SelectedPage.Background}"
-            PageHeight="{Binding SelectedPage.Height}"
-            PageWidth="{Binding SelectedPage.Width}"
-            SelectedElement="{Binding SelectedElement, Mode=TwoWay}"
-            SelectedElements="{Binding SelectedElements, Mode=TwoWay}"
-            ShowGrid="{Binding SelectedPage.ShowGrid}"
-            SnapToGrid="{Binding SelectedPage.SnapToGrid}">
+         <controls:ScadaCanvas
+             x:Name="Canvas"
+             Grid.Row="2"
+             AllowDrop="True"
+             BasePage="{Binding SelectedBasePage.Page}"
+             ContextMenuOpening="OnCanvasContextMenuOpening"
+             DragOver="OnCanvasDragOver"
+             Drop="OnCanvasDrop"
+             GridSize="{Binding SelectedPage.GridSize}"
+             ItemsSource="{Binding SelectedPage.Elements}"
+             Page="{Binding SelectedPage}"
+             PageBackground="{Binding SelectedPage.Background}"
+             PageHeight="{Binding SelectedPage.Height}"
+             PageWidth="{Binding SelectedPage.Width}"
+             SelectedElement="{Binding SelectedElement, Mode=TwoWay}"
+             SelectedElements="{Binding SelectedElements, Mode=TwoWay}"
+             ShowGrid="{Binding SelectedPage.ShowGrid}"
+             SnapToGrid="{Binding SelectedPage.SnapToGrid}">
 
             <!--  Delete / 方向键挂在画布上：画布在鼠标按下时抢焦点（见 ScadaCanvas.OnPreviewMouseLeftButtonDown），  -->
             <!--  所以"焦点在画面下拉里按方向键"仍然是在切画面，不会被微调抢走——这条只有挂在画布上才成立。  -->
@@ -459,10 +520,12 @@
             <!--  图元右键菜单：图层归属 + 叠放次序 + 对齐与分布。  -->
             <!--  这里只放一个空壳，菜单项每次弹出时由代码后台按当前选中图元现装（见 OnCanvasContextMenuOpening）——  -->
             <!--  图层候选、勾选态、端点判灰都随用户操作在变，预先建好就得逐个订阅刷新，而"弹出即重建"天然不会过期。  -->
-            <!--  FontFamily 用 App.xaml 里的图标字体：菜单项的文字是 Font Awesome 码点，  -->
+            <!--  FontFamily 用 Colors.xaml 里的图标字体令牌（本视图已就地合并）：菜单项的文字是 Font Awesome 码点，  -->
             <!--  字形从 ContextMenu 往下继承到各 MenuItem（与 FlowListView 的右键菜单同一套写法）。  -->
+            <!--  刻意不用 App.xaml 的 Icon：那一档资源在没有 Application 的断言宿主里取不到，  -->
+            <!--  整个视图会在 XAML 解析期失败（R22 同族，2026-10-18 顶栏渲染探针实测）。  -->
             <controls:ScadaCanvas.ContextMenu>
-                <ContextMenu FontFamily="{StaticResource Icon}" />
+                <ContextMenu FontFamily="{StaticResource DialogIconFont}" />
             </controls:ScadaCanvas.ContextMenu>
         </controls:ScadaCanvas>
     </Grid>

@@ -173,6 +173,23 @@ namespace VisionMaster.ViewModels
         public ElementPropertyKind Kind => Spec.Kind;
 
         /// <summary>
+        /// 数值行的单位后缀（<c>px</c> / <c>°</c>），空串 = 不显示（NumericBox 的 Suffix 见空即收）。
+        ///
+        /// 为什么按 Key 映射、而不是给 <see cref="IPropertySpec"/> 加字段：单位是"给人看的标注"，
+        /// 不参与落盘语义，几十处声明各填一遍只会让契约变胖；而键名是稳定的——图元与画面共用
+        /// 同一套名字（<c>$X/$Y/$Width/$Height/$Rotation</c> 与 <c>Width/Height/GridSize</c>），
+        /// 一处白名单就覆盖两侧。将来真要做成声明字段，把这里改成读 Spec 即可，XAML 一行不用动。
+        /// </summary>
+        public string Unit => Key switch
+        {
+            "$X" or "$Y" or "$Width" or "$Height" => "px",
+            "Width" or "Height" or "GridSize" => "px",
+            "FontSize" or "StrokeThickness" or "CornerRadius" => "px",
+            "$Rotation" => "°",
+            _ => string.Empty,
+        };
+
+        /// <summary>
         /// Choice 型的候选<b>落盘值</b>（<c>"Circle"</c>、<c>"Output"</c> 这一层，进 .vms 的就是它们）。
         /// 默认直接转手声明里的那一份（描述符声明的候选是静态的）。
         ///
@@ -554,7 +571,7 @@ namespace VisionMaster.ViewModels
     /// 强类型字段上、其它键落在属性袋上，这个分叉判断已经在 S2 写过一遍；在这里再写一遍
     /// 就是两处规则，将来加一个保留键必然漏一处。
     /// </summary>
-    public sealed class ScadaPropertyRow : ScadaPropertyRowBase
+    public class ScadaPropertyRow : ScadaPropertyRowBase
     {
         public ScadaPropertyRow(ScadaElement element, ElementPropertyDescriptor descriptor)
             : base(descriptor ?? throw new ArgumentNullException(nameof(descriptor)),
@@ -619,6 +636,52 @@ namespace VisionMaster.ViewModels
 
             RaisePropertyChanged(nameof(HasBinding));
             RaisePropertyChanged(nameof(BindingVariableName));
+        }
+    }
+
+    /// <summary>
+    /// 轴面板「候选轴」行（Kind = <see cref="ElementPropertyKind.AxisList"/>）。
+    ///
+    /// 值与普通属性一样落在属性袋里（<see cref="ScadaAxisOptionsCodec"/> 的规范 JSON），
+    /// 但编辑入口不是文本框，而是"摘要 + 选择轴…"：
+    /// 轴名是工程里的一组身份，手打既容易打错、也没法带 Id。
+    ///
+    /// 它<b>不是数据绑定</b>（IsBindable=false）：轴候选是设计期配置，
+    /// 运行期由面板自己的下拉框切换——所以这一行不挂 ƒx，也不进 ScadaRuntimeBinder。
+    /// </summary>
+    public sealed class ScadaAxisListRow : ScadaPropertyRow
+    {
+        private readonly Action<ScadaAxisListRow> _pick;
+
+        public ScadaAxisListRow(ScadaElement element, ElementPropertyDescriptor descriptor,
+                                Action<ScadaAxisListRow> pick)
+            : base(element, descriptor)
+        {
+            _pick = pick ?? throw new ArgumentNullException(nameof(pick));
+            PickAxesCommand = new DelegateCommand(() => _pick(this));
+        }
+
+        /// <summary>「选择轴…」：打开多选弹窗，确认后由面板写回模型</summary>
+        public DelegateCommand PickAxesCommand { get; }
+
+        /// <summary>属性行上显示的摘要（未选 / X、Y、Z / X 等 N 根）</summary>
+        public string Summary
+        {
+            get
+            {
+                var axes = ScadaAxisOptionsCodec.Parse(Value);
+                if (axes.Count == 0)
+                    return "未选择轴";
+
+                string names = string.Join("、", axes.Select(a => a.Name));
+                return axes.Count <= 3 ? names : $"{names} 等 {axes.Count} 根";
+            }
+        }
+
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+            RaisePropertyChanged(nameof(Summary));
         }
     }
 
@@ -776,14 +839,14 @@ namespace VisionMaster.ViewModels
 
         /// <param name="host">本行勾选的目标宿主：图元或画面，见 <see cref="IScadaEventHost"/></param>
         /// <param name="group">本行落在哪一组（图元事件用 <see cref="ElementGroup"/>，画面事件用 <see cref="ScadaPageEvents.Group"/>）</param>
-        public ScadaEventRow(IScadaEventHost host, ScadaEventType eventType, string group, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker)
+        public ScadaEventRow(IScadaEventHost host, ScadaEventType eventType, string group, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker? axisPicker = null)
             : base(new ScadaEventSpec(eventType, group),
                    (host ?? throw new ArgumentNullException(nameof(host))).FindEventHook(eventType) != null
                        ? "True" : "False")
         {
             // 显示名与悬停说明沿用声明里的那一份：面板上勾的那一行和运行日志里出现的那一行
             // 必须对得上号，否则用户对不上"我配的"和"响的"。
-            Editor = new ScadaEventEditorViewModel(host, eventType, DisplayName, Description, picker, pagePicker, flowPicker);
+            Editor = new ScadaEventEditorViewModel(host, eventType, DisplayName, Description, picker, pagePicker, flowPicker, axisPicker);
 
             // 本行仍是"面板面向的那张脸"：编辑器对外状态（动作表整块、命令可用性）一变就转出去，
             // 既有的绑定与断言（认 ScadaEventRow.Actions / HasActions）不必知道底下换了实现。
@@ -1820,6 +1883,7 @@ namespace VisionMaster.ViewModels
         private readonly IScadaVariablePicker _picker;
         private readonly IScadaPagePicker _pagePicker;
         private readonly IScadaFlowPicker _flowPicker;
+        private readonly IScadaAxisPicker _axisPicker;
 
         /// <summary>摊平的行（模型有外部写入时逐行回读；分组视图从它派生）</summary>
         private readonly List<ScadaPropertyRowBase> _rows = new();
@@ -1828,13 +1892,14 @@ namespace VisionMaster.ViewModels
         private ScadaElement? _element;
         private ScadaPage? _page;
 
-        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker)
+        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
             _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
+            _axisPicker = axisPicker ?? throw new ArgumentNullException(nameof(axisPicker));
 
             // 参数化的 CanExecute 而不是 IsEnabled：行对象换了，可用性就得重算，
             // 挂在参数上比挂在面板状态上准（也便于断言里直接调 CanExecute）。
@@ -2040,14 +2105,20 @@ namespace VisionMaster.ViewModels
                 // 描述符在注册期已保证六个几何键齐全（ElementDescriptor.Validate），
                 // 所以这里不需要为"没有名称/位置行"兜底——真缺了，那是注册表该报错的时候。
                 foreach (var property in descriptor.Properties)
-                    _rows.Add(new ScadaPropertyRow(element, property));
+                {
+                    // AxisList 行要一个"选择轴…"入口，普通属性行没有这个动作。
+                    // 判据是行的 Kind 自述，而不是图元类型——与编辑器按 Kind 分流同一手法。
+                    _rows.Add(property.Kind == ElementPropertyKind.AxisList
+                        ? new ScadaAxisListRow(element, property, OnPickAxes)
+                        : new ScadaPropertyRow(element, property));
+                }
 
                 // S5 事件行：描述符声明了哪些事件就出哪几行（Group="事件" 自动成组）。
                 // 没声明任何事件的图元连这个组都不会有——"这个图元配不了事件"是描述符的表态，
                 // 不是面板漏列；反过来，面板绝不自行罗列全部事件，那会把
                 // "勾上了却永远不响的钩子"（Unloaded/ValueChanged 还没接触发源）漏给用户。
                 foreach (var eventType in descriptor.Events)
-                    _rows.Add(new ScadaEventRow(element, eventType, ScadaEventRow.ElementGroup, _picker, _pagePicker, _flowPicker));
+                    _rows.Add(new ScadaEventRow(element, eventType, ScadaEventRow.ElementGroup, _picker, _pagePicker, _flowPicker, _axisPicker));
 
                 // r4 动画行：四种动画各一行，与描述符无关——"图元会不会动"不是类型的表态，
                 // 而是这一台设备上这个图元要不要跟变量联动，任何图元都可能需要。
@@ -2081,7 +2152,7 @@ namespace VisionMaster.ViewModels
                 // 比"面板上没这个选项"糟得多。落在「运行」组，紧接「启动画面」之后：
                 // 组的首现次序决定显示次序，而这一组的第一行是上面那条 StartupPage。
                 foreach (var eventType in ScadaPageEvents.All)
-                    _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker, _flowPicker));
+                    _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker, _flowPicker, _axisPicker));
             }
 
             RaisePropertyChanged(nameof(Element));
@@ -2156,6 +2227,28 @@ namespace VisionMaster.ViewModels
             _picker.Pick(current?.VariableId ?? Guid.Empty, current?.VariableName, (id, name) =>
             {
                 if (!page.TrySetBinding(elementRow.Element, elementRow.Key, id, name, out var error))
+                    _notifier.ShowError(error);
+            });
+        }
+
+        /// <summary>
+        /// 「选择轴…」：给轴面板挑候选轴。
+        ///
+        /// 与「ƒx 绑变量」的区别：这不是数据绑定，而是设计期配置——写回属性袋里的
+        /// <see cref="ScadaAxisOptionsCodec.Key"/>（规范 JSON），运行期由面板自己的下拉框切换。
+        /// 写模型仍走 <see cref="ScadaPage.TrySetAxisOptions"/> 这个统一入口（撤销/归属校验只有一处）。
+        /// </summary>
+        private void OnPickAxes(ScadaAxisListRow row)
+        {
+            var page = _editor.SelectedPage;
+            if (page == null) return;
+
+            // 预选当前已选的轴：让"改一处"而不是"重新找一遍"。
+            var current = ScadaAxisOptionsCodec.Parse(row.Value);
+
+            _axisPicker.Pick(current, picked =>
+            {
+                if (!page.TrySetAxisOptions(row.Element, picked, out var error))
                     _notifier.ShowError(error);
             });
         }

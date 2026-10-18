@@ -46,6 +46,7 @@ internal static class Program
         Console.SetOut(Sink);
 
         bool diagOnly = args.Length > 0 && args[0] == "diag";
+        bool bigOnly = args.Length > 0 && args[0] == "big"; // 只跑 S9/S10（S1-S8 基线已跑过的复跑用）
 
         int exit = 0;
         try
@@ -69,14 +70,19 @@ internal static class Program
                 return 0;
             }
 
-            RunS1();
-            RunS2();
-            RunS3();
-            RunS4();
-            RunS5();
-            RunS6();
-            RunS7();
-            RunS8();
+            if (!bigOnly)
+            {
+                RunS1();
+                RunS2();
+                RunS3();
+                RunS4();
+                RunS5();
+                RunS6();
+                RunS7();
+                RunS8();
+            }
+            RunS9();
+            RunS10();
 
             PrintFindings();
             PrintSinkTail();
@@ -954,6 +960,177 @@ internal static class Program
             Thread.Sleep(50);
         }
         return -1;
+    }
+
+    /// <summary>注册一个带组名的 Modbus 变量（S9/S10 用，区别于 Reg 的默认组）</summary>
+    private static void RegEx(
+        AdvancedCommunicationManager mgr, string conn, string name, string addr,
+        string typeName, string group)
+    {
+        var v = new CommunicationVariable
+        {
+            ConnectionName = conn,
+            VariableName = name,
+            Address = addr,
+            ValueType = typeName,
+            ScanGroup = group,
+            AccessMode = VariableAccessMode.ReadOnly,
+        };
+        v.ValueChanged += OnVarChanged;
+        mgr.RegisterVariable(v);
+    }
+
+    /// <summary>S9：20 连接（10 Modbus 10010-10019 + 10 S7 10000-10009，直连 DeviceSimulator）× 每连接 1000 变量 = 2 万点 @200ms</summary>
+    private static void RunS9()
+    {
+        Say("== S9 海量并发：20 连接 × 1000 变量 = 2 万点 @200ms（直连 DeviceSimulator）==");
+        const int varsPerConn = 1000;
+        int[] mbPorts = { 10010, 10011, 10012, 10013, 10014, 10015, 10016, 10017, 10018, 10019 };
+        int[] s7Ports = { 10000, 10001, 10002, 10003, 10004, 10005, 10006, 10007, 10008, 10009 };
+
+        using var mgr = NewManager();
+        var names = new List<string>();
+        string shortT = typeof(short).AssemblyQualifiedName!;
+        string floatT = typeof(float).AssemblyQualifiedName!;
+        string ushortT = typeof(ushort).AssemblyQualifiedName!;
+
+        // Modbus：500 short 连续区（段合并）+ 300 float（2 寄存器步长）+ 200 ushort
+        foreach (var port in mbPorts)
+        {
+            var cfg = NewModbusConfigCore($"S9_MB{port}", 200, port, Array.Empty<ScanGroupConfig>());
+            if (!mgr.AddConnection(cfg)) { Say($"  AddConnection 失败：{cfg.ConnectionName}"); return; }
+            string cn = cfg.ConnectionName;
+            for (int i = 0; i < 500; i++) RegEx(mgr, cn, $"sh{i}", "x=3;" + i, shortT, "");
+            for (int i = 0; i < 300; i++) RegEx(mgr, cn, $"fl{i}", "x=3;" + (600 + i * 2), floatT, "");
+            for (int i = 0; i < 200; i++) RegEx(mgr, cn, $"us{i}", "x=4;" + (2000 + i), ushortT, "");
+            names.Add(cn);
+        }
+        // S7：500 个 DBW（连续）+ 300 个 DBD float + 200 个 MB 字节
+        foreach (var port in s7Ports)
+        {
+            var link = new SiemensS7Config
+            {
+                Type = CommunicationType.SiemensS7, IpAddress = Host, Port = port,
+                TimeoutMs = 2000, ReadTimeoutMs = 3000, RetryCount = 1, RetryIntervalMs = 500,
+            };
+            var cfg = new CommunicationConfig($"S9_S7{port}", link) { ReadCycleMs = 200, AutoReconnect = true };
+            if (!mgr.AddConnection(cfg)) { Say($"  AddConnection 失败：{cfg.ConnectionName}"); return; }
+            string cn = cfg.ConnectionName;
+            string byteT = typeof(byte).AssemblyQualifiedName!;
+            for (int i = 0; i < 500; i++) RegEx(mgr, cn, $"w{i}", "DB1.DBW" + i * 2, ushortT, "");
+            for (int i = 0; i < 300; i++) RegEx(mgr, cn, $"f{i}", "DB1.DBD" + (2000 + i * 4), floatT, "");
+            for (int i = 0; i < 200; i++) RegEx(mgr, cn, $"b{i}", "MB" + (4000 + i), byteT, "");
+            names.Add(cn);
+        }
+
+        var sw = Stopwatch.StartNew();
+        foreach (var n in names) mgr.RequestConnect(n); // 非阻塞并发建连
+        long connected = 0;
+        var waitSw = Stopwatch.StartNew();
+        while (waitSw.ElapsedMilliseconds < 10000)
+        {
+            connected = names.Count(n => mgr.GetConnectionState(n) == ConnectionState.Connected);
+            if (connected == names.Count) break;
+            Thread.Sleep(100);
+        }
+        Say($"  20 连接并发建连：{connected}/{names.Count} 就绪，用时 {sw.ElapsedMilliseconds} ms（RequestConnect 非阻塞）");
+        if (connected < names.Count) Find($"S9 建连未全就绪：{connected}/{names.Count}");
+
+        Thread.Sleep(5000); // 预热
+        Interlocked.Exchange(ref _events, 0);
+        var before = Capture();
+        var w = Stopwatch.StartNew();
+        Thread.Sleep(45000); // 稳态窗口 45s
+        w.Stop();
+        var after = Capture();
+        long events = Interlocked.Read(ref _events);
+
+        double totalReq = 0; int totalSeg = 0; double worstAchieve = 1.0; int badSegs = 0;
+        double worstMb = 1.0, worstS7 = 1.0; long mbMs = 0, s7Ms = 0; int mbCnt = 0, s7Cnt = 0;
+        foreach (var n in names)
+        {
+            var s = mgr.GetScanGroupStats(n).FirstOrDefault();
+            totalSeg += s.SegmentCount;
+            badSegs += s.FaultedSegmentCount;
+            int cycle = s.AvgActualMs > 0 ? s.AvgActualMs : s.TargetIntervalMs;
+            totalReq += s.SegmentCount * 1000.0 / Math.Max(1, cycle);
+            if (s.AvgActualMs > 0 && s.AchieveRate < worstAchieve) worstAchieve = s.AchieveRate;
+            bool isS7 = n.StartsWith("S9_S7", StringComparison.Ordinal);
+            if (isS7) { s7Ms += s.AvgActualMs; s7Cnt++; if (s.AchieveRate < worstS7) worstS7 = s.AchieveRate; }
+            else { mbMs += s.AvgActualMs; mbCnt++; if (s.AchieveRate < worstMb) worstMb = s.AchieveRate; }
+            // 只打拖后腿的（达成率 < 97%），20 行全打意义不大
+            if (s.AchieveRate < 0.97)
+                Say($"    [拖后腿] {n,-14} 段 {s.SegmentCount,3}  目标 {s.TargetIntervalMs}ms  实测 {s.AvgActualMs,4}ms  达成率 {s.AchieveRate * 100:F0}%");
+        }
+        Say($"  分桶：Modbus×{mbCnt} 平均实测 {(mbCnt > 0 ? mbMs / mbCnt : 0)}ms 最差达成 {worstMb * 100:F0}%  |  S7×{s7Cnt} 平均实测 {(s7Cnt > 0 ? s7Ms / s7Cnt : 0)}ms 最差达成 {worstS7 * 100:F0}%");
+
+        double allocMb = (after.AllocBytes - before.AllocBytes) / 1024.0 / 1024.0 / w.Elapsed.TotalSeconds;
+        double cpu = (after.Cpu - before.Cpu).TotalMilliseconds / w.Elapsed.TotalMilliseconds / Environment.ProcessorCount * 100.0;
+        long wsMb = after.WorkingSet / 1024 / 1024;
+
+        Say($"  稳态 45s：20000 变量 / {names.Count} 连接 / 总段数 {totalSeg} / 总请求 {totalReq:F0} req/s");
+        Say($"  值变化事件 {events} 次（{events / w.Elapsed.TotalSeconds:F0}/s）   最差达成率 {worstAchieve * 100:F0}%   坏段 {badSegs}");
+        Say($"  CPU {cpu:F1}%   分配 {allocMb:F2} MB/s   线程 {after.Threads}   工作集 {wsMb} MB   Gen0 {after.Gen0 - before.Gen0} Gen2 {after.Gen2 - before.Gen2}");
+        int expectedThreads = names.Count + 8;
+        if (after.Threads > expectedThreads)
+            Find($"S9 线程数 {after.Threads}（{names.Count} 连接 + 基线 ≈{expectedThreads}）：每连接一条 Worker 线程，连接数上百时线程/栈内存是主要开销");
+        if (worstAchieve < 0.9)
+            Find($"S9 最差达成率 {worstAchieve * 100:F0}%：200ms 周期下 1000 变量/连接的段读总耗时超过周期（单连接串行上限）");
+        if (allocMb > 20)
+            Find($"S9 分配速率 {allocMb:F1} MB/s：2 万点 @200ms 下 ApplyBytes 每变量每次 new byte[] 是主分配源");
+        Say();
+    }
+
+    /// <summary>S10：高频写风暴——多线程 TriggerWrite + 同步写并发 + 队列背压</summary>
+    private static void RunS10()
+    {
+        Say("== S10 高频写风暴：8 线程 TriggerWrite 洪峰 + 同步写穿插 ==");
+        var cfg = NewModbusConfig("S10_Modbus", 5000); // 慢轮询，把带宽让给写
+        using var mgr = NewManager();
+        if (!mgr.AddConnection(cfg)) { Say("  AddConnection 失败"); return; }
+        // 注册 100 个只读变量打底（让 Worker 有轮询负载，观察写如何插队）
+        RegModbusBlock(mgr, cfg.ConnectionName, 0, 100, 1);
+
+        if (!mgr.Connect(cfg.ConnectionName)) { Say("  连接失败"); return; }
+        Thread.Sleep(300);
+
+        // ① 8 线程 TriggerWrite 洪峰（真异步，不应阻塞调用线程）
+        var sw = Stopwatch.StartNew();
+        Parallel.For(0, 8, t =>
+        {
+            for (int i = 0; i < 5000; i++)
+                mgr.TriggerWrite(cfg.ConnectionName, "x=3;" + (i % 500), (short)(t * 1000 + i), typeof(short));
+        });
+        sw.Stop();
+        Say($"  ① 8 线程 × 5000 次 TriggerWrite（40000 次）入队耗时 {sw.ElapsedMilliseconds} ms（{40000.0 / Math.Max(1, sw.ElapsedMilliseconds) * 1000:F0} 次/s，真异步不阻塞）");
+
+        // ② 洪峰后立即同步写：测写队列优先 + 背压下的同步写延迟
+        var (avg2, p99_2, ok2) = RunSyncWrites(mgr, cfg.ConnectionName, 0, 50, 1);
+        Say($"  ② 洪峰中同步写 50 次：平均 {avg2:F2} ms，p99 {p99_2:F2} ms，成功 {ok2}/50");
+
+        Thread.Sleep(4000); // 等队列消化
+
+        // ③ 稳态同步写基线对照
+        var (avg3, p99_3, ok3) = RunSyncWrites(mgr, cfg.ConnectionName, 0, 200, 1);
+        Say($"  ③ 消化后稳态同步写 200 次：平均 {avg3:F2} ms，p99 {p99_3:F2} ms，成功 {ok3}/200");
+
+        // ④ 读-写混合：轮询跑着的同时 4 线程写
+        var swr = Stopwatch.StartNew();
+        Parallel.For(0, 4, t =>
+        {
+            for (int i = 0; i < 500; i++)
+            {
+                try { mgr.Write(cfg.ConnectionName, "x=3;" + (i % 100), (short)i); } catch { }
+            }
+        });
+        swr.Stop();
+        Say($"  ④ 轮询中 4 线程 × 500 次同步写（2000 次）总耗时 {swr.ElapsedMilliseconds} ms（{2000.0 / Math.Max(1, swr.ElapsedMilliseconds) * 1000:F0} 次/s）");
+
+        if (p99_2 > 200)
+            Find($"S10 洪峰中同步写 p99 {p99_2:F0} ms：写队列满（4096）时 TriggerWrite 的 2s 入队超时把压力传给了同步写——写优先在队列饱和时被背压抵消");
+        if (sw.ElapsedMilliseconds > 10000)
+            Find($"S10 TriggerWrite 入队 {sw.ElapsedMilliseconds} ms（40000 次）：队列容量 4096 + 2s 超时，洪峰超过容量后调用线程被入队等待阻塞——真异步名不副实");
+        Say();
     }
 
     #endregion

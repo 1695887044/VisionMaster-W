@@ -14,7 +14,7 @@ namespace VisionMaster.Scada
     /// </summary>
     public enum ScadaActionType
     {
-        /// <summary>往运行日志写一行（默认动作；也是唯一在本阶段就真能执行的动作）</summary>
+        /// <summary>往运行日志写一行（默认动作：新建一条动作就立刻能用，不必先做一次类型选择）</summary>
         Log = 1,
 
         /// <summary>往一个工程变量写值（S6 已接通：经 IScadaValueSource 解析后走 IWritableVariable.TryWrite）</summary>
@@ -31,6 +31,45 @@ namespace VisionMaster.Scada
 
         /// <summary>把一条流程跑一遍（已接通：经 IScadaFlowRunner，单次语义不幂等——正在运行时拒绝）</summary>
         RunFlowOnce = 6,
+
+        // ── 运动命令族（数值 7~15，只许在末尾追加） ──
+        //
+        // 为什么这九条要进动作表、而不是让用户"配一条流程去调运动步骤"：
+        // 组态现场最常要的正是"点一下让这根轴走到这里 / 回零 / 停"，
+        // 为此去流程栏画一条只有一步的流程，等于让每个按钮都背上一条流程的维护成本
+        // （改名、停用、编译不过都会让按钮静默失效）。
+        //
+        // 粒度按流程侧的步骤划：九条与「轴使能 / 轴运动 / 轴回零 / 轴停止」四类步骤一一对应，
+        // 参数口径也一致（见 MotionActionExecutor），所以现场两处配出来的行为不会分叉。
+        // 刻意**不**再往下细分（例如 IO 写点）：动作表的定位是"操作员点一下能安全地做什么"，
+        // 需要人盯着一步步做的操作用流程步骤更合适。
+
+        /// <summary>轴使能（已接通：经 MotionActionExecutor → IMotionDevice.Enqueue(Enable)）</summary>
+        MotionEnable = 7,
+
+        /// <summary>轴失能（已接通：经 MotionActionExecutor → IMotionDevice.Enqueue(Disable)）</summary>
+        MotionDisable = 8,
+
+        /// <summary>轴绝对定位（已接通：走到 <c>TargetMm</c>；只下发，不等到位）</summary>
+        MotionMoveAbsolute = 9,
+
+        /// <summary>轴相对定位（已接通：从当前位置再走 <c>TargetMm</c>，可为负）</summary>
+        MotionMoveRelative = 10,
+
+        /// <summary>轴回零（已接通：回零方式用卡级默认，动作表不提供逐条选择）</summary>
+        MotionHome = 11,
+
+        /// <summary>轴停止（已接通：减速停，与流程侧「轴停止」的默认档一致）</summary>
+        MotionStop = 12,
+
+        /// <summary>清轴报警（已接通：报警态下这是唯一该被允许的动作，见 MotionActionExecutor）</summary>
+        MotionClearAlarm = 13,
+
+        /// <summary>点动开始（已接通：方向由 <c>TargetMm</c> 的正负号决定，缺省正向）</summary>
+        MotionJogStart = 14,
+
+        /// <summary>点动结束（已接通：停是安全动作，不走门禁）</summary>
+        MotionJogStop = 15,
     }
 
     /// <summary>
@@ -51,6 +90,17 @@ namespace VisionMaster.Scada
             ScadaActionType.StartFlow => "启动流程",
             ScadaActionType.StopFlow => "停止流程",
             ScadaActionType.RunFlowOnce => "执行一次",
+            // 运动九条的名字与流程侧步骤的 [Display(Name)] 同一口径（「轴使能」「轴回零」…）：
+            // 同一件事在两处叫不同名字，现场就没法把"按钮上写的"和"日志里记的"对上号。
+            ScadaActionType.MotionEnable => "轴使能",
+            ScadaActionType.MotionDisable => "轴失能",
+            ScadaActionType.MotionMoveAbsolute => "轴绝对定位",
+            ScadaActionType.MotionMoveRelative => "轴相对定位",
+            ScadaActionType.MotionHome => "轴回零",
+            ScadaActionType.MotionStop => "轴停止",
+            ScadaActionType.MotionClearAlarm => "清轴报警",
+            ScadaActionType.MotionJogStart => "点动开始",
+            ScadaActionType.MotionJogStop => "点动结束",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
@@ -63,7 +113,7 @@ namespace VisionMaster.Scada
         /// 运行日志里写着另一句话，用户就没法把"我配的那条"和"日志里那条"对上号，
         /// 排查方向直接跑偏。这与 <see cref="DisplayName"/> 只写一份是同一个理由。
         ///
-        /// 六个动作现在都已接通，所以只剩"本版本不认识"这一档。
+        /// 十五个动作现在都已接通，所以只剩"本版本不认识"这一档。
         /// </summary>
         public static string? PendingReason(this ScadaActionType type) => type switch
         {
@@ -80,6 +130,20 @@ namespace VisionMaster.Scada
             ScadaActionType.StartFlow => null,
             ScadaActionType.StopFlow => null,
             ScadaActionType.RunFlowOnce => null,
+            // 运动九条走 MotionActionExecutor：没选轴/轴已停用/卡不在线/未使能/未回零/超软限位/
+            // 命令被拒……每一档都是"配错了或此刻不能动"，由执行侧当场算出来（门禁
+            // MotionCommandGate 给的是可直接上屏的中文），所以这里一律不预先写死。
+            // 注意"没接入运动模块"（宿主没注入 executor）也<b>不</b>算未接通：
+            // 那是宿主装配状态，不是动作类型的能力问题——由分发器照实报"未接入"，见 ScadaActionDispatcher。
+            ScadaActionType.MotionEnable => null,
+            ScadaActionType.MotionDisable => null,
+            ScadaActionType.MotionMoveAbsolute => null,
+            ScadaActionType.MotionMoveRelative => null,
+            ScadaActionType.MotionHome => null,
+            ScadaActionType.MotionStop => null,
+            ScadaActionType.MotionClearAlarm => null,
+            ScadaActionType.MotionJogStart => null,
+            ScadaActionType.MotionJogStop => null,
             _ => "本版本不认识该动作",
         };
     }

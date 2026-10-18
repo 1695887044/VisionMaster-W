@@ -5,12 +5,12 @@ namespace VisionMaster.Plugins.Util
 {
     public enum LogicOperationType
     {
-        And,
-        Or,
-        Not,
-        Xor,
-        Nand,
-        Nor
+        [Display(Name = "与")] And,
+        [Display(Name = "或")] Or,
+        [Display(Name = "非")] Not,
+        [Display(Name = "异或")] Xor,
+        [Display(Name = "与非")] Nand,
+        [Display(Name = "或非")] Nor
     }
 
     [Display(

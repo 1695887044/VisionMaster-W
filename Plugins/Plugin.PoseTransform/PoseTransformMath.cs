@@ -18,6 +18,14 @@ namespace Plugin.PoseTransform
     /// 插件是独立模块、只引用契约程序集（互相不引用是仓库纪律）；
     /// 公式语义由 <see cref="CalibrationTransform"/> 的契约注释锁死，两个插件各自实现、
     /// 各自的断言套件把同一组已知矩阵钉住——这是"契约锁语义"而不是"共享一个 DLL"。
+    ///
+    /// 像素定义域（二期③起，务必先读）
+    /// ---------
+    /// 本层**只处理"已经去畸变"的像素**：<see cref="CalibrationKind.NinePointUndistorted"/> /
+    /// <see cref="CalibrationKind.PerspectiveUndistorted"/> / <see cref="CalibrationKind.MeshUndistorted"/>
+    /// 在数学层里与对应的非 Undistorted 成员**走同一条分支**（矩阵/投影/网格的计算一模一样）——
+    /// 去畸变/加畸变由插件层经 <c>PoseTransformIntrinsics</c> 完成（HALCON 依赖不进本文件）。
+    /// 判定"这个 Kind 是不是去畸变域"只有一处实现：<see cref="IsUndistortedKind"/>。
     /// </summary>
     public static class PoseTransformMath
     {
@@ -31,7 +39,32 @@ namespace Plugin.PoseTransform
         public const string PixelScaleCannotMapMessage =
             "当前标定只有像素当量、不含机械坐标：坐标换算请用九点标定 / 透视标定 / 网格标定（像素当量模式只给 mm/px）";
 
-        /// <summary>标定缺失/类型不对/矩阵损坏 → false（失配第一、二类；按 Kind 分支，未知类型绝不静默放行）。</summary>
+        /// <summary>
+        /// 该标定类型是否**带内参去畸变**（像素定义在去畸变后的理想针孔坐标系上）。
+        ///
+        /// **单一真源在契约层**：<see cref="CalibrationKinds.IsUndistorted"/>——
+        /// 生产端（「标定」插件）与消费端（本插件）共用同一份判据，将来加 Kind 只改一处。
+        /// 本方法是给插件内部用的薄转发（保留既有调用点与断言的可读名）。
+        /// </summary>
+        public static bool IsUndistortedKind(CalibrationKind kind)
+            => CalibrationKinds.IsUndistorted(kind);
+
+        /// <summary>
+        /// 标定缺失/类型不对/矩阵损坏/内参自证失败 → false
+        /// （失配第一、二类 + 二期③的"内参四判据"；按 Kind 分支，未知类型绝不静默放行）。
+        ///
+        /// 内参四判据（`*Undistorted` 三个 Kind 专属；全部**明确失败**、不许静默放行）：
+        /// ① <see cref="CalibrationTransform.Intrinsics"/> 非 null 且过 <see cref="CameraIntrinsics.IsUsable"/>
+        ///    （复用契约判据，**不另写一份**——两处各写一遍迟早分叉）；
+        /// ② 内参图尺寸与标定图尺寸**两边都记录了**且不等 → 失败（两者不是同一次拍摄的产物）；
+        /// ③ 内参相机序列号与标定序列号**两边都非空**且不等（忽略大小写）→ 失败（拿错相机的内参）；
+        /// ④ **反向**：非 `*Undistorted` 的 Kind 若带非 null 内参 → 失败（数据自相矛盾，
+        ///    静默放行等于"矩阵按原始像素用、却让人以为做过去畸变"）。
+        ///
+        /// 为什么这四条落在这里（而不是只在运行路径）：本方法同时被**配置态**调用
+        /// （<c>PoseTransformPlugin.RefreshStatus/RefreshCalibrationInfo</c>）——
+        /// 数据不一致必须在用户还没跑流程时就出现在状态栏/信息块里。
+        /// </summary>
         public static bool CheckCalibrationUsable(CalibrationTransform? t, out string? error)
         {
             error = null;
@@ -48,9 +81,52 @@ namespace Plugin.PoseTransform
                 return false;
             }
 
+            if (IsUndistortedKind(t.Kind))
+            {
+                // ① 内参必须存在且良构（判据来自契约，文案也来自契约——直接上屏，不自己造）
+                if (!CameraIntrinsics.IsUsable(t.Intrinsics, out string? intrinsicError))
+                {
+                    error = intrinsicError;
+                    return false;
+                }
+
+                var c = t.Intrinsics!;
+
+                // ② 尺寸交叉核对（两边都记录了才查——只记一边是历史数据的常态，不误报）
+                if (c.ImageWidth > 0 && c.ImageHeight > 0
+                    && t.SourceImageWidth > 0 && t.SourceImageHeight > 0
+                    && (c.ImageWidth != t.SourceImageWidth || c.ImageHeight != t.SourceImageHeight))
+                {
+                    error = $"标定与内参的图像尺寸不一致（标定 {t.SourceImageWidth}×{t.SourceImageHeight}，"
+                          + $"内参 {c.ImageWidth}×{c.ImageHeight}）：两者不是同一次拍摄的产物"
+                          + "——请重新运行「标定」步骤（内参标定 + 平面标定用同一分辨率）";
+                    return false;
+                }
+
+                // ③ 相机身份交叉核对（两边都非空才查，口径与插件的 SourceSerial 失配一致）
+                string intrinsicSerial = (c.CameraSerial ?? string.Empty).Trim();
+                string transformSerial = (t.CameraSerial ?? string.Empty).Trim();
+                if (intrinsicSerial.Length > 0 && transformSerial.Length > 0
+                    && !string.Equals(intrinsicSerial, transformSerial, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = $"标定与内参的相机身份不一致（标定属于「{transformSerial}」，内参属于「{intrinsicSerial}」）："
+                          + "多半是两份数据来自不同相机——请重新运行「标定」步骤（同一台相机做内参与平面标定）";
+                    return false;
+                }
+            }
+            else if (t.Intrinsics != null)
+            {
+                // ④ 反向自证：不带内参语义的 Kind 携带内参 = 数据自相矛盾。
+                // 放行的后果：矩阵按"原始像素"定义，界面却可能显示"已去畸变"——静默错位。
+                error = $"标定数据自相矛盾（类型 {t.Kind} 不带内参语义，却携带了相机内参）："
+                      + "数据来源可能被混用——请重新运行「标定」步骤";
+                return false;
+            }
+
             switch (t.Kind)
             {
                 case CalibrationKind.NinePoint:
+                case CalibrationKind.NinePointUndistorted:
                     if (!IsUsableMatrix(t.Matrix))
                     {
                         error = "标定数据损坏（矩阵缺失或退化）：请重新运行「标定」步骤";
@@ -59,6 +135,7 @@ namespace Plugin.PoseTransform
                     return true;
 
                 case CalibrationKind.Perspective:
+                case CalibrationKind.PerspectiveUndistorted:
                     if (!IsUsableProjective(t.ProjectiveMatrix))
                     {
                         error = "标定数据损坏（投影矩阵缺失或退化）：请重新运行「标定」步骤";
@@ -67,6 +144,7 @@ namespace Plugin.PoseTransform
                     return true;
 
                 case CalibrationKind.Mesh:
+                case CalibrationKind.MeshUndistorted:
                     // 网格的三角化/插值规则放契约程序集（Core.Interfaces.CalibrationMesh）：
                     // 生产端与消费端必须是同一份实现，分叉 = 同一份标定算出两套坐标。
                     // 文案尾巴由 CalibrationMesh 自带（含"重新运行「标定」步骤"），这里不追加、避免重复。
@@ -87,19 +165,35 @@ namespace Plugin.PoseTransform
         /// <summary>
         /// 失配第三类：当前图尺寸 ≠ 标定时图尺寸（换分辨率/换相机后旧标定必须自证失效）。
         /// 标定快照没记尺寸（两个 0）时无从比对 → 放行（由现场核对），不静默报错。
+        ///
+        /// 二期③起**并列**再加一条：当前图尺寸 ≠ <see cref="CameraIntrinsics.ImageWidth"/> /
+        /// <see cref="CameraIntrinsics.ImageHeight"/> 也要失败——畸变系数是**像素帧相关**的量，
+        /// 换分辨率后拿旧内参去畸变会把点挪到"看起来合理"的错误位置（静默故障）。
+        /// 两条检查**并列不互相替代**：标定快照与内参是两个来源，任一条对不上都要拦。
         /// </summary>
         public static bool CheckImageSizeMatch(CalibrationTransform t, int width, int height, out string? error)
         {
             error = null;
 
-            if (t.SourceImageWidth <= 0 || t.SourceImageHeight <= 0)
-                return true;
-            if (t.SourceImageWidth == width && t.SourceImageHeight == height)
-                return true;
+            if (t.SourceImageWidth > 0 && t.SourceImageHeight > 0
+                && (t.SourceImageWidth != width || t.SourceImageHeight != height))
+            {
+                error = $"标定与当前图像尺寸不符（标定时 {t.SourceImageWidth}×{t.SourceImageHeight}，当前 {width}×{height}）"
+                      + "——换分辨率/换相机后需重新标定";
+                return false;
+            }
 
-            error = $"标定与当前图像尺寸不符（标定时 {t.SourceImageWidth}×{t.SourceImageHeight}，当前 {width}×{height}）"
-                  + "——换分辨率/换相机后需重新标定";
-            return false;
+            // 内参的标定图尺寸（只记了一边就跳过这一支——历史数据/离线场景不误报）
+            var c = t.Intrinsics;
+            if (c != null && c.ImageWidth > 0 && c.ImageHeight > 0
+                && (c.ImageWidth != width || c.ImageHeight != height))
+            {
+                error = $"当前图像尺寸与内参标定尺寸不符（内参标定 {c.ImageWidth}×{c.ImageHeight}，当前 {width}×{height}）"
+                      + "——换分辨率/换相机后需重新运行内参标定（畸变系数是像素帧相关的量）";
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -149,7 +243,13 @@ namespace Plugin.PoseTransform
 
         #region 点换算（正 / 反）
 
-        /// <summary>像素 (Row, Col) → 机械 (X, Y)（九点：仿射；透视：投影除法）。</summary>
+        /// <summary>
+        /// 像素 (Row, Col) → 机械 (X, Y)（九点：仿射；透视：投影除法）。
+        ///
+        /// **调用方义务（`*Undistorted` 三个 Kind）**：本层只处理"已经去畸变"的像素——
+        /// 插件层必须先经 <c>PoseTransformIntrinsics.TryUndistortForCalibration</c> 再调这里
+        /// （数学层零 HALCON，做不了去畸变）。
+        /// </summary>
         public static bool TryMapPixelToMechanical(
             CalibrationTransform? t, double row, double col, out double x, out double y, out string? error)
         {
@@ -166,7 +266,7 @@ namespace Plugin.PoseTransform
             }
 
             var tc = t!;
-            if (tc.Kind == CalibrationKind.Perspective)
+            if (tc.Kind is CalibrationKind.Perspective or CalibrationKind.PerspectiveUndistorted)
             {
                 var h = tc.ProjectiveMatrix!;   // CheckCalibrationUsable 已保证可用
                 double w = h[6] * row + h[7] * col + h[8];
@@ -181,7 +281,7 @@ namespace Plugin.PoseTransform
                 return true;
             }
 
-            if (tc.Kind == CalibrationKind.Mesh)
+            if (tc.Kind is CalibrationKind.Mesh or CalibrationKind.MeshUndistorted)
             {
                 // 分段仿射：定位所在三角形后重心插值（节点处精确通过）；**网格外明确失败，不外推**
                 return CalibrationMesh.TryMapPixelToXY(tc.MeshNodes!, tc.MeshSize, row, col, out x, out y, out error);
@@ -193,7 +293,13 @@ namespace Plugin.PoseTransform
             return true;
         }
 
-        /// <summary>机械 (X, Y) → 像素 (Row, Col)（九点：2×2 求逆；透视：3×3 伴随求逆 + 齐次除法）。</summary>
+        /// <summary>
+        /// 机械 (X, Y) → 像素 (Row, Col)（九点：2×2 求逆；透视：3×3 伴随求逆 + 齐次除法）。
+        ///
+        /// **调用方义务（`*Undistorted` 三个 Kind）**：这里算出的是**去畸变域**像素——
+        /// 要拿"真实图像像素"必须再经 <c>PoseTransformIntrinsics.TryDistortBack</c> 施加逆向畸变
+        /// （回显自校验就是靠这一步才敢与输入比）。
+        /// </summary>
         public static bool TryMapMechanicalToPixel(
             CalibrationTransform? t, double x, double y, out double row, out double col, out string? error)
         {
@@ -204,7 +310,7 @@ namespace Plugin.PoseTransform
                 return false;
 
             var tc = t!;
-            if (tc.Kind == CalibrationKind.Perspective)
+            if (tc.Kind is CalibrationKind.Perspective or CalibrationKind.PerspectiveUndistorted)
             {
                 var h = tc.ProjectiveMatrix!;   // CheckCalibrationUsable 已保证可用
                 // 3×3 伴随求逆：H⁻¹ = adj(H)/det
@@ -238,7 +344,7 @@ namespace Plugin.PoseTransform
                 return true;
             }
 
-            if (tc.Kind == CalibrationKind.Mesh)
+            if (tc.Kind is CalibrationKind.Mesh or CalibrationKind.MeshUndistorted)
             {
                 // 反向同样是分段仿射（机械空间定位 + 重心插值）——与正向严格互逆（同一三角形内是同一个仿射）
                 if (!IsFinite(x) || !IsFinite(y))
@@ -287,6 +393,12 @@ namespace Plugin.PoseTransform
         ///
         /// **透视标定下角度与位置相关**：基准与对象方向都用**同一点 p** 的局部雅可比 J(p)
         /// （v0 = J·(0,1)ᵀ、vθ = J·(sinθ,cosθ)ᵀ）；九点标定忽略 row/col（全局线性），行为与旧版一致。
+        ///
+        /// **`*Undistorted` 三个 Kind 的入参口径**（二期③）：`pixelAngleDeg` 必须是**去畸变域**里的方向角
+        /// ——畸变在像素域里是非共形的局部映射（径向缩放各向异性 + polynomial 切向项），
+        /// 原始像素域的角度与去畸变域不同。换算由插件层做
+        /// （<c>PoseTransformIntrinsics.TryUndistortDirection</c>，去畸变前后两点差分），
+        /// **数学层不动**：这里拿到的角度直接按对应矩阵分支算（本层零 HALCON，做不了去畸变）。
         /// </summary>
         public static bool TryPixelAngleToMechanical(
             CalibrationTransform? t, double pixelAngleDeg, double row, double col,
@@ -309,7 +421,8 @@ namespace Plugin.PoseTransform
             double dx0, dy0, dx, dy;
 
             var tc = t!;
-            if (tc.Kind is CalibrationKind.Perspective or CalibrationKind.Mesh)
+            if (tc.Kind is CalibrationKind.Perspective or CalibrationKind.PerspectiveUndistorted
+                        or CalibrationKind.Mesh or CalibrationKind.MeshUndistorted)
             {
                 // 透视/网格：角度与位置相关——基准与对象方向都用**同一点 p** 的局部雅可比 J(p)
                 if (!IsFinite(row) || !IsFinite(col))
@@ -319,7 +432,7 @@ namespace Plugin.PoseTransform
                 }
 
                 double ja, jb, jc, jd;
-                if (tc.Kind == CalibrationKind.Perspective)
+                if (tc.Kind is CalibrationKind.Perspective or CalibrationKind.PerspectiveUndistorted)
                 {
                     if (!JacobianAt(tc.ProjectiveMatrix!, row, col, out ja, out jb, out jc, out jd))
                     {

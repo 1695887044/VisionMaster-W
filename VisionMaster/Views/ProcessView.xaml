@@ -333,7 +333,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock
                                     x:Name="ErrorMark"
-                                    Margin="0,0,4,0"
+                                    Margin="0,0,6,0"
                                     VerticalAlignment="Center"
                                     FontFamily="{StaticResource Icon}"
                                     FontSize="10"
@@ -431,9 +431,11 @@
                         <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
                     </DataTrigger>
 
-                    <!--  执行失败：红色警示卡片 + 名字前红 ×  -->
+                    <!--  执行失败：红边 + 红字 + 红图标 + 名字前红 ×，**背景留白**——
+                          整卡红底会在树里压过容器层级（2026-10-18 参照 ui-web 原型的 error tone：
+                          border-destructive + text-destructive、bg-card 留白），
+                          "填色卡片"只留给正在运行（绿色高亮 = 此刻的焦点）。  -->
                     <DataTrigger Binding="{Binding State}" Value="Failed">
-                        <Setter TargetName="RootBorder" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
                         <Setter TargetName="RootBorder" Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
                         <Setter TargetName="IconChip" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
                         <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
@@ -557,6 +559,161 @@
                     </DataTrigger>
                 </HierarchicalDataTemplate.Triggers>
             </HierarchicalDataTemplate>
+
+            <!--  ==========================================  -->
+            <!--  ⏳ 等待节点样式（BuiltIn_Wait，身份色=主色）  -->
+            <!--  **非容器**（WaitStep 无 Children）→ 必须是普通 DataTemplate，不许 HierarchicalDataTemplate、  -->
+            <!--  不许绑 ItemsSource；行结构照 ActionStep：状态点 / 图标色块 / 类型 chip / 实例名+等待条件。  -->
+            <!--  R23 守门：新增 StepModel 子类必须在这里补 DataType 模板，缺了整行回退 ToString() 把类型全名上屏。  -->
+            <!--  ==========================================  -->
+            <DataTemplate DataType="{x:Type models:WaitStep}">
+                <Border
+                    x:Name="RootBorder"
+                    Margin="2,1"
+                    Padding="4,4"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    ToolTip="{Binding ConditionExpression}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!--  完成状态点（与算子行同口径：Idle 灰 / 运行蓝 / 成功绿 / 失败红 / 跳过灰）  -->
+                        <Ellipse
+                            x:Name="StatusDot"
+                            Grid.Column="0"
+                            Width="8"
+                            Height="8"
+                            Margin="2,0,4,0"
+                            VerticalAlignment="Center"
+                            Fill="{StaticResource ScadaDisabledTextBrush}" />
+
+                        <!--  图标色块（主色身份）；右上角叠断点小红点  -->
+                        <Grid
+                            Grid.Column="1"
+                            Width="24"
+                            Height="24"
+                            Margin="2,0,8,0">
+                            <Border
+                                x:Name="IconChip"
+                                Background="{StaticResource DialogAccentSoftBrush}"
+                                CornerRadius="6">
+                                <TextBlock
+                                    x:Name="IconText"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogAccentBrush}"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                            </Border>
+                            <!--  断点标记：只标记"有断点"的状态；未设断点时收起，避免噪声  -->
+                            <Ellipse
+                                Width="6"
+                                Height="6"
+                                Margin="0,-2,-2,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Fill="{StaticResource FlowCanvasBreakpointBrush}"
+                                Stroke="{StaticResource ScadaSurfaceBrush}"
+                                StrokeThickness="1">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBreakpoint}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                        </Grid>
+
+                        <!--  类型 chip「等待」（主色底 + 主色字，与 While 的橙、For 的绿区分）  -->
+                        <Border
+                            Grid.Column="2"
+                            Margin="0,0,6,0"
+                            Padding="6,1"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogAccentSoftBrush}"
+                            CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource Icon}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogAccentBrush}"
+                                    Text="{Binding Icon}"
+                                    TextOptions.TextFormattingMode="Display" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogAccentBrush}"
+                                    Text="等待" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--  实例名 + 等待条件小字（窄面板也看得到"在等什么"；完整条件悬停行上可见）  -->
+                        <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                            <TextBlock
+                                x:Name="NameText"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource ScadaTextBrush}"
+                                Text="{Binding StepName}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding StepName}" />
+                            <TextBlock
+                                x:Name="ConditionText"
+                                Margin="0,1,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="{Binding ConditionExpression}"
+                                TextTrimming="CharacterEllipsis"
+                                ToolTip="{Binding ConditionExpression}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <DataTemplate.Triggers>
+                    <!--  正在执行本步：名字变绿 + 状态点转蓝（与 While 模板 / 算子行同口径）  -->
+                    <DataTrigger Binding="{Binding State}" Value="Running">
+                        <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasRunningBrush}" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding State}" Value="Success">
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSuccessBrush}" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding State}" Value="Failed">
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasFailedBrush}" />
+                        <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                        <Setter TargetName="ConditionText" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding State}" Value="Skipped">
+                        <Setter TargetName="StatusDot" Property="Fill" Value="{StaticResource FlowCanvasSkippedBrush}" />
+                        <Setter TargetName="RootBorder" Property="Opacity" Value="0.6" />
+                    </DataTrigger>
+
+                    <DataTrigger Binding="{Binding IsDisEnable}" Value="True">
+                        <Setter TargetName="RootBorder" Property="Opacity" Value="0.4" />
+                        <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
+                        <Setter TargetName="StatusDot" Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </DataTemplate.Triggers>
+            </DataTemplate>
 
             <!--  ==========================================  -->
             <!--  🔢 For 计次循环节点容器样式（身份色=绿）  -->

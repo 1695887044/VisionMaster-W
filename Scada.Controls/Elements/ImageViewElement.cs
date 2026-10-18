@@ -25,7 +25,7 @@ namespace VisionMaster.Scada.Controls
     /// </summary>
     [TemplatePart(Name = PartImageHost, Type = typeof(Image))]
     [TemplatePart(Name = PartPlaceholder, Type = typeof(TextBlock))]
-    public class ImageViewElement : ScadaElementBase
+    public partial class ImageViewElement : ScadaElementBase
     {
         /// <summary>模板部件名：图像本体</summary>
         public const string PartImageHost = "ImageHost";
@@ -38,50 +38,37 @@ namespace VisionMaster.Scada.Controls
         /// 绑定到本属性的是已冻结的 BitmapSource（冻结才能跨线程交给 UI），
         /// BitmapSource 本身就是 ImageSource，换算链在"值已是目标类型"那一档直通。
         /// </summary>
-        public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
-            nameof(Source), typeof(ImageSource), typeof(ImageViewElement),
-            new FrameworkPropertyMetadata(
-                null, FrameworkPropertyMetadataOptions.AffectsRender, OnSourceChanged));
+        [ScadaProperty(Key = "Source", DisplayName = "图像", Kind = ElementPropertyKind.Image,
+                       Group = "图像", DefaultValue = "", IsBindable = true,
+                       Description = "绑一个图像变量（HImage）。Halcon 像素到 WPF 位图的换算在宿主侧完成，" +
+                                     "本图元只认 WPF 位图——图元库刻意不认识视觉库，换算法库不必动画面。" +
+                                     "位图没法手打，所以这一行只给绑定入口，不给输入框")]
+        public partial ImageSource? Source { get; set; }
 
         /// <summary>
         /// 缩放方式。直接复用 WPF 自带的 <see cref="Stretch"/> 枚举，不自造一套——
         /// 这样属性面板的下拉候选项、字符串转换器、绑定引擎的换算规则全都是现成的。
         /// </summary>
-        public static readonly DependencyProperty StretchProperty = DependencyProperty.Register(
-            nameof(Stretch), typeof(Stretch), typeof(ImageViewElement),
-            new FrameworkPropertyMetadata(Stretch.Uniform, FrameworkPropertyMetadataOptions.AffectsRender));
+        [ScadaProperty(Key = "Stretch", DisplayName = "缩放方式", Kind = ElementPropertyKind.Choice,
+                       Group = "图像", DefaultValue = "Uniform",
+                       Choices = new[] { "None", "Fill", "Uniform", "UniformToFill" },
+                       Description = "图像在框内的缩放规则，直接复用 WPF 自带的 Stretch 枚举；" +
+                                     "默认 Uniform（等比缩放到框内，不变形），要看像素真值（不缩放）选 None")]
+        public partial Stretch Stretch { get; set; }
 
         /// <summary>没有图时显示的提示文字</summary>
-        public static readonly DependencyProperty PlaceholderTextProperty = DependencyProperty.Register(
-            nameof(PlaceholderText), typeof(string), typeof(ImageViewElement),
-            new FrameworkPropertyMetadata("无图像", FrameworkPropertyMetadataOptions.AffectsRender));
+        [ScadaProperty(Key = "PlaceholderText", DisplayName = "无图提示", Kind = ElementPropertyKind.Text,
+                       Group = "图像", DefaultValue = "无图像",
+                       Description = "还没绑变量、或变量当前没有图时显示的字。" +
+                                     "有它才能分清「没配」和「配了但没图」——" +
+                                     "否则操作员看到的只是一个像坏掉的空白框")]
+        public partial string? PlaceholderText { get; set; }
 
         static ImageViewElement()
         {
             DefaultStyleKeyProperty.OverrideMetadata(
                 typeof(ImageViewElement),
                 new FrameworkPropertyMetadata(typeof(ImageViewElement)));
-        }
-
-        /// <summary>要显示的位图（见 <see cref="SourceProperty"/>）</summary>
-        public ImageSource? Source
-        {
-            get => (ImageSource?)GetValue(SourceProperty);
-            set => SetValue(SourceProperty, value);
-        }
-
-        /// <summary>缩放方式（见 <see cref="StretchProperty"/>）</summary>
-        public Stretch Stretch
-        {
-            get => (Stretch)GetValue(StretchProperty);
-            set => SetValue(StretchProperty, value);
-        }
-
-        /// <summary>无图时的提示文字（见 <see cref="PlaceholderTextProperty"/>）</summary>
-        public string? PlaceholderText
-        {
-            get => (string?)GetValue(PlaceholderTextProperty);
-            set => SetValue(PlaceholderTextProperty, value);
         }
 
         protected override void OnElementRefreshed() => ApplyStrokeInset();
@@ -92,8 +79,8 @@ namespace VisionMaster.Scada.Controls
             UpdatePlaceholderVisibility();
         }
 
-        private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((ImageViewElement)d).UpdatePlaceholderVisibility();
+        // 有图 / 无图要翻占位提示的显隐；缩放方式与提示文字由模板绑定自己刷新。
+        partial void OnSourcePropertyChanged() => UpdatePlaceholderVisibility();
 
         /// <summary>
         /// 图像与占位提示互斥显示。这是个纯模板层的选择，但本环境下

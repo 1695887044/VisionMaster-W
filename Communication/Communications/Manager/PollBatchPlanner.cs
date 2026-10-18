@@ -466,10 +466,10 @@ namespace VisionMaster.Communications
                 foreach (var single in _fallbacks)
                 {
                     attempted++;
+                    object? value;
                     try
                     {
-                        var value = single.ReadMethod.Invoke(connection, new object[] { single.Variable.Address });
-                        single.Variable.UpdateValue(value);
+                        value = single.ReadMethod.Invoke(connection, new object[] { single.Variable.Address });
                     }
                     catch (Exception ex)
                     {
@@ -478,13 +478,38 @@ namespace VisionMaster.Communications
                         var inner = (ex as TargetInvocationException)?.InnerException ?? ex;
                         LogThrottled($"var:{single.Variable.ConnectionName}.{single.Variable.VariableName}",
                             $"单读失败 {single.Variable.VariableName}（{single.Variable.Address}）: {inner.Message}");
+                        continue;
                     }
+
+                    // F1：读成功之后的派发单独兜底——下游订阅者抛异常不算"单读失败"
+                    PublishValue(single.Variable, value);
                 }
             }
 
             if (attempted == 0) return true;   // 无读项：不算故障（连接活性由其它读写刷新）
             if (linkFault) return false;       // ★ 必须显式判：前几段成功、后段链路断时 failed < attempted 会误判为正常
             return failed < attempted;         // 全失败 ⇒ 通信级故障，交给 Worker 断线重连
+        }
+
+        /// <summary>
+        /// 把已解码的值推给变量（F1）。
+        /// <para><b>为什么必须与"解码"分开 try</b>：<see cref="CommunicationVariable.UpdateValue"/> 会同步 Invoke
+        /// 下游订阅者（UI 绑定的 PropertyChanged 链、SCADA 运行态、报警引擎）。下游任何一处抛异常时，
+        /// 值其实**已经读到并写进变量**——若和解码共用 catch，变量会被错误地 <c>MarkUncertain()</c>
+        /// （UI 黄点"读取失败"）并记一条误导性的"解码失败"日志。</para>
+        /// <para>这里只记限流日志：不改质量戳、不计入 <c>failed</c>（通信本身是成功的）。</para>
+        /// </summary>
+        private void PublishValue(CommunicationVariable variable, object? value)
+        {
+            try
+            {
+                variable.UpdateValue(value);
+            }
+            catch (Exception ex)
+            {
+                LogThrottled($"publish:{variable.ConnectionName}.{variable.VariableName}",
+                    $"值已更新但下游处理异常 {variable.VariableName}（{variable.Address}）: {ex.Message}");
+            }
         }
 
         /// <summary>解码非位区段的字节流（S7 字节段 / Modbus 寄存器段）</summary>
@@ -495,6 +520,7 @@ namespace VisionMaster.Communications
 
             foreach (var item in seg.Items)
             {
+                object? value;
                 try
                 {
                     int byteOffset = item.UnitOffset * bytesPerUnit;
@@ -508,19 +534,20 @@ namespace VisionMaster.Communications
                         continue;
                     }
 
-                    object? value = item.BitOffset >= 0
+                    value = item.BitOffset >= 0
                         ? DecodeBit(data, byteOffset, item.BitOffset, item.ValueType)
                         : DecodeValue(data, byteOffset, byteLength, item, order);
-
-                    if (value != null)
-                        item.Variable.UpdateValue(value);
                 }
                 catch (Exception ex)
                 {
                     item.Variable.MarkUncertain(); // 解码异常：本变量本轮没有可用新值
                     LogThrottled($"decode:{item.Variable.ConnectionName}.{item.Variable.VariableName}",
                         $"解码失败 {item.Variable.VariableName}（{item.Variable.Address}）: {ex.Message}");
+                    continue;
                 }
+
+                if (value != null)
+                    PublishValue(item.Variable, value);
             }
         }
 
@@ -531,6 +558,7 @@ namespace VisionMaster.Communications
 
             foreach (var item in seg.Items)
             {
+                object? value;
                 try
                 {
                     if (item.UnitOffset < 0 || item.UnitOffset >= bits.Length)
@@ -541,26 +569,32 @@ namespace VisionMaster.Communications
                         continue;
                     }
 
-                    item.Variable.UpdateValue(FromBit(bits[item.UnitOffset], item.ValueType));
+                    value = FromBit(bits[item.UnitOffset], item.ValueType);
                 }
                 catch (Exception ex)
                 {
                     item.Variable.MarkUncertain(); // 解码异常：本变量本轮没有可用新值
                     LogThrottled($"decode:{item.Variable.ConnectionName}.{item.Variable.VariableName}",
                         $"解码失败 {item.Variable.VariableName}（{item.Variable.Address}）: {ex.Message}");
+                    continue;
                 }
+
+                PublishValue(item.Variable, value);
             }
         }
 
-        /// <summary>按段内字节偏移切出值（数值按连接字序解码；string/byte[] 原样取用长度）</summary>
+        /// <summary>
+        /// 按段内字节偏移切出值（数值按连接字序解码；string/byte[] 原样取用长度）。
+        /// <para>P-A3：数值类型直接传段内切片给 <see cref="HslHelper.ConvertToByType(ReadOnlySpan{byte}, Type, ByteOrderFormat)"/>，
+        /// 不再为每个变量复制一个中间数组（只有 string/byte[] 本身必须产出新对象）。</para>
+        /// </summary>
         private static object? DecodeValue(byte[] data, int offset, int length, SegmentItem item, ByteOrderFormat order)
         {
-            var raw = new byte[length];
-            Array.Copy(data, offset, raw, 0, length);
+            var slice = new ReadOnlySpan<byte>(data, offset, length);
 
-            if (item.IsByteArray) return raw;
-            if (item.IsString) return Encoding.ASCII.GetString(raw).TrimEnd('\0'); // 与写链路 ASCII 对称
-            return HslHelper.ConvertToByType(raw, item.ValueType, order);
+            if (item.IsByteArray) return slice.ToArray();
+            if (item.IsString) return Encoding.ASCII.GetString(slice).TrimEnd('\0'); // 与写链路 ASCII 对称
+            return HslHelper.ConvertToByType(slice, item.ValueType, order);
         }
 
         /// <summary>S7 位访问：取指定字节的第 N 位</summary>

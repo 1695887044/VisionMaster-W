@@ -78,11 +78,6 @@ namespace VisionMaster.Models
 
             int iter = 0;
 
-            // args 数组布局：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames）
-            // 数组大小每次迭代固定，分配一次放循环外复用，循环体内只重填值
-            int totalArgs = LoopBranch.LocalVarIds.Count + LoopBranch.RuntimeVarNames.Count;
-            var args = new object[totalArgs];
-
             // 【为什么是 while (true) 而不是 while (iter < MaxIterations)】
             // 旧写法把"上限"当循环头守卫，退出后无法区分两种退出原因：
             //   (a) 条件自然转假 —— 循环正常跑完
@@ -95,35 +90,9 @@ namespace VisionMaster.Models
             {
                 if (context.CancellationToken.IsCancellationRequested) return;
 
-                // 局部变量：从 UpstreamLinks 取值
-                // P0-2/P0-3：取值一律经 CoerceConditionArg 按声明类型归一，无值走 DefaultForConditionArg。
-                // 与 CompiledIfNode 保持同一口径（详见基类两个助手的注释）：
-                // 编译期 IsLinkable 按 ValueConverter.Convert 放行"数值族互转"，
-                // 而 DynamicInvoke 不做收窄（double → int 抛 ArgumentException），
-                // 运行期不补这一步就会"编译通过、一跑就炸"。
-                for (int i = 0; i < LoopBranch.LocalVarIds.Count; i++)
-                {
-                    Guid varId = LoopBranch.LocalVarIds[i];
-                    Type expectedType = LoopBranch.VarTypes.ContainsKey(varId) ? LoopBranch.VarTypes[varId] : typeof(double);
-
-                    if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
-                        args[i] = CoerceConditionArg(sourcePort.Value, expectedType);
-                    else
-                        args[i] = DefaultForConditionArg(expectedType);
-                }
-
-                // 运行时变量：从 context.LocalVariables 取值
-                for (int i = 0; i < LoopBranch.RuntimeVarNames.Count; i++)
-                {
-                    string varName = LoopBranch.RuntimeVarNames[i];
-                    int argIndex = LoopBranch.LocalVarIds.Count + i;
-                    Type expectedType = LoopBranch.RuntimeVarTypes.ContainsKey(varName) ? LoopBranch.RuntimeVarTypes[varName] : typeof(object);
-
-                    if (context.LocalVariables.TryGetValue(varName, out var v) && v != null)
-                        args[argIndex] = CoerceConditionArg(v, expectedType);
-                    else
-                        args[argIndex] = DefaultForConditionArg(expectedType);
-                }
+                // 实参构建统一走基类 BuildConditionArgs（与 If / 等待共用同一份类型归一；
+                // P0-2/P0-3 的取值归一与无值兜底只有那一处实现）
+                var args = BuildConditionArgs(LoopBranch, UpstreamLinks, context);
 
                 bool isTrue = false;
                 try { isTrue = (bool)LoopBranch.ConditionLambda.Invoke(args); }

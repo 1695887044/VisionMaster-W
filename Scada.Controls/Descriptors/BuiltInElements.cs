@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using VisionMaster.Scada;
 
 namespace VisionMaster.Scada.Controls
 {
@@ -54,50 +55,16 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 120,
                 DefaultHeight = 60,
                 Description = "带填充与边框的矩形，中间可放一段文字（设备本体、区域背景、状态块）",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "填充色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFFFFFFF",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "0", Min = 0, Max = 200,
-                        Description = "半径超过短边一半时 WPF 会自行收敛成胶囊形",
-                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "文字", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    }),
+                // 纯打包图元：它的全部属性都指向基类/Control 已有的依赖属性，
+                // 没有一条私有依赖属性 → 不需要任何 [ScadaProperty] 声明，描述符全由打包助手产出。
+                Properties = GeometryProperties.WithGroups(
+                    AppearanceProperties.Fill("#FFFFFFFF"),
+                    AppearanceProperties.Stroke("#FF7A7A7A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("0", description: "半径超过短边一半时 WPF 会自行收敛成胶囊形"),
+                    TextProperties.Text(),
+                    TextProperties.Foreground(),
+                    TextProperties.FontSize()),
             },
 
             new()
@@ -109,43 +76,13 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 100,
                 DefaultHeight = 100,
                 Description = "圆形/椭圆的设备或状态点（罐体、电机、风机）",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "填充色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFFFFFFF",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "文字", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    AppearanceProperties.Fill("#FFFFFFFF"),
+                    AppearanceProperties.Stroke("#FF7A7A7A"),
+                    AppearanceProperties.StrokeThickness(),
+                    TextProperties.Text(),
+                    TextProperties.Foreground(),
+                    TextProperties.FontSize()),
             },
 
             new()
@@ -157,48 +94,16 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 120,
                 DefaultHeight = 24,
                 Description = "静态标签：标题、说明、单位。它不认识数值，也不接变量——要显示会变的数就用「数值域」",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Text", DisplayName = "内容", Kind = ElementPropertyKind.MultilineText,
-                        Group = "文字", DefaultValue = "文本",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "14", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Normal",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        Description = "标题常用 Bold；Normal 与 SemiBold 在小字号下区别不大",
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    },
-                    new()
-                    {
-                        Key = "TextAlignment", DisplayName = "水平对齐", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Center",
-                        Choices = new[] { "Left", "Center", "Right", "Justify" },
-                        TargetProperty = ScadaElementBase.TextAlignmentProperty,
-                    },
-                    new()
-                    {
-                        Key = "VerticalContentAlignment", DisplayName = "垂直对齐", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Center",
-                        Choices = new[] { "Top", "Center", "Bottom" },
-                        Description = "Stretch 不列出：多行文本在 Stretch 下与 Top 表现一致，列出来只会让人犹豫",
-                        TargetProperty = ScadaElementBase.VerticalContentAlignmentProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    // 静态标签刻意<b>不</b>可绑：它存在的意义就是"不接变量"，要绑就该用「数值域」。
+                    TextProperties.Text("内容", "文本", isBindable: false,
+                        kind: ElementPropertyKind.MultilineText),
+                    TextProperties.Foreground(),
+                    TextProperties.FontSize("14"),
+                    TextProperties.FontWeight(description: "标题常用 Bold；Normal 与 SemiBold 在小字号下区别不大"),
+                    TextProperties.TextAlignment(),
+                    TextProperties.VerticalContentAlignment(
+                        description: "Stretch 不列出：多行文本在 Stretch 下与 Top 表现一致，列出来只会让人犹豫")),
             },
 
             new()
@@ -211,56 +116,15 @@ namespace VisionMaster.Scada.Controls
                 DefaultHeight = 32,
                 Description = "操作员按下的动作入口；按下/释放各是一个事件钩子，点下去干什么在属性面板「事件」里配",
                 Events = new[] { ScadaEventType.Pressed, ScadaEventType.Released },
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Text", DisplayName = "文字", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = "按钮", IsBindable = true,
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "填充色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF2D7DD2",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF1F5C9E",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "3", Min = 0, Max = 200,
-                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FFFFFFFF",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Normal",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    TextProperties.Text("文字", "按钮"),
+                    AppearanceProperties.Fill("#FF2D7DD2"),
+                    AppearanceProperties.Stroke("#FF1F5C9E"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("3"),
+                    TextProperties.Foreground("#FFFFFFFF"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight()),
             },
 
             new()
@@ -275,110 +139,15 @@ namespace VisionMaster.Scada.Controls
                             + "并按变量值显示两种状态（启停、手自动切换、复位、点动）。"
                             + "与「按钮」的分工：按钮是动作入口（事件里配动作表），位按钮是变量的化身（直接读写这根量）",
                 Events = new[] { ScadaEventType.Pressed, ScadaEventType.Released },
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Mode", DisplayName = "模式", Kind = ElementPropertyKind.Choice,
-                        Group = "常规", DefaultValue = BitButtonElement.ModePressOn,
-                        Choices = new[]
-                        {
-                            BitButtonElement.ModeSet, BitButtonElement.ModeReset, BitButtonElement.ModeInvert,
-                            BitButtonElement.ModePressOn, BitButtonElement.ModePressOff,
-                        },
-                        Description = "置位/复位/取反在释放时写一次；按下ON/按下OFF是瞬动（按下写一侧、释放写另一侧）。"
-                                    + "「切换窗口」不在本控件里：切画面要动运行态导航，那是按钮动作表的活",
-                        TargetProperty = BitButtonElement.ModeProperty,
-                    },
-                    new()
-                    {
-                        Key = "IsOn", DisplayName = "读变量", Kind = ElementPropertyKind.Bool,
-                        Group = "状态", DefaultValue = "False", IsBindable = true,
-                        Description = "运行态把工程变量的布尔值绑到这里；本控件也按它回写（读写同一根变量）",
-                        TargetProperty = BitButtonElement.IsOnProperty,
-                    },
-                    new()
-                    {
-                        Key = "OutputInvert", DisplayName = "输出反向", Kind = ElementPropertyKind.Bool,
-                        Group = "状态", DefaultValue = "False",
-                        Description = "对读取的值取反后再判状态（只影响显示与取反写回，不改写出去的字面量）",
-                        TargetProperty = BitButtonElement.OutputInvertProperty,
-                    },
-                    new()
-                    {
-                        Key = "OnText", DisplayName = "状态1文字", Kind = ElementPropertyKind.Text,
-                        Group = "状态", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "状态为 1 时显示的文字；留空则沿用「文字」",
-                        TargetProperty = BitButtonElement.OnTextProperty,
-                    },
-                    new()
-                    {
-                        Key = "OffText", DisplayName = "状态0文字", Kind = ElementPropertyKind.Text,
-                        Group = "状态", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "状态为 0 时显示的文字；留空则沿用「文字」",
-                        TargetProperty = BitButtonElement.OffTextProperty,
-                    },
-                    new()
-                    {
-                        Key = "OnFill", DisplayName = "状态1背景", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF2D7DD2", IsBindable = true,
-                        TargetProperty = BitButtonElement.OnFillProperty,
-                    },
-                    new()
-                    {
-                        Key = "OffFill", DisplayName = "状态0背景", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF4A5568", IsBindable = true,
-                        TargetProperty = BitButtonElement.OffFillProperty,
-                    },
-                    new()
-                    {
-                        Key = "OnForeground", DisplayName = "状态1文字色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FFFFFFFF", IsBindable = true,
-                        TargetProperty = BitButtonElement.OnForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "OffForeground", DisplayName = "状态0文字色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FFFFFFFF", IsBindable = true,
-                        TargetProperty = BitButtonElement.OffForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "文字", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = "按钮", IsBindable = true,
-                        Description = "两种状态文字都留空时的共用文字（如「启动/停止」同一个标签）",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Normal",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF1F5C9E",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "3", Min = 0, Max = 200,
-                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(BitButtonElement)),
+                    TextProperties.Text("文字", "按钮",
+                        description: "两种状态文字都留空时的共用文字（如「启动/停止」同一个标签）"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight(),
+                    AppearanceProperties.Stroke("#FF1F5C9E"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("3")),
             },
 
             new()
@@ -390,64 +159,13 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 40,
                 DefaultHeight = 56,
                 Description = "一根开关量变量的可视化身；把「点亮」属性绑到变量即可",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "IsOn", DisplayName = "点亮", Kind = ElementPropertyKind.Bool,
-                        Group = "状态", DefaultValue = "False", IsBindable = true,
-                        Description = "运行态把工程变量的布尔值绑到这里",
-                        TargetProperty = IndicatorElement.IsOnProperty,
-                    },
-                    new()
-                    {
-                        Key = "OnColor", DisplayName = "点亮色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF34C759", IsBindable = true,
-                        TargetProperty = IndicatorElement.OnColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "OffColor", DisplayName = "熄灭色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF3A3A3A", IsBindable = true,
-                        TargetProperty = IndicatorElement.OffColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Shape", DisplayName = "形状", Kind = ElementPropertyKind.Choice,
-                        Group = "外观", DefaultValue = "Circle",
-                        Choices = new[] { "Circle", "Square" },
-                        TargetProperty = IndicatorElement.ShapeProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "标签", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "显示在灯下方的一行字（如「1#电机」）",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "标签颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "标签字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(IndicatorElement)),
+                    AppearanceProperties.Stroke("#FF5A5A5A"),
+                    AppearanceProperties.StrokeThickness(),
+                    TextProperties.Text("标签", description: "显示在灯下方的一行字（如「1#电机」）"),
+                    TextProperties.Foreground(displayName: "标签颜色"),
+                    TextProperties.FontSize(displayName: "标签字号")),
             },
 
             new()
@@ -459,100 +177,16 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 160,
                 DefaultHeight = 20,
                 Description = "一个数值在量程里的可视化身；把「当前值」绑到变量上即可（产量完成率、料仓余量、阀门开度）",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Value", DisplayName = "当前值", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "0", IsBindable = true,
-                        Description = "运行态把工程变量绑到这里；条长 = (当前值 − 下限) ÷ (上限 − 下限)，超出量程按两端收敛",
-                        TargetProperty = ProgressBarElement.ValueProperty,
-                    },
-                    new()
-                    {
-                        Key = "Minimum", DisplayName = "量程下限", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "0",
-                        Description = "下限不小于上限时画空条，而不是让非法量程把整页渲染打断",
-                        TargetProperty = ProgressBarElement.MinimumProperty,
-                    },
-                    new()
-                    {
-                        Key = "Maximum", DisplayName = "量程上限", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "100",
-                        TargetProperty = ProgressBarElement.MaximumProperty,
-                    },
-                    new()
-                    {
-                        Key = "ValueFormat", DisplayName = "数值格式", Kind = ElementPropertyKind.Text,
-                        Group = "数据", DefaultValue = "0.#",
-                        Description = "标准 .NET 数字格式串，可带单位（如 0.0 ℃）；写错了退回通用格式，不会让画面出错",
-                        TargetProperty = ProgressBarElement.ValueFormatProperty,
-                    },
-                    new()
-                    {
-                        Key = "Orientation", DisplayName = "走向", Kind = ElementPropertyKind.Choice,
-                        Group = "外观", DefaultValue = "Horizontal",
-                        Choices = new[] { "Horizontal", "Vertical" },
-                        Description = "横向从左往右长；纵向从下往上长（液位、料位天生是竖着的）",
-                        TargetProperty = ProgressBarElement.OrientationProperty,
-                    },
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "填充色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF2D7DD2",
-                        Description = "已填充那一段的颜色",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "TrackColor", DisplayName = "空槽色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF3A3A3A",
-                        Description = "未填充那一段的颜色；浅色画面上要调亮，否则整条看不出边界",
-                        TargetProperty = ProgressBarElement.TrackColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "2", Min = 0, Max = 200,
-                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
-                    },
-                    new()
-                    {
-                        Key = "ShowValue", DisplayName = "显示数值", Kind = ElementPropertyKind.Bool,
-                        Group = "文字", DefaultValue = "True",
-                        TargetProperty = ProgressBarElement.ShowValueProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "数值颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FFFFFFFF",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "数值字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "11", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "数值字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Bold",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        Description = "默认 Bold：条上的字压在填充色上，不加粗在小尺寸下容易糊",
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(ProgressBarElement)),
+                    AppearanceProperties.Fill("#FF2D7DD2", "已填充那一段的颜色"),
+                    AppearanceProperties.Stroke("#FF5A5A5A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("2"),
+                    TextProperties.Foreground("#FFFFFFFF", displayName: "数值颜色"),
+                    TextProperties.FontSize("11", displayName: "数值字号"),
+                    TextProperties.FontWeight("Bold", displayName: "数值字重",
+                        description: "默认 Bold：条上的字压在填充色上，不加粗在小尺寸下容易糊")),
             },
 
             new()
@@ -568,164 +202,20 @@ namespace VisionMaster.Scada.Controls
                 // 手册 7.5.2 把"输入完成时"挂在数字IO域 / 字符IO域 / 日期时间域上；本库当前只有
                 // 这一个可输入图元，所以只在这一条描述符上声明。将来加了字符域/日期域，各自加一行即可。
                 Events = new[] { ScadaEventType.InputCompleted },
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Value", DisplayName = "数值", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "0", IsBindable = true,
-                        Description = "运行态把工程变量绑到这里；框里显示的是它按「数值格式」格式化后的样子",
-                        TargetProperty = IOFieldElement.ValueProperty,
-                    },
-                    new()
-                    {
-                        Key = "ValueFormat", DisplayName = "数值格式", Kind = ElementPropertyKind.Text,
-                        Group = "数据", DefaultValue = "0.##",
-                        Description = "标准 .NET 数字格式串：0.0 定一位小数、F2 补零到两位、#,##0 加千分位；" +
-                                      "写错了退回通用格式，不会让画面出错",
-                        TargetProperty = IOFieldElement.ValueFormatProperty,
-                    },
-                    new()
-                    {
-                        Key = "Unit", DisplayName = "单位", Kind = ElementPropertyKind.Text,
-                        Group = "数据", DefaultValue = string.Empty,
-                        Description = "跟在数值后面的一小段字（℃ / mm / pcs）；留空则只显数值",
-                        TargetProperty = IOFieldElement.UnitProperty,
-                    },
-                    new()
-                    {
-                        Key = "Mode", DisplayName = "模式", Kind = ElementPropertyKind.Choice,
-                        Group = "数据", DefaultValue = "Output",
-                        Choices = new[] { "Output", "InputOutput" },
-                        Description = "Output = 只读显示（老行为，运行态点不动）；" +
-                                      "InputOutput = 读写。读写档要运行态能点进输入，还必须把「数值」绑到变量上、" +
-                                      "且当前角色的权限够（见属性面板「权限」那一行）",
-                        TargetProperty = IOFieldElement.ModeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FormatType", DisplayName = "格式类型", Kind = ElementPropertyKind.Choice,
-                        Group = "数据", DefaultValue = "Decimal",
-                        Choices = new[] { "Decimal", "Hex", "Binary" },
-                        Description = "Decimal 走「数值格式」串；Hex / Binary 按整数显示（位状态、字状态、设备地址用得上）。" +
-                                      "只改显示与就地输入的进制，写回变量的一律是十进制数值",
-                        TargetProperty = IOFieldElement.FormatTypeProperty,
-                    },
-                    new()
-                    {
-                        Key = "Gain", DisplayName = "增益", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "1",
-                        Description = "现场量纲与画面量纲的换算系数：显示值 = 变量值 × 增益 + 偏移量；" +
-                                      "写回时反过来算。默认 1（不换算）；填 0 会让输入被拒（算不出该写多少）",
-                        TargetProperty = IOFieldElement.GainProperty,
-                    },
-                    new()
-                    {
-                        Key = "Offset", DisplayName = "偏移量", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "0",
-                        Description = "换算公式里的加数（公式见「增益」）。典型用法：PLC 存 0.1℃ 整数，增益 0.1、偏移量 0 即得 ℃",
-                        TargetProperty = IOFieldElement.OffsetProperty,
-                    },
-                    new()
-                    {
-                        Key = "HasMinimum", DisplayName = "启用下限", Kind = ElementPropertyKind.Bool,
-                        Group = "限制", DefaultValue = "False",
-                        Description = "打开后，低于下限的输入不写下去（不是夹到下限——静默改掉操作员敲的数比拒绝更危险）",
-                        TargetProperty = IOFieldElement.HasMinimumProperty,
-                    },
-                    new()
-                    {
-                        Key = "Minimum", DisplayName = "下限", Kind = ElementPropertyKind.Number,
-                        Group = "限制", DefaultValue = "0",
-                        Description = "按显示量纲填（换算后的值）；低于它则输入被拒，且数值文字显示成「下限以下颜色」",
-                        TargetProperty = IOFieldElement.MinimumProperty,
-                    },
-                    new()
-                    {
-                        Key = "UnderMinColor", DisplayName = "下限以下颜色", Kind = ElementPropertyKind.Color,
-                        Group = "限制", DefaultValue = "#FFFB8C00",
-                        Description = "数值低于下限时文字换成这个颜色（默认橙）；只在下限启用时生效",
-                        TargetProperty = IOFieldElement.UnderMinColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "HasMaximum", DisplayName = "启用上限", Kind = ElementPropertyKind.Bool,
-                        Group = "限制", DefaultValue = "False",
-                        Description = "打开后，高于上限的输入不写下去",
-                        TargetProperty = IOFieldElement.HasMaximumProperty,
-                    },
-                    new()
-                    {
-                        Key = "Maximum", DisplayName = "上限", Kind = ElementPropertyKind.Number,
-                        Group = "限制", DefaultValue = "100",
-                        Description = "按显示量纲填（换算后的值）；高于它则输入被拒，且数值文字显示成「上限以上颜色」",
-                        TargetProperty = IOFieldElement.MaximumProperty,
-                    },
-                    new()
-                    {
-                        Key = "OverMaxColor", DisplayName = "上限以上颜色", Kind = ElementPropertyKind.Color,
-                        Group = "限制", DefaultValue = "#FFE53935",
-                        Description = "数值高于上限时文字换成这个颜色（默认红）；只在上限启用时生效",
-                        TargetProperty = IOFieldElement.OverMaxColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "说明字", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "显示在数值左边的一行字（如「温度」「1#工位」）；留空则数值独占整行",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "14", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Normal",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    },
-                    new()
-                    {
-                        Key = "TextAlignment", DisplayName = "数值对齐", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Right",
-                        Choices = new[] { "Left", "Center", "Right", "Justify" },
-                        Description = "默认 Right：小数点在右边排成一条线，一列数值扫起来才快；说明字不受它影响，恒靠左",
-                        TargetProperty = ScadaElementBase.TextAlignmentProperty,
-                    },
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "填充色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFFFFFFF",
-                        Description = "框内底色；深色画面上要跟着调暗，否则一列白框会盖过画面主体",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "2", Min = 0, Max = 200,
-                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(IOFieldElement)),
+                    TextProperties.Text("说明字",
+                        description: "显示在数值左边的一行字（如「温度」「1#工位」）；留空则数值独占整行"),
+                    TextProperties.Foreground(displayName: "文字颜色"),
+                    TextProperties.FontSize("14"),
+                    TextProperties.FontWeight(),
+                    TextProperties.TextAlignment("Right", displayName: "数值对齐",
+                        description: "默认 Right：小数点在右边排成一条线，一列数值扫起来才快；说明字不受它影响，恒靠左"),
+                    AppearanceProperties.Fill("#FFFFFFFF",
+                        "框内底色；深色画面上要跟着调暗，否则一列白框会盖过画面主体"),
+                    AppearanceProperties.Stroke("#FF7A7A7A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("2")),
             },
 
             new()
@@ -737,86 +227,14 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 40,
                 DefaultHeight = 56,
                 Description = "停机/运行/警告/报警四态合一的状态灯；把「状态」绑到变量即可（枚举名或 0~3 的整数都认）",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "State", DisplayName = "状态", Kind = ElementPropertyKind.Choice,
-                        Group = "状态", DefaultValue = "Off",
-                        Choices = new[] { "Off", "On", "Warning", "Alarm" },
-                        IsBindable = true,
-                        Description = "运行态把工程变量绑到这里：整数 0=熄灭 1=点亮 2=警告 3=报警，写枚举名（On/Warning/Alarm）也认",
-                        TargetProperty = LampElement.StateProperty,
-                    },
-                    new()
-                    {
-                        Key = "OffColor", DisplayName = "熄灭色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF3A3A3A", IsBindable = true,
-                        TargetProperty = LampElement.OffColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "OnColor", DisplayName = "点亮色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF34C759", IsBindable = true,
-                        TargetProperty = LampElement.OnColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "WarningColor", DisplayName = "警告色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FFFFB020", IsBindable = true,
-                        TargetProperty = LampElement.WarningColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "AlarmColor", DisplayName = "报警色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FFE03A2B", IsBindable = true,
-                        TargetProperty = LampElement.AlarmColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Shape", DisplayName = "形状", Kind = ElementPropertyKind.Choice,
-                        Group = "外观", DefaultValue = "Circle",
-                        Choices = new[] { "Circle", "Square" },
-                        Description = "与指示灯共用同一套形状词汇：多灯密集排列时方形更省地方",
-                        TargetProperty = LampElement.ShapeProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "标签", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "显示在灯下方的一行字（如「1#主轴」）",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "标签颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "标签字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "标签字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Normal",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(LampElement)),
+                    AppearanceProperties.Stroke("#FF5A5A5A"),
+                    AppearanceProperties.StrokeThickness(),
+                    TextProperties.Text("标签", description: "显示在灯下方的一行字（如「1#主轴」）"),
+                    TextProperties.Foreground(displayName: "标签颜色"),
+                    TextProperties.FontSize(displayName: "标签字号"),
+                    TextProperties.FontWeight(displayName: "标签字重")),
             },
 
             new()
@@ -828,57 +246,14 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 180,
                 DefaultHeight = 28,
                 Description = "走时的系统日期时间；格式串自己写（如 HH:mm:ss），刷新节拍默认每秒一次",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Format", DisplayName = "格式", Kind = ElementPropertyKind.Text,
-                        Group = "数据", DefaultValue = "yyyy-MM-dd HH:mm:ss",
-                        Description = "标准 .NET 日期时间格式串：HH:mm:ss 只显时间，带 dddd 会出星期；" +
-                                      "写错了退回默认形状，不会让整页渲染中断",
-                        TargetProperty = ClockElement.FormatProperty,
-                    },
-                    new()
-                    {
-                        Key = "Interval", DisplayName = "刷新节拍", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "1", Min = 0.1, Max = 60,
-                        Description = "单位秒。落在 0.1~60 之外会被收敛进区间（0 或负数不会变成一个失控的定时器）；" +
-                                      "跳动会对齐整拍，不慢半拍",
-                        TargetProperty = ClockElement.IntervalProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "标签", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "显示在时间下方的一行字（如「系统时间」「1#线」）；留空则只显时间",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "16", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "SemiBold",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        Description = "默认 SemiBold：时间是要一眼扫到的信息，全 Normal 在深色底上偏虚",
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    },
-                    new()
-                    {
-                        Key = "TextAlignment", DisplayName = "水平对齐", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Center",
-                        Choices = new[] { "Left", "Center", "Right", "Justify" },
-                        TargetProperty = ScadaElementBase.TextAlignmentProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(ClockElement)),
+                    TextProperties.Text("标签", description: "显示在时间下方的一行字（如「系统时间」「1#线」）；留空则只显时间"),
+                    TextProperties.Foreground(),
+                    TextProperties.FontSize("16"),
+                    TextProperties.FontWeight("SemiBold",
+                        description: "默认 SemiBold：时间是要一眼扫到的信息，全 Normal 在深色底上偏虚"),
+                    TextProperties.TextAlignment()),
             },
 
             new()
@@ -890,132 +265,17 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 140,
                 DefaultHeight = 140,
                 Description = "圆盘刻度上的一根指针；把「当前值」绑到变量上即可（压力、转速、温度）",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Value", DisplayName = "当前值", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "0", IsBindable = true,
-                        Description = "运行态把工程变量绑到这里；指针角度 = 起始角 + 扫过角 × " +
-                                      "(当前值 − 下限) ÷ (上限 − 下限)，超出量程按两端收敛",
-                        TargetProperty = GaugeElement.ValueProperty,
-                    },
-                    new()
-                    {
-                        Key = "Minimum", DisplayName = "量程下限", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "0",
-                        Description = "下限不小于上限时指针停在起始角，而不是让非法量程把整页渲染打断",
-                        TargetProperty = GaugeElement.MinimumProperty,
-                    },
-                    new()
-                    {
-                        Key = "Maximum", DisplayName = "量程上限", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "100",
-                        TargetProperty = GaugeElement.MaximumProperty,
-                    },
-                    new()
-                    {
-                        Key = "ValueFormat", DisplayName = "数值格式", Kind = ElementPropertyKind.Text,
-                        Group = "数据", DefaultValue = "0.#",
-                        Description = "标准 .NET 数字格式串（0.0 定一位小数、F2 补零到两位）；" +
-                                      "写错了退回通用格式，不会让画面出错",
-                        TargetProperty = GaugeElement.ValueFormatProperty,
-                    },
-                    new()
-                    {
-                        Key = "Unit", DisplayName = "单位", Kind = ElementPropertyKind.Text,
-                        Group = "数据", DefaultValue = string.Empty,
-                        Description = "跟在数值后面的一小段字（MPa / rpm / ℃）；留空则只显数值",
-                        TargetProperty = GaugeElement.UnitProperty,
-                    },
-                    new()
-                    {
-                        Key = "StartAngle", DisplayName = "起始角", Kind = ElementPropertyKind.Number,
-                        Group = "刻度", DefaultValue = "135", Min = -360, Max = 360,
-                        Description = "度。0° 指向右（3 点钟方向）、角度顺时针增加，所以 135° 是左下（7 点半）；" +
-                                      "默认 135° 配 270° 缺口落在正下方，正是放读数的地方",
-                        TargetProperty = GaugeElement.StartAngleProperty,
-                    },
-                    new()
-                    {
-                        Key = "SweepAngle", DisplayName = "扫过角", Kind = ElementPropertyKind.Number,
-                        Group = "刻度", DefaultValue = "270", Min = -360, Max = 360,
-                        Description = "度。正数顺时针、负数逆时针，绝对值 360 画整圈；超出 ±360 会收敛（刻度不会绕回来叠在一起）",
-                        TargetProperty = GaugeElement.SweepAngleProperty,
-                    },
-                    new()
-                    {
-                        Key = "TickDivisions", DisplayName = "刻度格数", Kind = ElementPropertyKind.Number,
-                        Group = "刻度", DefaultValue = "5", Min = 0, Max = 60,
-                        Description = "格数 + 1 = 刻度线根数（含两端），所以默认 5 格就是 0/20/40/60/80/100 六个读数点；0 = 不画刻度",
-                        TargetProperty = GaugeElement.TickDivisionsProperty,
-                    },
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "指针色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFE03A2B",
-                        Description = "指针与中心轴环的颜色；深色盘面上红色指针一眼扫得到",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "TrackColor", DisplayName = "盘底色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF3A3A3A",
-                        Description = "表盘面的填充色；浅色画面上要调亮，否则刻度线看不出来",
-                        TargetProperty = GaugeElement.TrackColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "ScaleColor", DisplayName = "刻度色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF9AA5B1",
-                        Description = "量程弧与刻度线的颜色；要和盘底色拉开，否则操作员读不出格",
-                        TargetProperty = GaugeElement.ScaleColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "外圈色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "外圈粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "ShowValue", DisplayName = "显示数值", Kind = ElementPropertyKind.Bool,
-                        Group = "文字", DefaultValue = "True",
-                        Description = "关掉只留指针（读数由旁边的数值域承担），一个没有读数的表盘在工业现场几乎没用，所以默认开",
-                        TargetProperty = GaugeElement.ShowValueProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "数值颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FFFFFFFF",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "数值字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "13", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "数值字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "SemiBold",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        Description = "默认 SemiBold：读数压在盘面上，全 Normal 在小表盘上偏虚",
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    },
-                    new()
-                    {
-                        Key = "TextAlignment", DisplayName = "数值对齐", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "Center",
-                        Choices = new[] { "Left", "Center", "Right", "Justify" },
-                        TargetProperty = ScadaElementBase.TextAlignmentProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(GaugeElement)),
+                    AppearanceProperties.Fill("#FFE03A2B",
+                        "指针与中心轴环的颜色；深色盘面上红色指针一眼扫得到", displayName: "指针色"),
+                    AppearanceProperties.Stroke("#FF5A5A5A", displayName: "外圈色"),
+                    AppearanceProperties.StrokeThickness(displayName: "外圈粗细"),
+                    TextProperties.Foreground("#FFFFFFFF", displayName: "数值颜色"),
+                    TextProperties.FontSize("13", displayName: "数值字号"),
+                    TextProperties.FontWeight("SemiBold", displayName: "数值字重",
+                        description: "默认 SemiBold：读数压在盘面上，全 Normal 在小表盘上偏虚"),
+                    TextProperties.TextAlignment("Center", displayName: "数值对齐")),
             },
 
             new()
@@ -1027,90 +287,16 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 72,
                 DefaultHeight = 64,
                 Description = "管路上一只阀（蝴蝶结符号）；开度绑变量，0=全关、100=全开，中间值就是调节阀",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Opening", DisplayName = "开度", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "0", Min = 0, Max = 100, IsBindable = true,
-                        Description = "运行态把工程变量绑到这里（0~100 的实数）；开关阀只给 0 或 100，" +
-                                      "中间值就是调节阀。超出 0~100 按两端收敛，坏值不会把整页渲染打断",
-                        TargetProperty = ValveElement.OpeningProperty,
-                    },
-                    new()
-                    {
-                        Key = "OpeningFormat", DisplayName = "开度格式", Kind = ElementPropertyKind.Text,
-                        Group = "数据", DefaultValue = "0.#",
-                        Description = "标准 .NET 数字格式串（0.0 定一位小数、F0 取整）；" +
-                                      "写错了退回通用格式，不会让画面出错",
-                        TargetProperty = ValveElement.OpeningFormatProperty,
-                    },
-                    new()
-                    {
-                        Key = "TrackColor", DisplayName = "空腔色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF3A3A3A",
-                        Description = "阀体空腔的底色，也是全关时阀体的样子（没开就没有介质）",
-                        TargetProperty = ValveElement.TrackColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "ThrottleColor", DisplayName = "中间位色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF2F80ED",
-                        Description = "0 < 开度 < 100 时介质填充的颜色；蓝色是「正在调节」的通用语汇",
-                        TargetProperty = ValveElement.ThrottleColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "OpenColor", DisplayName = "全开色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF34C759",
-                        Description = "开度 ≥ 100 时介质填充的颜色；绿色 = 通路打开",
-                        TargetProperty = ValveElement.OpenColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "轮廓色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "轮廓粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "位号", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "压在阀体上方凹口的一行字（如「FV-101」）；管路图上靠它认设备",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "ShowValue", DisplayName = "显示开度", Kind = ElementPropertyKind.Bool,
-                        Group = "文字", DefaultValue = "True",
-                        Description = "关掉只留阀体（读数交给旁边的数值域），默认开：阀开没开全靠这个数说话",
-                        TargetProperty = ValveElement.ShowValueProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FFFFFFFF",
-                        Description = "默认白色：文字压在深色阀体上，深色字会糊成一片",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "SemiBold",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(ValveElement)),
+                    AppearanceProperties.Stroke("#FF5A5A5A", displayName: "轮廓色"),
+                    AppearanceProperties.StrokeThickness(displayName: "轮廓粗细"),
+                    TextProperties.Text("位号",
+                        description: "压在阀体上方凹口的一行字（如「FV-101」）；管路图上靠它认设备"),
+                    TextProperties.Foreground("#FFFFFFFF", displayName: "文字颜色",
+                        description: "默认白色：文字压在深色阀体上，深色字会糊成一片"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight("SemiBold")),
             },
 
             new()
@@ -1122,84 +308,22 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 72,
                 DefaultHeight = 72,
                 Description = "管路上一台泵（圆壳里一只尖角朝右的叶轮）；状态绑变量，停机=灰、运行=绿、故障=红",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "State", DisplayName = "状态", Kind = ElementPropertyKind.Choice,
-                        Group = "数据", DefaultValue = "Stopped",
-                        Choices = new[] { "Stopped", "Running", "Fault" },
-                        IsBindable = true,
-                        Description = "运行态把工程变量绑到这里：整数 0=停机 1=运行 2=故障，写枚举名（Running/Fault）也认；" +
-                                      "认不出的值按停机收敛，坏数据不会把整页渲染打断",
-                        TargetProperty = PumpElement.StateProperty,
-                    },
-                    new()
-                    {
-                        Key = "TrackColor", DisplayName = "泵壳色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF3A3A3A",
-                        Description = "泵壳（叶轮之外露出来的那一圈）的底色",
-                        TargetProperty = PumpElement.TrackColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "StoppedColor", DisplayName = "停机色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        Description = "停机时叶轮的颜色；灰色 = 没在转，与多态灯的熄灭色同一个语汇",
-                        TargetProperty = PumpElement.StoppedColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "RunningColor", DisplayName = "运行色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF34C759",
-                        Description = "运行时叶轮的颜色；绿色 = 设备在转",
-                        TargetProperty = PumpElement.RunningColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "FaultColor", DisplayName = "故障色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFE03A2B",
-                        Description = "故障时叶轮的颜色；红色 = 跳闸 / 过载 / 联锁断开",
-                        TargetProperty = PumpElement.FaultColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "轮廓色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "轮廓粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "位号", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "压在泵壳下方的一行字（如「P-101」）；管路图上靠它认设备",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        Description = "默认深灰：位号落在泵壳之外、页面底色之上，白字在浅色页面上看不见",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "SemiBold",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    AppearanceProperties.Rename(ScadaPropertyCatalog.Collect(typeof(PumpElement)),
+                        ("State", null, "运行态把工程变量绑到这里：整数 0=停机 1=运行 2=故障，" +
+                                        "写枚举名（Running/Fault）也认；认不出的值按停机收敛，坏数据不会把整页渲染打断"),
+                        ("TrackColor", "泵壳色", "泵壳（叶轮之外露出来的那一圈）的底色"),
+                        ("StoppedColor", "停机色", "停机时叶轮的颜色；灰色 = 没在转，与多态灯的熄灭色同一个语汇"),
+                        ("RunningColor", "运行色", "运行时叶轮的颜色；绿色 = 设备在转"),
+                        ("FaultColor", "故障色", "故障时叶轮的颜色；红色 = 跳闸 / 过载 / 联锁断开")),
+                    AppearanceProperties.Stroke("#FF5A5A5A", displayName: "轮廓色"),
+                    AppearanceProperties.StrokeThickness(displayName: "轮廓粗细"),
+                    TextProperties.Text("位号",
+                        description: "压在泵壳下方的一行字（如「P-101」）；管路图上靠它认设备"),
+                    TextProperties.Foreground("#FF202020", displayName: "文字颜色",
+                        description: "默认深灰：位号落在泵壳之外、页面底色之上，白字在浅色页面上看不见"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight("SemiBold")),
             },
 
             new()
@@ -1211,84 +335,22 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 72,
                 DefaultHeight = 80,
                 Description = "管路上一台电机（圆机身里一个 M，顶上带接线盒）；状态绑变量，停机=灰、运行=绿、故障=红",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "State", DisplayName = "状态", Kind = ElementPropertyKind.Choice,
-                        Group = "数据", DefaultValue = "Stopped",
-                        Choices = new[] { "Stopped", "Running", "Fault" },
-                        IsBindable = true,
-                        Description = "运行态把工程变量绑到这里：整数 0=停机 1=运行 2=故障，写枚举名（Running/Fault）也认；" +
-                                      "认不出的值按停机收敛，坏数据不会把整页渲染打断",
-                        TargetProperty = MotorElement.StateProperty,
-                    },
-                    new()
-                    {
-                        Key = "TrackColor", DisplayName = "机身色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF3A3A3A",
-                        Description = "机身与接线盒的底色（M 之外露出来的那一层）",
-                        TargetProperty = MotorElement.TrackColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "StoppedColor", DisplayName = "停机色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        Description = "停机时 M 的颜色；灰色 = 没在转，与泵、多态灯同一个语汇",
-                        TargetProperty = MotorElement.StoppedColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "RunningColor", DisplayName = "运行色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF34C759",
-                        Description = "运行时 M 的颜色；绿色 = 设备在转",
-                        TargetProperty = MotorElement.RunningColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "FaultColor", DisplayName = "故障色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFE03A2B",
-                        Description = "故障时 M 的颜色；红色 = 跳闸 / 过载 / 联锁断开",
-                        TargetProperty = MotorElement.FaultColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "轮廓色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "轮廓粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "位号", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "压在机身下方的一行字（如「M-101」）；管路图上靠它认设备",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字颜色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        Description = "默认深灰：位号落在机身之外、页面底色之上，白字在浅色页面上看不见",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "SemiBold",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    AppearanceProperties.Rename(ScadaPropertyCatalog.Collect(typeof(MotorElement)),
+                        ("State", null, "运行态把工程变量绑到这里：整数 0=停机 1=运行 2=故障，" +
+                                        "写枚举名（Running/Fault）也认；认不出的值按停机收敛，坏数据不会把整页渲染打断"),
+                        ("TrackColor", "机身色", "机身与接线盒的底色（M 之外露出来的那一层）"),
+                        ("StoppedColor", "停机色", "停机时 M 的颜色；灰色 = 没在转，与泵、多态灯同一个语汇"),
+                        ("RunningColor", "运行色", "运行时 M 的颜色；绿色 = 设备在转"),
+                        ("FaultColor", "故障色", "故障时 M 的颜色；红色 = 跳闸 / 过载 / 联锁断开")),
+                    AppearanceProperties.Stroke("#FF5A5A5A", displayName: "轮廓色"),
+                    AppearanceProperties.StrokeThickness(displayName: "轮廓粗细"),
+                    TextProperties.Text("位号",
+                        description: "压在机身下方的一行字（如「M-101」）；管路图上靠它认设备"),
+                    TextProperties.Foreground("#FF202020", displayName: "文字颜色",
+                        description: "默认深灰：位号落在机身之外、页面底色之上，白字在浅色页面上看不见"),
+                    TextProperties.FontSize(),
+                    TextProperties.FontWeight("SemiBold")),
             },
 
             new()
@@ -1300,66 +362,16 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 160,
                 DefaultHeight = 32,
                 Description = "工艺流程图上的一段管子（管身 + 一组流向箭头）；流向可选正向/反向/无，状态绑变量后箭头随流动变色",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "Direction", DisplayName = "流向", Kind = ElementPropertyKind.Choice,
-                        Group = "数据", DefaultValue = "LeftToRight",
-                        Choices = new[] { "LeftToRight", "RightToLeft", "None" },
-                        Description = "介质往哪走：LeftToRight=箭头朝右，RightToLeft=箭头朝左，None=只要管身不画箭头；" +
-                                      "配管定死的走向，属于设计期属性，所以不参与变量绑定",
-                        TargetProperty = PipeElement.DirectionProperty,
-                    },
-                    new()
-                    {
-                        Key = "State", DisplayName = "流动状态", Kind = ElementPropertyKind.Choice,
-                        Group = "数据", DefaultValue = "Stopped",
-                        Choices = new[] { "Stopped", "Running", "Fault" },
-                        IsBindable = true,
-                        Description = "运行态把工程变量绑到这里：整数 0=停流 1=流动 2=异常，写枚举名（Running/Fault）也认；" +
-                                      "认不出的值按停流收敛，坏数据不会把整页渲染打断",
-                        TargetProperty = PipeElement.StateProperty,
-                    },
-                    new()
-                    {
-                        Key = "TrackColor", DisplayName = "管身色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF3A3A3A",
-                        Description = "管腔底色（箭头之外露出来的那一层）",
-                        TargetProperty = PipeElement.TrackColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "StoppedColor", DisplayName = "停流色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        Description = "停流时箭头的颜色；灰色 = 介质没在走，与泵、电机、多态灯同一个语汇",
-                        TargetProperty = PipeElement.StoppedColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "RunningColor", DisplayName = "流动色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF34C759",
-                        Description = "流动时箭头的颜色；绿色 = 介质在走",
-                        TargetProperty = PipeElement.RunningColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "FaultColor", DisplayName = "异常色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFE03A2B",
-                        Description = "异常时箭头的颜色；红色 = 堵管 / 超压 / 联锁断开",
-                        TargetProperty = PipeElement.FaultColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "管壁色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF5A5A5A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "管壁粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    AppearanceProperties.Rename(ScadaPropertyCatalog.Collect(typeof(PipeElement)),
+                        ("State", "流动状态", "运行态把工程变量绑到这里：整数 0=停流 1=流动 2=异常，" +
+                                              "写枚举名（Running/Fault）也认；认不出的值按停流收敛，坏数据不会把整页渲染打断"),
+                        ("TrackColor", "管身色", "管腔底色（箭头之外露出来的那一层）"),
+                        ("StoppedColor", "停流色", "停流时箭头的颜色；灰色 = 介质没在走，与泵、电机、多态灯同一个语汇"),
+                        ("RunningColor", "流动色", "流动时箭头的颜色；绿色 = 介质在走"),
+                        ("FaultColor", "异常色", "异常时箭头的颜色；红色 = 堵管 / 超压 / 联锁断开")),
+                    AppearanceProperties.Stroke("#FF5A5A5A", displayName: "管壁色"),
+                    AppearanceProperties.StrokeThickness(displayName: "管壁粗细")),
             },
 
             new()
@@ -1372,102 +384,39 @@ namespace VisionMaster.Scada.Controls
                 DefaultHeight = 140,
                 Description = "把运行态挂着的报警按严重度排成一列实时刷新：严重且未确认时左侧色条会闪，" +
                               "表头同时给出未确认条数与总条数；没有任何报警时显示「系统正常」",
-                Properties = GeometryProperties.With(
-                    new()
-                    {
-                        Key = "MaxRows", DisplayName = "最多显示", Kind = ElementPropertyKind.Number,
-                        Group = "数据", DefaultValue = "5", Min = 1, Max = 50,
-                        Description = "最多画几行，超出的不画（表头计数仍报全量）；" +
-                                      "行数多到超出控件高度时会出现滚动条，所以这里不必留余量",
-                        TargetProperty = AlarmBannerElement.MaxRowsProperty,
-                    },
-                    new()
-                    {
-                        Key = "EmptyText", DisplayName = "无报警提示", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = "系统正常",
-                        Description = "一条报警都没有时显示的字；设计期预览看到的也是它",
-                        TargetProperty = AlarmBannerElement.EmptyTextProperty,
-                    },
-                    new()
-                    {
-                        Key = "NormalColor", DisplayName = "正常色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF34C759",
-                        Description = "没有报警时左侧色条的颜色；与多态灯、泵、管道的「运行绿」是同一个色",
-                        TargetProperty = AlarmBannerElement.NormalColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "InfoColor", DisplayName = "提示色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FF3B82F6",
-                        TargetProperty = AlarmBannerElement.InfoColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "WarningColor", DisplayName = "警告色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FFFFB020",
-                        Description = "警告级报警的颜色；与多态灯的「警告黄」同色，整幅画面一套语汇",
-                        TargetProperty = AlarmBannerElement.WarningColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "CriticalColor", DisplayName = "严重色", Kind = ElementPropertyKind.Color,
-                        Group = "状态", DefaultValue = "#FFE03A2B",
-                        Description = "严重级报警的颜色（也是触发闪烁的那一档）；与多态灯的「报警红」同色",
-                        TargetProperty = AlarmBannerElement.CriticalColorProperty,
-                    },
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "底色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FFFFFFFF",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "4", Min = 0, Max = 200,
-                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
-                    },
-                    new()
-                    {
-                        Key = "Text", DisplayName = "标题", Kind = ElementPropertyKind.Text,
-                        Group = "文字", DefaultValue = "实时报警",
-                        Description = "表头左侧那一行字；留空则表头只剩右侧的计数",
-                        TargetProperty = ScadaElementBase.TextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Foreground", DisplayName = "文字色", Kind = ElementPropertyKind.Color,
-                        Group = "文字", DefaultValue = "#FF202020",
-                        Description = "标题与各行文字的颜色；行内的次要信息（时间、条件、状态）按七成不透明度显示",
-                        TargetProperty = ScadaElementBase.ForegroundProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontSize", DisplayName = "字号", Kind = ElementPropertyKind.Number,
-                        Group = "文字", DefaultValue = "12", Min = 6, Max = 200,
-                        Description = "表头与所有行的字号：调大给大屏用时，行高、徽标、时间会一起放大，不会错位",
-                        TargetProperty = ScadaElementBase.FontSizeProperty,
-                    },
-                    new()
-                    {
-                        Key = "FontWeight", DisplayName = "字重", Kind = ElementPropertyKind.Choice,
-                        Group = "文字", DefaultValue = "SemiBold",
-                        Choices = new[] { "Normal", "SemiBold", "Bold" },
-                        Description = "报警名与标题的字重；行内次要信息固定用常规字重，层级靠字重与透明度拉开",
-                        TargetProperty = ScadaElementBase.FontWeightProperty,
-                    }),
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(AlarmBannerElement)),
+                    AppearanceProperties.Fill("#FFFFFFFF", displayName: "底色"),
+                    AppearanceProperties.Stroke("#FF7A7A7A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("4"),
+                    TextProperties.Text("标题", "实时报警",
+                        description: "表头左侧那一行字；留空则表头只剩右侧的计数"),
+                    TextProperties.Foreground(displayName: "文字色",
+                        description: "标题与各行文字的颜色；行内的次要信息（时间、条件、状态）按七成不透明度显示"),
+                    TextProperties.FontSize(
+                        description: "表头与所有行的字号：调大给大屏用时，行高、徽标、时间会一起放大，不会错位"),
+                    TextProperties.FontWeight("SemiBold",
+                        description: "报警名与标题的字重；行内次要信息固定用常规字重，层级靠字重与透明度拉开")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.Panel",
+                DisplayName = "底板",
+                ControlType = typeof(PanelElement),
+                Category = "基础",
+                DefaultWidth = 360,
+                DefaultHeight = 240,
+                Description = "一块能把别的图元装进去的面板（带标题的区域框）。"
+                            + "把图元拖到它上面即成它的子图元：超出边界会被裁掉，拖动底板时整块一起走。"
+                            + "底板不能再装进另一只底板（只支持一层）",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(PanelElement)),
+                    AppearanceProperties.Fill("#FF1E2530", "默认深蓝灰：底板上通常压着浅色的设备符号，深底才不会让它们糊在一起"),
+                    AppearanceProperties.Stroke("#FF3A4455"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("3")),
             },
 
             new()
@@ -1480,60 +429,51 @@ namespace VisionMaster.Scada.Controls
                 DefaultHeight = 160,
                 Description = "把一张位图摆到画面上：绑一个图像变量，流程每次产出新图就自动刷新；" +
                               "还没绑变量时显示「无图像」占位提示",
-                Properties = GeometryProperties.With(
-                    new()
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(ImageViewElement)),
+                    AppearanceProperties.Fill("#00FFFFFF", "图像背后的底色；默认全透明，让图像直接落在画面上",
+                        displayName: "底色"),
+                    AppearanceProperties.Stroke("#FF7A7A7A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("0")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.AxisPanel",
+                DisplayName = "轴面板",
+                ControlType = typeof(AxisPanelElement),
+                Category = "运动",
+                DefaultWidth = 280,
+                DefaultHeight = 200,
+                Description = "设计期选一组轴，运行期用下拉框切到其中一根，只显示当前轴的位置/速度/状态灯。" +
+                              "本轮只读：不提供使能/点动/回零/停止（运动命令走动作表与门禁）",
+                Properties = GeometryProperties.WithGroups(
+                    // 候选轴清单：设计期配置，不是运行期数据绑定 → IsBindable=false，
+                    // 属性面板给它一条"摘要 + 选择轴…"的行（Kind=AxisList）。
+                    new[]
                     {
-                        Key = "Source", DisplayName = "图像", Kind = ElementPropertyKind.Image,
-                        Group = "图像", DefaultValue = string.Empty, IsBindable = true,
-                        Description = "绑一个图像变量（HImage）。Halcon 像素到 WPF 位图的换算在宿主侧完成，" +
-                                      "本图元只认 WPF 位图——图元库刻意不认识视觉库，换算法库不必动画面。" +
-                                      "位图没法手打，所以这一行只给绑定入口，不给输入框",
-                        TargetProperty = ImageViewElement.SourceProperty,
+                        new ElementPropertyDescriptor
+                        {
+                            Key = ScadaAxisOptionsCodec.Key,
+                            DisplayName = "候选轴",
+                            Kind = ElementPropertyKind.AxisList,
+                            Group = "数据",
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            Description = "运行期下拉框里的轴。只能从工程里已启用的轴中多选；" +
+                                          "顺序即下拉顺序，默认选中第一根。单根轴时下拉框收起，只显示轴名",
+                        },
                     },
-                    new()
-                    {
-                        Key = "Stretch", DisplayName = "缩放方式", Kind = ElementPropertyKind.Choice,
-                        Group = "图像", DefaultValue = "Uniform",
-                        Choices = new[] { "None", "Fill", "Uniform", "UniformToFill" },
-                        Description = "图像在框内的缩放规则，直接复用 WPF 自带的 Stretch 枚举；" +
-                                      "默认 Uniform（等比缩放到框内，不变形），" +
-                                      "要看像素真值（不缩放）选 None",
-                        TargetProperty = ImageViewElement.StretchProperty,
-                    },
-                    new()
-                    {
-                        Key = "PlaceholderText", DisplayName = "无图提示", Kind = ElementPropertyKind.Text,
-                        Group = "图像", DefaultValue = "无图像",
-                        Description = "还没绑变量、或变量当前没有图时显示的字。" +
-                                      "有它才能分清「没配」和「配了但没图」——" +
-                                      "否则操作员看到的只是一个像坏掉的空白框",
-                        TargetProperty = ImageViewElement.PlaceholderTextProperty,
-                    },
-                    new()
-                    {
-                        Key = "Fill", DisplayName = "底色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#00FFFFFF",
-                        Description = "图像背后的底色；默认全透明，让图像直接落在画面上",
-                        TargetProperty = ScadaElementBase.FillProperty,
-                    },
-                    new()
-                    {
-                        Key = "Stroke", DisplayName = "边框色", Kind = ElementPropertyKind.Color,
-                        Group = "外观", DefaultValue = "#FF7A7A7A",
-                        TargetProperty = ScadaElementBase.StrokeProperty,
-                    },
-                    new()
-                    {
-                        Key = "StrokeThickness", DisplayName = "边框粗细", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "1", Min = 0, Max = 20,
-                        TargetProperty = ScadaElementBase.StrokeThicknessProperty,
-                    },
-                    new()
-                    {
-                        Key = "CornerRadius", DisplayName = "圆角", Kind = ElementPropertyKind.Number,
-                        Group = "外观", DefaultValue = "0", Min = 0, Max = 200,
-                        TargetProperty = ScadaElementBase.CornerRadiusProperty,
-                    }),
+                    ScadaPropertyCatalog.Collect(typeof(AxisPanelElement)),
+                    AppearanceProperties.Fill("#FF0F1112", "卡片底色；参考模板的近黑控制台"),
+                    AppearanceProperties.Stroke("#FF15171A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("12"),
+                    TextProperties.Text("标题", "轴控", isBindable: false,
+                        description: "面板左上角的标题；留空则只剩选择器"),
+                    TextProperties.Foreground("#FFFAFAFA"),
+                    TextProperties.FontSize("12")),
             },
         };
     }

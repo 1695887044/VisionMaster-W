@@ -1,0 +1,41 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls.Charts">
+
+    <!--
+        趋势曲线图元的外观。
+
+        极简是有意的：曲线的"长相"（网格、刻度、坐标轴、数据提示）由 VM.Charts 的 ChartView
+        自己画在自己的 Canvas 上，这里只负责图元外框那一圈（底色 + 边框 + 圆角）。
+
+        为什么不在模板里再套一层 Border 的 Margin：曲线要占满整个图元区域，
+        留内边距会让"画面上看到的曲线区"比"图元选中框"小一圈，
+        拖动命中与视觉范围对不上（选中框明明罩住了，点边缘却点不到曲线）。
+
+        ClipToBounds="True"：ChartView 内部有自己的绘图画布，缩放数据时会短暂超出边界，
+        不裁的话曲线会溢出图元框、盖到相邻图元上。
+    -->
+    <Style TargetType="{x:Type local:ChartTrendElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:ChartTrendElement}">
+                    <Border
+                        ClipToBounds="True"
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="1"
+                        CornerRadius="2">
+                        <ContentControl
+                            x:Name="ChartHost"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

@@ -226,6 +226,7 @@
         <Grid Grid.Row="1" Margin="16">
             <controls:ScadaCanvas
                 x:Name="Canvas"
+                BasePage="{Binding CurrentBasePage}"
                 IsReadOnly="True"
                 ItemsSource="{Binding CurrentPage.Elements}"
                 Page="{Binding CurrentPage}"

@@ -3,7 +3,9 @@ using Prism.Ioc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using VisionMaster.Binding;
 using VisionMaster.Lifetime;
+using VisionMaster.Scada;
 using VisionMaster.Services;
 using VisionMaster.Services.Motion;
 
@@ -49,6 +51,31 @@ namespace VisionMaster
             // "按卡取设备"这一步只在这里出现一次。
             registry.RegisterSingleton<MotionAxisLocator>(c => new MotionAxisLocator(
                 c.Resolve<MotionAxisRegistry>(), c.Resolve<IMotionProvider>()));
+
+            // 轴状态发布器：把运动卡的轮询快照投影成 SCADA 的只读数据源。
+            // 具体类型与接口指向同一个单例——宿主内部（生命周期）拿具体类型 Stop/Dispose，
+            // 轴面板只认 IScadaAxisSource（Scada.Controls 不引用运动模块）。
+            //
+            // 系统变量目录：轴状态的第二投影（Motion.X.Position 这类只读变量）。
+            // 走工厂而不是类型映射：它的构造函数是 IWorkspaceManager（拿工作区的 SystemVariables 集合），
+            // 交给容器按类型解析没问题，但显式写出来才能一眼看到"它是绑在哪个集合上的"。
+            registry.RegisterSingleton<SystemVariableCatalog>(c =>
+                new SystemVariableCatalog(c.Resolve<IWorkspaceManager>()));
+
+            // 发布器必须显式传系统变量目录：构造函数上的那个参数是**可选参数**，
+            // 交给容器去猜的结果是编译能过、运行起来系统变量永远是空的（而且不报错）。
+            registry.RegisterSingleton<MotionStatePublisher>(c => new MotionStatePublisher(
+                c.Resolve<ILogService>(),
+                c.Resolve<IMotionProvider>(),
+                c.Resolve<MotionAxisRegistry>(),
+                c.Resolve<SystemVariableCatalog>()));
+            registry.RegisterSingleton<IScadaAxisSource>(c => c.Resolve<MotionStatePublisher>());
+
+            // 组态动作表的"运动命令族"执行器：持有"哪根轴在点动"的状态与看门狗，必须单例。
+            registry.RegisterSingleton<MotionActionExecutor>(c => new MotionActionExecutor(
+                c.Resolve<MotionAxisRegistry>(),
+                c.Resolve<IMotionProvider>(),
+                c.Resolve<ILogService>()));
         }
 
         public void Initialize(IContainerProvider container, AppLifetimeService lifetime)
@@ -86,10 +113,19 @@ namespace VisionMaster
                     $"[MotionModule] 运动卡自动连接阶段异常（已忽略，可到「运动卡设置」手动连接）：{ex.Message}");
             }
 
-            // 退出收尾：断开所有卡。
-            // 这一步不只是"礼貌地关闭"——运动卡的 Disconnect 会先**安全停止所有轴**，
-            // 少了它，关软件时正在运动的轴会按最后一条命令继续走完（真机上很危险）。
-            lifetime.RegisterExitTask(ExitTask.Of("断开全部运动卡", () => provider.Dispose()));
+            // 轴状态发布器：自动连接之后再启动，第一拍就能读到已连上的卡；
+            // 没有配置任何卡时它只是发布一张空表，不影响启动。
+            container.Resolve<MotionStatePublisher>().Start();
+
+            // 退出收尾：先停发布器（它读的是设备缓存），再断开所有卡。
+            // Disconnect 会先**安全停止所有轴**——少了它，关软件时正在运动的轴会按最后一条命令继续走完。
+            // 运动执行器一并释放：它的看门狗表里若还有点动中的轴，Dispose 会补发停止。
+            lifetime.RegisterExitTask(ExitTask.Of("停止轴状态发布并断开全部运动卡", () =>
+            {
+                container.Resolve<MotionActionExecutor>().Dispose();
+                container.Resolve<MotionStatePublisher>().Dispose();
+                provider.Dispose();
+            }));
         }
 
         /// <summary>

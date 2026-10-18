@@ -44,6 +44,16 @@ namespace VisionMaster.Scada.Controls
         /// 数值追加在末尾：枚举值一旦发布就不许改，只许往后加（.vms 里存的是数值）。
         /// </summary>
         Image,
+
+        /// <summary>
+        /// 轴候选清单（轴面板的设计期配置，值是 <see cref="VisionMaster.Scada.ScadaAxisOptionsCodec"/>
+        /// 的规范 JSON 串）。
+        ///
+        /// 它与 <see cref="Image"/> 同一类：值不是手打的，面板给"摘要 + 选择轴…"按钮。
+        /// <b>它不是数据绑定</b>——轴候选是设计期配置，运行期由面板自己的下拉框切换；
+        /// 所以这类行一律 <c>IsBindable=false</c>，不要给它挂 ƒx。
+        /// </summary>
+        AxisList,
     }
 
     /// <summary>

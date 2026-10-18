@@ -1,5 +1,6 @@
-using Core.Interfaces.Core;
+using Core.Interfaces;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Plugin.ImageScript
 {
@@ -9,14 +10,14 @@ namespace Plugin.ImageScript
     /// </summary>
     public enum ScriptVarType
     {
-        Int,
-        Double,
-        String,
-        HTuple,
-        HObject,
-        HImage,
-        HRegion,
-        HXld
+        [Display(Name = "整数")] Int,
+        [Display(Name = "浮点数")] Double,
+        [Display(Name = "字符串")] String,
+        [Display(Name = "Halcon 元组")] HTuple,
+        [Display(Name = "Halcon 图形对象")] HObject,
+        [Display(Name = "Halcon 图像")] HImage,
+        [Display(Name = "Halcon 区域")] HRegion,
+        [Display(Name = "Halcon 轮廓")] HXld
     }
 
     /// <summary>

@@ -153,7 +153,7 @@ namespace VisionMaster.ViewModels
             }
         }
 
-        /// <summary>容器类型徽标（If / While / For / Parallel / 分支匹配）；非容器为空串</summary>
+        /// <summary>容器类型徽标（If / While / For / Parallel / 分支匹配 / 等待）；非容器且非等待为空串</summary>
         public string TypeBadge => Model switch
         {
             // WhileStep / CaseStep 都继承 ConditionStep，必须先判子类
@@ -162,6 +162,8 @@ namespace VisionMaster.ViewModels
             ParallelStep => "Parallel",
             ConditionStep => "If",
             ForStep => "For",
+            // 等待节点不是容器，但带一条条件表达式 + 两个输出端口，值得在画布上给个身份徽标
+            WaitStep => "等待",
             _ => string.Empty,
         };
 

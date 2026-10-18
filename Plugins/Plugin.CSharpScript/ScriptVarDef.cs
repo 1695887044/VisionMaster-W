@@ -1,5 +1,6 @@
-using Core.Interfaces.Core;
+using Core.Interfaces;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Plugin.CSharpScript
 {
@@ -11,25 +12,25 @@ namespace Plugin.CSharpScript
     public enum ScriptVarType
     {
         /// <summary>任意对象（object）——脚本里自行转型使用</summary>
-        Object,
+        [Display(Name = "任意对象")] Object,
         /// <summary>整数（int）</summary>
-        Int,
+        [Display(Name = "整数")] Int,
         /// <summary>浮点数（double）</summary>
-        Double,
+        [Display(Name = "浮点数")] Double,
         /// <summary>布尔（bool）</summary>
-        Bool,
+        [Display(Name = "布尔")] Bool,
         /// <summary>字符串（string）</summary>
-        String,
+        [Display(Name = "字符串")] String,
         /// <summary>Halcon 元组（HTuple）</summary>
-        HTuple,
+        [Display(Name = "Halcon 元组")] HTuple,
         /// <summary>Halcon 图像（HImage）</summary>
-        HImage,
+        [Display(Name = "Halcon 图像")] HImage,
         /// <summary>Halcon 区域（HRegion）</summary>
-        HRegion,
+        [Display(Name = "Halcon 区域")] HRegion,
         /// <summary>Halcon 轮廓（HXLDCont）</summary>
-        HXld,
+        [Display(Name = "Halcon 轮廓")] HXld,
         /// <summary>Halcon 图形对象基类（HObject）</summary>
-        HObject
+        [Display(Name = "Halcon 图形对象")] HObject
     }
 
     /// <summary>

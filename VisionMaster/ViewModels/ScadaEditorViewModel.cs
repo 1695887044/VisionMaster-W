@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -84,6 +85,7 @@ namespace VisionMaster.ViewModels
             _workspaceChanged = workspace as INotifyPropertyChanged;
 
             AddPageCommand = new DelegateCommand(OnAddPage, () => Document != _fallback);
+            AddBasePageCommand = new DelegateCommand(OnAddBasePage, () => Document != _fallback);
             RemovePageCommand = new DelegateCommand(OnRemovePage, CanRemovePage);
             RunPageCommand = new DelegateCommand(OnRunPage, CanRunPage);
             UndoCommand = new DelegateCommand(OnUndo, () => ScadaEditHistory.CanUndo);
@@ -103,6 +105,14 @@ namespace VisionMaster.ViewModels
             // 一条命令管两向：菜单标题已经写明了这次会往哪边走（见 BuildElementContextMenu），
             // 再拆成两条命令等于把"现在该走哪边"这个判据复制到菜单组装与命令可用性两处。
             GroupElementCommand = new DelegateCommand(() => ToggleSelectedGroup(), CanToggleSelectedGroup);
+
+            // 装入底板 / 移出底板：入口同样只有右键菜单（判灰条件是视图模型的知识）。
+            // 与组合那一项同构，但两向拆成两条命令而不是一条二态——
+            // 差别在于"装入"要选一只底板当靶，而"移出"不要；
+            // 一条命令兼两向就得在动作里判"这次该拿谁当底板"，而菜单标题只写得下一件事。
+            // 靶的选取见 <see cref="ResolveDockTarget"/>（主选中若不是底板，就找本页第一只空底板）。
+            DockIntoPanelCommand = new DelegateCommand(() => DockSelectedIntoPanel(), CanDockSelected);
+            UndockFromPanelCommand = new DelegateCommand(() => UndockSelected(), CanUndockSelected);
 
             // 复制 / 粘贴 / 再制（S13）。这三条与删除同域——读的都是"选中集合"、写的都是当前画面，
             // 所以可用性判据也走同一个漏斗，不另开一套。
@@ -170,6 +180,18 @@ namespace VisionMaster.ViewModels
                 _workspaceChanged.PropertyChanged -= OnWorkspacePropertyChanged;
 
             ScadaEditHistory.Changed -= OnHistoryChanged;
+
+            // 候选项订阅的是文档的集合：离树时摘掉，避免"切几次标签攒几个影子编辑器"（与上面同一条理由）
+            if (_optionsDocument != null)
+            {
+                _optionsDocument.BasePages.CollectionChanged -= OnBasePagesCollectionChanged;
+                _optionsDocument = null;
+
+                foreach (var option in BasePageOptions)
+                    option.Detach();
+
+                BasePageOptions.Clear();
+            }
         }
 
         /// <summary>当前方案的组态文档（无方案时为空的兜底文档）</summary>
@@ -177,6 +199,68 @@ namespace VisionMaster.ViewModels
 
         /// <summary>画面集合（模型本体，供画面下拉/标签绑定）</summary>
         public ObservableCollection<ScadaPage> Pages => Document.Pages;
+
+        /// <summary>
+        /// 可作为基座的画面集合（模型本体，供基座下拉框绑定）。
+        ///
+        /// 基座与画面是两个集合：基座不许被导航（它不是终点）、删除时不连带删引用它的画面
+        /// （引用方按"无基座"降级）。所以下拉框的候选只能来自 <see cref="ScadaDocument.BasePages"/>，
+        /// 不能拿全部画面充数——那种"顺手把 Pages 也放进去"的做法会让"建页时随便挑一张当基座"
+        /// 成为可能，而那种页面一删就全链坏掉。
+        /// </summary>
+        public ObservableCollection<ScadaPage> BasePages => Document.BasePages;
+
+        /// <summary>
+        /// 顶栏基座下拉的候选项：<b>第一项恒为「（无基座）」</b>（<see cref="BasePageOption.None"/>），
+        /// 其余是 <see cref="BasePages"/> 里的基座。
+        ///
+        /// <b>为什么不用 CompositeCollection + ComboBoxItem 占位</b>：那条路上选「（无基座）」时，
+        /// WPF 会把 <c>ComboBoxItem</c> 往 <c>ScadaPage?</c> 类型的属性里塞——绑定引擎转换失败，
+        /// 源属性根本收不到通知，于是"选了清除、模型没变、界面还显示（无基座）"这种静默失败。
+        /// 让候选项与选中项是<b>同一个类型</b>（<see cref="BasePageOption"/>），类型不匹配的问题从根上消失。
+        /// </summary>
+        public ObservableCollection<BasePageOption> BasePageOptions { get; } = new();
+
+        private ScadaDocument? _optionsDocument;
+
+        /// <summary>重建基座候选项（文档换了 / 基座集合变了都要重建）</summary>
+        private void RebuildBasePageOptions()
+        {
+            var document = Document;
+
+            if (!ReferenceEquals(_optionsDocument, document))
+            {
+                if (_optionsDocument != null)
+                    _optionsDocument.BasePages.CollectionChanged -= OnBasePagesCollectionChanged;
+
+                _optionsDocument = document;
+                _optionsDocument.BasePages.CollectionChanged += OnBasePagesCollectionChanged;
+            }
+
+            foreach (var option in BasePageOptions)
+                option.Detach();
+
+            BasePageOptions.Clear();
+            BasePageOptions.Add(BasePageOption.None);
+
+            foreach (var page in document.BasePages)
+                BasePageOptions.Add(new BasePageOption(page));
+
+            RaisePropertyChanged(nameof(SelectedBasePage));
+            RaisePropertyChanged(nameof(CanSelectBasePage));
+        }
+
+        private void OnBasePagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => RebuildBasePageOptions();
+
+        /// <summary>
+        /// 顶栏基座下拉能不能选（= 当前页本身不是基座）。
+        ///
+        /// 一层限制（基座不能再引用基座）在模型里由 <c>TrySetBasePage</c> 拦，
+        /// 但界面必须**先置灰**：让用户选一个注定被拒的值、再把下拉弹回原值，
+        /// 是最让人以为"软件坏了"的交互。置灰 + 一句说明，规则就自解释了。
+        /// </summary>
+        public bool CanSelectBasePage => !Document.IsBasePage(_selectedPage);
 
         /// <summary>当前编辑的画面</summary>
         public ScadaPage? SelectedPage
@@ -204,6 +288,52 @@ namespace VisionMaster.ViewModels
                 // 后一半只能在这里刷。少了这一行，"在 A 画面复制、切到 B 画面"之后粘贴项会是灰的，
                 // 而用户手上明明有东西可粘——这种"看着像坏了"的灰是最难被报上来的。
                 PasteCommand.RaiseCanExecuteChanged();
+
+                // 基座下拉框跟着当前页走：换页时它要显示"这一页引用的是哪只基座"
+                RaisePropertyChanged(nameof(SelectedBasePage));
+                RaisePropertyChanged(nameof(CanSelectBasePage));
+            }
+        }
+
+        /// <summary>
+        /// 当前页引用的基座画面（属性面板与顶栏下拉框都绑它）。
+        ///
+        /// 读写都走 <see cref="ScadaDocument.TrySetBasePage"/>（含环检测与"目标是不是已注册基座"的校验）：
+        /// 视图模型不自己写 <c>BasePageId</c>——"谁能设基座"的判据只有一份，
+        /// 写岔了的后果（循环引用、引用未注册对象）不该由界面层各写一份来兜。
+        ///
+        /// 失败时静默返回：环检测与"未注册基座"两条拒由在正常界面路径上不可达
+        /// （候选列表就只有已注册基座），而撤销/重做/脚本路径由领域层负责。
+        /// 切换成功的观感是即时的（画布按 BasePage 依赖属性回调全量重建）。
+        /// </summary>
+        public BasePageOption? SelectedBasePage
+        {
+            get
+            {
+                if (_selectedPage is not { } page)
+                    return null;
+
+                var basePage = Document.FindBasePage(page.BasePageId);
+
+                return basePage == null
+                    ? BasePageOption.None
+                    : BasePageOptions.FirstOrDefault(o => ReferenceEquals(o.Page, basePage))
+                      // 候选项还没重建好时的兜底：<b>不订阅</b>改名。
+                      // getter 每次绑定求值都会跑，在这里 new 一个会订阅的项 = 每次求值多挂一个订阅（泄漏）。
+                      ?? BasePageOption.Detached(basePage);
+            }
+            set
+            {
+                if (_selectedPage is not { } page)
+                    return;
+
+                var target = value?.Page;
+
+                if (ReferenceEquals(Document.FindBasePage(page.BasePageId), target))
+                    return;
+
+                Document.TrySetBasePage(page, target, out _);
+                RaisePropertyChanged(nameof(SelectedBasePage));
             }
         }
 
@@ -297,44 +427,21 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 把"指向了某一个图元"展开成"真正该选上的那一批"——它在一组里就是整组，否则就是它自己。
+        /// 把"指向了某一个图元"展开成"真正该选上的那一批"——它所在的整组 + 它装着的子图元。
         ///
-        /// 与 <c>ScadaCanvas.ExpandPointSelection</c> 是同一套语义的两份实现（各自私有：画布是控件库、
-        /// 视图模型在上层，谁也不该为了这一件事反向依赖对方）。两边必须逐字对齐，
-        /// 否则同一次点击流经双向绑定会在两侧得到不同结果——那正是本类
-        /// <see cref="SelectedElement"/> 注释里反复强调要避免的事。
+        /// <b>规则本身在领域层</b>（<see cref="ScadaPage.ExpandSelectionCluster"/>），这里只留一句调用。
         ///
-        /// 判据只有 <see cref="ScadaPage.GetGroupMembers"/> 一处：视图侧自己按 <c>GroupId</c> 再筛一遍，
-        /// 就会出现"画布认一组、菜单认另一组"的劈叉。
+        /// 为什么不再各写一份：这段逻辑原先在画布（<c>ScadaCanvas.ExpandPointSelection</c>）
+        /// 与这里各有一份实现，靠注释约定"两边必须逐字对齐"。容器图元把展开规则从一条
+        /// （分组）变成两条（分组 + 父子），再各写一份就是四处要同步；
+        /// 而两处不同步的表现是"同一次点击，画布选中的与菜单认的不是同一批"，极难查。
+        /// 收到领域层一处，两侧都只消费同一份结果。
         ///
         /// <b>被点中的那个排首位</b>：<see cref="ApplySelection"/> 拿首项当主选中，
         /// 属性面板与单目标命令都跟着主选中走，排到后面会变成"我点的是 B，面板显示的是 A"。
-        ///
-        /// 图层隐藏的成员不并进来（与画布同判据 <see cref="ScadaPage.IsElementVisible"/>），
-        /// 锁住的成员照并（单击本来就选得中锁住的图元，只是拖不动）。
         /// </summary>
         private IReadOnlyList<ScadaElement> ExpandPointSelection(ScadaElement element)
-        {
-            if (_selectedPage is not { } page)
-                return new[] { element };
-
-            var members = page.GetGroupMembers(element);
-
-            if (members.Count <= 1)
-                return new[] { element }; // 未分组，或组里只剩它自己（单成员组与未分组行为等价）
-
-            var expanded = new List<ScadaElement>(members.Count) { element };
-
-            foreach (var member in members)
-            {
-                if (ReferenceEquals(member, element) || !page.IsElementVisible(member))
-                    continue;
-
-                expanded.Add(member);
-            }
-
-            return expanded;
-        }
+            => _selectedPage is { } page ? page.ExpandSelectionCluster(element) : new[] { element };
 
         /// <summary>
         /// 删除/微调/锁定/组合/复制/再制/存模板这些命令的可用性都取决于"选中了谁、能不能编辑"，
@@ -349,6 +456,8 @@ namespace VisionMaster.ViewModels
             NudgeCommand.RaiseCanExecuteChanged();
             LockElementCommand.RaiseCanExecuteChanged();
             GroupElementCommand.RaiseCanExecuteChanged();
+            DockIntoPanelCommand.RaiseCanExecuteChanged();
+            UndockFromPanelCommand.RaiseCanExecuteChanged();
 
             // 复制 / 再制 / 存模板三条共用 CanCopySelection 这一个判据，所以一起刷。
             CopyCommand.RaiseCanExecuteChanged();
@@ -421,6 +530,19 @@ namespace VisionMaster.ViewModels
 
         public DelegateCommand AddPageCommand { get; }
 
+        /// <summary>
+        /// 新建一个<b>基座</b>画面（跨页公共层）：建页 + 立刻注册进 <see cref="ScadaDocument.BasePages"/> + 选中它。
+        ///
+        /// 为什么是"新建基座"而不是"把当前页注册为基座"：基座是一份**独立的公共层**，
+        /// 它的内容（边框、报警条、公共指示灯）不该和某一页的业务图元混在一起。
+        /// 先建一份空白的公共层、在里面画公共内容，比"把已经画好的一页提升为基座"更不容易误伤
+        /// （后者会让那一页的业务内容变成所有页面共享的东西）。
+        ///
+        /// 新建完立刻选中它：基座图元<b>只有</b>在基座自己的编辑界面里能改（在引用页上只渲染、不可选中），
+        /// 不切过去的话用户会看到"新建了但画布没变、也放不进东西"。
+        /// </summary>
+        public DelegateCommand AddBasePageCommand { get; }
+
         public DelegateCommand RemovePageCommand { get; }
 
         /// <summary>运行当前方案（弹出全屏运行窗口）</summary>
@@ -446,6 +568,19 @@ namespace VisionMaster.ViewModels
         /// 可用性见 <see cref="CanToggleSelectedGroup"/>，动作见 <see cref="ToggleSelectedGroup"/>。
         /// </summary>
         public DelegateCommand GroupElementCommand { get; }
+
+        /// <summary>
+        /// 把选中图元装进一只底板（右键菜单「放入底板」）。可用性见 <see cref="CanDockSelected"/>。
+        ///
+        /// 靶底板的选取见 <see cref="ResolveDockTarget"/>：主选中<b>是</b>底板就装它自己，
+        /// 否则找本页第一只"还装得下"的底板。这条"就近猜一个"的口径是有意的——
+        /// 让用户在菜单里再挑一次底板，等于每次放东西都多一步；
+        /// 而放错了的代价很小（移出底板 / 撤销，都是一步）。
+        /// </summary>
+        public DelegateCommand DockIntoPanelCommand { get; }
+
+        /// <summary>把选中图元从它们各自的底板里移出（右键菜单「移出底板」）。可用性见 <see cref="CanUndockSelected"/></summary>
+        public DelegateCommand UndockFromPanelCommand { get; }
 
         /// <summary>复制选中图元到剪贴板（Ctrl+C / 右键菜单）。可用性见 <see cref="CanCopySelection"/></summary>
         public DelegateCommand CopyCommand { get; }
@@ -626,11 +761,50 @@ namespace VisionMaster.ViewModels
 
         private void OnAddPage()
         {
-            var page = Document.AddPage();
+            // 新画面默认沿用<b>当前页的基座</b>：现场建一批"长得一样"的画面是常态
+            // （同一产线的好几个工位都该带同一份报警条与公共图元），
+            // 没有基座则不带——新画面从空白开始。
+            var baseId = _selectedPage?.BasePageId ?? Guid.Empty;
+            var page = Document.AddPage(basePageId: baseId);
 
             // 新画面立刻成为编辑目标：否则用户点完"新建"看到的还是旧画面，
             // 会以为没生效而连点好几次
             SelectedPage = page;
+        }
+
+        /// <summary>
+        /// 新建基座：建页 → 注册 → 选中它（三步一次做完，见 <see cref="AddBasePageCommand"/> 的注释）。
+        ///
+        /// 注册失败要把画面留着、并把原因说出来：先建页后注册的两步顺序里，
+        /// 注册失败（理论上只剩"这页自己引用了基座"，新建页不可能）也不该静默吞掉。
+        /// </summary>
+        private void OnAddBasePage()
+        {
+            var page = Document.AddPage(NextBasePageName());
+
+            if (!Document.TryAddBasePage(page, out string error))
+            {
+                EasyDialog.ShowSync("无法新建基座", error);
+                SelectedPage = page; // 页面已经建出来了，仍然切过去，免得用户找不到它
+                return;
+            }
+
+            SelectedPage = page;
+        }
+
+        /// <summary>取当前未被占用的最小「基座_N」（与 <c>ScadaDocument.NextPageName</c> 同一口径）</summary>
+        private string NextBasePageName()
+        {
+            var used = new HashSet<string>(
+                Document.Pages.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 1; ; i++)
+            {
+                string name = $"基座_{i}";
+
+                if (!used.Contains(name))
+                    return name;
+            }
         }
 
         private void OnRemovePage()
@@ -1061,6 +1235,18 @@ namespace VisionMaster.ViewModels
         private const string UngroupIcon = "\uF248";
 
         /// <summary>
+        /// 放入 / 移出底板（Font Awesome 6 Pro Solid 的 <c>object-group</c> 变体语义）。
+        ///
+        /// 图标取"方框套方块"与"方块从方框里出来"两个形态，
+        /// 与组合/取消组合那一对刻意画得不一样：那对是"几块并排 / 散开"，
+        /// 这对是"被框住 / 脱离框"。两种关系在语义上本就不同（底板会裁剪、分组不会），
+        /// 图标混用会让用户以为它们是同一件事的两个说法。
+        /// </summary>
+        private const string DockIcon = "\uE4C6";
+
+        private const string UndockIcon = "\uE4C7";
+
+        /// <summary>
         /// 复制 / 粘贴 / 再制（Font Awesome 6 Pro Solid 的 <c>copy</c> / <c>paste</c> / <c>clone</c>）。
         ///
         /// 三个图标刻意同族："复制"是两页纸，"粘贴"是夹板上一页纸，"再制"是两个摞在一起的方块——
@@ -1306,6 +1492,13 @@ namespace VisionMaster.ViewModels
                     grouped ? UngroupIcon : GroupIcon,
                     GroupElementCommand),
 
+                // 放入/移出底板。与分组相邻（都属"改变图元之间的关系"），但语义不同：
+                // 分组是编辑期捆绑（不裁剪、不嵌套），底板是视觉嵌套（裁剪、跟着走）。
+                // 两项都常驻（各按自己的可用性判灰），不做二态合并——
+                // 它们不是同一个动作的两个方向：一个图元可以既在组里、又装在底板里。
+                ScadaMenuItem.Action("放入底板", DockIcon, DockIntoPanelCommand),
+                ScadaMenuItem.Action("移出底板", UndockIcon, UndockFromPanelCommand),
+
                 // 删除放最后：它是唯一"不可见地改变画面内容"的一项（另外三栏都只是换个摆法），
                 // 排在末尾才不会被误点。锁定的图元这一项判灰——拖动都拖不动的东西，
                 // 却能从菜单里删掉，那种不一致在现场会被当成"锁没生效"。
@@ -1412,6 +1605,107 @@ namespace VisionMaster.ViewModels
         /// 与"图层"栏那种单选式打勾口径一致，也是用户点它时心里想的事。
         /// </summary>
         public bool ToggleSelectedGroup() => IsMainSelectionGrouped ? UngroupSelected() : GroupSelected();
+
+        /// <summary>
+        /// 选出"这一次要把图元装进哪只底板"。
+        ///
+        /// 两条候选口径，按优先级：
+        /// ① <b>主选中本身就是底板</b>——用户右键点在一只底板上选"放入底板"，
+        ///    意思显然是"把这一批装进我点中的这只"；
+        /// ② 否则找本页<b>第一只不含父的底板</b>（<see cref="IsDockContainer"/>）——
+        ///    用户选了一片散图元、想让它们成个块，此时点"放入底板"期望的是"找个框装起来"。
+        ///
+        /// 为什么不弹一个底板选择框：装错了的代价极小（移出底板 / 撤销各一步），
+        /// 而弹框会让每一次归置都多一步确认——那是组态时最常做的动作之一。
+        /// 真要在多只底板之间选，把图元直接拖到目标底板上更直观（拖动本身就表达了目标）。
+        /// </summary>
+        private ScadaElement? ResolveDockTarget(ScadaPage page)
+        {
+            if (IsDockContainer(_selectedElement))
+                return _selectedElement;
+
+            foreach (var element in page.Elements)
+            {
+                if (IsDockContainer(element))
+                    return element;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 本图元能不能当"放入底板"的靶：它是<b>已注册的容器类型</b>且自己没有父（一层限制）。
+        ///
+        /// 判据走注册表（<c>ElementRegistry</c>）而不是写死 <c>TypeKey == "Hmi.Panel"</c>：
+        /// 将来再加一类容器（比如"选项卡"）时，这里一行都不用改。
+        /// 用 <c>ControlType</c> 判接口而不是按 TypeKey 比字符串——
+        /// 前者是编译期事实，后者是"改个 TypeKey 就静默失效"的字符串约定。
+        /// </summary>
+        private static bool IsDockContainer(ScadaElement? element)
+        {
+            if (element is null || element.ParentId != Guid.Empty)
+                return false;
+
+            var descriptor = ElementRegistry.Find(element.TypeKey);
+
+            return descriptor is not null
+                   && typeof(IElementContainer).IsAssignableFrom(descriptor.ControlType);
+        }
+
+        /// <summary>「放入底板」能不能点：有选中、本页面有可用的靶底板、且选中项里至少有一个真会动</summary>
+        public bool CanDockSelected()
+        {
+            if (_selectedPage is not { } page || _selectedElement is null)
+                return false;
+
+            if (ResolveDockTarget(page) is not { } target)
+                return false;
+
+            // 选中项全是"已在该底板里"的成员时是空操作，项该判灰（与"取消组合"那一项同一条口径）
+            foreach (var element in CollectPresent(page))
+            {
+                if (!ReferenceEquals(element, target) && element.ParentId != target.ElementId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>把选中图元装进 <see cref="ResolveDockTarget"/> 选出的底板（右键菜单「放入底板」）</summary>
+        public bool DockSelectedIntoPanel()
+        {
+            if (_selectedPage is not { } page || ResolveDockTarget(page) is not { } target)
+                return false;
+
+            // 底板自己也传进去：领域层会把它剔掉（不能装进自己），
+            // 而调用方保留它能让"只选中底板 + 想看它装了多少东西"这类场景走同一条路。
+            return page.TrySetParent(target, CollectPresent(page), out _);
+        }
+
+        /// <summary>
+        /// 「移出底板」能不能点：确实在本画面上、且<b>真的装着父</b>的选中图元至少 1 个。
+        ///
+        /// 数的是"装着父的"而不是"选中的"：全都已经在顶层时点下去是空操作
+        /// （<see cref="ScadaPage.TryClearParent"/> 返回 true 但不产记录），
+        /// 菜单亮着却什么都没发生，用户只会记成"这一项坏了"——与"取消组合"同一条理由。
+        /// </summary>
+        public bool CanUndockSelected()
+        {
+            if (_selectedPage is not { } page)
+                return false;
+
+            foreach (var element in CollectPresent(page))
+            {
+                if (element.ParentId != Guid.Empty)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>把选中图元从各自的底板里移出（右键菜单「移出底板」）</summary>
+        public bool UndockSelected()
+            => _selectedPage is { } page && page.TryClearParent(CollectPresent(page), out _);
 
         /// <summary>
         /// 主选中图元在不在一个组里（菜单标题与图标都读它）。
@@ -1706,11 +2000,69 @@ namespace VisionMaster.ViewModels
 
             RaisePropertyChanged(nameof(Document));
             RaisePropertyChanged(nameof(Pages));
+            RebuildBasePageOptions();
             AddPageCommand.RaiseCanExecuteChanged();
+            AddBasePageCommand.RaiseCanExecuteChanged();
             RunPageCommand.RaiseCanExecuteChanged();
 
             var pages = Pages;
             SelectedPage = pages.Count > 0 ? pages[0] : null;
+        }
+    }
+
+    /// <summary>
+    /// 顶栏基座下拉的一项：<see cref="Page"/> 为 null 表示「（无基座）」。
+    ///
+    /// 为什么要这个包装（而不是直接把 <see cref="ScadaPage"/> 当候选项、另塞一个 ComboBoxItem 占位）：
+    /// 占位项的类型与选中项的类型不一致时，WPF 会把 ComboBoxItem 往 <c>ScadaPage?</c> 里塞，
+    /// 绑定引擎转换失败 → 源属性收不到通知 → "选了清除、模型没变"，而且不报错。
+    /// 包装之后候选项与选中项是同一个类型，这条静默失败路径不存在。
+    ///
+    /// 名字走<b>实时读取</b>（订阅基座画面的 <c>Name</c> 变更并转发通知）：
+    /// 基座改名之后下拉框要立刻跟着变，不能等到切页面才刷新。
+    /// </summary>
+    public sealed class BasePageOption : BindableBase
+    {
+        /// <summary>「（无基座）」那一项（全局唯一，引用相等即可判等）</summary>
+        public static readonly BasePageOption None = new(null);
+
+        public BasePageOption(ScadaPage? page)
+            : this(page, subscribe: true)
+        {
+        }
+
+        private BasePageOption(ScadaPage? page, bool subscribe)
+        {
+            Page = page;
+
+            if (subscribe && page != null)
+                page.PropertyChanged += OnPagePropertyChanged;
+        }
+
+        /// <summary>
+        /// 不订阅改名的候选（只用于"候选项还没重建好"的兜底）。
+        /// 订阅型候选由 <see cref="ScadaEditorViewModel.RebuildBasePageOptions"/> 统一创建与摘除；
+        /// 在属性 getter 里随手 new 一个订阅型，会让每次绑定求值都多挂一个订阅。
+        /// </summary>
+        public static BasePageOption Detached(ScadaPage page)
+            => new(page, subscribe: false);
+
+        /// <summary>底层基座画面；null = 不引用</summary>
+        public ScadaPage? Page { get; }
+
+        public string Name => Page?.Name ?? "（无基座）";
+
+        /// <summary>摘掉对底层画面的订阅（候选项被重建时调用，避免旧项被画面钉住）</summary>
+        public void Detach()
+        {
+            if (Page != null)
+                Page.PropertyChanged -= OnPagePropertyChanged;
+        }
+
+        private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ScadaPage.Name))
+                RaisePropertyChanged(nameof(Name));
         }
     }
 }

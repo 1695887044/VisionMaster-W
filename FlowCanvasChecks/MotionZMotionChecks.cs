@@ -366,6 +366,48 @@ namespace FlowCanvasChecks
                 englishLeft.Length == 0 && geoEnumTypes.Sum(t => Enum.GetNames(t).Length) == 23,
                 string.IsNullOrEmpty(englishLeft) ? "23/23 有中文" : "缺中文: " + englishLeft);
 
+            // 2026-10-18 欠账核销：Utility 四件套（数学/逻辑/比较/类型转换）+ 两个脚本插件的 ScriptVarType。
+            // 这四件套走 InputPort<T> → LinkableValueEditor → ForEnum（与几何/运动同一条路），
+            // 两个脚本插件走裸 Enum.GetValues 上屏——已改成 ForEnum（视图 ComboBox 的
+            // DisplayMemberPath="Display" + SelectedValuePath="Value"）。
+            // PreProcessing 的枚举走 FlatPropertyGrid 的 EnumGenerator（读 [Description]），不在本闸门里。
+            // 两个脚本插件不在 FlowCanvasChecks.csproj 的引用集里，用 TypeHelper.ResolveType 反射解析
+            //（它们已在 Modules\ 里被扫描加载进 AppDomain，按全名找得到）。
+            var utilEnumTypes = new[]
+            {
+                typeof(VisionMaster.Plugins.Util.MathOperationType),
+                typeof(VisionMaster.Plugins.Util.LogicOperationType),
+                typeof(VisionMaster.Plugins.Util.ComparisonType),
+                typeof(VisionMaster.Plugins.Util.TargetDataType),
+                VisionMaster.Helpers.TypeHelper.ResolveType("Plugin.CSharpScript.ScriptVarType, Plugin.CSharpScript"),
+                VisionMaster.Helpers.TypeHelper.ResolveType("Plugin.ImageScript.ScriptVarType, Plugin.ImageScript"),
+            };
+            // 反射解析不到（插件没加载进 AppDomain）不该让闸门崩——红着说清是哪个类型没找到，
+            // 也不许 null 混进 Enum.GetNames 让断言自己炸掉（那就分不清是"缺中文"还是"闸门坏了"）。
+            var resolvedTypes = utilEnumTypes.Where(t => t != null && t.IsEnum).ToArray();
+            int expectedMembers = 17 + 6 + 6 + 5 + 10 + 8;   // 四件套 34 + 两个 ScriptVarType 18
+            if (resolvedTypes.Length != utilEnumTypes.Length)
+            {
+                Check("★Utility 四件套 + 两个脚本插件的枚举成员逐个有中文显示名（欠账核销）",
+                    false,
+                    $"有 {utilEnumTypes.Length - resolvedTypes.Length} 个枚举类型解析不到"
+                    + "（脚本插件不在引用集里、或 Modules\\ 里没被加载？）——闸门读不到它们");
+                return;
+            }
+            var utilEnglish = string.Join(" ", resolvedTypes
+                .SelectMany(t => Enum.GetNames(t).Select(n => (Type: t, Name: n)))
+                .Where(x =>
+                {
+                    var display = StepConfigOption.ForEnum(x.Type, x.Name).Display;
+                    return !display.Any(c => c >= 0x4E00 && c <= 0x9FFF) || display == x.Name;
+                })
+                .Select(x => $"{x.Type.Name}.{x.Name}"));
+            Check("★Utility 四件套 + 两个脚本插件的枚举成员逐个有中文显示名（欠账核销：6 个枚举全过闸门）",
+                utilEnglish.Length == 0 && resolvedTypes.Sum(t => Enum.GetNames(t).Length) == expectedMembers,
+                string.IsNullOrEmpty(utilEnglish)
+                    ? $"{expectedMembers}/{expectedMembers} 有中文"
+                    : "缺中文: " + utilEnglish);
+
             Check("★拟合算法的显示名不再带 HALCON 英文（'regression' 这类只该出现在代码注释与文档里）",
                 StepConfigOption.ForEnum(typeof(Plugin.GeometryFinder.FitAlgorithmKind), "Regression").Display == "最小二乘"
                 && !StepConfigOption.ForEnum(typeof(Plugin.GeometryFinder.FitAlgorithmKind), "Tukey").Display.Contains("("),

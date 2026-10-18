@@ -199,7 +199,7 @@
                             Margin="0,6,0,0"
                             FontSize="{StaticResource PluginHintFontSize}"
                             Foreground="{StaticResource PluginLabelTextBrush}"
-                            Text="只接「标定」插件的 Transform 输出（不允许手填矩阵——单一事实源）；输出机械坐标的同时给反向回显，偏差 &lt; 1e-6px 才算过。"
+                            Text="只接「标定」插件的 Transform 输出（不允许手填矩阵——单一事实源）；输出机械坐标的同时给反向回显，偏差超容差才算过（不带内参 / division 为 1e-6px，polynomial 为 1e-3px）。"
                             TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>

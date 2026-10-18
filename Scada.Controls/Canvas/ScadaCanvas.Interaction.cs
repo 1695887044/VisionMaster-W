@@ -160,6 +160,11 @@ namespace VisionMaster.Scada.Controls
 
             var element = HitTestElement(source);
 
+            // 基座图元在本页只读：点中它按"点了空白"处理（不选中、不拖动、不弹图元菜单）。
+            // 判据与 CanEditElement / 选中集合的 Coerce 共用 IsForeignBaseElement 一处。
+            if (IsForeignBaseElement(element))
+                element = null;
+
             if (element != null)
             {
                 // Ctrl/Shift 是业界通用的"加选"修饰键（框选那一侧也认这两个），这里保持同一套语义。
@@ -749,7 +754,11 @@ namespace VisionMaster.Scada.Controls
                 return;
 
             if (HitTestElement(e.OriginalSource as DependencyObject) is { } element)
-                SetCurrentValue(SelectedElementProperty, element);
+            {
+                // 基座图元不可在本页编辑 → 清掉选中，菜单退回"画面级"那一套。
+                // 不能只是"不选中"：那样菜单会继续挂在上一批选中上，改到的还是别的东西（错靶）。
+                SetCurrentValue(SelectedElementProperty, IsForeignBaseElement(element) ? null : element);
+            }
         }
 
         #endregion

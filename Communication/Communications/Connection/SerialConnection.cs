@@ -8,6 +8,10 @@ namespace VisionMaster.Communications
     /// <summary>
     /// <para>串口 Modbus RTU 协议连接实现类。</para>
     /// <para>封装 HslCommunication 的 ModbusRtu 设备，提供标准化的通信接口。</para>
+    /// <para>⚠ 掉线检测口径（F5）：串口<b>不实现</b> <c>ILinkHealthProbe</c>——物理链路没有可读的
+    /// socket 错误标志，半开（USB 转串口抽线 / 设备断电但芯片仍在）时轮询拿不到 early-abort 信号，
+    /// 只能等每段各自烧满 <see cref="SerialConfig.ReadTimeoutMs"/>，即"段数 × 读超时"后才判掉线
+    /// （167 段 × 3s ≈ 8 分钟）。这是能力缺口不是缺陷；串口场景建议把 ReadTimeoutMs 配小一些。</para>
     /// </summary>
     public class SerialConnection : ICommunicationConnection
     {

@@ -32,7 +32,7 @@ namespace VisionMaster.Scada.Controls
     /// 而格式串里可能带 dddd（星期）/MMMM（月份）这类与文化强相关的记号——
     /// 中文界面上应该出现"星期五"，而不是"Friday"。数值类图元的显示串则相反（见 ProgressBarElement）。
     /// </summary>
-    public class ClockElement : ScadaElementBase
+    public partial class ClockElement : ScadaElementBase
     {
         /// <summary>节拍下限（秒）：再密就是拿 UI 线程烧 CPU 了，而毫秒位也不会因此更准</summary>
         private const double MinIntervalSeconds = 0.1;
@@ -40,15 +40,25 @@ namespace VisionMaster.Scada.Controls
         /// <summary>节拍上限（秒）</summary>
         private const double MaxIntervalSeconds = 60;
 
-        /// <summary>时间格式串（标准 .NET 日期时间格式）</summary>
-        public static readonly DependencyProperty FormatProperty = DependencyProperty.Register(
-            nameof(Format), typeof(string), typeof(ClockElement),
-            new FrameworkPropertyMetadata("yyyy-MM-dd HH:mm:ss", OnFormatChanged));
+        /// <summary>
+        /// 时间格式串（标准 .NET 日期时间格式）。
+        ///
+        /// <c>AffectsRender = false</c>：它不直接改外观，而是改<b>显示串的内容</b>
+        /// （经只读的 <see cref="DisplayTextProperty"/> 落到模板上），由
+        /// <see cref="OnFormatPropertyChanged"/> 主动重算一次，不需要 WPF 再排一次重绘。
+        /// </summary>
+        [ScadaProperty(Key = "Format", DisplayName = "格式", Kind = ElementPropertyKind.Text,
+                       Group = "数据", DefaultValue = "yyyy-MM-dd HH:mm:ss", AffectsRender = false,
+                       Description = "标准 .NET 日期时间格式串：HH:mm:ss 只显时间，带 dddd 会出星期；"
+                                   + "写错了退回默认形状，不会让整页渲染中断")]
+        public partial string? Format { get; set; }
 
         /// <summary>刷新节拍（秒）</summary>
-        public static readonly DependencyProperty IntervalProperty = DependencyProperty.Register(
-            nameof(Interval), typeof(double), typeof(ClockElement),
-            new FrameworkPropertyMetadata(1d, OnIntervalChanged));
+        [ScadaProperty(Key = "Interval", DisplayName = "刷新节拍", Kind = ElementPropertyKind.Number,
+                       Group = "数据", DefaultValue = "1", Min = 0.1, Max = 60, AffectsRender = false,
+                       Description = "单位秒。落在 0.1~60 之外会被收敛进区间（0 或负数不会变成一个失控的定时器）；"
+                                   + "跳动会对齐整拍，不慢半拍")]
+        public partial double Interval { get; set; }
 
         private static readonly DependencyPropertyKey DisplayTextPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(DisplayText), typeof(string), typeof(ClockElement),
@@ -76,33 +86,17 @@ namespace VisionMaster.Scada.Controls
             Unloaded += OnUnloaded;
         }
 
-        /// <summary>时间格式串（见 <see cref="FormatProperty"/>）</summary>
-        public string? Format
-        {
-            get => (string?)GetValue(FormatProperty);
-            set => SetValue(FormatProperty, value);
-        }
-
-        /// <summary>刷新节拍，秒（见 <see cref="IntervalProperty"/>）</summary>
-        public double Interval
-        {
-            get => (double)GetValue(IntervalProperty);
-            set => SetValue(IntervalProperty, value);
-        }
-
         /// <summary>当前显示的时间串（只读，见 <see cref="DisplayTextProperty"/>）</summary>
         public string? DisplayText => (string?)GetValue(DisplayTextProperty);
 
-        private static void OnFormatChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((ClockElement)d).UpdateText();
+        /// <summary>格式变了：当场重算显示串</summary>
+        partial void OnFormatPropertyChanged() => UpdateText();
 
-        private static void OnIntervalChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        partial void OnIntervalPropertyChanged()
         {
-            var clock = (ClockElement)d;
-
             // 改节拍要当场生效：不重算的话，用户把 1 秒改成 0.1 秒后得等最多 1 秒才看到变快
-            if (clock._timer is { IsEnabled: true } timer)
-                timer.Interval = clock.DelayToNextTick();
+            if (_timer is { IsEnabled: true } timer)
+                timer.Interval = DelayToNextTick();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)

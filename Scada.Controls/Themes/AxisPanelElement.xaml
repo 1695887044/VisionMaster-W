@@ -1,0 +1,391 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        轴面板的外观（参考 web-70060145 的轴调试台：近黑卡片、珊瑚红强调、等宽数字、状态灯）。
+
+        三条本仓纪律：
+        ① 不写 ControlTemplate.Triggers 里的 DataTrigger —— 本环境下不触发（见 AlarmBannerElement 的注释）。
+           显隐一律由控件算好的 Visibility 依赖属性直接绑（SelectorVisibility / SingleAxisVisibility / EmptyVisibility）。
+        ② 颜色/圆角/字号走 TemplateBinding，属性面板改得动；模板里的十六进制只是"没配时"的兜底。
+        ③ 不依赖 Application 级资源（ScadaChecks 直接 new 控件、没有 Application），
+           所以这里自带 ComboBox 的最小模板，不去合并主程序的主题字典。
+    -->
+
+    <Style x:Key="AxisPanelComboItem" TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="#FFFAFAFA" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border
+                        x:Name="Bd"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="4">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#33FF6161" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#55FF6161" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  轴选择器：自带模板，避开应用级 Fluent 隐式 ComboBox 样式（白底渐变在深色卡片上很刺眼）  -->
+    <Style x:Key="AxisPanelCombo" TargetType="ComboBox">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="MinWidth" Value="120" />
+        <Setter Property="Foreground" Value="#FFFAFAFA" />
+        <Setter Property="Background" Value="#FF15171A" />
+        <Setter Property="BorderBrush" Value="#FF2A2D31" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource AxisPanelComboItem}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton
+                            x:Name="ToggleButton"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            ClickMode="Press"
+                            Focusable="False"
+                            Foreground="{TemplateBinding Foreground}"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ContentPresenter
+                                                Grid.Column="0"
+                                                Margin="8,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
+                                            <Path
+                                                Grid.Column="1"
+                                                Margin="0,0,8,0"
+                                                VerticalAlignment="Center"
+                                                Data="M0,0 L4,4 L8,0"
+                                                Stroke="{TemplateBinding Foreground}"
+                                                StrokeEndLineCap="Round"
+                                                StrokeStartLineCap="Round"
+                                                StrokeThickness="1.4" />
+                                        </Grid>
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <Popup
+                            x:Name="PART_Popup"
+                            AllowsTransparency="True"
+                            Focusable="False"
+                            IsOpen="{TemplateBinding IsDropDownOpen}"
+                            Placement="Bottom"
+                            PopupAnimation="Slide">
+                            <Border
+                                MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                MaxHeight="220"
+                                Background="#FF15171A"
+                                BorderBrush="#FF2A2D31"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type local:AxisPanelElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="FontFamily" Value="Microsoft YaHei" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="#FFFAFAFA" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:AxisPanelElement}">
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        ClipToBounds="True"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <Grid Margin="{TemplateBinding Padding}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!--  表头：标题 + 轴选择器（多轴下拉 / 单轴静态名 / 未配置提示）  -->
+                            <Grid Grid.Row="0" Margin="12,10,12,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    FontWeight="SemiBold"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Text="{TemplateBinding Text}"
+                                    TextTrimming="CharacterEllipsis" />
+
+                                <ComboBox
+                                    x:Name="AxisCombo"
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    DisplayMemberPath="DisplayName"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    ItemsSource="{TemplateBinding AxisItems}"
+                                    SelectedValue="{Binding SelectedAxisId, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                    SelectedValuePath="AxisId"
+                                    Style="{StaticResource AxisPanelCombo}"
+                                    ToolTip="{Binding SelectedAxisName, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Visibility="{TemplateBinding SelectorVisibility}" />
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{TemplateBinding MutedColor}"
+                                    Text="{TemplateBinding SelectedAxisName}"
+                                    TextTrimming="CharacterEllipsis"
+                                    Visibility="{TemplateBinding SingleAxisVisibility}" />
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{TemplateBinding MutedColor}"
+                                    Text="未配置轴"
+                                    Visibility="{TemplateBinding EmptyVisibility}" />
+                            </Grid>
+
+                            <!--  位置大字 + 运动中指示 + 单位  -->
+                            <Grid Grid.Row="1" Margin="12,0,12,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Ellipse
+                                    Width="10"
+                                    Height="10"
+                                    VerticalAlignment="Center"
+                                    Fill="{TemplateBinding MovingLampBrush}" />
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Cascadia Mono, Consolas"
+                                    FontSize="30"
+                                    FontWeight="Bold"
+                                    Foreground="{TemplateBinding Foreground}"
+                                    Text="{TemplateBinding PositionText}"
+                                    TextTrimming="CharacterEllipsis" />
+
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Margin="6,0,0,4"
+                                    VerticalAlignment="Bottom"
+                                    FontSize="11"
+                                    Foreground="{TemplateBinding MutedColor}"
+                                    Text="mm" />
+                            </Grid>
+
+                            <!--  状态灯：两行四列，灯亮用强调色/告警色，灯灭用熄灭色  -->
+                            <UniformGrid
+                                Grid.Row="2"
+                                Margin="12,0,12,6"
+                                Columns="4"
+                                Rows="2">
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding EnableLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="使能" />
+                                </StackPanel>
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding InPositionLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="到位" />
+                                </StackPanel>
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding MovingLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="运动" />
+                                </StackPanel>
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding OriginLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="原点" />
+                                </StackPanel>
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding AlarmLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="报警" />
+                                </StackPanel>
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding PosLimitLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="正限位" />
+                                </StackPanel>
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding NegLimitLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="反限位" />
+                                </StackPanel>
+                                <StackPanel
+                                    Margin="0,2,6,2"
+                                    Orientation="Horizontal">
+                                    <Ellipse
+                                        Width="8"
+                                        Height="8"
+                                        VerticalAlignment="Center"
+                                        Fill="{TemplateBinding EmergencyStopLampBrush}" />
+                                    <TextBlock
+                                        Margin="5,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="急停" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <!--  速度 + 状态一句话  -->
+                            <StackPanel Grid.Row="3" Margin="12,0,12,10">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        FontSize="11"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="速度" />
+                                    <TextBlock
+                                        Margin="6,0,0,0"
+                                        FontFamily="Cascadia Mono, Consolas"
+                                        FontSize="11"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        Text="{TemplateBinding VelocityText}" />
+                                    <TextBlock
+                                        Margin="4,0,0,0"
+                                        FontSize="11"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="mm/s" />
+                                </StackPanel>
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    FontSize="11"
+                                    Foreground="{TemplateBinding MutedColor}"
+                                    Text="{TemplateBinding StatusText}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{TemplateBinding StatusText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

@@ -342,7 +342,15 @@ namespace DeviceSimulator
     /// </summary>
     internal class ModbusSimServer : ModbusTcpServer
     {
-        /// <summary>本机寄存器字节序（客户端按同名 DataFormat 配置即可读回原值）。</summary>
+        /// <summary>
+        /// 本机寄存器字节序（客户端按同名 DataFormat 配置即可读回原值）。
+        /// <para>⚠ P-Q3 实测澄清：本属性<b>只用于日志解码展示</b>，从未下发到 HSL 服务端。
+        /// HSL 的 <c>ModbusTcpServer.DataFormat</c> setter 只改 <c>base.ByteTransform</c>，
+        /// 而请求帧解析全走私有字段 <c>byteTransformSelf</c>（构造时恒为 <c>DataFormat.CDAB</c>、从不更新）。
+        /// 因此 10 台模拟设备的线上字节序<b>实际全部是 CDAB</b>——"每台字节序不同"的宣称名不副实。
+        /// 客户端按端口宣称的字节序去读，只有 CDAB 与"16 位退化等价"的 ABCD 两台会碰巧对上，
+        /// 这是<b>靶子特性，不是产品缺陷</b>；要验多字节序请让客户端统一按 CDAB 配置。</para>
+        /// </summary>
         public DataFormat Order { get; }
 
         private readonly string _name;

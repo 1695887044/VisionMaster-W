@@ -102,6 +102,18 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 当前页引用的基座画面（画布的公共层）。
+        ///
+        /// <b>为什么由会话投影出来而不是窗口自己去查</b>：窗口的 DataContext 就是本会话，
+        /// 而"当前页的基座是哪一只"是领域层的知识（按 <see cref="ScadaPage.BasePageId"/>
+        /// 在 <see cref="ScadaDocument.BasePages"/> 里反查）。窗口再写一遍这个反查就是第二份口径。
+        ///
+        /// 换页时跟着 <see cref="CurrentPage"/> 一起通知：画布按这两个绑定重新装配，
+        /// 谁先变都不影响最终一致性（画布按"当前的两个值"全量重建）。
+        /// </summary>
+        public ScadaPage? CurrentBasePage => _currentPage?.ResolveBase(_document);
+
+        /// <summary>
         /// 会话决定把某一页显示出来（<b>无条件发一次</b>，与配没配事件无关）。
         ///
         /// 注意这里的语义是"该显示这一页了"，不是"这一页已经画完了"——领域层拿不到渲染那一帧。
@@ -271,6 +283,7 @@ namespace VisionMaster.Scada
 
             _running = true;
             CurrentPage = page;
+            RaisePropertyChanged(nameof(CurrentBasePage)); // 跟着页走：画布按这两个值重新装配
 
             // 事件在 CurrentPage 赋值之后发：订阅方（宿主）往往要按"已经显示出来了"来记日志，
             // 先赋值后通知，订阅方读 CurrentPage 才拿得到这一页而不是上一页。
@@ -302,6 +315,7 @@ namespace VisionMaster.Scada
                 BroadcastPageHooks(leaving, ScadaEventType.Unloaded);
 
             CurrentPage = null;
+            RaisePropertyChanged(nameof(CurrentBasePage));
             _pageStack.Clear();
         }
 
@@ -331,10 +345,19 @@ namespace VisionMaster.Scada
         /// </summary>
         public bool Navigate(Guid pageId, string? fallbackName, out string? reason)
         {
-            var page = _document.FindPage(pageId) ?? _document.FindPageByName(fallbackName);
+            var page = _document.FindNavigablePage(pageId) ?? _document.FindNavigablePageByName(fallbackName);
 
             if (page == null)
             {
+                // "找到了，但它是基座"要给一句专属原因：否则现场看到的是"方案里没有叫「X」的画面"，
+                // 而那个画面明明就在列表里——这类"文案与事实相反"的提示最容易被当成软件故障。
+                if (_document.FindBasePage(pageId) != null
+                    || _document.FindBasePageByName(fallbackName) != null)
+                {
+                    reason = "目标画面是基座画面（公共层），不能作为跳转目标";
+                    return false;
+                }
+
                 reason = string.IsNullOrWhiteSpace(fallbackName)
                     ? "还没选目标画面"
                     : $"方案里没有叫「{fallbackName.Trim()}」的画面";
@@ -360,13 +383,15 @@ namespace VisionMaster.Scada
         /// - 目标为 null：调用方没找到画面，不必替它猜。
         /// - 目标不在本方案里：按引用比对（不是按 Id）——Id 相同但不是文档里那一份对象的，
         ///   是个野生副本，切过去它不会被画布渲染，只会留下一个"看着像成功了"的假象。
+        /// - 目标是基座画面：它是叠在本页下面的公共层，不是终点（见 <see cref="ScadaDocument.IsNavigable"/>）。
         /// - 目标就是当前页：<b>返回 true 但什么都不做</b>。这是"目标状态"语义的落点：
         ///   要的状态已经成立，只是不能再发一次 Loaded、也不能再压一层栈。
         /// </summary>
         public bool Navigate(ScadaPage? page)
         {
             if (!_running || page == null) return false;
-            if (!ReferenceEquals(_document.FindPage(page.PageId), page)) return false;
+            // IsNavigable 比"在本方案里"多拦一条：基座不能当导航终点（见 ScadaDocument.FindNavigablePage）。
+            if (!_document.IsNavigable(page)) return false;
             if (ReferenceEquals(page, _currentPage)) return true;
 
             PushPage(_currentPage);
@@ -388,7 +413,9 @@ namespace VisionMaster.Scada
             {
                 var page = PopPage();
                 if (page == null || ReferenceEquals(page, _currentPage)) continue;
-                if (!ReferenceEquals(_document.FindPage(page.PageId), page)) continue;
+                // 运行中也能改方案：压栈之后这一页可能被删了、也可能被注册成基座。
+                // 两种都不该成为回退目标——否则回退按钮会把人送到一张"没有本页内容"的画面上。
+                if (!_document.IsNavigable(page)) continue;
 
                 return SwitchTo(page);
             }
@@ -416,6 +443,7 @@ namespace VisionMaster.Scada
                 BroadcastPageHooks(leaving, ScadaEventType.Unloaded);
 
             CurrentPage = page;
+            RaisePropertyChanged(nameof(CurrentBasePage));
             PageLoaded?.Invoke(page);
 
             return true;

@@ -1,4 +1,3 @@
-using Core.Interfaces.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +12,7 @@ namespace Core.Interfaces
     /// 自动处理上游值的类型转换和变更通知
     /// </summary>
     /// <typeparam name="T">端口承载的数据类型</typeparam>
-    public class InputPort<T> : ObservableObject, IInputPort, IPortNameSettable
+    public class InputPort<T> : ObservableObject, IInputPort, IPortNameSettable, IDisposable
     {
         /// <summary>
         /// 缓存的上游链接源的值
@@ -151,7 +150,22 @@ namespace Core.Interfaces
                 if (_linkedSource != null)
                 {
                     _linkedSource.ValueChanged += UpstreamValueChanged;
-                    RefreshLinkedCache();
+                    try
+                    {
+                        RefreshLinkedCache();
+                    }
+                    catch
+                    {
+                        // 刷新缓存失败（类型转换异常等）：回滚订阅与链接，
+                        // 否则端口停在"已订阅但缓存是旧值"的半链接态——
+                        // 异常穿透回 FlowCompiler 中断编译时，订阅不会泄漏。
+                        _linkedSource.ValueChanged -= UpstreamValueChanged;
+                        _linkedSource = null;
+                        _cachedLinkedValue = default(T); // 四状态一致：链接没了，缓存一并复位
+                        OnPropertyChanged(nameof(ActualValue));
+                        OnPropertyChanged(nameof(TypedValue));
+                        throw;
+                    }
                 }
                 else
                 {
@@ -302,6 +316,24 @@ namespace Core.Interfaces
                 targetType = Nullable.GetUnderlyingType(targetType);
 
             return (T)ValueConverter.Convert(rawValue, targetType);
+        }
+
+        private bool _disposed;
+
+        /// <summary>
+        /// 断开对上游 LinkedSource 的事件订阅。
+        /// ★ 销毁路径的对称一环：LinkedSource setter 建立了 ValueChanged 订阅，
+        /// 若不显式退订，只要上游 OutputPort 仍被长生命周期根（如跨 session 的
+        /// RuntimeVariableProxyPort）持有，事件委托就会反向钉住本端口及其所属插件实例，
+        /// 构成逐轮编译累积的托管泄漏。幂等；销毁后端口退化为只读手动值。
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            // 复用 setter 的退订路径：置 null 会 -= UpstreamValueChanged 并清空链接缓存
+            LinkedSource = null;
         }
     }
 }

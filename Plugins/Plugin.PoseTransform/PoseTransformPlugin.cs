@@ -32,7 +32,7 @@ namespace Plugin.PoseTransform
     [Display(
         Name = "坐标变换",
         GroupName = "定位",
-        Description = "位姿跟随与像素↔机械换算：把定位位姿变成下游能用的跟随 ROI 与机械坐标",
+        Description = "位姿跟随与像素↔机械换算：把定位位姿变成下游能用的跟随 ROI 与机械坐标（标定支持九点/透视/网格，含「已去畸变」版本）",
         ShortName = "\uf047"
     )]
     [ParallelSafe] // 二期真并行：纯视觉计算
@@ -134,7 +134,7 @@ namespace Plugin.PoseTransform
         /// <summary>机械系角度（度）：像素角度由标定矩阵线性部分映射而来</summary>
         public OutputPort<double> MechanicalAngle { get; } = new("MechanicalAngle", "机械系角度（度）");
 
-        /// <summary>反向回显 Row（自校验：把机械坐标再算回像素；偏差应 &lt; 1e-6px）</summary>
+        /// <summary>反向回显 Row（自校验：把机械坐标再算回像素；偏差超容差即失败——容差按畸变模型分档）</summary>
         public OutputPort<double> PixelEchoRow { get; } = new("PixelEchoRow", "反向回显 Row（自校验）");
 
         /// <summary>反向回显 Col</summary>
@@ -509,23 +509,49 @@ namespace Plugin.PoseTransform
                 return;
             }
 
-            if (!PoseTransformMath.TryMapPixelToMechanical(t, pixelRow, pixelCol, out double x, out double y, out string? mapError))
+            // 二期③：Kind 是 *Undistorted 时，输入像素先经内参**去畸变**再喂数学层
+            // （矩阵定义在去畸变后的理想针孔坐标系上）。非 Undistorted 的 Kind 这一步是恒等。
+            // 失败**明确报错、绝不退回"用原始像素凑合算"**——那会静默偏掉几个像素（kappa=-1500 时角点 ~23px）。
+            if (!PoseTransformIntrinsics.TryUndistortForCalibration(
+                    t, pixelRow, pixelCol, out double mapRow, out double mapCol, out string? undistortError))
+            {
+                Fail(undistortError!);
+                return;
+            }
+
+            if (!PoseTransformMath.TryMapPixelToMechanical(t, mapRow, mapCol, out double x, out double y, out string? mapError))
             {
                 Fail(mapError!);
                 return;
             }
 
-            if (!PoseTransformMath.TryMapMechanicalToPixel(t, x, y, out double echoRow, out double echoCol, out string? echoError))
+            if (!PoseTransformMath.TryMapMechanicalToPixel(t, x, y, out double echoMapRow, out double echoMapCol, out string? echoError))
             {
                 Fail(echoError!);
                 return;
             }
 
-            // 反向回显自校验：正反两次换算必须回到原点（矩阵损坏/实现错的当场露馅）
-            double echoDiff = Math.Max(Math.Abs(echoRow - pixelRow), Math.Abs(echoCol - pixelCol));
-            if (echoDiff > 1e-6)
+            // 反向路径的第二步：数学层算出的回显点活在**去畸变域**，必须施加**逆向**畸变才回到真实图像像素
+            // （`*Undistorted` 专属；其余 Kind 恒等）。少了这一步，回显会拿"去畸变域的点"与"真实图像的点"比，
+            // 必红——而且偏差量级正好等于去畸变量（角点 ~23px），看起来像"矩阵坏了"。
+            if (!PoseTransformIntrinsics.TryDistortBack(
+                    t, echoMapRow, echoMapCol, out double echoRow, out double echoCol, out string? distortBackError))
             {
-                Fail($"反向回显不一致（偏差 {echoDiff:0.###}px）：标定矩阵可能已损坏，请重新标定");
+                Fail(distortBackError!);
+                return;
+            }
+
+            // 反向回显自校验：正反两次换算必须回到原点（矩阵损坏/实现错的当场露馅）。
+            // **阈值按畸变模型分档**（判据在 PoseTransformIntrinsics.RoundTripTolerancePx）：
+            // division 可解析求逆（往返实测 2.681e-13px → 1e-6）；polynomial 只能迭代反解
+            // （往返实测最坏 1.142e-4px → 1e-3；用 1e-6 会**假红**，且文案会误指"矩阵损坏、请重新标定"
+            // ——现场重标定解决不了，是容差错不是数据错）。非 Undistorted 的 Kind 沿用 1e-6（历史行为逐字不变）。
+            double echoTolerance = PoseTransformIntrinsics.RoundTripTolerancePx(t!.Intrinsics);
+            double echoDiff = Math.Max(Math.Abs(echoRow - pixelRow), Math.Abs(echoCol - pixelCol));
+            if (echoDiff > echoTolerance)
+            {
+                Fail($"反向回显不一致（偏差 {echoDiff:0.###}px，容差 {echoTolerance:0.###e+0}px）"
+                    + "：标定矩阵可能已损坏，请重新标定");
                 return;
             }
 
@@ -535,7 +561,16 @@ namespace Plugin.PoseTransform
             double? mechanicalAngle = null;
             if (hasAngle)
             {
-                if (!PoseTransformMath.TryPixelAngleToMechanical(t, pixelAngle, pixelRow, pixelCol, out double ma, out string? angleError))
+                // `*Undistorted` 时角度定义域同样是去畸变域：先把方向角经去畸变换算（两点差分），
+                // 再交给数学层按对应矩阵算（数学层零 HALCON，做不了去畸变）。
+                if (!PoseTransformIntrinsics.TryUndistortDirection(
+                        t, pixelAngle, pixelRow, pixelCol, out double mapAngle, out string? directionError))
+                {
+                    Fail(directionError!);
+                    return;
+                }
+
+                if (!PoseTransformMath.TryPixelAngleToMechanical(t, mapAngle, mapRow, mapCol, out double ma, out string? angleError))
                 {
                     Fail(angleError!);
                     return;
@@ -554,7 +589,8 @@ namespace Plugin.PoseTransform
             context.Logger?.Info(
                 $"{InstanceName} 像素 ({pixelRow:0.##}, {pixelCol:0.##}) → 机械 ({x:0.###}, {y:0.###})mm"
                 + (hasAngle ? $"，机械角 {MechanicalAngle.Value:0.###}°" : "")
-                + (t!.Kind is CalibrationKind.Perspective or CalibrationKind.Mesh
+                + (t!.Kind is CalibrationKind.Perspective or CalibrationKind.PerspectiveUndistorted
+                              or CalibrationKind.Mesh or CalibrationKind.MeshUndistorted
                     ? $"（{CalibrationKindText(t.Kind)}）" : ""));
         }
 
@@ -643,6 +679,20 @@ namespace Plugin.PoseTransform
             CalibrationInfoText =
                 $"类型 {CalibrationKindText(t.Kind)} ｜ 来源 {tag} ｜ 相机 {serial} ｜ 标定图 {size} ｜ 创建 {t.CreatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}"
                 + $" ｜ 残差 RMS {t.ResidualRmsPx:0.###}px / 最大 {t.MaxResidualPx:0.###}px";
+
+            // 二期③：内参非空时把"当前像素是哪个域"摆在用户眼前（这是"消费方不可能忘"的最后一层：
+            // 前面所有判据都在代码里，这一行是人眼能看见的——忘了去畸变的症状是"偏几个像素但看着合理"，
+            // 只有把模型/系数/去畸变状态写在同一行，现场才能一眼判断该怀疑哪一端）。
+            if (t.Intrinsics is CameraIntrinsics ci)
+            {
+                string model = ci.CameraType == CameraIntrinsics.PolynomialType ? "polynomial" : "division";
+                string coeffs = ci.CameraType == CameraIntrinsics.PolynomialType && ci.Distortion != null
+                    ? $"k1..p2 [{string.Join(", ", Array.ConvertAll(ci.Distortion, v => v.ToString("0.#####")))}]"
+                    : $"kappa {ci.Kappa:0.#####}";
+                CalibrationInfoText +=
+                    $" ｜ 内参：{model} / {coeffs} / 重投影 RMS {ci.ReprojectionRmsPx:0.###}px / {ci.ImageCount} 图"
+                    + " ｜ 去畸变已启用（像素已换算到理想针孔坐标系）";
+            }
 
             // 与已载入的预览图比对尺寸（运行期由 SrcImage 在 RunToMechanical 里把关）
             if (t.SourceImageWidth > 0 && _previewImage != null && _previewImage.IsInitialized())
@@ -821,6 +871,9 @@ namespace Plugin.PoseTransform
             CalibrationKind.NinePoint => "九点",
             CalibrationKind.Perspective => "透视",
             CalibrationKind.Mesh => "网格（分段仿射）",
+            CalibrationKind.NinePointUndistorted => "九点标定（已去畸变）",
+            CalibrationKind.PerspectiveUndistorted => "透视标定（已去畸变）",
+            CalibrationKind.MeshUndistorted => "网格标定（已去畸变）",
             _ => kind.ToString()
         };
 

@@ -49,7 +49,14 @@ namespace VisionMaster
         /// <summary>
         /// 通讯变量
         /// </summary>
-        Communication
+        Communication,
+        /// <summary>
+        /// 系统变量：运行态**派生出来的只读量**（本批是运动轴的位置/状态），由宿主每拍投影。
+        /// 它不落盘（不进 SolutionModel / .vms / 变量管理弹窗的用户清单），也不可写
+        /// （<c>SystemVariableModel</c> 刻意不实现 IWritableVariable）。
+        /// 追加在末尾：本枚举的整数值可能已经落进旧文件，插在中间会让老数据整体错位。
+        /// </summary>
+        System
     }
     /// <summary>
     /// 会话状态枚举
@@ -494,5 +501,26 @@ namespace VisionMaster
         Breakpoint,
         /// <summary>单步停点（单步放行恰好多执行一个节点后再次停住）</summary>
         Step
+    }
+
+    /// <summary>
+    /// 「等待」节点（BuiltIn_Wait）超时后的处置方式。
+    ///
+    /// 上屏口径：候选一律走 <c>StepConfigOption.ForEnum</c>（读成员上的 <c>[Display(Name)]</c>，
+    /// 见 AGENTS.md R40）——界面上显示中文，写进流程的仍是成员名。
+    /// 新增成员只许追加在末尾（枚举整数值可能已落进 .vms）。
+    /// </summary>
+    public enum WaitTimeoutAction
+    {
+        /// <summary>超时即终止整个流程（引擎按异常把会话置 Faulted，停机报警）</summary>
+        [Display(Name = "超时后终止流程")]
+        TerminateFlow = 0,
+
+        /// <summary>
+        /// 超时后继续执行下一步，由用户用后续 If 判断「TimedOut」输出端口走异常分支。
+        /// 步骤本身仍标 Failed（画面/日志上看得见"这一步超时了"）。
+        /// </summary>
+        [Display(Name = "超时后继续（后续用 If 判断 TimedOut）")]
+        Continue = 1,
     }
 }

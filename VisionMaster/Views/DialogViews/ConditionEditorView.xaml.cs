@@ -57,6 +57,22 @@ namespace VisionMaster.Views.DialogViews
 
                     // 手动触发第一次变量收集！
                     UpdateColorizerVariables();
+
+                    // 等待模式兜底：左栏 ListBox 的 SelectedIndex="-1" 会在视图加载时把
+                    // VM.SelectedBranch 清成 null，而 TxtExpression_TextChanged 只在
+                    // SelectedBranch != null 时写回 —— 不清回来，用户在表达式框里打字会静默丢失。
+                    // 等待模式只有一条合成分支，这里把它重新选上，并把它的表达式灌进编辑器
+                    //（_isUpdatingText 包住，避免这次赋值反向写回）。
+                    if (vm.IsWaitMode && vm.Branches != null && vm.Branches.Count > 0)
+                    {
+                        var waitBranch = vm.Branches[0];
+
+                        _isUpdatingText = true;
+                        txtExpression.Text = waitBranch.Expression ?? string.Empty;
+                        _isUpdatingText = false;
+
+                        vm.SelectedBranch = waitBranch;
+                    }
                 }
             };
 
@@ -250,10 +266,18 @@ namespace VisionMaster.Views.DialogViews
         {
             if (_isUpdatingText) return;
 
-            // 用户敲代码时同步回 ViewModel
-            if (this.DataContext is ConditionEditorViewModel vm && vm.SelectedBranch != null)
+            // 用户敲代码时同步回 ViewModel。
+            // 等待模式兜底：SelectedBranch 可能被左栏 ListBox 的清空动作置 null，
+            // 此时写回唯一那条合成分支（否则打字静默丢失）；其它模式保持原有"无选中就不写"。
+            if (this.DataContext is ConditionEditorViewModel vm)
             {
-                vm.SelectedBranch.Expression = txtExpression.Text;
+                var target = vm.SelectedBranch
+                    ?? (vm.IsWaitMode && vm.Branches != null ? vm.Branches.FirstOrDefault() : null);
+
+                if (target != null)
+                {
+                    target.Expression = txtExpression.Text;
+                }
             }
         }
 

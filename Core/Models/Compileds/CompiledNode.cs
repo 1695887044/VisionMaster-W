@@ -126,6 +126,59 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 构建一条条件分支的实参：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames），
+        /// 最后是编译期注入的常量（Case 匹配值）。顺序必须与 FlowCompiler 生成 delegateParams
+        /// 的顺序严格一致，否则参数会整体错位。
+        ///
+        /// 取值一律经 CoerceConditionArg 按声明类型归一（P0-2）：编译期 IsLinkable 按
+        /// ValueConverter.Convert 的口径放行"数值族互转"，运行期不补这一步就会
+        /// "编译通过、一跑就炸"（DynamicInvoke 不做 double→int 这类收窄）。
+        ///
+        /// 【为什么上收到基类】If / While / 等待三个节点求值的是同一种 CompiledBranch，
+        /// 参数布局、类型归一、无值兜底必须**只有一处事实来源**——各写一份的下场是
+        /// "某个节点忘了归一 → 只在它身上炸"，而且改动时极易漏改其中一份。
+        /// </summary>
+        protected static object[] BuildConditionArgs(
+            CompiledBranch branch,
+            IReadOnlyDictionary<Guid, IOutputPort> upstreamLinks,
+            IExecutionContext context
+        )
+        {
+            bool hasConstant = branch.ConstantArgument != null;
+            var args = new object[branch.LocalVarIds.Count + branch.RuntimeVarNames.Count + (hasConstant ? 1 : 0)];
+
+            for (int i = 0; i < branch.LocalVarIds.Count; i++)
+            {
+                Guid varId = branch.LocalVarIds[i];
+                Type expectedType = branch.VarTypes.TryGetValue(varId, out var t) ? t : typeof(double);
+
+                if (upstreamLinks != null
+                    && upstreamLinks.TryGetValue(varId, out var sourcePort)
+                    && sourcePort?.Value != null)
+                    args[i] = CoerceConditionArg(sourcePort.Value, expectedType);
+                else
+                    args[i] = DefaultForConditionArg(expectedType);
+            }
+
+            for (int i = 0; i < branch.RuntimeVarNames.Count; i++)
+            {
+                string varName = branch.RuntimeVarNames[i];
+                Type expectedType = branch.RuntimeVarTypes.TryGetValue(varName, out var t) ? t : typeof(object);
+
+                if (context.LocalVariables.TryGetValue(varName, out var v) && v != null)
+                    args[branch.LocalVarIds.Count + i] = CoerceConditionArg(v, expectedType);
+                else
+                    args[branch.LocalVarIds.Count + i] = DefaultForConditionArg(expectedType);
+            }
+
+            // Case 分支的匹配值：编译期已按判据声明类型归一（类型与判据一致），运行期原样注入即可
+            if (hasConstant)
+                args[^1] = branch.ConstantArgument;
+
+            return args;
+        }
+
+        /// <summary>
         /// 执行节点并获取下一个要执行的节点列表
         /// </summary>
         public abstract List<CompiledNode> RunAndGetNext(IExecutionContext context);

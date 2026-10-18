@@ -218,5 +218,55 @@ namespace VisionMaster.Scada.Controls
                 result[Standard.Count + i] = extras![i];
             return result;
         }
+
+        /// <summary>
+        /// 标准几何属性 + 若干"属性组"（每组一个序列）。
+        ///
+        /// 为什么要有这个方法：图元的属性现在来自三处，而不是一条平铺的手写清单——
+        ///   ① <see cref="ScadaPropertyCatalog"/> 收集的、由 <c>[ScadaProperty]</c> 生成的私有属性；
+        ///   ② <see cref="AppearanceProperties"/> / <see cref="TextProperties"/> 打包的通用外观与文字属性；
+        ///   ③ 少数仍手写的属性（如引用别的图元类的依赖属性）。
+        /// 逐组展开比让调用方先 <c>Concat</c> 再传数组更省事，也把"几何永远在最前"这条钉在这里。
+        ///
+        /// <b>为什么叫 WithGroups 而不是重载 </b><c>With</c><b>：</b>两个 <c>params</c> 重载
+        /// （<c>ElementPropertyDescriptor[]</c> 与 <c>IReadOnlyList&lt;…&gt;[]</c>）会让
+        /// <c>With(new(){…}, new(){…})</c> 这种<b>目标类型推断</b>写法二义——编译器无法判断
+        /// 每个 <c>new()</c> 该推成单条属性还是属性组（实测 CS0121，17 个描述符全部命中）。
+        /// 换个名字把两种用法分开，比要求调用方处处写全类型名更省事。
+        ///
+        /// 逐组展开而不是"拼一个大数组"：组之间保持各自的声明次序，
+        /// 而属性面板的分组次序按"组名首次出现的次序"排（见 <c>ScadaPropertyViewModel.Rebuild</c>），
+        /// 所以传参次序就是面板上的次序——想调排版改这里，不用去动面板。
+        /// </summary>
+        public static IReadOnlyList<ElementPropertyDescriptor> WithGroups(
+            params IReadOnlyList<ElementPropertyDescriptor>[] groups)
+        {
+            var count = Standard.Count;
+            if (groups is not null)
+            {
+                for (int i = 0; i < groups.Length; i++)
+                    count += groups[i]?.Count ?? 0;
+            }
+
+            var result = new ElementPropertyDescriptor[count];
+            var cursor = 0;
+
+            for (int i = 0; i < Standard.Count; i++)
+                result[cursor++] = Standard[i];
+
+            if (groups is not null)
+            {
+                for (int i = 0; i < groups.Length; i++)
+                {
+                    if (groups[i] is not { } group)
+                        continue;
+
+                    for (int j = 0; j < group.Count; j++)
+                        result[cursor++] = group[j];
+                }
+            }
+
+            return result;
+        }
     }
 }

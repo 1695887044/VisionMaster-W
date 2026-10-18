@@ -14,7 +14,8 @@
     <!--  两个消费者：① 属性面板的事件行（图元事件 / 画面事件）；  -->
     <!--  ② 独立的「变量事件」弹窗（变量级 5 类事件）。  -->
     <!--  编辑逻辑全在 ViewModel 里，本文件只负责摆控件——  -->
-    <!--  所以加一种宿主 / 加一类动作，这里一行都不用改。  -->
+    <!--  所以加一种宿主，这里一行都不用改；加一类动作则只需补一块"这类动作要填什么"的编辑区  -->
+    <!--  （判据用模型上的布尔位，别在 XAML 里堆一串 DataTrigger，见运动命令族那块的注释）。  -->
     <!--  ==========================================  -->
 
     <!--  颜色令牌：与属性面板同一本字典（值集中在 UI/Controls/Themes/Colors.xaml）。  -->
@@ -344,6 +345,241 @@
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasFlow}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!--  运动命令族（轴使能 / 失能 / 绝对定位 / 相对定位 / 回零 / 停止 / 清报警 / 点动开始 / 点动结束）：
+                              一条运动动作只操作一根轴，所以这里只有一个「选轴」入口；
+                              定位类动作再多两格"目标 / 速度"，点动多一格"方向"。
+                              可见性判据用 ScadaAction.IsMotionAction 而不是九个 DataTrigger：
+                              WPF 的 DataTrigger 只能判等、不支持"属于集合"，九个触发器写在一处
+                              既容易漏（加一种运动动作就要记得补第九行）又看不出意图。
+                              这份"哪些类型算运动动作"的知识留在领域层一处，模板只问"是不是"。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMotionAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="轴：" />
+
+                                <!--  三种状态都要看得见（名字 / 只剩 Id / 还没选），所以绑 AxisDisplayName
+                                      而不是 AxisName：只绑名字的话，"选了轴但名字为空"会显示成占位文案，
+                                      用户以为没配、其实执行侧会按 Id 找到那根轴。  -->
+                                <TextBlock
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding AxisDisplayName}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding AxisDisplayName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasAxis}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!--  单选：一条运动动作只操作一根轴，所以走 PickSingle（弹窗里勾一行会取消其它行）  -->
+                                <Button
+                                    Grid.Column="2"
+                                    Padding="6,1"
+                                    Command="{Binding DataContext.PickAxisCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="选轴"
+                                    FontSize="11"
+                                    ToolTip="从当前方案里已启用的轴中挑一根" />
+                            </Grid>
+
+                            <!--  定位类才填目标与速度。
+                                  目标：绝对定位 = 目标点；相对定位 = 增量（可为负）。
+                                  速度留空 / 填 0 都表示用卡级默认值（与 MotionCommand.VelocityMmPerS 的约定一致），
+                                  所以这里不逼用户填——卡级默认在「运动卡设置」里已经配过一遍。
+                                  两格的占位由 TargetNullValue 给（源为 null 时显示，不改模型语义：
+                                  清空输入框仍然落 null，"没填"与"填了 0"始终分得开，0 mm 是合法目标）。
+                                  缺值的后果也写在下面那行橙字里——占位文案只是"看着像填了"，不是填了。  -->
+                            <StackPanel Margin="0,3,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Type}" Value="MotionMoveAbsolute">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Type}" Value="MotionMoveRelative">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,0,4,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="目标(mm)：" />
+
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Padding="3,2"
+                                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                        FontSize="11"
+                                        Text="{Binding TargetMm, UpdateSourceTrigger=LostFocus, TargetNullValue=未填}"
+                                        ToolTip="绝对定位=目标点；相对定位=增量（可为负）" />
+                                </Grid>
+
+                                <Grid Margin="0,3,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,0,4,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="速度(mm/s)：" />
+
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Padding="3,2"
+                                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                        FontSize="11"
+                                        Text="{Binding VelocityMmPerS, UpdateSourceTrigger=LostFocus, TargetNullValue=卡级默认}"
+                                        ToolTip="留空或填 0 = 用卡级默认速度" />
+                                </Grid>
+
+                                <!--  没填目标：执行侧会照实警告并跳过，先把这件事说在界面上。
+                                      判据直接看 TargetMm 是否为 null（而不是看某个"空/非空"布尔位）：
+                                      这里要区分的就是"没填"与"填了 0"，只有可空类型答得出。  -->
+                                <TextBlock
+                                    Margin="0,3,0,0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaWarningBrush}"
+                                    Text="还没填目标位置，这条动作运行时会跳过。"
+                                    TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TargetMm}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!--  点动方向：只有「点动开始」需要。
+                                  方向刻意复用 TargetMm 的正负号（不新增枚举字段）：
+                                  动作表里"往哪边走"与"走到哪"不需要同时出现，多一个只在 1/9 种动作上
+                                  有意义的字段，落盘与界面都要多解释一遍。  -->
+                            <Grid Margin="0,3,0,0">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Type}" Value="MotionJogStart">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="方向：" />
+
+                                <TextBox
+                                    Grid.Column="1"
+                                    Padding="3,2"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    FontSize="11"
+                                    Text="{Binding TargetMm, UpdateSourceTrigger=LostFocus, TargetNullValue=正向}"
+                                    ToolTip="正数 = 正向，负数 = 反向；留空按正向" />
+                            </Grid>
+
+                            <!--  没选轴：执行侧会照实警告并跳过，先把这件事说在界面上  -->
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaWarningBrush}"
+                                Text="还没选轴，这条动作运行时会跳过。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAxis}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <!--  点动开始没有"松手"这个手势（一个按钮只触发一次），靠的是「点动结束」动作
+                                  或执行器里的看门狗兜底。这件事必须写在界面上：用户以为"点一下就动一下"，
+                                  结果轴一直走，是最容易出事的误解。  -->
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="点动会一直走，直到同一条钩子里的「点动结束」动作，或看门狗超时兜底停止。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Type}" Value="MotionJogStart">
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </DataTrigger>
                                         </Style.Triggers>

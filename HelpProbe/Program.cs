@@ -53,7 +53,7 @@ namespace HelpProbe
 
             // ---- 1) 插件扫描（与启动自检链同一条路；DEBUG 下 Modules\ 在仓库根）----
             var provider = new PluginProvider(notifier);
-            new PluginService(provider, notifier).InitPlugins();
+            new PluginService(provider, notifier, log).InitPlugins();
             Console.WriteLine($"[probe] 插件表：模块 {provider.ModulePlugins.Count} / 相机 {provider.CameraPlugins.Count} / 运动 {provider.MotionPlugins.Count}");
 
             // 「自动生成页」这条路在真机目录里已经没有住户（42/42 插件都自带手册），

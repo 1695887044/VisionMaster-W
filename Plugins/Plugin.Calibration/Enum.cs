@@ -43,6 +43,28 @@ namespace Plugin.Calibration
     }
 
     /// <summary>
+    /// 内参标定的相机畸变模型（二期③）。
+    ///
+    /// 两模型的**参数形状与能力**不同，现场按"重投影 RMS 与去畸变后的平面残差"选型，不预设：
+    ///   · <see cref="Division"/>：单系数（kappa），广角/低畸变镜头常用；**可解析求逆**
+    ///     （实测往返误差 2.7e-13px）；
+    ///   · <see cref="Polynomial"/>：多系数（k1 k2 k3 p1 p2），强畸变或需切向项的场合；**只能迭代反解**
+    ///     （实测最坏 1.1e-4px）。
+    ///
+    /// 显示名走 <c>[Display]</c>（R40：枚举上屏必须走中文显示名），值仍是成员名（落盘/跨机引用靠它）。
+    /// </summary>
+    public enum IntrinsicsCameraModel
+    {
+        /// <summary>division 单系数模型（kappa）：广角/低畸变镜头</summary>
+        [Display(Name = "单系数（division）")]
+        Division = 0,
+
+        /// <summary>polynomial 多系数模型（k1 k2 k3 p1 p2）：强畸变/需切向项</summary>
+        [Display(Name = "多系数（polynomial）")]
+        Polynomial = 1
+    }
+
+    /// <summary>
     /// 状态消息级别：驱动配置界面信息栏的颜色（绿 / 橙 / 红）。
     /// 只描述"这条消息有多严重"，不参与任何流程逻辑（与「图像采集」插件同一口径）。
     /// </summary>

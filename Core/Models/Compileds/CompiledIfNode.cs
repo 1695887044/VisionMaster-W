@@ -53,7 +53,9 @@ namespace VisionMaster.Models
                 bool isTrue;
                 try
                 {
-                    isTrue = (bool)branch.ConditionLambda.Invoke(BuildBranchArgs(branch, context));
+                    // 实参构建统一走基类 BuildConditionArgs（与 While / 等待共用同一份类型归一）
+                    isTrue = (bool)branch.ConditionLambda.Invoke(
+                        BuildConditionArgs(branch, UpstreamLinks, context));
                 }
                 catch (Exception ex)
                 {
@@ -81,49 +83,6 @@ namespace VisionMaster.Models
             // 一条分支都没命中（没有 Else 的 If）：判断本身是成功的，只是无事可做
             UpdateStepRuntimeState(context, StepRuntimeState.Success);
             return null;
-        }
-
-        /// <summary>
-        /// 构建本分支的条件实参：先局部变量（LocalVarIds），再运行时变量（RuntimeVarNames），
-        /// 最后是编译期注入的常量（Case 匹配值）。顺序必须与 FlowCompiler 生成 delegateParams
-        /// 的顺序严格一致，否则参数会整体错位。
-        ///
-        /// 取值一律经 CoerceConditionArg 按声明类型归一（P0-2）：编译期 IsLinkable 按
-        /// ValueConverter.Convert 的口径放行"数值族互转"，运行期不补这一步就会
-        /// "编译通过、一跑就炸"（DynamicInvoke 不做 double→int 这类收窄）。
-        /// </summary>
-        private object[] BuildBranchArgs(CompiledBranch branch, IExecutionContext context)
-        {
-            bool hasConstant = branch.ConstantArgument != null;
-            var args = new object[branch.LocalVarIds.Count + branch.RuntimeVarNames.Count + (hasConstant ? 1 : 0)];
-
-            for (int i = 0; i < branch.LocalVarIds.Count; i++)
-            {
-                Guid varId = branch.LocalVarIds[i];
-                Type expectedType = branch.VarTypes.TryGetValue(varId, out var t) ? t : typeof(double);
-
-                if (UpstreamLinks.TryGetValue(varId, out var sourcePort) && sourcePort?.Value != null)
-                    args[i] = CoerceConditionArg(sourcePort.Value, expectedType);
-                else
-                    args[i] = DefaultForConditionArg(expectedType);
-            }
-
-            for (int i = 0; i < branch.RuntimeVarNames.Count; i++)
-            {
-                string varName = branch.RuntimeVarNames[i];
-                Type expectedType = branch.RuntimeVarTypes.TryGetValue(varName, out var t) ? t : typeof(object);
-
-                if (context.LocalVariables.TryGetValue(varName, out var v) && v != null)
-                    args[branch.LocalVarIds.Count + i] = CoerceConditionArg(v, expectedType);
-                else
-                    args[branch.LocalVarIds.Count + i] = DefaultForConditionArg(expectedType);
-            }
-
-            // Case 分支的匹配值：编译期已按判据声明类型归一（类型与判据一致），运行期原样注入即可
-            if (hasConstant)
-                args[^1] = branch.ConstantArgument;
-
-            return args;
         }
     }
 }

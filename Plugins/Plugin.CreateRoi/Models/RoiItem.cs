@@ -1,5 +1,5 @@
 using Core.Halcon;
-using Core.Interfaces.Core;
+using Core.Interfaces;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;

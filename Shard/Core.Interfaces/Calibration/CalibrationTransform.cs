@@ -32,7 +32,89 @@ namespace Core.Interfaces
         /// <see cref="CalibrationTransform.Matrix"/> 保持零（故意，同透视）：未升级的消费者必须明确失败，
         /// 绝不能把网格静默当单份仿射用（边缘区域会整体错位）。
         /// </summary>
-        Mesh = 3
+        Mesh = 3,
+
+        /// <summary>
+        /// 九点标定 + **内参去畸变**（二期③）：与 <see cref="NinePoint"/> 同一套 6 元矩阵，
+        /// 但**像素坐标语义变了**——矩阵映射的是「**去畸变后**的像素」→ 机械坐标。
+        ///
+        /// 为什么单列一个 Kind（而不是靠 <see cref="CalibrationTransform.Intrinsics"/> 是否为 null 判断）
+        /// ---------
+        /// 这是**响亮信号**，与 <see cref="Perspective"/> / <see cref="Mesh"/> 让 Matrix 保持零同一用意：
+        /// 不知道这个 Kind 的消费者会在自己的 <c>switch</c> 里落到 <c>default:</c> → **明确失败**，
+        /// 而不是把畸变像素直接喂进矩阵、静默算出偏掉几个像素的机械坐标。
+        /// 靠"字段是不是 null"判断则要求每个消费者都**记得**去查——那是靠纪律，不是靠结构。
+        ///
+        /// 消费方义务：拿到本 Kind 时，**必须先把输入像素经 <see cref="CalibrationTransform.Intrinsics"/>
+        /// 去畸变**再喂矩阵；反向（机械 → 像素）则先算出去畸变域像素、再施加**逆向**畸变。
+        /// 用 <c>HALCON change_radial_distortion_points</c> 实现，正反向只需对调 camParamIn/Out。
+        /// </summary>
+        NinePointUndistorted = 4,
+
+        /// <summary>
+        /// 透视标定 + **内参去畸变**（二期③）：语义同 <see cref="NinePointUndistorted"/>，
+        /// 产出用 <see cref="CalibrationTransform.ProjectiveMatrix"/>（9 元）。
+        /// </summary>
+        PerspectiveUndistorted = 5,
+
+        /// <summary>
+        /// 网格标定 + **内参去畸变**（二期③）：语义同 <see cref="NinePointUndistorted"/>，
+        /// 产出用 <see cref="CalibrationTransform.MeshNodes"/> + <see cref="CalibrationTransform.MeshSize"/>。
+        /// 注意网格与内参的**互补**关系：网格是"把畸变就地摊平"（不外推），
+        /// 内参是"显式建模后整个视野一致"（可外推）——两者都做时，去畸变把畸变拿掉、
+        /// 网格只负责平面单应性，格内残差更小。
+        /// </summary>
+        MeshUndistorted = 6
+    }
+
+    /// <summary>
+    /// <see cref="CalibrationKind"/> 的**判据单一真源**：哪些 Kind 属于"去畸变像素域"、
+    /// 某个 Kind 的**基础模型**是什么。
+    ///
+    /// 为什么放契约程序集
+    /// ---------
+    /// 生产端（「标定」插件）与消费端（「坐标变换」插件）都要判这两件事。
+    /// 各写一遍 `kind is A or B or C` 就是**分叉风险**——将来加一个 Kind 时漏改一处，
+    /// 那一处就会把"去畸变域"当"畸变域"处理，产出**看起来正常的错坐标**（本仓反复立规要杜绝的形态）。
+    /// 本类无状态、纯函数，与 <see cref="CalibrationMesh"/> 同一理由放在契约层。
+    /// </summary>
+    public static class CalibrationKinds
+    {
+        /// <summary>是否属于"去畸变像素域"（矩阵定义在理想针孔坐标系上、必须先去畸变再喂）。</summary>
+        public static bool IsUndistorted(CalibrationKind kind)
+            => kind is CalibrationKind.NinePointUndistorted
+                or CalibrationKind.PerspectiveUndistorted
+                or CalibrationKind.MeshUndistorted;
+
+        /// <summary>
+        /// 去掉"去畸变"标记后的**基础模型**（PixelScale / NinePoint / Perspective / Mesh）。
+        /// 用于"按模型族分支"的判据——比手写 `kind is Mesh or MeshUndistorted` 更难漏。
+        /// 未识别的值原样返回（调用方按自己的 default 分支处理）。
+        /// </summary>
+        public static CalibrationKind Base(CalibrationKind kind) => kind switch
+        {
+            CalibrationKind.NinePointUndistorted => CalibrationKind.NinePoint,
+            CalibrationKind.PerspectiveUndistorted => CalibrationKind.Perspective,
+            CalibrationKind.MeshUndistorted => CalibrationKind.Mesh,
+            _ => kind,
+        };
+
+        /// <summary>
+        /// 给基础模型套上/摘掉"去畸变"标记。
+        /// <paramref name="undistorted"/> = false 时原样返回（基础模型本来就是非去畸变成员）。
+        /// 不支持的组合（如 PixelScale + 去畸变）原样返回——由调用方的守卫负责拒绝。
+        /// </summary>
+        public static CalibrationKind WithUndistortion(CalibrationKind baseKind, bool undistorted)
+        {
+            if (!undistorted) return baseKind;
+            return baseKind switch
+            {
+                CalibrationKind.NinePoint => CalibrationKind.NinePointUndistorted,
+                CalibrationKind.Perspective => CalibrationKind.PerspectiveUndistorted,
+                CalibrationKind.Mesh => CalibrationKind.MeshUndistorted,
+                _ => baseKind,
+            };
+        }
     }
 
     /// <summary>
@@ -43,6 +125,13 @@ namespace Core.Interfaces
     /// ① 跨插件传递必须走契约程序集（插件之间不互相引用）；
     /// ② 契约层**零 HALCON 依赖**（与 CameraFrame / HubImageItem 同一纪律）：本类全是基元类型，
     ///    JSON 往返安全（要随方案落盘、也可能进全局变量）。
+    ///
+    /// 像素坐标的两种语义（二期③起，务必先读）
+    /// ---------
+    /// · 六个 **非** Undistorted 的 Kind：像素 = **图像上的原始（畸变）像素**；
+    /// · <see cref="CalibrationKind.NinePointUndistorted"/> / <see cref="CalibrationKind.PerspectiveUndistorted"/> /
+    ///   <see cref="CalibrationKind.MeshUndistorted"/>：像素 = **去畸变后**的像素，矩阵定义在理想针孔坐标系上，
+    ///   且 <see cref="Intrinsics"/> 必非 null。消费方必须先去畸变（正向）或最后加畸变（反向）。
     ///
     /// 坐标与角度约定（全仓库统一，写死避免静默错位）
     /// ---------
@@ -62,12 +151,21 @@ namespace Core.Interfaces
     /// 要喂 HALCON 算子（affine_trans_point_2d 等）必须先重排，**不存在"直喂不需要任何转换"**。方向约定 Px=Row、Py=Col 成立。
     /// PixelScale 模式下：a11 = a22 = MmPerPixel，其余为 0。
     ///
+    /// ⚠ <see cref="MmPerPixel"/> 在带内参时的适用范围
+    /// ---------
+    /// 带内参的标定，其当量是**去畸变域**的当量。只吃 <c>MmPerPixel</c>（double）的下游
+    /// （卡尺/Blob/几何计算等）**拿不到本对象、结构上无法自证**——它们拿原始像素乘这个当量，
+    /// 在视野边缘会有百分之几的静默误差（kappa=-1500 时角点去畸变位移实测 ~23px）。
+    /// 这类流程要么改用不带内参的标定，要么先在图像域去畸变。详见主文档 §4.5。
+    ///
     /// 失配自证（消费方据此报错，绝不静默用旧标定）
     /// ---------
     /// · <see cref="SourceImageWidth"/> / <see cref="SourceImageHeight"/>：标定时的图像尺寸——
     ///   当前图尺寸与它不符 = 换了分辨率/换了相机 → 旧标定失效；
     /// · <see cref="CameraSerial"/>：这份标定属于哪台相机（多相机下机器可读的身份）；
-    /// · <see cref="CreatedAtUtc"/> / <see cref="SourceTag"/>：创建时间与来源（标定图文件名等），供日志与人工核对。
+    /// · <see cref="CreatedAtUtc"/> / <see cref="SourceTag"/>：创建时间与来源（标定图文件名等），供日志与人工核对；
+    /// · <see cref="Intrinsics"/> 自带的 ImageWidth/Height 与 CameraSerial：与上面两个字段**交叉核对**
+    ///   （两边都填才查，避免误报旧数据）——不一致说明"标定变换"与"内参"来自不同的帧/相机。
     /// </summary>
     public sealed class CalibrationTransform
     {
@@ -114,6 +212,21 @@ namespace Core.Interfaces
         /// N &lt; 2 或 长度 ≠ N·N·4 一律视作契约损坏，消费方必须明确失败（不猜、不降级）。
         /// </summary>
         public int MeshSize { get; set; }
+
+        /// <summary>
+        /// 相机内参（**仅 *Undistorted 三个 Kind 有效**；其余模式为 null）。
+        ///
+        /// 非 null 时，本变换的**像素坐标语义是「去畸变后」的**——即
+        /// <see cref="Matrix"/> / <see cref="ProjectiveMatrix"/> / <see cref="MeshNodes"/> 里的像素
+        /// 都定义在理想针孔坐标系上。消费方必须先经 <see cref="CameraIntrinsics"/> 去畸变再喂矩阵
+        /// （反向则先算去畸变域像素、再施加逆向畸变）。语义与理由详见
+        /// <see cref="CalibrationKind.NinePointUndistorted"/> 的注释。
+        ///
+        /// 为什么用 null 而不是"永远给一份恒等内参"：null 表达"这份标定根本没做内参"，
+        /// 与"做了内参但系数为 0"是**两件事**（后者会走一趟去畸变算子，虽然结果几乎相同）。
+        /// 兼容性：纯加法字段——旧 JSON 读入为 null，历史行为逐字不变。
+        /// </summary>
+        public CameraIntrinsics? Intrinsics { get; set; }
 
         /// <summary>标定时的图像宽（失配检测用）</summary>
         public int SourceImageWidth { get; set; }

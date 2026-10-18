@@ -54,7 +54,7 @@ namespace VisionMaster.Scada.Controls
     [TemplatePart(Name = PartListScroll, Type = typeof(ScrollViewer))]
     [TemplatePart(Name = PartEmptyHint, Type = typeof(TextBlock))]
     [TemplatePart(Name = PartAccentBar, Type = typeof(Border))]
-    public class AlarmBannerElement : ScadaElementBase
+    public partial class AlarmBannerElement : ScadaElementBase
     {
         // 闪烁半周期用基类的 ScadaElementBase.BlinkHalfPeriodMilliseconds：
         // 报警条的闪烁与图元动画的闪烁必须是同一套节拍，值只能有一个来源。
@@ -76,40 +76,48 @@ namespace VisionMaster.Scada.Controls
         private const int MaxRowsLimit = 50;
 
         // 默认色必须冻结：依赖属性默认值被所有实例共享，未冻结的 Freezable 被某实例改到会串到别的实例。
+        // 其中 NormalColor 还要给 AccentBrush 的只读默认值用，所以这一个字段留着；
+        // 其余三个的默认值由 ScadaPropertyDefaults.Resolve 在类型静态构造期解析并冻结。
         private static readonly Brush DefaultNormalColor = ScadaBrushes.Frozen("#FF34C759");
-        private static readonly Brush DefaultInfoColor = ScadaBrushes.Frozen("#FF3B82F6");
-        private static readonly Brush DefaultWarningColor = ScadaBrushes.Frozen("#FFFFB020");
-        private static readonly Brush DefaultCriticalColor = ScadaBrushes.Frozen("#FFE03A2B");
+
+        // 声明次序 = 属性面板里的行序（生成器按源码次序收集）：数据 → 文字 → 状态，
+        // 与原先手写描述符的分组次序一致。
 
         /// <summary>最多显示几行（超出的截断；表头的计数仍报全量）</summary>
-        public static readonly DependencyProperty MaxRowsProperty = DependencyProperty.Register(
-            nameof(MaxRows), typeof(int), typeof(AlarmBannerElement),
-            new FrameworkPropertyMetadata(5, FrameworkPropertyMetadataOptions.AffectsRender, OnBannerInputChanged));
-
-        /// <summary>没有报警时左侧色条与徽标的颜色（"一切正常"的绿）</summary>
-        public static readonly DependencyProperty NormalColorProperty = DependencyProperty.Register(
-            nameof(NormalColor), typeof(Brush), typeof(AlarmBannerElement),
-            new FrameworkPropertyMetadata(DefaultNormalColor, FrameworkPropertyMetadataOptions.AffectsRender, OnBannerInputChanged));
-
-        /// <summary>提示级报警的颜色</summary>
-        public static readonly DependencyProperty InfoColorProperty = DependencyProperty.Register(
-            nameof(InfoColor), typeof(Brush), typeof(AlarmBannerElement),
-            new FrameworkPropertyMetadata(DefaultInfoColor, FrameworkPropertyMetadataOptions.AffectsRender, OnBannerInputChanged));
-
-        /// <summary>警告级报警的颜色</summary>
-        public static readonly DependencyProperty WarningColorProperty = DependencyProperty.Register(
-            nameof(WarningColor), typeof(Brush), typeof(AlarmBannerElement),
-            new FrameworkPropertyMetadata(DefaultWarningColor, FrameworkPropertyMetadataOptions.AffectsRender, OnBannerInputChanged));
-
-        /// <summary>严重级报警的颜色（也是"要闪"的那一档）</summary>
-        public static readonly DependencyProperty CriticalColorProperty = DependencyProperty.Register(
-            nameof(CriticalColor), typeof(Brush), typeof(AlarmBannerElement),
-            new FrameworkPropertyMetadata(DefaultCriticalColor, FrameworkPropertyMetadataOptions.AffectsRender, OnBannerInputChanged));
+        [ScadaProperty(Key = "MaxRows", DisplayName = "最多显示", Kind = ElementPropertyKind.Number,
+                       Group = "数据", DefaultValue = "5", Min = 1, Max = 50,
+                       Description = "最多画几行，超出的不画（表头计数仍报全量）；" +
+                                     "行数多到超出控件高度时会出现滚动条，所以这里不必留余量")]
+        public partial int MaxRows { get; set; }
 
         /// <summary>一条报警都没有时显示的那句话</summary>
-        public static readonly DependencyProperty EmptyTextProperty = DependencyProperty.Register(
-            nameof(EmptyText), typeof(string), typeof(AlarmBannerElement),
-            new FrameworkPropertyMetadata("系统正常", FrameworkPropertyMetadataOptions.AffectsRender));
+        [ScadaProperty(Key = "EmptyText", DisplayName = "无报警提示", Kind = ElementPropertyKind.Text,
+                       Group = "文字", DefaultValue = "系统正常",
+                       Description = "一条报警都没有时显示的字；设计期预览看到的也是它")]
+        public partial string? EmptyText { get; set; }
+
+        /// <summary>没有报警时左侧色条与徽标的颜色（"一切正常"的绿）</summary>
+        [ScadaProperty(Key = "NormalColor", DisplayName = "正常色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FF34C759",
+                       Description = "没有报警时左侧色条的颜色；与多态灯、泵、管道的「运行绿」是同一个色")]
+        public partial Brush? NormalColor { get; set; }
+
+        /// <summary>提示级报警的颜色</summary>
+        [ScadaProperty(Key = "InfoColor", DisplayName = "提示色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FF3B82F6")]
+        public partial Brush? InfoColor { get; set; }
+
+        /// <summary>警告级报警的颜色</summary>
+        [ScadaProperty(Key = "WarningColor", DisplayName = "警告色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FFFFB020",
+                       Description = "警告级报警的颜色；与多态灯的「警告黄」同色，整幅画面一套语汇")]
+        public partial Brush? WarningColor { get; set; }
+
+        /// <summary>严重级报警的颜色（也是"要闪"的那一档）</summary>
+        [ScadaProperty(Key = "CriticalColor", DisplayName = "严重色", Kind = ElementPropertyKind.Color,
+                       Group = "状态", DefaultValue = "#FFE03A2B",
+                       Description = "严重级报警的颜色（也是触发闪烁的那一档）；与多态灯的「报警红」同色")]
+        public partial Brush? CriticalColor { get; set; }
 
         private static readonly DependencyPropertyKey RowsPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(Rows), typeof(IReadOnlyList<AlarmBannerRow>), typeof(AlarmBannerElement),
@@ -172,48 +180,6 @@ namespace VisionMaster.Scada.Controls
             DefaultStyleKeyProperty.OverrideMetadata(
                 typeof(AlarmBannerElement),
                 new FrameworkPropertyMetadata(typeof(AlarmBannerElement)));
-        }
-
-        /// <summary>最多显示几行（见 <see cref="MaxRowsProperty"/>）</summary>
-        public int MaxRows
-        {
-            get => (int)GetValue(MaxRowsProperty);
-            set => SetValue(MaxRowsProperty, value);
-        }
-
-        /// <summary>正常色（见 <see cref="NormalColorProperty"/>）</summary>
-        public Brush? NormalColor
-        {
-            get => (Brush?)GetValue(NormalColorProperty);
-            set => SetValue(NormalColorProperty, value);
-        }
-
-        /// <summary>提示色（见 <see cref="InfoColorProperty"/>）</summary>
-        public Brush? InfoColor
-        {
-            get => (Brush?)GetValue(InfoColorProperty);
-            set => SetValue(InfoColorProperty, value);
-        }
-
-        /// <summary>警告色（见 <see cref="WarningColorProperty"/>）</summary>
-        public Brush? WarningColor
-        {
-            get => (Brush?)GetValue(WarningColorProperty);
-            set => SetValue(WarningColorProperty, value);
-        }
-
-        /// <summary>严重色（见 <see cref="CriticalColorProperty"/>）</summary>
-        public Brush? CriticalColor
-        {
-            get => (Brush?)GetValue(CriticalColorProperty);
-            set => SetValue(CriticalColorProperty, value);
-        }
-
-        /// <summary>空态提示语（见 <see cref="EmptyTextProperty"/>）</summary>
-        public string? EmptyText
-        {
-            get => (string?)GetValue(EmptyTextProperty);
-            set => SetValue(EmptyTextProperty, value);
         }
 
         /// <summary>要显示的行（只读，见 <see cref="RowsProperty"/>）</summary>
@@ -292,8 +258,13 @@ namespace VisionMaster.Scada.Controls
             RefreshFromEngine();
         }
 
-        private static void OnBannerInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((AlarmBannerElement)d).RebuildRows();
+        // 五个输入共用同一条副作用（行、色条、计数都要重画）。
+        // EmptyText 不在此列：它只是模板里一段文字，改了由绑定自己刷新（原手写依赖属性也只挂了 AffectsRender）。
+        partial void OnMaxRowsPropertyChanged() => RebuildRows();
+        partial void OnNormalColorPropertyChanged() => RebuildRows();
+        partial void OnInfoColorPropertyChanged() => RebuildRows();
+        partial void OnWarningColorPropertyChanged() => RebuildRows();
+        partial void OnCriticalColorPropertyChanged() => RebuildRows();
 
         /// <summary>引擎上有任何动静 → 整表重读（三个事件共用，理由见类注释）</summary>
         private void OnEngineAlarmChanged(ScadaAlarmRecord record) => RunOnUi(RefreshFromEngine);

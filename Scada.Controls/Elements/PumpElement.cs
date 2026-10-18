@@ -41,7 +41,13 @@ namespace VisionMaster.Scada.Controls
     ///
     /// 运行时的接法：把 <see cref="State"/> 绑到工程变量上（枚举名，或 0/1/2），泵就活了。
     /// </summary>
-    public class PumpElement : StateVisualElement
+    /// <remarks>
+    /// partial：本类自己没有 [ScadaProperty] 声明（状态与四色都继承自 StateVisualElement），
+    /// 但描述符侧的 ScadaPropertyCatalog.Collect 沿继承链收集生成的收集方法——
+    /// 那写在 partial 的另一半里，基类是 partial 而本类不是时 C# 不强制，
+    /// 为了与链上其余类型保持同一形态、也为了将来本类加私有属性时不必再改声明。
+    /// </remarks>
+    public partial class PumpElement : StateVisualElement
     {
         /// <summary>叶轮半径 / 泵壳半径（0.62：三角够大看得清，又不碰壳壁，留出一圈壳体的厚度）</summary>
         private const double ImpellerRatio = 0.62d;

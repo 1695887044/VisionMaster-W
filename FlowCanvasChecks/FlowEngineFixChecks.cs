@@ -33,6 +33,7 @@ namespace FlowCanvasChecks
             ExitChainCanTimeOut();
             StartupChainTimeoutIsNotFatal();
             CommunicationCheckRunsAfterShell();
+            HelpCatalogCheckRunsAfterShell();
             BindingWritesGoThroughNotifyingApi();
             CSharpScriptRefusesNativeDlls();
             RunGuardsAreInPlace();
@@ -235,11 +236,51 @@ namespace FlowCanvasChecks
                 errorInCheck == 0 && check.Contains("CheckLevel.Warning"),
                 $"CheckLevel.Error 出现 {errorInCheck} 次 / Warning 存在={check.Contains("CheckLevel.Warning")}");
 
-            // 反向：只挪走这一项，其余五项（单实例/配置/HALCON/插件扫描/帮助手册）必须还在链上
+            // 反向：只挪走这一项，其余四项（单实例/配置/HALCON/插件扫描）必须还在链上。
+            // 帮助手册合并 2026-10-16 也已挪到主窗口显示后后台跑（同一条先例，见 [E19]），
+            // 所以链上现在是 4 项——有人把 RegisterCheck 加回去或顺手删掉别的，这里都会红。
             int registered = app.Split(new[] { "RegisterCheck(" }, StringSplitOptions.None).Length - 1;
-            Check("其余启动自检项没被顺手删掉（链上仍有 5 项注册）",
-                registered == 5, $"RegisterCheck( 出现 {registered} 次（含 _singleInstance 那一次）");
+            Check("其余启动自检项没被顺手删掉（链上仍有 4 项注册）",
+                registered == 4, $"RegisterCheck( 出现 {registered} 次（含 _singleInstance 那一次）");
         }
+
+        // ==================================================================
+        //  [E19] 帮助手册合并：不站在启动关键路径上，主窗口显示后后台跑（同 E18 先例）
+        // ==================================================================
+        /// <summary>
+        /// 2026-10-16 启动提速层 2c：帮助手册合并实测约 1.2 秒，却只给帮助弹窗供数、失败全是 Warning——
+        /// 与通讯连通性同一形状（"只报不拦却守在关键路径上"），按同一先例挪出启动链。
+        /// 兜底是现成的：HelpViewModel.OnDialogOpened 有懒构建（!IsBuilt → Build），
+        /// 后台没跑完时用户打开帮助会当场构建，行为不降级。
+        /// 三条断言钉住：①链上不许有它 ②OnInitialized 必须真的跑一次 ③懒构建兜底必须还在
+        ///（兜底没了，"后台没跑完 + 用户秒开帮助"就是空白目录）。
+        /// </summary>
+        private static void HelpCatalogCheckRunsAfterShell()
+        {
+            Section("[E19] 帮助手册合并：移出启动链 + 主窗口显示后后台跑一次（兜底懒构建在位）");
+
+            var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\.."));
+            var appPath = Path.Combine(repoRoot, @"VisionMaster\App.xaml.cs");
+            var vmPath = Path.Combine(repoRoot, @"VisionMaster\ViewModels\DialogViewModels\HelpViewModel.cs");
+            var app = File.Exists(appPath) ? File.ReadAllText(appPath) : "";
+            var vm = File.Exists(vmPath) ? File.ReadAllText(vmPath) : "";
+
+            Check("★启动自检链里没有帮助手册合并（RegisterCheck 不许加回来）",
+                app.Length > 0 && !app.Contains("RegisterCheck(new HelpCatalogCheck"),
+                app.Length == 0 ? "App.xaml.cs 没找到" : "链上注册行存在=启动又慢回去");
+
+            var onInitialized = MethodBody(app, "protected override void OnInitialized()");
+            Check("主窗口显示后确实跑一次（OnInitialized 里调用后台入口）",
+                onInitialized.Contains("RunHelpCatalogCheckInBackground()"),
+                $"OnInitialized 体长={onInitialized.Length}");
+
+            // 兜底前提：挪出去能成立的全部理由是"懒构建兜底在位"。哪天它被删了，这里红着提醒。
+            var onDialogOpened = MethodBody(vm, "public void OnDialogOpened");
+            Check("★懒构建兜底仍在（后台没跑完时打开帮助会当场 Build；删了它就该回链上）",
+                onDialogOpened.Contains("!_catalog.IsBuilt") && onDialogOpened.Contains("_catalog.Build()"),
+                $"OnDialogOpened 体长={onDialogOpened.Length}");
+        }
+
 
         /// <summary>取某个方法的源码体（从签名后的第一个 { 起按花括号配对截）；找不到返回空串</summary>
         private static string MethodBody(string source, string signature)

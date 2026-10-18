@@ -51,16 +51,19 @@ namespace VisionMaster.Scada.Controls
         /// <param name="beat">本轮的全画面统一节拍源</param>
         /// <param name="writer">本轮的回写通道；纯监视画面可以不给（见类注释）</param>
         /// <param name="accessPolicy">本轮的权限出口；不给则按"未登录（操作员）"算（见类注释）</param>
+        /// <param name="axisSource">本轮的运动轴快照源；纯画面（不跑轴面板）可以不给</param>
         public ScadaRuntimeContext(
             ScadaAlarmEngine alarms,
             ScadaBeatSource beat,
             IScadaValueWriter? writer = null,
-            IScadaAccessPolicy? accessPolicy = null)
+            IScadaAccessPolicy? accessPolicy = null,
+            IScadaAxisSource? axisSource = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
             Writer = writer;
             AccessPolicy = accessPolicy ?? DefaultScadaAccessPolicy.Instance;
+            AxisSource = axisSource;
         }
 
         /// <summary>
@@ -105,5 +108,14 @@ namespace VisionMaster.Scada.Controls
         /// 口径与 <c>ScadaRuntime</c> 完全一致：未登录 = 操作员，<c>RequiredRole</c> 为 null = 不限制。
         /// </summary>
         public IScadaAccessPolicy AccessPolicy { get; }
+
+        /// <summary>
+        /// 本轮的运动轴快照源（<b>可为 null</b>：画面里没有轴面板、或宿主没接运动模块）。
+        ///
+        /// 与 <see cref="Writer"/> 同一种"可选性"：没有它时轴面板显示"未接入运动数据"，
+        /// 而不是编一个 0 位置。轴面板按统一节拍<b>拉</b>当前轴的快照，
+        /// 不订阅每轴事件（运动卡 10ms 轮询，推事件会把 UI 线程刷满）。
+        /// </summary>
+        public IScadaAxisSource? AxisSource { get; }
     }
 }

@@ -444,10 +444,10 @@ namespace VisionMaster.Scada.Controls
             switch (key)
             {
                 case ElementValueAccess.XKey:
-                    SetValue(Canvas.LeftProperty, number);
+                    SetValue(Canvas.LeftProperty, number - ParentOffsetX - ParentOriginX);
                     break;
                 case ElementValueAccess.YKey:
-                    SetValue(Canvas.TopProperty, number);
+                    SetValue(Canvas.TopProperty, number - ParentOffsetY - ParentOriginY);
                     break;
                 case ElementValueAccess.WidthKey:
                     Width = Math.Abs(number); // 负宽高在 WPF 里等于 0，取绝对值与 ElementValueAccess.Write 同一口径
@@ -554,7 +554,9 @@ namespace VisionMaster.Scada.Controls
                     if (!animation.TryEvaluateTargetPosition(number, Element?.X ?? 0d, out double x, out error))
                         return false;
 
-                    SetValue(Canvas.LeftProperty, x);
+                    // 动画算出来的是"画面绝对坐标"（起点取自 Element.X，那本来就是绝对坐标），
+                    // 装了底板要减掉底板位置与子图元区原点——与设计期、运行态几何写入同一份换算。
+                    SetValue(Canvas.LeftProperty, x - ParentOffsetX - ParentOriginX);
                     error = null;
                     return true;
 
@@ -562,7 +564,7 @@ namespace VisionMaster.Scada.Controls
                     if (!animation.TryEvaluateTargetPosition(number, Element?.Y ?? 0d, out double y, out error))
                         return false;
 
-                    SetValue(Canvas.TopProperty, y);
+                    SetValue(Canvas.TopProperty, y - ParentOffsetY - ParentOriginY);
                     error = null;
                     return true;
 
@@ -865,6 +867,130 @@ namespace VisionMaster.Scada.Controls
             Padding = inset > 0 ? new Thickness(inset) : default;
         }
 
+        /// <summary>
+        /// 本控件所装的那只底板（容器图元）。<c>null</c> = 顶层图元。
+        ///
+        /// 由 <see cref="ScadaCanvas"/> 在挂载/摘下子控件时注入，控件自己不反向去画布上找
+        /// （与 <see cref="LayerVisibilityResolver"/> 同一范式：宿主往下注入，控件不反向抓画布）。
+        ///
+        /// <b>它只影响坐标换算</b>：子控件的 <c>Canvas.Left/Top</c> 是相对底板的，
+        /// 而模型里的 X/Y 是画面绝对坐标——两者之差就是这里这一位的用途
+        /// （见 <see cref="ApplyGeometry"/>）。
+        ///
+        /// <b>为什么要订阅它的几何变更</b>：拖底板时底板自己的 X/Y 变了，
+        /// 而子图元的 <b>模型 X/Y 一个都没变</b>（拖动级联改的是模型的绝对坐标，
+        /// 但若底板是被"按住拖"的那一个，级联写在画布层、只写一次；
+        /// 而底板坐标也可能被对齐/分布/微调/撤销单独改动），
+        /// 此时子控件的相对偏移必须跟着重算，否则子图元会留在原地不动——看起来"没装进去"。
+        /// </summary>
+        internal ScadaElementBase? ParentContainer
+        {
+            get => _parentContainer;
+            set
+            {
+                if (ReferenceEquals(_parentContainer, value))
+                    return;
+
+                if (_parentContainer != null)
+                    _parentContainer.ElementChanged -= OnParentGeometryChanged;
+
+                _parentContainer = value;
+
+                if (_parentContainer != null)
+                    _parentContainer.ElementChanged += OnParentGeometryChanged;
+
+                ApplyGeometry();
+            }
+        }
+
+        private ScadaElementBase? _parentContainer;
+
+        /// <summary>
+        /// 底板模型变更通知（父控件转发的，不是直接订阅模型——见 <see cref="ElementChanged"/>）。
+        ///
+        /// <b>任何变更都重算一次几何</b>，而不是只认 X/Y/Rotation 那几项：
+        /// 底板影响子图元位置的量不止坐标——还有"子图元区原点偏移"
+        /// （<see cref="IElementContainer.ChildrenOriginY"/>，底板改标题栏高度时它会变）。
+        /// 按属性名白名单过滤，就要在这里硬编码 PanelElement 的属性名，
+        /// 而那是基类不该知道的子类细节；漏一项的表现是"改了底板属性、里面的东西错位"。
+        /// 重算几何只是几次 SetValue（同值还会被依赖属性挡掉），底板属性变更又是低频动作，
+        /// 全量重算的代价可以忽略，换来的是"不会漏"。
+        /// </summary>
+        private void OnParentGeometryChanged(object? sender, string? propertyName) => ApplyGeometry();
+
+        /// <summary>
+        /// 本控件的<b>模型</b>发生了变更（<paramref name="propertyName"/> 为 null 表示"全都变了"）。
+        ///
+        /// 为什么要有这个事件：底板要通知它的子控件"我动了"，
+        /// 而子控件手里只有 <see cref="ScadaElementBase"/>（父控件），不是模型。
+        /// 转一层转发比自己订阅模型好的地方在于<b>订阅者数量</b>：
+        /// 一只底板下挂 50 个子图元时，直接订阅模型也要 50 条订阅（模型是同一个，绕不开），
+        /// 但转一层让"谁是订阅者"这件事归控件自己管——子控件被摘下来时
+        /// <see cref="ParentContainer"/> 会解绑，不依赖"模型还活着吗"。
+        /// </summary>
+        internal event EventHandler<string?>? ElementChanged;
+
+        /// <summary>
+        /// 本图元的<b>归属</b>（<see cref="ScadaElement.ParentId"/>）变了，参数是图元本身。
+        ///
+        /// 与 <see cref="ElementChanged"/> 的分工：那个是"底板通知里面的子图元我动了"，
+        /// 这个是"图元通知画布我被搬进/搬出某只底板了"。画布收到之后要重挂父子关系——
+        /// 否则模型改了而控件还挂在原来那个画布上，用户看到的是"点了菜单但东西没动"。
+        /// </summary>
+        internal event EventHandler<ScadaElement>? ParentChanged;
+
+        /// <summary>
+        /// 底板位置（画面绝对坐标）。顶层图元恒为 0。
+        ///
+        /// 单独抽成属性是因为它被用在三处：设计期几何落地、运行态几何写入、以及动画的起点。
+        /// 三处各写一遍 <c>ParentContainer?.Element?.X ?? 0</c> 就会出现"某处忘了减"的静默错位。
+        /// </summary>
+        private double ParentOffsetX => _parentContainer?.Element?.X ?? 0d;
+
+        private double ParentOffsetY => _parentContainer?.Element?.Y ?? 0d;
+
+        /// <summary>
+        /// 底板自己的子图元区原点偏移（底板有标题栏时它不为 0）。
+        ///
+        /// 与 <see cref="ParentOffsetX"/> 配套：子控件的落点是
+        /// "绝对坐标 − 底板左上角 − 子图元区原点偏移"。
+        /// 少了最后一项，底板里每个子图元都会静默下移一个标题栏的高度。
+        /// </summary>
+        private double ParentOriginX => (_parentContainer as IElementContainer)?.ChildrenOriginX ?? 0d;
+
+        private double ParentOriginY => (_parentContainer as IElementContainer)?.ChildrenOriginY ?? 0d;
+
+        /// <summary>
+        /// 把控件从它当前的可视/逻辑父上摘下来（没有父时是空操作）。
+        ///
+        /// <b>为什么必须显式摘</b>：WPF 在"加入新父"时对<b>可视</b>父会自动解绑，
+        /// 但对<b>逻辑</b>子元素会直接抛
+        /// "指定的元素已经是另一个元素的逻辑子元素。请先将其断开连接"
+        /// （<c>Panel.Children.Add</c> 走的就是逻辑树）。实测在"子图元从元素层搬进底板"时命中。
+        ///
+        /// 抽成静态工具而不是各写一份：画布的挂载/卸载与容器的认领/释放都要用，
+        /// 两处各写一遍就会出现"某处漏摘"——表现是那条 WPF 异常，而它的栈里看不到我们的代码，
+        /// 极难定位到是哪条路径忘了摘。
+        /// </summary>
+        internal static void DetachFromParent(FrameworkElement element)
+        {
+            if (element is null)
+                return;
+
+            switch (element.Parent)
+            {
+                case Panel panel:
+                    panel.Children.Remove(element);
+                    break;
+                case Decorator decorator when ReferenceEquals(decorator.Child, element):
+                    decorator.Child = null;
+                    break;
+                case ContentControl content when ReferenceEquals(content.Content, element):
+                    content.Content = null;
+                    break;
+            }
+        }
+
         protected override void OnInitialized(EventArgs e)
         {
             base.OnInitialized(e);
@@ -910,6 +1036,17 @@ namespace VisionMaster.Scada.Controls
 
         private void OnElementPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // 归属变更单独走一条：装入/移出底板要重挂父子关系，不能混进"重刷属性"里。
+            // 在通知子控件之前发出去（画布会重挂整棵关系），顺序反了的话子控件会先按旧父
+            // 重算一次偏移，白做一轮。
+            if (e.PropertyName == nameof(ScadaElement.ParentId) && Element is { } self)
+                ParentChanged?.Invoke(this, self);
+
+            // 再通知子控件（底板动了，装在里面的图元要重算相对偏移），最后处理自己。
+            // 顺序有讲究：先通知是为了让子控件在本控件重排之前就把自己的相对位置算好，
+            // 这样同一次布局里看到的就是一致的结果；反过来的话会先画一帧错位再纠正。
+            ElementChanged?.Invoke(this, e.PropertyName);
+
             switch (e.PropertyName)
             {
                 // 几何单独走一条：拖动图元时每帧只改这几项，不值当顺带重刷全部属性
@@ -975,15 +1112,31 @@ namespace VisionMaster.Scada.Controls
             Width = Element.Width;
             Height = Element.Height;
 
-            SetValue(Canvas.LeftProperty, Element.X);
-            SetValue(Canvas.TopProperty, Element.Y);
+            // 位置：顶层图元的 Canvas.Left/Top 就是模型坐标；装了底板的要减掉底板位置
+            // ——子控件挂在底板自己的 Canvas 上，坐标是相对的。
+            // 换算只在这一处（设计期）与 TryApplyRuntimeGeometry（运行态）两处做，
+            // 且两处共用下面的 ApplyPositionToParent，不会出现"某处忘了减"的静默错位。
+            ApplyPositionToParent(Element.X, Element.Y);
 
-            // 叠放次序交给承载面板（S3 画布的元素层就是 Canvas）。
-            // 放在这里而不是画布侧，是因为"模型改了→控件对齐"这件事只有控件自己清楚时机
-            // （它已经订阅了模型的 PropertyChanged）；画布再订一遍就是第二份订阅、第二处漏摘风险。
+            // 叠放次序交给承载面板。装了底板的图元，它的 ZIndex 只在底板内部生效
+            // （Panel.ZIndex 是"同一父面板内的次序"），与顶层图元的 ZIndex 不再互相比较——
+            // 这正是容器该有的语义：底板本身能在画面上被整体叠放，里面的东西自成一层。
             SetValue(Panel.ZIndexProperty, Element.ZIndex);
 
             ApplyRotation(Element.Rotation);
+        }
+
+        /// <summary>
+        /// 把画面绝对坐标落到本控件所在的画布上（顶层用原值，装了底板就减掉底板位置）。
+        ///
+        /// 抽出来是为了让设计期与运行态共用同一份换算：两处各写一遍，
+        /// 后加的那一处（运行态几何绑定）忘记减底板位置时，
+        /// 表现为"绑了变量的图元在底板里位置跳出去"，而且只在特定组合下复现。
+        /// </summary>
+        private void ApplyPositionToParent(double absoluteX, double absoluteY)
+        {
+            SetValue(Canvas.LeftProperty, absoluteX - ParentOffsetX - ParentOriginX);
+            SetValue(Canvas.TopProperty, absoluteY - ParentOffsetY - ParentOriginY);
         }
 
         /// <summary>

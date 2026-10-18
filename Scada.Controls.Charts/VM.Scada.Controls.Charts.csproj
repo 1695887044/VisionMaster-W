@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    SCADA 曲线图元库：把 VM.Charts（ScottPlot 5 的 MVVM 封装）接成 SCADA 的一个图元。
+
+    为什么曲线图元单独一个程序集，而不是并进 VM.Scada.Controls：
+      · 图元库的 csproj 注明"要在纯净宿主里单独加载"，而曲线要拖 ScottPlot → SkiaSharp
+        一整套原生 runtimes（win-x64 / linux-arm64 …），那是重依赖；
+      · 图元库被宿主、断言工程、以及将来任何引用方加载，让它们统统背上 SkiaSharp 不划算；
+      · 分开之后，"不想用曲线"的交付包只要不引用本工程即可，零成本。
+
+    代价（必须记住）：图元注册在 <see cref="VisionMaster.Scada.Controls.Charts.ScadaChartElements.Register"/>，
+    而 Scada.Controls 的静态构造<b>不会</b>自动带上它——宿主与断言工程必须各显式调一次，
+    否则工具箱里没有曲线。这条"忘了调 = 静默少一个图元"的风险由 ScadaChecks 的断言钉住。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RootNamespace>VisionMaster.Scada.Controls.Charts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Scada.Controls\VM.Scada.Controls.csproj" />
+    <ProjectReference Include="..\Charts\VM.Charts\VM.Charts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

@@ -65,54 +65,54 @@ namespace VisionMaster.Scada.Controls
     /// 运行时的接法：把 <see cref="Opening"/> 绑到工程变量上（0~100 的实数），阀就活了。
     /// </summary>
     [TemplatePart(Name = PartOpeningLabel, Type = typeof(TextBlock))]
-    public class ValveElement : ScadaElementBase
+    public partial class ValveElement : ScadaElementBase
     {
         /// <summary>模板部件名：压在下方凹口里的开度文字</summary>
         public const string PartOpeningLabel = "OpeningLabel";
 
-        // 默认色必须冻结：依赖属性默认值被所有实例共享，未冻结的 Freezable 被某实例改到会串到别的实例。
-        private static readonly Brush DefaultTrackColor = ScadaBrushes.Frozen("#FF3A3A3A");
-        private static readonly Brush DefaultThrottleColor = ScadaBrushes.Frozen("#FF2F80ED");
-        private static readonly Brush DefaultOpenColor = ScadaBrushes.Frozen("#FF34C759");
+        // 默认色由 ScadaPropertyDefaults.Resolve 在类型静态构造期解析并冻结（见 [ScadaProperty] 的 DefaultValue），
+        // 所以不再需要手写静态 Brush 字段。
 
-        #region 输入
+        // 声明次序 = 属性面板里的行序（生成器按源码次序收集）：数据 → 外观 → 文字，
+        // 与原先手写描述符的分组次序一致。
 
         /// <summary>开度（0~100；开关阀只给 0 或 100）</summary>
-        public static readonly DependencyProperty OpeningProperty = DependencyProperty.Register(
-            nameof(Opening), typeof(double), typeof(ValveElement),
-            new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender, OnValveInputChanged));
+        [ScadaProperty(Key = "Opening", DisplayName = "开度", Kind = ElementPropertyKind.Number,
+                       Group = "数据", DefaultValue = "0", Min = 0, Max = 100, IsBindable = true,
+                       Description = "运行态把工程变量绑到这里（0~100 的实数）；开关阀只给 0 或 100，" +
+                                     "中间值就是调节阀。超出 0~100 按两端收敛，坏值不会把整页渲染打断")]
+        public partial double Opening { get; set; }
 
         /// <summary>开度显示格式串</summary>
-        public static readonly DependencyProperty OpeningFormatProperty = DependencyProperty.Register(
-            nameof(OpeningFormat), typeof(string), typeof(ValveElement),
-            new FrameworkPropertyMetadata("0.#", FrameworkPropertyMetadataOptions.AffectsRender, OnValveInputChanged));
-
-        /// <summary>是否显示开度</summary>
-        public static readonly DependencyProperty ShowValueProperty = DependencyProperty.Register(
-            nameof(ShowValue), typeof(bool), typeof(ValveElement),
-            new FrameworkPropertyMetadata(
-                true, FrameworkPropertyMetadataOptions.AffectsRender, OnShowValueChanged));
-
-        #endregion
-
-        #region 外观输入
+        [ScadaProperty(Key = "OpeningFormat", DisplayName = "开度格式", Kind = ElementPropertyKind.Text,
+                       Group = "数据", DefaultValue = "0.#",
+                       Description = "标准 .NET 数字格式串（0.0 定一位小数、F0 取整）；" +
+                                     "写错了退回通用格式，不会让画面出错")]
+        public partial string? OpeningFormat { get; set; }
 
         /// <summary>阀体空腔色（也是全关时阀体的颜色：没开就没有介质，露出来的就是空腔）</summary>
-        public static readonly DependencyProperty TrackColorProperty = DependencyProperty.Register(
-            nameof(TrackColor), typeof(Brush), typeof(ValveElement),
-            new FrameworkPropertyMetadata(DefaultTrackColor, FrameworkPropertyMetadataOptions.AffectsRender, OnValveInputChanged));
+        [ScadaProperty(Key = "TrackColor", DisplayName = "空腔色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF3A3A3A",
+                       Description = "阀体空腔的底色，也是全关时阀体的样子（没开就没有介质）")]
+        public partial Brush? TrackColor { get; set; }
 
         /// <summary>中间位色（0 &lt; 开度 &lt; 100 时的填充色）</summary>
-        public static readonly DependencyProperty ThrottleColorProperty = DependencyProperty.Register(
-            nameof(ThrottleColor), typeof(Brush), typeof(ValveElement),
-            new FrameworkPropertyMetadata(DefaultThrottleColor, FrameworkPropertyMetadataOptions.AffectsRender, OnValveInputChanged));
+        [ScadaProperty(Key = "ThrottleColor", DisplayName = "中间位色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF2F80ED",
+                       Description = "0 < 开度 < 100 时介质填充的颜色；蓝色是「正在调节」的通用语汇")]
+        public partial Brush? ThrottleColor { get; set; }
 
         /// <summary>全开色（开度 ≥ 100 时的填充色）</summary>
-        public static readonly DependencyProperty OpenColorProperty = DependencyProperty.Register(
-            nameof(OpenColor), typeof(Brush), typeof(ValveElement),
-            new FrameworkPropertyMetadata(DefaultOpenColor, FrameworkPropertyMetadataOptions.AffectsRender, OnValveInputChanged));
+        [ScadaProperty(Key = "OpenColor", DisplayName = "全开色", Kind = ElementPropertyKind.Color,
+                       Group = "外观", DefaultValue = "#FF34C759",
+                       Description = "开度 ≥ 100 时介质填充的颜色；绿色 = 通路打开")]
+        public partial Brush? OpenColor { get; set; }
 
-        #endregion
+        /// <summary>是否显示开度</summary>
+        [ScadaProperty(Key = "ShowValue", DisplayName = "显示开度", Kind = ElementPropertyKind.Bool,
+                       Group = "文字", DefaultValue = "True",
+                       Description = "关掉只留阀体（读数交给旁边的数值域），默认开：阀开没开全靠这个数说话")]
+        public partial bool ShowValue { get; set; }
 
         #region 推导结果（只读）
 
@@ -173,48 +173,6 @@ namespace VisionMaster.Scada.Controls
             UpdateValve();
         }
 
-        /// <summary>开度（见 <see cref="OpeningProperty"/>）</summary>
-        public double Opening
-        {
-            get => (double)GetValue(OpeningProperty);
-            set => SetValue(OpeningProperty, value);
-        }
-
-        /// <summary>开度显示格式串（见 <see cref="OpeningFormatProperty"/>）</summary>
-        public string? OpeningFormat
-        {
-            get => (string?)GetValue(OpeningFormatProperty);
-            set => SetValue(OpeningFormatProperty, value);
-        }
-
-        /// <summary>是否显示开度（见 <see cref="ShowValueProperty"/>）</summary>
-        public bool ShowValue
-        {
-            get => (bool)GetValue(ShowValueProperty);
-            set => SetValue(ShowValueProperty, value);
-        }
-
-        /// <summary>阀体空腔色（见 <see cref="TrackColorProperty"/>）</summary>
-        public Brush? TrackColor
-        {
-            get => (Brush?)GetValue(TrackColorProperty);
-            set => SetValue(TrackColorProperty, value);
-        }
-
-        /// <summary>中间位色（见 <see cref="ThrottleColorProperty"/>）</summary>
-        public Brush? ThrottleColor
-        {
-            get => (Brush?)GetValue(ThrottleColorProperty);
-            set => SetValue(ThrottleColorProperty, value);
-        }
-
-        /// <summary>全开色（见 <see cref="OpenColorProperty"/>）</summary>
-        public Brush? OpenColor
-        {
-            get => (Brush?)GetValue(OpenColorProperty);
-            set => SetValue(OpenColorProperty, value);
-        }
-
         /// <summary>填充色（只读，见 <see cref="ValveBrushProperty"/>）</summary>
         public Brush? ValveBrush => (Brush?)GetValue(ValveBrushProperty);
 
@@ -248,13 +206,16 @@ namespace VisionMaster.Scada.Controls
             return double.IsFinite(opening) ? Math.Clamp(opening / 100d, 0d, 1d) : 0d;
         }
 
-        private static void OnValveInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((ValveElement)d).UpdateValve();
+        // 五个输入共用同一条副作用（填充色、开度文字、几何都要重算）。
+        partial void OnOpeningPropertyChanged() => UpdateValve();
+        partial void OnOpeningFormatPropertyChanged() => UpdateValve();
+        partial void OnTrackColorPropertyChanged() => UpdateValve();
+        partial void OnThrottleColorPropertyChanged() => UpdateValve();
+        partial void OnOpenColorPropertyChanged() => UpdateValve();
 
         // 「显不显开度」是个纯模板层的开关，但本环境下 ControlTemplate.Triggers 里的 DataTrigger
         // 不触发（见 ScadaElementBase.SetPartVisible），所以由代码翻，模板里也不写 Visibility 初值。
-        private static void OnShowValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-            => ((ValveElement)d).SetPartVisible(PartOpeningLabel, ((ValveElement)d).ShowValue);
+        partial void OnShowValuePropertyChanged() => SetPartVisible(PartOpeningLabel, ShowValue);
 
         private void UpdateValve()
         {

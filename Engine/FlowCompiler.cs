@@ -632,6 +632,103 @@ namespace VisionMaster.Services
                     compiledNodes.Add(ifNode);
                 }
                 // ==========================================
+                // 🎯 场景 A-2b：等待节点（BuiltIn_Wait）
+                // 不是容器（无子分支），但条件求值链路与 While/If 同构：
+                // 局部变量 + 运行时变量 + 一条布尔表达式，编译成 CompiledBranch。
+                // 必须放在"反射实例化视觉算子"兜底之前，否则会去 Type.GetType("BuiltIn_Wait") 失败。
+                // ==========================================
+                else if (model is WaitStep waitModel)
+                {
+                    var waitNode = new CompiledWaitNode
+                    {
+                        Id = model.StepID,
+                        Name = model.StepName,
+                        StepName = model.StepName,
+                        Blueprint = model,
+                    };
+                    nodeLookup.Add(model.StepID, waitNode);
+
+                    // 1. 局部变量 / 2. 运行时变量（与 While / If 共用同一对编译助手）
+                    var (delegateParams, compiledVarTypes, compiledVarIds) =
+                        CompileLocalVarParams(model, waitModel.LocalVariables, errors);
+
+                    var (runtimeVarNames, runtimeVarTypes) = CompileRuntimeVarRefs(
+                        model, waitModel.RuntimeVariableRefs, delegateParams, errors);
+
+                    var conditionBranch = new CompiledBranch
+                    {
+                        LocalVarIds = compiledVarIds,
+                        VarTypes = compiledVarTypes,
+                        RuntimeVarNames = runtimeVarNames,
+                        RuntimeVarTypes = runtimeVarTypes,
+                    };
+
+                    string? expression = waitModel.ConditionExpression?.Trim();
+                    waitNode.ConditionExpression = expression;
+
+                    if (string.IsNullOrWhiteSpace(expression))
+                    {
+                        errors.Add(Err(model, $"[编译错误] 等待节点 '{model.StepName}' 的等待条件为空。"));
+                    }
+                    else
+                    {
+                        try
+                        {
+                            conditionBranch.ConditionLambda = CreateInterpreter().Parse(
+                                expression,
+                                typeof(bool),
+                                delegateParams.ToArray()
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            errors.Add(
+                                Err(model, $"[语法错误] 等待节点 '{model.StepName}' 编译失败: {ex.Message}")
+                            );
+                        }
+                    }
+
+                    waitNode.Condition = conditionBranch;
+                    waitNode.PollIntervalMs = waitModel.PollIntervalMs;
+                    waitNode.TimeoutMs = waitModel.TimeoutMs;
+                    waitNode.TimeoutAction = waitModel.TimeoutAction;
+                    waitNode.TimeoutMessage = waitModel.TimeoutMessage ?? string.Empty;
+                    waitNode.AlarmVariableName = waitModel.AlarmVariableName ?? string.Empty;
+
+                    // 轮询间隔下限：更小的间隔取不到新值，只会空转 CPU（与运行期夹取无关，是配置错误）
+                    if (waitModel.PollIntervalMs < 10)
+                    {
+                        errors.Add(
+                            Err(model,
+                                $"[编译错误] 等待节点 '{model.StepName}' 的轮询间隔 {waitModel.PollIntervalMs}ms 过小（最小 10ms）。")
+                        );
+                    }
+
+                    // 超时为 0 表示不限；负数既不是"不限"也不是合法时长，按配置错误拦下。
+                    // 注意 TimeoutMs > 0 且小于轮询间隔是**合法**的（运行期按剩余时间夹取等待），不报错。
+                    if (waitModel.TimeoutMs < 0)
+                    {
+                        errors.Add(
+                            Err(model,
+                                $"[编译错误] 等待节点 '{model.StepName}' 的超时时间不能为负（{waitModel.TimeoutMs}ms；0 表示不限）。")
+                        );
+                    }
+
+                    // 超时处置必须是已定义成员：手改 .vms 写成 99 时，运行期
+                    // "不是 Continue 就终止"会把未知值静默当成终止流程——看起来能跑，
+                    // 实际是配置坏了却没人知道。枚举按整数落盘，所以必须显式判 IsDefined。
+                    if (!Enum.IsDefined(typeof(WaitTimeoutAction), waitModel.TimeoutAction))
+                    {
+                        errors.Add(
+                            Err(model,
+                                $"[编译错误] 等待节点 '{model.StepName}' 的超时处理方式值 {(int)waitModel.TimeoutAction} 无效"
+                                + $"（应为 {nameof(WaitTimeoutAction.TerminateFlow)} / {nameof(WaitTimeoutAction.Continue)}）。")
+                        );
+                    }
+
+                    compiledNodes.Add(waitNode);
+                }
+                // ==========================================
                 // 🎯 场景 A-3：For 计次循环节点
                 // ==========================================
                 else if (model is ForStep forModel)
@@ -890,7 +987,7 @@ namespace VisionMaster.Services
                         actualUpstreamName = "RuntimeVar";
                     }
                     else if (targetNode is CompiledIfNode || targetNode is CompiledWhileNode
-                             || targetNode is CompiledForNode)
+                             || targetNode is CompiledForNode || targetNode is CompiledWaitNode)
                     {
                         // 🌉 断桥修复：条件节点引脚与 For 的 LoopCount 端口支持引用运行时变量。
                         // 旧实现"仅普通算子支持"把唯一入口堵死，而条件模型的 RuntimeVariableRefs 又无任何
@@ -908,11 +1005,21 @@ namespace VisionMaster.Services
                             if (decl != null)
                                 expectedType = TypeHelper.GetActualTypeFromLink(decl.DataTypeName);
                         }
+                        else if (model is WaitStep waitCtxModel
+                                 && Guid.TryParse(myInputName, out Guid waitVarId))
+                        {
+                            // 等待节点的条件变量与 If 同口径（局部变量声明类型），
+                            // 漏掉这一支的后果是代理端口按 object 兜底 → 运行期归一类型与声明不符。
+                            var decl = waitCtxModel.LocalVariables.FirstOrDefault(x => x.Id == waitVarId);
+                            if (decl != null)
+                                expectedType = TypeHelper.GetActualTypeFromLink(decl.DataTypeName);
+                        }
 
                         var proxy = new RuntimeVariableProxyPort(varName, expectedType);
                         sourcePort = proxy;
                         targetNode.ContextAwareBindings.Add(proxy);
-                        // 公共赋值段（L585+ 起）会把 sourcePort 写进 UpstreamLinks[varId] / forNode.LoopCountLink
+                        // 公共赋值段（本方法内 `if (sourcePort != null)` 之后）会把 sourcePort
+                        // 写进 UpstreamLinks[varId] / forNode.LoopCountLink / waitNode.UpstreamLinks
                         actualUpstreamName = "RuntimeVar";
                     }
                     else
@@ -1018,15 +1125,44 @@ namespace VisionMaster.Services
                                 AddDependency(dependencyMap, model.StepID, linkRef.TargetStepId);
                                 actualUpstreamName = "ForLoop"; // 或者从图纸查名字
                             }
+                            else if (upNode is CompiledWaitNode waitProducer)
+                            {
+                                // 等待节点的两个输出：TimedOut（是否因超时结束）/ ElapsedMs（等待耗时）。
+                                // 试运行按依赖先跑等待节点，否则下游拿到的是默认值（false / 0）——
+                                // "超时分支永远不走"这种静默错判。
+                                if (linkRef.TargetPortName == "TimedOut")
+                                {
+                                    sourcePort = waitProducer.TimedOutPort;
+                                    AddDependency(dependencyMap, model.StepID, linkRef.TargetStepId);
+                                    actualUpstreamName = "Wait";
+                                }
+                                else if (linkRef.TargetPortName == "ElapsedMs")
+                                {
+                                    sourcePort = waitProducer.ElapsedMsPort;
+                                    AddDependency(dependencyMap, model.StepID, linkRef.TargetStepId);
+                                    actualUpstreamName = "Wait";
+                                }
+                                else
+                                {
+                                    errors.Add(
+                                        Err(
+                                            model,
+                                            $"[连线错误] '{model.StepName}' 的上游节点 '{upNode.StepName}' 只提供输出端口 'TimedOut' / 'ElapsedMs'，实际收到 '{linkRef.TargetPortName}'。"
+                                        )
+                                    );
+                                }
+                            }
                             else
                             {
                                 // 原来这里是静默的（#10-1）：sourcePort 留 null → 下面公共赋值段整段被跳过 → 连线无声失效。
-                                // If/While 这类容器节点根本不提供输出端口，For 也只有 Index 一根 ——
-                                // 这种连线本身就是无意义的（画布也不给容器节点长输出脚），所以显式报错。
+                                // 走到这里的上游都是"没有这个输出口"的控制流节点：If/While/Case 一根输出都没有，
+                                // For 只有 Index，等待节点只有 TimedOut / ElapsedMs（名字对不上就落到这里）。
+                                // 这种连线本身就是无意义的（画布也不给这些节点长错误的输出脚），所以显式报错。
                                 errors.Add(
                                     Err(
                                         model,
-                                        $"[连线错误] '{model.StepName}' 的上游节点 '{upNode.StepName}' 不提供输出端口 '{linkRef.TargetPortName}'（条件/循环节点只接收连线，不能向外提供数据）。"
+                                        $"[连线错误] '{model.StepName}' 的上游节点 '{upNode.StepName}' 不提供输出端口 '{linkRef.TargetPortName}'"
+                                            + "（控制流节点只提供各自声明的输出：For=Index，等待=TimedOut/ElapsedMs）。"
                                     )
                                 );
                             }
@@ -1125,7 +1261,34 @@ namespace VisionMaster.Services
                                 );
                             }
                         }
-                        // 🌟🌟 补全：For 算子接收外部传来的循环次数 (连线名我们在注册时叫 "LoopCount")
+                        // 🌟🌟 补全：等待节点接收条件变量连线（键=变量 Guid，与 If/While 同口径）
+                        else if (targetNode is CompiledWaitNode waitNode)
+                        {
+                            // 等待节点的条件变量连线与 If/While 同一口径：键是条件变量的 Guid 字符串
+                            if (Guid.TryParse(myInputName, out Guid varId))
+                            {
+                                if (
+                                    TryValidateLink(
+                                        model,
+                                        sourcePort,
+                                        ResolveConditionVarType(model, varId),
+                                        "条件变量",
+                                        actualUpstreamName,
+                                        errors
+                                    )
+                                )
+                                    waitNode.UpstreamLinks[varId] = sourcePort;
+                            }
+                            else
+                            {
+                                // 同 #10-2 性质：连线键转不成 Guid 就无处安放，静默丢线的表现是
+                                // "画布上连着、跑起来条件恒取默认值"（bool 恒 false → 必等到超时）。
+                                errors.Add(
+                                    Err(model, $"[连线错误] 等待节点 '{model.StepName}' 的连线键 '{myInputName}' 不是条件变量 Id，这条连线不会生效。")
+                                );
+                            }
+                        }
+                        // 🌟🌟 补全：For 算子接收外部传来的循环次数（连线名在注册时叫 "LoopCount"）
                         else if (targetNode is CompiledForNode forNode)
                         {
                             if (myInputName == "LoopCount")
@@ -1189,18 +1352,18 @@ namespace VisionMaster.Services
                 }
 
                 // --- 递归子分支连线 ---
-                // 💡 注意：因为 WhileStep 继承自 ConditionStep，所以这里会自动包含了 If 和 While 两种容器！
-                if (model is ConditionStep conditionModel && conditionModel.Children != null)
+                // 【容器判定一律 IContainerStep】与 FlowTopology / FlowModel / StepFactory 同一口径。
+                // 旧实现只认 ConditionStep（含 While/Case）与 ForStep 两支，而
+                // ParallelStep : StepModel, IContainerStep —— 两支都不命中，
+                // 于是**并行分支里的所有连线整层被静默丢弃**：
+                //   · 分支内算子的输入端口全部没有 LinkedSource（运行期取默认值/空值）；
+                //   · 分支内等待节点的 UpstreamLinks 为空 → 条件恒取默认 false → 一直等到超时；
+                //   · 连"必填参数未配置"这类编译期检查也一并跳过（分支里配错参数编译照样过）。
+                // 这正是 2026-10-18 审查的 H1：静默、不报错、只在运行期以"条件不成立"的面目出现。
+                if (model is IContainerStep container && container.Children != null)
                 {
-                    foreach (var branch in conditionModel.Children)
-                        if (branch.Steps != null)
-                            LinkPorts(branch.Steps, nodeLookup, pluginLookup, dependencyMap, errors);
-                }
-                // 🌟🌟 补全：For 容器的递归遍历
-                else if (model is ForStep forModel && forModel.Children != null)
-                {
-                    foreach (var branch in forModel.Children)
-                        if (branch.Steps != null)
+                    foreach (var branch in container.Children)
+                        if (branch?.Steps != null)
                             LinkPorts(branch.Steps, nodeLookup, pluginLookup, dependencyMap, errors);
                 }
             }
@@ -1322,7 +1485,7 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 解析 If/While 条件变量的声明类型（LocalVariables 里该 Guid 的 DataTypeName）。
+        /// 解析 If/While/等待 条件变量的声明类型（LocalVariables 里该 Guid 的 DataTypeName）。
         /// 解析不到（模型缺失、类型名非法）返回 null → 检查放行，与 RuntimeVariable 分支的宽松策略一致。
         /// </summary>
         private static Type ResolveConditionVarType(StepModel model, Guid varId)
@@ -1330,6 +1493,22 @@ namespace VisionMaster.Services
             if (model is ConditionStep condModel && condModel.LocalVariables != null)
             {
                 var decl = condModel.LocalVariables.FirstOrDefault(x => x.Id == varId);
+                if (decl != null)
+                {
+                    try
+                    {
+                        return TypeHelper.GetActualTypeFromLink(decl.DataTypeName);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+            }
+            // 等待节点不是 ConditionStep（无子分支），条件变量表在自己的 LocalVariables 上
+            else if (model is WaitStep waitModel && waitModel.LocalVariables != null)
+            {
+                var decl = waitModel.LocalVariables.FirstOrDefault(x => x.Id == varId);
                 if (decl != null)
                 {
                     try

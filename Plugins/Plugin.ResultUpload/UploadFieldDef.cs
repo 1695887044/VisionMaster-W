@@ -1,4 +1,4 @@
-using Core.Interfaces.Core;
+using Core.Interfaces;
 using System;
 
 namespace Plugin.ResultUpload

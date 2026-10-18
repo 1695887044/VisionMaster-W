@@ -100,22 +100,55 @@ RunAlgorithm(context)
 顺序**有意义**（先便宜后昂贵、先"配置错"后"数据错"），别调换：
 
 1. `CheckCalibrationUsable(Transform)` → 失配①未接、②只有像素当量、矩阵/投影/网格损坏、未知 `Kind`；
+   二期③起还含**内参四判据**（仅 `*Undistorted` 三个 Kind 生效，见第六节）；
 2. **失配③图像尺寸**：只在 `SrcImage` 非空且已初始化时才查（不接就不查），读尺寸本身抛异常 →
    `Fail($"读取图像尺寸失败：{ex.Message}（SrcImage 是否有效？）")`；
 3. **失配④相机身份**：`SourceSerial` 与 `Transform.CameraSerial` **两端 Trim 后都非空**才比对，
    `StringComparison.OrdinalIgnoreCase`；任一为空 → 不检查（离线/单相机不打扰，旧标定文件没填序列号也不拦）；
 4. `IsUsablePixelPoint(PixelPointRow, PixelPointCol)` → NaN/Inf 与 `(0,0)`；
-5. `TryMapPixelToMechanical` → 正向映射（透视分母≈0、网格越界都在这里失败）；
-6. `TryMapMechanicalToPixel` → **把刚算出的机械坐标反算回像素**；
-7. 回显自校验：`max(|echoRow-pixelRow|, |echoCol-pixelCol|) > 1e-6` → `Fail("反向回显不一致（偏差 …px）：标定矩阵可能已损坏，请重新标定")`；
-8. **角度是"可选第六关"**：`hasAngle = PixelAngle.LinkedSource != null || pixelAngle != 0.0 || !double.IsFinite(pixelAngle)`。
+5. `PoseTransformIntrinsics.TryUndistortForCalibration` → **`*Undistorted` 才真去畸变**（其余 Kind 恒等通过）；
+   失败明确 `Fail`，**绝不退回"用原始像素凑合算"**（kappa=-1500 时角点会静默偏 ~23px）；
+6. `TryMapPixelToMechanical` → 正向映射（透视分母≈0、网格越界都在这里失败）；
+7. `TryMapMechanicalToPixel` → **把刚算出的机械坐标反算回像素**（得到的是**去畸变域**像素）；
+8. `PoseTransformIntrinsics.TryDistortBack` → `*Undistorted` 时**再施加逆向畸变**才回到真实图像像素
+   （漏这一步的后果实测：回显偏差 14.5px，与去畸变量同量级）；
+9. 回显自校验：`max(|echoRow-pixelRow|, |echoCol-pixelCol|) > 容差` →
+   `Fail("反向回显不一致（偏差 …px，容差 Tpx）：标定矩阵可能已损坏，请重新标定")`。
+   **容差按模型分档**（`PoseTransformIntrinsics.RoundTripTolerancePx`）：
+   非 Undistorted / division → `1e-6`，polynomial → `1e-3`（实测往返最坏 1.1e-4px，用 `1e-6` 会**假红**）；
+10. **角度是"可选第六关"**：`hasAngle = PixelAngle.LinkedSource != null || pixelAngle != 0.0 || !double.IsFinite(pixelAngle)`。
    三个条件里带 NaN 是故意的——"值为 NaN"必须走**失败**，不能因为"看起来等于 0"被静默跳过；
    `hasAngle` 为 false 时 `MechanicalAngle` 保持清零值 0（**不瞎给**，
-   断言 `[PT] 像素角度未接 → MechanicalAngle 不输出（保持 0，不瞎给）` 钉这条）；
-9. 统一写出：`MechanicalX` / `MechanicalY` / `PixelEchoRow` / `PixelEchoCol`（+ 有角度时 `MechanicalAngle`）。
+   断言 `[PT] 像素角度未接 → MechanicalAngle 不输出（保持 0，不瞎给）` 钉这条）。
+   `*Undistorted` 时角度先经 `TryUndistortDirection`（去畸变前后两点差分）换到去畸变域再喂数学层；
+11. 统一写出：`MechanicalX` / `MechanicalY` / `PixelEchoRow` / `PixelEchoCol`（+ 有角度时 `MechanicalAngle`）。
    **所有赋值都在全部检查之后**，所以失败轮一定只有第 0 步的清零值。
 
-成功日志形如 `像素 (r, c) → 机械 (x, y)mm，机械角 θ°`，`Kind` 是 `Perspective` / `Mesh` 时追加 `（透视）` / `（网格（分段仿射））`。
+成功日志形如 `像素 (r, c) → 机械 (x, y)mm，机械角 θ°`，`Kind` 是 `Perspective` / `Mesh` 时追加 `（透视）` / `（网格（分段仿射））`，
+三个 `*Undistorted` 追加 `（透视标定（已去畸变））` 等。
+
+## 四·五、内参去畸变（二期③）：像素定义域与四判据
+
+`Kind` 是 `NinePointUndistorted` / `PerspectiveUndistorted` / `MeshUndistorted` 时，
+`Matrix` / `ProjectiveMatrix` / `MeshNodes` 里的像素**定义在去畸变后的理想针孔坐标系上**，且 `Intrinsics` 必非 null。
+本插件的分工：
+
+| 层 | 文件 | 职责 |
+| --- | --- | --- |
+| 数学层（零 HALCON） | `PoseTransformMath.cs` | `IsUndistortedKind` **单一真源**；三个 `*Undistorted` 在点换算里与对应的非 Undistorted 成员**走同一条分支**；内参四判据；内参尺寸失配 |
+| HALCON 包装层 | `PoseTransformIntrinsics.cs` | `TryUndistortForCalibration`（正向）/ `TryDistortBack`（反向）/ `TryUndistortDirection`（角度）；全部走共享件 `Core.Halcon.Helpers.CameraDistortion`，**不自己拼 HALCON tuple** |
+| 插件层 | `PoseTransformPlugin.cs` | `RunToMechanical` 里"先去畸变 → 映射 → 反算 → 加畸变 → 回显"；分档容差；信息块"去畸变已启用" |
+
+**内参四判据**（`CheckCalibrationUsable`，全部明确失败、不许静默放行；同时被配置态调用，所以还没跑流程就能在状态栏看到）：
+
+| # | 判据 | 为什么 |
+| --- | --- | --- |
+| ① | `Intrinsics != null` 且过 `CameraIntrinsics.IsUsable` | 复用契约判据，**不另写一份**（两处各写一遍迟早分叉） |
+| ② | 内参图尺寸与标定图尺寸**两边都 >0 且不等** → 失败 | 两者不是同一次拍摄的产物 |
+| ③ | 内参序列号与标定序列号**两边都非空且不等**（忽略大小写）→ 失败 | 拿错相机的内参 |
+| ④ | **反向**：非 `*Undistorted` 的 Kind 带非 null `Intrinsics` → 失败 | 数据自相矛盾（矩阵按原始像素定义、却让人以为做过去畸变） |
+
+尺寸/序列号"只记一边"一律放行——历史数据与离线场景的常态，报错只会让人把插件删掉（与失配③/④同一口径）。
 
 ## 五、单位与方向口径（谁负责换算）
 

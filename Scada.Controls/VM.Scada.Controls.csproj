@@ -28,4 +28,14 @@
     <ProjectReference Include="..\Scada\VM.Scada.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- [ScadaProperty] 源生成器。Analyzer + ReferenceOutputAssembly=false：
+         生成器只在编译期跑，不进本工程输出、不进任何交付包（与插件侧同一纪律，见 AGENTS.md R17）。
+         本工程不在 Plugins\ 下，所以 Plugins\Directory.Build.props 那条目录级挂接覆盖不到它，
+         必须在这里单独挂一次。 -->
+    <ProjectReference Include="..\Shard\Core.ScadaGenerators\Core.ScadaGenerators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

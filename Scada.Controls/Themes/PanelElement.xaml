@@ -1,0 +1,74 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        底板图元的外观：一层底框 + 可选的标题栏 + 承载子图元的画布。
+
+        ClipToBounds="True" 是底板与"用矩形当底"最实质的区别之一：
+        装在里面的图元超出边界时会被裁掉，而不是溢出到隔壁区域去。
+        没有它，一个放不下的设备符号会盖在相邻底板上——那正是现场最容易画错且最难发现的地方
+        （拖的时候看着在框内，换台机器/换个分辨率就溢出来了）。
+
+        标题栏用 Grid 的两行而不是"给画布设上边距"：边距会把子图元的坐标原点也推下去，
+        于是"子图元相对底板左上角"这句话就变成了"相对标题栏下沿"——
+        而画布侧的坐标换算只知道底板位置，多出来这一层偏移会静默吃掉一整个标题栏的高度。
+        两行 Grid 里画布在第二行，且画布自己从 (0,0) 起算，偏移就回到了模板层、不进坐标语义。
+
+        标题栏的可见性由代码按 TitleHeight 翻（本环境下 ControlTemplate.Triggers 里的
+        DataTrigger 不触发，见 ScadaElementBase.SetPartVisible 的注释），所以这里不写 Visibility 初值。
+    -->
+    <Style TargetType="{x:Type local:PanelElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:PanelElement}">
+                    <Border
+                        x:Name="PanelFrame"
+                        ClipToBounds="True"
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition x:Name="TitleRow" Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Border
+                                x:Name="TitleBar"
+                                Grid.Row="0"
+                                Background="{TemplateBinding TitleFill}"
+                                CornerRadius="3,3,0,0">
+                                <TextBlock
+                                    x:Name="TitleLabel"
+                                    Margin="8,0,8,0"
+                                    VerticalAlignment="Center"
+                                    Text="{TemplateBinding TitleText}"
+                                    Foreground="{TemplateBinding TitleForeground}"
+                                    FontFamily="{TemplateBinding FontFamily}"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    FontWeight="SemiBold"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Border>
+
+                            <!-- 子图元的落点。ClipToBounds 让"区域里放不下的东西"被裁掉而不是溢出。
+                                 它的坐标原点就是本画布左上角；而本画布在第 1 行（标题栏之下），
+                                 所以子图元的相对 Y 天然是"相对标题栏下沿"——
+                                 画布侧的坐标换算是"绝对坐标 − 底板坐标"，这里多出来的标题栏高度
+                                 由模板自己吸收（见 ApplyTitleInset 对 TitleRow 高度的设置）。 -->
+                            <Canvas
+                                x:Name="ChildrenCanvas"
+                                Grid.Row="1"
+                                ClipToBounds="True" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

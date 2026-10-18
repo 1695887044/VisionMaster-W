@@ -12,6 +12,8 @@ namespace VisionMaster.Services
     ///（流程栏落点看 TreeView 命中项，画布落点看画布坐标）。
     ///
     /// 类型分派口径（与抽取前的 ProcessViewModel.Drop 逐字一致）：
+    ///  · BuiltIn_Wait → WaitStep（**非容器**，必须先于下面的非容器兜底判定——
+    ///    它没有内部步骤，但也不是反射加载的算子；落进 ActionStep 会在编译期报"找不到插件"）；
     ///  · 容器 + BuiltIn_While → WhileStep；
     ///  · 容器 + BuiltIn_For → ForStep；
     ///  · 容器 + BuiltIn_Parallel → ParallelStep，且显式 ExecutionMode=Parallel（只在此处置——
@@ -27,6 +29,13 @@ namespace VisionMaster.Services
         /// </summary>
         public static StepModel CreateFromTool(ToolItemModel tool, string stepName)
         {
+            // 等待节点：非容器，但也不是算子（必须放在 !IsContainer 兜底之前，否则会静默变成 ActionStep）
+            if (tool.ModuleTypeName == "BuiltIn_Wait")
+                return new WaitStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
+                {
+                    Category = tool.Category,
+                };
+
             if (!tool.IsContainer)
                 return new ActionStep(tool.Icon, tool.Name, tool.ModuleTypeName, stepName)
                 {

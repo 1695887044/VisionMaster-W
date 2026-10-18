@@ -262,11 +262,11 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 端口在 LinkedSources 里的键：条件节点用的是端口的描述（中文），其余用端口名。
+        /// 端口在 LinkedSources 里的键：条件节点/等待节点用的是端口的描述（变量 Guid），其余用端口名。
         /// 与 DoFinalBind / Confirm 里的取法保持一致，三处必须是同一口径。
         /// </summary>
         private string ResolveBindKey(PortDefinition definition)
-            => _targetStep is ConditionStep ? definition.Description : definition.Name;
+            => _targetStep is ConditionStep or WaitStep ? definition.Description : definition.Name;
 
         /// <summary>
         /// 从常量连线里取回原始文本。
@@ -452,7 +452,9 @@ namespace VisionMaster.ViewModels
             if (!_isSingleBindMode && _targetStep != null)
             {
                 string bindKey;
-                if (_targetStep is ConditionStep)
+                // 条件节点与等待节点的连线键都是"变量 Guid"（借 Description 承载）；
+                // 其余步骤用端口名。
+                if (_targetStep is ConditionStep or WaitStep)
                 {
                     bindKey = SelectedInputPort.Definition.Description;
                 }
@@ -519,7 +521,32 @@ namespace VisionMaster.ViewModels
 
             if (!_isSingleBindMode)
             {
-                if (
+                // 等待节点：没有插件端口表，它的"输入脚"就是条件变量表本身。
+                // 键口径与 FlowCompiler 的消费方分支一致——用变量 Guid 的字符串
+                //（这里借 PortDefinition.Description 承载，与 ConditionStep 的"描述即键"同一手法），
+                // 名字只用于界面显示。漏掉这一支的表现是绑定窗口左侧一个端口都没有 →
+                // 等待节点的条件变量永远连不上（条件恒取默认 false，必等到超时）。
+                if (_targetStep is WaitStep wait)
+                {
+                    foreach (var variable in wait.LocalVariables)
+                    {
+                        if (variable == null) continue;
+
+                        wait.LinkedSources.TryGetValue(variable.Id.ToString(), out var existingLink);
+                        DisplayDataPort.Add(
+                            new InputPortUIModel(
+                                new PortDefinition
+                                {
+                                    Name = variable.Name,
+                                    DataTypeName = variable.DataTypeName,
+                                    Description = variable.Id.ToString(),
+                                },
+                                existingLink?.DisplayAddress
+                            )
+                        );
+                    }
+                }
+                else if (
                     pluginProvider.ModulePlugins.TryGetValue(
                         _targetStep.PluginTypeName,
                         out var pluginInfo

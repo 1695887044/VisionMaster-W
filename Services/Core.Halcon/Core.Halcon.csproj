@@ -12,6 +12,16 @@
 	</ItemGroup>
 	<ItemGroup>
 		<!--
+			契约程序集（CameraIntrinsics / CalibrationTransform）：
+			相机内参的畸变换算必须由生产端（标定插件）与消费端（坐标变换插件）**共用同一份实现**——
+			两处各写一遍迟早分叉，分叉 = 同一份标定算出两套坐标（与 CalibrationMesh 放契约程序集同一理由；
+			这里必须调 HALCON 算子，故共享件落在本工程而不是 Core.Interfaces）。
+			方向安全：Core.Interfaces 是叶子（只引 Newtonsoft），不反向依赖本工程，无环。
+		-->
+		<ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<!--
 			System.Drawing.Common 不是代码依赖（库内零使用），但**不能删**：
 			XAML 编译器（wpftmp）解析模板引用闭包时要经它把 halcondotnet 的
 			老式 System.Drawing v2.0.0.0 引用解析掉，删了三个主题 XAML 全部 MC1000

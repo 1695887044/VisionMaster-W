@@ -1,0 +1,16 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        本程序集的默认控件样式入口（WPF 约定必须叫 Themes/Generic.xaml，
+        配合 Properties/AssemblyInfo.cs 的 ThemeInfo 声明，自定义控件才能自动找到样式）。
+
+        Source 用程序集限定写法而不是相对路径：相对路径是相对"引用方"解析的，
+        主程序引用本库时会解析到主程序的资源里去，找不到就静默失败
+        （与 VM.Scada.Controls 的 Generic.xaml 同一条理由）。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls.Charts;component/Themes/ChartTrendElement.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

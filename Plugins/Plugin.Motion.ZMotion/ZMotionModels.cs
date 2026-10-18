@@ -6,11 +6,7 @@ namespace Plugin.Motion.ZMotion
 {
     /// <summary>
     /// 轴状态位域（<c>ZAux_Direct_GetAxisStatus</c> 的返回值）。
-    ///
-    /// 依据：正运动手册的 AXISSTATUS 定义，与仓库参考工程
-    /// （<c>WPF-Halcon-流程拖拉\05Motion\Plugin.ZMotion\ZMotionAxis.cs</c>）里已在现场跑过的解析一致。
     /// 写成常量而不是散落的十六进制字面量：位定义是驱动与手册之间的契约，
-    /// 散在代码里以后没人敢动（怕改错一位就误判限位）。
     /// </summary>
     public static class ZMotionAxisBits
     {
@@ -133,11 +129,6 @@ namespace Plugin.Motion.ZMotion
                 ["ECI3828"] = new() { Name = "ECI3828", AxisCount = 8, InputCount = 24, OutputCount = 20, IsBusType = true, Recognized = true },
                 ["ZMC408SCAN"] = new() { Name = "ZMC408SCAN", AxisCount = 4, InputCount = 24, OutputCount = 20, IsBusType = true, Recognized = true },
 
-                // 虚拟 PLC（RTSys 自带的仿真器也是这一类，实测机型名就是 VPLC532R）。
-                // 轴数 32 取自控制器状态窗口的「RealAxes: 32」——
-                // 同一窗口还写着 VirtualAxes: 64，那是控制器内部的**虚轴**（用于电子齿轮/凸轮的计算轴），
-                // 不作为运动轴对外开放，所以这里取 32 而不是 64。
-                // IO 点数**未经核实**（虚拟 PLC 的点位取决于组态），故标记 IoCountApproximate。
                 ["VPLC532R"] = new()
                 {
                     Name = "VPLC532R",
@@ -212,17 +203,6 @@ namespace Plugin.Motion.ZMotion
 
     /// <summary>
     /// 正运动错误码 → 可读故障（分级 + 说明 + 建议）。
-    ///
-    /// 【为什么这里不做"逐码翻译"】
-    /// SDK 只给一个 int（<c>ZAux_*</c> 全系列都返回错误码），且**没有提供码→文案的接口**
-    /// （本文件核实过：zauxdll 没有 GetErrMsg 这类导出）。
-    /// 凭记忆编一张"12 = 参数错误、34 = 通信超时"的对照表，看起来专业，
-    /// 但现场一旦按错误的方向排查（比如把"轴未使能"当成"网线坏了"），损失比"没翻译"大得多。
-    ///
-    /// 所以给出的东西是**有把握的那三层**：
-    ///   ① 原始码（现场可对厂商手册，也可报给厂商）；
-    ///   ② 出错的操作上下文（"回零时"还是"读状态时"——这本身就能定位大半）；
-    ///   ③ 按操作类别的处置建议与分级（这决定"能不能自动重连/需不需要人"）。
     /// </summary>
     public static class ZMotionFaults
     {

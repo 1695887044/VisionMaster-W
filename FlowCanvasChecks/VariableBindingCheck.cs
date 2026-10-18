@@ -103,7 +103,78 @@ namespace FlowCanvasChecks
 
             RunTypeFilterContract(vm);
             RunTypeResolveContract();
+            RunWaitStepPortsContract();
             RunViewStyleContract();
+        }
+
+        // ==================================================================
+        //  等待节点（BuiltIn_Wait）：条件变量端口与 Guid 键
+        // ==================================================================
+
+        /// <summary>
+        /// 等待节点的"输入脚"就是它的条件变量表（没有插件端口表）。
+        ///
+        /// 漏掉这一支的表现：绑定窗口左侧一个端口都没有 → 条件变量永远连不上 →
+        /// 运行期条件恒取默认 false → 一直等到超时。而连线键必须是**变量 Guid**
+        /// （FlowCompiler 的消费方分支按 Guid 解析），写成别名就是"画布上连着、跑起来不生效"。
+        /// 这里同时钉住"列出端口"与"双击绑定写到 Guid 键"两件事。
+        /// </summary>
+        private static void RunWaitStepPortsContract()
+        {
+            Section("[V] 变量绑定窗口：等待节点的条件变量端口（Guid 键）");
+
+            var provider = new StubPluginProvider();
+            var workspace = new WorkspaceContext();
+            var solution = new SolutionModel { SolutionName = "等待绑定断言" };
+            var flow = new FlowModel { FlowName = "等待绑定流程" };
+            solution.Flows.Add(flow);
+            workspace.SwitchSolution(solution);
+            workspace.SwitchFlow(flow);
+
+            var wait = new WaitStep("", "等待", "BuiltIn_Wait", "等待_0");
+            var flagId = Guid.NewGuid();
+            var countId = Guid.NewGuid();
+            wait.LocalVariables.Add(
+                new LocalVariableItem { Id = flagId, Name = "Flag", DataTypeName = "System.Boolean" });
+            wait.LocalVariables.Add(
+                new LocalVariableItem { Id = countId, Name = "Count", DataTypeName = "System.Int32" });
+            // 只放这一个步骤：候选树不枚举上游 → 不会去解析宿主容器（断言宿主没有 Prism 容器）
+            flow.Steps.Add(wait);
+
+            var vm = new VariableBindingViewModel(workspace, provider);
+            vm.OnDialogOpened(new DialogParameters
+            {
+                { "IsSingleBindMode", false },
+                { "TargetStep", wait },
+            });
+
+            Check("等待节点：绑定窗口左侧列出条件变量（2 个端口）",
+                vm.DisplayDataPort.Count == 2, $"实际 {vm.DisplayDataPort.Count} 个");
+            Check("等待节点：端口名=别名、Description=变量 Guid（连线键口径）",
+                vm.DisplayDataPort.Count == 2
+                    && vm.DisplayDataPort[0].Definition.Name == "Flag"
+                    && vm.DisplayDataPort[0].Definition.Description == flagId.ToString()
+                    && vm.DisplayDataPort[1].Definition.Name == "Count"
+                    && vm.DisplayDataPort[1].Definition.Description == countId.ToString(),
+                string.Join(" | ", vm.DisplayDataPort.Select(p => $"{p.Definition.Name}:{p.Definition.Description}")));
+
+            // 双击绑定：必须写到变量 Guid 键上（DoFinalBind / ResolveBindKey 与编译器同一口径）
+            vm.SelectedInputPort = vm.DisplayDataPort[0];
+            vm.SelectedNode = new ToolItemModel
+            {
+                Id = Guid.NewGuid(),
+                Name = "上游",
+                DefaultLinkKind = LinkKind.GlobalVariable,
+                OutputDefinitions = new List<PortDefinition>
+                {
+                    new() { Name = "WaitFlag", DataTypeName = "System.Boolean" },
+                },
+            };
+            vm.DoublockClickBindCommand.Execute(vm.SelectedNode.OutputDefinitions[0]);
+
+            Check("等待节点：双击绑定写到变量 Guid 键（不是别名）",
+                wait.LinkedSources.ContainsKey(flagId.ToString()) && !wait.LinkedSources.ContainsKey("Flag"),
+                "LinkedSources 键：" + string.Join(",", wait.LinkedSources.Keys));
         }
 
         // ==================================================================

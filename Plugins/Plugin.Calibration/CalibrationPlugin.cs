@@ -1,4 +1,5 @@
 using Core.Halcon;
+using Core.Halcon.Helpers;
 using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
@@ -349,6 +350,131 @@ namespace Plugin.Calibration
 
         #endregion
 
+        #region 配置项：内参标定（二期③，[StepConfig]）
+
+        // ────────────────────────────────────────────────────────────────────────────────
+        // 内参标定（二期③）：产出「畸变像素 ↔ 去畸变像素」的相机模型，供**取点前先去畸变**使用。
+        //
+        // 为什么内参走 [StepConfig] 而不是输入/输出端口
+        // ---------
+        // ① 本插件是"**运行期重算、不读盘**"的设计（见类注释）：内参一旦标定完就随步骤落盘，
+        //    运行期直接可用，不需要每轮从上游取——它不是"数据流"，是"标定资产"；
+        // ② 端口面已有断言精确钉住 5 入 / 4 出（`FlowCanvasChecks\CalibrationChecks.cs`），
+        //    加端口会改变插件对外的数据流契约；内参是**配置**，不该动数据流。
+        //
+        // ⚠ 落盘必须走 DTO：`Core.Interfaces.CameraIntrinsics` 不在 .vms 的类型白名单里
+        //    （见 `Models\CameraIntrinsicsDto.cs` 的类注释），直接当配置属性会写出"能存、打不开"的方案文件。
+        // ────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// 相机内参（内参标定的产物；null = 尚未标定）。
+        /// **落盘形态是插件本地 DTO**（`Plugin.Calibration.Models` 命名空间），不是契约类型——理由见上面注释。
+        /// 运行期用 <see cref="CurrentIntrinsics"/> 拿契约对象。
+        /// </summary>
+        [StepConfig]
+        public partial CameraIntrinsicsDto? Intrinsics { get; set; }
+
+        partial void OnIntrinsicsChanged(CameraIntrinsicsDto? value)
+        {
+            OnPropertyChanged(nameof(HasIntrinsics));
+            OnPropertyChanged(nameof(IntrinsicsQualityText));
+            OnPropertyChanged(nameof(UndistortHintText));
+            RefreshStatus();
+        }
+
+        /// <summary>是否已有内参（界面绑定：质量区显隐、开关可用性）</summary>
+        public bool HasIntrinsics => Intrinsics != null && Intrinsics.IsUsable(out _);
+
+        /// <summary>
+        /// 标定板描述文件（**落盘的是文件名**，如 <c>calplate_160mm.cpd</c>——这样方案文件跨机器可移植：
+        /// 解析时到本机 `%HALCONROOT%\calib\` 下找同名文件；也允许直接填全路径用现场自己的板）。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public partial string CaltabDescrFile { get; set; }
+
+        partial void OnCaltabDescrFileChanged(string value)
+        {
+            OnPropertyChanged(nameof(CaltabDescrStatusText));
+            RefreshStatus();
+        }
+
+        /// <summary>内参标定用的相机畸变模型（division / polynomial）</summary>
+        [StepConfig, DefaultValue(IntrinsicsCameraModel.Division)]
+        public partial IntrinsicsCameraModel IntrinsicsModel { get; set; }
+
+        partial void OnIntrinsicsModelChanged(IntrinsicsCameraModel value)
+        {
+            OnPropertyChanged(nameof(IntrinsicsModelHintText));
+            RefreshStatus();
+        }
+
+        /// <summary>
+        /// 内参标定用的**像元尺寸假设**（米；默认 5.2µm）。
+        /// 为什么要有这个参数：`calibrate_cameras` 把 sx/sy 当**已知量固定**（实测：给 3.45µm 就回收 3.45µm），
+        /// 焦距按比值等比缩放——单相机下 focus 与 sx 只以**比值**出现，物理上不可分。
+        /// **但去畸变结果对这套重参数化精确不变**（实测 sx 差 2×/8× 时逐点最大差 **0 px**），
+        /// 所以填错不影响去畸变正确性，只影响 focus/kappa 的**报告单位**（想与镜头标称焦距比对时才需要填准）。
+        /// </summary>
+        [StepConfig, DefaultValue(IntrinsicsCalibration.DefaultPixelSizeMeters)]
+        public partial double IntrinsicsPixelSizeMeters { get; set; }
+
+        partial void OnIntrinsicsPixelSizeMetersChanged(double value)
+        {
+            OnPropertyChanged(nameof(IntrinsicsPixelSizeUm));
+            OnPropertyChanged(nameof(IntrinsicsPixelSizeText));
+            RefreshStatus();
+        }
+
+        /// <summary>
+        /// 内参标定的标定图**文件夹**（批量扫描其中的图像文件；与 <see cref="IntrinsicsImageList"/> 二者其一）。
+        /// 用文件夹而不是多选文件：现场一次拍十几张，目录是最自然的组织方式。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public partial string IntrinsicsImageFolder { get; set; }
+
+        partial void OnIntrinsicsImageFolderChanged(string value)
+        {
+            OnPropertyChanged(nameof(IntrinsicsImageSourceText));
+            RefreshStatus();
+        }
+
+        /// <summary>
+        /// 内参标定的图列表（多行文本，每行一个路径；给"图不在同一目录"的场合兜底）。
+        /// 与 <see cref="IntrinsicsImageFolder"/> 同时有值时**以图列表为准**（更具体的那一个说了算）。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public partial string IntrinsicsImageList { get; set; }
+
+        partial void OnIntrinsicsImageListChanged(string value)
+        {
+            OnPropertyChanged(nameof(IntrinsicsImageSourceText));
+            RefreshStatus();
+        }
+
+        /// <summary>
+        /// 「取点前先去畸变」开关（二期③的"对点"路线）。
+        ///
+        /// 打开后：<see cref="ComputeCalibration"/> 把取到的图像点**先经内参去畸变**再求解，
+        /// 产出的 <see cref="CalibrationTransform"/> 其 <c>Kind</c> 变成对应的 <c>*Undistorted</c> 成员、
+        /// 并带上 <c>Intrinsics</c>——下游（坐标变换）据此知道"像素是去畸变域的"。
+        ///
+        /// **开关打开但内参缺失/不良构 → 明确失败**（绝不静默退回"不去畸变"：那会让下游按畸变像素
+        /// 用去畸变域的矩阵，是"看起来正常的错坐标"）。
+        ///
+        /// ⚠ 适用范围：带内参的标定，其**像素当量是去畸变域**的当量。只吃 <c>MmPerPixel</c>（double）的下游
+        /// （卡尺/Blob 等）拿不到本对象、结构上无法自证——这类流程要么改用不带内参的标定，要么先在图像域去畸变。
+        /// </summary>
+        [StepConfig, DefaultValue(false)]
+        public partial bool UndistortBeforeCalibration { get; set; }
+
+        partial void OnUndistortBeforeCalibrationChanged(bool value)
+        {
+            OnPropertyChanged(nameof(UndistortHintText));
+            RefreshStatus();
+        }
+
+        #endregion
+
         #region 界面状态（不持久化）
 
         private HImage? _displayImage;
@@ -462,7 +588,9 @@ namespace Plugin.Calibration
         private void RebuildResidualAnnotations()
         {
             var t = Transform.TypedValue as CalibrationTransform;
-            var matrix = t?.Kind == CalibrationKind.Mesh ? _meshAffineBaseline : t?.Matrix;
+            // 模型族判据走契约的单一真源（CalibrationKinds.Base），别手写 "Mesh or MeshUndistorted"
+            var matrix = t != null && CalibrationKinds.Base(t.Kind) == CalibrationKind.Mesh
+                ? _meshAffineBaseline : t?.Matrix;
             if (t == null || !CalibrationMath.IsUsableMatrix(matrix))
             {
                 ResidualAnnotations = null;
@@ -479,24 +607,29 @@ namespace Plugin.Calibration
                 // 图像点 → 机械（经变换）→ 机械理想值 → 反变换回图像 = 理想图像点。
                 // 仿射下"反推"与"正向映射的偏差"等价；网格模式的矩阵是全局仿射基线（与
                 // ApplyRowResidualsFromMatrix 同口径），箭头展示的就是它所度量的畸变。
-                double r = row.ImageRow!.Value, c = row.ImageCol!.Value;
+                // 带内参时（*Undistorted）：矩阵定义在**去畸变域**，所以喂矩阵前要先把原始像素去畸变，
+                // 反算回的"理想点"也在去畸变域——把它加回畸变域才与画布上的标记可比（见 TryToImageFrame）。
+                if (!TryToMatrixFrame(t, row.ImageRow!.Value, row.ImageCol!.Value, out double r, out double c))
+                    continue;
                 if (!CalibrationMath.TryMapPixelToXY(matrix, r, c, out double mx, out double my))
                     continue;
                 if (!CalibrationMath.TryMapXYToPixel(matrix, row.MachineX!.Value, row.MachineY!.Value, out double ir, out double ic))
                     continue;
+                if (!TryToImageFrame(t, ir, ic, out double irImg, out double icImg))
+                    continue;
 
-                double dr = ir - r, dc = ic - c;   // 理想 − 实际 = 应修正的方向
+                double dr = irImg - row.ImageRow!.Value, dc = icImg - row.ImageCol!.Value;   // 理想 − 实际 = 应修正的方向
                 bool over = row.ResidualPx > threshold;
                 list.Add(new MeasureAnnotation
                 {
                     Type = MeasureType.Line,
-                    Points = new[] { r, c, r + dr * ResidualArrowScale, c + dc * ResidualArrowScale },
+                    Points = new[] { row.ImageRow!.Value, row.ImageCol!.Value, row.ImageRow!.Value + dr * ResidualArrowScale, row.ImageCol!.Value + dc * ResidualArrowScale },
                     Color = over ? "red" : "green",
                 });
                 list.Add(new MeasureAnnotation
                 {
                     Type = MeasureType.Point,
-                    Points = new[] { r, c },
+                    Points = new[] { row.ImageRow!.Value, row.ImageCol!.Value },
                     Text = over ? $"{row.Name} {row.ResidualPx:0.#}px" : row.Name,
                     Color = over ? "red" : "green",
                 });
@@ -594,6 +727,18 @@ namespace Plugin.Calibration
         /// <summary>逐行「预填」：把 SourcePointRow/SourcePointCol 端口的值填进该行（CommandParameter = CalibPointRow）</summary>
         public DelegateCommand<object?> PrefillRowFromSourceCommand { get; }
 
+        /// <summary>浏览选择内参标定的图文件夹（批量标定用）</summary>
+        public DelegateCommand BrowseIntrinsicsFolderCommand { get; }
+
+        /// <summary>开始内参标定（读 <see cref="IntrinsicsImageFolder"/> / <see cref="IntrinsicsImageList"/> → 求解 → 落 <see cref="Intrinsics"/>）</summary>
+        public DelegateCommand RunIntrinsicsCalibrationCommand { get; }
+
+        /// <summary>合成自验证：用 HALCON 合成已知内参的标定板图跑完整标定链，证明本机环境可用</summary>
+        public DelegateCommand RunIntrinsicsSelfVerifyCommand { get; }
+
+        /// <summary>清除已标定的内参（含关掉「取点前先去畸变」——内参没了那个开关必然失败）</summary>
+        public DelegateCommand ClearIntrinsicsCommand { get; }
+
         #endregion
 
         #region 私有状态
@@ -645,6 +790,10 @@ namespace Plugin.Calibration
             ExportCalibrationCommand = new DelegateCommand(ExportCalibration);
             ImportCalibrationCommand = new DelegateCommand(ImportCalibration);
             PrefillRowFromSourceCommand = new DelegateCommand<object?>(PrefillRowFromSource);
+            BrowseIntrinsicsFolderCommand = new DelegateCommand(BrowseIntrinsicsFolder);
+            RunIntrinsicsCalibrationCommand = new DelegateCommand(RunIntrinsicsCalibration);
+            RunIntrinsicsSelfVerifyCommand = new DelegateCommand(RunIntrinsicsSelfVerify);
+            ClearIntrinsicsCommand = new DelegateCommand(ClearIntrinsics);
 
             // 标记被拖动时（HTuples 变化）回写表格；集合变化时释放被移除标记的原生句柄
             CanvasMarkers.CollectionChanged += OnCanvasMarkersChanged;
@@ -678,6 +827,10 @@ namespace Plugin.Calibration
         {
             _disposed = false;
             base.Initialize(stepData);
+
+            // 内参标定的标定板候选（HALCON 的 calib 目录）——只在这里扫一次；
+            // 扫不到（HALCONROOT 没配）时下拉为空、说明行给原因，不阻断插件加载
+            RefreshCaltabDescriptorOptions();
 
             // 旧方案迁移：四值全 0 的行 = 旧版"空行"约定 → 还原成 null（新模型里 0 是合法值）
             // 在这里做而不是 ValueConverter 里做：迁移语义只属于标定插件，不污染全局转换器
@@ -790,12 +943,34 @@ namespace Plugin.Calibration
             context.Logger?.Info(
                 $"{InstanceName} 标定完成（{ModeText()}）：当量 {t.MmPerPixel:0.######} mm/px"
                 + $"（{t.SourceImageWidth}×{t.SourceImageHeight}）"
-                + (t.Kind is CalibrationKind.NinePoint or CalibrationKind.Perspective or CalibrationKind.Mesh
+                + (CalibrationKinds.Base(t.Kind) is CalibrationKind.NinePoint or CalibrationKind.Perspective or CalibrationKind.Mesh
                     ? $"，残差 RMS {t.ResidualRmsPx:0.###}px / 最大 {t.MaxResidualPx:0.###}px"
-                      + (t.Kind == CalibrationKind.Mesh ? "（全局仿射基线，畸变度量；网格节点处精确通过）" : "")
+                      + (CalibrationKinds.Base(t.Kind) == CalibrationKind.Mesh
+                          ? "（全局仿射基线，畸变度量；网格节点处精确通过）" : "")
                     : "")
+                + IntrinsicsLogSummary(t)
                 + serialLog
                 + (string.IsNullOrEmpty(hint) ? "" : $"。{hint}"));
+        }
+
+        /// <summary>
+        /// 运行期日志里的**内参摘要**（带内参时才有内容）：事后追溯"这份标定到底用了哪套相机模型"。
+        /// 为什么必须进日志：内参是随步骤落盘的配置、界面上不一定看得见（流程跑在别的机器上时更看不到），
+        /// 出了坐标偏差再回头查"当时用的是 kappa 多少"，只有日志能回答。
+        /// </summary>
+        private static string IntrinsicsLogSummary(CalibrationTransform t)
+        {
+            if (!CalibrationKinds.IsUndistorted(t.Kind))
+                return "";
+
+            var c = t.Intrinsics;
+            if (c == null) return "，去畸变域（但内参缺失——不该发生，请报告）";
+
+            string model = c.CameraType == CameraIntrinsics.PolynomialType
+                ? $"polynomial k1..p2={string.Join("/", (c.Distortion ?? Array.Empty<double>()).Select(v => v.ToString("G4")))}"
+                : $"division kappa={c.Kappa:G6}";
+            return $"，**去畸变域**（内参 {model}，焦距 {c.Focus:G6}m，主点 ({c.Cx:0.##},{c.Cy:0.##})，"
+                 + $"重投影 RMS {c.ReprojectionRmsPx:0.####}px，图数 {c.ImageCount}，标定图 {c.ImageWidth}×{c.ImageHeight}）";
         }
 
         /// <summary>
@@ -834,6 +1009,39 @@ namespace Plugin.Calibration
                 attempt.BlockingError = $"相机身份不符：这份标定属于「{mySerial}」，但当前图像来自「{upstreamSerial}」——"
                     + "请确认相机序列号（多相机时每台相机各自一份标定），或修正「相机序列号」后重新核对标定点";
                 return attempt;
+            }
+
+            // ── 二期③「取点前先去畸变」（对点路线）：开关状态与内参良构性先过一遍 ──
+            // 三条纪律：
+            //  ① 内参缺失/不良构 → **明确失败**（绝不静默退回"不去畸变"：那会让下游按畸变像素
+            //     用去畸变域的矩阵，是"看起来正常的错坐标"）；
+            //  ② 内参标定图尺寸与当前标定图不一致 → **明确失败**（畸变系数是像素帧相关的量，换分辨率必须重标）；
+            //  ③ 开关**关闭**时一个字节都不碰（历史路径逐字不变，断言会守）。
+            // 适用模式：九点 / 透视 / 网格（它们各有对应的 *Undistorted 成员）。
+            // **像素当量模式不适用**——契约里没有 PixelScaleUndistorted，没有地方表达"当量是去畸变域的"
+            // 这个语义（界面提示里已写明，见 UndistortHintText）。
+            var intrinsics = CurrentIntrinsics;
+            bool undistorting = UndistortBeforeCalibration
+                                && Mode is CalibrationMode.NinePoint or CalibrationMode.Perspective or CalibrationMode.Mesh;
+            if (UndistortBeforeCalibration)
+            {
+                if (!CameraIntrinsics.IsUsable(intrinsics, out var intrinsicError))
+                {
+                    attempt.BlockingError = $"「取点前先去畸变」已启用，但{intrinsicError}"
+                        + "。请先在「内参标定」卡片完成一次内参标定，或关掉该开关。";
+                    return attempt;
+                }
+
+                if (intrinsics!.ImageWidth > 0 && intrinsics.ImageHeight > 0
+                    && SourceImageWidth > 0 && SourceImageHeight > 0
+                    && (intrinsics.ImageWidth != SourceImageWidth || intrinsics.ImageHeight != SourceImageHeight))
+                {
+                    attempt.BlockingError = $"「取点前先去畸变」已启用，但内参的标定图尺寸 "
+                        + $"{intrinsics.ImageWidth}×{intrinsics.ImageHeight} 与当前标定图 "
+                        + $"{SourceImageWidth}×{SourceImageHeight} 不一致——畸变系数是**像素帧相关**的量，"
+                        + "换分辨率（或换相机）必须重新标定内参，不能沿用旧内参（那是静默错位）。";
+                    return attempt;
+                }
             }
 
             if (Mode == CalibrationMode.PixelScale)
@@ -880,6 +1088,34 @@ namespace Plugin.Calibration
                     return attempt;
                 }
 
+                // 网格 + 去畸变：节点坐标也要先去畸变（与九点/透视同一口径——"矩阵定义在理想针孔坐标系上"）。
+                // 网格与内参是**互补**关系：网格是"把畸变就地摊平"（不外推），内参是"显式建模后整个视野一致"
+                // ——两者都做时，去畸变把畸变拿掉、网格只负责平面单应性，格内残差更小。
+                if (undistorting && meshNodes != null)
+                {
+                    int nodeCount = meshN * meshN;
+                    var nodeRows = new double[nodeCount];
+                    var nodeCols = new double[nodeCount];
+                    for (int i = 0; i < nodeCount; i++)
+                    {
+                        nodeRows[i] = meshNodes[i * CalibrationMesh.ValuesPerNode];
+                        nodeCols[i] = meshNodes[i * CalibrationMesh.ValuesPerNode + 1];
+                    }
+
+                    if (!CameraDistortion.TryUndistortPoints(intrinsics, nodeRows, nodeCols,
+                            out var uNodeRows, out var uNodeCols, out var meshUndistortError))
+                    {
+                        attempt.BlockingError = $"「取点前先去畸变」失败（网格节点）：{meshUndistortError}";
+                        return attempt;
+                    }
+
+                    for (int i = 0; i < nodeCount; i++)
+                    {
+                        meshNodes[i * CalibrationMesh.ValuesPerNode] = uNodeRows[i];
+                        meshNodes[i * CalibrationMesh.ValuesPerNode + 1] = uNodeCols[i];
+                    }
+                }
+
                 // 质量口径（必须读懂）：网格在节点处**精确通过**，残差恒 0、没有信息量。
                 // 所以质量数字取"同一批点上全局仿射基线"的拟合质量——它衡量畸变有多大、网格值不值得用。
                 // 同理**不做残差闸门**：畸变场景下基线残差本就超阈值（这正是选网格的理由），闸门会自相矛盾。
@@ -895,10 +1131,11 @@ namespace Plugin.Calibration
 
                 attempt.Transform = new CalibrationTransform
                 {
-                    Kind = CalibrationKind.Mesh,
+                    Kind = CalibrationKinds.WithUndistortion(CalibrationKind.Mesh, undistorting),
                     MmPerPixel = meshMmPerPixel,
                     MeshNodes = meshNodes,
                     MeshSize = meshN,
+                    Intrinsics = undistorting ? intrinsics : null,
                     // Matrix 保持默认零（故意，同透视）：未升级的消费者走 6 元 Matrix（det=0）必须明确失败，
                     // 绝不能把网格静默当单份仿射用（边缘区域会整体错位）。
                     SourceImageWidth = SourceImageWidth,
@@ -927,6 +1164,20 @@ namespace Plugin.Calibration
                 return attempt;
             }
 
+            // 「取点前先去畸变」（对点路线）：图像点先经内参去畸变**再**求解，
+            // 产出的矩阵定义在理想针孔坐标系上（Kind = *Undistorted）。
+            if (undistorting)
+            {
+                if (!CameraDistortion.TryUndistortPoints(intrinsics, rows, cols,
+                        out var uRows, out var uCols, out var undistortError))
+                {
+                    attempt.BlockingError = $"「取点前先去畸变」失败：{undistortError}";
+                    return attempt;
+                }
+                rows = uRows;
+                cols = uCols;
+            }
+
             CalibrationTransform transform;
             double derivedMmPerPixel;
             double rmsPx, maxPx;
@@ -951,9 +1202,12 @@ namespace Plugin.Calibration
 
                 transform = new CalibrationTransform
                 {
-                    Kind = CalibrationKind.Perspective,
+                    // 带内参 → *Undistorted 成员（**响亮信号**：不知道这个 Kind 的消费者在自己的 switch 里
+                    // 落到 default 就明确失败，而不是把畸变像素直接喂进矩阵、静默算出偏掉的坐标）
+                    Kind = CalibrationKinds.WithUndistortion(CalibrationKind.Perspective, undistorting),
                     MmPerPixel = derivedMmPerPixel,
                     ProjectiveMatrix = hom,
+                    Intrinsics = undistorting ? intrinsics : null,
                     // Matrix 保持默认零（故意）：未升级的消费者走 6 元 Matrix（det=0）会明确失败——
                     // 绝不允许把"透视"静默近似成"仿射"。
                     SourceImageWidth = SourceImageWidth,
@@ -983,9 +1237,10 @@ namespace Plugin.Calibration
 
                 transform = new CalibrationTransform
                 {
-                    Kind = CalibrationKind.NinePoint,
+                    Kind = CalibrationKinds.WithUndistortion(CalibrationKind.NinePoint, undistorting),
                     MmPerPixel = derivedMmPerPixel,
                     Matrix = matrix!,
+                    Intrinsics = undistorting ? intrinsics : null,
                     SourceImageWidth = SourceImageWidth,
                     SourceImageHeight = SourceImageHeight,
                     SourceTag = CurrentSourceTag(),
@@ -1044,9 +1299,271 @@ namespace Plugin.Calibration
             => Math.Max(0.5, ResidualThresholdPx * 0.5);
 
         /// <summary>
-        /// 标定数据的输入签名（模式/网格/表格四值/A、B/相机）：只有它变了才推进标定时间戳。
-        /// 用 <c>double?</c> 的原始值拼串——null 与 0 必须拼出不同的串（那正是本轮修的核心语义）。
+        /// 当前内参的**契约形态**（供去畸变与产物使用）；未标定/不良构返回 null。
+        /// 每次都从 DTO 转一次（而不是缓存）：DTO 是唯一权威，缓存会与"用户刚改了配置"脱节。
         /// </summary>
+        public CameraIntrinsics? CurrentIntrinsics
+        {
+            get
+            {
+                var dto = Intrinsics;
+                if (dto == null) return null;
+                return dto.IsUsable(out _) ? dto.ToContract() : null;
+            }
+        }
+
+        /// <summary>内参质量区一行文本（界面只读展示；未标定给"尚未标定"）</summary>
+        public string IntrinsicsQualityText
+        {
+            get
+            {
+                var dto = Intrinsics;
+                if (dto == null) return "尚未标定内参：选好标定板与图文件夹后点「开始内参标定」。";
+
+                if (!dto.IsUsable(out var why))
+                    return $"内参数据不可用：{why}";
+
+                string model = dto.CameraType == CameraIntrinsics.PolynomialType
+                    ? $"多系数 polynomial（k1..p2 = {string.Join(", ", (dto.Distortion ?? Array.Empty<double>()).Select(v => v.ToString("G4")))}）"
+                    : $"单系数 division（kappa = {dto.Kappa:G6}）";
+
+                return $"模型 {model} ｜ 重投影 RMS {dto.ReprojectionRmsPx:0.####}px ｜ 图数 {dto.ImageCount}"
+                     + $" ｜ 主点 ({dto.Cx:0.##}, {dto.Cy:0.##}) ｜ 焦距 {dto.Focus:G6}m ｜ 像元 {dto.Sx * 1e6:0.##}µm"
+                     + $" ｜ 标定图 {dto.ImageWidth}×{dto.ImageHeight} ｜ 板 {dto.CaltabDescr}"
+                     + $" ｜ 标定于 {dto.CreatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
+            }
+        }
+
+        /// <summary>
+        /// 「取点前先去畸变」开关旁的说明行：把**当前状态**与**适用范围**讲清楚。
+        /// 适用范围那句是必须的——带内参的标定其当量是"去畸变域"的，只吃 MmPerPixel 的下游拿不到本对象。
+        /// </summary>
+        public string UndistortHintText
+        {
+            get
+            {
+                if (!UndistortBeforeCalibration)
+                    return "未启用：取点直接用原始（畸变）像素，标定结果与历史行为逐字一致。";
+
+                var dto = Intrinsics;
+                if (dto == null)
+                    return "已启用，但**尚未标定内参**——运行期会明确失败。请先在上面做一次内参标定（或关掉本开关）。";
+
+                if (!dto.IsUsable(out var why))
+                    return $"已启用，但内参不可用（{why}）——运行期会明确失败。请重新做内参标定。";
+
+                if (SourceImageWidth > 0 && SourceImageHeight > 0
+                    && (dto.ImageWidth != SourceImageWidth || dto.ImageHeight != SourceImageHeight))
+                {
+                    return $"已启用，但**内参的标定图尺寸 {dto.ImageWidth}×{dto.ImageHeight} 与当前标定图 "
+                         + $"{SourceImageWidth}×{SourceImageHeight} 不一致**——运行期会明确失败。"
+                         + "畸变系数是像素帧相关的量，换分辨率必须重标内参。";
+                }
+
+                return $"已启用（当前内参：{ModelShortText(dto.CameraType)}）：取点先经内参去畸变再求解，"
+                     + "产出的标定 Kind 为 *Undistorted（下游据此知道像素是去畸变域的）。"
+                     + "注意：这份标定的**像素当量是去畸变域**的当量——只接 MmPerPixel（double）的下游（卡尺/Blob 等）"
+                     + "拿不到内参、无法自证，边缘会有百分之几的静默误差；这类流程要么改用不带内参的标定，要么先在图像域去畸变。";
+            }
+        }
+
+        /// <summary>标定板描述文件的解析状态行（界面只读；把"本机有没有这块板"直接摆出来）</summary>
+        public string CaltabDescrStatusText
+        {
+            get
+            {
+                var v = (CaltabDescrFile ?? string.Empty).Trim();
+                if (v.Length == 0)
+                    return "未选标定板：下拉列表来自本机 HALCON 的 calib 目录（旧式板 caltab_*.descr / 新式板 calplate_*.cpd）。";
+
+                return IntrinsicsCalibration.TryResolveCaltabPath(v, out var full, out var err)
+                    ? $"已解析：{full}"
+                    : $"⚠ {err}";
+            }
+        }
+
+        /// <summary>相机模型选择旁的一句话（把两模型的分工写出来，避免"默认那个就是对的"）</summary>
+        public string IntrinsicsModelHintText => IntrinsicsModel == IntrinsicsCameraModel.Division
+            ? "单系数（kappa）：广角/低畸变镜头常用，可解析求逆。先用它跑一次；若重投影 RMS 明显偏大再换多系数。"
+            : "多系数（k1 k2 k3 p1 p2）：强畸变或需切向项的场合，只能迭代反解。参数多、对图数更敏感（建议 ≥12 张）。"
+              + "两种模型都能参与「取点前先去畸变」（去畸变的往返精度不同：division 2.7e-13px、polynomial 2.6e-7px，都远在亚像素以下）。";
+
+        /// <summary>相机模型的中文短名（界面与日志共用一份口径，避免两处各写一遍）</summary>
+        private static string ModelShortText(string? cameraType)
+            => cameraType == CameraIntrinsics.PolynomialType ? "多系数 polynomial" : "单系数 division";
+
+        /// <summary>
+        /// 像元尺寸的界面单位（µm）。落盘的是米（<see cref="IntrinsicsPixelSizeMeters"/>）——
+        /// 界面用 µm 是现场习惯（5.2µm 比 5.2e-6m 好念），换算只在这一处。
+        /// </summary>
+        public double IntrinsicsPixelSizeUm
+        {
+            get => IntrinsicsPixelSizeMeters * 1e6;
+            set
+            {
+                double meters = value / 1e6;
+                // 非法值直接忽略（保持原值）：界面上填 0/负数没有意义，静默改成默认值会让人以为填进去了
+                if (meters > 0 && !double.IsInfinity(meters))
+                    IntrinsicsPixelSizeMeters = meters;
+                else
+                    OnPropertyChanged();
+            }
+        }
+
+        /// <summary>像元尺寸假设的一句话（把"填错不影响去畸变"讲清楚，否则现场会以为必须填准）</summary>
+        public string IntrinsicsPixelSizeText
+        {
+            get
+            {
+                double um = IntrinsicsPixelSizeMeters * 1e6;
+                return $"像元尺寸假设 {um:0.####}µm（默认 5.2µm）：只决定焦距/kappa 的报告单位，"
+                     + "填错不影响去畸变正确性（去畸变对整组等比重参数化精确不变）；要与镜头标称焦距比对时才需填准。";
+            }
+        }
+
+        /// <summary>标定图来源的一句话（文件夹 / 图列表二者其一，列表优先）</summary>
+        public string IntrinsicsImageSourceText
+        {
+            get
+            {
+                int listCount = ParseIntrinsicsImageList().Count;
+                var folder = (IntrinsicsImageFolder ?? string.Empty).Trim();
+
+                if (listCount > 0)
+                    return $"图列表优先：{listCount} 个路径（忽略文件夹设置）。";
+
+                if (folder.Length == 0)
+                    return "尚未指定标定图：选一个文件夹（推荐）或在图列表里逐行填路径。";
+
+                if (!Directory.Exists(folder))
+                    return $"⚠ 文件夹不存在：{folder}";
+
+                var files = ScanIntrinsicsFolder(folder);
+                return files.Count == 0
+                    ? $"文件夹里没有图像文件（bmp/jpg/jpeg/png/tif/tiff）：{folder}"
+                    : $"文件夹里找到 {files.Count} 张图（{folder}）"
+                      + (files.Count < IntrinsicsCalibration.MinImageCount
+                          ? $"——少于要求的 {IntrinsicsCalibration.MinImageCount} 张，请多拍几张不同角度"
+                          : "；建议 12 张以上、覆盖板的不同倾斜姿态");
+            }
+        }
+
+        /// <summary>内参标定的结果区（多行文本：成功给摘要、失败给逐张诊断）</summary>
+        public string IntrinsicsResultText
+        {
+            get => _intrinsicsResultText;
+            private set => SetProperty(ref _intrinsicsResultText, value);
+        }
+
+        /// <summary>内参自验证的结果区（多行文本：误差表）</summary>
+        public string IntrinsicsSelfVerifyText
+        {
+            get => _intrinsicsSelfVerifyText;
+            private set => SetProperty(ref _intrinsicsSelfVerifyText, value);
+        }
+
+        /// <summary>内参结果区的级别（驱动颜色：绿=成功 / 橙=警告 / 红=失败）</summary>
+        public StatusLevel IntrinsicsResultLevel
+        {
+            get => _intrinsicsResultLevel;
+            private set => SetProperty(ref _intrinsicsResultLevel, value);
+        }
+
+        /// <summary>自验证结果区的级别</summary>
+        public StatusLevel IntrinsicsSelfVerifyLevel
+        {
+            get => _intrinsicsSelfVerifyLevel;
+            private set => SetProperty(ref _intrinsicsSelfVerifyLevel, value);
+        }
+
+        /// <summary>内参标定的结果区（多行文本：成功给摘要、失败给逐张诊断）</summary>
+        private string _intrinsicsResultText = string.Empty;
+        private StatusLevel _intrinsicsResultLevel = StatusLevel.Info;
+        private string _intrinsicsSelfVerifyText = string.Empty;
+        private StatusLevel _intrinsicsSelfVerifyLevel = StatusLevel.Info;
+        private bool _isIntrinsicsBusy;
+
+        /// <summary>
+        /// 内参标定进行中（界面绑定按钮 IsEnabled——标定要读十几张图、跑 HALCON，必须防连点）。
+        /// </summary>
+        public bool IsIntrinsicsBusy
+        {
+            get => _isIntrinsicsBusy;
+            private set
+            {
+                if (SetProperty(ref _isIntrinsicsBusy, value))
+                    OnPropertyChanged(nameof(IsIntrinsicsIdle));
+            }
+        }
+
+        /// <summary>内参标定空闲（按钮 IsEnabled 的正向表达）</summary>
+        public bool IsIntrinsicsIdle => !IsIntrinsicsBusy;
+
+        /// <summary>内参标定图列表的候选（界面提示用；不需要绑定，纯文本说明走 IntrinsicsImageSourceText）</summary>
+        private static readonly string[] IntrinsicsImageExtensions =
+            { ".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff" };
+
+        /// <summary>标定板候选（界面下拉的 ItemsSource；HALCONROOT 没配时为空并在说明行给出原因）</summary>
+        public ObservableCollection<StepConfigOption> CaltabDescriptorOptions { get; } = new();
+
+        /// <summary>刷新标定板候选（初始化与 HALCON 目录变化时调用）</summary>
+        public void RefreshCaltabDescriptorOptions()
+        {
+            CaltabDescriptorOptions.Clear();
+            if (IntrinsicsCalibration.TryListCaltabDescriptors(out var list, out _))
+            {
+                foreach (var e in list)
+                    CaltabDescriptorOptions.Add(new StepConfigOption(e.FileName, e.Display));
+            }
+        }
+
+        /// <summary>
+        /// 内参标定图的收集：**图列表优先**（更具体的那一个说了算），否则扫文件夹。
+        /// 顺序按文件名 Ordinal 排序——同一批图每次标定顺序一致，结果可复现（诊断顺序也稳定）。
+        /// </summary>
+        public List<string> CollectIntrinsicsImagePaths()
+        {
+            var fromList = ParseIntrinsicsImageList();
+            if (fromList.Count > 0) return fromList;
+
+            var folder = (IntrinsicsImageFolder ?? string.Empty).Trim();
+            return folder.Length == 0 ? new List<string>() : ScanIntrinsicsFolder(folder);
+        }
+
+        /// <summary>解析图列表文本（每行一个路径；空行与 # 开头的注释行跳过）</summary>
+        public List<string> ParseIntrinsicsImageList()
+        {
+            var result = new List<string>();
+            var text = IntrinsicsImageList ?? string.Empty;
+            foreach (var raw in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+            {
+                var line = raw.Trim();
+                if (line.Length == 0 || line.StartsWith("#", StringComparison.Ordinal)) continue;
+                result.Add(line);
+            }
+            return result;
+        }
+
+        /// <summary>扫文件夹里的图像文件（按文件名排序，保证可复现）</summary>
+        public static List<string> ScanIntrinsicsFolder(string folder)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return result;
+
+            try
+            {
+                result = Directory.EnumerateFiles(folder)
+                    .Where(f => IntrinsicsImageExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+                    .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            catch
+            {
+                // 目录不可读（权限/被占用）——返回空，由调用方给"文件夹里没有图像文件"的提示
+            }
+            return result;
+        }
+
         private string BuildInputSignature()
         {
             var sb = new System.Text.StringBuilder();
@@ -1058,7 +1575,11 @@ namespace Plugin.Calibration
               .Append(ScaleBCol?.ToString("R") ?? "-").Append('|')
               .Append((CameraSerial ?? string.Empty).Trim()).Append('|')
               .Append(CurrentSourceTag()).Append('|')   // 换同尺寸的另一张标定图也是"标定数据变了"（SourceTag 进产物）
-              .Append(SourceImageWidth).Append('x').Append(SourceImageHeight);
+              .Append(SourceImageWidth).Append('x').Append(SourceImageHeight)
+              // 二期③：内参与去畸变开关也必须进签名——否则"换了内参 / 开了开关"不会推进 CalibrationStampUtc、
+              // 也不重算（下游拿到的还是旧语义的标定，是"改了配置没生效"这类静默故障）。
+              .Append('|').Append(UndistortBeforeCalibration ? "U1" : "U0")
+              .Append('|').Append(IntrinsicsSignature());
 
             foreach (var row in PointRows)
             {
@@ -1069,6 +1590,33 @@ namespace Plugin.Calibration
                   .Append(row.ImageCol?.ToString("R") ?? "-");
             }
 
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// 内参的签名片段（**只拼会影响去畸变结果的量**）。
+        ///
+        /// 为什么不拼全部字段：`ReprojectionRmsPx` / `ImageCount` / `CreatedAtUtc` 是**质量与来源元信息**，
+        /// 改它们不改变去畸变映射；把它们拼进签名会让"重标一次、参数一模一样"也推进标定时间戳。
+        /// 而 `CameraType` / `Focus` / `Kappa` / `Distortion` / `Sx` / `Sy` / `Cx` / `Cy` / 图尺寸
+        /// 任一变化都会改变映射，必须进签名。
+        /// </summary>
+        private string IntrinsicsSignature()
+        {
+            var dto = Intrinsics;
+            if (dto == null) return "I:none";
+
+            var sb = new System.Text.StringBuilder("I:");
+            sb.Append(dto.CameraType ?? "").Append(',')
+              .Append(dto.Focus.ToString("R")).Append(',')
+              .Append(dto.Kappa.ToString("R")).Append(',')
+              .Append(dto.Sx.ToString("R")).Append(',')
+              .Append(dto.Sy.ToString("R")).Append(',')
+              .Append(dto.Cx.ToString("R")).Append(',')
+              .Append(dto.Cy.ToString("R")).Append(',')
+              .Append(dto.ImageWidth).Append('x').Append(dto.ImageHeight).Append(',');
+            if (dto.Distortion != null)
+                foreach (var v in dto.Distortion) sb.Append(v.ToString("R")).Append(',');
             return sb.ToString();
         }
 
@@ -1277,7 +1825,7 @@ namespace Plugin.Calibration
         /// </summary>
         private void ApplyRowResiduals(CalibrationTransform t)
         {
-            if (t.Kind == CalibrationKind.Perspective)
+            if (CalibrationKinds.Base(t.Kind) == CalibrationKind.Perspective)
             {
                 var hom = t.ProjectiveMatrix;
                 if (!CalibrationMath.IsUsableProjective(hom))
@@ -1287,8 +1835,11 @@ namespace Plugin.Calibration
                 {
                     if (row == null || !row.IsFilled) { if (row != null) row.ResidualPx = 0; continue; }
 
-                    double r = row.ImageRow!.Value;
-                    double c = row.ImageCol!.Value;
+                    // 带内参时：先把原始像素去畸变（矩阵定义在去畸变域）；当量也是该域的局部当量——
+                    // 两侧同域相除才是像素口径的残差。
+                    if (!TryToMatrixFrame(t, row.ImageRow!.Value, row.ImageCol!.Value, out double r, out double c))
+                        continue;
+
                     if (CalibrationMath.TryMapPixelToXYProj(hom!, r, c, out var x, out var y, out _))
                     {
                         double dx = x - row.MachineX!.Value;
@@ -1303,17 +1854,17 @@ namespace Plugin.Calibration
 
             // 网格模式：节点处精确通过（残差恒 0、没信息量）——逐行残差显示的是**全局仿射基线**的偏差，
             // 与质量区口径一致（"畸变有多大"）；基线不可用时留空（0），不假装通过。
-            if (t.Kind == CalibrationKind.Mesh)
+            if (CalibrationKinds.Base(t.Kind) == CalibrationKind.Mesh)
             {
-                ApplyRowResidualsFromMatrix(_meshAffineBaseline);
+                ApplyRowResidualsFromMatrix(t, _meshAffineBaseline);
                 return;
             }
 
-            ApplyRowResidualsFromMatrix(t.Matrix);
+            ApplyRowResidualsFromMatrix(t, t.Matrix);
         }
 
         /// <summary>按给定仿射矩阵回写逐行残差（px 口径：mm 偏差 ÷ 当量）</summary>
-        private void ApplyRowResidualsFromMatrix(double[]? matrix)
+        private void ApplyRowResidualsFromMatrix(CalibrationTransform t, double[]? matrix)
         {
             if (!CalibrationMath.IsUsableMatrix(matrix))
                 return;
@@ -1322,7 +1873,11 @@ namespace Plugin.Calibration
             {
                 if (row == null || !row.IsFilled) { if (row != null) row.ResidualPx = 0; continue; }
 
-                if (CalibrationMath.TryMapPixelToXY(matrix!, row.ImageRow!.Value, row.ImageCol!.Value, out var x, out var y))
+                // 带内参时先把原始像素去畸变（矩阵与当量都在去畸变域）
+                if (!TryToMatrixFrame(t, row.ImageRow!.Value, row.ImageCol!.Value, out double r, out double c))
+                    continue;
+
+                if (CalibrationMath.TryMapPixelToXY(matrix!, r, c, out var x, out var y))
                 {
                     double dx = x - row.MachineX!.Value;
                     double dy = y - row.MachineY!.Value;
@@ -1331,6 +1886,45 @@ namespace Plugin.Calibration
                         row.ResidualPx = Math.Sqrt(dx * dx + dy * dy) / mmPerPixel;
                 }
             }
+        }
+
+        /// <summary>
+        /// 原始图像像素 → **矩阵所在的帧**（带内参的标定是去畸变域，其余是原样）。
+        /// 带内参时：把原始（畸变）像素去畸变——矩阵定义在理想针孔坐标系上。
+        /// 开关关闭时是恒等映射（**历史行为逐字不变**）。
+        /// </summary>
+        private static bool TryToMatrixFrame(CalibrationTransform t, double row, double col, out double mRow, out double mCol)
+        {
+            mRow = row;
+            mCol = col;
+            if (t.Intrinsics == null) return true;
+
+            if (!CameraDistortion.TryUndistortPoint(t.Intrinsics, row, col, out mRow, out mCol, out _))
+            {
+                mRow = row;
+                mCol = col;
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// **矩阵所在的帧** → 原始图像像素（与 <see cref="TryToMatrixFrame"/> 互逆）。
+        /// 画布上的标记与箭头都定义在原始像素上，所以反算出来的理想点要加回畸变才可比。
+        /// </summary>
+        private static bool TryToImageFrame(CalibrationTransform t, double mRow, double mCol, out double row, out double col)
+        {
+            row = mRow;
+            col = mCol;
+            if (t.Intrinsics == null) return true;
+
+            if (!CameraDistortion.TryDistortPoint(t.Intrinsics, mRow, mCol, out row, out col, out _))
+            {
+                row = mRow;
+                col = mCol;
+                return false;
+            }
+            return true;
         }
 
         /// <summary>有限值判定（NaN/Inf 都算非法；插件侧按行名报错，数学层兜底）</summary>
@@ -1401,16 +1995,25 @@ namespace Plugin.Calibration
                 RebuildResidualAnnotations();   // 残差箭头同步刷新（画布 Annotations 通道）
 
                 var anisotropy = 0d;
-                if (t.Kind == CalibrationKind.NinePoint)
+                if (CalibrationKinds.Base(t.Kind) == CalibrationKind.NinePoint)
                 {
                     CalibrationMath.DeriveMmPerPixel(t.Matrix, out anisotropy);
                 }
-                else if (t.Kind == CalibrationKind.Perspective
+                else if (CalibrationKinds.Base(t.Kind) == CalibrationKind.Perspective
                          && CalibrationMath.IsUsableProjective(t.ProjectiveMatrix)
                          && TryPerspectiveCenter(out double centerRow, out double centerCol))
                 {
-                    CalibrationMath.DeriveMmPerPixelProjective(t.ProjectiveMatrix!, centerRow, centerCol, out anisotropy);
+                    // 带内参时当量基准点也要在**去畸变域**（矩阵定义在那一侧）
+                    if (!TryToMatrixFrame(t, centerRow, centerCol, out double mCenterRow, out double mCenterCol))
+                    {
+                        mCenterRow = centerRow;
+                        mCenterCol = centerCol;
+                    }
+                    CalibrationMath.DeriveMmPerPixelProjective(t.ProjectiveMatrix!, mCenterRow, mCenterCol, out anisotropy);
                 }
+
+                // 带内参时的统一前缀：把"这份标定的像素是去畸变域的"摆在质量行最前面（一眼可见的语义变化）
+                string undistortTag = CalibrationKinds.IsUndistorted(t.Kind) ? "【去畸变域】" : "";
 
                 if (t.Kind == CalibrationKind.PixelScale)
                 {
@@ -1418,7 +2021,7 @@ namespace Plugin.Calibration
                 }
                 else
                 {
-                    QualityText = t.Kind switch
+                    QualityText = undistortTag + (CalibrationKinds.Base(t.Kind) switch
                     {
                         CalibrationKind.Perspective =>
                             $"透视：残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px ｜ 各向异性 {anisotropy:0.##}%" + PerspectiveScaleSpanText(t),
@@ -1426,7 +2029,7 @@ namespace Plugin.Calibration
                             $"网格 {t.MeshSize}×{t.MeshSize}：节点处精确通过；下列为**全局仿射基线**残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px"
                             + "（畸变度量：偏大说明畸变明显、网格的价值就在吸收它；不做残差闸门）",
                         _ => $"残差 RMS {t.ResidualRmsPx:0.###}px ｜ 最大 {t.MaxResidualPx:0.###}px ｜ 各向异性 {anisotropy:0.##}%"
-                    };
+                    });
                 }
                 QualityHint = CalibrationMath.DiagnoseRadialBands(
                     t.ResidualByRadiusBands, t.ResidualBandCounts, MinEdgeResidualForHint());
@@ -1436,7 +2039,7 @@ namespace Plugin.Calibration
                     QualityLevel = anisotropy > 1.0 ? StatusLevel.Warning : StatusLevel.Info;
                     SetStatus(t.Kind == CalibrationKind.PixelScale
                         ? $"就绪：像素当量 ≈ {t.MmPerPixel:0.######} mm/px"
-                        : t.Kind == CalibrationKind.Mesh
+                        : CalibrationKinds.Base(t.Kind) == CalibrationKind.Mesh
                             ? $"就绪：{ModeText()}，节点 {PointRows.Count(r => r != null && r.IsFilled)}/{t.MeshSize * t.MeshSize}（节点处精确通过；质量数字为全局仿射基线，仅供判读畸变）"
                             : $"就绪：{ModeText()}，有效点 {PointRows.Count(r => r != null && r.IsFilled)} 组",
                         anisotropy > 1.0 ? StatusLevel.Warning : StatusLevel.Info);
@@ -2076,6 +2679,204 @@ namespace Plugin.Calibration
             IsPickingPoint = false;
             SetStatus("已取消取点", StatusLevel.Info);
         }
+
+        #endregion
+
+        #region 内参标定（二期③：标定 / 自验证 / 清除）
+
+        /// <summary>浏览选择内参标定的图文件夹</summary>
+        private void BrowseIntrinsicsFolder()
+        {
+            var dlg = new OpenFolderDialog
+            {
+                Title = "选择内参标定的标定图文件夹（12 张以上、不同倾斜角度）"
+            };
+
+            if (dlg.ShowDialog() == true)
+                IntrinsicsImageFolder = dlg.FolderName;
+        }
+
+        /// <summary>
+        /// 「开始内参标定」：读图 → 求解 → 落 <see cref="Intrinsics"/>。
+        ///
+        /// 为什么在**后台线程**跑：十几张图的读盘 + `find_calib_object` ×12 + `calibrate_cameras`
+        /// 实测约 1.7s（冷启动更慢），全在 UI 线程上会把窗口卡住。
+        /// 回程用 <see cref="PostToUI"/> 并检查 <see cref="_disposed"/>（与预览载入同一守卫）。
+        /// </summary>
+        private void RunIntrinsicsCalibration()
+        {
+            if (IsIntrinsicsBusy) return;
+            if (!IsEditable)
+            {
+                SetStatus("标定已锁定：先解锁再运行内参标定", StatusLevel.Warning);
+                return;
+            }
+
+            // 参数与路径在 UI 线程上先取好（后台线程不碰 VM 属性）
+            if (!IntrinsicsCalibration.TryResolveCaltabPath(CaltabDescrFile, out var descrPath, out var descrError))
+            {
+                IntrinsicsResultText = descrError ?? "内参标定：标定板描述文件不可用";
+                IntrinsicsResultLevel = StatusLevel.Error;
+                SetStatus(IntrinsicsResultText, StatusLevel.Error);
+                return;
+            }
+
+            var paths = CollectIntrinsicsImagePaths();
+            var model = IntrinsicsModel;
+            double pixelSize = IntrinsicsPixelSizeMeters;
+            string descrTag = Path.GetFileName(descrPath);
+            string serial = (CameraSerial ?? string.Empty).Trim();
+            var guess = CurrentIntrinsics;   // 已有内参时当初始猜测用（重标更快、更稳）
+
+            IsIntrinsicsBusy = true;
+            IntrinsicsResultText = "内参标定进行中……（读图 + 找标定板 + 求解）";
+            IntrinsicsResultLevel = StatusLevel.Info;
+
+            Task.Run(() =>
+            {
+                var result = IntrinsicsCalibration.TryCalibrate(
+                    paths, descrPath, model, pixelSize, guess, descrTag, serial);
+
+                PostToUI(() =>
+                {
+                    IsIntrinsicsBusy = false;
+                    if (_disposed) return;
+
+                    if (!result.Succeeded)
+                    {
+                        IntrinsicsResultText = BuildDiagnosticsText(result);
+                        IntrinsicsResultLevel = StatusLevel.Error;
+                        SetStatus($"内参标定失败：{FirstLine(result.Error)}", StatusLevel.Error);
+                        return;
+                    }
+
+                    Intrinsics = CameraIntrinsicsDto.FromContract(result.Intrinsics!);
+                    IntrinsicsResultText = "内参标定成功。" + Environment.NewLine + BuildDiagnosticsText(result);
+                    IntrinsicsResultLevel = StatusLevel.Info;
+                    SetStatus($"内参标定完成：{result.FoundCount}/{result.TotalCount} 张找到标定板，"
+                            + $"重投影 RMS {result.Intrinsics!.ReprojectionRmsPx:0.####}px"
+                            + "（勾「取点前先去畸变」后重新核对标定残差）", StatusLevel.Info);
+                    RefreshStatus();
+                });
+            });
+        }
+
+        /// <summary>
+        /// 「合成自验证」：用 HALCON 合成已知内参的标定板图跑完整标定链，把误差表显示出来。
+        /// 现场价值：**不接相机就能自证"本机标定链是通的"**——出问题时先跑它，能把"环境/封装坏了"
+        /// 与"你的照片/参数不对"分开。
+        /// </summary>
+        private void RunIntrinsicsSelfVerify()
+        {
+            if (IsIntrinsicsBusy) return;
+
+            IsIntrinsicsBusy = true;
+            IntrinsicsSelfVerifyText = "合成自验证进行中……（合成 12 张 + 完整标定链，约 2 秒）";
+            IntrinsicsSelfVerifyLevel = StatusLevel.Info;
+
+            Task.Run(() =>
+            {
+                bool ok = IntrinsicsCalibration.TrySelfVerify(out var report, out var error);
+
+                PostToUI(() =>
+                {
+                    IsIntrinsicsBusy = false;
+                    if (_disposed) return;
+
+                    if (!ok)
+                    {
+                        IntrinsicsSelfVerifyText = error ?? "合成自验证失败";
+                        IntrinsicsSelfVerifyLevel = StatusLevel.Error;
+                        SetStatus($"内参合成自验证失败：{FirstLine(error)}", StatusLevel.Error);
+                        return;
+                    }
+
+                    IntrinsicsSelfVerifyText = report.Text;
+                    IntrinsicsSelfVerifyLevel = report.Passed ? StatusLevel.Info : StatusLevel.Error;
+                    SetStatus(report.Passed
+                        ? $"内参合成自验证通过：焦距误差 {report.FocusRelErrorPercent:0.####}%、"
+                          + $"主点偏差 ({report.CxDeviationPx:0.####}, {report.CyDeviationPx:0.####})px、"
+                          + $"RMS {report.RmsPx:0.####}px——本机标定链可用"
+                        : "内参合成自验证未通过：本机标定链有问题，请把结果区内容反馈给开发者",
+                        report.Passed ? StatusLevel.Info : StatusLevel.Error);
+                });
+            });
+        }
+
+        /// <summary>
+        /// 清除已标定的内参。**同时关掉「取点前先去畸变」**——内参没了那个开关必然让运行期失败
+        /// （这是"清数据要连带清掉依赖它的开关"，不是替用户做决定：留着开关只会让下一次运行莫名其妙地红）。
+        /// </summary>
+        private void ClearIntrinsics()
+        {
+            if (!IsEditable)
+            {
+                SetStatus("标定已锁定：先解锁再清除内参", StatusLevel.Warning);
+                return;
+            }
+
+            bool hadUndistort = UndistortBeforeCalibration;
+            Intrinsics = null;
+            IntrinsicsResultText = "已清除内参。";
+            IntrinsicsResultLevel = StatusLevel.Info;
+            IntrinsicsSelfVerifyText = string.Empty;
+            IntrinsicsSelfVerifyLevel = StatusLevel.Info;
+            UndistortBeforeCalibration = false;
+
+            SetStatus(hadUndistort
+                ? "已清除内参，并关掉「取点前先去畸变」（内参没了那个开关必然失败）——标定回到历史行为"
+                : "已清除内参", StatusLevel.Info);
+            RefreshStatus();
+        }
+
+        /// <summary>
+        /// 内参标定结果的**逐张诊断文本**（成功与失败都出——成功时"哪几张没找到"同样是重要信息：
+        /// 12 张里只有 6 张找到时，标定质量是打折的，用户有权知道）。
+        /// </summary>
+        private static string BuildDiagnosticsText(IntrinsicsCalibration.CalibrateResult result)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"找到标定板：{result.FoundCount}/{result.TotalCount} 张"
+                        + $"（要求 ≥ {IntrinsicsCalibration.MinImageCount} 张；建议 12 张以上）");
+            if (!string.IsNullOrEmpty(result.StartGuessNote))
+                sb.AppendLine($"初始猜测：{result.StartGuessNote}");
+
+            if (result.Intrinsics is { } c)
+            {
+                string model = c.CameraType == CameraIntrinsics.PolynomialType
+                    ? $"多系数 polynomial（k1..p2 = {string.Join(", ", (c.Distortion ?? Array.Empty<double>()).Select(v => v.ToString("G4")))}）"
+                    : $"单系数 division（kappa = {c.Kappa:G6}）";
+                sb.AppendLine($"模型：{model}");
+                sb.AppendLine($"焦距 {c.Focus:G6}m ｜ 像元 {c.Sx * 1e6:0.##}µm ｜ 主点 ({c.Cx:0.##}, {c.Cy:0.##})"
+                            + $" ｜ 重投影 RMS {c.ReprojectionRmsPx:0.####}px ｜ 标定图 {c.ImageWidth}×{c.ImageHeight}");
+            }
+
+            var failures = result.Diagnostics.Where(d => !d.Found).ToList();
+            if (failures.Count == 0)
+            {
+                sb.AppendLine("逐张诊断：全部找到标定板。");
+            }
+            else
+            {
+                sb.AppendLine($"逐张诊断（{failures.Count} 张未找到）：");
+                foreach (var d in failures)
+                    sb.AppendLine($"  · {Path.GetFileName(d.Path)}：{d.FailureReason}");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>取错误文案的第一行（状态栏只放得下一行；完整内容进结果区）</summary>
+        private static string FirstLine(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "未知原因";
+            int nl = text.IndexOfAny(new[] { '\r', '\n' });
+            return nl < 0 ? text : text.Substring(0, nl);
+        }
+
+        #endregion
+
+        #region 图上取点（一次性点击回填）
 
         /// <summary>进入取点待命（一次点击即退出）；锁定态不允许取点</summary>
         private void ArmPick(object target)

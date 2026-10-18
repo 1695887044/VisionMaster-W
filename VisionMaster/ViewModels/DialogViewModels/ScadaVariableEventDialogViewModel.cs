@@ -88,6 +88,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly IScadaVariablePicker _picker;
         private readonly IScadaPagePicker _pagePicker;
         private readonly IScadaFlowPicker _flowPicker;
+
+        /// <summary>
+        /// 「选轴」入口（运动命令动作行用）。可为 null——没有它时动作行的「选轴」按钮不可用，
+        /// 而不是点了没反应（与三个既有 picker 的区别只在"可选"：轴依赖运动模块，
+        /// 纯变量场景不该被迫解析它）。
+        /// </summary>
+        private readonly IScadaAxisPicker? _axisPicker;
         private readonly ScadaAuditWriter? _audit;
         private readonly Func<string?>? _actorProvider;
 
@@ -125,12 +132,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             IScadaPagePicker pagePicker,
             IScadaFlowPicker flowPicker,
             ScadaAuditWriter? audit = null,
-            Func<string?>? actorProvider = null)
+            Func<string?>? actorProvider = null,
+            IScadaAxisPicker? axisPicker = null)
         {
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _picker = picker ?? throw new ArgumentNullException(nameof(picker));
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
             _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
+            _axisPicker = axisPicker;
             _audit = audit;
             _actorProvider = actorProvider;
 
@@ -444,7 +453,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                         Describe(type),
                         _picker,
                         _pagePicker,
-                        _flowPicker));
+                        _flowPicker,
+                        _axisPicker));
                 }
             }
 

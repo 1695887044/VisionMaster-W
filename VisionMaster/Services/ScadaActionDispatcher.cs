@@ -3,6 +3,7 @@ using System.Globalization;
 using Core.Interfaces;
 using VisionMaster.Helpers;
 using VisionMaster.Scada;
+using VisionMaster.Services.Motion;
 
 namespace VisionMaster.Services
 {
@@ -11,19 +12,31 @@ namespace VisionMaster.Services
     ///
     /// 现在接通了哪些动作
     /// ---------
-    /// 六个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
+    /// 十五个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
     /// <see cref="IScadaValueSource"/> 解析后落 <c>IWritableVariable.TryWrite</c>（S6 接入）；
     /// 「切换画面」走 <see cref="IScadaNavigator"/> 找画面并换 <c>CurrentPage</c>（S8 接入）；
     /// 「启动流程 / 停止流程 / 执行一次」走 <see cref="IScadaFlowRunner"/> 启停目标流程（Id 优先、
-    /// 名字兜底；连续幂等、单次不幂等、停止最宽——语义由契约说了算，本类不做二次解释）。
+    /// 名字兜底；连续幂等、单次不幂等、停止最宽——语义由契约说了算，本类不做二次解释）；
+    /// 运动九条（轴使能 / 失能 / 绝对定位 / 相对定位 / 回零 / 停止 / 清报警 / 点动开始 / 点动结束）
+    /// 走 <see cref="MotionActionExecutor"/>（取轴、门禁、下发全在那一层，见其类注释）。
+    ///
+    /// 运动动作的唯一例外：<b>下发成功不代表到位</b>
+    /// ---------
+    /// <see cref="MotionActionExecutor.TryExecute"/> 返回 true 的含义是"命令被卡收进队列了"，
+    /// 与流程侧「轴运动」步骤同一口径。日志里因此写的是"已下发（未等到位）"而不是"已完成"——
+    /// 把入队当到位是运动控制里最经典的错误，而组态按钮恰恰是最容易被误解成"点完就好了"的地方。
     ///
     /// 执行不了的怎么办：<b>照实说一句</b>
     /// ---------
-    /// 唯一剩下的"执行不了"是"本版本不认识该动作"（高版本软件存下的动作类型读进低版本，
-    /// Newtonsoft 按数值反序列化、不校验取值范围）。这里选的不是"空 switch 什么都不做"，
-    /// 而是照实说一句警告：现场配了一条动作却一声不响，用户的结论一定是"软件有 bug"，
-    /// 然后整件事都得重查一遍。那句话的出处是 <see cref="ScadaActionTypeExtensions.PendingReason"/>
-    /// （不是本类的私有方法）：属性面板上那一行提示用的是同一句，两处口径必须一致。
+    /// "执行不了"分两种，措辞不同、级别也不同：
+    /// ① <b>本版本不认识该动作</b>（高版本软件存下的动作类型读进低版本，
+    /// Newtonsoft 按数值反序列化、不校验取值范围）；
+    /// ② <b>宿主没接运动模块</b>（构造时没注入 <see cref="MotionActionExecutor"/>）。
+    /// 两种都记 Warn 并如实写"本条未执行"：现场配了一条动作却一声不响，用户的结论一定是
+    /// "软件有 bug"，然后整件事都得重查一遍。① 的措辞出处是
+    /// <see cref="ScadaActionTypeExtensions.PendingReason"/>（不是本类的私有方法）：
+    /// 属性面板上那一行提示用的是同一句，两处口径必须一致；② 是宿主装配状态，
+    /// 不属于"动作类型没接通"，所以由本类自己说（断言宿主与网关场景就是这一档）。
     ///
     /// 写变量为什么按"没选变量 / 找不到 / 转不过 / 写不进"分四档报
     /// ---------
@@ -41,6 +54,14 @@ namespace VisionMaster.Services
     /// 那是操作员点了两下，或者一个"回主页"按钮正好配在主页上，此时运行态什么都不做
     /// （不重发 Loaded、不压栈）并回报成功。为一次正常的重复点击在日志里留一行警告，
     /// 只会把真正该看的告警淹掉。
+    ///
+    /// 运动动作为什么只有"成功 / 跳过"两档，而且<b>没有"点了两下"这一档</b>
+    /// ---------
+    /// 运动执行器回的 false 全是"配错了"（没选轴/轴停用/卡没配）或"此刻不能动"
+    /// （卡不在线/未使能/未回零/超软限位/命令被拒）——没有"设备侧故障"这一层
+    /// （真正的故障由驱动自己报进运行日志与报警）。所以记 <c>Warn</c> 不记 <c>Error</c>，
+    /// 与切画面、流程启停同一口径：软件没坏，下一次配对/使能/回零就好。
+    /// 唯一真正的"失败"是被抛上来的异常（例如设备在 Enqueue 里崩了），那一档照旧记 Error。
     ///
     /// 为什么动作执行只往日志里写，不弹对话框
     /// ---------
@@ -74,7 +95,8 @@ namespace VisionMaster.Services
     /// <see cref="IScadaValueSource"/> 也是线程安全的只读查询（写值最终落到变量模型，
     /// 网络变量自己管通讯线程），<see cref="IScadaNavigator"/> 同样是 UI 线程上的会话转发；
     /// <see cref="IScadaFlowRunner"/> 的启动配方（查会话/编译/注册）也是 UI 线程链路上的一小段
-    /// （真正费时的执行在引擎自己的任务里），所以这里不需要额外的同步。
+    /// （真正费时的执行在引擎自己的任务里）；<see cref="MotionActionExecutor"/> 只做"取轴 + 门禁 +
+    /// 入队"三步同步动作（设备侧真正的执行在卡自己的命令线程上），所以这里不需要额外的同步。
     /// </summary>
     public sealed class ScadaActionDispatcher : IScadaActionDispatcher
     {
@@ -109,18 +131,30 @@ namespace VisionMaster.Services
         /// </summary>
         private readonly ScadaAuditWriter? _audit;
 
+        /// <summary>
+        /// 运动命令出口（组态动作表的九条运动动作）。可为 null——没接线时运动类动作按"未接入"如实跳过。
+        ///
+        /// 为什么是可选参数：断言工程那 16 处 <c>new ScadaActionDispatcher(...)</c> 与网关/离线场景
+        /// 不该为了跑一条"轴使能"去搭一整套运动卡注册表 + 设备仓库。
+        /// 为什么由宿主显式注入而不是容器去猜：与本类 audit / flows 两个可选参数同一条纪律——
+        /// 交给容器猜的结果是编译能过、运行起来按钮永远"未接入"，而且不报任何错。
+        /// </summary>
+        private readonly MotionActionExecutor? _motions;
+
         public ScadaActionDispatcher(
             ILogService log,
             IScadaValueSource values,
             IScadaNavigator navigator,
             ScadaAuditWriter? audit = null,
-            IScadaFlowRunner? flows = null)
+            IScadaFlowRunner? flows = null,
+            MotionActionExecutor? motions = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _values = values ?? throw new ArgumentNullException(nameof(values));
             _navigator = navigator ?? throw new ArgumentNullException(nameof(navigator));
             _audit = audit;
             _flows = flows;
+            _motions = motions;
         }
 
         /// <inheritdoc/>
@@ -246,6 +280,20 @@ namespace VisionMaster.Services
                     ExecuteFlowAction(action, head, stamp);
                     return;
 
+                // 运动九条：取轴、门禁、下发全在 executor 里（那层认识 IMotionDevice 与门禁，
+                // 本类只认识"动作语义"）。这里只做"接没接运动模块"与"成没成"两档交代。
+                case ScadaActionType.MotionEnable:
+                case ScadaActionType.MotionDisable:
+                case ScadaActionType.MotionMoveAbsolute:
+                case ScadaActionType.MotionMoveRelative:
+                case ScadaActionType.MotionHome:
+                case ScadaActionType.MotionStop:
+                case ScadaActionType.MotionClearAlarm:
+                case ScadaActionType.MotionJogStart:
+                case ScadaActionType.MotionJogStop:
+                    ExecuteMotionAction(action, head, stamp);
+                    return;
+
                 default:
                     // "高版本存下的、本版本不认识的类型"（枚举按数值反序列化，不校验取值范围）：
                     // 配置存得下、执行还没接上，所以照实说一句。那句话由领域层出
@@ -351,6 +399,46 @@ namespace VisionMaster.Services
             // 成功照实记一行；审计"说明"列补上净效果（"已启动" / "已在运行，未重复启动" /
             // "已下发单次执行" / "已发出停止" / "本就未在运行"）——那是只有出口拿得到的一句话。
             Ok(stamp, action, $"{head} → {action.Describe()}", reason);
+        }
+
+        /// <summary>
+        /// 执行一条运动动作（使能 / 失能 / 定位 / 回零 / 停止 / 清报警 / 点动开始 / 点动结束）。
+        ///
+        /// 为什么本类只做"接线判断 + 结果翻译"，取轴与门禁全交给 <see cref="MotionActionExecutor"/>：
+        /// 那两件事需要 <c>MotionAxisRegistry</c> / <c>IMotionProvider</c> / <c>MotionCommandGate</c>
+        /// 一整套运动知识，而本类的职责边界是"动作语义按顺序落地"。混进来之后，
+        /// 断言工程要跑一条"记录日志"动作也得先搭一整套运动依赖。
+        ///
+        /// 三档出口，与另外三族动作同款：
+        ///   ⓪ 出口没接线 → Skipped（"未接入"是宿主装配状态，不是动作类型没接通，见类注释）
+        ///   ① 执行器回了 false 且有话 → Skipped（配错了 / 此刻不能动，记 Warn 不记 Error）
+        ///   ② 执行器回了 false 但没话 → <b>什么都不记</b>（静默档：点动时轴正忙，
+        ///      连点期间它会反复发生，每次都记一行只会把真正该看的告警淹掉）
+        /// </summary>
+        private void ExecuteMotionAction(ScadaAction action, string head, AuditStamp stamp)
+        {
+            // ⓪ 出口没接线（断言宿主/网关等没注入 executor）：照实说一句，跳过
+            if (_motions == null)
+            {
+                Skipped(stamp, action,
+                    $"{head} → {action.Describe()}：运动模块未接入，本条未执行",
+                    "运动模块未接入");
+                return;
+            }
+
+            if (_motions.TryExecute(action, out var message))
+            {
+                // 成功照实记一行；审计"说明"列补的是同一句话——"已下发（未等到位）"。
+                // 这两处都<b>不</b>说"已完成"：Enqueue 只代表命令被收下（见 MotionActionExecutor 类注释）。
+                Ok(stamp, action, $"{head} → {message}", message);
+                return;
+            }
+
+            // 静默档：执行器约定"false + 空 message"表示这次拒绝不该留痕（见 TryExecute 的说明）
+            if (string.IsNullOrEmpty(message))
+                return;
+
+            Skipped(stamp, action, $"{head} → {message}", message);
         }
 
         /// <summary>

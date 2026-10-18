@@ -141,7 +141,54 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 本页引用的<b>基座画面</b>的稳定身份。<c>Guid.Empty</c> = 不引用任何基座。
+        ///
+        /// <b>基座是什么</b>
+        /// ---------
+        /// 基座是一份<b>普通</b>的 <see cref="ScadaPage"/>（背景、图元、事件钩子都有），
+        /// 被多页共享引用；改基座一次，所有引用它的页面跟着变。
+        /// 它是"跨页的公共层"，与 <c>Hmi.Panel</c>（底板，单页内的区域框）互补：
+        /// 底板管"这一页里的一块区域"，基座管"这一页与其它页共享的那一层"。
+        ///
+        /// <b>为什么是"引用"而不是"继承"</b>
+        /// ---------
+        /// 继承（基类页面）会把 <see cref="ScadaPage"/> 的类型体系变成树：
+        /// 序列化要认派生类、撤销栈要分清"改的是基座还是页面"、属性面板要合并两层的属性。
+        /// 而"页面与基座共享什么"这份关系，本质上是一个<b>指针</b>——与
+        /// <see cref="LayerId"/> / <see cref="GroupId"/> 同一形态（都存 Guid，不存对象）。
+        ///
+        /// <b>基座不能再套基座</b>：本字段只允许指向<b>非基座</b>的页面（即"可作为基座的页面"
+        /// 集合 <c>ScadaDocument.BasePages</c> 里的那几份），且它自身不能再引用别的基座。
+        /// 一层限制由 <c>ScadaDocument.TrySetBasePage</c> 在写入时拦。
+        ///
+        /// <b>悬空不清理</b>：基座被删除后，本字段指向一个不存在的 Id。渲染侧按
+        /// "无基座"降级（画面照常显示本页内容），与 <c>GroupId</c>/<c>ParentId</c> 同一口径——
+        /// 数据不该被悄悄改写，清理会毁掉撤销回来的可能。
+        ///
+        /// 旧 .vms 里没有这个字段，反序列化后自然取 <c>Guid.Empty</c>（无基座），不需要迁移代码。
+        /// </summary>
+        public Guid BasePageId
+        {
+            get => _basePageId;
+            set => SetProperty(ref _basePageId, value);
+        }
+
+        private Guid _basePageId;
+
+        /// <summary>
         /// 是否启用<b>画面加载事件钩子</b>（<see cref="ScadaEventType.Loaded"/>）。
+        ///
+        /// 本属性<b>不落盘</b>，它只是 <see cref="EventHooks"/> 里"有没有 Loaded 这一条"的投影
+        /// （与属性面板上"启动画面"那一行同源：真值在别处，行只是个开关）。
+        /// 之所以不留一个独立布尔字段：那样就有两处真相——布尔勾着、钩子却被删了，
+        /// 或者钩子在、布尔没勾，运行态该听谁的都说不清。S5 起动作归钩子管，开关就只能是投影。
+        ///
+        /// 勾选时会顺带补一条<b>默认动作</b>（记一行运行日志）。不补的话，"勾上了却什么都没发生"
+        /// 是必然的（空动作表在执行侧等同于没配，见 <see cref="ScadaRuntime.RaiseElementEvent"/> 第三道闸门），
+        /// 而 S4 的用户预期正是"这个框一勾，运行日志里就多一行加载记录"。
+        /// 取消勾选是整条摘掉（含用户后来加的动作）——留着一条没人看见的钩子更糟。
+        /// </summary>
+        /// <summary>画面加载事件钩子（<see cref="ScadaEventType.Loaded"/>）。
         ///
         /// 本属性<b>不落盘</b>，它只是 <see cref="EventHooks"/> 里"有没有 Loaded 这一条"的投影
         /// （与属性面板上"启动画面"那一行同源：真值在别处，行只是个开关）。
@@ -465,6 +512,20 @@ namespace VisionMaster.Scada
             if (_subscribedHooks.Remove(hook))
                 hook.PropertyChanged -= OnHookPropertyChanged;
         }
+
+        /// <summary>
+        /// 本页当前引用的基座画面（按 <see cref="BasePageId"/> 在所属文档的
+        /// <see cref="ScadaDocument.BasePages"/> 里反查）。
+        ///
+        /// 找不到（基座被删了 / 没引用 / 文档不在手）返回 null——调用方按"无基座"降级，
+        /// 画面照常显示本页内容，不丢图元。
+        ///
+        /// <b>为什么需要文档句柄</b>：基座是"文档级"的对象（被多页共享引用），
+        /// 而 <see cref="ScadaPage"/> 自己不认识文档——它只知道"我是谁"，不知道"我在哪"。
+        /// 所以反查必须由知道文档的那一方（编辑器/运行态宿主/断言）带进来。
+        /// </summary>
+        public ScadaPage? ResolveBase(ScadaDocument? document)
+            => document?.FindBasePage(BasePageId);
 
         #endregion
 
@@ -1534,6 +1595,219 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 取某个图元的<b>直接子图元</b>（装在它这只底板里的图元）。
+        /// 无子或传入 null 时返回空表。
+        ///
+        /// 与 <see cref="GetGroupMembers"/> 同一形态（线性扫描），理由也相同：
+        /// 父子是编辑期与渲染期都要用的关系，但"整页图元"这个规模（几百到几千）
+        /// 线性扫一遍的成本远低于维护一张要在增删/改归属/撤销回滚所有路径上保活的索引。
+        /// 而画布侧真正的热点查询（按模型找控件）走的是它自己的反查字典，不是这里。
+        /// </summary>
+        public IReadOnlyList<ScadaElement> GetChildElements(ScadaElement? parent)
+        {
+            if (parent == null || parent.ElementId == Guid.Empty)
+                return Array.Empty<ScadaElement>();
+
+            var children = new List<ScadaElement>();
+
+            foreach (var item in _elements)
+            {
+                if (item.ParentId == parent.ElementId)
+                    children.Add(item);
+            }
+
+            return children;
+        }
+
+        /// <summary>
+        /// 把"点中了某一个图元"展开成"真正该整批选上的那一批"：<b>它所在的整组</b>。
+        ///
+        /// <b>为什么不把底板里的子图元也展开进来</b>
+        /// ---------
+        /// 曾试过"点底板 → 连子图元一起选中"（照"点中组员即整组选中"的范式），
+        /// 让拖动/对齐这些路径天然带着子图元走。但底板的跟随<b>已经在模型层做了</b>
+        /// （见 <see cref="CascadeContainerMove"/>：底板挪多少、子图元挪多少）。
+        /// 两套一起生效就是同一段位移推两遍——子图元会跑出底板两倍的距离。
+        ///
+        /// 所以分工明确：<b>分组管"选中谁"，底板管"谁跟着谁走"</b>。
+        /// 选中底板时只选中底板本身，属性面板显示的是底板的属性、尺寸手柄改的是底板的大小；
+        /// 子图元照常跟着动，但不进选中集合，也就不会出现"改尺寸时把子图元一起改宽"这种怪事。
+        ///
+        /// <b>这条语义原先在画布与视图模型各有一份实现</b>，靠注释约定"两边逐字对齐"。
+        /// 收到这里一处之后，两侧都只留一句调用——不同步的表现是
+        /// "画布认这一批、菜单认另一批"，极难查（这是本次改造顺带还掉的一笔旧债）。
+        ///
+        /// <b>同组却看不见的成员不并进来</b>（判据 <see cref="IsElementVisible"/>，与画布侧同源）：
+        /// 否则点一下就会把一批看不见的图元顶成选中态，紧接着 Delete 与方向键作用在它们身上。
+        /// <b>锁定的照并</b>：单击本来就选得中锁定的图元（只是拖不动）。
+        /// </summary>
+        /// <param name="element">被点中的图元（会排在结果首位——调用方拿首项当主选中）</param>
+        public IReadOnlyList<ScadaElement> ExpandSelectionCluster(ScadaElement? element)
+        {
+            if (element == null || FindElement(element.ElementId) == null)
+                return element == null ? Array.Empty<ScadaElement>() : new[] { element };
+
+            var members = GetGroupMembers(element);
+
+            if (members.Count <= 1)
+                return new[] { element }; // 未分组，或组里只剩它自己（单成员组与未分组行为等价）
+
+            var expanded = new List<ScadaElement>(members.Count) { element };
+
+            foreach (var member in members)
+            {
+                if (ReferenceEquals(member, element) || !IsElementVisible(member))
+                    continue;
+
+                expanded.Add(member);
+            }
+
+            return expanded;
+        }
+
+        /// <summary>
+        /// 把一批图元装进一只底板（写入 <see cref="ScadaElement.ParentId"/>）。
+        ///
+        /// 四条拒绝理由，每条都对应一个会画错的输入：
+        /// ① 底板不在本画面上——装进去之后它永远渲染不出来（画布找不到父）；
+        /// ② 底板自己也有父——那就是第二层嵌套，本版不支持（见 <see cref="ScadaElement.ParentId"/> 的"只支持一层"）；
+        /// ③ 要装的东西里包含底板自己——自引用会让渲染的父子判定绕圈；
+        /// ④ 要装的东西里包含底板的祖先——一层限制下不可能，但真出现时环检测必须拦住，
+        ///    否则渲染侧会走进无限递归。
+        ///
+        /// <b>不筛锁定</b>：与 <see cref="TryGroupElements"/> 同一口径——组合与解组必须共用同一套
+        /// "哪些图元算数"，否则会出现"锁住之后解不开"。锁定的图元只是不能被拖动/改尺寸，
+        /// 把它装进底板是"归置"而不是"改动它的外观数据"。
+        ///
+        /// 返回 false 时 <paramref name="error"/> 是可直接展示给操作员的中文原因。
+        /// </summary>
+        public bool TrySetParent(ScadaElement? parent, IReadOnlyList<ScadaElement>? children, out string error)
+        {
+            error = string.Empty;
+
+            if (parent == null || !_elements.Contains(parent))
+            {
+                error = "底板不在本画面上";
+                return false;
+            }
+
+            if (parent.ParentId != Guid.Empty)
+            {
+                error = "底板不能再装进另一只底板（本版本只支持一层）";
+                return false;
+            }
+
+            var targets = FilterPresent(children);
+
+            // 剔除底板自己与它已有的子（幂等：重复装不产生第二次写入）
+            var effective = new List<ScadaElement>();
+            foreach (var item in targets)
+            {
+                // 自引用先判：把底板装进它自己必须<b>显式失败</b>，而不是被下面的合理性检查
+                // 顺手忽略掉（"忽略"会返回 true，用户看到菜单点得动、却什么都没发生）。
+                if (ReferenceEquals(item, parent))
+                {
+                    error = "不能把底板装进它自己";
+                    return false;
+                }
+
+                if (item.ParentId == parent.ElementId)
+                    continue; // 已经装在它里面了：目标状态，幂等跳过
+
+                // 一层限制的<b>结构性判据</b>：本身装着子图元的图元不能再当别人的子。
+                // 用"有没有子"而不是"是不是容器类型"来判，是因为领域层不认识 UI 类型
+                // （见 ScadaElement.ParentId 的注释）；而"有子的不能再做子"恰好等价于"层数不超过一"，
+                // 且对手工改坏的 .vms 同样成立（那种文件里可能有子却没被注册成容器）。
+                if (GetChildElements(item).Count > 0)
+                {
+                    error = $"图元「{item.Name}」本身装着子图元，不能再装进别的底板（本版本只支持一层）";
+                    return false;
+                }
+
+                if (IsAncestorOf(item, parent))
+                {
+                    error = "不能把底板装进它自己的子图元里";
+                    return false;
+                }
+
+                effective.Add(item);
+            }
+
+            if (effective.Count == 0)
+                return true; // 没有实际要改的（全都已经装在它里面），空操作
+
+            using (BeginEdit($"装入底板 {effective.Count} 个图元"))
+            {
+                foreach (var element in effective)
+                    element.ParentId = parent.ElementId;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 把一批图元从它们各自的底板里<b>移出</b>（清回 <see cref="ScadaElement.ParentId"/> = <c>Guid.Empty</c>）。
+        ///
+        /// 与 <see cref="TryUngroupElements"/> 同一口径：只对"确实装着父"的图元动手，
+        /// 数量口径与撤销记录都按它算；全都没父时返回 true 且不产记录。
+        /// </summary>
+        public bool TryClearParent(IReadOnlyList<ScadaElement>? elements, out string error)
+        {
+            error = string.Empty;
+
+            var targets = FilterPresent(elements);
+            var effective = new List<ScadaElement>();
+
+            foreach (var item in targets)
+            {
+                if (item.ParentId != Guid.Empty)
+                    effective.Add(item);
+            }
+
+            if (effective.Count == 0)
+                return true;
+
+            using (BeginEdit($"移出底板 {effective.Count} 个图元"))
+            {
+                foreach (var element in effective)
+                    element.ParentId = Guid.Empty;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// <paramref name="element"/> 是不是 <paramref name="candidate"/> 的祖先（沿 ParentId 往上走）。
+        ///
+        /// 一层限制下这个判断几乎总是"否"（往上走一步就到底了），但环检测必须留着：
+        /// 手工改过的 .vms 完全可能写出自引用或互相引用，
+        /// 而渲染侧的父子判定一旦绕圈就是无限递归（栈溢出，连错误都来不及报）。
+        /// 步数上限取 <c>Elements.Count + 1</c>：任何真实链路都不会比图元总数长，
+        /// 超过就说明数据里已经有环，此时返回 true（当作祖先，拒绝这次写入）比继续走下去安全。
+        /// </summary>
+        private bool IsAncestorOf(ScadaElement element, ScadaElement candidate)
+        {
+            var current = element;
+
+            for (int guard = 0; guard <= _elements.Count; guard++)
+            {
+                if (current.ParentId == Guid.Empty)
+                    return false;
+
+                if (current.ParentId == candidate.ElementId)
+                    return true;
+
+                current = FindElement(current.ParentId);
+
+                if (current == null)
+                    return false;
+            }
+
+            return true; // 走不出链路，按"有环"处理
+        }
+
+
+        /// <summary>
         /// 图元落名：重名就续 _2、_3。
         ///
         /// 唯一性只在<b>同一画面内</b>要求：跨画面重名太常见且无害（不同页是不同上下文），
@@ -1715,6 +1989,35 @@ namespace VisionMaster.Scada
             return true;
         }
 
+        /// <summary>
+        /// 设置图元的「候选轴清单」（轴面板的设计期配置，不是运行期数据绑定）。
+        ///
+        /// 为什么走画面这一层而不是让属性面板直接 <c>element.SetProperty</c>：
+        /// 与 <see cref="TrySetBinding"/> 同一条纪律——"谁能改模型"只能有一个入口，
+        /// 这样撤销作用域、归属校验、将来的权限检查都只有一处可改。
+        /// </summary>
+        /// <param name="element">目标图元（必须属于本画面）</param>
+        /// <param name="axes">候选轴（Id + 名字）；空集合表示"清空选择"</param>
+        public bool TrySetAxisOptions(ScadaElement? element, IEnumerable<ScadaAxisRef>? axes, out string error)
+        {
+            error = string.Empty;
+
+            if (element == null || FindElement(element.ElementId) == null)
+            {
+                error = "图元不属于本画面，无法设置轴清单";
+                return false;
+            }
+
+            string canonical = ScadaAxisOptionsCodec.Format(axes);
+
+            using (BeginEdit("选择轴"))
+            {
+                element.SetProperty(ScadaAxisOptionsCodec.Key, canonical);
+            }
+
+            return true;
+        }
+
         #endregion
 
         /// <summary>
@@ -1875,21 +2178,95 @@ namespace VisionMaster.Scada
                 ReindexElement(element);
             }
 
+            // 底板联动：底板挪了，装在里面的子图元跟着挪。
+            if (sender is ScadaElement moved)
+                CascadeContainerMove(moved, e.PropertyName);
+
             Version++;
+        }
+
+        /// <summary>
+        /// 上次看到的每个图元位置（底板联动的差值来源）。
+        ///
+        /// 为什么要记一份"上次"：<see cref="PropertyChangedEventArgs"/> 不带旧值，
+        /// 而联动要的是<b>位移</b>（父挪了多少，子就挪多少）。
+        /// 挂在画面这一层而不是控件层：联动是模型语义（子图元该跟着父走），
+        /// 与"画布有没有渲染出来"无关——设计态、运行态、无头断言里都该成立。
+        /// </summary>
+        private readonly Dictionary<Guid, (double X, double Y)> _lastPositions = new();
+
+        /// <summary>
+        /// 底板移动时把子图元一起挪过去。
+        ///
+        /// <b>为什么必须有它</b>：子图元的模型坐标是画面绝对坐标，而渲染时减掉底板位置。
+        /// 底板挪了而子图元不动的话，子图元在底板的画布里就被推到了负坐标——
+        /// 被裁剪掉、当场"消失"。那与"底板是一个装东西的容器"这个语义直接冲突。
+        ///
+        /// <b>为什么不是"选中簇一起动"就够了</b>：选中簇覆盖的是交互路径（拖动/对齐/微调），
+        /// 而"在属性面板里把底板的 X 改一下"不走选中簇。放在这里，所有写 X/Y 的路径一次覆盖。
+        ///
+        /// <b>为什么回放时跳过</b>：撤销/重做会把父与子各自的旧值分别写回，
+        /// 那时再联动一次就是同一段位移推两遍。判据见 <see cref="ScadaChangeScope.IsReplaying"/>。
+        ///
+        /// <b>只一层</b>：本版底板不能再套底板，所以子图元自己不会再有子，一次联动就到头。
+        /// </summary>
+        private void CascadeContainerMove(ScadaElement element, string? propertyName)
+        {
+            if (propertyName is not (nameof(ScadaElement.X) or nameof(ScadaElement.Y)))
+                return;
+
+            if (!_lastPositions.TryGetValue(element.ElementId, out var previous))
+            {
+                // 没记过（刚订阅、或刚从文件读进来）→ 记下当前值当基准，本次不联动。
+                // 这是安全的：没有基准就推不出位移，硬推只会把子图元挪到错误的地方。
+                _lastPositions[element.ElementId] = (element.X, element.Y);
+                return;
+            }
+
+            if (Math.Abs(element.X - previous.X) < 1e-9 && Math.Abs(element.Y - previous.Y) < 1e-9)
+                return;
+
+            double dx = element.X - previous.X;
+            double dy = element.Y - previous.Y;
+
+            _lastPositions[element.ElementId] = (element.X, element.Y);
+
+            if (ScadaChangeScope.IsReplaying)
+                return;
+
+            var children = GetChildElements(element);
+
+            for (int i = 0; i < children.Count; i++)
+            {
+                var child = children[i];
+
+                // 子图元的位置写在同一处（各自的 setter 会自己刷 Version），
+                // 于是它们与父的位移落在同一个编辑作用域里——一次拖动仍是一条撤销记录。
+                child.X += dx;
+                child.Y += dy;
+            }
         }
 
         /// <summary>挂属性变更订阅（幂等：登记表已存在则不重复挂）</summary>
         private void Subscribe(ScadaElement element)
         {
             if (_subscribedElements.Add(element))
+            {
                 element.PropertyChanged += OnElementPropertyChanged;
+
+                // 记下初始位置：底板联动的差值要靠它（见 CascadeContainerMove）
+                _lastPositions[element.ElementId] = (element.X, element.Y);
+            }
         }
 
         /// <summary>摘属性变更订阅（幂等：登记表没有则不动手）</summary>
         private void Unsubscribe(ScadaElement element)
         {
             if (_subscribedElements.Remove(element))
+            {
                 element.PropertyChanged -= OnElementPropertyChanged;
+                _lastPositions.Remove(element.ElementId);
+            }
         }
 
         /// <summary>整表重建索引（重复身份保留集合中靠前者，与 VariableRegistry 口径一致）</summary>

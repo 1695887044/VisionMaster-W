@@ -1,4 +1,3 @@
-using Core.Interfaces.Core;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -76,20 +75,15 @@ namespace Core.Interfaces
                 {
                     newValue = directValue;
                 }
-                // 情况3：类型不匹配，尝试智能转换
+                // 情况3：类型不匹配，走统一转换入口 ValueConverter。
+                // ★ 不在此内联转换逻辑：ValueConverter 会拆 JSON 反序列化产生的 JToken，
+                // 而 Convert.ChangeType 不认 JToken（不实现 IConvertible）会抛 InvalidCastException。
+                // 与 InputPort.DefaultConvert 共用同一口径，避免两条转换路径行为分叉。
                 else
                 {
                     try
                     {
-                        // 处理可空类型和枚举字符串转换
-                        Type targetType = typeof(T);
-                        if (Nullable.GetUnderlyingType(targetType) != null)
-                            targetType = Nullable.GetUnderlyingType(targetType);
-
-                        if (targetType.IsEnum && value is string strValue)
-                            newValue = (T)Enum.Parse(targetType, strValue);
-                        else
-                            newValue = (T)Convert.ChangeType(value, targetType);
+                        newValue = (T)ValueConverter.Convert(value, typeof(T));
                     }
                     catch (Exception ex)
                     {

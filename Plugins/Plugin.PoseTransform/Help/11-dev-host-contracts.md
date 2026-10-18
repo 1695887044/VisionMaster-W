@@ -99,7 +99,7 @@ object GetConfigView(IStepConfigData stepData) => new PoseTransformView(stepData
 ```
 [Display(Name = "坐标变换",
          GroupName = "定位",
-         Description = "位姿跟随与像素↔机械换算：把定位位姿变成下游能用的跟随 ROI 与机械坐标",
+         Description = "位姿跟随与像素↔机械换算：把定位位姿变成下游能用的跟随 ROI 与机械坐标（标定支持九点/透视/网格，含「已去畸变」版本）",
          ShortName = "\uf047")]
 ```
 

@@ -79,6 +79,11 @@ namespace VisionMaster.Scada
             _pages.CollectionChanged += OnPagesChanged;
             _alarms.CollectionChanged += OnAlarmsChanged;
             _variableEvents.CollectionChanged += OnVariableEventsChanged;
+
+            // 基座集合同样要在<b>字段初始化的那份实例</b>上挂订阅——只在属性 setter 里挂的话，
+            // 新建文档（不走反序列化）就永远收不到 CollectionChanged：
+            // 注册/摘除基座不进撤销栈（撤销只回退引用字段、集合停在改过之后），而且没任何报错。
+            _basePages.CollectionChanged += OnBasePagesChanged;
         }
 
         /// <summary>
@@ -186,7 +191,9 @@ namespace VisionMaster.Scada
         /// </summary>
         public void SetStartupPage(ScadaPage? page)
         {
-            var target = page != null && _pages.Contains(page) ? page.PageId : Guid.Empty;
+            // 基座不能当启动画面（<see cref="IsNavigable"/> 一并拦掉）：启动画面是"运行先看到哪一页"，
+            // 而基座是叠在本页下面的公共层，单独显示它既没有本页内容、也不是任何人的目的地。
+            var target = IsNavigable(page) ? page!.PageId : Guid.Empty;
             if (target == _startupPageId)
                 return; // 幂等：勾了同一页不该刷脏，也不该占一次撤销位
 
@@ -220,9 +227,13 @@ namespace VisionMaster.Scada
         ///
         /// "回落"必须发生在这里而不是界面侧：指定过启动画面之后又把它删掉是完全正常的操作，
         /// 运行态不能因此显示空白画面，也不能弹"启动画面不存在"——那个配置项已经被删除动作带走了。
+        ///
+        /// <b>基座画面不参与</b>（见 <see cref="FindNavigablePage"/>）：基座是公共层、不是终点，
+        /// 它也在 <see cref="Pages"/> 里（要落盘、要能进编辑器），所以"回落第一页"必须显式跳过它，
+        /// 否则把第一页注册成基座之后，一按运行就先看到一张孤零零的基座。
         /// </summary>
         public ScadaPage? ResolveStartupPage()
-            => FindPage(_startupPageId) ?? (_pages.Count > 0 ? _pages[0] : null);
+            => FindNavigablePage(_startupPageId) ?? _pages.FirstOrDefault(p => !IsBasePage(p));
 
         /// <summary>按稳定身份找画面（找不到返回 null）</summary>
         public ScadaPage? FindPage(Guid pageId)
@@ -235,6 +246,248 @@ namespace VisionMaster.Scada
                 : _pages.FirstOrDefault(p => string.Equals(p.Name, name!.Trim(), StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
+        /// 按 Id 找<b>可导航</b>的画面：在 <see cref="Pages"/> 里、且不是已注册的基座。
+        ///
+        /// <b>为什么不能直接用 <see cref="FindPage"/></b>：基座画面同时也在 <see cref="Pages"/> 里
+        /// （要落盘、要能进编辑器、要被引用），所以按 Id 找一定会找到它。但基座是"公共层"，
+        /// 不是"终点"——跳过去只会看到一张没有本页内容的画面，用户会以为跳转坏了。
+        /// 导航、启动画面、画面选择器三处统一走这一对方法，判据只写一遍。
+        /// </summary>
+        public ScadaPage? FindNavigablePage(Guid pageId)
+            => pageId == Guid.Empty
+                ? null
+                : _pages.FirstOrDefault(p => p.PageId == pageId && !IsBasePage(p));
+
+        /// <summary>按名找可导航的画面（口径同 <see cref="FindNavigablePage"/>）</summary>
+        public ScadaPage? FindNavigablePageByName(string? name)
+            => string.IsNullOrWhiteSpace(name)
+                ? null
+                : _pages.FirstOrDefault(p =>
+                    !IsBasePage(p)
+                    && string.Equals(p.Name, name!.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>该画面能不能作为导航目标（在本方案里、且不是基座）</summary>
+        public bool IsNavigable(ScadaPage? page)
+            => page != null && _pages.Contains(page) && !IsBasePage(page);
+
+        /// <summary>
+        /// 可作为基座的画面集合（落盘）。
+        ///
+        /// <b>为什么单独一个集合而不是挂在 <see cref="Pages"/> 里打标记</b>：
+        /// 基座与画面在生命周期上是两类东西——基座不许被导航（它不是终点，是公共层）、
+        /// 不许被删除时连带删掉引用它的画面（引用方按"无基座"降级，而不是跟着消失）。
+        /// 合并进一个集合就要靠"某字段当开关"来分流，那种"同一个类型、两种语义"的写法
+        /// 迟早把切换画面、删除画面、遍历画面三处的判据写岔。
+        ///
+        /// 序列化与 <see cref="Pages"/> 同一个范式（`ObjectCreationHandling.Replace`）。
+        /// 旧 .vms 里没有这个集合，反序列化后取默认空集——不需要迁移代码。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<ScadaPage> BasePages
+        {
+            get => _basePages;
+            set
+            {
+                var old = _basePages;
+                if (old != null)
+                    old.CollectionChanged -= OnBasePagesChanged;
+
+                _basePages = value ?? new ObservableCollection<ScadaPage>();
+                _basePages.CollectionChanged += OnBasePagesChanged;
+            }
+        }
+
+        private ObservableCollection<ScadaPage> _basePages = new();
+
+        private void OnBasePagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            // 基座集合的变更只影响"谁还能被引用"：被删的基座让引用它的画面按"无基座"降级，
+            // 不需要在这里清掉引用字段（与 ScadaPage.BasePageId 注释里"悬空不清理"的口径一致）。
+            //
+            // 没有版本号（基座的版本由 ScadaPage.Version 表达，与 Pages 同一条纪律），
+            // 但**要记账**：注册/摘除基座同样是可撤销的编辑动作（否则"撤销"只回退了引用字段、
+            // 基座集合停在改过之后的状态，一次撤销后模型仍是不一致的）。
+            ScadaCollectionRecorder.Record(_basePages, e);
+        }
+
+        /// <summary>
+        /// 按 Id 找基座画面。
+        /// 找不到（未注册 / 已被删 / 传入空 Id）返回 null——引用方按"无基座"降级，不丢画面内容。
+        /// </summary>
+        public ScadaPage? FindBasePage(Guid basePageId)
+            => basePageId == Guid.Empty ? null : _basePages.FirstOrDefault(p => p.PageId == basePageId);
+
+        /// <summary>按名找基座（大小写不敏感；用于"选的目标其实是基座"这类诊断文案）</summary>
+        public ScadaPage? FindBasePageByName(string? name)
+            => string.IsNullOrWhiteSpace(name)
+                ? null
+                : _basePages.FirstOrDefault(p => string.Equals(p.Name, name!.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>
+        /// 把某画面设为基座（加入 <see cref="BasePages"/>）。
+        ///
+        /// 三条拒由，每条都对应一个真实会坏掉的输入：
+        /// ① 该画面已经在基座集合里——重复注册会让"页面列表里同时出现两个同名基座"；
+        /// ② 画面不在本方案的 <see cref="Pages"/> 里——外来的对象不该被注册进本方案；
+        /// ③ 该画面自己已经引用了别的基座——那就是"基座再套基座"（本版本只支持一层，
+        ///    渲染侧只合成一层：基座压底 + 本页，链上第二层会被静默丢掉，看起来像"基座没生效"）。
+        ///
+        /// ③ 与 <see cref="TrySetBasePage"/> 里那条是同一个不变量的两个入口，两处都必须拦：
+        /// 只在一边拦，另一条路径就能造出"模型里有链、画面上只画一层"的静默故障。
+        /// </summary>
+        public bool TryAddBasePage(ScadaPage? page, out string error)
+        {
+            error = string.Empty;
+
+            if (page is null || !_pages.Contains(page))
+            {
+                error = "画面不在本方案里，无法注册为基座";
+                return false;
+            }
+
+            if (_basePages.Contains(page))
+                return true; // 幂等：已经注册过了
+
+            if (page.BasePageId != Guid.Empty)
+            {
+                error = "该画面已引用别的基座，不能再注册为基座（本版本只支持一层）";
+                return false;
+            }
+
+            using (BeginEdit($"注册基座 [{page.Name}]"))
+            {
+                _basePages.Add(page);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 把某画面从基座集合里摘除（引用它的画面按"无基座"降级）。
+        ///
+        /// 幂等：本来就不在集合里时返回 true 且不产记录（与 <see cref="ScadaPage.TryUngroupElements"/> 同一口径）。
+        /// 摘除不清掉引用字段：那些画面的 <c>BasePageId</c> 会指向一个不存在的 Id，
+        /// 渲染侧按"无基座"降级，撤销还能把它找回来。
+        /// </summary>
+        public bool TryRemoveBasePage(ScadaPage? page, out string error)
+        {
+            error = string.Empty;
+
+            if (page is null || !_basePages.Contains(page))
+                return true; // 本来就不在，目标已达成
+
+            using (BeginEdit($"摘除基座 [{page.Name}]"))
+            {
+                _basePages.Remove(page);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 把 <paramref name="page"/> 的基座引用设为 <paramref name="basePage"/>（null / Guid.Empty = 不引用）。
+        ///
+        /// 四条拒由：
+        /// ① 自引用（基座引用自己）；
+        /// ② 引用方本身就是基座——"基座再套基座"，本版本只支持一层（渲染侧只合成两层：
+        ///    基座压底 + 本页；链上第二层会被静默丢掉）。与 <see cref="TryAddBasePage"/> 的 ③ 同一不变量；
+        /// ③ 目标画面不是已注册的基座——引用一个不注册的对象会让它既不能被编辑也不能被统一管理；
+        /// ④ 会形成环（防御：正常编辑路径到不了这里，但手改过的 .vms 可能带着链）。
+        ///
+        /// 只在引用关系<b>变化</b>时动（幂等：同一基座再指一次是空操作）。
+        /// </summary>
+        public bool TrySetBasePage(ScadaPage? page, ScadaPage? basePage, out string error)
+        {
+            error = string.Empty;
+
+            if (page is null || !_pages.Contains(page))
+            {
+                error = "画面不在本方案里";
+                return false;
+            }
+
+            var newBaseId = basePage?.PageId ?? Guid.Empty;
+
+            if (page.BasePageId == newBaseId)
+                return true; // 幂等：没变化
+
+            if (basePage is null)
+            {
+                using (page.BeginEdit($"取消基座引用 [{page.Name}]"))
+                {
+                    page.BasePageId = Guid.Empty;
+                }
+
+                return true;
+            }
+
+            if (ReferenceEquals(page, basePage))
+            {
+                error = "基座不能引用它自己";
+                return false;
+            }
+
+            if (IsBasePage(page))
+            {
+                error = "基座画面不能再引用别的基座（本版本只支持一层）";
+                return false;
+            }
+
+            if (!IsBasePage(basePage))
+            {
+                error = $"「{basePage.Name}」不是已注册的基座画面";
+                return false;
+            }
+
+            if (CreatesCycle(page, basePage))
+            {
+                error = "会形成循环引用（基座不能再套基座）";
+                return false;
+            }
+
+            using (page.BeginEdit($"设置基座 [{basePage.Name}]"))
+            {
+                page.BasePageId = newBaseId;
+            }
+
+            return true;
+        }
+
+        /// <summary>该画面是不是已注册的基座（直接比引用，不查 Id——对象比 Id 更可靠）</summary>
+        public bool IsBasePage(ScadaPage? page)
+            => page is not null && _basePages.Contains(page);
+
+        /// <summary>把 page 设成 basePage 的引用方会不会造成循环（A 引 B 且 B 引 A，或更长环）</summary>
+        private bool CreatesCycle(ScadaPage page, ScadaPage basePage)
+        {
+            var seen = new HashSet<Guid>();
+            var byId = new Dictionary<Guid, ScadaPage>();
+
+            foreach (var p in _pages)
+                byId[p.PageId] = p;
+            foreach (var p in _basePages)
+                byId[p.PageId] = p;
+
+            // 顺着引用链往下走：若链上出现了本页自己的 Id，就成环。
+            // 链上的每一步都按 BasePageId 反查——基座与普通页都可能在链上。
+            var currentId = basePage.BasePageId;
+
+            while (currentId != Guid.Empty && byId.TryGetValue(currentId, out var current))
+            {
+                if (!seen.Add(current.PageId))
+                    return true; // 链上有重复 Id = 环
+
+                if (current.PageId == page.PageId)
+                    return true;
+
+                currentId = current.BasePageId;
+            }
+
+            return false;
+        }
+
+
+        /// <summary>
         /// 新建一个画面并加入集合（名字留空则按"画面_N"自动命名，N 取当前未被占用的最小序号）。
         ///
         /// 自动命名放在模型侧而不是编辑器侧：名字唯一性只在这里能保证（此处能看到全部画面），
@@ -245,8 +498,11 @@ namespace VisionMaster.Scada
         /// 若留空集合，图层面板就得自己处理"一个图层都没有"的畸形状态，而工具箱往画布上
         /// 放图元时也找不到归属层。走反序列化进来的画面由文件自带图层，旧文件（没有这个字段）
         /// 由 <see cref="EnsureIdentity"/> 补齐——两条路都不经过本方法，互不干扰。
+        ///
+        /// <paramref name="basePageId"/>：新画面默认引用哪个基座。留空 = 不引用。
+        /// 编辑器顶栏"新建"默认沿用当前页的基座，正是现场建一批"长得一样"的画面的常态。
         /// </summary>
-        public ScadaPage AddPage(string? name = null)
+        public ScadaPage AddPage(string? name = null, Guid basePageId = default)
         {
             var page = new ScadaPage();
             var pageName = string.IsNullOrWhiteSpace(name) ? NextPageName() : name!.Trim();
@@ -254,6 +510,7 @@ namespace VisionMaster.Scada
             using (BeginEdit($"新建画面 [{pageName}]"))
             {
                 page.Name = pageName;
+                page.BasePageId = basePageId; // 先定引用再进集合：订阅者看到的画面永远是"完整"的
                 page.AddLayer(); // 先建好图层再进集合：让订阅者看到的画面永远是"完整"的
                 _pages.Add(page);
             }
@@ -291,6 +548,11 @@ namespace VisionMaster.Scada
             using (BeginEdit($"删除画面 [{page.Name}]"))
             {
                 _pages.Remove(page);
+
+                // 基座集合里也必须摘掉：留着它会让"被删掉的画面"仍能被引用
+                // （IsBasePage 查的是 BasePages，不查 Pages），界面上还会在下拉框里留一条幽灵候选。
+                // 与 _pages 在同一个作用域里，一次撤销把两边一起恢复。
+                _basePages.Remove(page);
 
                 // 删掉的正是启动画面时顺手清空指定：留着那个 Id 是个指向不存在画面的幽灵引用，
                 // 虽然 ResolveStartupPage 的回落能兜住显示，但属性面板上会一排全不勾、
@@ -645,6 +907,28 @@ namespace VisionMaster.Scada
                         continue;
 
                     alarm.AlarmId = Guid.NewGuid();
+                    repaired++;
+                }
+
+                // 基座的两条不变量在加载期也要成立——手改过的 .vms、或旧版本留下的数据
+                // 可能带着"基座集合里的幽灵条目"和"基座再套基座"的链。
+                // 渲染侧只合成两层（基座压底 + 本页），链上第二层会被静默丢掉，
+                // 现场看到的是"基座改了没反应"，比加载期直接报错难查得多。
+                for (int i = _basePages.Count - 1; i >= 0; i--)
+                {
+                    if (_pages.Contains(_basePages[i]))
+                        continue;
+
+                    _basePages.RemoveAt(i); // 幽灵条目：Pages 里已经没有它了
+                    repaired++;
+                }
+
+                foreach (var basePage in _basePages)
+                {
+                    if (basePage.BasePageId == Guid.Empty)
+                        continue;
+
+                    basePage.BasePageId = Guid.Empty; // 一层限制：基座不引用任何基座
                     repaired++;
                 }
             }

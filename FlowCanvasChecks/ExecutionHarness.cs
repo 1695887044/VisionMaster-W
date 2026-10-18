@@ -34,9 +34,17 @@ namespace FlowCanvasChecks
         /// context 是 VisionMaster.Services.ExecutionContext 且 CurrentSession != null，
         /// 所以必须用带 session 的那个构造函数，不能用只收 ILogService 的简化版。
         /// </summary>
-        public static ExecRun Prepare(StepModel[] blueprints)
+        /// <param name="seed">
+        /// 可选：在**编译之前**往工作区里种东西（典型是全局变量集合）。
+        /// 为什么必须早于 Compile：全局变量连线（LinkKind.GlobalVariable）是在
+        /// FlowCompiler.LinkPorts 里按注册表解析成端口对象的，编译之后再种变量，
+        /// 连线已经解析成 null 并被记成 [连线断开]——断言会红在"图纸编译不过"上，
+        /// 看不出真正要验的运行期语义。
+        /// </param>
+        public static ExecRun Prepare(StepModel[] blueprints, Action<WorkspaceContext>? seed = null)
         {
             var workspace = new WorkspaceContext();
+            seed?.Invoke(workspace);
             var result = new FlowCompiler(workspace).Compile(blueprints, FlowName);
 
             var run = new ExecRun { Workspace = workspace, Result = result };
@@ -71,6 +79,13 @@ namespace FlowCanvasChecks
         /// <summary>建一个执行上下文（A2 状态上报依赖它携带 CurrentSession）</summary>
         public ExecutionContext NewContext(StubLog log)
             => new(log, Session!, Workspace!, new CancellationTokenSource().Token);
+
+        /// <summary>
+        /// 建一个执行上下文，并**透传外部令牌**——"停止请求"类断言靠它在中途取消，
+        /// 而不是靠赌某个耗时窗口（等待节点这类长驻节点没有可赌的短窗口）。
+        /// </summary>
+        public ExecutionContext NewContext(StubLog log, CancellationToken token)
+            => new(log, Session!, Workspace!, token);
     }
 
     /// <summary>

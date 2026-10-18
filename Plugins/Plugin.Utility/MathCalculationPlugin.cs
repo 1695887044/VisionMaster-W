@@ -6,23 +6,23 @@ namespace VisionMaster.Plugins.Util
 {
     public enum MathOperationType
     {
-        Add,
-        Subtract,
-        Multiply,
-        Divide,
-        Power,
-        Sqrt,
-        Abs,
-        Sin,
-        Cos,
-        Tan,
-        Atan,
-        Log,
-        Log10,
-        Exp,
-        Round,
-        Floor,
-        Ceiling
+        [Display(Name = "加")] Add,
+        [Display(Name = "减")] Subtract,
+        [Display(Name = "乘")] Multiply,
+        [Display(Name = "除")] Divide,
+        [Display(Name = "幂")] Power,
+        [Display(Name = "开方")] Sqrt,
+        [Display(Name = "绝对值")] Abs,
+        [Display(Name = "正弦")] Sin,
+        [Display(Name = "余弦")] Cos,
+        [Display(Name = "正切")] Tan,
+        [Display(Name = "反正切")] Atan,
+        [Display(Name = "自然对数")] Log,
+        [Display(Name = "常用对数")] Log10,
+        [Display(Name = "指数")] Exp,
+        [Display(Name = "四舍五入")] Round,
+        [Display(Name = "向下取整")] Floor,
+        [Display(Name = "向上取整")] Ceiling
     }
 
     [Display(

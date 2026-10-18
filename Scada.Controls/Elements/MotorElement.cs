@@ -6,41 +6,12 @@ namespace VisionMaster.Scada.Controls
 {
     /// <summary>
     /// 电机图元（TypeKey = <c>Hmi.Motor</c>）：圆机身里一个 M，机身顶上一个小方盒（接线盒）。
-    ///
-    /// <b>为什么电机不能画成"一个圆加一个 M 就完事"</b>
-    /// ---------
-    /// 圆加 M 在图纸上确实认得出是电机，但它和"泵"的轮廓完全一样——都是一只圆。
-    /// 现场扫一眼整页管路图时，人是先靠<b>外轮廓</b>分辨设备的，内里的字是第二步。
-    /// 顶上那只接线盒就是给轮廓加的一笔：泵是光圆，电机是"圆 + 顶上一块方"，
-    /// 远看就能分开，不必凑近了读字。这也是它与 <see cref="PumpElement"/> 各占一个 TypeKey
-    /// 而不是共用一个"设备"图元加形状开关的原因（详见 PumpElement 的类注释）。
-    ///
-    /// <b>推导链</b>
-    /// ---------
-    /// <code>
-    ///   State ──┬─▶ StateBrush（停=灰 / 转=绿 / 故障=红）
-    ///           ├─▶ BodyGeometry（机身圆，随尺寸缩放）
-    ///           ├─▶ BoxGeometry（接线盒，随尺寸缩放）
-    ///           ├─▶ LetterGeometry（机身里的 M）
-    ///           └─▶ LetterThickness（M 的笔画粗细，随机身缩放）
-    /// </code>
-    ///
-    /// <b>为什么 M 是一段"折线几何"而不是模板里的 TextBlock</b>
-    /// ---------
-    /// 在模板里放一个字要算两件事：字号多大才配得上机身、字摆在哪才算居中。
-    /// 两件都是"随尺寸变的量"，模板算不了，只能由代码算完再把结果交给模板——
-    /// 那就等于把同一个换算拆成"代码算位置 + 模板猜字号"两半，必然对不齐。
-    /// 干脆把 M 也画成几何：<b>一个形状只需要一份坐标账</b>，粗细由 <see cref="LetterThickness"/>
-    /// 一并给出，模板只负责绑。
-    ///
-    /// 运行时的接法：把 <see cref="State"/> 绑到工程变量上（枚举名，或 0/1/2），电机就活了。
-    ///
-    /// <b>状态与配色不归本类管</b>
     /// ---------
     /// 状态词汇（<see cref="DeviceState"/>）与四个颜色输入被泵、电机、管道三家逐字共用，
     /// 因此上提到了 <see cref="StateVisualElement"/>；本类只留机身、接线盒、M 三段几何。
     /// </summary>
-    public class MotorElement : StateVisualElement
+    /// <remarks>partial 的理由与 <see cref="PumpElement"/> 相同（链上形态一致、留好加私有属性的口）。</remarks>
+    public partial class MotorElement : StateVisualElement
     {
         /// <summary>顶部留给接线盒的高度比例（0.18）</summary>
         private const double BoxRatio = 0.18d;
