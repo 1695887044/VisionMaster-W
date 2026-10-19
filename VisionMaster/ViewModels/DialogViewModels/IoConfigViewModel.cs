@@ -190,6 +190,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set => SetProperty(ref _busId, value);
         }
 
+        /// <summary>列表行主标题：标识 + 显示名（显示名可空）。</summary>
+        public string NameText => string.IsNullOrWhiteSpace(DisplayName) ? BusId : $"{BusId} · {DisplayName}";
+
+        /// <summary>列表行次要说明：链路端点摘要（TCP host:port / 串口 COMx @ baud）。</summary>
+        public string DetailText => Transport switch
+        {
+            TcpLinkEditModel tcp => $"TCP {tcp.Host}:{tcp.Port}",
+            SerialLinkEditModel serial => $"串口 {serial.PortName} @ {serial.BaudRate}",
+            _ => string.Empty
+        };
+
         [SuperDisplay(Name = "显示名", Group = new[] { "总线" }, Order = 2)]
         public string DisplayName
         {
@@ -373,6 +384,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => _busId;
             set => SetProperty(ref _busId, value);
         }
+
+        /// <summary>列表行主标题：标识 + 显示名（显示名可空）。</summary>
+        public string NameText => string.IsNullOrWhiteSpace(DisplayName) ? DeviceId : $"{DeviceId} · {DisplayName}";
+
+        /// <summary>列表行次要说明：驱动 + 所属总线。</summary>
+        public string DetailText => string.IsNullOrWhiteSpace(DriverId)
+            ? $"总线 {BusId}"
+            : $"{DriverId} · 总线 {BusId}";
 
         /// <summary>
         /// 驱动标识。<c>RequireRefresh = true</c>：换驱动后整表重建，
@@ -591,6 +610,7 @@ public sealed class IoPointEditModel : BindableBase
         private readonly IoProvider _provider;
         private readonly IoVariableCatalog _variables;
         private readonly IUserNotifier _notifier;
+        private readonly IoDriverRegistry _registry;
 
         private IoBusEditModel? _selectedBus;
         private IoDeviceEditModel? _selectedDevice;
@@ -607,9 +627,9 @@ public sealed class IoPointEditModel : BindableBase
             _provider = provider;
             _variables = variables;
             _notifier = notifier;
+            _registry = registry;
 
-            foreach (var driver in registry.All)
-                DriverOptions.Add(new IoDriverInfo(driver.DriverId, driver.GetType(), driver.DisplayName, driver.Description, 1));
+            RefreshDriverOptions();
 
             AddBusCommand = new DelegateCommand(AddBus);
             AddDeviceCommand = new DelegateCommand(AddDevice);
@@ -660,10 +680,42 @@ public sealed class IoPointEditModel : BindableBase
             {
                 if (SetProperty(ref _selectedBus, value))
                 {
+                    // 总线换了，能挂的驱动也换了：TCP 总线只出 TCP 驱动，串口总线只出串口驱动。
+                    // 不过滤的话，用户在 TCP 总线上能选到 Modbus RTU，配置能存但永远连不上。
+                    RefreshDriverOptions();
+
                     SelectedDevice = null;
                     RaisePropertyChanged(nameof(SelectedObject));
                 }
             }
+        }
+
+        /// <summary>
+        /// 按当前总线的传输类型重建驱动候选。
+        /// <para><c>BusConfigType == null</c> 的驱动（模拟器）与任何总线兼容。</para>
+        /// </summary>
+        private void RefreshDriverOptions()
+        {
+            DriverOptions.Clear();
+
+            foreach (var driver in _registry.All)
+            {
+                if (!IsDriverCompatible(driver.BusConfigType, SelectedBus?.TransportKind)) continue;
+                DriverOptions.Add(new IoDriverInfo(
+                    driver.DriverId, driver.GetType(), driver.DisplayName, driver.Description, 1));
+            }
+        }
+
+        private static bool IsDriverCompatible(Type? busConfigType, IoTransportKind? transportKind)
+        {
+            if (busConfigType == null) return true;
+
+            return transportKind switch
+            {
+                IoTransportKind.Tcp => busConfigType == typeof(TcpTransportConfig),
+                IoTransportKind.Serial => busConfigType == typeof(SerialTransportConfig),
+                _ => false
+            };
         }
 
         public IoDeviceEditModel? SelectedDevice
@@ -803,7 +855,9 @@ public sealed class IoPointEditModel : BindableBase
             var device = new IoDeviceEditModel
             {
                 DeviceId = NextId(Devices.Select(d => d.DeviceId), "IO_"),
-                BusId = SelectedBus?.BusId ?? Buses[0].BusId
+                BusId = SelectedBus?.BusId ?? Buses[0].BusId,
+                // 默认驱动取当前总线上第一个可用的：TCP 总线上不会默认成 Modbus RTU。
+                DriverId = DriverOptions.FirstOrDefault()?.DriverId ?? string.Empty
             };
             Devices.Add(device);
             SelectedDevice = device;

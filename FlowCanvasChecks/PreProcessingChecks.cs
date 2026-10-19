@@ -308,6 +308,7 @@ namespace FlowCanvasChecks
             HOperatorSet.GenImageConst(out HObject proto, "byte", ImgW, ImgH);
             HOperatorSet.GenImageProto(proto, out HObject current, background);
             proto.Dispose();
+            bool disposed = false;
             try
             {
                 foreach (var r in rects)
@@ -323,12 +324,12 @@ namespace FlowCanvasChecks
                 }
                 var image = new HImage(current);
                 current.Dispose();
-                current = null;
+                disposed = true;
                 return image;
             }
             finally
             {
-                current?.Dispose();
+                if (!disposed) current.Dispose();
             }
         }
 

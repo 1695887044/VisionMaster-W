@@ -247,6 +247,7 @@ namespace FlowCanvasChecks
 
             // 海康相机驱动：Modules 发现契约 + 缺 SDK 优雅降级 + 像素格式分类
             HikvisionChecks.Run();
+            CameraTriggerChecks.Run();
 
             // 图像采集插件：端口面 + 原始像素→HImage（灰度/BGR/BGRA/守卫）+ 文件夹自然序
             ImageAcquisitionChecks.Run();

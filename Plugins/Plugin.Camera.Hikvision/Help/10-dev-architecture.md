@@ -39,7 +39,7 @@ Lazy<MvsRuntime?>(_instance, ExecutionAndPublication)
 | 阶段 | SDK 调用 | 失败时的处置 |
 | --- | --- | --- |
 | 打开 | `MV_CC_CreateDevice_NET` → `MV_CC_EnumDevices_NET`（GigE 与 USB3 两类一次枚举） → 按序列号命中 → `MV_CC_CreateDevice_NET(deviceInfo)` → `MV_CC_OpenDevice_NET` | 枚举失败 / 未命中 / CreateDevice 非 0 都**直接抛异常**；`OpenDevice` 非 0 时**先 `MV_CC_DestroyDevice_NET` 再抛**（不留半开的设备） |
-| 打开成功后 | `MV_CC_SetEnumValue_NET("TriggerMode", 0u)` → `ApplySettingsCore(ReadSettings())` | 触发写入**不判返回值**（失败静默）；参数下发整段 `try` 兜住，失败只记一条 Warn"打开后应用参数失败：…"，**不阻断连接** |
+| 打开成功后 | `ApplyTriggerSettingsCore(ReadSettings())` → `ApplyExposureGainCore(...)` | 触发下发失败**阻断打开**并 `CloseCore()` 关句柄（不能静默连续采图）；曝光/增益失败只记 Warn，不阻断打开 |
 | 采流 | `MV_CC_StartGrabbing_NET` → 拉起后台线程 `HikGrab-序列号`（`IsBackground = true`） | `StartGrabbing` 非 0 → 抛 → 基类把状态退回 `Online` 并写"启动采流失败：{异常类型}: {消息}"（于是界面出现**两层前缀**，属预期文案形状） |
 | 取图循环 | `MV_CC_GetImageBuffer_NET(frameOut, 100)` → 读字段 → `MV_CC_ConvertPixelType_NET` → `Marshal.Copy` → `PushFrame` → **finally** `MV_CC_FreeImageBuffer_NET(frameOut)` | `ret != 0`（含超时）直接 `continue`，回头先判停止标志；单帧异常只记 Warn，**绝不带垮线程**；归还在 `finally`，异常路径也必须归还 |
 | 停流 | `_grabbing = false` → `Join(2000)` → `MV_CC_StopGrabbing_NET` | 线程不响应 Join 超时也照走停流调用（托管线程不能强杀）；此时线程若还活着，会对着已停流的设备取图，`ret != 0` 被 `continue` 吃掉 |
@@ -53,7 +53,7 @@ Lazy<MvsRuntime?>(_instance, ExecutionAndPublication)
 
 | 资源 | 保护方式 | 备注 |
 | --- | --- | --- |
-| `_camera` + `_sdk` 的创建与销毁 | `_sdkGate`（`lock`） | 只罩 `OpenCore` 与 `CloseCore`；`StartStreamCore` / `StopStreamCore` / `ApplySettingsCore` **不加这把锁**（基类保证 `Open` 先于 `StartStream`，参数面板也在同一台设备序列上操作） |
+| `_camera` + `_sdk` 的创建与销毁 | `_sdkGate`（`lock`） | 罩 `OpenCore` / `CloseCore` / `TriggerSoftware`；`StartStreamCore` / `StopStreamCore` / `ApplySettingsCore` 不直接加这把锁（`ApplySettingsCore` 在采流中会先停流再改触发） |
 | 基类状态机 | 基类自己的 `_gate`；`OpenCore` / `StartStreamCore` **在基类锁外**被调用 | 刻意为之：真机打开设备可能几百毫秒，持锁调用会把 `State` 之类只读查询全堵死 |
 | 取图线程 | `volatile bool _grabbing` + `Thread.Join(2000)` | 停止标志最多滞后一个 100 ms 取图周期 |
 | `_convertBuffer` / `_convertPin` | **无锁**，前提是"只有取图线程会碰它"（源码注释原话） | 若将来允许多线程共用一台设备或并行取图，这片缓冲就是竞态源 |
@@ -71,7 +71,8 @@ Lazy<MvsRuntime?>(_instance, ExecutionAndPublication)
 
 ## 六、码值归属：谁的枚举、谁的节点、谁的数值
 
-**MVS SDK / GenICam 的码值 ≠ 本仓 C# 枚举值。** 本驱动一律**按名字**向 SDK 取值，代码里不出现厂商数值。
+**MVS SDK / GenICam 的码值 ≠ 本仓 C# 枚举值。** 本驱动优先**按名字**向 SDK 取值；
+`TriggerMode` 的 0/1 是 GenICam 标准节点值，由 `HikvisionTriggerPlan` 显式映射，业务代码里不散落厂商数值。
 
 | 名字 | 属于谁 | 本仓怎么拿 | 注意 |
 | --- | --- | --- | --- |
@@ -79,13 +80,15 @@ Lazy<MvsRuntime?>(_instance, ExecutionAndPublication)
 | `chSerialNumber` | 设备信息子结构里的文本字段 | `SpecialInfo` → `stGigEInfo` / `stUsb3VInfo` 的 `byte[]` 再 `Marshal.PtrToStructure` 解一遍 | 包装器把子结构存成 `byte[]`，不解这层就永远读不到序列号（表现为"枚举 N 台但找不到"） |
 | `MvGvspPixelType` 的 `PixelType_Gvsp_Mono8` / `PixelType_Gvsp_RGB8_Packed` | SDK 嵌套枚举成员 | `PixelType("…")` 走 `Enum.Parse`，反查名字走 `Enum.GetName` | 像素格式**分类只看名字**（`Contains("Mono")` 等），与枚举数值无关；新机型只要命名守 GenICam 约定就自动可用 |
 | `ExposureTime` / `Gain` | **GenICam 节点名**（相机侧） | `MV_CC_SetFloatValue_NET(节点名, float)` | 节点名逐字与 MVS 客户端一致；机型不同节点名可能不同（如增益分 `Gain`/`GainRaw`/`GainAnalog`），本驱动只认 `Gain` |
-| `TriggerMode` 的值 `0` | **GenICam/MVS 侧**节点值 = 触发关闭（连续采图） | `MV_CC_SetEnumValue_NET("TriggerMode", 0u)` 写死 | ⚠ 与本仓 `CameraTriggerMode.Software = 0` **数值相同、语义无关** |
-| `CameraTriggerMode`（`Software = 0` / `RisingEdge = 1` / `FallingEdge = 2`） | **本仓 C# 枚举**（`CameraTypes.cs`） | 只作为配置值落盘与回显 | 本驱动**完全不读它**；三档里没有"连续采图"，所以它无法表达驱动实际下发的行为 |
+| `TriggerMode` 的 `0` / `1` | **GenICam/MVS 侧**节点值 = 触发关闭 / 触发开启 | `MV_CC_SetEnumValue_NET("TriggerMode", 0u/1u)`，由 `HikvisionTriggerPlan` 决定 | ⚠ 与本仓 `CameraTriggerMode.Software = 0` **数值相同、语义无关**；禁止按数值直接透传 |
+| `TriggerSource` / `TriggerActivation` | **GenICam/MVS 侧**枚举名（`Software` / `Line0~Line3`、`RisingEdge` / `FallingEdge`） | 优先 `MV_CC_SetEnumValueByString_NET`；老版本 SDK 用 `EnumValue(...)` 取数值兜底 | 按名字下发，代码里不写厂商数值 |
+| `CameraTriggerMode`（`Software = 0` / `RisingEdge = 1` / `FallingEdge = 2` / `Continuous = 3`） | **本仓 C# 枚举**（`CameraTypes.cs`） | `HikvisionTriggerPlan.From(settings)` 映射成节点值 | 驱动**读取它**；成员只许追加，旧值不变 |
 | `MV_CC_DEVICE_INFO_LIST.nDeviceNum` / `pDeviceInfo` | SDK 结构体字段 | `DeviceCount` / `FindDeviceBySerial` | 列表形态两种（`IntPtr[]` / 基址+步长）都兜，第三种形态直接 `break` → 上层报"未找到" |
 | 各 `MV_CC_*_NET` 的返回值 | MVS 错误码（`int`） | `$"0x{ret:X8}"` 打进文案 | 非 0 即失败；`Call` 拿不到 int 返回值时按 -1 处理（文案会显示 `0xFFFFFFFF`，看到它就该怀疑封装返回值类型变了） |
 
 **未使用的 SDK 能力（当前实现的边界，别当缺陷查）**：没有注册任何 SDK 回调（设备上下线 / 异常），
-所以 `NotifyDeviceLost` 这条基类通道在本驱动里**从未被调用**；没有下发包长 / GigE 心跳时间；没有主动软触发命令；
+所以 `NotifyDeviceLost` 这条基类通道在本驱动里**从未被调用**；没有下发包长 / GigE 心跳时间；
+软触发命令已实现（`MV_CC_SetCommandValue_NET("TriggerSoftware")`）；
 `HeartbeatTimeoutMs` 因 `RequiresHeartbeat => false` 根本不参与（看门狗不会被创建）。
 
 ## 七、差异点清单（本驱动相对基类改了哪些行为钩子）

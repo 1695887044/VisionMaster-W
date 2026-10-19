@@ -686,6 +686,12 @@
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
+                                        <TextBlock
+                                            Margin="0,6,0,0"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="连续采图：相机自由出图；软触发：流程每次取图前下发一次触发；上升/下降沿：由相机 IO 线触发，流程只等帧。"
+                                            TextWrapping="Wrap" />
                                     </StackPanel>
 
                                     <!--  取图超时  -->
@@ -704,6 +710,18 @@
                                     <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,12,0,0">
                                         <TextBlock Style="{StaticResource DialogFormLabel}" Text="心跳超时（毫秒）" />
                                         <TextBox Style="{StaticResource DialogInput}" Text="{Binding HeartbeatTimeoutMs}" />
+                                    </StackPanel>
+
+                                    <!--  触发源线号（仅上升沿/下降沿生效）  -->
+                                    <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,12,0,0">
+                                        <TextBlock Style="{StaticResource DialogFormLabel}" Text="触发源线号（Line0~Line3）" />
+                                        <TextBox Style="{StaticResource DialogInput}" Text="{Binding TriggerSourceLine}" />
+                                    </StackPanel>
+
+                                    <!--  触发延时（微秒）  -->
+                                    <StackPanel Grid.Row="3" Grid.Column="2" Margin="0,12,0,0">
+                                        <TextBlock Style="{StaticResource DialogFormLabel}" Text="触发延时（微秒）" />
+                                        <TextBox Style="{StaticResource DialogInput}" Text="{Binding TriggerDelayUs}" />
                                     </StackPanel>
                                 </Grid>
 

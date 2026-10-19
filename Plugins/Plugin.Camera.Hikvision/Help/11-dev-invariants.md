@@ -39,8 +39,10 @@
 | 换更大分辨率相机后第一次取图就失败或内容被截 | `EnsureConvertBuffer(need)` 按需扩容并重新钉住；扩容时漏 `Free` 旧 `GCHandle` = 句柄泄漏 + 旧缓冲被 GC 回收后 SDK 仍写它 | 无断言，靠人工核对 |
 | 长时间停止采流后进程内存偏高 | `StopStreamCore` **不** unpin，`_convertBuffer` 一直钉到 `CloseCore`（设计取舍：下次起流复用、免再分配） | 无断言，靠人工核对 |
 | 「停止采流」点下去 100~2100 毫秒才生效 | 停止标志要等当前取图周期结束；`Join(2000)` 超时后不强杀线程、继续调 `StopGrabbing`（托管线程不能强杀） | 无断言，靠人工核对 |
-| 相机侧配好硬触发后"又变回连续出图" | 每次 `OpenCore` 都无条件写 `TriggerMode = 0`；连接顺序或重连会覆盖现场配置 | 无断言，靠人工核对 |
-| 界面上「触发模式」选了没反应 | 该配置项（`CameraTriggerMode`，本仓 C# 值 `Software=0`/`RisingEdge=1`/`FallingEdge=2`）根本不被驱动读取；它与 GenICam 节点的 0 只是数值巧合 | 无断言，靠人工核对 |
+| 相机侧配好硬触发后"又变回连续出图" | `OpenCore` 必须按 `ReadSettings().TriggerMode` 走 `ApplyTriggerSettingsCore`，不得写死 `TriggerMode=0`；下发后回读 `TriggerMode`，不一致必须阻断 | `CameraTriggerChecks` 映射/迁移/采集步骤断言；真机回读靠现场探针 |
+| 界面选「上升沿」，相机仍连续出图 | 同上：驱动必须读 `TriggerMode` 并经 `HikvisionTriggerPlan` 映射；`TriggerSoftware` 只在软触发模式下下发 | `CameraTriggerChecks` 映射与采集步骤断言 |
+| 旧方案升级后全部等图超时 | 旧配置没有 `TriggerSchemaVersion`，`Normalized()` 必须迁移成 `Continuous`；不能把旧值当软触发执行 | `CameraTriggerChecks` 迁移断言 |
+| 软触发模式下采集步骤不触发/先等帧 | 采集步骤必须在 `WaitNextFrame` 之前调 `TriggerSoftware`；驱动不支持软触发时必须明确失败，不能退化成超时 | `CameraTriggerChecks` 采集步骤断言 |
 | 参数面板显示改了、下次打开又变回去 | `ApplySettings` 成功后才把归一化值同步回 `Descriptor.Settings`；若子类在 `ApplySettingsCore` 里自己改了传入实例或在失败路径写配置，两份值就分叉 | 无断言，靠人工核对 |
 | 非法曝光被"夹成一个能用的值"，现场看不出相机其实拒绝了 | 驱动**不做**本地夹值：原值下发、按 SDK 错误码报错。归一化只发生在 `CameraSettings.Normalized()` 的四条（容量 1~1024、`FrameTimeoutMs` <1→3000、`HeartbeatTimeoutMs` <200→3000），曝光/增益不在其中 | 无断言，靠人工核对 |
 | 两台相机配同一序列号时，只有一台在出图 | `FindDeviceBySerial` 返回**第一个**命中者；宿主另有告警但不拦 | 无断言，靠人工核对 |
@@ -56,4 +58,6 @@
 | `ClassifyPixelFormat` 的关键词 | 用户册《取流与触发口径》的格式表 + `HikvisionChecks` 三条像素分类断言（该方法是 `internal` 且靠 `InternalsVisibleTo FlowCanvasChecks` 直测，别改成 `private`） |
 | 任何错误文案 | `05-troubleshooting.md` 的"现象"列逐字改（那张表承诺与源码一致） |
 | `MvsRuntime` 新增绑定成员 | `10-dev-architecture.md` 第六节的码值归属表（**写明是 MVS/GenICam 的码还是本仓 C# 值**） |
+| 触发模式 / 触发源线号 / 触发延时 | `CameraSettings` 迁移（`TriggerSchemaVersion`）、`HikvisionTriggerPlan`、`CameraTriggerChecks`、`04-streaming-and-trigger.md`、相机设置界面 |
+| 触发相关错误文案 | `05-troubleshooting.md` 的触发 Q&A + `CameraTriggerChecks` 的文案断言 |
 | 驱动 DLL 或手册 | 该工程用 `--no-incremental` 重建，并核对 DLL 里 `.Help.` 资源名数 == `Help\` 下 .md 数（增量构建会静默漏打包手册） |

@@ -63,6 +63,17 @@
     <SolidColorBrush x:Key="PluginErrorBrush" Color="#F56C6C" />
 
     <!--
+        ==================== 预览画布（深色工作区） ====================
+        图像预览在深色底上阅读；这是"预览工作区"专用的一小组令牌，
+        不与 Dialog 浅色表面混用，也不在插件视图里写死十六进制。
+    -->
+    <SolidColorBrush x:Key="PluginPreviewCanvasBrush" Color="#0B1220" />
+    <SolidColorBrush x:Key="PluginPreviewSurfaceBrush" Color="#1E293B" />
+    <SolidColorBrush x:Key="PluginPreviewBorderBrush" Color="#334155" />
+    <SolidColorBrush x:Key="PluginPreviewTextBrush" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="PluginPreviewMutedTextBrush" Color="#94A3B8" />
+
+    <!--
         ==================== 下拉（第二批收编） ====================
         收编自 Plugin.ExcelExport / Plugin.ResultUpload / Plugin.DataRecord 三家逐字相同的
         ModernComboBase / ModernComboItem 抄写。值全部照抄原抄写源，不做顺手美化。

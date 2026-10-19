@@ -689,8 +689,33 @@ namespace Plugin.ImageAcquisition
                           + "请到「系统 → 相机设置」连接该相机后再运行"
                 };
 
+            var settings = device.ReadSettings();
             var timeoutMs = FrameTimeoutPort.GetTypedValue();
-            if (timeoutMs <= 0) timeoutMs = device.ReadSettings().FrameTimeoutMs;
+            if (timeoutMs <= 0) timeoutMs = settings.FrameTimeoutMs;
+
+            // 软触发：先下发一次触发，再等帧。失败必须报"软触发失败"，不能退化成"等图超时"——
+            // 后者会让现场去查相机/网线，而真正的问题是触发模式或采流状态。
+            if (settings.TriggerMode == CameraTriggerMode.Software)
+            {
+                if (device.SupportsSoftwareTrigger)
+                {
+                    if (!device.TriggerSoftware())
+                        return new CoreResult
+                        {
+                            Error = $"相机「{device.Descriptor.Caption}」软触发失败。"
+                                  + "请确认相机已开始采流、当前处于软触发模式，并检查驱动日志"
+                        };
+                }
+                else if (device.SupportsHardwareTrigger)
+                {
+                    return new CoreResult
+                    {
+                        Error = $"相机「{device.Descriptor.Caption}」的驱动不支持软触发。"
+                              + "请把触发模式改为连续采图，或改为上升沿/下降沿由外部信号触发"
+                    };
+                }
+                // 两个能力都不支持 = 触发由外部客户端决定（网络相机），本步骤不控制触发，直接等帧
+            }
 
             if (!device.WaitNextFrame(out var frame, timeoutMs, context.CancellationToken))
             {
@@ -701,6 +726,7 @@ namespace Plugin.ImageAcquisition
                 return new CoreResult
                 {
                     Error = $"等待相机「{device.Descriptor.Caption}」出图超时（{timeoutMs} ms）"
+                          + $"；触发模式：{TriggerHint(settings.TriggerMode, device.SupportsSoftwareTrigger, device.SupportsHardwareTrigger)}"
                           + $"；相机状态：{device.StateDetail}，待消费 {device.PendingFrameCount} 帧，"
                           + $"累计收帧 {device.ReceivedFrameCount}，溢出丢帧 {device.OverflowCount}"
                 };
@@ -724,6 +750,23 @@ namespace Plugin.ImageAcquisition
                 ReceivedCount = device.ReceivedFrameCount,
                 Error = $"已从相机取图: {frame.Width}x{frame.Height}x{frame.Channels}"
                       + $"（第 {frame.FrameId} 帧，来源 {frame.SourceName}）"
+            };
+        }
+
+        /// <summary>超时文案里的触发模式说明：让现场一眼看出该去查 PLC/光电还是相机状态</summary>
+        private static string TriggerHint(CameraTriggerMode mode, bool supportsSoftware, bool supportsHardware)
+        {
+            // 两个能力都不支持 = 触发由外部客户端决定（网络相机）；不要写成"本步骤已下发触发"。
+            if (!supportsSoftware && !supportsHardware)
+                return "外部触发（由客户端/外部程序决定）";
+
+            return mode switch
+            {
+                CameraTriggerMode.Continuous => "连续采图",
+                CameraTriggerMode.Software => "软触发（本步骤已尝试下发触发）",
+                CameraTriggerMode.RisingEdge => "上升沿（请检查 PLC/光电/编码器是否给出触发，或相机 IO 线是否接对）",
+                CameraTriggerMode.FallingEdge => "下降沿（请检查 PLC/光电/编码器是否给出触发，或相机 IO 线是否接对）",
+                _ => mode.ToString()
             };
         }
 

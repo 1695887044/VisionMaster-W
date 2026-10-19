@@ -63,7 +63,7 @@ namespace Core.Interfaces
         protected CameraDeviceBase(CameraDescriptor descriptor)
         {
             Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
-            _settings = (descriptor.Settings ?? new CameraSettings()).Normalized();
+            _settings = (descriptor.Settings ?? CameraSettings.CreateNew()).Normalized();
         }
 
         #region 对外只读状态
@@ -317,6 +317,19 @@ namespace Core.Interfaces
         public CameraSettings ReadSettings()
         {
             lock (_gate) return _settings.Clone();
+        }
+
+        /// <inheritdoc />
+        public virtual bool SupportsSoftwareTrigger => false;
+
+        /// <inheritdoc />
+        public virtual bool SupportsHardwareTrigger => false;
+
+        /// <inheritdoc />
+        public virtual bool TriggerSoftware()
+        {
+            LogWarn($"[{Descriptor.Caption}] 本驱动不支持软件触发");
+            return false;
         }
 
         /// <summary>当前生效参数（内部用，不再拷贝）</summary>

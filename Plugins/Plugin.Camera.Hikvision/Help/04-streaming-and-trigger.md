@@ -22,16 +22,25 @@
 
 ## 二、触发口径（最容易误解的一项）
 
-- 本驱动在打开设备成功后，**无条件**把 GenICam 节点 `TriggerMode` 写成 0，让相机持续出图（免触发）。
-- 相机配置里的「触发模式」**不被本驱动读取**。本仓的触发模式枚举只有三个成员
-  （`Software` / `RisingEdge` / `FallingEdge`），**压根没有"连续采图"这一档**，
-  所以它对海康既不生效、也没有对应的可选项——这一项现在只是配置值，随方案落盘与回显。
-- ⚠ 别把两边的 0 当成同一个意思：GenICam 节点的 0 是"触发关闭 / 连续采图"，
-  本仓枚举的 0 是"软触发"。**数值相同、语义无关**，这是两套体系各自的码值。
-- **要硬触发（光电 / 编码器 / PLC 的上升沿、下降沿）怎么办**：在相机侧或 MVS 客户端里把触发配好并接线，
-  让相机只在收到信号时出图。帧照样进队列，采集步骤按自己的节奏消费——效果上就是"来一件拍一件"，
-  只是触发参数不在本软件里维护。**注意**：本驱动打开设备时会把 `TriggerMode` 重新写回连续采图，
-  所以顺序必须是"先连本软件、再到 MVS/相机侧改触发"，或者改完后重连一次再改。
+本驱动从 2026-10-19 起**真正读取并下发** `CameraSettings.TriggerMode`，四档语义如下：
+
+| 模式 | GenICam 侧 | 谁产生帧 | 采集步骤做什么 |
+| --- | --- | --- | --- |
+| `Continuous`（连续采图） | `TriggerMode=0` | 相机自由出图 | 只 `WaitNextFrame` |
+| `Software`（软触发） | `TriggerMode=1` + `TriggerSource=Software` | 软件每次下发 `TriggerSoftware` 后曝光一次 | 先 `TriggerSoftware()`，再 `WaitNextFrame` |
+| `RisingEdge`（上升沿） | `TriggerMode=1` + `TriggerSource=LineN` + `TriggerActivation=RisingEdge` | 相机 IO 线上升沿 | 只 `WaitNextFrame`（外部信号触发） |
+| `FallingEdge`（下降沿） | `TriggerMode=1` + `TriggerSource=LineN` + `TriggerActivation=FallingEdge` | 相机 IO 线下降沿 | 只 `WaitNextFrame`（外部信号触发） |
+
+- `TriggerSourceLine`（0~3）对应 `Line0~Line3`，只对上升沿/下降沿有效；`TriggerDelayUs` 是触发延时（微秒）。
+- ⚠ **别把两边的 0 当成同一个意思**：GenICam 节点的 0 是"触发关闭 / 连续采图"，
+  本仓枚举的 0 是"软触发"。驱动通过 `HikvisionTriggerPlan` 按成员语义映射，**不按数值直接透传**。
+- **旧方案迁移**：2026-10-19 之前的配置没有 `TriggerSchemaVersion`，当时驱动固定连续采图；
+  升级后这类配置自动迁移成 `Continuous`，保持升级前的真实行为。要改用触发，在相机设置里重新选一次模式并应用即可。
+- **失败不静默**：驱动下发后会回读 `TriggerMode`，不一致就抛"触发模式回读不一致"；
+  打开设备时触发下发失败会**阻断打开**并关掉句柄，不会再出现"界面说上升沿、相机连续出图"。
+- **软触发失败不会退化成等图超时**：采集步骤会明确报"软触发失败"或"驱动不支持软触发"。
+- **多相机同步**不在这里解决：每台相机各自按自己的触发设置出图；需要"同一时刻曝光"时，
+  仍要由 PLC/同步盒给所有相机同一触发信号（或后续做同步采集步骤）。
 
 ## 三、像素格式与通道数
 

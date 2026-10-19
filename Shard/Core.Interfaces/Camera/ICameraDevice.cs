@@ -63,6 +63,26 @@ namespace Core.Interfaces
         CameraSettings ReadSettings();
 
         /// <summary>
+        /// 本驱动是否支持"软件下发一次触发"。
+        /// 默认 false：网络相机这类"触发由外部客户端决定"的驱动不实现它；
+        /// 采集步骤据此区分"该驱动能软触发"与"该驱动根本不管触发"。
+        /// </summary>
+        bool SupportsSoftwareTrigger => false;
+
+        /// <summary>
+        /// 本驱动是否支持"外部信号触发"（上升沿/下降沿）。
+        /// 默认 false；海康等真机驱动为 true。
+        /// </summary>
+        bool SupportsHardwareTrigger => false;
+
+        /// <summary>
+        /// 下发一次软件触发（相机必须处于软触发模式且已开始采流）。
+        /// 返回 false 时调用方应报"软触发失败"而不是"等图超时"。
+        /// 默认实现返回 false，保证新增能力不破坏既有驱动。
+        /// </summary>
+        bool TriggerSoftware() => false;
+
+        /// <summary>
         /// "设备还活着"的证据（心跳）。
         /// 网络相机：宿主收图服务在收到心跳或帧时调用；
         /// 真机：SDK 心跳回调 / 一次成功取流时调用。

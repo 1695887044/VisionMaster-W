@@ -438,10 +438,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public IReadOnlyList<CameraTriggerModeOption> TriggerModeOptions { get; } = new[]
         {
-            new CameraTriggerModeOption { Value = CameraTriggerMode.Software, Display = "软触发（软件下令曝光）" },
+            new CameraTriggerModeOption { Value = CameraTriggerMode.Continuous, Display = "连续采图（免触发）" },
+            new CameraTriggerModeOption { Value = CameraTriggerMode.Software, Display = "软触发（流程每次取图前下发）" },
             new CameraTriggerModeOption { Value = CameraTriggerMode.RisingEdge, Display = "上升沿（外部信号触发）" },
             new CameraTriggerModeOption { Value = CameraTriggerMode.FallingEdge, Display = "下降沿（外部信号触发）" },
         };
+
+        private int _triggerSourceLine;
+
+        /// <summary>硬件触发的相机 IO 线号（0~3 = Line0~Line3）；软触发/连续采图忽略</summary>
+        public int TriggerSourceLine
+        {
+            get => _triggerSourceLine;
+            set => SetProperty(ref _triggerSourceLine, value);
+        }
+
+        private double _triggerDelayUs;
+
+        /// <summary>触发延时（微秒）；0 = 不延时</summary>
+        public double TriggerDelayUs
+        {
+            get => _triggerDelayUs;
+            set => SetProperty(ref _triggerDelayUs, value);
+        }
 
         private int _frameTimeoutMs = 3000;
 
@@ -641,7 +660,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 显示名留空就用序列号兜底：列表里总得有个能认的标识
                 DisplayName = string.IsNullOrWhiteSpace(NewDisplayName) ? serial : NewDisplayName.Trim(),
                 DriverTypeKey = driver.TypeKey,
-                Settings = new CameraSettings()
+                Settings = CameraSettings.CreateNew()
             };
 
             configs.Add(descriptor);
@@ -778,10 +797,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _loadingParams = true;
             try
             {
-                var settings = (row.Descriptor.Settings ?? new CameraSettings()).Normalized();
+                var settings = (row.Descriptor.Settings ?? CameraSettings.CreateNew()).Normalized();
                 ExposureTimeUs = settings.ExposureTimeUs;
                 Gain = settings.Gain;
                 TriggerMode = settings.TriggerMode;
+                TriggerSourceLine = settings.TriggerSourceLine;
+                TriggerDelayUs = settings.TriggerDelayUs;
                 FrameTimeoutMs = settings.FrameTimeoutMs;
                 BufferCapacity = settings.BufferCapacity;
                 HeartbeatTimeoutMs = settings.HeartbeatTimeoutMs;
@@ -926,15 +947,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var device = row?.Device;
             if (row == null || device == null) return;
 
-            var settings = new CameraSettings
-            {
-                ExposureTimeUs = ExposureTimeUs,
-                Gain = Gain,
-                TriggerMode = TriggerMode,
-                FrameTimeoutMs = FrameTimeoutMs,
-                BufferCapacity = BufferCapacity,
-                HeartbeatTimeoutMs = HeartbeatTimeoutMs
-            };
+            var settings = CameraSettings.CreateNew();
+            settings.ExposureTimeUs = ExposureTimeUs;
+            settings.Gain = Gain;
+            settings.TriggerMode = TriggerMode;
+            settings.TriggerSourceLine = TriggerSourceLine;
+            settings.TriggerDelayUs = TriggerDelayUs;
+            settings.FrameTimeoutMs = FrameTimeoutMs;
+            settings.BufferCapacity = BufferCapacity;
+            settings.HeartbeatTimeoutMs = HeartbeatTimeoutMs;
 
             bool ok;
             try

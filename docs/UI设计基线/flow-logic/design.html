@@ -1,0 +1,2366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>流程栏 + 画布 · 真实算子版 v1</title>
+<style>
+  /* =====================================================================
+     流程栏 + 画布 · 真实算子版 v1
+     设计媒介，不是交付物（AGENTS.md R126）。
+     全部视觉只使用 WPF 原生可还原的能力：
+       Border / Path / Ellipse / TextBlock / ItemsControl / Canvas / Grid /
+       UniformGrid / DataTrigger / Storyboard / DropShadowEffect / DrawingBrush。
+     不使用 CSS 滤镜、混合模式、遮罩、Web 字体、外部图标库或动画渐变。
+     算子与容器均取自项目现有实现：
+       逻辑运算（AND/OR/NOT/XOR/NAND/NOR）、数值比较（EQ/NEQ/GT/LT/GTE/LTE）、
+       If / 分支匹配 / While / For / 并行分组 / 等待 / Break / Continue / Return，
+       以及图像采集、预处理、模板匹配、卡尺、Blob、码读取、变量赋值、结果上报等真实插件。
+     ===================================================================== */
+  :root{
+    --bg:#E9EEF5;
+    --surface:#FFFFFF;
+    --surface-2:#F8FAFC;
+    --surface-3:#F1F5F9;
+    --border:#E2E8F0;
+    --border-soft:#EEF2F7;
+    --border-strong:#CBD5E1;
+    --text:#0F172A;
+    --text-2:#475569;
+    --text-3:#94A3B8;
+    --text-4:#A8ABB2;
+
+    --logic:#8B5CF6;      --logic-soft:#F5F3FF;  --logic-border:#DDD6FE; --logic-text:#6D28D9;
+    --flow:#0EA5E9;       --flow-soft:#F0F9FF;   --flow-border:#BAE6FD;  --flow-text:#0369A1;
+    --var:#14B8A6;        --var-soft:#F0FDFA;    --var-border:#99F6E4;   --var-text:#0F766E;
+    --image:#3B82F6;      --image-soft:#EFF6FF;  --image-border:#BFDBFE; --image-text:#1D4ED8;
+    --defect:#EF4444;     --defect-soft:#FEF2F2; --defect-border:#FECACA;--defect-text:#B91C1C;
+    --measure:#F59E0B;    --measure-soft:#FFFBEB;--measure-border:#FDE68A;--measure-text:#B45309;
+    --calib:#06B6D4;      --calib-soft:#ECFEFF;  --calib-border:#A5F3FC; --calib-text:#0E7490;
+    --geom:#10B981;       --geom-soft:#ECFDF5;   --geom-border:#A7F3D0;  --geom-text:#047857;
+    --locate:#F97316;     --locate-soft:#FFF7ED; --locate-border:#FED7AA;--locate-text:#C2410C;
+    --data:#64748B;       --data-soft:#F8FAFC;   --data-border:#E2E8F0;  --data-text:#475569;
+    --tool:#6B7280;       --tool-soft:#F3F4F6;   --tool-border:#E5E7EB;  --tool-text:#4B5563;
+    --motion:#65A30D;     --motion-soft:#F7FEE7; --motion-border:#D9F99D;--motion-text:#4D7C0F;
+
+    --if:#6366F1;         --if-soft:#EEF2FF;     --if-border:#C7D2FE;    --if-text:#4338CA;
+    --case:#8B5CF6;       --case-soft:#F5F3FF;   --case-border:#DDD6FE;  --case-text:#6D28D9;
+    --while:#F59E0B;      --while-soft:#FFFBEB;  --while-border:#FDE68A; --while-text:#B45309;
+    --for:#10B981;        --for-soft:#ECFDF5;    --for-border:#A7F3D0;   --for-text:#047857;
+    --par:#0EA5E9;        --par-soft:#F0F9FF;    --par-border:#BAE6FD;   --par-text:#0369A1;
+
+    --run:#2563EB;
+    --success:#16A34A;
+    --danger:#EF4444;
+    --warning:#D97706;
+
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-2:0 10px 28px rgba(15,23,42,.10), 0 2px 6px rgba(15,23,42,.05);
+    --shadow-3:0 0 0 3px rgba(37,99,235,.14), 0 8px 22px rgba(37,99,235,.10);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font);
+    font-size:13px;
+    line-height:1.5;
+    padding:28px 28px 96px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button,input,select{ font-family:inherit; }
+  svg{ display:block; }
+  .sprite{ position:absolute; width:0; height:0; overflow:hidden; }
+  .icon{ width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  ::selection{ background:#C7D2FE; color:#0F172A; }
+
+  /* ---------- 页面头 ---------- */
+  .page-head{ max-width:1560px; margin:0 auto 18px; }
+  .page-head h1{
+    margin:0; font-size:22px; font-weight:600; letter-spacing:-.01em;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .ver{
+    display:inline-flex; align-items:center; height:22px; padding:0 8px;
+    border-radius:6px; background:#EEF2FF; color:#4338CA;
+    font-size:11px; font-weight:700;
+  }
+  .page-head .meta{ margin:7px 0 0; color:var(--text-2); font-size:13px; max-width:1260px; }
+  .page-head .meta b{ color:var(--text); }
+  .page-head .meta code{
+    font-family:var(--mono); font-size:11.5px; padding:0 5px;
+    border:1px solid var(--border); border-radius:4px; background:rgba(255,255,255,.7);
+    white-space:nowrap;
+  }
+  .page-nav{ display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; align-items:center; }
+  .page-nav a{
+    display:inline-flex; align-items:center; gap:5px;
+    height:26px; padding:0 10px; border-radius:13px;
+    border:1px solid var(--border); background:#fff;
+    color:var(--text-2); font-size:11px; text-decoration:none;
+  }
+  .page-nav a:hover{ border-color:var(--border-strong); color:var(--text); background:var(--surface-2); }
+  .scale-btn{
+    margin-left:auto; height:26px; padding:0 11px; border-radius:13px;
+    border:1px solid var(--border); background:#fff; color:var(--text-2);
+    font-size:11px; cursor:pointer;
+  }
+  .scale-btn:hover{ border-color:var(--border-strong); color:var(--text); }
+
+  main{ max-width:1560px; margin:0 auto; }
+  .section{ margin:0 0 44px; }
+  .sec-head{ display:flex; align-items:flex-end; gap:12px; margin:0 0 14px; flex-wrap:wrap; }
+  .sec-index{
+    width:28px; height:28px; flex:none;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:8px; background:#EEF2FF; color:#4338CA;
+    font-family:var(--mono); font-size:11px; font-weight:700;
+  }
+  .sec-head h2{ margin:0; font-size:17px; font-weight:600; letter-spacing:-.01em; }
+  .sec-head p{ margin:0; color:var(--text-2); font-size:12.5px; }
+  .note{ color:var(--text-2); font-size:12.5px; margin:0 0 14px; }
+
+  /* ---------- 1920×1080 设计画布 ---------- */
+  .stage-wrap{ position:relative; width:100%; height:1080px; overflow:hidden; }
+  .stage{
+    position:absolute; left:50%; top:0;
+    width:1920px; height:1080px;
+    transform:translateX(-50%) scale(var(--scale,1));
+    transform-origin:top center;
+  }
+  body.actual-size .stage-wrap{ overflow:auto; height:1120px; }
+  body.actual-size .stage{
+    position:relative; left:auto; top:0;
+    transform:none; margin:0 auto;
+  }
+
+  /* ===================== 应用窗口 ===================== */
+  .app{
+    position:relative; width:100%; height:100%;
+    display:flex; flex-direction:column;
+    background:var(--surface);
+    border:1px solid rgba(15,23,42,.12);
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:var(--shadow-2);
+  }
+
+  /* ---------- 标题栏 ---------- */
+  .titlebar{
+    height:44px; flex:none;
+    display:flex; align-items:center; gap:12px;
+    padding:0 14px;
+    background:#fff;
+    border-bottom:1px solid var(--border);
+  }
+  .brand{ display:flex; align-items:center; gap:9px; min-width:0; }
+  .brand-mark{
+    width:26px; height:26px; border-radius:7px;
+    display:grid; place-items:center;
+    background:linear-gradient(135deg,#4F46E5,#0EA5E9);
+    color:#fff; font-size:12px; font-weight:800;
+    box-shadow:0 2px 6px rgba(79,70,229,.28);
+  }
+  .brand-name{ font-size:13px; font-weight:700; letter-spacing:-.01em; white-space:nowrap; }
+  .crumb{ color:var(--text-3); font-size:11px; white-space:nowrap; }
+  .crumb b{ color:var(--text-2); font-weight:600; }
+  .titlebar .spacer{ flex:1; }
+  .mode-tabs{
+    display:flex; align-items:center; gap:2px; padding:2px;
+    background:var(--surface-3); border-radius:7px;
+  }
+  .mode-tabs button{
+    height:24px; padding:0 10px; border:0; border-radius:5px;
+    background:transparent; color:var(--text-2); font-size:11px; cursor:pointer;
+  }
+  .mode-tabs button.is-active{
+    background:#fff; color:var(--text); font-weight:600;
+    box-shadow:0 1px 2px rgba(15,23,42,.10);
+  }
+  .title-actions{ display:flex; align-items:center; gap:8px; }
+  .icon-btn{
+    width:26px; height:26px; display:grid; place-items:center;
+    border:0; border-radius:6px; background:transparent; color:var(--text-2); cursor:pointer;
+  }
+  .icon-btn:hover{ background:var(--surface-3); color:var(--text); }
+  .avatar{
+    width:26px; height:26px; border-radius:50%;
+    display:grid; place-items:center;
+    background:#E0E7FF; color:#4338CA; font-size:10px; font-weight:700;
+  }
+
+  /* ---------- 工作区 ---------- */
+  .workspace{ flex:1; min-height:0; display:flex; }
+  .proc-panel{ width:320px; flex:none; display:flex; flex-direction:column; border-right:1px solid var(--border); background:#fff; }
+  .canvas-panel{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .inspector{ width:320px; flex:none; display:flex; flex-direction:column; border-left:1px solid var(--border); background:#fff; }
+
+  /* ---------- 流程栏 ---------- */
+  .panel-head{
+    height:44px; flex:none; display:flex; align-items:center; gap:8px;
+    padding:0 12px; border-bottom:1px solid var(--border-soft);
+  }
+  .panel-head h2{ margin:0; font-size:13px; font-weight:650; }
+  .count-chip{
+    height:18px; padding:0 6px; border-radius:9px;
+    background:var(--surface-3); color:var(--text-3);
+    font-family:var(--mono); font-size:9.5px; display:inline-flex; align-items:center;
+  }
+  .panel-head .spacer{ flex:1; }
+  .flow-grid{ flex:none; display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px 10px 9px; border-bottom:1px solid var(--border-soft); }
+  .flow-chip{
+    display:flex; align-items:center; gap:6px;
+    height:40px; padding:0 8px;
+    border:1px solid var(--border); border-radius:8px;
+    background:#fff; color:var(--text-2); cursor:pointer; text-align:left;
+  }
+  .flow-chip:hover{ border-color:var(--border-strong); background:var(--surface-2); }
+  .flow-chip.is-active{
+    border-color:var(--if-border); background:var(--if-soft); color:var(--text);
+    box-shadow:inset 0 0 0 1px rgba(99,102,241,.10);
+  }
+  .flow-chip.is-disabled{ opacity:.45; text-decoration:line-through; cursor:not-allowed; }
+  .chip-dot{ width:7px; height:7px; border-radius:50%; flex:none; background:var(--text-3); }
+  .chip-dot.ok{ background:var(--success); }
+  .chip-dot.idle{ background:var(--border-strong); }
+  .chip-dot.off{ background:var(--text-4); }
+  .chip-name{ flex:1; min-width:0; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chip-count{ font-family:var(--mono); font-size:9px; color:var(--text-3); }
+  .tree-head{
+    height:34px; flex:none; display:flex; align-items:center; gap:7px;
+    padding:0 12px; border-bottom:1px solid var(--border-soft);
+    background:linear-gradient(180deg,#fff,#FBFCFE);
+  }
+  .tree-head .t{ font-size:11.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tree-head .m{ font-family:var(--mono); font-size:9px; color:var(--text-3); white-space:nowrap; }
+  .tree-head .spacer{ flex:1; }
+  .tree-scroll{ flex:1; min-height:0; overflow:auto; padding:4px 6px 8px; scrollbar-width:thin; }
+  .tree-scroll::-webkit-scrollbar{ width:8px; }
+  .tree-scroll::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:4px; }
+
+  .tree-row{
+    display:flex; align-items:center; gap:7px;
+    min-height:34px; padding:0 8px; margin:1px 0;
+    border-radius:7px; color:var(--text);
+  }
+  .tree-row:hover{ background:var(--surface-2); }
+  .tree-row.is-selected{
+    background:var(--if-soft);
+    box-shadow:inset 3px 0 0 var(--run), 0 1px 2px rgba(37,99,235,.08);
+  }
+  .tree-state{ width:7px; height:7px; border-radius:50%; flex:none; background:var(--text-4); }
+  .tree-state.ok{ background:var(--success); }
+  .tree-state.run{ background:var(--run); animation:pulse-dot 1.6s ease-out infinite; }
+  .tree-state.fail{ background:var(--danger); }
+  .tree-state.skip{ background:var(--border-strong); }
+  .tree-icon{
+    width:24px; height:24px; flex:none; border-radius:7px;
+    display:grid; place-items:center;
+    background:var(--cat-soft,#F3F4F6); color:var(--cat,#6B7280);
+    border:1px solid var(--cat-border,#E5E7EB);
+  }
+  .tree-icon .icon{ width:13px; height:13px; }
+  .tree-text{ flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; }
+  .tree-title{ font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
+  .tree-sub{ font-size:9px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.35; }
+  .tree-time{ font-family:var(--mono); font-size:9px; color:var(--text-3); white-space:nowrap; }
+  .tree-chev{ width:11px; height:11px; flex:none; color:var(--text-3); transform:rotate(0deg); }
+  .tree-container{
+    min-height:38px; margin:3px 0 2px;
+    background:linear-gradient(90deg,var(--ct-soft,#F8FAFC),#fff 72%);
+    border:1px solid var(--ct-border,#E2E8F0);
+    box-shadow:inset 3px 0 0 var(--ct,#6366F1);
+  }
+  .tree-container:hover{ background:linear-gradient(90deg,var(--ct-soft,#F8FAFC),#F8FAFC 72%); }
+  .tree-container.is-selected{
+    border-color:var(--run);
+    background:linear-gradient(90deg,#EFF6FF,#fff 74%);
+    box-shadow:inset 3px 0 0 var(--run), 0 0 0 1px rgba(37,99,235,.12);
+  }
+  .tree-type{
+    height:18px; padding:0 5px; border-radius:4px; flex:none;
+    display:inline-flex; align-items:center; gap:4px;
+    background:var(--ct,#6366F1); color:#fff;
+    font-family:var(--mono); font-size:8.5px; font-weight:700;
+  }
+  .tree-container .tree-title{ font-size:11.5px; }
+  .tree-meta{ font-family:var(--mono); font-size:8.5px; color:var(--text-3); white-space:nowrap; }
+  .tree-branch{
+    min-height:28px; margin:1px 0 1px 18px;
+    padding:0 7px;
+    background:var(--branch-soft,#F8FAFC);
+    border:1px solid transparent;
+    box-shadow:inset 2px 0 0 var(--branch,#6366F1);
+  }
+  .tree-branch:hover{ filter:brightness(.985); }
+  .tree-branch.is-running{
+    border-color:var(--run);
+    background:#EFF6FF;
+    box-shadow:inset 2px 0 0 var(--run);
+  }
+  .branch-dot{ width:6px; height:6px; border-radius:50%; flex:none; background:var(--branch,#6366F1); }
+  .branch-badge{
+    height:16px; padding:0 4px; border-radius:3px; flex:none;
+    display:inline-flex; align-items:center;
+    background:var(--branch,#6366F1); color:#fff;
+    font-family:var(--mono); font-size:8px; font-weight:700;
+  }
+  .branch-name{ flex:1; min-width:0; font-size:10.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .branch-count{ font-family:var(--mono); font-size:8.5px; color:var(--text-3); white-space:nowrap; }
+  .branch-state{ font-size:8.5px; color:var(--run); white-space:nowrap; }
+  .tree-stats{
+    flex:none; height:52px; padding:7px 12px 0;
+    border-top:1px solid var(--border-soft);
+    display:flex; align-items:flex-start; gap:8px;
+  }
+  .tree-stats .lines{ flex:1; min-width:0; }
+  .tree-stats .lines div{ font-size:10px; color:var(--text-2); line-height:1.55; white-space:nowrap; }
+  .tree-stats .lines b{ font-family:var(--mono); font-weight:600; color:var(--text); }
+  .tree-stats label{ display:flex; align-items:center; gap:5px; font-size:10px; color:var(--text-2); white-space:nowrap; }
+  .tree-stats input{ accent-color:var(--run); }
+
+  /* ---------- 画布工具条 ---------- */
+  .canvas-bar{
+    height:48px; flex:none; display:flex; align-items:center; gap:8px;
+    padding:0 10px; background:#fff; border-bottom:1px solid var(--border);
+  }
+  .run-status{
+    height:24px; padding:0 8px; border-radius:6px;
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--surface-3); color:var(--text-2);
+    font-size:10.5px; font-weight:600; white-space:nowrap;
+  }
+  .run-status .dot{ width:7px; height:7px; border-radius:50%; background:var(--text-3); }
+  .run-status.is-running .dot{ background:var(--run); animation:pulse-dot 1.6s ease-out infinite; }
+  .btn{
+    height:26px; padding:0 10px; border-radius:6px;
+    border:1px solid var(--border); background:#fff; color:var(--text-2);
+    font-size:10.5px; font-weight:600; display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  }
+  .btn:hover{ border-color:var(--border-strong); color:var(--text); background:var(--surface-2); }
+  .btn.primary{ background:#2563EB; border-color:#2563EB; color:#fff; }
+  .btn.primary:hover{ background:#1D4ED8; }
+  .btn.ghost{ border-color:transparent; background:transparent; }
+  .btn.ghost:hover{ background:var(--surface-3); }
+  .btn.icon-only{ width:26px; padding:0; justify-content:center; }
+  .btn .icon{ width:12px; height:12px; }
+  .canvas-bar .divider{ width:1px; height:18px; background:var(--border); margin:0 2px; }
+  .flow-title{ min-width:0; display:flex; flex-direction:column; justify-content:center; }
+  .flow-title b{ font-size:11.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .flow-title span{ font-size:9px; color:var(--text-3); white-space:nowrap; }
+  .canvas-bar .spacer{ flex:1; }
+  .toggle{
+    display:inline-flex; align-items:center; gap:5px;
+    height:24px; padding:0 7px; border-radius:6px;
+    background:var(--surface-3); color:var(--text-2); font-size:10px; white-space:nowrap;
+  }
+  .toggle input{ accent-color:var(--run); margin:0; }
+  .zoom-group{ display:flex; align-items:center; gap:2px; padding:2px; border:1px solid var(--border); border-radius:6px; }
+  .zoom-group button{ width:24px; height:22px; border:0; border-radius:4px; background:transparent; color:var(--text-2); cursor:pointer; font-size:11px; }
+  .zoom-group button:hover{ background:var(--surface-3); }
+  .zoom-group .pct{ min-width:40px; text-align:center; font-family:var(--mono); font-size:9.5px; color:var(--text-2); }
+
+  /* ---------- 画布 ---------- */
+  .canvas-body{
+    position:relative; flex:1; min-height:0; overflow:hidden;
+    background-color:#F7F8FA;
+    background-image:radial-gradient(#C9D2DE 1px, transparent 1px);
+    background-size:24px 24px;
+  }
+  .wires{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+  .wire{ fill:none; stroke:#3B82F6; stroke-width:1.5; stroke-linejoin:round; stroke-linecap:round; }
+  .wire.order{ stroke:#94A3B8; stroke-width:1.2; stroke-dasharray:4 3; }
+  .wire.true{ stroke:#16A34A; stroke-width:2; }
+  .wire.false{ stroke:#94A3B8; stroke-width:1.3; stroke-dasharray:4 3; }
+  .wire.bad{ stroke:#EF4444; stroke-width:1.4; stroke-dasharray:5 4; }
+  .wire-label{
+    font-family:var(--mono); font-size:8.5px; fill:#475569;
+    paint-order:stroke; stroke:#F7F8FA; stroke-width:4; stroke-linejoin:round;
+  }
+  .wire-label.run{ fill:#1D4ED8; font-weight:700; }
+
+  /* 容器（背景层） */
+  .flow-container{
+    position:absolute; border:1.5px solid var(--ct-border,#E2E8F0);
+    border-radius:12px; background:#fff;
+    box-shadow:0 2px 8px rgba(15,23,42,.05);
+    overflow:hidden;
+  }
+  .container-head{
+    height:46px; display:flex; align-items:center; gap:7px;
+    padding:0 12px 0 10px;
+    background:linear-gradient(90deg,var(--ct-soft,#F8FAFC),#fff 76%);
+    border-bottom:1px solid var(--ct-border,#E2E8F0);
+  }
+  .container-bar{ width:4px; height:26px; border-radius:2px; background:var(--ct,#6366F1); flex:none; }
+  .container-badge{
+    height:20px; padding:0 6px; border-radius:5px; flex:none;
+    display:inline-flex; align-items:center;
+    background:var(--ct,#6366F1); color:#fff;
+    font-family:var(--mono); font-size:9.5px; font-weight:800; letter-spacing:.02em;
+  }
+  .container-title{ font-size:12.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .container-cond{
+    height:20px; padding:0 6px; border-radius:5px; flex:none;
+    display:inline-flex; align-items:center;
+    background:#fff; border:1px solid var(--ct-border,#E2E8F0);
+    color:var(--ct-text,#475569); font-family:var(--mono); font-size:9px;
+    white-space:nowrap;
+  }
+  .container-meta{ margin-left:auto; font-family:var(--mono); font-size:9px; color:var(--text-3); white-space:nowrap; }
+  .container-state{ width:7px; height:7px; border-radius:50%; flex:none; background:var(--text-4); }
+  .container-state.ok{ background:var(--success); }
+  .container-state.run{ background:var(--run); animation:pulse-dot 1.6s ease-out infinite; }
+  .container-state.fail{ background:var(--danger); }
+  .container-state.warn{ background:var(--warning); }
+  .container-order{
+    position:absolute; left:-9px; top:-9px; z-index:5;
+    width:24px; height:18px; border-radius:5px;
+    display:grid; place-items:center;
+    background:#0F172A; color:#fff;
+    font-family:var(--mono); font-size:9px; font-weight:800;
+    box-shadow:0 2px 5px rgba(15,23,42,.20);
+  }
+  .flow-container.is-selected{
+    border-width:2px; border-color:var(--run);
+    box-shadow:var(--shadow-3);
+  }
+  .cport{
+    position:absolute; top:23px; width:8px; height:8px; border-radius:50%;
+    background:#fff; border:1.5px solid var(--ct,#6366F1); z-index:6;
+  }
+  .cport.in{ left:-5px; }
+  .cport.out{ right:-5px; background:var(--ct,#6366F1); }
+
+  .lane{
+    position:absolute; border:1px solid var(--lane-border,#E2E8F0);
+    border-radius:8px; background:var(--lane-bg,#F8FAFC); overflow:hidden;
+  }
+  .lane-head{
+    height:28px; display:flex; align-items:center; gap:6px;
+    padding:0 8px; background:rgba(255,255,255,.68);
+    border-bottom:1px solid var(--lane-border,#E2E8F0);
+  }
+  .lane-badge{
+    height:16px; padding:0 5px; border-radius:4px; flex:none;
+    display:inline-flex; align-items:center;
+    background:var(--branch,#6366F1); color:#fff;
+    font-family:var(--mono); font-size:8px; font-weight:800;
+  }
+  .lane-name{ font-size:9.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lane-count{ margin-left:auto; font-family:var(--mono); font-size:8.5px; color:var(--text-3); white-space:nowrap; }
+  .lane.is-running{ border-color:var(--run); box-shadow:inset 0 0 0 1px rgba(37,99,235,.10); }
+  .lane.is-running .lane-head{ background:#EFF6FF; }
+  .lane.is-running .lane-name{ color:#1D4ED8; }
+  .join-bar{
+    position:absolute; left:12px; right:12px; bottom:6px; height:22px;
+    border-radius:6px; display:flex; align-items:center; justify-content:center; gap:6px;
+    background:var(--par-soft); border:1px solid var(--par-border);
+    color:var(--par-text); font-family:var(--mono); font-size:9px;
+  }
+  .lane-note{
+    position:absolute; left:10px; right:10px; bottom:9px;
+    display:flex; align-items:center; gap:6px;
+    padding:5px 7px; border-radius:5px;
+    background:rgba(255,255,255,.72); border:1px dashed var(--lane-border,#E2E8F0);
+    color:var(--text-2); font-size:8.5px; line-height:1.35;
+  }
+  .lane-note b{ color:var(--ct-text,#B45309); font-weight:650; }
+
+  /* 节点 */
+  .flow-node{
+    position:absolute; width:156px; height:58px; z-index:3;
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px;
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    box-shadow:0 1px 2px rgba(15,23,42,.05);
+  }
+  .flow-node.is-static{ position:relative; left:auto; top:auto; width:100%; height:52px; }
+  .node-icon{
+    width:28px; height:28px; flex:none; border-radius:8px;
+    display:grid; place-items:center;
+    background:var(--cat-soft,#F3F4F6); color:var(--cat,#6B7280);
+    border:1px solid var(--cat-border,#E5E7EB);
+  }
+  .node-icon .icon{ width:14px; height:14px; }
+  .node-main{ flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; gap:1px; }
+  .node-line{ display:flex; align-items:center; gap:4px; min-width:0; }
+  .node-title{ font-size:11.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.25; }
+  .node-sub{ font-size:9px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
+  .node-op{
+    height:14px; padding:0 4px; border-radius:4px; flex:none;
+    display:inline-flex; align-items:center;
+    background:var(--logic-soft); border:1px solid var(--logic-border);
+    color:var(--logic-text); font-family:var(--mono); font-size:8px; font-weight:800;
+  }
+  .node-state{ position:absolute; right:8px; top:7px; width:7px; height:7px; border-radius:50%; background:var(--text-4); }
+  .node-state.ok{ background:var(--success); }
+  .node-state.run{ background:var(--run); animation:pulse-dot 1.6s ease-out infinite; }
+  .node-state.fail{ background:var(--danger); }
+  .node-state.skip{ background:var(--border-strong); }
+  .node-time{ position:absolute; right:8px; bottom:5px; font-family:var(--mono); font-size:8px; color:var(--text-3); }
+  .node-order{
+    position:absolute; left:-7px; top:-7px; z-index:5;
+    min-width:16px; height:14px; padding:0 3px; border-radius:4px;
+    display:grid; place-items:center;
+    background:#0F172A; color:#fff;
+    font-family:var(--mono); font-size:8px; font-weight:800;
+  }
+  .flow-node.is-selected{ border:2px solid var(--run); box-shadow:var(--shadow-3); }
+  .flow-node.is-running{ border-color:var(--run); }
+  .flow-node.is-failed{ border-color:var(--danger); background:#FFF7F7; }
+  .flow-node.is-disabled{ opacity:.45; }
+  .port{
+    position:absolute; top:50%; margin-top:-3.5px;
+    width:7px; height:7px; border-radius:50%;
+    background:#fff; border:1.5px solid var(--cat,#64748B); z-index:4;
+  }
+  .port.in{ left:-4px; }
+  .port.out{ right:-4px; background:var(--cat,#64748B); }
+  .flow-node.node-sm{ width:150px; height:46px; padding:6px 8px; gap:7px; }
+  .flow-node.node-sm .node-icon{ width:22px; height:22px; border-radius:6px; }
+  .flow-node.node-sm .node-icon .icon{ width:12px; height:12px; }
+  .flow-node.node-sm .node-title{ font-size:10.5px; }
+  .flow-node.node-sm .node-sub{ font-size:8.5px; }
+  .flow-node.node-sm .node-op{ height:13px; font-size:7.5px; }
+  .flow-node.node-sm .node-time{ font-size:7.5px; bottom:4px; right:6px; }
+  .flow-node.node-sm .node-state{ right:6px; top:5px; }
+  .flow-node.node-xs{ width:164px; height:46px; padding:6px 8px; gap:7px; }
+  .flow-node.node-xs .node-icon{ width:22px; height:22px; border-radius:6px; }
+  .flow-node.node-xs .node-icon .icon{ width:12px; height:12px; }
+  .flow-node.node-xs .node-title{ font-size:10.5px; }
+  .flow-node.node-xs .node-sub{ font-size:8.5px; }
+  .flow-node.node-xs .node-op{ height:13px; font-size:7.5px; }
+  .flow-node.node-xs .node-time{ font-size:7.5px; bottom:4px; right:6px; }
+  .flow-node.node-xs .node-state{ right:6px; top:5px; }
+  .flow-node.node-case{ width:150px; height:36px; padding:3px 6px; gap:5px; }
+  .flow-node.node-case .node-icon{ width:18px; height:18px; border-radius:5px; }
+  .flow-node.node-case .node-icon .icon{ width:10px; height:10px; }
+  .flow-node.node-case .node-title{ font-size:9.5px; }
+  .flow-node.node-case .node-sub{ font-size:7.5px; }
+  .flow-node.node-case .node-op{ height:11px; font-size:6.5px; }
+  .flow-node.node-case .node-time{ display:none; }
+  .flow-node.node-case .node-state{ right:5px; top:4px; }
+  .flow-node.node-while{ width:160px; height:46px; padding:6px 8px; gap:7px; }
+  .flow-node.node-while .node-icon{ width:22px; height:22px; border-radius:6px; }
+  .flow-node.node-while .node-icon .icon{ width:12px; height:12px; }
+  .flow-node.node-while .node-title{ font-size:10.5px; }
+  .flow-node.node-while .node-sub{ font-size:8.5px; }
+  .flow-node.node-while .node-op{ height:13px; font-size:7.5px; }
+  .flow-node.node-while .node-time{ font-size:7.5px; bottom:4px; right:6px; }
+  .flow-node.node-while .node-state{ right:6px; top:5px; }
+  .flow-node.node-summary{ width:170px; height:50px; padding:7px 9px; gap:7px; }
+  .flow-node.node-summary .node-icon{ width:24px; height:24px; border-radius:6px; }
+  .flow-node.node-summary .node-icon .icon{ width:13px; height:13px; }
+  .flow-node.node-summary .node-title{ font-size:11px; }
+  .flow-node.node-summary .node-sub{ font-size:8.5px; }
+  .flow-node.node-summary .node-op{ height:13px; font-size:7.5px; }
+  .flow-node.node-summary .node-time{ display:none; }
+
+  /* 画布浮层 */
+  .legend{
+    position:absolute; left:12px; bottom:12px; z-index:4;
+    display:flex; align-items:center; gap:12px;
+    padding:6px 9px; border-radius:7px;
+    background:rgba(255,255,255,.88); border:1px solid var(--border);
+    backdrop-filter:blur(4px);
+  }
+  .legend span{ display:inline-flex; align-items:center; gap:5px; font-size:9px; color:var(--text-2); white-space:nowrap; }
+  .legend i{ display:inline-block; width:20px; height:0; border-top:1.5px solid #3B82F6; }
+  .legend i.order{ border-top:1.2px dashed #94A3B8; }
+  .legend i.bad{ border-top:1.4px dashed #EF4444; }
+  .minimap{
+    position:absolute; right:12px; bottom:12px; z-index:4;
+    width:176px; height:104px; padding:6px;
+    background:rgba(255,255,255,.92); border:1px solid var(--border); border-radius:8px;
+    box-shadow:var(--shadow-1);
+  }
+  .minimap-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .minimap-head span{ font-size:8px; color:var(--text-3); }
+  .mini-map-canvas{ position:relative; width:100%; height:76px; border-radius:5px; background:#F8FAFC; border:1px solid var(--border-soft); overflow:hidden; }
+  .mm{ position:absolute; border-radius:1px; background:#CBD5E1; }
+  .mm.c{ background:#C7D2FE; }
+  .mm.p{ background:#BAE6FD; }
+  .mm.sel{ background:#93C5FD; }
+  .mm-view{ position:absolute; left:18%; top:16%; width:54%; height:62%; border:1px solid #2563EB; background:rgba(37,99,235,.06); border-radius:2px; }
+
+  /* ---------- 检查器 ---------- */
+  .inspector-head{
+    height:44px; flex:none; display:flex; align-items:center; gap:8px;
+    padding:0 12px; border-bottom:1px solid var(--border-soft);
+  }
+  .inspector-head h2{ margin:0; font-size:13px; font-weight:650; }
+  .inspector-head .spacer{ flex:1; }
+  .tabs{ display:flex; gap:2px; padding:0 10px; border-bottom:1px solid var(--border-soft); flex:none; }
+  .tabs button{
+    height:34px; padding:0 9px; border:0; border-bottom:2px solid transparent;
+    background:transparent; color:var(--text-2); font-size:10.5px; cursor:pointer;
+  }
+  .tabs button.is-active{ color:var(--run); border-bottom-color:var(--run); font-weight:650; }
+  .inspector-body{ flex:1; min-height:0; overflow:auto; padding:10px 12px 12px; scrollbar-width:thin; }
+  .inspector-body::-webkit-scrollbar{ width:8px; }
+  .inspector-body::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:4px; }
+  .object-card{
+    display:flex; align-items:center; gap:9px;
+    padding:10px; border:1px solid var(--par-border); border-radius:9px;
+    background:linear-gradient(90deg,var(--par-soft),#fff 82%);
+  }
+  .object-icon{
+    width:30px; height:30px; border-radius:8px; flex:none;
+    display:grid; place-items:center;
+    background:var(--par-soft); color:var(--par-text); border:1px solid var(--par-border);
+  }
+  .object-icon .icon{ width:15px; height:15px; }
+  .object-title{ font-size:12px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .object-sub{ font-size:9px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .object-card .container-state{ margin-left:auto; }
+  .section-title{
+    margin:14px 0 7px; display:flex; align-items:center; gap:7px;
+    font-size:10px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em;
+  }
+  .section-title::after{ content:""; flex:1; height:1px; background:var(--border-soft); }
+  .prop-row{ display:flex; align-items:center; gap:8px; min-height:30px; border-bottom:1px dashed var(--border-soft); }
+  .prop-row:last-child{ border-bottom:0; }
+  .prop-label{ width:70px; flex:none; font-size:10px; color:var(--text-3); }
+  .prop-value{ flex:1; min-width:0; font-size:11px; color:var(--text); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prop-value.mono{ font-family:var(--mono); font-size:10px; }
+  .seg{ display:flex; gap:2px; padding:2px; border-radius:6px; background:var(--surface-3); }
+  .seg span{ height:22px; padding:0 8px; border-radius:4px; display:inline-flex; align-items:center; font-size:10px; color:var(--text-2); }
+  .seg span.is-active{ background:#fff; color:var(--text); font-weight:650; box-shadow:0 1px 2px rgba(15,23,42,.10); }
+  .select-like{
+    height:26px; padding:0 8px; border:1px solid var(--border); border-radius:6px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:#fff; font-size:10.5px; color:var(--text);
+  }
+  .select-like .chev{ width:10px; height:10px; color:var(--text-3); }
+  .branch-list{ display:flex; flex-direction:column; gap:5px; }
+  .branch-item{
+    display:flex; align-items:center; gap:7px;
+    min-height:32px; padding:0 8px;
+    border:1px solid var(--border); border-radius:7px; background:#fff;
+  }
+  .branch-item .dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+  .branch-item .dot.sky{ background:var(--par); }
+  .branch-item .dot.run{ background:var(--run); animation:pulse-dot 1.6s ease-out infinite; }
+  .bi-name{ flex:1; min-width:0; font-size:10.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bi-count{ font-family:var(--mono); font-size:8.5px; color:var(--text-3); }
+  .bi-state{ font-size:9px; color:var(--success); white-space:nowrap; }
+  .bi-state.run{ color:var(--run); }
+  .inspector-footer{ flex:none; display:flex; gap:6px; padding:10px 12px; border-top:1px solid var(--border-soft); }
+  .inspector-footer .btn{ flex:1; justify-content:center; }
+  .inspector-note{ margin-top:10px; padding:8px 9px; border-radius:7px; background:var(--surface-2); color:var(--text-3); font-size:9.5px; line-height:1.55; }
+
+  /* ---------- 状态栏 ---------- */
+  .statusbar{
+    height:28px; flex:none; display:flex; align-items:center; gap:14px;
+    padding:0 12px; background:#fff; border-top:1px solid var(--border);
+    font-size:9.5px; color:var(--text-3);
+  }
+  .statusbar b{ color:var(--text-2); font-weight:600; }
+  .statusbar .ok{ color:var(--success); }
+  .statusbar .bad{ color:var(--danger); }
+  .statusbar .spacer{ flex:1; }
+  .statusbar .clock{ font-family:var(--mono); }
+
+  /* ===================== 算子库 ===================== */
+  .lib-group{ margin:0 0 22px; }
+  .lib-group h3{ margin:0 0 10px; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:650; }
+  .lib-group h3 .tag{
+    height:18px; padding:0 6px; border-radius:5px; display:inline-flex; align-items:center;
+    background:var(--logic-soft); border:1px solid var(--logic-border); color:var(--logic-text);
+    font-family:var(--mono); font-size:9px; font-weight:800;
+  }
+  .lib-group h3 .en{ color:var(--text-3); font-size:10.5px; font-weight:500; }
+  .lib-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .lib-grid.three{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .op-card{
+    background:#fff; border:1px solid var(--border); border-radius:11px;
+    padding:10px 11px 11px; box-shadow:var(--shadow-1);
+    min-width:0;
+  }
+  .op-card .op-head{ display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+  .op-card .op-badge{
+    height:18px; padding:0 5px; border-radius:4px; flex:none;
+    display:inline-flex; align-items:center;
+    background:var(--logic); color:#fff;
+    font-family:var(--mono); font-size:8.5px; font-weight:800;
+  }
+  .op-card .op-name{ font-size:11.5px; font-weight:650; }
+  .op-card .op-type{ margin-left:auto; font-size:9px; color:var(--text-3); white-space:nowrap; }
+  .op-card .op-preview{ margin-bottom:8px; }
+  .op-card .op-preview .flow-node{ height:50px; padding:7px 9px; }
+  .op-card .op-preview .node-title{ font-size:10.5px; }
+  .op-card .op-preview .node-sub{ font-size:8.5px; }
+  .op-card .op-expr{
+    font-family:var(--mono); font-size:9.5px; color:var(--logic-text);
+    background:var(--logic-soft); border:1px solid var(--logic-border);
+    border-radius:5px; padding:3px 6px; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .op-card .op-ports{ font-size:9px; color:var(--text-3); }
+  .op-card .op-ports b{ color:var(--text-2); font-weight:600; }
+  .op-card.cmp .op-badge{ background:var(--logic); }
+  .op-card.cmp .op-expr{ color:var(--logic-text); }
+  .ctrl-card{
+    background:#fff; border:1px solid var(--border); border-radius:11px;
+    padding:10px 11px; box-shadow:var(--shadow-1); min-width:0;
+  }
+  .ctrl-card .ctrl-head{ display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+  .ctrl-card .ctrl-badge{
+    height:19px; padding:0 5px; border-radius:4px; flex:none;
+    display:inline-flex; align-items:center;
+    background:var(--ct); color:#fff; font-family:var(--mono); font-size:8.5px; font-weight:800;
+  }
+  .ctrl-card .ctrl-name{ font-size:11.5px; font-weight:650; }
+  .ctrl-card .ctrl-en{ margin-left:auto; font-size:9px; color:var(--text-3); }
+  .ctrl-card .ctrl-preview{
+    border:1px solid var(--ct-border); border-radius:8px; overflow:hidden; margin-bottom:8px;
+    background:linear-gradient(90deg,var(--ct-soft),#fff 80%);
+  }
+  .ctrl-card .ctrl-preview-head{ height:28px; display:flex; align-items:center; gap:6px; padding:0 8px; border-bottom:1px solid var(--ct-border); }
+  .ctrl-card .ctrl-preview-head b{ font-size:9.5px; font-weight:650; }
+  .ctrl-card .ctrl-preview-head span{ margin-left:auto; font-family:var(--mono); font-size:8px; color:var(--text-3); }
+  .ctrl-card .ctrl-preview-body{ padding:6px 8px 7px; }
+  .ctrl-card .ctrl-chip{
+    height:22px; border-radius:5px; display:flex; align-items:center; gap:5px;
+    padding:0 6px; background:rgba(255,255,255,.75); border:1px solid var(--ct-border);
+    font-size:8.5px; color:var(--text-2); margin-bottom:4px;
+  }
+  .ctrl-card .ctrl-chip:last-child{ margin-bottom:0; }
+  .ctrl-card .ctrl-chip i{ width:5px; height:5px; border-radius:50%; background:var(--ct); flex:none; }
+  .ctrl-card .ctrl-desc{ font-size:9px; color:var(--text-3); line-height:1.5; }
+
+  /* ===================== 容器细节 ===================== */
+  .detail-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .detail-card{
+    background:#fff; border:1px solid var(--border); border-radius:14px;
+    padding:14px; box-shadow:var(--shadow-1); min-width:0;
+  }
+  .detail-card.wide{ grid-column:1/-1; }
+  .detail-card h3{ margin:0 0 3px; font-size:13px; font-weight:650; }
+  .detail-card .detail-sub{ margin:0 0 12px; color:var(--text-3); font-size:10.5px; }
+  .detail-stage{ display:flex; justify-content:center; }
+  .detail-stage .flow-container{ position:relative; left:auto; top:auto; }
+  .mini-node{
+    display:flex; align-items:center; gap:6px;
+    height:36px; padding:0 7px; margin-bottom:5px;
+    background:#fff; border:1px solid var(--cat-border,#E5E7EB); border-radius:6px;
+  }
+  .mini-node:last-child{ margin-bottom:0; }
+  .mini-node .node-icon{ width:20px; height:20px; border-radius:5px; }
+  .mini-node .node-icon .icon{ width:10px; height:10px; }
+  .mini-node .node-title{ font-size:9.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini-node .node-sub{ font-size:7.5px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini-node .node-op{ height:12px; font-size:7px; }
+  .detail-lane-body{ padding:6px; }
+  .detail-notes{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .detail-notes span{
+    height:22px; padding:0 7px; border-radius:5px;
+    display:inline-flex; align-items:center; gap:5px;
+    background:var(--surface-2); border:1px solid var(--border-soft);
+    font-size:9px; color:var(--text-2);
+  }
+  .detail-notes b{ color:var(--text); font-weight:650; }
+  .compare-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .compare-box{ border:1px solid var(--border); border-radius:9px; overflow:hidden; background:#fff; }
+  .compare-box .cap{ height:28px; display:flex; align-items:center; gap:6px; padding:0 9px; border-bottom:1px solid var(--border-soft); font-size:9.5px; color:var(--text-2); }
+  .compare-box .cap b{ font-weight:650; }
+  .compare-box.old .cap{ background:#F8FAFC; }
+  .compare-box.new .cap{ background:var(--if-soft); }
+  .old-head{ height:30px; display:flex; align-items:center; gap:6px; padding:0 8px; background:#F1F5F9; border-bottom:1px solid #E2E8F0; }
+  .old-head .badge{ height:16px; padding:0 4px; border-radius:3px; background:#94A3B8; color:#fff; font-family:var(--mono); font-size:7.5px; font-weight:700; display:inline-flex; align-items:center; }
+  .old-head .name{ font-size:9.5px; font-weight:650; color:#475569; }
+  .old-head .meta{ margin-left:auto; font-family:var(--mono); font-size:7.5px; color:#94A3B8; }
+  .old-body{ padding:6px; }
+  .old-branch{ height:26px; display:flex; align-items:center; gap:5px; padding:0 6px; margin-bottom:4px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:4px; font-size:8.5px; color:#64748B; }
+  .old-branch:last-child{ margin-bottom:0; }
+  .old-branch i{ width:5px; height:5px; border-radius:50%; background:#94A3B8; }
+
+  /* ===================== 状态 ===================== */
+  .state-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+  .state-card{ background:#fff; border:1px solid var(--border); border-radius:11px; padding:10px; box-shadow:var(--shadow-1); }
+  .state-card h4{ margin:0 0 7px; font-size:10px; font-weight:650; color:var(--text-2); }
+  .state-card p{ margin:6px 0 0; font-size:9px; color:var(--text-3); line-height:1.5; }
+  .state-card .flow-node{ position:relative; left:auto; top:auto; width:100%; height:52px; }
+  .mini-container{ border:1.5px solid var(--ct-border); border-radius:9px; overflow:hidden; background:#fff; }
+  .mini-container .mc-head{ height:34px; display:flex; align-items:center; gap:6px; padding:0 8px; background:linear-gradient(90deg,var(--ct-soft),#fff 80%); border-bottom:1px solid var(--ct-border); }
+  .mini-container .mc-badge{ height:17px; padding:0 4px; border-radius:4px; display:inline-flex; align-items:center; background:var(--ct); color:#fff; font-family:var(--mono); font-size:8px; font-weight:800; }
+  .mini-container .mc-name{ font-size:9.5px; font-weight:650; }
+  .mini-container .mc-meta{ margin-left:auto; font-family:var(--mono); font-size:7.5px; color:var(--text-3); }
+  .mini-container .mc-body{ display:grid; grid-template-columns:1fr 1fr; gap:5px; padding:6px; }
+  .mini-container .mc-lane{ height:46px; border:1px solid var(--lane-border); border-radius:5px; background:var(--lane-bg); padding:5px; }
+  .mini-container .mc-lane b{ display:block; font-size:7.5px; color:var(--text-2); }
+  .mini-container .mc-lane span{ display:block; margin-top:3px; font-size:7px; color:var(--text-3); }
+  .mini-container.is-running{ border-color:var(--run); box-shadow:0 0 0 2px rgba(37,99,235,.10); }
+  .mini-container.is-failed{ border-color:var(--danger); }
+  .mini-container.is-missing{ border-color:var(--danger); background:#FFF7F7; }
+  .mini-container.is-disabled{ opacity:.45; }
+  .mini-container.is-collapsed .mc-body{ display:none; }
+
+  /* ===================== WPF 表 ===================== */
+  .wpf-table{ width:100%; border-collapse:separate; border-spacing:0; background:#fff; border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow-1); }
+  .wpf-table th{ text-align:left; padding:9px 10px; background:var(--surface-2); border-bottom:1px solid var(--border); font-size:10px; color:var(--text-3); font-weight:650; white-space:nowrap; }
+  .wpf-table td{ padding:9px 10px; border-bottom:1px solid var(--border-soft); vertical-align:top; font-size:10.5px; color:var(--text-2); line-height:1.55; }
+  .wpf-table tr:last-child td{ border-bottom:0; }
+  .wpf-table td b{ color:var(--text); font-weight:650; }
+  .wpf-table code{ font-family:var(--mono); font-size:9.5px; background:var(--surface-3); border:1px solid var(--border-soft); border-radius:3px; padding:0 4px; }
+  .wpf-table .file{ font-family:var(--mono); font-size:9px; color:var(--text-3); white-space:nowrap; }
+
+  @keyframes pulse-dot{
+    0%{ box-shadow:0 0 0 0 rgba(37,99,235,.35); }
+    70%{ box-shadow:0 0 0 6px rgba(37,99,235,0); }
+    100%{ box-shadow:0 0 0 0 rgba(37,99,235,0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+  }
+  @media (max-width: 1280px){
+    .lib-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .lib-grid.three{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .state-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .detail-grid{ grid-template-columns:1fr; }
+    .detail-card.wide{ grid-column:auto; }
+  }
+</style>
+</head>
+<body>
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v10H4z"/><circle cx="12" cy="13" r="3.2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h12M20 17h0"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="17" r="2"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/><path d="M8 12l2 2M11 9l2 2M14 6l2 2"/></symbol>
+  <symbol id="i-blob" viewBox="0 0 24 24"><circle cx="8" cy="9" r="2.2"/><circle cx="15" cy="7" r="1.6"/><circle cx="16" cy="15" r="2.6"/><circle cx="8" cy="16" r="1.4"/></symbol>
+  <symbol id="i-barcode" viewBox="0 0 24 24"><path d="M4 5v14M7 5v14M10 5v10M13 5v14M16 5v10M19 5v14"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M9 7l-4 5 4 5M15 7l4 5-4 5"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><path d="M6 4v6a4 4 0 004 4h8M6 20v-6a4 4 0 014-4h8"/><circle cx="6" cy="4" r="1.5"/><circle cx="6" cy="20" r="1.5"/><circle cx="18" cy="14" r="1.5"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.3-5.6"/><path d="M20 4v5h-5"/></symbol>
+  <symbol id="i-parallel" viewBox="0 0 24 24"><path d="M5 4v16M12 4v16M19 4v16"/><path d="M5 8h7M12 16h7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-var" viewBox="0 0 24 24"><path d="M4 20l4-1 9-9-3-3-9 9z"/><path d="M13 7l3 3"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16v3h16v-3"/></symbol>
+  <symbol id="i-display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-motion" viewBox="0 0 24 24"><path d="M4 12h16M12 4v16M7 7l-3 5 3 5M17 7l3 5-3 5"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9H3z"/><path d="M9 20v-6h6v6"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/><path d="M9 6h6v9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4v4H7zM14 8h3M14 12h3M7 16h10"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3l9 17H3z"/><path d="M12 9v5M12 17v.5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 11a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 16l9 5 9-5"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 18a8 8 0 1116 0"/><path d="M12 18l4-5"/><circle cx="12" cy="18" r="1.5"/></symbol>
+  <symbol id="i-wait" viewBox="0 0 24 24"><path d="M7 3h10M7 21h10M8 3v4l4 3 4-3V3M8 21v-4l4-3 4 3v4"/></symbol>
+  <symbol id="i-break" viewBox="0 0 24 24"><path d="M4 12h10M10 8l4 4-4 4"/><path d="M18 4v16"/></symbol>
+  <symbol id="i-continue" viewBox="0 0 24 24"><path d="M4 12h12M12 8l4 4-4 4"/></symbol>
+  <symbol id="i-return" viewBox="0 0 24 24"><path d="M20 12H8M12 8l-4 4 4 4"/><path d="M4 4v16"/></symbol>
+  <symbol id="i-if" viewBox="0 0 24 24"><path d="M12 3l9 9-9 9-9-9z"/><path d="M9 12h6"/></symbol>
+  <symbol id="i-case" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 10v9"/></symbol>
+  <symbol id="i-join" viewBox="0 0 24 24"><path d="M4 6h6v12h6M10 6v12M16 6h4M16 18h4"/></symbol>
+  <symbol id="i-summary" viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M8 15l4-4 3 2 4-6"/></symbol>
+</svg>
+
+<header class="page-head">
+  <h1>流程栏 + 画布 <span class="ver">真实算子版 · v1</span></h1>
+  <p class="meta">
+    这版不再使用通用门电路，而是<b>完全按项目现有算子</b>搭建：
+    <code>逻辑运算</code> 的 6 种操作（AND / OR / NOT / XOR / NAND / NOR）、
+    <code>数值比较</code> 的 6 种操作（EQ / NEQ / GT / LT / GTE / LTE）、
+    <code>If / 分支匹配 / While / For / 并行分组 / 等待 / Break / Continue / Return</code> 九类控制节点，
+    以及图像采集、预处理、模板匹配、卡尺、Blob、码读取、变量赋值、结果上报等真实插件。
+    设计媒介，不是交付物（AGENTS.md R126）。
+  </p>
+  <nav class="page-nav" aria-label="章节">
+    <a href="#project">01 复杂项目</a>
+    <a href="#library">02 逻辑算子库</a>
+    <a href="#containers">03 逻辑容器</a>
+    <a href="#states">04 状态矩阵</a>
+    <a href="#wpf">05 WPF 复刻</a>
+    <button type="button" class="scale-btn" id="scaleBtn">实际大小</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ================================================================ -->
+  <!-- 01 复杂项目 -->
+  <!-- ================================================================ -->
+  <section class="section" id="project">
+    <div class="sec-head">
+      <span class="sec-index">01</span>
+      <h2>复杂项目 · 流程栏 + 画布</h2>
+      <p>一个真实规模的定位 / 测量 / 缺陷 / 读码 / 运动流程；逻辑容器是画面主角。</p>
+    </div>
+
+    <div class="stage-wrap" id="stageWrap">
+      <div class="stage" id="stage">
+        <div class="app">
+
+          <!-- 标题栏 -->
+          <div class="titlebar">
+            <div class="brand">
+              <span class="brand-mark">V</span>
+              <span class="brand-name">VisionMaster</span>
+            </div>
+            <span class="crumb">主流程 / <b>定位与判定</b></span>
+            <span class="spacer"></span>
+            <div class="mode-tabs" role="tablist" aria-label="工作模式">
+              <button class="is-active" type="button">调试</button>
+              <button type="button">运行</button>
+              <button type="button">组态</button>
+            </div>
+            <div class="title-actions">
+              <button class="icon-btn" type="button" title="搜索"><svg class="icon"><use href="#i-search"></use></svg></button>
+              <button class="icon-btn" type="button" title="通知"><svg class="icon"><use href="#i-eye"></use></svg></button>
+              <span class="avatar">张</span>
+            </div>
+          </div>
+
+          <div class="workspace">
+
+            <!-- 流程栏 -->
+            <aside class="proc-panel">
+              <div class="panel-head">
+                <h2>流程</h2>
+                <span class="count-chip">4</span>
+                <span class="spacer"></span>
+                <button class="icon-btn" type="button" title="流程管理"><svg class="icon"><use href="#i-dots"></use></svg></button>
+              </div>
+
+              <div class="flow-grid" role="tablist" aria-label="流程">
+                <button class="flow-chip is-active" type="button">
+                  <span class="chip-dot ok"></span><span class="chip-name">主流程</span><span class="chip-count">28</span>
+                </button>
+                <button class="flow-chip" type="button">
+                  <span class="chip-dot idle"></span><span class="chip-name">NG 复判</span><span class="chip-count">6</span>
+                </button>
+                <button class="flow-chip" type="button">
+                  <span class="chip-dot idle"></span><span class="chip-name">标定流程</span><span class="chip-count">5</span>
+                </button>
+                <button class="flow-chip is-disabled" type="button" disabled>
+                  <span class="chip-dot off"></span><span class="chip-name">数据上报</span><span class="chip-count">3</span>
+                </button>
+              </div>
+
+              <div class="tree-head">
+                <span class="t">主流程 · 定位与判定</span>
+                <span class="m">28 算子</span>
+                <span class="spacer"></span>
+                <button class="icon-btn" type="button" title="搜索步骤"><svg class="icon"><use href="#i-search"></use></svg></button>
+              </div>
+
+              <div class="tree-scroll">
+                <!-- 普通算子 -->
+                <div class="tree-row" style="--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB">
+                  <span class="tree-state ok"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-camera"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">图像采集_0</span><span class="tree-sub">图像采集</span></span>
+                  <span class="tree-time">12.4 ms</span>
+                </div>
+                <div class="tree-row" style="--cat:#3B82F6;--cat-soft:#EFF6FF;--cat-border:#BFDBFE">
+                  <span class="tree-state ok"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-sliders"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">图像预处理_0</span><span class="tree-sub">图像预处理</span></span>
+                  <span class="tree-time">3.1 ms</span>
+                </div>
+                <div class="tree-row" style="--cat:#F97316;--cat-soft:#FFF7ED;--cat-border:#FED7AA">
+                  <span class="tree-state ok"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-target"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">模板匹配_0</span><span class="tree-sub">模板匹配 · Score 0.987</span></span>
+                  <span class="tree-time">18.7 ms</span>
+                </div>
+                <div class="tree-row" style="--cat:#F59E0B;--cat-soft:#FFFBEB;--cat-border:#FDE68A">
+                  <span class="tree-state ok"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-ruler"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">卡尺测量_0</span><span class="tree-sub">卡尺测量 · Width 12.42</span></span>
+                  <span class="tree-time">9.6 ms</span>
+                </div>
+
+                <!-- If 容器 -->
+                <div class="tree-row tree-container" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE">
+                  <svg class="tree-chev"><use href="#i-chevron"></use></svg>
+                  <span class="tree-type">IF</span>
+                  <span class="tree-title">If 判定 OK</span>
+                  <span class="tree-meta">2 分支 · 6 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#6366F1;--branch-soft:#EEF2FF;--branch-border:#C7D2FE">
+                  <span class="branch-dot"></span><span class="branch-badge">IF</span>
+                  <span class="branch-name">If [ Score ≥ 0.85 && Width ≤ 12.5 ]</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#94A3B8;--branch-soft:#F8FAFC;--branch-border:#E2E8F0">
+                  <span class="branch-dot"></span><span class="branch-badge">ELSE</span>
+                  <span class="branch-name">Else</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+
+                <!-- Case 容器 -->
+                <div class="tree-row tree-container" style="--ct:#8B5CF6;--ct-soft:#F5F3FF;--ct-border:#DDD6FE">
+                  <svg class="tree-chev"><use href="#i-chevron"></use></svg>
+                  <span class="tree-type">CASE</span>
+                  <span class="tree-title">分支匹配 产品型号</span>
+                  <span class="tree-meta">3 分支 · 8 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#8B5CF6;--branch-soft:#F5F3FF;--branch-border:#DDD6FE">
+                  <span class="branch-dot"></span><span class="branch-badge">C1</span>
+                  <span class="branch-name">Case 1 [ A ]</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#8B5CF6;--branch-soft:#F5F3FF;--branch-border:#DDD6FE">
+                  <span class="branch-dot"></span><span class="branch-badge">C2</span>
+                  <span class="branch-name">Case 2 [ B ]</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#94A3B8;--branch-soft:#F8FAFC;--branch-border:#E2E8F0">
+                  <span class="branch-dot"></span><span class="branch-badge">DEF</span>
+                  <span class="branch-name">默认</span>
+                  <span class="branch-count">2 算子</span>
+                </div>
+
+                <!-- 并行分组（选中） -->
+                <div class="tree-row tree-container is-selected" style="--ct:#0EA5E9;--ct-soft:#F0F9FF;--ct-border:#BAE6FD">
+                  <svg class="tree-chev"><use href="#i-chevron"></use></svg>
+                  <span class="tree-type">PAR</span>
+                  <span class="tree-title">并行分组 多工位检测</span>
+                  <span class="tree-meta">3 分支 · 9 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#0EA5E9;--branch-soft:#F0F9FF;--branch-border:#BAE6FD">
+                  <span class="branch-dot"></span><span class="branch-badge">A</span>
+                  <span class="branch-name">分支 1 · 尺寸</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+                <div class="tree-row tree-branch is-running" style="--branch:#0EA5E9;--branch-soft:#F0F9FF;--branch-border:#BAE6FD">
+                  <span class="branch-dot"></span><span class="branch-badge">B</span>
+                  <span class="branch-name">分支 2 · 缺陷</span>
+                  <span class="branch-state">运行中</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#0EA5E9;--branch-soft:#F0F9FF;--branch-border:#BAE6FD">
+                  <span class="branch-dot"></span><span class="branch-badge">C</span>
+                  <span class="branch-name">分支 3 · 读码</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+
+                <!-- For 容器 -->
+                <div class="tree-row tree-container" style="--ct:#10B981;--ct-soft:#ECFDF5;--ct-border:#A7F3D0">
+                  <svg class="tree-chev"><use href="#i-chevron"></use></svg>
+                  <span class="tree-type">FOR</span>
+                  <span class="tree-title">For 遍历工位</span>
+                  <span class="tree-meta">4 次 · 3 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#10B981;--branch-soft:#ECFDF5;--branch-border:#A7F3D0">
+                  <span class="branch-dot"></span><span class="branch-badge">BODY</span>
+                  <span class="branch-name">循环体</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+
+                <!-- While 容器 -->
+                <div class="tree-row tree-container" style="--ct:#F59E0B;--ct-soft:#FFFBEB;--ct-border:#FDE68A">
+                  <svg class="tree-chev"><use href="#i-chevron"></use></svg>
+                  <span class="tree-type">WHILE</span>
+                  <span class="tree-title">While 等待料到位</span>
+                  <span class="tree-meta">1 循环体 · 3 算子</span>
+                </div>
+                <div class="tree-row tree-branch" style="--branch:#F59E0B;--branch-soft:#FFFBEB;--branch-border:#FDE68A">
+                  <span class="branch-dot"></span><span class="branch-badge">BODY</span>
+                  <span class="branch-name">循环体</span>
+                  <span class="branch-count">3 算子</span>
+                </div>
+
+                <!-- 汇总与输出 -->
+                <div class="tree-row" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="tree-state idle"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-summary"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">逻辑运算_5</span><span class="tree-sub">逻辑运算 · NOR</span></span>
+                  <span class="tree-time">0.1 ms</span>
+                </div>
+                <div class="tree-row" style="--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE">
+                  <span class="tree-state idle"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-code"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">C#脚本_1</span><span class="tree-sub">C#脚本 · 综合判定</span></span>
+                  <span class="tree-time">0.4 ms</span>
+                </div>
+                <div class="tree-row" style="--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB">
+                  <span class="tree-state idle"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-display"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">结果显示_1</span><span class="tree-sub">结果显示</span></span>
+                  <span class="tree-time">—</span>
+                </div>
+                <div class="tree-row" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+                  <span class="tree-state idle"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-file"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">CSV记录_0</span><span class="tree-sub">CSV记录</span></span>
+                  <span class="tree-time">—</span>
+                </div>
+                <div class="tree-row" style="--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB">
+                  <span class="tree-state idle"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-clock"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">延时_0</span><span class="tree-sub">延时 · 200 ms</span></span>
+                  <span class="tree-time">200 ms</span>
+                </div>
+                <div class="tree-row" style="--cat:#0EA5E9;--cat-soft:#F0F9FF;--cat-border:#BAE6FD">
+                  <span class="tree-state idle"></span>
+                  <span class="tree-icon"><svg class="icon"><use href="#i-flow"></use></svg></span>
+                  <span class="tree-text"><span class="tree-title">调用流程_0</span><span class="tree-sub">调用流程 · NG 复判</span></span>
+                  <span class="tree-time">—</span>
+                </div>
+              </div>
+
+              <div class="tree-stats">
+                <div class="lines">
+                  <div><b>28</b> 个算子 · <b>5</b> 个容器</div>
+                  <div>上次运行 <b>00:00:18.6</b></div>
+                </div>
+                <label><input type="checkbox" checked> 失败自动跳转</label>
+              </div>
+            </aside>
+
+            <!-- 画布 -->
+            <section class="canvas-panel">
+              <div class="canvas-bar">
+                <span class="run-status"><span class="dot"></span>待机</span>
+                <button class="btn" type="button"><svg class="icon"><use href="#i-check"></use></svg>编译</button>
+                <button class="btn primary" type="button"><svg class="icon"><use href="#i-play"></use></svg>运行</button>
+                <button class="btn icon-only ghost" type="button" title="暂停"><svg class="icon"><use href="#i-pause"></use></svg></button>
+                <button class="btn icon-only ghost" type="button" title="单步"><svg class="icon"><use href="#i-continue"></use></svg></button>
+                <button class="btn icon-only ghost" type="button" title="停止"><svg class="icon"><use href="#i-stop"></use></svg></button>
+                <span class="divider"></span>
+                <div class="flow-title"><b>主流程 · 定位与判定</b><span>上次运行 00:00:18.6 · 3 个容器运行中</span></div>
+                <span class="spacer"></span>
+                <label class="toggle"><input type="checkbox" checked>数据线</label>
+                <label class="toggle"><input type="checkbox" checked>顺序链</label>
+                <div class="zoom-group">
+                  <button type="button">−</button><span class="pct">100%</span><button type="button">＋</button>
+                </div>
+                <button class="btn" type="button"><svg class="icon"><use href="#i-fit"></use></svg>适应</button>
+                <button class="btn" type="button"><svg class="icon"><use href="#i-map"></use></svg>小地图</button>
+                <button class="btn" type="button"><svg class="icon"><use href="#i-map"></use></svg>整理</button>
+              </div>
+
+              <div class="canvas-body">
+                <!-- 容器背景层 -->
+                <div class="flow-container" style="left:24px;top:130px;width:600px;height:300px;--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE;--ct-text:#4338CA">
+                  <div class="container-head">
+                    <span class="container-bar"></span><span class="container-badge">IF</span>
+                    <span class="container-title">If 判定 OK</span>
+                    <span class="container-cond">Score ≥ 0.85 && Width ≤ 12.5</span>
+                    <span class="container-meta">2 分支 · 6 算子</span>
+                    <span class="container-state ok"></span>
+                  </div>
+                  <div class="lane" style="left:12px;top:56px;width:342px;height:232px;--lane-bg:#EEF2FF;--lane-border:#C7D2FE;--branch:#6366F1">
+                    <div class="lane-head"><span class="lane-badge">IF</span><span class="lane-name">If [ OK ]</span><span class="lane-count">3 算子</span></div>
+                  </div>
+                  <div class="lane" style="left:364px;top:56px;width:224px;height:232px;--lane-bg:#F8FAFC;--lane-border:#E2E8F0;--branch:#94A3B8">
+                    <div class="lane-head"><span class="lane-badge">ELSE</span><span class="lane-name">Else</span><span class="lane-count">3 算子</span></div>
+                  </div>
+                  <span class="cport in"></span><span class="cport out"></span>
+                  <div class="container-order">07</div>
+                </div>
+
+                <div class="flow-container is-selected" style="left:648px;top:130px;width:606px;height:300px;--ct:#0EA5E9;--ct-soft:#F0F9FF;--ct-border:#BAE6FD;--ct-text:#0369A1">
+                  <div class="container-head">
+                    <span class="container-bar"></span><span class="container-badge">PAR</span>
+                    <span class="container-title">并行分组 多工位检测</span>
+                    <span class="container-cond">真并发 · FailFast 开 · 15s</span>
+                    <span class="container-meta">3 分支 · 9 算子</span>
+                    <span class="container-state run"></span>
+                  </div>
+                  <div class="lane" style="left:12px;top:56px;width:188px;height:200px;--lane-bg:#F0F9FF;--lane-border:#BAE6FD;--branch:#0EA5E9">
+                    <div class="lane-head"><span class="lane-badge">A</span><span class="lane-name">分支 1 · 尺寸</span><span class="lane-count">3</span></div>
+                  </div>
+                  <div class="lane is-running" style="left:208px;top:56px;width:188px;height:200px;--lane-bg:#EFF6FF;--lane-border:#BAE6FD;--branch:#0EA5E9">
+                    <div class="lane-head"><span class="lane-badge">B</span><span class="lane-name">分支 2 · 缺陷</span><span class="lane-count">3</span></div>
+                  </div>
+                  <div class="lane" style="left:404px;top:56px;width:188px;height:200px;--lane-bg:#F0F9FF;--lane-border:#BAE6FD;--branch:#0EA5E9">
+                    <div class="lane-head"><span class="lane-badge">C</span><span class="lane-name">分支 3 · 读码</span><span class="lane-count">3</span></div>
+                  </div>
+                  <div class="join-bar"><svg class="icon" style="width:10px;height:10px"><use href="#i-join"></use></svg>汇合 · 3/3 分支完成 · 12.8s</div>
+                  <span class="cport in"></span><span class="cport out"></span>
+                  <div class="container-order">08</div>
+                </div>
+
+                <div class="flow-container" style="left:24px;top:460px;width:600px;height:260px;--ct:#8B5CF6;--ct-soft:#F5F3FF;--ct-border:#DDD6FE;--ct-text:#6D28D9">
+                  <div class="container-head">
+                    <span class="container-bar"></span><span class="container-badge">CASE</span>
+                    <span class="container-title">分支匹配 产品型号</span>
+                    <span class="container-cond">Recipe</span>
+                    <span class="container-meta">3 分支 · 8 算子</span>
+                    <span class="container-state ok"></span>
+                  </div>
+                  <div class="lane" style="left:12px;top:54px;width:576px;height:64px;--lane-bg:#F5F3FF;--lane-border:#DDD6FE;--branch:#8B5CF6">
+                    <div class="lane-head"><span class="lane-badge">CASE 1</span><span class="lane-name">[ A ]</span><span class="lane-count">3 算子</span></div>
+                  </div>
+                  <div class="lane" style="left:12px;top:122px;width:576px;height:64px;--lane-bg:#F5F3FF;--lane-border:#DDD6FE;--branch:#8B5CF6">
+                    <div class="lane-head"><span class="lane-badge">CASE 2</span><span class="lane-name">[ B ]</span><span class="lane-count">3 算子</span></div>
+                  </div>
+                  <div class="lane" style="left:12px;top:190px;width:576px;height:64px;--lane-bg:#F8FAFC;--lane-border:#E2E8F0;--branch:#94A3B8">
+                    <div class="lane-head"><span class="lane-badge">默认</span><span class="lane-name">未知型号</span><span class="lane-count">2 算子</span></div>
+                  </div>
+                  <span class="cport in"></span><span class="cport out"></span>
+                  <div class="container-order">09</div>
+                </div>
+
+                <div class="flow-container" style="left:648px;top:460px;width:606px;height:260px;--ct:#F59E0B;--ct-soft:#FFFBEB;--ct-border:#FDE68A;--ct-text:#B45309">
+                  <div class="container-head">
+                    <span class="container-bar"></span><span class="container-badge">WHILE</span>
+                    <span class="container-title">While 等待料到位</span>
+                    <span class="container-cond">DI_到位 == 1</span>
+                    <span class="container-meta">循环体 · 3 算子</span>
+                    <span class="container-state ok"></span>
+                  </div>
+                  <div class="lane" style="left:12px;top:56px;width:582px;height:192px;--lane-bg:#FFFBEB;--lane-border:#FDE68A;--branch:#F59E0B">
+                    <div class="lane-head"><span class="lane-badge">BODY</span><span class="lane-name">循环体 · 超时 5000 ms</span><span class="lane-count">3 算子</span></div>
+                    <div class="lane-note"><svg class="icon" style="width:10px;height:10px"><use href="#i-warning"></use></svg><span>超时 5000 ms → <b>TimedOut = true</b> → 走异常分支；到位则 Break 退出</span></div>
+                  </div>
+                  <span class="cport in"></span><span class="cport out"></span>
+                  <div class="container-order">10</div>
+                </div>
+
+                <div class="flow-container" style="left:24px;top:750px;width:600px;height:190px;--ct:#10B981;--ct-soft:#ECFDF5;--ct-border:#A7F3D0;--ct-text:#047857">
+                  <div class="container-head">
+                    <span class="container-bar"></span><span class="container-badge">FOR</span>
+                    <span class="container-title">For 遍历工位</span>
+                    <span class="container-cond">4 次</span>
+                    <span class="container-meta">循环体 · 3 算子</span>
+                    <span class="container-state ok"></span>
+                  </div>
+                  <div class="lane" style="left:12px;top:54px;width:576px;height:120px;--lane-bg:#ECFDF5;--lane-border:#A7F3D0;--branch:#10B981">
+                    <div class="lane-head"><span class="lane-badge">BODY</span><span class="lane-name">循环体 · Index →</span><span class="lane-count">3 算子</span></div>
+                  </div>
+                  <span class="cport in"></span><span class="cport out"></span>
+                  <div class="container-order">11</div>
+                </div>
+
+                <div class="flow-container" style="left:648px;top:750px;width:606px;height:190px;--ct:#64748B;--ct-soft:#F8FAFC;--ct-border:#E2E8F0;--ct-text:#475569">
+                  <div class="container-head">
+                    <span class="container-bar"></span><span class="container-badge">OUT</span>
+                    <span class="container-title">结果汇总与输出</span>
+                    <span class="container-meta">4 算子</span>
+                    <span class="container-state ok"></span>
+                  </div>
+                  <span class="cport in"></span>
+                  <div class="container-order">12</div>
+                </div>
+
+                <!-- 连线 -->
+                <svg class="wires" viewBox="0 0 1278 960" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <marker id="arr-data" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#3B82F6"/></marker>
+                    <marker id="arr-order" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#94A3B8"/></marker>
+                    <marker id="arr-true" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#16A34A"/></marker>
+                  </defs>
+
+                  <!-- 顶部数据链 -->
+                  <path class="wire" d="M180,57 H194" marker-end="url(#arr-data)"/>
+                  <path class="wire" d="M350,57 H364" marker-end="url(#arr-data)"/>
+                  <path class="wire" d="M520,57 H534" marker-end="url(#arr-data)"/>
+                  <path class="wire" d="M520,45 H610 V14 H704 V45" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="620" y="11">Score</text>
+                  <path class="wire" d="M690,70 V100 H874 V70" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="760" y="96">Width</text>
+                  <path class="wire" d="M860,57 H980 V45 H1044" marker-end="url(#arr-data)"/>
+                  <path class="wire" d="M1030,57 H1038 V73 H1044" marker-end="url(#arr-data)"/>
+                  <path class="wire true" d="M1200,57 H1220 V112 H14 V153 H24" marker-end="url(#arr-true)"/>
+                  <text class="wire-label run" x="610" y="108">OK</text>
+
+                  <!-- 容器顺序链 -->
+                  <path class="wire order" d="M624,153 H648" marker-end="url(#arr-order)"/>
+                  <text class="wire-label" x="630" y="146">TRUE</text>
+                  <path class="wire order" d="M951,430 V445 H324 V460" marker-end="url(#arr-order)"/>
+                  <text class="wire-label" x="632" y="441">汇合</text>
+                  <path class="wire order" d="M624,590 H648" marker-end="url(#arr-order)"/>
+                  <text class="wire-label" x="630" y="583">顺序</text>
+                  <path class="wire order" d="M951,720 V735 H324 V750" marker-end="url(#arr-order)"/>
+                  <text class="wire-label" x="632" y="731">循环</text>
+                  <path class="wire order" d="M624,845 H648" marker-end="url(#arr-order)"/>
+                  <text class="wire-label" x="630" y="838">汇总</text>
+
+                  <!-- If 分支内部顺序 -->
+                  <path class="wire order" d="M123,214 V222 M123,268 V278 M123,324 V334" marker-end="url(#arr-order)"/>
+                  <path class="wire order" d="M475,214 V222 M475,268 V278 M475,324 V334" marker-end="url(#arr-order)"/>
+
+                  <!-- 并行分支内部顺序 -->
+                  <path class="wire order" d="M754,214 V222 M754,268 V278 M754,324 V334" marker-end="url(#arr-order)"/>
+                  <path class="wire order" d="M950,214 V222 M950,268 V278 M950,324 V334" marker-end="url(#arr-order)"/>
+                  <path class="wire order" d="M1146,214 V222 M1146,268 V278 M1146,324 V334" marker-end="url(#arr-order)"/>
+
+                  <!-- 并行分支数据链 -->
+                  <path class="wire" d="M836,245 H852 V301 H868" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="840" y="240">Width</text>
+                  <path class="wire" d="M1032,245 H1048 V301 H1064" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="1036" y="240">Area</text>
+                  <path class="wire" d="M1228,245 H1244 V390 H1056 V301 H1064" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="1240" y="270">Text</text>
+
+                  <!-- Case 行内顺序 -->
+                  <path class="wire order" d="M262,560 H274 M424,560 H436" marker-end="url(#arr-order)"/>
+                  <path class="wire order" d="M262,628 H274 M424,628 H436" marker-end="url(#arr-order)"/>
+                  <path class="wire order" d="M262,696 H274" marker-end="url(#arr-order)"/>
+
+                  <!-- While 内部 -->
+                  <path class="wire order" d="M836,579 H866 M1026,579 H1056" marker-end="url(#arr-order)"/>
+                  <path class="wire" d="M836,570 H851 V591 H866" marker-end="url(#arr-data)"/>
+                  <text class="wire-label" x="840" y="565">TimedOut</text>
+                  <path class="wire order" d="M1216,579 H1240 V714 H660 V506" marker-end="url(#arr-order)"/>
+                  <text class="wire-label" x="940" y="710">循环</text>
+
+                  <!-- For 内部 -->
+                  <path class="wire order" d="M212,861 H242 M402,861 H432" marker-end="url(#arr-order)"/>
+
+                  <!-- 汇总内部 -->
+                  <path class="wire order" d="M834,825 H854 M1024,825 H1044" marker-end="url(#arr-order)"/>
+                </svg>
+
+                <!-- 顶部节点 -->
+                <div class="flow-node" style="left:24px;top:28px;--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB">
+                  <span class="node-order">01</span>
+                  <span class="node-icon"><svg class="icon"><use href="#i-camera"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">图像采集_0</span></span><span class="node-sub">图像采集 · 12.4 ms</span></span>
+                  <span class="node-state ok"></span><span class="node-time">12.4 ms</span>
+                  <span class="port out"></span>
+                </div>
+                <div class="flow-node" style="left:194px;top:28px;--cat:#3B82F6;--cat-soft:#EFF6FF;--cat-border:#BFDBFE">
+                  <span class="node-order">02</span>
+                  <span class="node-icon"><svg class="icon"><use href="#i-sliders"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">图像预处理_0</span></span><span class="node-sub">图像预处理 · 3.1 ms</span></span>
+                  <span class="node-state ok"></span><span class="node-time">3.1 ms</span>
+                  <span class="port in"></span><span class="port out"></span>
+                </div>
+                <div class="flow-node" style="left:364px;top:28px;--cat:#F97316;--cat-soft:#FFF7ED;--cat-border:#FED7AA">
+                  <span class="node-order">03</span>
+                  <span class="node-icon"><svg class="icon"><use href="#i-target"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">模板匹配_0</span></span><span class="node-sub">模板匹配 · Score 0.987</span></span>
+                  <span class="node-state ok"></span><span class="node-time">18.7 ms</span>
+                  <span class="port in"></span><span class="port out"></span>
+                </div>
+                <div class="flow-node" style="left:534px;top:28px;--cat:#F59E0B;--cat-soft:#FFFBEB;--cat-border:#FDE68A">
+                  <span class="node-order">04</span>
+                  <span class="node-icon"><svg class="icon"><use href="#i-ruler"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">卡尺测量_0</span></span><span class="node-sub">卡尺测量 · Width 12.42</span></span>
+                  <span class="node-state ok"></span><span class="node-time">9.6 ms</span>
+                  <span class="port in"></span><span class="port out"></span>
+                </div>
+                <div class="flow-node" style="left:704px;top:28px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-order">05</span>
+                  <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">数值比较_0</span><span class="node-op">GTE</span></span><span class="node-sub">Score ≥ 0.85</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.2 ms</span>
+                  <span class="port in"></span><span class="port out"></span>
+                </div>
+                <div class="flow-node" style="left:874px;top:28px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-order">06</span>
+                  <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">数值比较_1</span><span class="node-op">LTE</span></span><span class="node-sub">Width ≤ 12.5</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.2 ms</span>
+                  <span class="port in"></span><span class="port out"></span>
+                </div>
+                <div class="flow-node" style="left:1044px;top:28px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-order">07</span>
+                  <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_0</span><span class="node-op">AND</span></span><span class="node-sub">判定 OK</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.1 ms</span>
+                  <span class="port in"></span><span class="port out"></span>
+                </div>
+
+                <!-- If 分支节点 -->
+                <div class="flow-node node-sm" style="left:48px;top:222px;--cat:#14B8A6;--cat-soft:#F0FDFA;--cat-border:#99F6E4">
+                  <span class="node-icon"><svg class="icon"><use href="#i-var"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">变量赋值_0</span></span><span class="node-sub">变量赋值 · OKCount++</span></span>
+                  <span class="node-state ok"></span><span class="node-time">1.2 ms</span>
+                </div>
+                <div class="flow-node node-sm" style="left:48px;top:278px;--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB">
+                  <span class="node-icon"><svg class="icon"><use href="#i-display"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">结果显示_0</span></span><span class="node-sub">结果显示 · OK 标注</span></span>
+                  <span class="node-state ok"></span><span class="node-time">4.8 ms</span>
+                </div>
+                <div class="flow-node node-sm" style="left:48px;top:334px;--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+                  <span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">结果上报_0</span></span><span class="node-sub">结果上报 · OK</span></span>
+                  <span class="node-state ok"></span><span class="node-time">6.1 ms</span>
+                </div>
+                <div class="flow-node node-sm" style="left:400px;top:222px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_1</span><span class="node-op">NOT</span></span><span class="node-sub">判定取反</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.1 ms</span>
+                </div>
+                <div class="flow-node node-sm" style="left:400px;top:278px;--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-code"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">C#脚本_0</span></span><span class="node-sub">C#脚本 · NG 原因</span></span>
+                  <span class="node-state fail"></span><span class="node-time">0.4 ms</span>
+                </div>
+                <div class="flow-node node-sm" style="left:400px;top:334px;--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+                  <span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">结果上报_1</span></span><span class="node-sub">结果上报 · NG</span></span>
+                  <span class="node-state fail"></span><span class="node-time">5.7 ms</span>
+                </div>
+
+                <!-- 并行分支节点 -->
+                <div class="flow-node node-xs" style="left:672px;top:222px;--cat:#F59E0B;--cat-soft:#FFFBEB;--cat-border:#FDE68A">
+                  <span class="node-icon"><svg class="icon"><use href="#i-ruler"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">卡尺测量_1</span></span><span class="node-sub">卡尺测量 · 12.42</span></span>
+                  <span class="node-state ok"></span><span class="node-time">8.2 ms</span>
+                  <span class="port out"></span>
+                </div>
+                <div class="flow-node node-xs" style="left:672px;top:278px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">数值比较_2</span><span class="node-op">GT</span></span><span class="node-sub">MeasureValue > 12.0</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.2 ms</span>
+                  <span class="port in"></span>
+                </div>
+                <div class="flow-node node-xs" style="left:672px;top:334px;--cat:#14B8A6;--cat-soft:#F0FDFA;--cat-border:#99F6E4">
+                  <span class="node-icon"><svg class="icon"><use href="#i-var"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">变量赋值_2</span></span><span class="node-sub">变量赋值 · WidthOK</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.8 ms</span>
+                </div>
+
+                <div class="flow-node node-xs" style="left:868px;top:222px;--cat:#EF4444;--cat-soft:#FEF2F2;--cat-border:#FECACA">
+                  <span class="node-icon"><svg class="icon"><use href="#i-blob"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">Blob 缺陷检测_0</span></span><span class="node-sub">Blob 缺陷检测 · 3 处</span></span>
+                  <span class="node-state run"></span><span class="node-time">26.4 ms</span>
+                  <span class="port out"></span>
+                </div>
+                <div class="flow-node node-xs" style="left:868px;top:278px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_2</span><span class="node-op">OR</span></span><span class="node-sub">缺陷 A || 缺陷 B</span></span>
+                  <span class="node-state run"></span><span class="node-time">0.1 ms</span>
+                  <span class="port in"></span>
+                </div>
+                <div class="flow-node node-xs" style="left:868px;top:334px;--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+                  <span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">结果上报_2</span></span><span class="node-sub">结果上报 · 缺陷</span></span>
+                  <span class="node-state run"></span><span class="node-time">—</span>
+                </div>
+
+                <div class="flow-node node-xs" style="left:1064px;top:222px;--cat:#3B82F6;--cat-soft:#EFF6FF;--cat-border:#BFDBFE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-barcode"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">码读取_1</span></span><span class="node-sub">码读取 · Text "A-1024"</span></span>
+                  <span class="node-state ok"></span><span class="node-time">7.9 ms</span>
+                  <span class="port out"></span>
+                </div>
+                <div class="flow-node node-xs" style="left:1064px;top:278px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_3</span><span class="node-op">XOR</span></span><span class="node-sub">双工位码一致</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.1 ms</span>
+                  <span class="port in"></span>
+                </div>
+                <div class="flow-node node-xs" style="left:1064px;top:334px;--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+                  <span class="node-icon"><svg class="icon"><use href="#i-file"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">CSV记录_0</span></span><span class="node-sub">CSV记录 · 读码结果</span></span>
+                  <span class="node-state ok"></span><span class="node-time">1.1 ms</span>
+                </div>
+
+                <!-- Case 分支节点 -->
+                <div class="flow-node node-case" style="left:112px;top:542px;--cat:#F97316;--cat-soft:#FFF7ED;--cat-border:#FED7AA">
+                  <span class="node-icon"><svg class="icon"><use href="#i-target"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">模板匹配_1</span></span><span class="node-sub">Recipe A</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+                <div class="flow-node node-case" style="left:274px;top:542px;--cat:#F59E0B;--cat-soft:#FFFBEB;--cat-border:#FDE68A">
+                  <span class="node-icon"><svg class="icon"><use href="#i-ruler"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">卡尺测量_2</span></span><span class="node-sub">Width</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+                <div class="flow-node node-case" style="left:436px;top:542px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">数值比较_4</span><span class="node-op">EQ</span></span><span class="node-sub">Code = "OK"</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+
+                <div class="flow-node node-case" style="left:112px;top:610px;--cat:#F97316;--cat-soft:#FFF7ED;--cat-border:#FED7AA">
+                  <span class="node-icon"><svg class="icon"><use href="#i-target"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">模板匹配_2</span></span><span class="node-sub">Recipe B</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+                <div class="flow-node node-case" style="left:274px;top:610px;--cat:#3B82F6;--cat-soft:#EFF6FF;--cat-border:#BFDBFE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-barcode"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">码读取_2</span></span><span class="node-sub">Text</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+                <div class="flow-node node-case" style="left:436px;top:610px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">数值比较_5</span><span class="node-op">NEQ</span></span><span class="node-sub">Code ≠ ""</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+
+                <div class="flow-node node-case" style="left:112px;top:678px;--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+                  <span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">结果上报_3</span></span><span class="node-sub">未知型号</span></span>
+                  <span class="node-state fail"></span>
+                </div>
+                <div class="flow-node node-case" style="left:274px;top:678px;--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-code"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">C#脚本_2</span></span><span class="node-sub">记录原因</span></span>
+                  <span class="node-state fail"></span>
+                </div>
+
+                <!-- While 节点 -->
+                <div class="flow-node node-while" style="left:676px;top:556px;--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-wait"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">等待_0</span></span><span class="node-sub">等待 · 5000 ms</span></span>
+                  <span class="node-state ok"></span><span class="node-time">118 ms</span>
+                  <span class="port out"></span>
+                </div>
+                <div class="flow-node node-while" style="left:866px;top:556px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_4</span><span class="node-op">NAND</span></span><span class="node-sub">到位 NAND 超时</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.1 ms</span>
+                  <span class="port in"></span>
+                </div>
+                <div class="flow-node node-while" style="left:1056px;top:556px;--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-break"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">Break</span></span><span class="node-sub">条件成立退出</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+
+                <!-- For 节点 -->
+                <div class="flow-node node-while" style="left:52px;top:838px;--cat:#65A30D;--cat-soft:#F7FEE7;--cat-border:#D9F99D">
+                  <span class="node-icon"><svg class="icon"><use href="#i-motion"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">轴运动_0</span></span><span class="node-sub">轴运动 · 工位 Index</span></span>
+                  <span class="node-state ok"></span><span class="node-time">—</span>
+                </div>
+                <div class="flow-node node-while" style="left:242px;top:838px;--cat:#65A30D;--cat-soft:#F7FEE7;--cat-border:#D9F99D">
+                  <span class="node-icon"><svg class="icon"><use href="#i-clock"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">等待到位_0</span></span><span class="node-sub">等待到位 · 2.4 s</span></span>
+                  <span class="node-state ok"></span><span class="node-time">2.4 s</span>
+                </div>
+                <div class="flow-node node-while" style="left:432px;top:838px;--cat:#14B8A6;--cat-soft:#F0FDFA;--cat-border:#99F6E4">
+                  <span class="node-icon"><svg class="icon"><use href="#i-var"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">变量赋值_1</span></span><span class="node-sub">变量赋值 · Index</span></span>
+                  <span class="node-state ok"></span><span class="node-time">0.6 ms</span>
+                </div>
+
+                <!-- 汇总节点 -->
+                <div class="flow-node node-summary" style="left:664px;top:800px;--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_5</span><span class="node-op">NOR</span></span><span class="node-sub">总判定取反</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+                <div class="flow-node node-summary" style="left:854px;top:800px;--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE">
+                  <span class="node-icon"><svg class="icon"><use href="#i-code"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">C#脚本_1</span></span><span class="node-sub">综合判定</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+                <div class="flow-node node-summary" style="left:1044px;top:800px;--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB">
+                  <span class="node-icon"><svg class="icon"><use href="#i-display"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">结果显示_1</span></span><span class="node-sub">结果显示 · 总览</span></span>
+                  <span class="node-state ok"></span>
+                </div>
+                <div class="flow-node node-case" style="left:664px;top:872px;width:150px;height:40px;--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+                  <span class="node-icon"><svg class="icon"><use href="#i-file"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">CSV记录_0</span></span><span class="node-sub">结果留档</span></span>
+                </div>
+                <div class="flow-node node-case" style="left:824px;top:872px;width:150px;height:40px;--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB">
+                  <span class="node-icon"><svg class="icon"><use href="#i-clock"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">延时_0</span></span><span class="node-sub">200 ms</span></span>
+                </div>
+                <div class="flow-node node-case" style="left:984px;top:872px;width:150px;height:40px;--cat:#0EA5E9;--cat-soft:#F0F9FF;--cat-border:#BAE6FD">
+                  <span class="node-icon"><svg class="icon"><use href="#i-flow"></use></svg></span>
+                  <span class="node-main"><span class="node-line"><span class="node-title">调用流程_0</span></span><span class="node-sub">NG 复判</span></span>
+                </div>
+
+                <!-- 浮层 -->
+                <div class="legend">
+                  <span><i></i>数据线</span>
+                  <span><i class="order"></i>顺序链</span>
+                  <span><i class="bad"></i>非法</span>
+                </div>
+              </div>
+            </section>
+
+            <!-- 检查器 -->
+            <aside class="inspector">
+              <div class="inspector-head">
+                <h2>检查器</h2>
+                <span class="spacer"></span>
+                <button class="icon-btn" type="button" title="更多"><svg class="icon"><use href="#i-dots"></use></svg></button>
+              </div>
+              <div class="tabs">
+                <button class="is-active" type="button">属性</button>
+                <button type="button">分支</button>
+                <button type="button">运行</button>
+              </div>
+              <div class="inspector-body">
+                <div class="object-card">
+                  <span class="object-icon"><svg class="icon"><use href="#i-parallel"></use></svg></span>
+                  <span style="min-width:0;flex:1">
+                    <span class="object-title" style="display:block">并行分组 多工位检测</span>
+                    <span class="object-sub" style="display:block">ParallelStep · 真并发</span>
+                  </span>
+                  <span class="container-state run"></span>
+                </div>
+
+                <div class="section-title">执行</div>
+                <div class="prop-row">
+                  <span class="prop-label">执行模式</span>
+                  <span class="prop-value">
+                    <span class="seg"><span>顺序</span><span class="is-active">真并发</span></span>
+                  </span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">失败聚合</span>
+                  <span class="prop-value"><span class="select-like" style="min-width:118px">强制开<svg class="icon chev"><use href="#i-chevron"></use></svg></span></span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">汇合超时</span>
+                  <span class="prop-value mono">15000 ms</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">推荐上限</span>
+                  <span class="prop-value mono">8 分支</span>
+                </div>
+
+                <div class="section-title">分支</div>
+                <div class="branch-list">
+                  <div class="branch-item">
+                    <span class="dot sky"></span>
+                    <span class="bi-name">分支 1 · 尺寸</span>
+                    <span class="bi-count">3 算子</span>
+                    <span class="bi-state">成功</span>
+                  </div>
+                  <div class="branch-item">
+                    <span class="dot run"></span>
+                    <span class="bi-name">分支 2 · 缺陷</span>
+                    <span class="bi-count">3 算子</span>
+                    <span class="bi-state run">运行中</span>
+                  </div>
+                  <div class="branch-item">
+                    <span class="dot sky"></span>
+                    <span class="bi-name">分支 3 · 读码</span>
+                    <span class="bi-count">3 算子</span>
+                    <span class="bi-state">成功</span>
+                  </div>
+                </div>
+
+                <div class="section-title">运行</div>
+                <div class="prop-row">
+                  <span class="prop-label">上次运行</span>
+                  <span class="prop-value mono">00:00:18.6</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">汇合耗时</span>
+                  <span class="prop-value mono">12.8 s</span>
+                </div>
+                <div class="prop-row">
+                  <span class="prop-label">分支完成</span>
+                  <span class="prop-value"><b>3 / 3</b></span>
+                </div>
+
+                <div class="inspector-note">
+                  分支卡片不是算子：它不会进入“按当前选中项执行”的命令链；参数在容器属性里改，结构在流程栏右键里改。
+                </div>
+              </div>
+              <div class="inspector-footer">
+                <button class="btn" type="button">重命名分组</button>
+                <button class="btn primary" type="button"><svg class="icon"><use href="#i-branch"></use></svg>添加分支</button>
+              </div>
+            </aside>
+          </div>
+
+          <!-- 状态栏 -->
+          <div class="statusbar">
+            <span>待机</span>
+            <span>节拍 <b>1.8 s</b></span>
+            <span>OK <b class="ok">128</b></span>
+            <span>NG <b class="bad">3</b></span>
+            <span>告警 <b>0</b></span>
+            <span>主流程</span>
+            <span>admin</span>
+            <span class="spacer"></span>
+            <span>CPU 12% · 内存 386 MB</span>
+            <span class="clock">18:42:06</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- 02 逻辑算子库 -->
+  <!-- ================================================================ -->
+  <section class="section" id="library">
+    <div class="sec-head">
+      <span class="sec-index">02</span>
+      <h2>项目真实逻辑算子</h2>
+      <p>不是通用门电路库：逻辑运算与数值比较各是一个插件，操作模式由插件端口选择；控制节点是内置 StepModel。</p>
+    </div>
+
+    <div class="lib-group">
+      <h3><span class="tag">逻辑判断</span> 逻辑运算 6 种操作 <span class="en">LogicOperationPlugin</span></h3>
+      <div class="lib-grid">
+        <article class="op-card">
+          <div class="op-head"><span class="op-badge">AND</span><span class="op-name">与</span><span class="op-type">逻辑运算</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_n</span><span class="node-op">AND</span></span><span class="node-sub">逻辑运算 · A && B</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = A ∧ B</div>
+          <div class="op-ports"><b>A / B</b> → <b>Result</b> · 布尔</div>
+        </article>
+        <article class="op-card">
+          <div class="op-head"><span class="op-badge">OR</span><span class="op-name">或</span><span class="op-type">逻辑运算</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_n</span><span class="node-op">OR</span></span><span class="node-sub">逻辑运算 · A || B</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = A ∨ B</div>
+          <div class="op-ports"><b>A / B</b> → <b>Result</b> · 布尔</div>
+        </article>
+        <article class="op-card">
+          <div class="op-head"><span class="op-badge">NOT</span><span class="op-name">非</span><span class="op-type">逻辑运算</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_n</span><span class="node-op">NOT</span></span><span class="node-sub">逻辑运算 · !A</span></span>
+            <span class="port in"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = ¬A</div>
+          <div class="op-ports"><b>A</b> → <b>Result</b> · 布尔</div>
+        </article>
+        <article class="op-card">
+          <div class="op-head"><span class="op-badge">XOR</span><span class="op-name">异或</span><span class="op-type">逻辑运算</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_n</span><span class="node-op">XOR</span></span><span class="node-sub">逻辑运算 · A ^ B</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = A ⊕ B</div>
+          <div class="op-ports"><b>A / B</b> → <b>Result</b> · 布尔</div>
+        </article>
+        <article class="op-card">
+          <div class="op-head"><span class="op-badge">NAND</span><span class="op-name">与非</span><span class="op-type">逻辑运算</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_n</span><span class="node-op">NAND</span></span><span class="node-sub">逻辑运算 · !(A && B)</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = ¬(A ∧ B)</div>
+          <div class="op-ports"><b>A / B</b> → <b>Result</b> · 布尔</div>
+        </article>
+        <article class="op-card">
+          <div class="op-head"><span class="op-badge">NOR</span><span class="op-name">或非</span><span class="op-type">逻辑运算</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">逻辑运算_n</span><span class="node-op">NOR</span></span><span class="node-sub">逻辑运算 · !(A || B)</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = ¬(A ∨ B)</div>
+          <div class="op-ports"><b>A / B</b> → <b>Result</b> · 布尔</div>
+        </article>
+      </div>
+    </div>
+
+    <div class="lib-group">
+      <h3><span class="tag">逻辑判断</span> 数值比较 6 种操作 <span class="en">ComparisonPlugin</span></h3>
+      <div class="lib-grid">
+        <article class="op-card cmp">
+          <div class="op-head"><span class="op-badge">EQ</span><span class="op-name">等于</span><span class="op-type">数值比较</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">数值比较_n</span><span class="node-op">EQ</span></span><span class="node-sub">|A − B| ≤ 容差</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = (A = B)</div>
+          <div class="op-ports"><b>A / B / Tolerance</b> → <b>Result</b></div>
+        </article>
+        <article class="op-card cmp">
+          <div class="op-head"><span class="op-badge">NEQ</span><span class="op-name">不等于</span><span class="op-type">数值比较</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">数值比较_n</span><span class="node-op">NEQ</span></span><span class="node-sub">|A − B| > 容差</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = (A ≠ B)</div>
+          <div class="op-ports"><b>A / B / Tolerance</b> → <b>Result</b></div>
+        </article>
+        <article class="op-card cmp">
+          <div class="op-head"><span class="op-badge">GT</span><span class="op-name">大于</span><span class="op-type">数值比较</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">数值比较_n</span><span class="node-op">GT</span></span><span class="node-sub">A > B + 容差</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = (A &gt; B)</div>
+          <div class="op-ports"><b>A / B / Tolerance</b> → <b>Result</b></div>
+        </article>
+        <article class="op-card cmp">
+          <div class="op-head"><span class="op-badge">LT</span><span class="op-name">小于</span><span class="op-type">数值比较</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">数值比较_n</span><span class="node-op">LT</span></span><span class="node-sub">A < B − 容差</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = (A &lt; B)</div>
+          <div class="op-ports"><b>A / B / Tolerance</b> → <b>Result</b></div>
+        </article>
+        <article class="op-card cmp">
+          <div class="op-head"><span class="op-badge">GTE</span><span class="op-name">大于等于</span><span class="op-type">数值比较</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">数值比较_n</span><span class="node-op">GTE</span></span><span class="node-sub">A ≥ B − 容差</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = (A ≥ B)</div>
+          <div class="op-ports"><b>A / B / Tolerance</b> → <b>Result</b></div>
+        </article>
+        <article class="op-card cmp">
+          <div class="op-head"><span class="op-badge">LTE</span><span class="op-name">小于等于</span><span class="op-type">数值比较</span></div>
+          <div class="op-preview"><div class="flow-node is-static" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE">
+            <span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span>
+            <span class="node-main"><span class="node-line"><span class="node-title">数值比较_n</span><span class="node-op">LTE</span></span><span class="node-sub">A ≤ B + 容差</span></span>
+            <span class="port in" style="top:38%"></span><span class="port in" style="top:62%"></span><span class="port out"></span>
+          </div></div>
+          <div class="op-expr">Result = (A ≤ B)</div>
+          <div class="op-ports"><b>A / B / Tolerance</b> → <b>Result</b></div>
+        </article>
+      </div>
+    </div>
+
+    <div class="lib-group">
+      <h3><span class="tag">逻辑控制</span> 9 类内置控制节点 <span class="en">ConditionStep / WhileStep / ForStep / CaseStep / ParallelStep / WaitStep</span></h3>
+      <div class="lib-grid three">
+        <article class="ctrl-card" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE">
+          <div class="ctrl-head"><span class="ctrl-badge">IF</span><span class="ctrl-name">If 条件分支</span><span class="ctrl-en">ConditionStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>If 判定 OK</b><span>2 分支</span></div>
+            <div class="ctrl-preview-body">
+              <div class="ctrl-chip"><i></i>If [ 条件表达式 ] · 3 算子</div>
+              <div class="ctrl-chip"><i></i>Else · 3 算子</div>
+            </div>
+          </div>
+          <div class="ctrl-desc">条件表达式在组头；分支卡片只承载子步骤，不是算子。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#8B5CF6;--ct-soft:#F5F3FF;--ct-border:#DDD6FE">
+          <div class="ctrl-head"><span class="ctrl-badge">CASE</span><span class="ctrl-name">分支匹配</span><span class="ctrl-en">CaseStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>产品型号</b><span>判据 Recipe</span></div>
+            <div class="ctrl-preview-body">
+              <div class="ctrl-chip"><i></i>Case 1 [ A ] · 3 算子</div>
+              <div class="ctrl-chip"><i></i>Case 2 [ B ] · 3 算子</div>
+              <div class="ctrl-chip"><i></i>默认 · 2 算子</div>
+            </div>
+          </div>
+          <div class="ctrl-desc">判据只写一次；每条分支填匹配值，首个命中即执行。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#F59E0B;--ct-soft:#FFFBEB;--ct-border:#FDE68A">
+          <div class="ctrl-head"><span class="ctrl-badge">WHILE</span><span class="ctrl-name">While 循环</span><span class="ctrl-en">WhileStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>等待料到位</b><span>循环体</span></div>
+            <div class="ctrl-preview-body">
+              <div class="ctrl-chip"><i></i>DI_到位 == 1 · 3 算子</div>
+              <div class="ctrl-chip"><i></i>回边：条件成立后继续</div>
+            </div>
+          </div>
+          <div class="ctrl-desc">循环体必须写条件；回边在画布上用虚线箭头表达。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#10B981;--ct-soft:#ECFDF5;--ct-border:#A7F3D0">
+          <div class="ctrl-head"><span class="ctrl-badge">FOR</span><span class="ctrl-name">For 计次循环</span><span class="ctrl-en">ForStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>遍历工位</b><span>4 次</span></div>
+            <div class="ctrl-preview-body">
+              <div class="ctrl-chip"><i></i>循环体 · 3 算子</div>
+              <div class="ctrl-chip"><i></i>Index → 变量赋值</div>
+            </div>
+          </div>
+          <div class="ctrl-desc">计次由 DefaultLoopCount / LoopCount 端口决定，Index 是输出。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#0EA5E9;--ct-soft:#F0F9FF;--ct-border:#BAE6FD">
+          <div class="ctrl-head"><span class="ctrl-badge">PAR</span><span class="ctrl-name">并行分组</span><span class="ctrl-en">ParallelStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>多工位检测</b><span>3 分支 · 真并发</span></div>
+            <div class="ctrl-preview-body">
+              <div class="ctrl-chip"><i></i>分支 1 · 尺寸 · 3 算子</div>
+              <div class="ctrl-chip"><i></i>分支 2 · 缺陷 · 3 算子</div>
+              <div class="ctrl-chip"><i></i>分支 3 · 读码 · 3 算子</div>
+            </div>
+          </div>
+          <div class="ctrl-desc">执行模式 / 失败聚合 / 汇合超时是容器属性；分支独立状态。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE">
+          <div class="ctrl-head"><span class="ctrl-badge">WAIT</span><span class="ctrl-name">等待</span><span class="ctrl-en">WaitStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>等待_0</b><span>5000 ms</span></div>
+            <div class="ctrl-preview-body">
+              <div class="ctrl-chip"><i></i>条件：DI_到位 == 1</div>
+              <div class="ctrl-chip"><i></i>输出：TimedOut / ElapsedMs</div>
+            </div>
+          </div>
+          <div class="ctrl-desc">非容器；超时处置与报警变量在属性里配置。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE">
+          <div class="ctrl-head"><span class="ctrl-badge">BREAK</span><span class="ctrl-name">Break</span><span class="ctrl-en">BreakStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>跳出循环</b><span>控制流</span></div>
+            <div class="ctrl-preview-body"><div class="ctrl-chip"><i></i>退出当前 While / For</div></div>
+          </div>
+          <div class="ctrl-desc">小节点，不占容器头；在循环体里用短胶囊表示。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE">
+          <div class="ctrl-head"><span class="ctrl-badge">CONT</span><span class="ctrl-name">Continue</span><span class="ctrl-en">ContinueStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>继续下一轮</b><span>控制流</span></div>
+            <div class="ctrl-preview-body"><div class="ctrl-chip"><i></i>跳过本轮剩余步骤</div></div>
+          </div>
+          <div class="ctrl-desc">与 Break 同一视觉家族，用箭头方向区分。</div>
+        </article>
+        <article class="ctrl-card" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE">
+          <div class="ctrl-head"><span class="ctrl-badge">RET</span><span class="ctrl-name">Return</span><span class="ctrl-en">ReturnStep</span></div>
+          <div class="ctrl-preview">
+            <div class="ctrl-preview-head"><b>返回</b><span>控制流</span></div>
+            <div class="ctrl-preview-body"><div class="ctrl-chip"><i></i>结束当前流程</div></div>
+          </div>
+          <div class="ctrl-desc">适合子流程；与“调用流程”插件配合使用。</div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- 03 逻辑容器 -->
+  <!-- ================================================================ -->
+  <section class="section" id="containers">
+    <div class="sec-head">
+      <span class="sec-index">03</span>
+      <h2>逻辑容器 · 重点改造</h2>
+      <p>统一“类型色 + 条件胶囊 + 分支泳道 + 状态”的语法；每个容器一眼能看出是什么、条件是什么、里面有多少算子。</p>
+    </div>
+
+    <div class="detail-grid">
+      <!-- If -->
+      <article class="detail-card">
+        <h3>If · 条件分支</h3>
+        <p class="detail-sub">类型色靛蓝；条件写在组头，If / Else 用双泳道分开。</p>
+        <div class="detail-stage">
+          <div class="flow-container" style="width:600px;height:300px;--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE;--ct-text:#4338CA">
+            <div class="container-head">
+              <span class="container-bar"></span><span class="container-badge">IF</span>
+              <span class="container-title">If 判定 OK</span>
+              <span class="container-cond">Score ≥ 0.85 && Width ≤ 12.5</span>
+              <span class="container-meta">2 分支 · 6 算子</span>
+              <span class="container-state ok"></span>
+            </div>
+            <div class="lane" style="left:12px;top:56px;width:342px;height:232px;--lane-bg:#EEF2FF;--lane-border:#C7D2FE;--branch:#6366F1">
+              <div class="lane-head"><span class="lane-badge">IF</span><span class="lane-name">If [ OK ]</span><span class="lane-count">3 算子</span></div>
+              <div class="detail-lane-body">
+                <div class="mini-node" style="--cat:#14B8A6;--cat-soft:#F0FDFA;--cat-border:#99F6E4"><span class="node-icon"><svg class="icon"><use href="#i-var"></use></svg></span><span><span class="node-title">变量赋值_0</span><span class="node-sub">OKCount++</span></span></div>
+                <div class="mini-node" style="--cat:#6B7280;--cat-soft:#F3F4F6;--cat-border:#E5E7EB"><span class="node-icon"><svg class="icon"><use href="#i-display"></use></svg></span><span><span class="node-title">结果显示_0</span><span class="node-sub">OK 标注</span></span></div>
+                <div class="mini-node" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0"><span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span><span><span class="node-title">结果上报_0</span><span class="node-sub">OK</span></span></div>
+              </div>
+            </div>
+            <div class="lane" style="left:364px;top:56px;width:224px;height:232px;--lane-bg:#F8FAFC;--lane-border:#E2E8F0;--branch:#94A3B8">
+              <div class="lane-head"><span class="lane-badge">ELSE</span><span class="lane-name">Else</span><span class="lane-count">3 算子</span></div>
+              <div class="detail-lane-body">
+                <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span><span><span class="node-title">逻辑运算_1</span><span class="node-op">NOT</span></span></div>
+                <div class="mini-node" style="--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE"><span class="node-icon"><svg class="icon"><use href="#i-code"></use></svg></span><span><span class="node-title">C#脚本_0</span><span class="node-sub">NG 原因</span></span></div>
+                <div class="mini-node" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0"><span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span><span><span class="node-title">结果上报_1</span><span class="node-sub">NG</span></span></div>
+              </div>
+            </div>
+            <div class="container-order">IF</div>
+          </div>
+        </div>
+        <div class="detail-notes"><span><b>条件胶囊</b> 只读 DisplayName</span><span><b>分支卡片</b> 不是算子</span><span><b>类型色</b> 只标容器类型</span></div>
+      </article>
+
+      <!-- Case -->
+      <article class="detail-card">
+        <h3>分支匹配 · 多路选择</h3>
+        <p class="detail-sub">判据写在组头；每条 Case 是一个横向分支行，默认分支固定最后。</p>
+        <div class="detail-stage">
+          <div class="flow-container" style="width:600px;height:260px;--ct:#8B5CF6;--ct-soft:#F5F3FF;--ct-border:#DDD6FE;--ct-text:#6D28D9">
+            <div class="container-head">
+              <span class="container-bar"></span><span class="container-badge">CASE</span>
+              <span class="container-title">分支匹配 产品型号</span>
+              <span class="container-cond">Recipe</span>
+              <span class="container-meta">3 分支 · 8 算子</span>
+              <span class="container-state ok"></span>
+            </div>
+            <div class="lane" style="left:12px;top:54px;width:576px;height:64px;--lane-bg:#F5F3FF;--lane-border:#DDD6FE;--branch:#8B5CF6">
+              <div class="lane-head"><span class="lane-badge">CASE 1</span><span class="lane-name">[ A ]</span><span class="lane-count">3 算子</span></div>
+              <div style="display:flex;gap:6px;padding:6px 8px">
+                <span class="ctrl-chip" style="flex:1;margin:0"><i></i>模板匹配_1</span><span class="ctrl-chip" style="flex:1;margin:0"><i></i>卡尺测量_2</span><span class="ctrl-chip" style="flex:1;margin:0"><i></i>数值比较_4 EQ</span>
+              </div>
+            </div>
+            <div class="lane" style="left:12px;top:122px;width:576px;height:64px;--lane-bg:#F5F3FF;--lane-border:#DDD6FE;--branch:#8B5CF6">
+              <div class="lane-head"><span class="lane-badge">CASE 2</span><span class="lane-name">[ B ]</span><span class="lane-count">3 算子</span></div>
+              <div style="display:flex;gap:6px;padding:6px 8px">
+                <span class="ctrl-chip" style="flex:1;margin:0"><i></i>模板匹配_2</span><span class="ctrl-chip" style="flex:1;margin:0"><i></i>码读取_2</span><span class="ctrl-chip" style="flex:1;margin:0"><i></i>数值比较_5 NEQ</span>
+              </div>
+            </div>
+            <div class="lane" style="left:12px;top:190px;width:576px;height:64px;--lane-bg:#F8FAFC;--lane-border:#E2E8F0;--branch:#94A3B8">
+              <div class="lane-head"><span class="lane-badge">默认</span><span class="lane-name">未知型号</span><span class="lane-count">2 算子</span></div>
+              <div style="display:flex;gap:6px;padding:6px 8px">
+                <span class="ctrl-chip" style="flex:1;margin:0"><i></i>结果上报_3</span><span class="ctrl-chip" style="flex:1;margin:0"><i></i>C#脚本_2 记录原因</span>
+              </div>
+            </div>
+            <div class="container-order">CASE</div>
+          </div>
+        </div>
+        <div class="detail-notes"><span><b>判据</b> 只写一次</span><span><b>匹配值</b> 在分支上</span><span><b>默认分支</b> 不可删</span></div>
+      </article>
+
+      <!-- While -->
+      <article class="detail-card">
+        <h3>While · 条件循环</h3>
+        <p class="detail-sub">条件胶囊 + 循环体泳道 + 回边；超时与等待节点分开表达。</p>
+        <div class="detail-stage">
+          <div class="flow-container" style="width:606px;height:260px;--ct:#F59E0B;--ct-soft:#FFFBEB;--ct-border:#FDE68A;--ct-text:#B45309">
+            <div class="container-head">
+              <span class="container-bar"></span><span class="container-badge">WHILE</span>
+              <span class="container-title">While 等待料到位</span>
+              <span class="container-cond">DI_到位 == 1</span>
+              <span class="container-meta">循环体 · 3 算子</span>
+              <span class="container-state ok"></span>
+            </div>
+            <div class="lane" style="left:12px;top:56px;width:582px;height:192px;--lane-bg:#FFFBEB;--lane-border:#FDE68A;--branch:#F59E0B">
+              <div class="lane-head"><span class="lane-badge">BODY</span><span class="lane-name">循环体 · 超时 5000 ms</span><span class="lane-count">3 算子</span></div>
+              <div class="detail-lane-body">
+                <div class="mini-node" style="--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE"><span class="node-icon"><svg class="icon"><use href="#i-wait"></use></svg></span><span><span class="node-title">等待_0</span><span class="node-sub">DI_到位 == 1 · 5000 ms</span></span></div>
+                <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span><span><span class="node-title">逻辑运算_4</span><span class="node-op">NAND</span></span></div>
+                <div class="mini-node" style="--cat:#6366F1;--cat-soft:#EEF2FF;--cat-border:#C7D2FE"><span class="node-icon"><svg class="icon"><use href="#i-break"></use></svg></span><span><span class="node-title">Break</span><span class="node-sub">退出循环</span></span></div>
+              </div>
+            </div>
+            <div class="container-order">WHILE</div>
+          </div>
+        </div>
+        <div class="detail-notes"><span><b>回边</b> 虚线箭头</span><span><b>超时</b> 在等待节点</span><span><b>Break</b> 用小节点</span></div>
+      </article>
+
+      <!-- For -->
+      <article class="detail-card">
+        <h3>For · 计次循环</h3>
+        <p class="detail-sub">次数与 Index 都写在组头；循环体只放真正的执行节点。</p>
+        <div class="detail-stage">
+          <div class="flow-container" style="width:600px;height:190px;--ct:#10B981;--ct-soft:#ECFDF5;--ct-border:#A7F3D0;--ct-text:#047857">
+            <div class="container-head">
+              <span class="container-bar"></span><span class="container-badge">FOR</span>
+              <span class="container-title">For 遍历工位</span>
+              <span class="container-cond">4 次</span>
+              <span class="container-meta">循环体 · 3 算子</span>
+              <span class="container-state ok"></span>
+            </div>
+            <div class="lane" style="left:12px;top:54px;width:576px;height:120px;--lane-bg:#ECFDF5;--lane-border:#A7F3D0;--branch:#10B981">
+              <div class="lane-head"><span class="lane-badge">BODY</span><span class="lane-name">循环体 · Index →</span><span class="lane-count">3 算子</span></div>
+              <div class="detail-lane-body">
+                <div class="mini-node" style="--cat:#65A30D;--cat-soft:#F7FEE7;--cat-border:#D9F99D"><span class="node-icon"><svg class="icon"><use href="#i-motion"></use></svg></span><span><span class="node-title">轴运动_0</span><span class="node-sub">工位 Index</span></span></div>
+                <div class="mini-node" style="--cat:#65A30D;--cat-soft:#F7FEE7;--cat-border:#D9F99D"><span class="node-icon"><svg class="icon"><use href="#i-clock"></use></svg></span><span><span class="node-title">等待到位_0</span><span class="node-sub">2.4 s</span></span></div>
+                <div class="mini-node" style="--cat:#14B8A6;--cat-soft:#F0FDFA;--cat-border:#99F6E4"><span class="node-icon"><svg class="icon"><use href="#i-var"></use></svg></span><span><span class="node-title">变量赋值_1</span><span class="node-sub">Index</span></span></div>
+              </div>
+            </div>
+            <div class="container-order">FOR</div>
+          </div>
+        </div>
+        <div class="detail-notes"><span><b>次数</b> 4 次</span><span><b>Index</b> 输出</span><span><b>循环体</b> 独立泳道</span></div>
+      </article>
+
+      <!-- Parallel -->
+      <article class="detail-card wide">
+        <h3>并行分组 · 真并发</h3>
+        <p class="detail-sub">三条分支并排，分支独立状态；底部汇合条显示完成数与耗时。</p>
+        <div class="detail-stage">
+          <div class="flow-container" style="width:606px;height:300px;--ct:#0EA5E9;--ct-soft:#F0F9FF;--ct-border:#BAE6FD;--ct-text:#0369A1">
+            <div class="container-head">
+              <span class="container-bar"></span><span class="container-badge">PAR</span>
+              <span class="container-title">并行分组 多工位检测</span>
+              <span class="container-cond">真并发 · FailFast 开 · 15s</span>
+              <span class="container-meta">3 分支 · 9 算子</span>
+              <span class="container-state run"></span>
+            </div>
+            <div class="lane" style="left:12px;top:56px;width:188px;height:200px;--lane-bg:#F0F9FF;--lane-border:#BAE6FD;--branch:#0EA5E9">
+              <div class="lane-head"><span class="lane-badge">A</span><span class="lane-name">分支 1 · 尺寸</span><span class="lane-count">3</span></div>
+              <div class="detail-lane-body">
+                <div class="mini-node" style="--cat:#F59E0B;--cat-soft:#FFFBEB;--cat-border:#FDE68A"><span class="node-icon"><svg class="icon"><use href="#i-ruler"></use></svg></span><span><span class="node-title">卡尺测量_1</span></span></div>
+                <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-gauge"></use></svg></span><span><span class="node-title">数值比较_2</span><span class="node-op">GT</span></span></div>
+                <div class="mini-node" style="--cat:#14B8A6;--cat-soft:#F0FDFA;--cat-border:#99F6E4"><span class="node-icon"><svg class="icon"><use href="#i-var"></use></svg></span><span><span class="node-title">变量赋值_2</span></span></div>
+              </div>
+            </div>
+            <div class="lane is-running" style="left:208px;top:56px;width:188px;height:200px;--lane-bg:#EFF6FF;--lane-border:#BAE6FD;--branch:#0EA5E9">
+              <div class="lane-head"><span class="lane-badge">B</span><span class="lane-name">分支 2 · 缺陷</span><span class="lane-count">3</span></div>
+              <div class="detail-lane-body">
+                <div class="mini-node" style="--cat:#EF4444;--cat-soft:#FEF2F2;--cat-border:#FECACA"><span class="node-icon"><svg class="icon"><use href="#i-blob"></use></svg></span><span><span class="node-title">Blob 缺陷检测_0</span></span></div>
+                <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span><span><span class="node-title">逻辑运算_2</span><span class="node-op">OR</span></span></div>
+                <div class="mini-node" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0"><span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span><span><span class="node-title">结果上报_2</span></span></div>
+              </div>
+            </div>
+            <div class="lane" style="left:404px;top:56px;width:188px;height:200px;--lane-bg:#F0F9FF;--lane-border:#BAE6FD;--branch:#0EA5E9">
+              <div class="lane-head"><span class="lane-badge">C</span><span class="lane-name">分支 3 · 读码</span><span class="lane-count">3</span></div>
+              <div class="detail-lane-body">
+                <div class="mini-node" style="--cat:#3B82F6;--cat-soft:#EFF6FF;--cat-border:#BFDBFE"><span class="node-icon"><svg class="icon"><use href="#i-barcode"></use></svg></span><span><span class="node-title">码读取_1</span></span></div>
+                <div class="mini-node" style="--cat:#8B5CF6;--cat-soft:#F5F3FF;--cat-border:#DDD6FE"><span class="node-icon"><svg class="icon"><use href="#i-branch"></use></svg></span><span><span class="node-title">逻辑运算_3</span><span class="node-op">XOR</span></span></div>
+                <div class="mini-node" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0"><span class="node-icon"><svg class="icon"><use href="#i-file"></use></svg></span><span><span class="node-title">CSV记录_0</span></span></div>
+              </div>
+            </div>
+            <div class="join-bar"><svg class="icon" style="width:10px;height:10px"><use href="#i-join"></use></svg>汇合 · 3/3 分支完成 · 12.8s</div>
+            <div class="container-order">PAR</div>
+          </div>
+        </div>
+        <div class="detail-notes"><span><b>分支独立状态</b> 运行中的分支单独高亮</span><span><b>汇合条</b> 完成数 / 耗时</span><span><b>FailFast</b> 容器属性</span><span><b>推荐上限</b> 8 分支</span></div>
+      </article>
+
+      <!-- Before / after -->
+      <article class="detail-card wide">
+        <h3>改造前 / 改造后</h3>
+        <p class="detail-sub">同一个 If 容器：旧版是灰色平铺组头 + 两行分支；新版用类型色、条件胶囊、分支泳道和状态点建立层次。</p>
+        <div class="compare-grid">
+          <div class="compare-box old">
+            <div class="cap"><b>旧版</b> · 组头与分支缺少层级</div>
+            <div class="old-head"><span class="badge">IF</span><span class="name">If 判定 OK</span><span class="meta">2 分支 · 6 算子</span></div>
+            <div class="old-body">
+              <div class="old-branch"><i></i>If [ Score ≥ 0.85 && Width ≤ 12.5 ]<span style="margin-left:auto">3 算子</span></div>
+              <div class="old-branch"><i></i>Else<span style="margin-left:auto">3 算子</span></div>
+              <div class="old-branch" style="background:#fff;border-style:dashed"><i></i>子步骤不在组头里体现状态</div>
+            </div>
+          </div>
+          <div class="compare-box new">
+            <div class="cap"><b>新版</b> · 类型色 + 条件 + 双泳道 + 状态</div>
+            <div class="container-head" style="height:38px;padding:0 9px">
+              <span class="container-bar" style="height:22px"></span><span class="container-badge" style="height:18px;font-size:8.5px">IF</span>
+              <span class="container-title" style="font-size:11px">If 判定 OK</span>
+              <span class="container-cond" style="height:18px;font-size:8px">Score ≥ 0.85 && Width ≤ 12.5</span>
+              <span class="container-meta">2 分支</span><span class="container-state ok"></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:5px;padding:6px;background:#fff">
+              <div class="lane" style="position:relative;left:auto;top:auto;width:auto;height:64px;--lane-bg:#EEF2FF;--lane-border:#C7D2FE;--branch:#6366F1">
+                <div class="lane-head" style="height:24px"><span class="lane-badge" style="height:14px;font-size:7px">IF</span><span class="lane-name" style="font-size:8px">If [ OK ]</span><span class="lane-count">3 算子</span></div>
+                <div style="padding:5px 6px;font-size:7.5px;color:#475569">变量赋值 · 结果显示 · 结果上报</div>
+              </div>
+              <div class="lane" style="position:relative;left:auto;top:auto;width:auto;height:64px;--lane-bg:#F8FAFC;--lane-border:#E2E8F0;--branch:#94A3B8">
+                <div class="lane-head" style="height:24px"><span class="lane-badge" style="height:14px;font-size:7px">ELSE</span><span class="lane-name" style="font-size:8px">Else</span><span class="lane-count">3 算子</span></div>
+                <div style="padding:5px 6px;font-size:7.5px;color:#475569">逻辑非 · C#脚本 · 结果上报</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="detail-notes"><span><b>统一</b> 类型色只标容器</span><span><b>可扫</b> 条件在组头</span><span><b>可读</b> 分支有独立泳道</span><span><b>可追踪</b> 状态点在组头</span></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- 04 状态矩阵 -->
+  <!-- ================================================================ -->
+  <section class="section" id="states">
+    <div class="sec-head">
+      <span class="sec-index">04</span>
+      <h2>状态矩阵</h2>
+      <p>容器状态与节点状态分开：容器看分支汇总，节点看自身执行；两者都用同一套绿 / 蓝 / 红 / 灰语义。</p>
+    </div>
+
+    <div class="state-grid">
+      <div class="state-card">
+        <h4>容器 · 正常</h4>
+        <div class="mini-container" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE;--lane-bg:#EEF2FF;--lane-border:#C7D2FE">
+          <div class="mc-head"><span class="mc-badge">IF</span><span class="mc-name">If 判定 OK</span><span class="mc-meta">2 分支</span><span class="container-state"></span></div>
+          <div class="mc-body"><div class="mc-lane"><b>If [ OK ]</b><span>3 算子</span></div><div class="mc-lane"><b>Else</b><span>3 算子</span></div></div>
+        </div>
+        <p>默认白底 + 类型色组头；分支泳道浅色。</p>
+      </div>
+      <div class="state-card">
+        <h4>容器 · 运行中</h4>
+        <div class="mini-container is-running" style="--ct:#0EA5E9;--ct-soft:#F0F9FF;--ct-border:#BAE6FD;--lane-bg:#EFF6FF;--lane-border:#BAE6FD">
+          <div class="mc-head"><span class="mc-badge">PAR</span><span class="mc-name">多工位检测</span><span class="mc-meta">3 分支</span><span class="container-state run"></span></div>
+          <div class="mc-body"><div class="mc-lane"><b>分支 1</b><span>完成</span></div><div class="mc-lane"><b>分支 2</b><span>运行中</span></div></div>
+        </div>
+        <p>运行中的分支单独高亮；组头状态点脉冲。</p>
+      </div>
+      <div class="state-card">
+        <h4>容器 · 成功</h4>
+        <div class="mini-container" style="--ct:#10B981;--ct-soft:#ECFDF5;--ct-border:#A7F3D0;--lane-bg:#ECFDF5;--lane-border:#A7F3D0">
+          <div class="mc-head"><span class="mc-badge">FOR</span><span class="mc-name">遍历工位</span><span class="mc-meta">4 次</span><span class="container-state ok"></span></div>
+          <div class="mc-body"><div class="mc-lane"><b>循环体</b><span>3 算子</span></div><div class="mc-lane"><b>Index</b><span>0..3</span></div></div>
+        </div>
+        <p>成功只换状态点与组头淡色，不把整框刷绿。</p>
+      </div>
+      <div class="state-card">
+        <h4>容器 · 失败</h4>
+        <div class="mini-container is-failed" style="--ct:#EF4444;--ct-soft:#FEF2F2;--ct-border:#FECACA;--lane-bg:#FEF2F2;--lane-border:#FECACA">
+          <div class="mc-head"><span class="mc-badge">IF</span><span class="mc-name">If 判定 OK</span><span class="mc-meta">2 分支</span><span class="container-state fail"></span></div>
+          <div class="mc-body"><div class="mc-lane"><b>If [ OK ]</b><span>失败</span></div><div class="mc-lane"><b>Else</b><span>跳过</span></div></div>
+        </div>
+        <p>失败组头红边 + 红点；子分支保留自己的状态。</p>
+      </div>
+      <div class="state-card">
+        <h4>容器 · 条件缺失</h4>
+        <div class="mini-container is-missing" style="--ct:#EF4444;--ct-soft:#FEF2F2;--ct-border:#FECACA;--lane-bg:#FEF2F2;--lane-border:#FECACA">
+          <div class="mc-head"><span class="mc-badge">WHILE</span><span class="mc-name">等待料到位</span><span class="mc-meta">缺条件</span><span class="container-state fail"></span></div>
+          <div class="mc-body"><div class="mc-lane" style="grid-column:1/-1"><b>循环体 [ 未绑定条件 ]</b><span>编译前必须补齐</span></div></div>
+        </div>
+        <p>条件为空时红边 + 红字，与编译错误同一判据。</p>
+      </div>
+      <div class="state-card">
+        <h4>容器 · 折叠</h4>
+        <div class="mini-container is-collapsed" style="--ct:#6366F1;--ct-soft:#EEF2FF;--ct-border:#C7D2FE;--lane-bg:#EEF2FF;--lane-border:#C7D2FE">
+          <div class="mc-head"><span class="mc-badge">IF</span><span class="mc-name">If 判定 OK</span><span class="mc-meta">折叠 · 6 算子</span><span class="container-state"></span></div>
+        </div>
+        <p>折叠后仍保留组头、条件、分支数与状态；画布不塌成一行。</p>
+      </div>
+      <div class="state-card">
+        <h4>节点 · 运行中</h4>
+        <div class="flow-node" style="--cat:#EF4444;--cat-soft:#FEF2F2;--cat-border:#FECACA">
+          <span class="node-icon"><svg class="icon"><use href="#i-blob"></use></svg></span>
+          <span class="node-main"><span class="node-line"><span class="node-title">Blob 缺陷检测_0</span></span><span class="node-sub">Blob 缺陷检测 · 26.4 ms</span></span>
+          <span class="node-state run"></span><span class="node-time">26.4 ms</span>
+        </div>
+        <p>蓝色状态点 + 脉冲；卡片边框同步转蓝。</p>
+      </div>
+      <div class="state-card">
+        <h4>节点 · 失败 / 禁用</h4>
+        <div class="flow-node is-failed" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0;margin-bottom:6px">
+          <span class="node-icon"><svg class="icon"><use href="#i-upload"></use></svg></span>
+          <span class="node-main"><span class="node-line"><span class="node-title">结果上报_1</span></span><span class="node-sub">结果上报 · NG</span></span>
+          <span class="node-state fail"></span><span class="node-time">5.7 ms</span>
+        </div>
+        <div class="flow-node is-disabled" style="--cat:#64748B;--cat-soft:#F8FAFC;--cat-border:#E2E8F0">
+          <span class="node-icon"><svg class="icon"><use href="#i-clock"></use></svg></span>
+          <span class="node-main"><span class="node-line"><span class="node-title">延时_0</span></span><span class="node-sub">已禁用</span></span>
+        </div>
+        <p>失败红边 + 红点；禁用整体 45% 透明、不响应拖拽。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ -->
+  <!-- 05 WPF 复刻 -->
+  <!-- ================================================================ -->
+  <section class="section" id="wpf">
+    <div class="sec-head">
+      <span class="sec-index">05</span>
+      <h2>WPF 复刻</h2>
+      <p>全部落在现有 `ProcessView.xaml` / `FlowCanvasView.xaml` 上，不新造一套画布系统。</p>
+    </div>
+
+    <table class="wpf-table">
+      <thead>
+        <tr><th>设计元素</th><th>现有实现</th><th>建议改动</th><th>约束</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>流程栏容器组头</b></td>
+          <td><code>ProcessView.xaml</code> 的 <code>ConditionStep / WhileStep / ForStep / ParallelStep / CaseStep</code> 模板</td>
+          <td>统一为“类型色条 + 类型徽标 + 名称 + 条件胶囊 + 分支/算子计数 + 状态点”的一行结构；If 从灰色改为靛蓝。</td>
+          <td class="file">R23：新增 StepModel 子类必须补 DataType 模板</td>
+        </tr>
+        <tr>
+          <td><b>分支行</b></td>
+          <td><code>StepCollection</code> 模板；<code>DisplayName</code> 已拼好“分支名 + 条件”</td>
+          <td>分支行做成带浅色底的胶囊；左侧分支徽标、右侧计数；缺条件统一红边红字。</td>
+          <td class="file">R24：分支文案只认 DisplayName，不要再挂 Expression</td>
+        </tr>
+        <tr>
+          <td><b>流程栏选中 / 运行态</b></td>
+          <td><code>ModernStepContainerStyle</code> + 行模板 DataTrigger</td>
+          <td>选中用 3px 蓝条 + 淡蓝底；运行中的分支用蓝点脉冲；失败/跳过/禁用沿用现有语义色。</td>
+          <td class="file">R25：分支卡片不进“按选中项执行”的命令链</td>
+        </tr>
+        <tr>
+          <td><b>画布节点</b></td>
+          <td><code>FlowCanvasView.xaml</code> 的 <code>StepNodeTemplate</code>（210×62）</td>
+          <td>保持尺寸与端口锚点；把图标块、标题、插件名、操作徽标、耗时/状态点做成统一槽位；分类色取 <code>ToolboxCategoryVisuals</code>。</td>
+          <td class="file">不要改 NodeWidth/NodeHeight，否则连线锚点要重算</td>
+        </tr>
+        <tr>
+          <td><b>逻辑运算 / 数值比较节点</b></td>
+          <td>同一个插件类 + <code>InputPort&lt;枚举&gt;</code> 选择操作</td>
+          <td>不要为 AND/OR/XOR 各建 StepModel；用节点右上角的 <code>node-op</code> 徽标显示当前操作模式。</td>
+          <td class="file">枚举显示名走 R40；值仍是成员名</td>
+        </tr>
+        <tr>
+          <td><b>容器框</b></td>
+          <td><code>ContainerNodeTemplate</code>（<code>LaneWidth/LaneHeight</code> 由子孙外接框算出）</td>
+          <td>组头 46px：类型色条 + 徽标 + 名称 + 条件胶囊 + 计数 + 状态；框体用类型色淡底，不刷大面积高饱和色。</td>
+          <td class="file">容器框仍由几何计算，不要改成固定尺寸</td>
+        </tr>
+        <tr>
+          <td><b>泳道</b></td>
+          <td><code>LaneNodeTemplate</code>（<code>CanvasNodeKind.Lane</code>）</td>
+          <td>泳道头 28px：分支徽标 + 分支名 + 计数；If/Else 用不同底色；并行运行中的泳道单独蓝边。</td>
+          <td class="file">R76：子图元坐标不改成相对坐标</td>
+        </tr>
+        <tr>
+          <td><b>连线</b></td>
+          <td><code>ModuleLinkTemplate</code> 的 <code>StepConnection</code>；数据线 / 顺序链 / 非法线</td>
+          <td>数据线蓝实线、顺序链灰虚线、非法线红虚线；正交折线；箭头用 <code>Fill</code> 填充。</td>
+          <td class="file">右键菜单不能改成共享资源，否则样式触发器被本地值压掉</td>
+        </tr>
+        <tr>
+          <td><b>状态与动画</b></td>
+          <td>DataTrigger + Storyboard（流程栏/画布已有运行脉冲）</td>
+          <td>统一“绿=成功、蓝=运行、红=失败、灰=跳过/待机”；容器运行脉冲只给状态点，不给整框。</td>
+          <td class="file">不要用 CSS 式滤镜/混合模式；只用 WPF 原生 Brush/Effect</td>
+        </tr>
+        <tr>
+          <td><b>检查器</b></td>
+          <td>现有属性面板 / <code>FlatPropertyGrid</code></td>
+          <td>并行分组用草稿类 + <code>FlatPropertyGrid</code>：执行模式、失败聚合、汇合超时；分支列表只读展示，结构动作留在流程栏右键。</td>
+          <td class="file">R26：参数动作与结构动作分工</td>
+        </tr>
+        <tr>
+          <td><b>分类色</b></td>
+          <td><code>ToolboxCategoryVisuals.cs</code> 的 13 条分类色</td>
+          <td>直接复用：逻辑控制 <code>#6366F1</code>、逻辑判断 <code>#8B5CF6</code>、变量操作 <code>#14B8A6</code>、图像处理 <code>#3B82F6</code>、缺陷 <code>#EF4444</code>、测量 <code>#F59E0B</code>、定位 <code>#F97316</code>、运动 <code>#65A30D</code>、数据处理 <code>#64748B</code>。</td>
+          <td class="file">不要在每个插件模板里硬编码颜色</td>
+        </tr>
+        <tr>
+          <td><b>容器类型色</b></td>
+          <td>现有 If 灰 / While 橙 / For 绿 / Parallel 蓝 / Case 青</td>
+          <td>收敛为：If 靛蓝、Case 紫、While 琥珀、For 翠绿、Parallel 天蓝；只用于容器组头与边框，不覆盖叶子的分类色。</td>
+          <td class="file">类型色与分类色是两个维度，别混用</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="note" style="margin-top:12px">
+      复刻边界：真实算子是 <code>ActionStep</code> + 插件；逻辑运算 / 数值比较的“操作模式”是插件端口枚举，不是不同节点类。
+      逻辑容器是 <code>ConditionStep / WhileStep / ForStep / CaseStep / ParallelStep</code>，分支是 <code>StepCollection</code>。
+      因此这套设计不需要新增 StepModel 子类，也不需要把 AND/OR/XOR 拆成三种节点。
+    </p>
+  </section>
+</main>
+
+<script>
+  (function () {
+    'use strict';
+    const stage = document.getElementById('stage');
+    const stageWrap = document.getElementById('stageWrap');
+    const scaleBtn = document.getElementById('scaleBtn');
+    let actualSize = false;
+
+    function fitStage() {
+      if (actualSize) {
+        document.body.classList.add('actual-size');
+        stageWrap.style.height = '1120px';
+        stage.style.removeProperty('--scale');
+        scaleBtn.textContent = '适应宽度';
+        return;
+      }
+      document.body.classList.remove('actual-size');
+      const available = Math.max(320, window.innerWidth - 56);
+      const scale = Math.min(1, available / 1920);
+      stage.style.setProperty('--scale', String(scale));
+      stageWrap.style.height = (1080 * scale + 28) + 'px';
+      scaleBtn.textContent = '实际大小';
+    }
+
+    scaleBtn.addEventListener('click', function () {
+      actualSize = !actualSize;
+      fitStage();
+    });
+    window.addEventListener('resize', fitStage, { passive: true });
+    fitStage();
+  })();
+</script>
+</body>
+</html>

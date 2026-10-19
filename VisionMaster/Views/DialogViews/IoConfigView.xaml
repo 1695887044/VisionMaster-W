@@ -7,6 +7,61 @@
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="{StaticResource DialogBackgroundBrush}">
 
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--  R22：引用 GridListViewStyle 必须就地合并（相对 pack）。  -->
+                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="IoConfigRowStyle" TargetType="ListViewItem">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="4,0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,0,0,1">
+                                <GridViewRowPresenter
+                                    Columns="{TemplateBinding GridView.ColumnCollection}"
+                                    Content="{TemplateBinding Content}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  两行式列表行（标题 + 次要说明），三栏共用。  -->
+            <DataTemplate x:Key="IoOptionRowTemplate">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock
+                        FontSize="13"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="{Binding NameText}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="{Binding DetailText}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
@@ -25,6 +80,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!--  标题栏  -->
         <Border
             Grid.Row="0"
             ui:WindowDragBehavior.IsWindowDraggable="True"
@@ -78,110 +134,294 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Margin="16">
+        <!--  主体：工具栏 + 三栏  -->
+        <Grid Grid.Row="1" Margin="16,12,16,16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Margin="0,0,0,10" Orientation="Horizontal">
-                <Button Content="添加总线" Command="{Binding AddBusCommand}" Margin="0,0,8,0" />
-                <Button Content="添加设备" Command="{Binding AddDeviceCommand}" Margin="0,0,8,0" />
-                <Button Content="添加点位" Command="{Binding AddPointCommand}" Margin="0,0,8,0" />
-                <Button Content="删除选中" Command="{Binding RemoveCommand}" Margin="0,0,20,0" />
-                <Button Content="应用配置" Command="{Binding ApplyCommand}" Margin="0,0,8,0" />
-                <Button Content="测试连接" Command="{Binding TestCommand}" />
-            </StackPanel>
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,8,0"
+                        Command="{Binding AddBusCommand}"
+                        Content="添加总线"
+                        Style="{StaticResource DialogChipButton}" />
+                    <Button
+                        Margin="0,0,8,0"
+                        Command="{Binding AddDeviceCommand}"
+                        Content="添加设备"
+                        Style="{StaticResource DialogChipButton}" />
+                    <Button
+                        Margin="0,0,8,0"
+                        Command="{Binding AddPointCommand}"
+                        Content="添加点位"
+                        Style="{StaticResource DialogChipButton}" />
+                    <Button Command="{Binding RemoveCommand}" Content="删除选中" Style="{StaticResource DialogChipDangerButton}" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,8,0"
+                        Command="{Binding TestCommand}"
+                        Content="测试连接"
+                        Style="{StaticResource DialogChipButton}" />
+                    <Button Command="{Binding ApplyCommand}" Content="应用配置" Style="{StaticResource DialogChipPrimary}" />
+                </StackPanel>
+            </Grid>
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220" />
-                    <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="240" />
-                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="250" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="290" />
+                    <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <GroupBox Grid.Column="0" Header="总线">
-                    <ListBox
-                        ItemsSource="{Binding Buses}"
-                        SelectedItem="{Binding SelectedBus}"
-                        DisplayMemberPath="BusId"
-                        Margin="4" />
-                </GroupBox>
-
-                <GroupBox Grid.Column="2" Header="设备">
-                    <Grid Margin="4">
+                <!--  总线  -->
+                <Border Grid.Column="0" Style="{StaticResource DialogColumnCard}">
+                    <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <ComboBox
-                            Grid.Row="0"
-                            Margin="0,0,0,6"
-                            ItemsSource="{Binding DriverOptions}"
-                            DisplayMemberPath="DisplayName"
-                            SelectedValuePath="DriverId"
-                            SelectedValue="{Binding SelectedDevice.DriverId, Mode=TwoWay}" />
-                        <ListBox
-                            Grid.Row="1"
-                            ItemsSource="{Binding Devices}"
-                            SelectedItem="{Binding SelectedDevice}"
-                            DisplayMemberPath="DeviceId" />
-                    </Grid>
-                </GroupBox>
 
+                        <Border Style="{StaticResource DialogColumnHeader}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource DialogColumnTitle}" Text="总线" />
+                                <Border
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource DialogTag}">
+                                    <TextBlock Style="{StaticResource DialogTagText}" Text="{Binding Buses.Count}" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Grid.Row="1">
+                            <ListBox
+                                Margin="4"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ItemContainerStyle="{StaticResource DialogOptionItem}"
+                                ItemTemplate="{StaticResource IoOptionRowTemplate}"
+                                ItemsSource="{Binding Buses}"
+                                SelectedItem="{Binding SelectedBus}" />
+
+                            <StackPanel
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Buses.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf0e8;" />
+                                <TextBlock Style="{StaticResource DialogEmptyStateTitle}" Text="还没有总线" />
+                                <TextBlock Style="{StaticResource DialogEmptyStateHint}" Text="点「添加总线」开始配置" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!--  设备  -->
+                <Border Grid.Column="2" Style="{StaticResource DialogColumnCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Style="{StaticResource DialogColumnHeader}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource DialogColumnTitle}" Text="设备" />
+                                <Border
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource DialogTag}">
+                                    <TextBlock Style="{StaticResource DialogTagText}" Text="{Binding Devices.Count}" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <ComboBox
+                            Grid.Row="1"
+                            Height="28"
+                            Margin="10,8,10,6"
+                            VerticalAlignment="Center"
+                            ItemsSource="{Binding DriverOptions}"
+                            SelectedValue="{Binding SelectedDevice.DriverId, Mode=TwoWay}"
+                            SelectedValuePath="DriverId"
+                            Style="{StaticResource DialogCombo}"
+                            ToolTip="当前设备的驱动">
+                            <!--  DialogCombo 自带 ItemTemplate，DisplayMemberPath 会被它顶掉 → 显示 ToString()（类型全名）。  -->
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <Grid Grid.Row="2">
+                            <ListBox
+                                Margin="4"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ItemContainerStyle="{StaticResource DialogOptionItem}"
+                                ItemTemplate="{StaticResource IoOptionRowTemplate}"
+                                ItemsSource="{Binding Devices}"
+                                SelectedItem="{Binding SelectedDevice}" />
+
+                            <StackPanel
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Devices.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf1b3;" />
+                                <TextBlock Style="{StaticResource DialogEmptyStateTitle}" Text="这台总线还没有设备" />
+                                <TextBlock Style="{StaticResource DialogEmptyStateHint}" Text="点「添加设备」并选择驱动" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!--  点位 + 属性  -->
                 <Grid Grid.Column="4">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="220" />
-                        <RowDefinition Height="8" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="12" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <GroupBox Grid.Row="0" Header="点位">
-                        <Grid Margin="4">
+                    <Border Grid.Row="0" Style="{StaticResource DialogColumnCard}">
+                        <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <Grid Grid.Row="0" Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox
-                                    Grid.Column="0"
-                                    VerticalContentAlignment="Center"
-                                    ToolTip="按点位标识 / 显示名 / 地址 / 说明过滤（大小写不敏感）"
-                                    Text="{Binding PointSearch, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock
-                                    Grid.Column="1"
-                                    Margin="8,0,0,0"
-                                    VerticalAlignment="Center"
-                                    Text="{Binding PointsSummary}" />
+                            <Border Style="{StaticResource DialogColumnHeader}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogColumnTitle}"
+                                        Text="点位" />
+                                    <Border
+                                        Grid.Column="1"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogTag}">
+                                        <TextBlock Style="{StaticResource DialogTagText}" Text="{Binding Points.Count}" />
+                                    </Border>
+
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource DialogHintText}"
+                                        Text="{Binding PointsSummary}" />
+
+                                    <TextBox
+                                        Grid.Column="3"
+                                        Width="180"
+                                        VerticalContentAlignment="Center"
+                                        Style="{StaticResource DialogSearchInput}"
+                                        Text="{Binding PointSearch, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="按点位标识 / 显示名 / 地址过滤" />
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Row="1">
+                                <ListView
+                                    BorderThickness="0"
+                                    ItemContainerStyle="{StaticResource IoConfigRowStyle}"
+                                    ItemsSource="{Binding FilteredPoints}"
+                                    SelectedItem="{Binding SelectedPoint}"
+                                    Style="{StaticResource GridListViewStyle}">
+                                    <ListView.View>
+                                        <GridView ColumnHeaderContainerStyle="{StaticResource GridListHeaderStyle}">
+                                            <GridViewColumn DisplayMemberBinding="{Binding PointId}" Header="点位" Width="130" />
+                                            <GridViewColumn DisplayMemberBinding="{Binding Kind}" Header="类型" Width="90" />
+                                            <GridViewColumn DisplayMemberBinding="{Binding Address}" Header="地址" Width="110" />
+                                            <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Header="显示名" Width="160" />
+                                            <GridViewColumn DisplayMemberBinding="{Binding Description}" Header="说明" Width="200" />
+                                        </GridView>
+                                    </ListView.View>
+                                </ListView>
+
+                                <StackPanel
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding FilteredPoints.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf0ca;" />
+                                    <TextBlock Style="{StaticResource DialogEmptyStateTitle}" Text="没有匹配的点位" />
+                                    <TextBlock Style="{StaticResource DialogEmptyStateHint}" Text="换个搜索词，或点「添加点位」" />
+                                </StackPanel>
                             </Grid>
-
-                            <!--
-                                虚拟化显式声明：点位上百时 ListBox 默认的 VirtualizingStackPanel
-                                在套了 GroupBox/自定义模板后可能被替换成普通 StackPanel，
-                                那时所有行都会被实例化（切设备明显卡顿）。
-                                Recycling 让滚动时复用容器，而不是每次重建。
-                            -->
-                            <ListBox
-                                Grid.Row="1"
-                                ItemsSource="{Binding FilteredPoints}"
-                                SelectedItem="{Binding SelectedPoint}"
-                                DisplayMemberPath="PointId"
-                                ScrollViewer.CanContentScroll="True"
-                                VirtualizingPanel.IsVirtualizing="True"
-                                VirtualizingPanel.VirtualizationMode="Recycling" />
                         </Grid>
-                    </GroupBox>
+                    </Border>
 
-                    <GroupBox Grid.Row="2" Header="属性">
-                        <ui:FlatPropertyGrid BindingObject="{Binding SelectedObject}" Margin="4" />
-                    </GroupBox>
+                    <Border Grid.Row="2" Style="{StaticResource DialogColumnCard}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Border Style="{StaticResource DialogColumnHeader}">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource DialogColumnTitle}"
+                                    Text="属性" />
+                            </Border>
+
+                            <ui:FlatPropertyGrid
+                                Grid.Row="1"
+                                Margin="8"
+                                BindingObject="{Binding SelectedObject}" />
+                        </Grid>
+                    </Border>
                 </Grid>
             </Grid>
         </Grid>

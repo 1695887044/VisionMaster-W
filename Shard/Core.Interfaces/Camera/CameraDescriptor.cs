@@ -42,8 +42,8 @@ namespace Core.Interfaces
         /// <summary>方案加载后是否自动连接（现场设备常用"开机即连"）</summary>
         public bool AutoConnect { get; set; }
 
-        /// <summary>采集参数</summary>
-        public CameraSettings Settings { get; set; } = new();
+        /// <summary>采集参数（新建相机默认当前触发版本；旧方案反序列化后由 Normalized 迁移）</summary>
+        public CameraSettings Settings { get; set; } = CameraSettings.CreateNew();
 
         /// <summary>界面展示用的一句话（显示名缺失时回落到序列号）</summary>
         public string Caption =>

@@ -89,12 +89,20 @@ namespace Plugin.Camera.Hikvision
                     throw new InvalidOperationException($"打开海康设备失败（错误码 0x{ret:X8}）");
                 }
 
-                // 连续采图（免触发）：本平台的节拍由流程控制，相机侧只管持续出图
-                _sdk.Call(_camera, "MV_CC_SetEnumValue_NET", "TriggerMode", 0u);
+                // 触发设置必须在打开后、开始采流前落地；失败要阻断打开，
+                // 否则界面显示"上升沿/软触发"、相机实际仍按上一次的连续采图跑（静默错拍）。
+                var settings = ReadSettings();
+                try { ApplyTriggerSettingsCore(settings); }
+                catch
+                {
+                    // 已经 OpenDevice 了：失败必须把句柄关掉再抛，避免设备被本进程占着。
+                    CloseCore();
+                    throw;
+                }
 
-                // 打开即应用方案里的曝光/增益（失败只记日志不阻断打开，参数可随后在相机设置里再调）
-                try { ApplySettingsCore(ReadSettings()); }
-                catch (Exception ex) { Log?.Warn($"[{Descriptor.Caption}] 打开后应用参数失败：{ex.Message}"); }
+                // 曝光/增益失败不阻断打开：参数可随后在相机设置里再调
+                try { ApplyExposureGainCore(settings); }
+                catch (Exception ex) { Log?.Warn($"[{Descriptor.Caption}] 打开后应用曝光/增益失败：{ex.Message}"); }
 
                 return true;
             }
@@ -148,18 +156,148 @@ namespace Plugin.Camera.Hikvision
             }
         }
 
-        /// <summary>应用采集参数：曝光（μs）/ 增益 —— 节点名与 MVS 客户端一致</summary>
+        /// <summary>应用采集参数：触发 + 曝光/增益（配置界面路径；任何一项失败都返回 false 给界面）</summary>
         protected override bool ApplySettingsCore(CameraSettings settings)
         {
-            int ret = _sdk!.Call(_camera!, "MV_CC_SetFloatValue_NET", "ExposureTime", (float)settings.ExposureTimeUs);
-            if (ret != 0)
-                throw new InvalidOperationException($"设置曝光失败（ExposureTime，错误码 0x{ret:X8}）");
+            // 采流中改触发节点：先停流，改完再恢复；多数 GenICam 节点在 grabbing 时不可写。
+            bool wasGrabbing = _grabbing;
+            if (wasGrabbing) StopStreamCore();
+            try
+            {
+                ApplyTriggerSettingsCore(settings);
+            }
+            finally
+            {
+                if (wasGrabbing) StartStreamCore();
+            }
 
-            ret = _sdk.Call(_camera!, "MV_CC_SetFloatValue_NET", "Gain", (float)settings.Gain);
-            if (ret != 0)
-                throw new InvalidOperationException($"设置增益失败（Gain，错误码 0x{ret:X8}）");
-
+            ApplyExposureGainCore(settings);
             return true;
+        }
+
+        /// <summary>
+        /// 触发节点下发 + 回读校验。失败必须抛：调用方（OpenCore / 界面）据此阻断，
+        /// 不能出现"界面说上升沿、相机仍连续采图"的静默错拍。
+        /// </summary>
+        private void ApplyTriggerSettingsCore(CameraSettings settings)
+        {
+            var plan = HikvisionTriggerPlan.From(settings);
+
+            // 先把 TriggerMode 关掉再改 Source/Activation：多数相机不允许在触发开启时改源。
+            SetEnum("TriggerMode", 0u);
+            if (plan.TriggerSource != null)
+                SetEnumString("TriggerSource", plan.TriggerSource);
+            if (plan.TriggerActivation != null)
+                SetEnumString("TriggerActivation", plan.TriggerActivation);
+            if (plan.TriggerMode != 0)
+                SetFloat("TriggerDelay", plan.TriggerDelayUs);
+            SetEnum("TriggerMode", plan.TriggerMode);
+
+            uint actual = GetEnum("TriggerMode");
+            if (actual != plan.TriggerMode)
+                throw new InvalidOperationException(
+                    $"触发模式回读不一致：请求 {plan.TriggerMode}，相机实际 {actual}。"
+                    + "请确认相机固件 / MVS 版本支持该触发模式");
+        }
+
+        /// <summary>曝光 / 增益：节点名与 MVS 客户端一致</summary>
+        private void ApplyExposureGainCore(CameraSettings settings)
+        {
+            SetFloat("ExposureTime", (float)settings.ExposureTimeUs, "曝光");
+            SetFloat("Gain", (float)settings.Gain, "增益");
+        }
+
+        private void SetEnum(string node, uint value)
+        {
+            int ret = _sdk!.Call(_camera!, "MV_CC_SetEnumValue_NET", node, value);
+            if (ret != 0)
+                throw new InvalidOperationException($"设置 {node}={value} 失败（错误码 0x{ret:X8}）");
+        }
+
+        private void SetEnumString(string node, string value)
+        {
+            // MVS .NET 包装器的标准入口；老版本没有它时走枚举数值兜底。
+            try
+            {
+                int ret = _sdk!.Call(_camera!, "MV_CC_SetEnumValueByString_NET", node, value);
+                if (ret == 0) return;
+            }
+            catch (MissingMethodException) { /* 走下面的数值兜底 */ }
+
+            uint numeric = _sdk!.EnumValue(EnumTypeOf(node), value);
+            SetEnum(node, numeric);
+        }
+
+        private static string EnumTypeOf(string node) => node switch
+        {
+            "TriggerSource" => "MV_CAM_TRIGGER_SOURCE",
+            "TriggerActivation" => "MV_CAM_TRIGGER_ACTIVATION",
+            _ => throw new InvalidOperationException($"未知枚举节点：{node}")
+        };
+
+        private void SetFloat(string node, float value, string? label = null)
+        {
+            int ret = _sdk!.Call(_camera!, "MV_CC_SetFloatValue_NET", node, value);
+            if (ret != 0)
+                throw new InvalidOperationException($"设置{label ?? node}失败（{node}，错误码 0x{ret:X8}）");
+        }
+
+        private uint GetEnum(string node)
+        {
+            // 包装器签名是 (string, ref uint)；反射调用后 args[1] 会被原地更新。
+            var args = new object[] { node, 0u };
+            int ret = _sdk!.Call(_camera!, "MV_CC_GetEnumValue_NET", args);
+            if (ret != 0)
+                throw new InvalidOperationException($"读取 {node} 失败（错误码 0x{ret:X8}）");
+            return Convert.ToUInt32(args[1]);
+        }
+
+        /// <summary>本驱动支持软触发与外部信号触发（Line0~Line3）</summary>
+        public override bool SupportsSoftwareTrigger => true;
+
+        /// <inheritdoc />
+        public override bool SupportsHardwareTrigger => true;
+
+        /// <summary>
+        /// 下发一次软件触发。要求：设备已打开、已开始采流、当前处于软触发模式。
+        /// 返回 false 时采集步骤会报"软触发失败"，而不是退化成"等图超时"。
+        /// </summary>
+        public override bool TriggerSoftware()
+        {
+            if (_sdk == null || _camera == null)
+            {
+                Log?.Warn($"[{Descriptor.Caption}] 软触发失败：设备尚未打开");
+                return false;
+            }
+            if (!_grabbing)
+            {
+                Log?.Warn($"[{Descriptor.Caption}] 软触发失败：尚未开始采流");
+                return false;
+            }
+            if (ReadSettings().TriggerMode != CameraTriggerMode.Software)
+            {
+                Log?.Warn($"[{Descriptor.Caption}] 软触发失败：当前触发模式不是软触发");
+                return false;
+            }
+
+            lock (_sdkGate)
+            {
+                try
+                {
+                    int ret = _sdk.Call(_camera, "MV_CC_SetCommandValue_NET", "TriggerSoftware");
+                    if (ret != 0)
+                    {
+                        Log?.Warn($"[{Descriptor.Caption}] 软触发命令被拒绝（错误码 0x{ret:X8}）");
+                        return false;
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Log?.Warn($"[{Descriptor.Caption}] 软触发命令异常：{ex.Message}");
+                    return false;
+                }
+            }
         }
 
         /// <summary>真机有 SDK 掉线回调兜底，不需要心跳轮询推断</summary>

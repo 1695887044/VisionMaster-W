@@ -132,6 +132,8 @@
     <!--  描边：常规控件描边 / 更浅的分隔线  -->
     <SolidColorBrush x:Key="DialogBorderBrush" Color="#E2E8F0" />
     <SolidColorBrush x:Key="DialogBorderLightBrush" Color="#EEF2F7" />
+    <!--  悬停/按下描边：比 DialogBorderBrush 深一档（卡片、输入框 hover）  -->
+    <SolidColorBrush x:Key="DialogBorderStrongBrush" Color="#CBD5E1" />
 
     <!--  文字：正文 / 次要 / 占位与禁用  -->
     <SolidColorBrush x:Key="DialogTextPrimaryBrush" Color="#0F172A" />
@@ -157,9 +159,13 @@
         行内动作要的是"一眼看出是危险的，但不抢主操作的视线"。
     -->
     <SolidColorBrush x:Key="DialogDangerSubtleBrush" Color="#FEF2F2" />
+    <!--  危险文字/描边：与 DialogWarningTextBrush 对称；#EF4444 当小字对比度不够  -->
+    <SolidColorBrush x:Key="DialogDangerTextBrush" Color="#B91C1C" />
+    <SolidColorBrush x:Key="DialogDangerBorderBrush" Color="#FECACA" />
 
     <!--  警示类浅底：给"注意事项"块的软底色（网络相机参数不生效之类），与 DialogWarningTextBrush 成对  -->
     <SolidColorBrush x:Key="DialogWarningSubtleBrush" Color="#FFF4E5" />
+    <SolidColorBrush x:Key="DialogWarningBorderBrush" Color="#FDE68A" />
 
     <!--
         成功类浅底 + 深字：与 DialogSuccessBrush(#22C55E) 同族，成对使用。
@@ -170,6 +176,7 @@
     -->
     <SolidColorBrush x:Key="DialogSuccessSubtleBrush" Color="#F0FDF4" />
     <SolidColorBrush x:Key="DialogSuccessTextBrush" Color="#15803D" />
+    <SolidColorBrush x:Key="DialogSuccessBorderBrush" Color="#BBF7D0" />
 
     <!--  交互底：行悬停 / 行选中（与 DialogAccentLightBrush 同族但更淡）  -->
     <SolidColorBrush x:Key="DialogRowHoverBrush" Color="#F1F5F9" />

@@ -46,7 +46,9 @@
 | --- | --- | --- | --- |
 | `ExposureTimeUs` | 10000 | **生效** | GenICam 节点 `ExposureTime`（float）。**单位是微秒**：10000 = 10 ms。相机拒绝该值时报"设置曝光失败（ExposureTime，错误码 0x…）" |
 | `Gain` | 0 | **生效** | 节点 `Gain`（float）。**单位由相机自行解释**（多数机型 dB，也有机型是原始码值），与 MVS 客户端对不上时先确认那一侧显示的物理量 |
-| `TriggerMode` | `Software` | **不生效** | 本驱动不读它：打开设备时把节点 `TriggerMode` 写 0（连续采图）。见《取流与触发口径》 |
+| `TriggerMode` | `Software` | **生效** | 四档：`Continuous`（连续采图）/ `Software`（软触发）/ `RisingEdge` / `FallingEdge`。驱动按成员语义映射到 GenICam 节点；旧配置（无 `TriggerSchemaVersion`）迁移为 `Continuous`。见《取流与触发口径》 |
+| `TriggerSourceLine` | 0 | **生效**（硬触发） | 相机 IO 线号 0~3 = Line0~Line3；软触发 / 连续采图忽略 |
+| `TriggerDelayUs` | 0 | **生效**（触发模式） | 触发延时（微秒）；0 = 不延时 |
 | `FrameTimeoutMs` | 3000 | **生效**（由基类消费，不是硬件消费） | 消费端"等一帧最多等多久"。**永远必须有限**：无超时的等图会让流程线程永久卡死、现场只能杀进程 |
 | `BufferCapacity` | 8 | **生效**（基类消费） | 环形队列容量，满则丢最旧并计溢出 |
 | `HeartbeatTimeoutMs` | 3000 | **不生效** | 真机这一侧 `RequiresHeartbeat` 为 false，看门狗根本不创建。这一项只对网络相机有意义 |
@@ -59,6 +61,9 @@
 | `BufferCapacity` 大于 1024 | 置 1024 |
 | `FrameTimeoutMs` 小于 1 | 置 3000 |
 | `HeartbeatTimeoutMs` 小于 200 | 置 3000 |
+| `TriggerSchemaVersion` 小于 1 | `TriggerMode = Continuous`，版本置 1（旧方案保持升级前真实行为） |
+| `TriggerSourceLine` 超出 0~3 | 夹到 0~3 |
+| `TriggerDelayUs` 小于 0 | 置 0 |
 
 曝光与增益**不做归一化**：本驱动不把非法值夹成"看着合理"的值，而是原值下发、由相机决定接受或拒绝，
 拒绝就把 SDK 错误码原样报出来——静默夹值会把"相机其实拒绝了"这件事推迟到某个说不清的亮度问题上。

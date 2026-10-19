@@ -36,7 +36,13 @@ docs/UI设计基线/
 | `process-panel/` | v2 | `ProcessView.xaml`（步骤树 + 底部统计） | 已复刻，证据 `process-panel/evidence/after-render-F.png` |
 | `io-health/` | v1 | `IoHealthView.xaml`（设备 / 总线 / 点位三页签） | 待用户确认 |
 | `app-shell/` | v2 | `Shell.xaml` 及三场景工作区（调试 / 运行 / 组态 + 自由布局）、单列检查器、可收起控制台、运行条、运行驾驶舱、命令面板；v1 归档在 `design-v1.html` | 待用户确认 |
-| `image-acquisition/` | v1 | `Plugin.ImageAcquisition\ImageAcquisitionView.xaml`（配置窗口内容区 + 960×680 宿主外壳） | 待用户确认 |
+| `image-acquisition/` | v2 | `Plugin.ImageAcquisition\ImageAcquisitionView.xaml`（配置窗口内容区 + 960×680 宿主外壳；v1 归档在 `design-v1.html`） | 已复刻，证据 `image-acquisition/evidence/after-render-v2-*.png`；待用户确认 |
+| `logic-operators/` | v1 | 流程画布逻辑节点视觉语言：41 个算子 / 6 族、IF/SWITCH/PARALLEL/WHILE 容器、3 个组合示例、节点状态矩阵、逐算子 WPF 映射 | 待用户确认 |
+
+## 插件改造 SOP 与清单
+
+- [插件自定义视图Web化改造SOP.md](插件自定义视图Web化改造SOP.md)：适用范围、前置条件、逐步操作、涉及文件、验证、回滚、注意事项、单插件记录模板、DoD。
+- [插件自定义视图改造清单与实施计划.md](插件自定义视图改造清单与实施计划.md)：22 个自定义视图插件盘点（ImageAcquisition 已完成，剩余 21 个）、分批计划、9 个不改造项目清单。
 
 ## 对应关系
 

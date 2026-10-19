@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Xml.Linq;
@@ -168,6 +169,12 @@ namespace UIThemeSmokeTest
 
                 if (args.Contains("--calibration"))
                     return RunCalibrationViewSmoke();
+
+                if (args.Contains("--image-acquisition"))
+                    return RunImageAcquisitionViewSmoke();
+
+                if (args.Contains("--image-acquisition-render"))
+                    return RunImageAcquisitionViewRender();
 
                 // 控件级检查：开关动画不得污染应用级共享画刷。
                 //
@@ -509,9 +516,11 @@ namespace UIThemeSmokeTest
                 int shellLayoutFailures = RunShellLayoutChecks();
                 int panelModeFailures = RunPanelModeChecks();
                 int gridFailures = RunGridViewChecks();
+                int colorTokenFailures = RunHardcodedColorChecks();
                 int flowCanvasFailures = RunFlowCanvasChecks();
                 int logConsoleFailures = RunLogConsoleChecks();
-                return shellLayoutFailures + panelModeFailures + gridFailures + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
+                return shellLayoutFailures + panelModeFailures + gridFailures + colorTokenFailures
+                     + flowCanvasFailures + logConsoleFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -2284,6 +2293,100 @@ namespace UIThemeSmokeTest
         }
 
         /// <summary>
+        /// 颜色令牌闸：第一方 XAML 里**除颜色定义文件外**不许出现 <c>#RRGGBB</c>。
+        ///
+        /// <para>为什么需要它：全仓有 1400+ 处 <c>{StaticResource *Brush}</c>，主题切换靠的是
+        /// "换字典"；只要有人在视图里写死一个 hex，切主题时那一块就不会跟着变，
+        /// 而且这种错编译期全绿、肉眼也只在切主题后才发现。</para>
+        ///
+        /// <para>老文件怎么处理：按 <c>hardcoded-colors.baseline.txt</c> 的"只减不增"口径放行——
+        /// 一次性全改不现实，但**新文件必须是 0**、老文件数量不许上涨。
+        /// 基线里已无硬编码（或数量下降）的条目会在日志里提示"可收缩"，方便逐步清零。</para>
+        /// </summary>
+        private static int RunHardcodedColorChecks()
+        {
+            Console.WriteLine();
+            Console.WriteLine("=== 颜色令牌：第一方 XAML 不许硬编码颜色 ===");
+
+            string repoRoot = @"d:\C#\VM";
+            string baselinePath = Path.Combine(repoRoot, @"UIThemeSmokeTest\hardcoded-colors.baseline.txt");
+
+            // 颜色定义文件本身：写 hex 是它们的职责。
+            var paletteFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                @"UI\Controls\Themes\Colors.xaml",
+                @"UI\Controls\Themes\Fluent\FluentTokens.xaml",
+                @"UI\Controls\Themes\PluginConfigColors.xaml",
+            };
+
+            var baseline = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            if (File.Exists(baselinePath))
+            {
+                foreach (var line in File.ReadAllLines(baselinePath))
+                {
+                    int bar = line.LastIndexOf('|');
+                    if (bar <= 0) continue;
+                    if (int.TryParse(line.Substring(bar + 1), out int allowed))
+                        baseline[line.Substring(0, bar).Trim()] = allowed;
+                }
+            }
+
+            var current = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            int scanned = 0;
+
+            foreach (var root in new[] { "VisionMaster", "UI", "Scada", "Scada.Controls", "Scada.Controls.Charts", "Plugins" })
+            {
+                string dir = Path.Combine(repoRoot, root);
+                if (!Directory.Exists(dir)) continue;
+
+                foreach (var file in Directory.GetFiles(dir, "*.xaml", SearchOption.AllDirectories))
+                {
+                    if (file.Contains(@"\obj\") || file.Contains(@"\bin\")) continue;
+
+                    string rel = file.Substring(repoRoot.Length + 1);
+                    if (paletteFiles.Contains(rel)) continue;
+                    if (rel.StartsWith(@"VisionMaster\Themes\DockThemes\", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    scanned++;
+
+                    string text = File.ReadAllText(file);
+                    text = Regex.Replace(text, "<!--.*?-->", "", RegexOptions.Singleline);
+                    int count = Regex.Matches(text, "#[0-9A-Fa-f]{6}").Count;
+                    if (count > 0) current[rel] = count;
+                }
+            }
+
+            var offenders = new List<string>();
+            foreach (var pair in current)
+            {
+                if (!baseline.TryGetValue(pair.Key, out int allowed))
+                    offenders.Add($"{pair.Key}: 新文件写了 {pair.Value} 处硬编码颜色（改用 Dialog* 令牌）");
+                else if (pair.Value > allowed)
+                    offenders.Add($"{pair.Key}: 硬编码颜色 {allowed} → {pair.Value}（只许减少）");
+            }
+
+            var shrinkable = baseline
+                .Where(b => !current.TryGetValue(b.Key, out int now) || now < b.Value)
+                .Select(b => $"{b.Key}（基线 {b.Value}）")
+                .ToList();
+
+            Console.WriteLine($"    扫过 {scanned} 个第一方 XAML；基线 {baseline.Count} 个文件");
+            if (shrinkable.Count > 0)
+                Console.WriteLine($"    基线可收缩：{string.Join("；", shrinkable)}");
+
+            if (offenders.Count == 0)
+            {
+                Console.WriteLine("    [PASS] 无新增硬编码颜色");
+                return 0;
+            }
+
+            Console.WriteLine($"    [FAIL] {offenders.Count} 个文件新增了硬编码颜色：");
+            foreach (var offender in offenders)
+                Console.WriteLine($"      {offender}");
+            return 1;
+        }
+
+        /// <summary>
         /// 标定配置视图冒烟（--calibration）：真实实例化 <see cref="Plugin.Calibration.CalibrationView"/> 并强制模板实例化，
         /// 把"交付时人工走查"里**可自动化**的部分钉成回归：
         /// · XAML 资源键/转换器/模板全部解析（缺键会在测量期抛"找不到资源"——正是最阴的一类）；
@@ -2406,6 +2509,465 @@ namespace UIThemeSmokeTest
                 ? "=== 标定配置视图冒烟：全部通过 ==="
                 : $"### 标定配置视图冒烟：{failures} 项失败");
             return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 图像采集配置视图冒烟（--image-acquisition）：真实实例化 V2 视图并验证：
+        /// · 资源键/模板/转换器全部解析；
+        /// · 4 个 LinkableValueEditor 的 Port 绑定到正确端口；
+        /// · ImageReadOnly.HImage 仍绑 PreviewImage；
+        /// · Mode / SelectedCameraOption / DisplayViewIndex 的绑定类型未变；
+        /// · 全部命令与推送字段绑定仍在；
+        /// · 端口编辑 → OnConfirm 写回 InputValues 的功能链未断；
+        /// · XAML 无硬编码十六进制颜色。
+        /// </summary>
+        private static int RunImageAcquisitionViewSmoke()
+        {
+            int failures = 0;
+            void Check(string name, bool ok, string detail = "")
+            {
+                Console.WriteLine((ok ? "  [PASS] " : "  [FAIL] ") + name + (detail.Length > 0 ? $"  ({detail})" : ""));
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                // ---- 静态：无硬编码颜色 + 关键绑定仍在 ----
+                const string repoRoot = @"d:\C#\VM";
+                var xamlPath = Path.Combine(repoRoot, "Plugins", "Plugin.ImageAcquisition", "ImageAcquisitionView.xaml");
+                var xaml = File.Exists(xamlPath) ? File.ReadAllText(xamlPath) : string.Empty;
+                Check("视图 XAML 可读", xaml.Length > 0, xamlPath);
+
+                var hex = System.Text.RegularExpressions.Regex.Matches(xaml, @"#[0-9A-Fa-f]{6,8}").Count;
+                Check("XAML 无硬编码十六进制颜色（全部走公共令牌）", hex == 0, $"hex={hex}");
+
+                string[] requiredBindings =
+                {
+                    "Port=\"{Binding FilePathPort}\"",
+                    "Port=\"{Binding FolderPathPort}\"",
+                    "Port=\"{Binding FileIndexPort}\"",
+                    "Port=\"{Binding FrameTimeoutPort}\"",
+                    "Content=\"{Binding PreviewImage}\"",
+                    "HImage=\"{Binding Mode=OneWay}\"",
+                    "<h:ImageReadOnly",
+                    "SelectedItem=\"{Binding SelectedCameraOption}\"",
+                    "SelectedItem=\"{Binding DisplayViewIndex}\"",
+                    "Command=\"{Binding BrowseFileCommand}\"",
+                    "Command=\"{Binding BrowseFolderCommand}\"",
+                    "Command=\"{Binding PreviousImageCommand}\"",
+                    "Command=\"{Binding NextImageCommand}\"",
+                    "Command=\"{Binding RefreshPreviewCommand}\"",
+                    "Command=\"{Binding PushLocalImageCommand}\"",
+                    "Text=\"{Binding PushFlowName",
+                    "Text=\"{Binding PushHost",
+                    "Text=\"{Binding PushPortText",
+                    "Text=\"{Binding PushToken",
+                    "Text=\"{Binding PushResultText",
+                    "Text=\"{Binding StatusMessage",
+                };
+                var missingBindings = requiredBindings.Where(b => !xaml.Contains(b)).ToList();
+                Check("关键绑定全部在 XAML 里", missingBindings.Count == 0, string.Join(" | ", missingBindings));
+
+                var modeBindings = System.Text.RegularExpressions.Regex.Matches(
+                    xaml, @"IsChecked=""\{Binding Mode, Converter=\{ui:EnumConverter\}").Count;
+                Check("模式卡片仍用 EnumConverter 写回 Mode（4 个）", modeBindings == 4, $"count={modeBindings}");
+
+                // ---- 运行时：真实实例化 ----
+                var stepData = new StubStepConfigData();
+                var plugin = new Plugin.ImageAcquisition.ImageAcquisitionPlugin { InstanceName = "图像采集_冒烟" };
+                var view = new Plugin.ImageAcquisition.ImageAcquisitionView(stepData, plugin);
+                var host = new Border { Width = 920, Height = 520, Child = view };
+                host.Measure(new Size(920, 520));
+                host.Arrange(new Rect(0, 0, 920, 520));
+                host.UpdateLayout();
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                int elementCount = Descendants<FrameworkElement>(view).Count();
+                Check("视图可实例化并完成模板实例化", view.Content != null && elementCount > 30, $"elements={elementCount}");
+                Check("DataContext 仍是插件实例（宿主靠它取 IPluginConfigView）",
+                    ReferenceEquals(view.DataContext, plugin),
+                    view.DataContext?.GetType().Name ?? "null");
+
+                // 「调试与接口」默认折叠；展开后其内部的推送测试字段/按钮才会进可视树
+                var debugExpander = view.FindName("DebugExpander") as System.Windows.Controls.Expander;
+                if (debugExpander != null) debugExpander.IsExpanded = true;
+
+                // 逐模式收集可见面板里的控件/绑定（折叠面板不保证已进可视树）
+                var portNames = new HashSet<string>(StringComparer.Ordinal);
+                var commandPaths = new HashSet<string>(StringComparer.Ordinal);
+                var textPaths = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var mode in new[]
+                         {
+                             Plugin.ImageAcquisition.AcquisitionMode.SingleFile,
+                             Plugin.ImageAcquisition.AcquisitionMode.Folder,
+                             Plugin.ImageAcquisition.AcquisitionMode.Hub,
+                             Plugin.ImageAcquisition.AcquisitionMode.Camera
+                         })
+                {
+                    plugin.Mode = mode;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                    foreach (var editor in Descendants<Core.Controls.LinkableValueEditor>(view))
+                        if (editor.Port != null) portNames.Add(editor.Port.Name);
+
+                    foreach (var button in Descendants<System.Windows.Controls.Button>(view))
+                    {
+                        var path = BindingOperations.GetBinding(button, System.Windows.Controls.Button.CommandProperty)?.Path?.Path;
+                        if (!string.IsNullOrEmpty(path)) commandPaths.Add(path);
+                    }
+
+                    foreach (var textBox in Descendants<System.Windows.Controls.TextBox>(view))
+                    {
+                        var path = BindingOperations.GetBinding(textBox, System.Windows.Controls.TextBox.TextProperty)?.Path?.Path;
+                        if (!string.IsNullOrEmpty(path)) textPaths.Add(path);
+                    }
+                }
+                plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.SingleFile;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                Check("4 个 LinkableValueEditor 的 Port 绑定正确",
+                    portNames.Count == 4
+                    && portNames.Contains("FilePath")
+                    && portNames.Contains("FolderPath")
+                    && portNames.Contains("FileIndex")
+                    && portNames.Contains("FrameTimeoutMs"),
+                    string.Join(",", portNames));
+
+                var previewHost = view.FindName("PreviewHost") as ContentControl;
+                var previewHostBinding = previewHost == null
+                    ? null
+                    : BindingOperations.GetBinding(previewHost, ContentControl.ContentProperty);
+
+                // 有图才创建 ImageReadOnly：先造一张 64×48 灰度图，再验证模板实例与控制器的 HImage
+                var smokePixels = new byte[64 * 48];
+                var smokeHandle = System.Runtime.InteropServices.GCHandle.Alloc(
+                    smokePixels, System.Runtime.InteropServices.GCHandleType.Pinned);
+                HImage smokeImage;
+                try
+                {
+                    smokeImage = new HImage();
+                    smokeImage.GenImage1("byte", 64, 48, smokeHandle.AddrOfPinnedObject());
+                }
+                finally
+                {
+                    smokeHandle.Free();
+                }
+
+                plugin.PreviewImage = smokeImage;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                host.UpdateLayout();
+
+                var preview = Descendants<Core.Halcon.Controls.ImageReadOnly>(view).FirstOrDefault();
+                Check("预览宿主仍绑 PreviewImage，ImageReadOnly 由模板创建并拿到图",
+                    previewHost != null
+                    && previewHostBinding?.Path?.Path == "PreviewImage"
+                    && preview != null
+                    && ReferenceEquals(preview.HImage, smokeImage),
+                    $"host={previewHostBinding?.Path?.Path} control={preview != null} image={ReferenceEquals(preview?.HImage, smokeImage)}");
+
+                try
+                {
+                    preview?.FitToWindow();
+                    preview?.FitToImage();
+                    Check("预览工具条可调用 FitToWindow / FitToImage", true, "");
+                }
+                catch (Exception ex)
+                {
+                    Check("预览工具条可调用 FitToWindow / FitToImage", false,
+                        ex.GetType().Name + ": " + ex.Message);
+                }
+
+                var modeRadios = Descendants<System.Windows.Controls.RadioButton>(view)
+                    .Where(r => r.GroupName == "AcquisitionMode").ToList();
+                var modeParams = modeRadios
+                    .Select(r => BindingOperations.GetBinding(
+                        r, System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty)?.ConverterParameter)
+                    .ToList();
+                bool hasAllModes = new[] { "SingleFile", "Folder", "Hub", "Camera" }
+                    .All(n => modeParams.Any(p => p?.ToString() == n));
+                Check("4 个模式卡片都绑 Mode，且四个枚举参数齐全",
+                    modeRadios.Count == 4 && hasAllModes,
+                    $"count={modeRadios.Count} params={string.Join(",", modeParams.Select(p => p?.ToString() ?? "null"))}");
+
+                // 真实点击路径：IsChecked=true → EnumConverter.ConvertBack → Mode
+                var folderRadio = modeRadios.FirstOrDefault(r =>
+                    BindingOperations.GetBinding(r, System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty)
+                        ?.ConverterParameter?.ToString() == "Folder");
+                if (folderRadio != null) folderRadio.IsChecked = true;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Check("模式卡片点击写回 Mode（EnumConverter 双向）",
+                    plugin.Mode == Plugin.ImageAcquisition.AcquisitionMode.Folder,
+                    $"mode={plugin.Mode}");
+                plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.SingleFile;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                var cameraCombo = view.FindName("CameraCombo") as System.Windows.Controls.ComboBox;
+                var cameraItems = cameraCombo == null
+                    ? null
+                    : BindingOperations.GetBinding(cameraCombo, System.Windows.Controls.ItemsControl.ItemsSourceProperty);
+                var cameraSelected = cameraCombo == null
+                    ? null
+                    : BindingOperations.GetBinding(cameraCombo, System.Windows.Controls.Primitives.Selector.SelectedItemProperty);
+                Check("相机下拉仍是 CameraOptions / SelectedCameraOption",
+                    cameraCombo != null
+                    && cameraItems?.Path?.Path == "CameraOptions"
+                    && cameraSelected?.Path?.Path == "SelectedCameraOption",
+                    $"items={cameraItems?.Path?.Path} selected={cameraSelected?.Path?.Path}");
+
+                var displayCombo = view.FindName("DisplayViewCombo") as System.Windows.Controls.ComboBox;
+                var displaySelected = displayCombo == null
+                    ? null
+                    : BindingOperations.GetBinding(displayCombo, System.Windows.Controls.Primitives.Selector.SelectedItemProperty);
+                Check("显示窗口下拉仍是 int 的 DisplayViewIndex",
+                    displayCombo != null && displaySelected?.Path?.Path == "DisplayViewIndex",
+                    displaySelected?.Path?.Path ?? "null");
+
+                string[] requiredCommands =
+                {
+                    "BrowseFileCommand", "BrowseFolderCommand", "PreviousImageCommand",
+                    "NextImageCommand", "RefreshPreviewCommand", "PushLocalImageCommand"
+                };
+                var missingCommands = requiredCommands.Where(c => !commandPaths.Contains(c)).ToList();
+                Check("功能命令绑定全部在（浏览/翻页/刷新/推送测试）", missingCommands.Count == 0,
+                    string.Join(",", missingCommands));
+
+                string[] requiredTexts = { "PushFlowName", "PushHost", "PushPortText", "PushToken", "PushResultText" };
+                var missingTexts = requiredTexts.Where(t => !textPaths.Contains(t)).ToList();
+                Check("推送测试字段绑定全部在", missingTexts.Count == 0, string.Join(",", missingTexts));
+
+                var statusBinding = Descendants<System.Windows.Controls.TextBlock>(view)
+                    .Select(t => BindingOperations.GetBinding(t, System.Windows.Controls.TextBlock.TextProperty)?.Path?.Path)
+                    .FirstOrDefault(p => p == "StatusMessage");
+                Check("状态栏仍绑 StatusMessage", statusBinding == "StatusMessage", statusBinding ?? "null");
+
+                // ---- 功能链：端口编辑 → OnConfirm 写回 ----
+                var fileEditor = Descendants<Core.Controls.LinkableValueEditor>(view)
+                    .FirstOrDefault(e => e.Port?.Name == "FilePath");
+                var tempFile = Path.Combine(Path.GetTempPath(), "ia_ui_smoke_" + Guid.NewGuid().ToString("N") + ".bmp");
+                File.WriteAllBytes(tempFile, new byte[] { 0x42, 0x4D, 0, 0 });
+                try
+                {
+                    if (fileEditor != null) fileEditor.PortValue = tempFile;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    Check("路径编辑器写回 FilePathPort",
+                        fileEditor != null && (plugin.FilePathPort.Value as string) == tempFile,
+                        $"port={plugin.FilePathPort.Value}");
+
+                    plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.Folder;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    var folderEditor = Descendants<Core.Controls.LinkableValueEditor>(view)
+                        .FirstOrDefault(e => e.Port?.Name == "FolderPath");
+                    var indexEditor = Descendants<Core.Controls.LinkableValueEditor>(view)
+                        .FirstOrDefault(e => e.Port?.Name == "FileIndex");
+                    if (folderEditor != null) folderEditor.PortValue = @"D:\Images\Line-A";
+                    if (indexEditor != null) indexEditor.PortValue = "7";
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    Check("文件夹路径/索引编辑器写回端口",
+                        plugin.FolderPathPort.TypedValue == @"D:\Images\Line-A" && plugin.FileIndexPort.TypedValue == 7,
+                        $"folder={plugin.FolderPathPort.TypedValue} index={plugin.FileIndexPort.TypedValue}");
+
+                    plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.Camera;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    var timeoutEditor = Descendants<Core.Controls.LinkableValueEditor>(view)
+                        .FirstOrDefault(e => e.Port?.Name == "FrameTimeoutMs");
+                    if (timeoutEditor != null) timeoutEditor.PortValue = "250";
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    Check("取图超时编辑器写回 FrameTimeoutMs",
+                        plugin.FrameTimeoutPort.TypedValue == 250,
+                        $"timeout={plugin.FrameTimeoutPort.TypedValue}");
+
+                    plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.SingleFile;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                    displayCombo.SelectedItem = 3;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    Check("显示窗口下拉写回 DisplayViewIndex（int）", plugin.DisplayViewIndex == 3,
+                        $"value={plugin.DisplayViewIndex}");
+
+                    var cameraOption = new Core.Interfaces.CameraOption
+                    {
+                        Id = Guid.NewGuid(),
+                        SerialNo = "IA-SMOKE-001",
+                        DisplayName = "冒烟相机",
+                        State = Core.Interfaces.CameraConnectionState.Streaming,
+                        StateText = "采流中"
+                    };
+                    plugin.CameraOptions.Add(cameraOption);
+                    plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.Camera;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    if (cameraCombo != null) cameraCombo.SelectedItem = cameraOption;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    Check("相机下拉选择写回 CameraSerial（序列号寻址）", plugin.CameraSerial == "IA-SMOKE-001",
+                        plugin.CameraSerial);
+
+                    plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.Folder;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    Check("模式切换仍走 Mode setter（预览被清空）", plugin.PreviewImage == null,
+                        $"mode={plugin.Mode}");
+
+                    plugin.OnConfirm(stepData);
+                    string[] keys = { "FilePath", "FolderPath", "FileIndex", "FrameTimeoutMs", "Mode", "DisplayViewIndex", "CameraSerial" };
+                    var missingKeys = keys.Where(k => !stepData.InputValues.ContainsKey(k)).ToList();
+                    Check("OnConfirm 仍把端口/配置写回 InputValues", missingKeys.Count == 0,
+                        string.Join(",", missingKeys));
+
+                    bool valuesOk = stepData.InputValues.TryGetValue("FilePath", out var fileValue)
+                        && (fileValue as string) == tempFile
+                        && stepData.InputValues.TryGetValue("FolderPath", out var folderValue)
+                        && (folderValue as string) == @"D:\Images\Line-A"
+                        && stepData.InputValues.TryGetValue("FileIndex", out var indexValue)
+                        && Convert.ToInt32(indexValue) == 7
+                        && stepData.InputValues.TryGetValue("FrameTimeoutMs", out var timeoutValue)
+                        && Convert.ToInt32(timeoutValue) == 250
+                        && stepData.InputValues.TryGetValue("Mode", out var modeValue)
+                        && modeValue is Plugin.ImageAcquisition.AcquisitionMode modeValueEnum
+                        && modeValueEnum == Plugin.ImageAcquisition.AcquisitionMode.Folder
+                        && stepData.InputValues.TryGetValue("DisplayViewIndex", out var viewValue)
+                        && Convert.ToInt32(viewValue) == 3
+                        && stepData.InputValues.TryGetValue("CameraSerial", out var serialValue)
+                        && (serialValue as string) == "IA-SMOKE-001";
+                    Check("OnConfirm 写回值正确（端口 + Mode + 显示窗口 + 相机序列号）", valuesOk,
+                        string.Join(",", keys.Select(k => k + "=" + (stepData.InputValues.TryGetValue(k, out var v) ? v : "null"))));
+                }
+                finally
+                {
+                    try { File.Delete(tempFile); } catch { }
+                }
+
+                plugin.Dispose();
+                host.Child = null;
+                view = null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("### 图像采集视图冒烟抛出异常:");
+                Print(ex);
+                failures++;
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 图像采集配置视图冒烟：全部通过 ==="
+                : $"### 图像采集配置视图冒烟：{failures} 项失败");
+            return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 图像采集 V2 视图渲染（--image-acquisition-render）：
+        /// 按 920×520 内容区真实 Measure/Arrange，把四种模式的空态渲染成 PNG，
+        /// 落到 docs/UI设计基线/image-acquisition/evidence/，供与 Web 基线逐块对照。
+        /// </summary>
+        private static int RunImageAcquisitionViewRender()
+        {
+            int failures = 0;
+            void Check(string name, bool ok, string detail = "")
+            {
+                Console.WriteLine((ok ? "  [PASS] " : "  [FAIL] ") + name + (detail.Length > 0 ? $"  ({detail})" : ""));
+                if (!ok) failures++;
+            }
+
+            try
+            {
+                const string repoRoot = @"d:\C#\VM";
+                var outDir = Path.Combine(repoRoot, "docs", "UI设计基线", "image-acquisition", "evidence");
+                Directory.CreateDirectory(outDir);
+
+                var stepData = new StubStepConfigData();
+                var plugin = new Plugin.ImageAcquisition.ImageAcquisitionPlugin { InstanceName = "图像采集_渲染" };
+                var view = new Plugin.ImageAcquisition.ImageAcquisitionView(stepData, plugin);
+                var host = new Border
+                {
+                    Width = 920,
+                    Height = 520,
+                    Background = Application.Current.TryFindResource("DialogSurfaceBrush") as Brush,
+                    Child = view
+                };
+                host.Measure(new Size(920, 520));
+                host.Arrange(new Rect(0, 0, 920, 520));
+                host.UpdateLayout();
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                // 宿主透传上下文：网络推送横幅显示"正在监听"
+                plugin.SetConfigContext(new Core.Interfaces.PluginConfigContext
+                {
+                    FlowName = "检测流程",
+                    HttpEnabled = true,
+                    HttpListening = true,
+                    HttpHost = "127.0.0.1",
+                    HttpPort = 19000,
+                    HttpToken = "demo-token",
+                    RequestTimeoutMs = 30000,
+                    Cameras = new List<Core.Interfaces.CameraOption>()
+                });
+
+                // 相机候选：相机页状态卡显示"采流中"
+                var camera = new Core.Interfaces.CameraOption
+                {
+                    Id = Guid.NewGuid(),
+                    SerialNo = "40123456",
+                    DisplayName = "Basler acA1920-40gm",
+                    State = Core.Interfaces.CameraConnectionState.Streaming,
+                    StateText = "采流中"
+                };
+                plugin.CameraOptions.Add(camera);
+                plugin.SelectedCameraOption = camera;
+
+                var modes = new[]
+                {
+                    Plugin.ImageAcquisition.AcquisitionMode.SingleFile,
+                    Plugin.ImageAcquisition.AcquisitionMode.Folder,
+                    Plugin.ImageAcquisition.AcquisitionMode.Hub,
+                    Plugin.ImageAcquisition.AcquisitionMode.Camera
+                };
+
+                foreach (var mode in modes)
+                {
+                    plugin.Mode = mode;
+                    host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                    host.UpdateLayout();
+                    var path = Path.Combine(outDir, "after-render-v2-" + mode + ".png");
+                    RenderElement(host, path);
+                    Check("渲染 " + mode, File.Exists(path), path);
+                }
+
+                // 错误态：路径不存在 → StatusLevel=Error，预览区显示错误覆盖层
+                plugin.Mode = Plugin.ImageAcquisition.AcquisitionMode.SingleFile;
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                plugin.PreviewImagePath = @"D:\Images\missing.bmp";
+                plugin.FilePathPort.Value = @"D:\Images\missing.bmp";
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                host.UpdateLayout();
+                var errorPath = Path.Combine(outDir, "after-render-v2-Error.png");
+                RenderElement(host, errorPath);
+                Check("渲染 Error", File.Exists(errorPath), errorPath);
+
+                plugin.Dispose();
+                host.Child = null;
+                view = null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("### 图像采集视图渲染抛出异常:");
+                Print(ex);
+                failures++;
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 图像采集配置视图渲染：完成 ==="
+                : $"### 图像采集配置视图渲染：{failures} 项失败");
+            return failures == 0 ? 0 : 1;
+        }
+
+        private static void RenderElement(FrameworkElement element, string path)
+        {
+            var width = Math.Max(1, (int)Math.Ceiling(element.ActualWidth));
+            var height = Math.Max(1, (int)Math.Ceiling(element.ActualHeight));
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                width, height, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(element);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using var stream = File.Create(path);
+            encoder.Save(stream);
         }
 
         /// <summary>最小步骤配置桩：标定视图初始化只需空 InputValues + 无链接。</summary>

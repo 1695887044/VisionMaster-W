@@ -7,6 +7,8 @@
         那一刻外层的 FluentControls 未必已物化，BasedOn 的 StaticResource 就会解析失败。
     -->
     <ResourceDictionary.MergedDictionaries>
+        <!-- DialogDanger* 等令牌在 Colors.xaml；本分册的 DialogChipDangerButton 直接引用它们。 -->
+        <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Fluent/FluentControls.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
@@ -76,6 +78,30 @@
         TargetType="Button">
         <Setter Property="FontSize" Value="12" />
         <Setter Property="MinHeight" Value="26" />
+    </Style>
+
+    <!--
+        工具栏按钮的三个档位：次要（DialogChipButton）/ 主操作（DialogChipPrimary）/ 危险（DialogChipDanger）。
+        为什么放在本文件：三者都 BasedOn Fluent*ButtonStyle，而 Fluent 分册在 App 级最后合并——
+        放到 Dialog.Chip.xaml 里 BasedOn 会变成跨册引用（R30，解析期直接抛）。
+        尺寸与 DialogTagButton 对齐（12 号字、26 高），工具栏里三者同高。
+    -->
+    <Style
+        x:Key="DialogChipPrimary"
+        BasedOn="{StaticResource FluentButtonAccentStyle}"
+        TargetType="Button">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style
+        x:Key="DialogChipDangerButton"
+        BasedOn="{StaticResource FluentButtonSmallStyle}"
+        TargetType="Button">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
     </Style>
     <Style
         x:Key="DialogFooterPrimaryButton"

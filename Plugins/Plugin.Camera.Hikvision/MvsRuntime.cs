@@ -168,6 +168,16 @@ namespace Plugin.Camera.Hikvision
         /// <summary>枚举值（按名字），如 PixelType_Gvsp_Mono8</summary>
         public object PixelType(string name) => Enum.Parse(Nested("MvGvspPixelType"), name);
 
+        /// <summary>按"枚举类型名 + 成员名"取数值（老版本 SDK 没有 ByString 入口时的兜底）</summary>
+        public uint EnumValue(string typeName, string memberName)
+        {
+            // 多数版本把枚举嵌在 MyCamera 下（与 MvGvspPixelType 同形），少数版本放程序集顶层。
+            var type = _cameraType.GetNestedType(typeName) ?? _assembly.GetType(typeName);
+            if (type == null)
+                throw new MissingMemberException($"MVS SDK 缺少枚举类型 {typeName}");
+            return Convert.ToUInt32(Enum.Parse(type, memberName));
+        }
+
         /// <summary>枚举成员的名字（用于像素格式分类）</summary>
         public string PixelTypeName(object value) => Enum.GetName(Nested("MvGvspPixelType"), value) ?? string.Empty;
 

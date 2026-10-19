@@ -329,7 +329,7 @@ namespace VisionMaster.Services
                         existing.Descriptor.DisplayName = descriptor.DisplayName;
                         existing.Descriptor.Remarks = descriptor.Remarks;
                         existing.Descriptor.AutoConnect = descriptor.AutoConnect;
-                        existing.Descriptor.Settings = descriptor.Settings?.Clone() ?? new CameraSettings();
+                        existing.Descriptor.Settings = descriptor.Settings?.Clone() ?? CameraSettings.CreateNew();
                         continue;
                     }
 

@@ -2601,14 +2601,14 @@
                   </div>
                 </div>
 
-                <div class="tree-step is-success">
-                  <span class="step-status"><span class="status-dot ok"></span></span>
-                  <div class="step-icon"><svg class="icon xs"><use href="#i-braces"></use></svg></div>
-                  <div class="step-text"><span class="step-name">变量赋值_0</span><span class="step-type">变量赋值</span></div>
-                  <span class="step-time"><svg class="icon" style="width:10px;height:10px"><use href="#i-clock"></use></svg>0.6 ms</span>
+                <div class="tree-step is-running" data-live-running>
+                  <span class="step-status"><span class="status-dot run"></span></span>
+                  <div class="step-icon"><svg class="icon xs"><use href="#i-target"></use></svg></div>
+                  <div class="step-text"><span class="step-name">模板匹配_0</span><span class="step-type">模板匹配</span></div>
+                  <span class="step-time"><svg class="icon" style="width:10px;height:10px"><use href="#i-clock"></use></svg>128.4 ms</span>
                 </div>
 
-                <div class="tree-group" tabindex="0" data-live-running>
+                <div class="tree-group" tabindex="0">
                   <svg class="tree-chev icon xs"><use href="#i-chevron-down"></use></svg>
                   <span class="g-type" style="color:var(--text-2)"><svg><use href="#i-flow"></use></svg>条件判断</span>
                   <span class="g-name">条件_0</span>
@@ -2620,16 +2620,23 @@
                     <span class="b-dot" style="background:var(--success)"></span><span class="b-name">分支 1 · OK</span><span class="b-count">1 个算子</span>
                   </div>
                   <div class="tree-children">
-                    <div class="tree-step is-running" data-live-running>
-                      <span class="step-status"><span class="status-dot run"></span></span>
-                      <div class="step-icon"><svg class="icon xs"><use href="#i-target"></use></svg></div>
-                      <div class="step-text"><span class="step-name">模板匹配_0</span><span class="step-type">模板匹配</span></div>
-                      <span class="step-time"><svg class="icon" style="width:10px;height:10px"><use href="#i-clock"></use></svg>128.4 ms</span>
+                    <div class="tree-step is-success">
+                      <span class="step-status"><span class="status-dot ok"></span></span>
+                      <div class="step-icon"><svg class="icon xs"><use href="#i-braces"></use></svg></div>
+                      <div class="step-text"><span class="step-name">变量赋值_0</span><span class="step-type">变量赋值</span></div>
+                      <span class="step-time"><svg class="icon" style="width:10px;height:10px"><use href="#i-clock"></use></svg>0.6 ms</span>
                     </div>
                   </div>
-                  <div class="tree-branch is-empty">
-                    <svg class="b-chev icon xs"><use href="#i-chevron-right"></use></svg>
-                    <span class="b-dot" style="background:var(--text-4)"></span><span class="b-name">分支 2 · Else</span><span class="b-empty">空分支</span>
+                  <div class="tree-branch">
+                    <svg class="b-chev icon xs"><use href="#i-chevron-down"></use></svg>
+                    <span class="b-dot"></span><span class="b-name">分支 2 · Else</span><span class="b-count">1 个算子</span>
+                  </div>
+                  <div class="tree-children">
+                    <div class="tree-step">
+                      <span class="step-status"><span class="status-dot"></span></span>
+                      <div class="step-icon"><svg class="icon xs"><use href="#i-warning"></use></svg></div>
+                      <div class="step-text"><span class="step-name">报警输出_0</span><span class="step-type">结果上报 · 报警</span></div>
+                    </div>
                   </div>
                 </div>
 
@@ -3176,17 +3183,12 @@
                             <span class="lane-count">1 个算子</span>
                           </div>
                         </div>
-                        <div class="flow-lane is-empty" style="left:268px;top:44px;width:240px;height:190px">
+                        <div class="flow-lane" style="left:268px;top:44px;width:240px;height:190px">
                           <div class="flow-lane-head">
                             <span class="lane-dot else"></span>
                             <span class="lane-name">分支 2</span>
                             <span class="lane-badge else">Else</span>
-                            <span class="lane-count">0 个算子</span>
-                          </div>
-                          <div class="flow-lane-empty">
-                            <svg class="icon" style="width:16px;height:16px"><use href="#i-plus"></use></svg>
-                            <span>空分支</span>
-                            <small>从流程栏拖入算子</small>
+                            <span class="lane-count">1 个算子</span>
                           </div>
                         </div>
                       </div>

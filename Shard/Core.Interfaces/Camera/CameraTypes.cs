@@ -2,6 +2,12 @@ namespace Core.Interfaces
 {
     /// <summary>
     /// 相机触发模式。
+    ///
+    /// ⚠ 本枚举是**本仓 C# 语义**，与 GenICam 节点的 TriggerMode 数值没有关系：
+    /// 本枚举的 0 是"软触发"，GenICam 节点的 0 是"触发关闭 / 连续采图"。
+    /// 驱动必须按成员语义映射，禁止按数值直接透传。
+    ///
+    /// 成员只允许往末尾追加：枚举按数值落盘，插删/改值会让旧方案静默变成另一种模式。
     /// </summary>
     public enum CameraTriggerMode
     {
@@ -12,7 +18,10 @@ namespace Core.Interfaces
         RisingEdge = 1,
 
         /// <summary>下降沿：外部信号下降沿触发</summary>
-        FallingEdge = 2
+        FallingEdge = 2,
+
+        /// <summary>连续采图（免触发）：相机自由出图，流程按自己的节奏消费</summary>
+        Continuous = 3
     }
 
     /// <summary>

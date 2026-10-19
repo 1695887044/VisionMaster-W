@@ -194,6 +194,8 @@ namespace IoChecks
                 shellWindow.Close();
                 Pump(120);
 
+                RunIoConfigSmoke(check);
+
                 // 不调 vm.CloseCommand：它走 Prism 的 RequestClose，
                 // 而这个冒烟没有 DialogService 初始化回调（会抛 InvalidOperationException）。
                 // 停表由 OnDialogClosed 负责，直接调它即可。
@@ -209,6 +211,87 @@ namespace IoChecks
             {
                 try { app?.Shutdown(); } catch { }
             }
+        }
+
+        /// <summary>
+        /// IO 设置弹窗冒烟：三栏卡片 + 点位表 + 空态。
+        /// <para>只验"结构渲染出来了"（卡片、列数、空态），业务逻辑在 Program.cs 的 U 段。</para>
+        /// </summary>
+        private static void RunIoConfigSmoke(Action<string, bool, string?> check)
+        {
+            // IO 设置用了 App 级的 Fluent 别名（DialogIconButton / Icon 字体），
+            // 断言宿主默认只合并 Generic.xaml，缺这一层会在解析期抛"找不到资源"。
+            if (Application.Current != null)
+            {
+                // 视图用了 App 级的 Icon 字体族（App.xaml 定义）；断言宿主没有 App.xaml，
+                // 这里补一个等价字体，避免解析期抛"找不到资源"。
+                if (Application.Current.Resources["Icon"] == null)
+                    Application.Current.Resources["Icon"] = new System.Windows.Media.FontFamily("Segoe MDL2 Assets");
+
+                try
+                {
+                    Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary
+                    {
+                        Source = new Uri("pack://application:,,,/UI;component/Themes/Fluent/FluentAliases.xaml")
+                    });
+                }
+                catch
+                {
+                    // 已合并过 / 该宿主不需要：忽略，让后面的断言给出真实结论。
+                }
+            }
+
+            var workspace = new WorkspaceContext();
+            workspace.SwitchSolution(new SolutionModel { SolutionId = Guid.NewGuid() });
+
+            var registry = new IoDriverRegistry();
+            var provider = new IoProvider(registry, new NullLogService());
+            var catalog = new IoVariableCatalog(workspace, provider, new NullLogService());
+            var vm = new IoConfigViewModel(workspace, provider, catalog, new SilentNotifier(), registry);
+            vm.OnDialogOpened(new Prism.Dialogs.DialogParameters());
+
+            var view = new IoConfigView { DataContext = vm };
+            var window = new Window
+            {
+                Left = -4400,
+                Top = -4000,
+                Width = 1180,
+                Height = 720,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.None,
+                ShowActivated = false
+            };
+            window.Content = view;
+            window.Show();
+            Pump(220);
+
+            check("IO 设置：视图可实例化并挂载", view.IsLoaded, view.IsLoaded.ToString());
+
+            var cardStyle = view.TryFindResource("DialogColumnCard");
+            int cards = CountDescendants<Border>(view, b => ReferenceEquals(b.Style, cardStyle));
+            check("IO 设置：三栏 + 属性共 4 张卡片", cards == 4, $"实际 {cards} 张");
+
+            var pointList = FindListViewByItemsSource(view, vm.FilteredPoints);
+            check("IO 设置：点位表已渲染", pointList != null,
+                pointList == null ? "按 ItemsSource 定位失败" : null);
+            check("IO 设置：点位表 5 列（点位/类型/地址/显示名/说明）",
+                pointList?.View is GridView grid && grid.Columns.Count == 5,
+                (pointList?.View as GridView)?.Columns.Count.ToString() ?? "非 GridView");
+
+            window.Close();
+            Pump(100);
+        }
+
+        private static int CountDescendants<T>(DependencyObject root, Func<T, bool> predicate) where T : DependencyObject
+        {
+            int count = 0;
+            if (root is T hit && predicate(hit)) count++;
+
+            int children = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < children; i++)
+                count += CountDescendants<T>(VisualTreeHelper.GetChild(root, i), predicate);
+
+            return count;
         }
 
         private static (IoHealthViewModel vm, IoProvider provider) BuildHealthViewModel()
@@ -295,6 +378,13 @@ namespace IoChecks
             };
             timer.Start();
             Dispatcher.PushFrame(frame);
+        }
+
+        private sealed class SilentNotifier : IUserNotifier
+        {
+            public void ShowInfo(string message) { }
+            public void ShowWarn(string message) { }
+            public void ShowError(string message) { }
         }
 
         private sealed class NullLogService : ILogService
