@@ -350,6 +350,70 @@ namespace Plugin.PreProcessing.Services
             finally { result.Dispose(); }
         }
 
+        /// <summary>
+        /// 灰度顶帽：原图 − 开运算，只保留被开运算清掉的**亮结构**（亮斑、毛刺、亮点）。
+        ///
+        /// 为什么用"开运算 + 减"而不是 GrayTophat：后者要传一个结构化元素区域（SE），
+        /// SE 的参考点/形状口径与 Rect 族不完全一致；这里复用已经实测过的 GrayOpeningRect，
+        /// 语义与 gray_tophat 等价，且与四个灰度形态学算子的"矩形模板 W×H"参数完全对齐。
+        /// </summary>
+        public static HImage GrayTopHat(HImage image, int width, int height)
+        {
+            HImage opened = GrayOpening(image, width, height);
+            try { return SubImage(image, opened); }
+            finally { opened.Dispose(); }
+        }
+
+        /// <summary>
+        /// 灰度黑帽：闭运算 − 原图，只保留被闭运算填掉的**暗结构**（暗点、裂纹、黑斑）。
+        /// 实现口径同 <see cref="GrayTopHat"/>（复用 GrayClosingRect）。
+        /// </summary>
+        public static HImage GrayBlackHat(HImage image, int width, int height)
+        {
+            HImage closed = GrayClosing(image, width, height);
+            try { return SubImage(closed, image); }
+            finally { closed.Dispose(); }
+        }
+
+        /// <summary>逐像素相减（mult=1, add=0）；byte 图负值会被 Halcon 截到 0，顶帽/黑帽本身非负，不受影响</summary>
+        private static HImage SubImage(HImage minuend, HImage subtrahend)
+        {
+            HObject result;
+            HOperatorSet.SubImage(minuend, subtrahend, out result, 1, 0);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        #endregion
+
+        #region 边缘检测
+
+        /// <summary>
+        /// Sobel 梯度幅值边缘图。filterType 只认 "sum_abs" / "sum"；
+        /// maskSize 合法值是 3/5/7/9/11（算子层已收敛为正奇数）。
+        /// </summary>
+        public static HImage SobelAmp(HImage image, SobelFilterType filterType, int maskSize)
+        {
+            string type = filterType == SobelFilterType.Sum ? "sum" : "sum_abs";
+            HObject result;
+            HOperatorSet.SobelAmp(image, out result, type, maskSize);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
+        /// <summary>
+        /// Laplace 二阶差分绝对边缘图。filterMask 只认 "n_4" / "n_8"；
+        /// maskSize 合法值是 3/5/7/9/11（算子层已收敛为正奇数）。
+        /// </summary>
+        public static HImage Laplace(HImage image, LaplaceFilterMask filterMask, int maskSize)
+        {
+            string mask = filterMask == LaplaceFilterMask.N8 ? "n_8" : "n_4";
+            HObject result;
+            HOperatorSet.Laplace(image, out result, "absolute", maskSize, mask);
+            try { return new HImage(result); }
+            finally { result.Dispose(); }
+        }
+
         #endregion
 
         #region 图像增强

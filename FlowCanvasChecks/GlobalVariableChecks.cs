@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Core.Interfaces.Io;
 using VisionMaster.Models;
 using VisionMaster.ViewModels.DialogViewModels;
 using static FlowCanvasChecks.Program;
@@ -30,6 +31,7 @@ namespace FlowCanvasChecks
         public static void Run()
         {
             RunFilterContract();
+            RunSystemSourceContract();
             RunElementEditContract();
             RunArrayBuildContract();
             RunDetailColumnWidthContract();
@@ -82,6 +84,85 @@ namespace FlowCanvasChecks
             Check("选中不存在的连接：什么都不显示（也不许漏子行）",
                 Names(mismatchedSource) == "",
                 "实际：" + Names(mismatchedSource));
+        }
+
+        // ==================================================================
+        //  ①b 来源树：系统变量（运动 / IO）必须是只读分区
+        // ==================================================================
+
+        /// <summary>
+        /// 系统变量与本地变量同住 <c>Workspace.GlobalVariables</c>，只靠"来源树 + 筛选"分层。
+        ///
+        /// 三条判据各对应一个真实后果：
+        /// ① 不单独分组 → 它们混在"本地变量"里，用户以为可以改初始值/删除；
+        /// ② 删除没有守卫 → 删掉后宿主下一次 Rebuild 又把它加回来（"删了又活"），
+        ///    而删的那一刻引用它的画面/流程已经断链；
+        /// ③ 初始值仍可编辑 → 写了也不回灌设备，纯假象。
+        /// </summary>
+        private static void RunSystemSourceContract()
+        {
+            Section("[G] 变量管理：系统变量（运动 / IO）只读分区");
+
+            var local = Root("Barcode", isNetwork: false, sourceLabel: "本地");
+            local.DataType = typeof(string);   // Root() 默认造数组节点；这里要标量才能验"初始值可编辑"
+            local.OriginalModel = new LocalVariableModel
+            {
+                VariableId = Guid.NewGuid(),
+                Name = "Barcode",
+                DataType = typeof(string)
+            };
+
+            var system = Root("System.Motion.X.Position", isNetwork: false, sourceLabel: "本地");
+            system.DataType = typeof(double);   // 标量：让"不可编辑"只能由系统身份解释，而不是数组类型
+            system.OriginalModel = new SystemVariableModel(
+                Guid.NewGuid(), "System.Motion.X.Position", typeof(double), "轴 X 位置（只读）");
+
+            var io = Root("System.Io.DEV.PT", isNetwork: false, sourceLabel: "本地");
+            io.DataType = typeof(bool);         // 同上：标量，排除"数组不可编辑"的干扰
+            io.OriginalModel = new IoInputVariableModel(
+                Guid.NewGuid(), "System.Io.DEV.PT", typeof(bool), NullIoProvider.Instance,
+                "DEV", "PT",
+                new Core.Interfaces.Io.IoPointDescriptor
+                {
+                    PointId = "PT",
+                    Kind = Core.Interfaces.Io.IoPointKind.DigitalInput,
+                    DataType = Core.Interfaces.Io.IoDataType.Bool,
+                    Address = "00001"
+                },
+                "IO 点（只读）");
+
+            var displayNodes = new List<VariableNode> { local, system, io };
+
+            Check("「本地变量」不再包含系统变量与 IO 变量",
+                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
+                    displayNodes, "Local", "")) == "Barcode",
+                "实际：" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Local", "")));
+
+            Check("「系统变量」只包含系统变量与 IO 变量（两者都在）",
+                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
+                    displayNodes, GlobalVariableManagerViewModel.SystemSourceKey, ""))
+                == "System.Motion.X.Position,System.Io.DEV.PT",
+                "实际：" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
+                    displayNodes, GlobalVariableManagerViewModel.SystemSourceKey, "")));
+
+            Check("系统变量节点标记为系统维护（删除/改名据此拦）", system.IsSystemOwned,
+                system.OriginalModel?.VariableType.ToString() ?? "(无模型)");
+            Check("IO 变量节点标记为系统维护", io.IsSystemOwned,
+                io.OriginalModel?.VariableType.ToString() ?? "(无模型)");
+            Check("本地变量节点不被误判为系统维护", !local.IsSystemOwned,
+                local.OriginalModel?.VariableType.ToString() ?? "(无模型)");
+
+            Check("系统变量的「初始值」不可编辑（写了也不会回灌设备）", !system.IsEditableNode,
+                $"IsEditableNode={system.IsEditableNode}");
+            Check("IO 变量的「初始值」不可编辑", !io.IsEditableNode,
+                $"IsEditableNode={io.IsEditableNode}");
+            Check("本地变量的「初始值」仍可编辑（没有误伤）", local.IsEditableNode,
+                $"IsEditableNode={local.IsEditableNode}");
+
+            Check("系统变量的「当前值」只读（走 IVariableDisplaySource）", system.IsValueReadOnly,
+                $"IsValueReadOnly={system.IsValueReadOnly}");
+            Check("IO 输入变量的「当前值」只读", io.IsValueReadOnly,
+                $"IsValueReadOnly={io.IsValueReadOnly}");
         }
 
         // ==================================================================

@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Core.Interfaces.Io;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -71,6 +72,11 @@ namespace VisionMaster.Services
         /// 真正可用的一份由流程引擎在构造上下文时注入（FlowEngineService.FlowInvoker）。
         /// </summary>
         public IFlowInvoker FlowInvoker { get; init; } = NullFlowInvoker.Instance;
+
+        /// <summary>
+        /// IO 设备仓库（方案级硬件资源）。默认 NullIoProvider，生产组合由流程引擎注入真实 provider。
+        /// </summary>
+        public IIoProvider Ios { get; init; } = NullIoProvider.Instance;
 
         /// <summary>
         /// 当前执行节点的ID（用于调试和追踪）

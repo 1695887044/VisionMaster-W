@@ -5,6 +5,7 @@ using Core.Interfaces;
 using Prism.Commands;
 using Prism.Mvvm;
 using VisionMaster.Services;
+using VisionMaster.ViewModels.DialogViewModels;
 
 namespace VisionMaster.ViewModels.DialogViewModels
 {
@@ -35,6 +36,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public MotionDescriptor Owner { get; }
 
         public event Action<MotionAxisMapRow>? DeleteRequested;
+
+        /// <summary>轴改名后把 SCADA 动作行上显示的旧轴名回填（宿主注入）。</summary>
+        public Action<Guid, string, string>? CascadeScada { get; set; }
 
         /// <summary>
         /// 逻辑轴名改成功了，携带 (旧名, 新名, 注册表给的说明)。
@@ -105,6 +109,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 var old = Mapping.LogicalName;
                 RaisePropertyChanged();
                 LogicalNameChanged?.Invoke(old, trimmed, result.Message);
+
+                // 轴改名的级联必须一路走到 SCADA 画面：动作表里的运动命令按 AxisId 寻址
+                // （所以不会断链），但行上显示的是轴名（"轴：X"）、轴面板的候选清单里也存着名字——
+                // 不回填就会一直显示旧名，用户看到只会怀疑改名没生效。
+                // 注册表的 Rename 只级联点位表与凸轮表，它刻意不认识 ScadaDocument
+                // （见 MotionAxisRegistry 的职责边界），所以这一跳由宿主在这里补。
+                // 级联内部自己挂 ScadaWriteGuard.Suspend（改名不是用户编辑，不进撤销栈）。
+                if (result.Binding is { } renamed)
+                    CascadeScada?.Invoke(renamed.AxisId, old, trimmed);
             }
         }
 
@@ -391,7 +404,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             foreach (var mapping in _selectedDescriptor.Axes)
             {
-                var row = new MotionAxisMapRow(mapping, _selectedDescriptor, _axes);
+                var row = new MotionAxisMapRow(mapping, _selectedDescriptor, _axes)
+                {
+                    CascadeScada = CascadeAxisRenameToScada
+                };
                 row.DeleteRequested += OnRowDeleteRequested;
                 row.LogicalNameChanged += OnRowLogicalNameChanged;
                 row.InvalidInput += OnRowInvalidInput;
@@ -434,6 +450,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// </summary>
         private void OnRowLogicalNameChanged(string oldName, string newName, string detail)
             => _shell.OnAxisLogicalNameChanged(oldName, newName, detail);
+
+        /// <summary>轴改名后刷新 SCADA 画面/动作里的显示名（按 AxisId 寻址，不改执行语义）。</summary>
+        private void CascadeAxisRenameToScada(Guid axisId, string oldName, string newName)
+        {
+            try { _workspace?.CurrentSolution?.Scada?.RefreshAxisReferences(axisId, oldName, newName); }
+            catch { /* 显示名回填失败不影响改名本身 */ }
+        }
 
         private void OnRowDeleteRequested(MotionAxisMapRow row)
         {

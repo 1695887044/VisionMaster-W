@@ -58,8 +58,6 @@ namespace UI.CustomControl
         /// <summary>懒加载：已构建内容的 Tab 集合，避免重复构建</summary>
         private readonly HashSet<TabItem> _builtTabs = new();
 
-        /// <summary>分组键 → TabItem 映射，供 RequireRefresh 精准重建单个 Tab</summary>
-        private Dictionary<string, TabItem> _tabByKey = new();
 
         /// <summary>
         /// 已挂上 SelectionChanged 的那个 TabControl 实例（挂在"实例"上，而不是用一个布尔标志）。
@@ -161,11 +159,20 @@ namespace UI.CustomControl
             UpdatePropertyGrid();
         }
 
-        /// <summary>重建整张表（外部也可调用：数据源结构变了但实例没换时）</summary>
-        public void UpdatePropertyGrid()
+        /// <summary>
+        /// 重建整张表（外部也可调用：数据源结构变了但实例没换时）。
+        /// <paramref name="preserveSelectedTab"/> = 按页签标题保住当前选中项：
+        /// 整表重建会换掉全部 TabItem 实例，不保就会跳回第一页。
+        /// </summary>
+        public void UpdatePropertyGrid(bool preserveSelectedTab = false)
         {
             if (BindingObject == null) return;
             if (GetTemplateChild("PART_TabControl") is not TabControl tabControl) return;
+
+            // 记下当前选中的页签标题：页签是懒加载的，跳走再跳回会让用户以为"改完就跳页了"
+            var previousHeader = preserveSelectedTab
+                ? (tabControl.SelectedItem as TabItem)?.Header as string
+                : null;
 
             // 每次重绘前先解绑上一轮挂的事件，防止内存泄漏
             _cleanupActions.Invoke();
@@ -173,17 +180,18 @@ namespace UI.CustomControl
 
             tabControl.Items.Clear();
             _builtTabs.Clear();
-            _tabByKey = new Dictionary<string, TabItem>();
 
             var properties = PropertyGridDefaults.GetVisibleProperties(BindingObject);
             if (properties.Count == 0) return;
 
             // 只建 Tab 头，内容懒加载（选中才构建），避免一次性物化所有 Tab 的全部行
+            TabItem? restoredTab = null;
             foreach (var group in GroupProperties(properties))
             {
                 var tabItem = new TabItem { Header = group.Key, Tag = group };
                 tabControl.Items.Add(tabItem);
-                _tabByKey[group.Key] = tabItem;
+                if (previousHeader != null && string.Equals(group.Key, previousHeader, StringComparison.Ordinal))
+                    restoredTab = tabItem;
             }
 
             // 事件按"实例"挂：模板被换过时 TabControl 是新对象，必须重新挂（见 _hookedTabControl 的注释）
@@ -196,7 +204,10 @@ namespace UI.CustomControl
                 _hookedTabControl = tabControl;
             }
 
-            if (tabControl.Items.Count > 0 && tabControl.SelectedIndex == -1)
+            // 恢复原选中页签；找不到（该分组整体消失）才落回第一页
+            if (restoredTab != null)
+                tabControl.SelectedItem = restoredTab;
+            else if (tabControl.Items.Count > 0 && tabControl.SelectedIndex == -1)
                 tabControl.SelectedIndex = 0;
 
             // 兜底：事件若未触发也确保选中 Tab 有内容
@@ -216,25 +227,6 @@ namespace UI.CustomControl
             if (tabControl.SelectedItem is not TabItem tabItem) return;
             if (tabItem.Tag is IGrouping<string, PropertyInfo> group && !_builtTabs.Contains(tabItem))
             {
-                BuildTabContent(tabItem, group);
-                _builtTabs.Add(tabItem);
-            }
-        }
-
-        /// <summary>
-        /// 精准刷新：只重建某个属性所属的 Tab，而不是整张表。
-        /// 用于 <see cref="SuperDisplayAttribute.RequireRefresh"/> 触发的多态切换等场景。
-        /// </summary>
-        private void RebuildTabForProperty(string propertyName)
-        {
-            var prop = BindingObject?.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
-            if (prop == null) return;
-
-            var key = PropertyGridDefaults.GroupSegment(prop, 0);
-            if (_tabByKey.TryGetValue(key, out var tabItem)
-                && tabItem.Tag is IGrouping<string, PropertyInfo> group)
-            {
-                tabItem.Content = null;
                 BuildTabContent(tabItem, group);
                 _builtTabs.Add(tabItem);
             }
@@ -266,9 +258,15 @@ namespace UI.CustomControl
         /// <summary>
         /// 属性变更 → 按需整表重绘。
         ///
-        /// ★ 只有标记了 RequireRefresh = true 的属性才触发（多态切换那种"换了一个字段，
-        ///   整张表都要重建"的场景）；普通属性走 WPF 绑定自己更新，不必重建 ——
-        ///   否则用户每敲一个字就整表重绘一次，输入焦点会被抢走。
+        /// 【口径已定】<see cref="SuperDisplayAttribute.RequireRefresh"/> = **整表重建**，
+        /// 不是"只重建该属性所在的页签"。曾经为省一次物化改成按属性分组精准重建，
+        /// 结果多态属性与它驱动的那个子对象不在同一个页签时（典型：
+        /// <c>CommunicationConfig.Protocol</c> 在「基本设置」、它换掉的 <c>Config</c> 在「链路配置」）
+        /// 被驱动的那个页签**永远不会重建** → 用户把 ModbusRtu 选上了，界面上仍是 IP/端口。
+        /// 更隐蔽的是它不会自愈：旧页签仍躺在 _builtTabs 里，来回切页签也不会重走懒构建。
+        /// 语义上 RequireRefresh 本来就是"整张表可能换形"，只有整表重建盖得住它。
+        ///
+        /// ★ 普通属性不触发（走 WPF 绑定自己更新）：否则每敲一个字就整表重绘，输入焦点会被抢走。
         ///
         /// ★ 线程兜底（**必须**）：这里是直接订阅 INotifyPropertyChanged，不是绑定引擎，
         ///   事件在**属性变更源线程**上执行（连接线程 / 轮询线程 / 流程引擎线程都可能）。
@@ -302,8 +300,8 @@ namespace UI.CustomControl
             {
                 try
                 {
-                    // 只重建该属性所属的 Tab，而非整张表（其余 Tab 的选中态/滚动位置得以保留）
-                    RebuildTabForProperty(e.PropertyName);
+                    // 整表重建：多态切换可能换掉任意页签里的嵌套对象，只重建触发者那一页会漏
+                    UpdatePropertyGrid(preserveSelectedTab: true);
                 }
                 finally
                 {

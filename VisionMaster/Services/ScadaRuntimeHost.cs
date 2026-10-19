@@ -97,6 +97,12 @@ namespace VisionMaster.Services
         private readonly IScadaValueWriter _valueWriter;
 
         /// <summary>
+        /// 轴控台「示教/定位」的二次确认出口。无窗口宿主（断言/离线）返回 false，
+        /// 图元侧会把"需要确认但确认不了"如实拒绝，而不是静默跳过确认。
+        /// </summary>
+        private readonly IScadaConfirmationService _confirmations = new ScadaConfirmationService();
+
+        /// <summary>
         /// 软件级配置（AppConfig.json）。这里只用它两件事：读"运行窗口该长什么样"
         /// （<c>RunWindowMode</c>）和"该落在哪块屏"（<c>RunWindowMonitor</c>）。
         /// 每次 <see cref="Start"/> 现读 <c>Current</c>，所以「系统 → 运行窗口设置」改完立刻生效，
@@ -207,6 +213,12 @@ namespace VisionMaster.Services
         /// </summary>
         private readonly IScadaAxisSource? _axisSource;
 
+        /// <summary>
+        /// 本轮的轴命令出口（单例）。与 <see cref="_axisSource"/> 成对注入：
+        /// 读方向与写方向走同一个执行器，门禁/看门狗只有一份。
+        /// </summary>
+        private readonly IScadaAxisCommandSink? _axisCommands;
+
         public ScadaRuntimeHost(
             ILogService log,
             IUserNotifier notifier,
@@ -218,7 +230,8 @@ namespace VisionMaster.Services
             IScadaAccessPolicy accessPolicy,
             ScadaAuditWriter audit,
             AppSettingsService appSettings,
-            IScadaAxisSource? axisSource = null)
+            IScadaAxisSource? axisSource = null,
+            IScadaAxisCommandSink? axisCommands = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -230,6 +243,7 @@ namespace VisionMaster.Services
             _audit = audit ?? throw new ArgumentNullException(nameof(audit));
             _appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
             _axisSource = axisSource;
+            _axisCommands = axisCommands;
             _onScadaEvent = OnScadaEvent;
 
             // 三个都是单例，这条订阅不会把谁钉住（不存在"宿主早于工作区被回收"的情况），
@@ -486,7 +500,7 @@ namespace VisionMaster.Services
             // 够不着会话（_accessPolicy 在本类里，图元不认识本类）。它与写通道同一时机进出，
             // 且会话对象是活的——"此刻是谁"由它每次现问，登录/登出立刻生效。
             window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, _valueWriter, _accessPolicy, _axisSource);
+                engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations);
 
             engine.Attach();
             beat.Start();

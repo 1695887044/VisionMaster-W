@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 
 namespace Core.Interfaces
 {
@@ -361,6 +362,11 @@ namespace Core.Interfaces
             using var cmd = new MotionCommand
             {
                 Kind = MotionCommandKind.ClearAlarm,
+                // -1 = 全部轴：这是"卡级清报警"API 的既有语义（报警是轴级的，
+                // 而这个方法不知道该清哪根轴，所以把整卡清一遍）。
+                // 需要只清某根轴时走 Enqueue(new MotionCommand { Kind = ClearAlarm, PhysicalAxis = n })，
+                // 驱动必须尊重 PhysicalAxis（见 ZMotionCard / VirtualMotionCard 的实现）。
+                PhysicalAxis = -1,
                 WaitsForCompletion = true,
                 Retryable = false,   // 清报警失败多半是"报警原因还在"，盲目重试没意义
                 Timeout = TimeSpan.FromMilliseconds(Params.CommandTimeoutMs),
@@ -584,6 +590,16 @@ namespace Core.Interfaces
                 if (_state == MotionCardState.Online || _state == MotionCardState.Alarm) return MotionCommandResult.Accepted;
                 reason = _state == MotionCardState.Closed ? "运动卡未连接" : "当前状态不允许清除报警";
                 return MotionCommandResult.Rejected_NotConnected;
+            }
+
+            // 停止 / 失能是安全动作：报警态与安全停机态也允许。
+            // 报警态下轴可能还在走，把停止挡在门禁后面等于"越危险越不发"；
+            // 安全停机态是基类已经安全停过一次、但操作员仍可能想再停一次。
+            // 未连接 / 正在连接仍按下面的通用分支拒绝（命令线程不在跑，收下也执行不了）。
+            if (command.Kind is MotionCommandKind.Stop or MotionCommandKind.Disable
+                && _state is MotionCardState.Alarm or MotionCardState.SafeStopped)
+            {
+                return MotionCommandResult.Accepted;
             }
 
             // 其余命令一律要求"在线且能动"
@@ -820,6 +836,22 @@ namespace Core.Interfaces
             if (outcome == MotionCommandOutcome.Done && command.Kind == MotionCommandKind.Home)
                 MarkHomed(true);
 
+            // 清报警成功后，把该轴的"上次已报过的致命信号"去重记录一起摘掉。
+            //
+            // 为什么必须摘：报警信号消失后，轮询末尾的清理逻辑会摘；但如果用户在
+            // "清完立刻又报"的窗口里再次触发同一个报警（同一句 AlarmMessage），
+            // 去重表里那条旧记录会让新一轮报警被 `continue` 掉 —— 状态机停在 Online，
+            // 而轴其实已经报警。现场表现就是"报警灯亮了、但门禁还放行"。
+            // 单轴清只摘那一根；-1（卡级清）摘整表。
+            if (outcome == MotionCommandOutcome.Done && command.Kind == MotionCommandKind.ClearAlarm)
+            {
+                lock (_gate)
+                {
+                    if (command.PhysicalAxis < 0) _lastCriticalByAxis.Clear();
+                    else _lastCriticalByAxis.Remove(command.PhysicalAxis);
+                }
+            }
+
             CompleteCommand(command, finalState, error);
 
             if (outcome == MotionCommandOutcome.Done) return;
@@ -977,15 +1009,37 @@ namespace Core.Interfaces
             // 信号恢复后清掉去重记录，让下次再触发还能报出来
             lock (_gate)
             {
-                if (_lastCriticalByAxis.Count == 0) return;
-                var healthy = new List<int>();
-                foreach (var kv in _lastCriticalByAxis)
+                if (_lastCriticalByAxis.Count > 0)
                 {
-                    if (!_axisCache.TryGetValue(kv.Key, out var s) || !s.HasCriticalSignal)
-                        healthy.Add(kv.Key);
+                    var healthy = new List<int>();
+                    foreach (var kv in _lastCriticalByAxis)
+                    {
+                        if (!_axisCache.TryGetValue(kv.Key, out var s) || !s.HasCriticalSignal)
+                            healthy.Add(kv.Key);
+                    }
+                    foreach (var index in healthy) _lastCriticalByAxis.Remove(index);
                 }
-                foreach (var index in healthy) _lastCriticalByAxis.Remove(index);
             }
+
+            // 报警位全部消失 → 从 Alarm 回到 Online。
+            //
+            // 这是"清报警真的生效"的唯一可靠判据：ClearAlarm 命令返回只代表驱动
+            // 接受了清除请求，报警位有没有真的落下要看**下一拍轮询**。
+            // 而且清报警可能是单轴的（轴控台/动作表按 PhysicalAxis 下发），
+            // 只有轮询线程拿得到"所有轴"的最新状态 —— 命令线程只认识被清的那一根，
+            // 在那里直接置 Online 会把"另一根还在报警"的卡误放行。
+            bool backOnline = false;
+            lock (_gate)
+            {
+                if (_state == MotionCardState.Alarm
+                    && _axisCache.Count > 0
+                    && _axisCache.Values.All(s => !s.HasCriticalSignal))
+                {
+                    backOnline = SetStateLocked(MotionCardState.Online, "报警已清除");
+                }
+            }
+
+            if (backOnline) RaiseStateChanged();
         }
 
         private void DetectWatchdog()

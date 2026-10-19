@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Core.Interfaces.Io;
 using Newtonsoft.Json;
 using UI.Attributes;
 using UI.Icons;
@@ -112,10 +113,24 @@ namespace VisionMaster.Models
             };
 
         /// <summary>
+        /// 方案稳定身份：用于 IO 变量的确定性 Id，避免跨方案碰撞。
+        /// 新建方案生成一次，另存为/复制保留。
+        /// </summary>
+        public Guid SolutionId { get; set; } = Guid.NewGuid();
+
+        /// <summary>
         /// 通讯配置集合（跟着解决方案走）
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<Communications.CommunicationConfig> CommunicationConfigs { get; set; } = new();
+
+        /// <summary>IO 总线配置（跟着方案走）。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<IoBusDescriptor> IoBuses { get; set; } = new();
+
+        /// <summary>IO 设备/点位配置（跟着方案走）。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<IoDeviceDescriptor> IoDevices { get; set; } = new();
 
         /// <summary>
         /// 相机配置集合（跟着解决方案走）。

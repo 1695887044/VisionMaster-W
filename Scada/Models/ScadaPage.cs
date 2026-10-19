@@ -2041,6 +2041,35 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 轴改名后的引用刷新：递归到每个图元的钩子（运动命令动作行上的轴名）。
+        /// 口径与 <see cref="RefreshVariableReferences"/> 一致：返回被改动的条数，0 = 与本画面无关。
+        /// </summary>
+        public int RefreshAxisReferences(Guid axisId, string? oldName, string newName)
+        {
+            int changed = 0;
+
+            foreach (var element in _elements)
+            {
+                if (element == null)
+                    continue;
+
+                foreach (var hook in element.EventHooks)
+                {
+                    if (hook != null)
+                        changed += hook.RefreshAxisReferences(axisId, oldName, newName);
+                }
+            }
+
+            foreach (var hook in _eventHooks)
+            {
+                if (hook != null)
+                    changed += hook.RefreshAxisReferences(axisId, oldName, newName);
+            }
+
+            return changed;
+        }
+
+        /// <summary>
         /// 补发缺失的稳定身份（旧数据迁移）。返回补发的条数。
         ///
         /// 与 S0-a 给变量补发 Id、SolutionService 里 NormalizeBranchTypes 同属一类：

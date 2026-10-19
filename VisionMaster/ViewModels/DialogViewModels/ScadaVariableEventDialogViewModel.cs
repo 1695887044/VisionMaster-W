@@ -383,7 +383,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _rows.Clear();
 
             var variables = new List<IVariable>();
-            foreach (var variable in _workspace.GlobalVariables)
+            foreach (var variable in _workspace.GlobalVariables.Concat(_workspace.SystemVariables))
             {
                 if (variable != null)
                     variables.Add(variable);

@@ -60,6 +60,7 @@
         <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.List.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.DataGrid.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Misc.xaml" />
+        <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Navigation.xaml" />
 
         <!--
             ============ 最后一层：旧键转发 ============

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Core.Interfaces;
@@ -36,10 +37,10 @@ namespace VisionMaster.Binding
     /// 内部用"整表构造 + 引用交换"：读方拿到的永远是一份完整、此后不再被改动的表，
     /// 只有 <see cref="Variables"/> 集合本身在拓扑变化时才被改写（不是每拍）。
     /// </summary>
-    public sealed class SystemVariableCatalog
+    public sealed class SystemVariableCatalog : ISystemVariableProvider
     {
-        /// <summary>系统变量名保留前缀。用户变量的新建/改名据此拒绝，避免与派生量撞名</summary>
-        public const string NamePrefix = "Motion.";
+        /// <summary>系统变量顶层保留前缀。用户变量的新建/改名据此拒绝，避免与派生量撞名。</summary>
+        public const string NamePrefix = "System.";
 
         /// <summary>确定性身份的命名空间前缀（把"系统变量"与将来其它确定性 Guid 隔开）</summary>
         private const string IdKeyPrefix = "motion-var";
@@ -102,11 +103,38 @@ namespace VisionMaster.Binding
         /// 投影全部写进一个没人读的孤儿集合，而且**不报任何错**（表现是"系统变量一个都查不到"）。
         /// 收工作区就没有这个可能：它一定解析得到，且一定是注册表挂的那一份。
         /// </param>
-        public SystemVariableCatalog(IWorkspaceManager workspace)
+        /// <param name="registry">
+        /// 变量解析索引（可选）。给了它，轴改名之后才会去修名字索引——
+        /// 系统变量的名字是派生量，改名时集合不增不减，光靠 <c>CollectionChanged</c>
+        /// 永远走不到（详见 <see cref="RefreshRegistryNames"/>）。
+        /// 不给也能用，只是改名后要等下一次增删轴才会重扫。
+        /// </param>
+        public SystemVariableCatalog(IWorkspaceManager workspace, IVariableRegistry? registry = null)
         {
             if (workspace == null) throw new ArgumentNullException(nameof(workspace));
             Variables = workspace.SystemVariables;
+            _registry = registry;
         }
+
+        private SystemVariableHost? _host;
+
+        /// <summary>接到统一宿主：接上之后本目录不再直接写集合，只产快照并通知 Host 刷新。</summary>
+        public void AttachToHost(SystemVariableHost host)
+        {
+            _host = host;
+            if (host == null) return;
+            host.Register(this);
+        }
+
+        /// <summary>
+        /// 变量解析索引（可为 null）。
+        ///
+        /// 为什么目录要攥着注册表：名字索引在注册表里（<c>_systemByName</c>），
+        /// 而"轴改名"这个事实只有目录知道（它比对得上一次的名字）。
+        /// 让注册表反过来订阅每个模型的名字变更，等于给几百个模型各挂一个处理器；
+        /// 由目录在"确实改了名"那一刻喊一声，代价只有一次全表重扫。
+        /// </summary>
+        private readonly IVariableRegistry? _registry;
 
         /// <summary>
         /// 系统变量集合（与 <c>IWorkspaceManager.SystemVariables</c> 是同一个实例）。
@@ -118,6 +146,11 @@ namespace VisionMaster.Binding
         /// 常驻界面请绑模型（<see cref="TryGet(Guid, out SystemVariableModel)"/> 取到的那一个）。
         /// </summary>
         public ObservableCollection<IVariable> Variables { get; }
+
+        /// <summary>提供方名字（SystemVariableHost 诊断用）</summary>
+        public string Name => "Motion";
+
+        /// <summary>提供方快照：运动轴状态投影（不可变，换表时整份替换）。</summary>
 
         /// <summary>
         /// 按轴表重建投影（幂等、便宜：没变化时一次比较就返回）。
@@ -150,12 +183,14 @@ namespace VisionMaster.Binding
             desired.Sort((a, b) => string.Compare(a.Binding.Name, b.Binding.Name, StringComparison.OrdinalIgnoreCase));
 
             Dictionary<(Guid, string), SystemVariableModel> previous;
+            Dictionary<Guid, string> previousAxisNames;
             lock (_gate)
             {
                 if (IsUpToDateLocked(desired))
                     return;
 
                 previous = _models;
+                previousAxisNames = _axisNames;
             }
 
             var models = new Dictionary<(Guid, string), SystemVariableModel>(desired.Count * Fields.Length);
@@ -164,28 +199,44 @@ namespace VisionMaster.Binding
             var axisNames = new Dictionary<Guid, string>(desired.Count);
             var ordered = new List<IVariable>(desired.Count * Fields.Length);
 
+            // ★ 有没有**改名**（不是增删）：实例复用只改模型上的 Name，集合不增不减 →
+            //   一个 CollectionChanged 都不会发。变量注册表的名字索引就会永久停在旧名上
+            //   （新名查不到、旧名一直命中，且"名字已一致"会让后续重建被短路，不会自愈）。
+            //   所以这里必须单独记账，重建完主动让注册表重扫一次系统名表。
+            bool renamed = false;
+
             foreach (var (axisId, binding) in desired)
             {
                 var axisName = NormalizeAxisName(binding.Name);
-                axisNames[axisId] = axisName;
 
+                if (previousAxisNames.TryGetValue(axisId, out var previousName)
+                    && !string.Equals(previousName, axisName, StringComparison.Ordinal))
+                {
+                    renamed = true;
+                }
+
+                axisNames[axisId] = axisName;
                 foreach (var field in Fields)
                 {
                     var key = (axisId, field.Key);
                     var variableId = ComputeVariableId(axisId, field.Key);
+                    var newName = BuildName(axisName, field.Key);
 
                     // ★ 实例复用：同一轴同一字段的模型必须沿用原对象，否则订阅方全部失联
                     if (previous.TryGetValue(key, out var model))
                     {
                         // 轴改名 → 变量名与说明跟着变（Id 不变）
-                        model.UpdateName(BuildName(axisName, field.Key));
+                        if (!string.Equals(model.Name, newName, StringComparison.Ordinal))
+                            renamed = true;
+
+                        model.UpdateName(newName);
                         model.UpdateDescription(BuildDescription(axisName, field.Label));
                     }
                     else
                     {
                         model = new SystemVariableModel(
                             variableId,
-                            BuildName(axisName, field.Key),
+                            newName,
                             field.DataType,
                             BuildDescription(axisName, field.Label));
                     }
@@ -209,7 +260,43 @@ namespace VisionMaster.Binding
 
             // 集合改写放在锁外：它会同步回调订阅方（变量注册表按增量维护索引），
             // 持着本类的锁执行等于把两把锁串成一条链。
-            ApplyToCollection(ordered);
+            if (_host != null)
+            {
+                // 托管模式：集合由 SystemVariableHost 统一合并（运动 + IO + 未来来源）。
+                // 目录自己不再碰集合，只通知宿主刷新——否则会与 IO 目录抢同一个集合。
+                RaiseChanged();
+            }
+            else
+            {
+                ApplyToCollection(ordered);
+            }
+
+            // 改名之后要修名字索引。顺序在 ApplyToCollection 之后：那一步可能触发
+            // Add/Remove 增量，增量按**当前** Name 建键（已经是新名），再重扫一次是幂等的。
+            if (renamed)
+                RefreshRegistryNames();
+        }
+
+        /// <summary>
+        /// 轴改名后修一次变量注册表的名字索引（没接注册表时是空操作）。
+        ///
+        /// 与 <see cref="Variables"/> 的集合事件分工：集合事件负责"谁在库里"（增删），
+        /// 这里负责"叫什么名字"（派生名变化）。两者都不能少：
+        /// 少了前者，新轴的变量永远查不到；少了后者，改名的轴永远只能用旧名查。
+        /// </summary>
+        private void RefreshRegistryNames()
+        {
+            try
+            {
+                _registry?.RefreshSystemNames();
+            }
+            catch (Exception ex)
+            {
+                // 名字索引修不好不该让发布器线程挂掉：值还在写、按 Id 寻址照常，
+                // 只有"按新名查找"这一条路暂时失效。记一行，下一拍改名判定会再次触发重试。
+                System.Diagnostics.Debug.WriteLine(
+                    $"[SystemVariableCatalog] 轴改名后刷新系统变量名索引失败：{ex.Message}");
+            }
         }
 
         /// <summary>
@@ -223,23 +310,21 @@ namespace VisionMaster.Binding
         {
             var target = new HashSet<IVariable>(ordered);
 
-            // ① 摘掉不在新投影里的（从后往前删，索引才不会错位）
+            // ① 只摘掉“运动系统变量”里不在新投影中的；IO/其它来源的变量由各自目录管理，
+            //    这里不能碰（否则改一次运动卡设置就会把 IO 变量全删光）。
             for (var i = Variables.Count - 1; i >= 0; i--)
             {
-                if (!target.Contains(Variables[i]))
+                if (Variables[i] is SystemVariableModel && !target.Contains(Variables[i]))
                     Variables.RemoveAt(i);
             }
 
             // ② 按目标顺序就位：缺的插入、错位的移动
             for (var i = 0; i < ordered.Count; i++)
             {
-                if (i < Variables.Count && ReferenceEquals(Variables[i], ordered[i]))
-                    continue;
-
                 var current = Variables.IndexOf(ordered[i]);
                 if (current < 0)
-                    Variables.Insert(i, ordered[i]);
-                else
+                    Variables.Insert(Math.Min(i, Variables.Count), ordered[i]);
+                else if (current != i)
                     Variables.Move(current, i);
             }
         }
@@ -343,7 +428,7 @@ namespace VisionMaster.Binding
         }
 
         /// <summary>变量名：<c>Motion.{轴名}.{字段}</c>（轴名里的点原样保留——本目录从不按点拆名字）</summary>
-        private static string BuildName(string axisName, string field) => $"{NamePrefix}{axisName}.{field}";
+        private static string BuildName(string axisName, string field) => $"{NamePrefix}Motion.{axisName}.{field}";
 
         private static string BuildDescription(string axisName, string label)
             => $"运动轴 {axisName} 的{label}（只读系统变量）";
@@ -363,6 +448,11 @@ namespace VisionMaster.Binding
                 return _ordered;
         }
 
+        /// <summary>事件：投影变化（新增/删除/改名）。SystemVariableHost 订阅后统一刷新集合。</summary>
+        public event EventHandler? Changed;
+
+        private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
+
         /// <summary>
         /// 拓扑与名字都没变 → 直接返回（100ms 一拍，绝不能每拍都清空重建集合）。
         /// 判据是"实例、顺序、数量"三者全同：只比名字会漏掉"轴被删了又加回来"这类换了对象的场景。
@@ -375,7 +465,8 @@ namespace VisionMaster.Binding
 
             // 集合被外部动过（测试里 Clear、或另一份目录实例改写）时也必须重建：
             // 只比内部表会让"集合空了但目录认为一切正常"永远自愈不了。
-            if (Variables.Count != _ordered.Count) return false;
+            // 只数运动系统变量：集合里还可能挂着 IO 变量（由 IoVariableCatalog 管理）。
+            if (Variables.OfType<SystemVariableModel>().Count() != _ordered.Count) return false;
 
             int index = 0;
             foreach (var (axisId, binding) in desired)

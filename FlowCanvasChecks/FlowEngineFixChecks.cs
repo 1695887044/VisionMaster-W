@@ -205,6 +205,8 @@ namespace FlowCanvasChecks
         /// 编译都照过，只是启动又慢回去（或者通讯再也不被检测）。所以五条断言逐个钉住：
         /// ①链上不许有它 ②OnInitialized 必须真的跑一次 ③OnExit 必须叫停 ④它仍全 Warning
         /// （前提一旦变成 Error 就该回链上）⑤其余五项不许被顺手一起删。
+        /// ⑥（2026-10-19 补）遍历连接前必须取持锁快照（GetAllConnections）——
+        /// 后台自检与方案装配并发，直接遍历活动集合会抛「Collection was modified」。
         /// </summary>
         private static void CommunicationCheckRunsAfterShell()
         {
@@ -242,6 +244,19 @@ namespace FlowCanvasChecks
             int registered = app.Split(new[] { "RegisterCheck(" }, StringSplitOptions.None).Length - 1;
             Check("其余启动自检项没被顺手删掉（链上仍有 4 项注册）",
                 registered == 4, $"RegisterCheck( 出现 {registered} 次（含 _singleInstance 那一次）");
+
+            // ⑥ 挪到后台带来的竞态：方案装配会在同一时段增删连接，
+            //    直接遍历活动集合必现「Collection was modified; enumeration operation may not execute」
+            //    （2026-10-19 真机日志实测命中）。
+            //    必须用 GetAllConnections()——它在 _connectionsListLock 内 ToList；
+            //    旧写法只是绕开枚举器版本检查，没持锁，仍会读到撕裂快照。
+            //    判据先去掉注释：说明文字里会提到被禁的旧写法，不去注释会误判成"仍残留"。
+            string checkCode = StripComments(check);
+            Check("后台自检遍历前取持锁快照（GetAllConnections），不遍历活动集合",
+                checkCode.Contains("GetAllConnections()") && !checkCode.Contains("ConnectionsList.ToList()"),
+                !checkCode.Contains("GetAllConnections()")
+                    ? "未使用 GetAllConnections：并发增删时会读到撕裂快照"
+                    : (checkCode.Contains("ConnectionsList.ToList()") ? "仍残留 ConnectionsList.ToList()" : "已取持锁快照"));
         }
 
         // ==================================================================
@@ -296,6 +311,24 @@ namespace FlowCanvasChecks
                 else if (source[i] == '}' && --depth == 0) return source.Substring(open, i - open + 1);
             }
             return source.Substring(open);
+        }
+
+        /// <summary>
+        /// 去掉 C# 注释。
+        /// <para>静态断言扫的是"代码里还残留什么写法"，而说明性注释里往往**必须**提到被禁的旧写法
+        /// （否则后来者不知道为什么不许用）。不去注释就会把"解释为什么禁止"误判成"仍在违规"。</para>
+        /// </summary>
+        private static string StripComments(string source)
+        {
+            if (string.IsNullOrEmpty(source)) return source ?? "";
+
+            var noBlock = System.Text.RegularExpressions.Regex.Replace(
+                source, @"/\*.*?\*/", string.Empty,
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+
+            return System.Text.RegularExpressions.Regex.Replace(
+                noBlock, @"//[^\r\n]*", string.Empty,
+                System.Text.RegularExpressions.RegexOptions.Multiline);
         }
 
         /// <summary>超时按 Warning 放行的慢自检项（模拟插件扫描）</summary>

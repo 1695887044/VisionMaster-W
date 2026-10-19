@@ -66,7 +66,9 @@ namespace VisionMaster.ViewModels
 
         public ScadaToolboxViewModel()
         {
-            _all = ElementRegistry.All;
+            // ShowInToolbox=false 的是"旧 TypeKey 兼容别名"：注册表里必须留（老方案要能打开），
+            // 但工具箱不该再让新用户拖出来一个已被合并/替代的控件。
+            _all = ElementRegistry.All.Where(d => d.ShowInToolbox).ToArray();
             Groups = BuildGroups(_all);
             TotalCount = _all.Count;
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Newtonsoft.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace VisionMaster.Core
@@ -14,6 +15,25 @@ namespace VisionMaster.Core
     public static class AuditLogger
     {
         private static readonly BlockingQueue<AuditLogEntry> _logQueue = new(10000);
+
+        /// <summary>
+        /// 内存中的审计条目（最近 N 条）。供断言/诊断读取——
+        /// 落盘是后台线程异步写的，测试与界面不能去"等文件出现"。
+        /// </summary>
+        private static readonly System.Collections.Concurrent.ConcurrentQueue<AuditLogEntry> _recent = new();
+        private const int RecentCapacity = 2000;
+        private static int _recentCount;
+
+        /// <summary>最近的审计条目（新→旧），只读快照。</summary>
+        public static IReadOnlyList<AuditLogEntry> RecentEntries =>
+            _recent.Reverse().ToList();
+
+        /// <summary>清空内存审计条目（仅测试/诊断用）。</summary>
+        public static void ClearRecentForTests()
+        {
+            while (_recent.TryDequeue(out _)) { }
+            Interlocked.Exchange(ref _recentCount, 0);
+        }
         private static readonly Thread _writeThread;
         private static readonly string _logPath;
         private static string _currentLogFile;
@@ -72,6 +92,18 @@ namespace VisionMaster.Core
             };
 
             _logQueue.Enqueue(entry);
+            Remember(entry);
+        }
+
+        /// <summary>把条目放进内存环形队列（容量上限，超出丢最旧）。</summary>
+        private static void Remember(AuditLogEntry entry)
+        {
+            _recent.Enqueue(entry);
+            if (Interlocked.Increment(ref _recentCount) <= RecentCapacity) return;
+
+            // 超出容量：丢最旧一条
+            if (_recent.TryDequeue(out _))
+                Interlocked.Decrement(ref _recentCount);
         }
 
         /// <summary>

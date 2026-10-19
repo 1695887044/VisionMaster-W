@@ -71,5 +71,60 @@ namespace VisionMaster.Scada.Controls
 
             return result.Count == 0 ? Array.Empty<ElementPropertyDescriptor>() : result.ToArray();
         }
+
+        /// <summary>
+        /// 复制一组描述符并替换其中若干条的**默认值**（返回新数组，不改缓存里的实例）。
+        ///
+        /// 为什么需要它：同一个控件类可以以不同"预设"注册成多个 TypeKey
+        /// （例如轴控台 / 轴面板 / 轴点位表共用 <c>AxisPanelElement</c>，只差
+        /// <c>ShowPoints</c> / <c>ShowCommands</c> 的默认值）。而 <c>[ScadaProperty]</c>
+        /// 的默认值写在控件类上，只有一份——不覆盖的话，三个 TypeKey 会得到同一套默认值。
+        ///
+        /// 只换 <see cref="ElementPropertyDescriptor.DefaultValue"/>，其余（Key / 显示名 /
+        /// 目标依赖属性 / 可绑性）一律沿用：默认值是"这个预设长什么样"，键与落点是类型契约。
+        /// </summary>
+        public static IReadOnlyList<ElementPropertyDescriptor> WithDefaults(
+            IReadOnlyList<ElementPropertyDescriptor> source,
+            params (string Key, string Value)[] defaults)
+        {
+            if (source is null || source.Count == 0 || defaults is null || defaults.Length == 0)
+                return source ?? Array.Empty<ElementPropertyDescriptor>();
+
+            var result = new ElementPropertyDescriptor[source.Count];
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                var descriptor = source[i];
+                string? replacement = null;
+
+                foreach (var (key, value) in defaults)
+                {
+                    if (string.Equals(descriptor.Key, key, StringComparison.Ordinal))
+                    {
+                        replacement = value;
+                        break;
+                    }
+                }
+
+                result[i] = replacement is null
+                    ? descriptor
+                    : new ElementPropertyDescriptor
+                    {
+                        Key = descriptor.Key,
+                        DisplayName = descriptor.DisplayName,
+                        Kind = descriptor.Kind,
+                        DefaultValue = replacement,
+                        Group = descriptor.Group,
+                        Description = descriptor.Description,
+                        IsBindable = descriptor.IsBindable,
+                        Min = descriptor.Min,
+                        Max = descriptor.Max,
+                        Choices = descriptor.Choices,
+                        TargetProperty = descriptor.TargetProperty,
+                    };
+            }
+
+            return result;
+        }
     }
 }

@@ -440,17 +440,52 @@ namespace VisionMaster.Scada.Controls
 
             new()
             {
+                TypeKey = "Hmi.AxisConsole",
+                DisplayName = "轴控台",
+                ControlType = typeof(AxisPanelElement),
+                Category = "运动",
+                DefaultWidth = 320,
+                DefaultHeight = 470,
+                Description = "完整的轴调试台：状态（位置/速度/使能/到位/限位/报警）+ 操作（使能/点动/回零/停止/清报警）" +
+                              "+ 点位表（示教/定位/改速度）。运动与监控共用同一个轴选择器，不会出现「看的是 X、动的是 Y」",
+                Properties = GeometryProperties.WithGroups(
+                    new[]
+                    {
+                        new ElementPropertyDescriptor
+                        {
+                            Key = ScadaAxisOptionsCodec.Key,
+                            DisplayName = "候选轴",
+                            Kind = ElementPropertyKind.AxisList,
+                            Group = "数据",
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            Description = "整个轴控台（监控 + 运动 + 点位）共用的候选轴；只能从工程里已启用的轴中多选",
+                        },
+                    },
+                    // 预设：点位区默认打开（同一个控件类，只覆盖默认值）
+                    ScadaPropertyCatalog.WithDefaults(
+                        ScadaPropertyCatalog.Collect(typeof(AxisPanelElement)),
+                        ("ShowPoints", "True")),
+                    AppearanceProperties.Fill("#FF0F1112", "卡片底色；参考模板的近黑控制台"),
+                    AppearanceProperties.Stroke("#FF15171A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("12"),
+                    TextProperties.Text("标题", "轴控", isBindable: false,
+                        description: "面板左上角的标题；留空则只剩选择器"),
+                    TextProperties.Foreground("#FFFAFAFA"),
+                    TextProperties.FontSize("12")),
+            },
+            new()
+            {
                 TypeKey = "Hmi.AxisPanel",
                 DisplayName = "轴面板",
                 ControlType = typeof(AxisPanelElement),
                 Category = "运动",
                 DefaultWidth = 280,
-                DefaultHeight = 200,
-                Description = "设计期选一组轴，运行期用下拉框切到其中一根，只显示当前轴的位置/速度/状态灯。" +
-                              "本轮只读：不提供使能/点动/回零/停止（运动命令走动作表与门禁）",
+                DefaultHeight = 280,
+                Description = "紧凑预设：只显示状态与手动操作（使能/点动/回零/停止/清报警），不显示点位表。" +
+                              "需要点位时用「轴控台」",
                 Properties = GeometryProperties.WithGroups(
-                    // 候选轴清单：设计期配置，不是运行期数据绑定 → IsBindable=false，
-                    // 属性面板给它一条"摘要 + 选择轴…"的行（Kind=AxisList）。
                     new[]
                     {
                         new ElementPropertyDescriptor
@@ -465,6 +500,7 @@ namespace VisionMaster.Scada.Controls
                                           "顺序即下拉顺序，默认选中第一根。单根轴时下拉框收起，只显示轴名",
                         },
                     },
+                    // 预设：点位区默认收起（元素上的 [ScadaProperty] 默认值就是 False，这里不覆盖）
                     ScadaPropertyCatalog.Collect(typeof(AxisPanelElement)),
                     AppearanceProperties.Fill("#FF0F1112", "卡片底色；参考模板的近黑控制台"),
                     AppearanceProperties.Stroke("#FF15171A"),
@@ -474,6 +510,46 @@ namespace VisionMaster.Scada.Controls
                         description: "面板左上角的标题；留空则只剩选择器"),
                     TextProperties.Foreground("#FFFAFAFA"),
                     TextProperties.FontSize("12")),
+            },
+            new()
+            {
+                // 旧 TypeKey：老方案里已有这种图元，必须能打开、行为不变；
+                // 但工具箱不再列出（新用户请用「轴控台」）。
+                TypeKey = "Hmi.AxisPointTable",
+                DisplayName = "轴点位表（旧）",
+                ControlType = typeof(AxisPanelElement),
+                Category = "运动",
+                DefaultWidth = 340,
+                DefaultHeight = 300,
+                ShowInToolbox = false,
+                Description = "旧版独立点位表。已合并进「轴控台」——这里保留只为打开旧方案：" +
+                              "预设为显示操作与点位（与旧版行为一致）",
+                Properties = GeometryProperties.WithGroups(
+                    new[]
+                    {
+                        new ElementPropertyDescriptor
+                        {
+                            Key = ScadaAxisOptionsCodec.Key,
+                            DisplayName = "候选轴",
+                            Kind = ElementPropertyKind.AxisList,
+                            Group = "数据",
+                            DefaultValue = string.Empty,
+                            IsBindable = false,
+                            Description = "点位表显示哪几根轴的点位；运行期用下拉框切换。单根轴时下拉框收起",
+                        },
+                    },
+                    // 旧版点位表有示教/定位/改速度，所以操作与点位都打开。
+                    ScadaPropertyCatalog.WithDefaults(
+                        ScadaPropertyCatalog.Collect(typeof(AxisPanelElement)),
+                        ("ShowCommands", "True"),
+                        ("ShowPoints", "True")),
+                    AppearanceProperties.Fill("#FF0F1112", "卡片底色；与轴面板同一套暗色控制台"),
+                    AppearanceProperties.Stroke("#FF15171A"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("12"),
+                    TextProperties.Text("标题", "点位表", isBindable: false),
+                    TextProperties.Foreground("#FFFAFAFA"),
+                    TextProperties.FontSize("11")),
             },
         };
     }

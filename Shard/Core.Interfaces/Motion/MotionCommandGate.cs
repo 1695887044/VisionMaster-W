@@ -73,6 +73,52 @@ namespace Core.Interfaces
         }
 
         /// <summary>
+        /// 停止 / 失能这类"让设备停下"的安全动作闸门。
+        ///
+        /// 与 <see cref="CheckDevice"/> 的唯一差别：<b>报警态与安全停机态也放行</b>。
+        /// 报警态下轴可能还在走，这正是最需要把停止发下去的时刻；挡在门禁后面
+        /// 等于"越危险越不发"。安全停机态已经由基类做过一次安全停轴，但操作员
+        /// 仍可能想再停一次（比如卡刚恢复通信），允许它比拒绝更符合直觉。
+        ///
+        /// 未连接 / 正在连接仍然拒绝：这两种状态下命令线程不在跑，收下的命令
+        /// 只会躺在队列里，反而会制造"已经发了停止"的假象。
+        /// </summary>
+        public static MotionGateResult CheckSafetyAction(IMotionDevice? device)
+        {
+            if (device == null) return MotionGateResult.Reject(NotConnected);
+
+            return device.State switch
+            {
+                MotionCardState.Online => MotionGateResult.Ok,
+                MotionCardState.Alarm => MotionGateResult.Ok,
+                MotionCardState.SafeStopped => MotionGateResult.Ok,
+                MotionCardState.Connecting => MotionGateResult.Reject("运动卡正在连接/断开，请稍候"),
+                _ => MotionGateResult.Reject(NotConnected),
+            };
+        }
+
+        /// <summary>
+        /// 使能 / 失能的闸门（两条口径必须分家，见 <see cref="CheckSafetyAction"/>）：
+        ///   · 使能 = 给伺服上电，有机械后果 → 只认 Online；报警态明确提示"先清报警"；
+        ///   · 失能 = 撤掉力矩，是安全动作 → 与停止同一条闸门。
+        /// </summary>
+        public static MotionGateResult CheckEnable(IMotionDevice? device, bool enable)
+        {
+            if (!enable) return CheckSafetyAction(device);
+
+            if (device == null) return MotionGateResult.Reject(NotConnected);
+
+            return device.State switch
+            {
+                MotionCardState.Online => MotionGateResult.Ok,
+                MotionCardState.Alarm => MotionGateResult.Reject("运动卡处于报警状态，请先清除报警，再使能"),
+                MotionCardState.SafeStopped => MotionGateResult.Reject("运动卡已安全停机，请重新连接后再使能"),
+                MotionCardState.Connecting => MotionGateResult.Reject("运动卡正在连接/断开，请稍候"),
+                _ => MotionGateResult.Reject(NotConnected),
+            };
+        }
+
+        /// <summary>
         /// 定位类命令（绝对定位 / 走此点）的闸门。
         /// </summary>
         /// <param name="device">目标设备（null = 未连接）</param>

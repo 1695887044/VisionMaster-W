@@ -185,6 +185,16 @@ namespace Core.Interfaces
         }
 
         /// <summary>
+        /// 索引发生变化（轴增删 / 改名 / 换卡 / 换轴号，或 <see cref="EnsureFresh"/> 发现外部改动）。
+        ///
+        /// 为什么需要它：轴名是**派生展示**，而注册表是唯一权威。属性面板的「候选轴」摘要、
+        /// 下拉候选、系统变量名都按 Id 寻址、按名字显示——轴改名后若不通知，
+        /// 它们会一直显示旧名（按 Id 仍然工作，所以表现是"明明改了名，界面上还是旧的"）。
+        /// 事件在锁外触发；订阅方异常被吞掉，绝不影响索引本身。
+        /// </summary>
+        public event EventHandler? Changed;
+
+        /// <summary>
         /// 自刷新：方案一变就重建索引。
         ///
         /// 【为什么必须自动】注册表是**派生索引**（真身在各卡的 <c>MotionDescriptor.Axes</c> 里），
@@ -197,6 +207,8 @@ namespace Core.Interfaces
         /// </summary>
         private void EnsureFresh()
         {
+            bool changed = false;
+
             lock (_gate)
             {
                 var fingerprint = ComputeFingerprintLocked();
@@ -206,7 +218,12 @@ namespace Core.Interfaces
                 _lastProblems = RebuildLocked();
                 _built = true;
                 Version++;
+                changed = true;
             }
+
+            // 锁外通知：订阅方可能回头调 Snapshot()/Names()，持锁触发会自锁。
+            // 回头调用时指纹已经对齐，不会再次进这里（不会无限递归）。
+            if (changed) RaiseChanged();
         }
 
         /// <summary>方案指纹：卡 Id + 每根轴的（稳定身份, 逻辑名, 轴号）。任一变化都能被捕捉到</summary>
@@ -249,14 +266,19 @@ namespace Core.Interfaces
         /// </summary>
         public IReadOnlyList<MotionAxisProblem> Reload()
         {
+            List<MotionAxisProblem> problems;
+
             lock (_gate)
             {
                 _fingerprint = ComputeFingerprintLocked();
                 _lastProblems = RebuildLocked();
                 _built = true;
                 Version++;
-                return _lastProblems.ToList();
+                problems = _lastProblems.ToList();
             }
+
+            RaiseChanged();
+            return problems;
         }
 
         private List<MotionAxisProblem> RebuildLocked()
@@ -446,6 +468,13 @@ namespace Core.Interfaces
         /// </summary>
         public MotionAxisResult Register(string? axisName, Guid cardId, int axisIndex)
         {
+            var result = RegisterCore(axisName, cardId, axisIndex);
+            if (result.Success) RaiseChanged();
+            return result;
+        }
+
+        private MotionAxisResult RegisterCore(string? axisName, Guid cardId, int axisIndex)
+        {
             var name = (axisName ?? string.Empty).Trim();
             if (name.Length == 0)
                 return MotionAxisResult.Fail(MotionAxisError.NameEmpty, "轴名不能为空：它是流程与插件引用轴的唯一标识");
@@ -499,6 +528,13 @@ namespace Core.Interfaces
         /// </summary>
         public MotionAxisResult Update(string? axisName, Guid newCardId, int newAxisIndex)
         {
+            var result = UpdateCore(axisName, newCardId, newAxisIndex);
+            if (result.Success) RaiseChanged();
+            return result;
+        }
+
+        private MotionAxisResult UpdateCore(string? axisName, Guid newCardId, int newAxisIndex)
+        {
             var name = (axisName ?? string.Empty).Trim();
 
             EnsureFresh();
@@ -547,6 +583,13 @@ namespace Core.Interfaces
         /// 顺序不能改 —— 点位与凸轮都按**旧名**定位，改完了就找不到了。
         /// </summary>
         public MotionAxisResult Rename(string? oldName, string? newName)
+        {
+            var result = RenameCore(oldName, newName);
+            if (result.Success) RaiseChanged();
+            return result;
+        }
+
+        private MotionAxisResult RenameCore(string? oldName, string? newName)
         {
             var from = (oldName ?? string.Empty).Trim();
             var to = (newName ?? string.Empty).Trim();
@@ -610,6 +653,13 @@ namespace Core.Interfaces
         /// </summary>
         public MotionAxisResult Remove(string? axisName)
         {
+            var result = RemoveCore(axisName);
+            if (result.Success) RaiseChanged();
+            return result;
+        }
+
+        private MotionAxisResult RemoveCore(string? axisName)
+        {
             var name = (axisName ?? string.Empty).Trim();
 
             EnsureFresh();
@@ -669,6 +719,13 @@ namespace Core.Interfaces
         }
 
         private void ReleaseName(string name) => _byName.Remove(name);
+
+        /// <summary>锁外广播索引变化（订阅方异常不影响索引；见 <see cref="Changed"/>）</summary>
+        private void RaiseChanged()
+        {
+            try { Changed?.Invoke(this, EventArgs.Empty); }
+            catch { /* 订阅方（界面）的异常绝不能影响索引本身 */ }
+        }
 
         #endregion
     }

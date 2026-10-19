@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+
+  <!--  ==========================================================================
+        弹窗页签：下划线式（现代 Web 观感）
+        ==========================================================================
+
+        为什么必须是**显式键控样式**而不是隐式样式：
+        App.xaml 把 .NET 9 的 PresentationFramework.Fluent 合并进了应用级资源，它自带隐式
+        TabControl / TabItem 样式（灰底带 + 凸起选中块）。应用级隐式样式优先于 UI 库里的隐式
+        样式，所以只写 `<Style TargetType="TabItem">` 根本盖不住它——与 GridListViewStyle 的
+        "让路"机制完全同源（AGENTS.md R19）。视图必须显式挂这两个键。
+
+        视觉口径（AGENTS.md 第 30 节 R114/R115/R116）：
+          · 无灰带、无凸起块：页签栏透明，只有一条 1px 底部发丝线；
+          · 选中态用 2px 强调色下划线 + 主文字色 + SemiBold，不用背景块；
+          · 悬停只提亮文字，不做位移/缩放；
+          · 动效 150ms CubicEase，禁止弹跳；
+          · 补 Disabled 态（降透明度）。
+  -->
+  <Style x:Key="DialogTabControl" TargetType="TabControl">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabControl">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border
+                Grid.Row="0"
+                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                BorderThickness="0,0,0,1">
+              <!--  用普通 StackPanel 而不是 TabPanel：
+                    TabPanel 会按"多行换行 + 特殊排列"处理子项，在对话框宿主里实测出现过
+                    页签被压到文字以下（高度分配不稳定）。本弹窗页签固定一行，StackPanel 行为可预测。  -->
+              <StackPanel
+                  x:Name="HeaderPanel"
+                  Margin="0,0,0,-1"
+                  IsItemsHost="True"
+                  KeyboardNavigation.TabIndex="1"
+                  Orientation="Horizontal"
+                  Panel.ZIndex="1" />
+            </Border>
+
+            <ContentPresenter
+                x:Name="PART_SelectedContentHost"
+                Grid.Row="1"
+                ContentSource="SelectedContent"
+                SnapsToDevicePixels="True" />
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="DialogTabItem" TargetType="TabItem">
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Margin" Value="0,0,24,0" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Cursor" Value="Hand" />
+    <!--  显式定高：不依赖 Grid Auto 行 + 子元素 Margin 去"撑"高度。
+          真机实测：同一模板在探针里是 38.5px，但在对话框宿主里页签被压到文字以下
+          （文字只剩顶部一条）。改用 Border Padding + MinHeight 后高度由样式直接决定，
+          与宿主/主题的布局分配无关。  -->
+    <Setter Property="MinHeight" Value="38" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Border
+              x:Name="Root"
+              Padding="0,10,0,8"
+              Background="Transparent"
+              BorderBrush="Transparent"
+              BorderThickness="0,0,0,2"
+              SnapsToDevicePixels="True">
+            <ContentPresenter
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                ContentSource="Header" />
+          </Border>
+
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+              <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.55" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+</ResourceDictionary>

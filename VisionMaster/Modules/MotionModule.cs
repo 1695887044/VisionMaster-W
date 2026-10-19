@@ -57,10 +57,21 @@ namespace VisionMaster
             // 轴面板只认 IScadaAxisSource（Scada.Controls 不引用运动模块）。
             //
             // 系统变量目录：轴状态的第二投影（Motion.X.Position 这类只读变量）。
-            // 走工厂而不是类型映射：它的构造函数是 IWorkspaceManager（拿工作区的 SystemVariables 集合），
-            // 交给容器按类型解析没问题，但显式写出来才能一眼看到"它是绑在哪个集合上的"。
+            // 走工厂而不是类型映射：两个参数都要显式点名——
+            //   · workspace：目录把投影写进它的 SystemVariables（注册表挂的正是那一份）；
+            //   · registry：轴改名后由它去修**名字索引**（系统变量名是派生量，
+            //     改名时集合不增不减、一个 CollectionChanged 都不发，光靠增量维护永远修不到）。
+            // 第二个参数是可选参数，交给容器去猜的结果是编译能过、运行起来改名后新名永远查不到。
             registry.RegisterSingleton<SystemVariableCatalog>(c =>
-                new SystemVariableCatalog(c.Resolve<IWorkspaceManager>()));
+            {
+                var catalog = new SystemVariableCatalog(
+                    c.Resolve<IWorkspaceManager>(),
+                    c.Resolve<IWorkspaceManager>().VariableRegistry);
+                // 接到统一宿主（若已注册）：此后运动/IO/未来来源的变量由宿主合并写集合，
+                // 任何一方重建都不会误删别人的变量。
+                catalog.AttachToHost(c.Resolve<SystemVariableHost>());
+                return catalog;
+            });
 
             // 发布器必须显式传系统变量目录：构造函数上的那个参数是**可选参数**，
             // 交给容器去猜的结果是编译能过、运行起来系统变量永远是空的（而且不报错）。
@@ -76,6 +87,9 @@ namespace VisionMaster
                 c.Resolve<MotionAxisRegistry>(),
                 c.Resolve<IMotionProvider>(),
                 c.Resolve<ILogService>()));
+
+            // 轴面板上的按钮走同一个执行器（门禁/看门狗只有一份），不另写一条命令链。
+            registry.RegisterSingleton<IScadaAxisCommandSink>(c => c.Resolve<MotionActionExecutor>());
         }
 
         public void Initialize(IContainerProvider container, AppLifetimeService lifetime)

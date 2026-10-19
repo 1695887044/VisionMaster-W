@@ -308,7 +308,8 @@ namespace VisionMaster.ViewModels
                 }
 
                 // 全局变量联想：Global.变量名
-                var varMatches = _workspace.GlobalVariables.Where(gv => gv.Name.Contains(portQuery, StringComparison.OrdinalIgnoreCase));
+                var varMatches = _workspace.GlobalVariables.Concat(_workspace.SystemVariables)
+                    .Where(gv => gv.Name.Contains(portQuery, StringComparison.OrdinalIgnoreCase));
                 foreach (var gv in varMatches)
                     SuggestedItems.Add(new SearchSuggestion { DisplayText = $"Global.{gv.Name} [全局变量]", IsGlobalVariable = true, VariableName = gv.Name, VariableId = gv.VariableId });
             }
@@ -320,7 +321,8 @@ namespace VisionMaster.ViewModels
                     SuggestedItems.Add(new SearchSuggestion { DisplayText = $"{m.Value.InstanceName} [监控全部引脚]", StepId = m.Key, StepName = m.Value.InstanceName, PortName = null });
                 }
 
-                var globalVars = _workspace.GlobalVariables.Where(gv => gv.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
+                var globalVars = _workspace.GlobalVariables.Concat(_workspace.SystemVariables)
+                    .Where(gv => gv.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
                 foreach (var gv in globalVars)
                 {
                     SuggestedItems.Add(new SearchSuggestion { DisplayText = $"Global.{gv.Name} [全局变量]", IsGlobalVariable = true, VariableName = gv.Name, VariableId = gv.VariableId });
@@ -358,7 +360,7 @@ namespace VisionMaster.ViewModels
         {
             if (portName == "Global.All")
             {
-                foreach (var gv in _workspace.GlobalVariables)
+                foreach (var gv in _workspace.GlobalVariables.Concat(_workspace.SystemVariables))
                 {
                     if (!IsWatchingGlobalVariable(gv.VariableId, gv.Name))
                     {

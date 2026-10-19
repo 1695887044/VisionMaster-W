@@ -128,6 +128,21 @@ namespace VisionMaster.Binding
         void AttachSystem(ObservableCollection<IVariable>? source);
 
         /// <summary>
+        /// 重建<b>系统变量</b>的名字索引（用户表不动）。
+        ///
+        /// 为什么需要这个入口：系统变量的名字是派生量（<c>Motion.{轴名}.{字段}</c> 里的轴名）。
+        /// 轴改名时 <c>SystemVariableCatalog</c> 只对**已存在的模型实例**改 <c>Name</c>
+        /// （实例必须复用，否则订阅方全部失联），集合本身没有增删 —— 也就是说
+        /// 一个 <c>CollectionChanged</c> 都不会发。只靠增量维护的话，名字索引会永久停在旧名上：
+        /// 新名查不到、旧名一直命中，而且下一拍"名字看起来已经一致"还会让重建被短路，不会自愈。
+        /// 所以轴改名那条路必须显式喊一声。
+        ///
+        /// 只在"确实有轴改名"时调用（<c>SystemVariableCatalog</c> 内部会判），
+        /// 不要每拍调——它是全表重扫。
+        /// </summary>
+        void RefreshSystemNames();
+
+        /// <summary>
         /// 变量被改名（新名已生效）。订阅方据此刷新依赖该变量的引用与画面绑定。
         /// </summary>
         event EventHandler<VariableRenamedEventArgs>? VariableRenamed;

@@ -84,6 +84,20 @@ namespace Plugin.Motion.Virtual
             if (port >= 0 && port < _inputs.Length) _inputs[port] = value;
         }
 
+        /// <summary>
+        /// 把某一根轴的报警位置位/复位（故障注入）。
+        ///
+        /// 与 <see cref="SimulateAlarm"/> 的区别：那个是"整卡所有轴都报警"的粗开关，
+        /// 用来验证报警门禁；这个是"只让某根轴报警"，用来验证
+        /// 「清报警按 PhysicalAxis 单轴下发」——两根轴都报警、只清一根，
+        /// 另一根的报警必须还在（旧实现清整卡，这条断言会红）。
+        /// </summary>
+        public void SetSimulatedAlarm(int axisIndex, bool value)
+        {
+            if (axisIndex >= 0 && axisIndex < _axes.Count)
+                _axes[axisIndex].Alarm = value;
+        }
+
         /// <summary>读某轴当前仿真位置（冒烟断言用）</summary>
         public double GetSimulatedPosition(int index)
             => index >= 0 && index < _axes.Count ? _axes[index].PositionMm : double.NaN;
@@ -365,7 +379,18 @@ namespace Plugin.Motion.Virtual
 
                 case MotionCommandKind.ClearAlarm:
                 {
-                    // 清报警：把注入开关也一起复位，否则"清完立刻又报"
+                    // 与 ZMotionCard 同一口径：PhysicalAxis >= 0 只清那一根轴，
+                    // < 0 才清整卡。旧实现永远清整卡，界面上"清这根轴"会误清别的轴。
+                    if (command.PhysicalAxis >= 0)
+                    {
+                        if (!TryGetSimAxis(command.PhysicalAxis, out var single, out error))
+                            return MotionCommandOutcome.Failed;
+
+                        single.Alarm = false;
+                        return MotionCommandOutcome.Done;
+                    }
+
+                    // 卡级清报警：把注入开关也一起复位，否则"清完立刻又报"
                     SimulateAlarm = false;
                     foreach (var axis in _axes) axis.Alarm = false;
                     return MotionCommandOutcome.Done;

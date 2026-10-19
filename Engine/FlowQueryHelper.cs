@@ -72,9 +72,13 @@ namespace VisionMaster.Helpers
                             // 带上稳定身份：绑定弹窗据此把 Id 写进连线，改名后连线仍能命中
                             VariableId = gv.VariableId,
                             DataTypeName = gv.DataType.AssemblyQualifiedName,
-                            Description = gv.VariableType == VariableType.Communication
-                                ? $"[网络变量] {gv.Description} (连接: {gv.ConnectionName})"
-                                : $"[本地变量] {gv.Description}"
+                            Description = gv.VariableType switch
+                            {
+                                VariableType.Communication => $"[网络变量] {gv.Description} (连接: {gv.ConnectionName})",
+                                VariableType.Io => $"[IO变量] {gv.Description}",
+                                VariableType.System => $"[系统变量] {gv.Description}",
+                                _ => $"[本地变量] {gv.Description}"
+                            }
                         })
                         .ToList(),
                 };

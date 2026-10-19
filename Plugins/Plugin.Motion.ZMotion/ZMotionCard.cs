@@ -356,11 +356,32 @@ namespace Plugin.Motion.ZMotion
 
                 case MotionCommandKind.ClearAlarm:
                 {
-                    // 报警是轴级的，而"清报警"这个动作不知道该清哪根轴 —— 把所有启用轴都清一遍。
+                    // 报警是轴级的，而"清报警"这个命令必须尊重 PhysicalAxis：
+                    //   · PhysicalAxis >= 0 → 只清这一根轴（轴控台/动作表按单轴下发）；
+                    //   · PhysicalAxis < 0  → 清全部启用轴（卡级 ClearAlarm(out error) 的语义）。
+                    // 旧实现无视 PhysicalAxis、永远清整卡：界面上只点了一根轴，
+                    // 实际把别的轴的报警也清掉了 —— 别的轴可能正靠报警停在那里。
                     // **不自动重新使能**：使能会给伺服上电（有机械后果），
                     // 应由操作员在调试面板上明确点一次"使能"。
+                    List<AxisMapping> targets;
+                    if (command.PhysicalAxis >= 0)
+                    {
+                        var mapping = Descriptor.FindAxis(command.PhysicalAxis);
+                        if (mapping == null)
+                        {
+                            error = $"轴号 {command.PhysicalAxis} 不在本卡配置里，无法清除报警";
+                            return MotionCommandOutcome.Failed;
+                        }
+
+                        targets = new List<AxisMapping> { mapping };
+                    }
+                    else
+                    {
+                        targets = EnabledAxes().ToList();
+                    }
+
                     var failed = new List<string>();
-                    foreach (var axis in EnabledAxes())
+                    foreach (var axis in targets)
                     {
                         var ret = zmcaux.ZAux_BusCmd_DriveClear(handle, (uint)axis.PhysicalIndex, 0);
                         if (ret != 0) failed.Add($"{axis.LogicalName}(码 {ret})");

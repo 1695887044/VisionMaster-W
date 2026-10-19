@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using Core.Interfaces;
@@ -269,6 +270,35 @@ namespace VisionMaster.Services.Motion
             lock (_swapGate) snapshot = _samples;
 
             return snapshot.TryGetValue(axisId, out sample);
+        }
+
+        /// <inheritdoc />
+        public bool TryGetPoints(Guid axisId, out IReadOnlyList<ScadaAxisPointInfo> points)
+        {
+            points = Array.Empty<ScadaAxisPointInfo>();
+            if (axisId == Guid.Empty) return false;
+
+            MotionAxisBinding? binding = _registry.Snapshot().FirstOrDefault(b => b.AxisId == axisId);
+            if (binding == null) return false;
+
+            // 点位是**配置**（真身在 MotionDescriptor.Points），不是运行态快照：
+            // 直接从方案对象现读，示教/改速度之后立刻就能看到新值。
+            // GetAxisPoints 会懒补齐 16 行（与「运动卡设置 → 点位列表」同一口径）。
+            MotionDescriptor? card = _motions.Cards?.FirstOrDefault(c => c.Id == binding.CardId);
+            if (card == null) return true; // 轴在、卡配置读不到：返回空表，由调用方显示空态
+
+            var rows = card.GetAxisPoints(binding.Name);
+            var result = new ScadaAxisPointInfo[rows.Count];
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                result[i] = new ScadaAxisPointInfo(
+                    row.Index, row.Name ?? string.Empty, row.PositionMm, row.SpeedMmPerS);
+            }
+
+            points = result;
+            return true;
         }
 
         public void Dispose()

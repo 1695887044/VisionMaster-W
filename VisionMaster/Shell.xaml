@@ -13,6 +13,8 @@
     Title="VisionMaster"
     Width="1280"
     Height="920"
+    MinWidth="1200"
+    MinHeight="760"
     prism:ViewModelLocator.AutoWireViewModel="True"
     ui:WindowExtensions.IsAutoWireCommands="True"
     PreviewKeyDown="OnShellPreviewKeyDown"
@@ -533,6 +535,24 @@
                         </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.IoSettings}"
+                                Header="IO 设置"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf0e8;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.SystemHealth}"
+                                Header="系统健康"
+                                 >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf21e;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.HardwareSettings}"
                                 Header="硬件设置"
                                  >
@@ -784,9 +804,10 @@
                         <!--  为什么用两层 LayoutAnchorablePane 而不是同一个 pane 里放两个 anchorable：  -->
                         <!--  同一个 pane 里的多个 anchorable 是**标签页**（互斥显示，同一时刻只见一个），  -->
                         <!--  那是"二选一"；要"同时可见、上下分"必须拆成两个 pane 再套进竖向 LayoutPanel。  -->
-                        <!--  宽度 20*（原来"程序 13* + 流程栏 17*"两列合计 30*）：左栏收成一列后不必再占 30%，  -->
-                        <!--  省下的宽度让给中央文档区——画布搬进去之后，那里才是真正吃面积的地方。  -->
-                        <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="20*">
+                        <!--  宽度 340 / 最小 320（流程栏 v2）：组头要同时放"类型标签 + 实例名 + N 分支 · M 算子 + 状态图标"，
+                              低于 320 右侧统计会把实例名挤到只剩两三个字。固定宽度与右侧属性/图层列同一口径（可预期），
+                              旧 Layout.xml 里被拖窄的绝对宽度由 LayoutHelper.EnsureProcessColumnWidth 在恢复后拉回。  -->
+                        <avalonDock:LayoutPanel Orientation="Vertical" DockWidth="340" DockMinWidth="320">
                             <avalonDock:LayoutAnchorablePane DockHeight="180">
                                 <avalonDock:LayoutAnchorable
                                     Title="程序"
@@ -864,11 +885,10 @@
                             </avalonDock:LayoutAnchorablePane>
                         </avalonDock:LayoutPanel>
 
-                        <!--  4. 右侧属性栏：图元属性面板  -->
-                        <!--  为什么是顶层并列的定宽栏，而不是塞进中央那个竖向 LayoutPanel：  -->
-                        <!--  竖向面板里的子项只有高度方向说话（DockHeight），宽度会被整个面板拉平，  -->
-                        <!--  属性栏就会跟着日志栏一起吞掉工作区宽度。定像素（不用星号）是因为  -->
-                        <!--  一列"标签 + 输入框"需要的是稳定可读宽度，1080 与 2560 下都是 260 最舒服。  -->
+                        <!--  4. 右侧属性栏：图元属性 + 图层（同一 pane 的两个标签页）  -->
+                        <!--  v3：图层从"独占一列 240"并入属性 pane 做标签页——组态设计时右侧三列
+                              （260+240+300）把 1280 窗口的中央画布挤到只剩 ~140px。合并后省下 240，
+                              代价是看图层要多点一次标签；高频的"看一眼"由标签标题承担。  -->
                         <!--  最窄 240：再窄下去 64px 标签列 + 24px 行尾槽位 + 两侧 12px 内边距会吃掉
                               一半宽度，编辑器只剩 100 出头，"1920" 加一个数值框的步进就顶满了。  -->
                         <avalonDock:LayoutAnchorablePane DockWidth="260" DockMinWidth="240">
@@ -879,15 +899,6 @@
                                 ContentId="Panel_ScadaPropertyView">
                                 <views:ScadaPropertyView />
                             </avalonDock:LayoutAnchorable>
-                        </avalonDock:LayoutAnchorablePane>
-
-                        <!--  5. 图层面板：独占一列而不是跟属性/工具箱挤标签页  -->
-                        <!--  为什么给它一整列：图层是"画布上现在有什么"的总览，用户是"看一眼 → 点一下眼睛 → 继续调画面"  -->
-                        <!--  的高频轻操作；挤成标签页就得来回切换，看一眼的代价变成两次点击，正好把便捷性做没了。  -->
-                        <!--  为什么排在属性栏右侧：改完图元属性，视线右移一格就是它的可见性/锁定，编辑动作连成一条线；  -->
-                        <!--  工具箱留在最右缘不动（它是低频拖拽源，且不该被新增面板挤走老用户的肌肉记忆）。  -->
-                        <!--  240 是行内最挤的那个数：眼睛+锁+名称+数量+上/下移+删除，再窄名称就只剩两三个字了。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="240">
                             <avalonDock:LayoutAnchorable
                                 Title="图层"
                                 CanClose="False"
@@ -897,15 +908,11 @@
                             </avalonDock:LayoutAnchorable>
                         </avalonDock:LayoutAnchorablePane>
 
-                        <!--  6. 右侧工具箱停靠栏：插件工具箱 + 图元工具箱（互斥标签页共享一列宽度）  -->
-                        <!--  为什么不再用 LayoutRoot.RightSide 自动隐藏滑出区：那种面板一失去鼠标焦点就收回，  -->
-                        <!--  从图元工具箱往画布拖图元拖到一半会被收走；常驻停靠栏全程可见，拖动链路不被打断。  -->
-                        <!--  为什么图元工具箱从左侧"程序"pane 挪过来：图元调色板和插件工具箱是同一类  -->
-                        <!--  "往画布上放东西"的资源面板，用户要找应该在同一个停靠栏里，而不是语义无关的"程序"旁边。  -->
-                        <!--  两栏顺序：属性栏贴着中央工作区（改属性时抬眼即见），工具箱列在最右缘——  -->
-                        <!--  与原自动隐藏区同侧边缘，老用户的肌肉记忆平移最小；且工具箱是低频拖拽源，让位给高频核对的属性。  -->
-                        <!--  共享一列（标签页互斥）而非各占一列，避免不碰 SCADA 的用户长期白丢一条工作区宽度。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="300">
+                        <!--  5. 右侧工具箱停靠栏：插件工具箱 + 图元工具箱（互斥标签页共享一列宽度）  -->
+                        <!--  为什么不再用 LayoutRoot.RightSide 自动隐藏滑出区：那种面板一失去鼠标焦点就收回，
+                              从图元工具箱往画布拖图元拖到一半会被收走；常驻停靠栏全程可见，拖动链路不被打断。  -->
+                        <!--  宽度 260（原 300）：搜索框 + 分组列表在 260 下足够，省下的 40 还给中央画布。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="260">
                             <avalonDock:LayoutAnchorable
                                 Title="工具箱"
                                 CanClose="False"

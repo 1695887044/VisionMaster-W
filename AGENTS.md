@@ -361,3 +361,142 @@
 | R92 | **基座图元在"引用它的页面"上必须只读，三个闸门缺一不可**：① `SelectedElementsProperty` 的 Coerce（`TrimForeignBaseElements`）——挡住框选/宿主赋值/绑定回写；② `SelectedElementProperty` 的 Coerce——挡住点选/右键（**只拦集合不拦主选中**会分叉成"集合空、主选中是基座图元"，而属性面板读的是主选中，于是用户在引用页上改到了公共层）；③ `CanEditElement`（拖动/改尺寸手柄/"锁住"样式三处都读它）+ 左右键命中判据（`OnPreviewMouseLeftButtonDown` 命中基座图元按"点空白"处理；右键命中基座图元要**清选中**让菜单退回画面级，不能只是"不选中"——那会让菜单继续挂在上一批选中上，改到别的东西）。判据只有一处 `IsForeignBaseElement`（属于 `BasePage.Elements` 且不属于 `Page.Elements`）；基座自己的编辑器 `BasePage == null` 所以那边照常可编辑，**不要**另开"是否基座编辑态"的开关。守门人：`ScadaChecks` 的 `[X]` 四条（引用页主选中→null / 集合→剔空 / 本页图元照常可选 / 基座自己的编辑界面照常可选）。 |
 | R93 | **「新建基座」= 新建一份空白公共层，不是"把当前页提升为基座"**（`ScadaEditorViewModel.AddBasePageCommand`）。理由：基座是独立的公共层，把画好的一页提升为基座会让那页的**业务图元**突然变成所有页面共享的东西——一次误操作影响整个方案。命名走「基座_N」取未被占用的最小号（与 `ScadaDocument.NextPageName` 同一口径）。建完必须**立刻选中它**：基座图元只有基座自己那一页能改（R92），不切过去用户会以为"新建了但画布没变、也放不进东西"。 |
 | R94 | **视图渲染探针三条纪律**（`ScadaChecks` 的 `[T]` 段，2026-10-18 三条都是当场踩出来的）：① **`Activate()` 过的视图模型必须 `Deactivate()` 摘干净**——它订阅的是**静态** `ScadaEditHistory.Changed`，探针跑在自己的 STA 线程上，不摘的话后面任何一段改模型都会回调到一条没人泵的 Dispatcher，**一次连红三段**（"调用线程无法访问此对象"）；② **菜单命令的断言要先给 `PlacementTarget` 再泵 Dispatcher**——`ContextMenu` 不在可视树上，`DataContext` 靠 `PlacementTarget.DataContext` 的 Self 绑定拿，而绑定目标值的刷新是排队的（真机上 Dispatcher 一直在跑，探针里必须手动泵）；不泵就会得到"命令全是 null"的假红；③ **视图不许依赖 `App.xaml` 的内联资源**（本例 `Icon` 字体）：断言宿主没有 `Application`，取不到就是**XAML 解析期**整棵视图失败。正解是把令牌搬进 `Colors.xaml`（R31 的第一层令牌字典）并在视图 `<UserControl.Resources>` 里就地合并（`/UI;component/Themes/Colors.xaml`——UI 工程的资源根是 `Themes`，不是 `Controls/Themes`），再用 `{StaticResource DialogIconFont}`；与 R22 同一族，别再往视图里塞字面量字体 URI。 |
+
+---
+
+## 28. SCADA 轴绑定：轴身份、只读投影与运动命令（2026-10-18）
+
+**起因**：用户要"设计期选一组轴、运行期下拉切换、单控件只显示一根轴"的调试台形态，并要求"解析与绑定逻辑在后台解释器里跑"。落地时把需求定为**轴选择器 + 单轴视图**（不是多轴同屏），随后补了运动命令与系统变量两块。细节见
+`docs/code-changes/2026-10-18-SCADA轴面板（轴选择器+单轴视图）.md`、
+`2026-10-18-SCADA组态运动命令族.md`、`2026-10-18-系统变量分支（运动轴只读投影）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R95 | **轴必须有稳定 `AxisId`，按 Id 寻址、名字只做展示与旧数据兜底**（与变量 `VariableId` 同一口径）。新建轴 `Guid.NewGuid()`；**历史轴**（旧 `.vms` 没有该字段）由 `MotionDescriptor.EnsureAxisIds()` 按 `(卡 Id, 物理轴号)` 生成**确定性 Guid**（`MotionAxisId.ForLegacy`，`SHA1("motion-axis\|{cardId:N}\|{physicalIndex}")` 前 16 字节）——同一份旧方案在任何机器、任何次打开都得到同一个 Id，"第一次打开就建好的绑定"重启后仍命中。补齐必须在**算索引指纹之前**（`MotionAxisRegistry.ComputeFingerprintLocked` / `RebuildLocked` 各调一次，幂等），否则索引会停在"补之前"那一版。**轴改名/换物理轴号/换卡都不动 Id**。守门人：`ScadaChecks` AX1（确定性、幂等、改名/换轴号身份不变）。 |
+| R96 | **SCADA 的"轴候选清单"是设计期配置，不是 `ScadaBinding`**。它落在属性袋里的规范 JSON（`ScadaAxisOptionsCodec.Key = "AxisOptions"`，`ScadaAxisRef = {AxisId, Name}`），属性行 `Kind = ElementPropertyKind.AxisList` 且 **`IsBindable=false`**（不挂 ƒx）。塞进 `ScadaBinding` 的后果是运行态数据泵会把它当变量去 `IScadaValueSource.TryResolve`，必然解析失败、且属性面板会给出一个"绑了却不生效"的入口。写模型只走 `ScadaPage.TrySetAxisOptions`（归属校验 + `BeginEdit` 撤销作用域）。解析规则（去重、保序、坏 JSON 不抛）只有 `ScadaAxisOptionsCodec` 一处。 |
+| R97 | **轴面板只认 `IScadaAxisSource`，绝不直接拿 `IMotionProvider`**——`VM.Scada.Controls` 不认识运动模块（依赖方向约束），而且图元直接读设备会把"谁能碰设备"这条边界打穿。宿主侧 `MotionStatePublisher` 是**唯一**接触 `GetAxisStatus` 的地方：100ms 一拍、按物理轴去重读缓存（不发通信）、整表交换快照；`Version` 只在**拓扑**（身份/名字/可用性）变化时递增，量值变化不算（否则面板每拍重建下拉项）。**拉模式不是推模式**：卡 10ms 轮询，按值推事件会把 UI 线程刷满；面板在统一节拍（`ScadaBeatSource`，200ms）里读当前轴。守门人：AX4（订阅/摘订阅计数、切轴换源、离线"—"）、AX5（拓扑没变不推版本）。 |
+| R98 | **运行期"当前显示哪根轴"是控件自己的状态，不写进 `.vms`**；单候选时下拉框收起只显轴名（`SelectorVisibility`/`SingleAxisVisibility`/`EmptyVisibility` 三个由控件算好、模板直绑——本环境 `ControlTemplate` 里的 `DataTrigger` 不触发，见 R24 同族）。**轴被删/停用不自动跳到别的轴**：保留用户选中的 Id、项上标"（已移除）/（不可用）/（已停用）"、量值显示"—"。静默换轴比显示不可用危险得多——下一批加命令后，操作员会对着错误的对象按按钮。**离线不编 0**：`ScadaAxisSample.Invalid(error)` 给 `IsValid=false`，0 是合法位置，会把"不知道"伪装成"在原点"。 |
+| R99 | **组态运动命令走动作表 + `MotionActionExecutor`，绝不由图元直接下发**。九条动作（`ScadaActionType` 数值 7~15，只许末尾追加）→ 执行器 → `MotionCommandGate`（唯一门禁实现）→ `IMotionDevice.Enqueue`。三条硬口径：① **"下发 ≠ 到位"**，`Enqueue` 的 `Accepted` 只代表收进队列，不许报完成、不许阻塞等到位；② **有 `AxisId` 就只认 Id，不落到名字兜底**——"删旧轴、又建同名新轴"在产线是常态，按名兜底会驱动到另一根物理轴（错靶比"点了没反应"危险得多）；只有 Id 为空的旧数据才按名解析，且解析成功当场回填 Id 自愈；③ **点动结束只在卡真的收下停止之后才清租约**——先清后发的话，停止被拒（队列满/参数非法）时看门狗与 `Dispose` 都不会再碰这根轴，而它还在动。点动看门狗 200ms 一扫、阈值 `MotionJogGuard.PulseTimeoutMs × 2`，判据复用 `MotionJogGuard`（安全判断只有一份）。守门人：AX7（含"Id 失效时不按名兜底"的反向断言）。 |
+| R100 | **系统变量 = 只读、派生、确定性身份的第二变量源，绝不进 `GlobalVariables` / `.vms`**。`VariableType.System`（末尾追加）；名字 `System.Motion.{轴名}.{字段}`（12 个轴级字段）；身份 `SHA1("motion-var\|{AxisId:N}\|{Field}")` 前 16 字节；**不实现 `IWritableVariable`**（写入由现有 `GlobalVariableWriter` / `RegistryScadaValueSource.TryWrite` 如实拒绝），也不实现 `IRenameableVariable`（名字是派生量）。`VariableRegistry` 用**两张表 + 查找时用户优先**（不做一张合并表：合并后两套优先级会在一张表里打架）。**`SystemVariableModel` 的 `IPort.Value` setter 必须静默忽略而不是抛**：端口契约要求它可写，正规写路径已在 `IWritableVariable` 那层拒绝；能走到这个 setter 的只剩"控件 TwoWay 误绑"，而它跑在 UI 线程、本仓 `App` 没有 `DispatcherUnhandledException` 兜底 → 抛就是退进程。守门人：AX8（12 个字段、模拟重启同 Id、实例复用、不落盘、不可写、离线不编 0）。 |
+| R101 | **系统变量名是派生量：轴改名时集合不增不减，必须主动重扫名字索引**。`SystemVariableCatalog.Rebuild` 对"同一轴同一字段"复用模型实例（重建实例会让所有 `ValueChanged` 订阅方静默失联），改名只改 `Name` → **一个 `CollectionChanged` 都不会发** → `VariableRegistry` 的名字索引永久停在旧名上（新名查不到、旧名一直命中），而且下一拍"名字看起来已一致"还会让重建被短路，**不会自愈**。修法：`Rebuild` 里记账 `renamed`（比对上一次轴名 + 模型名），改名后调 `IVariableRegistry.RefreshSystemNames()`（只重扫系统表，不遍历用户集合——后者可能正被 UI 线程改）。守门人：AX8 的反向断言**"改名后新名可查、旧名查不到"**——改回"只改 Name 不重扫"它必红。 |
+| R102 | **轴改名级联有三跳，注册表只管前两跳**：`MotionAxisRegistry.Rename` 级联点位表 + 凸轮表（它刻意不认识 `ScadaDocument`）；SCADA 画面这一跳由宿主补——`ScadaDocument.RefreshAxisReferences` → `ScadaPage` → `ScadaEventHook.RefreshAxisReferences`（`ScadaAction.MatchesAxis` + `BindAxis` 回填展示名），触发点在 `MotionBoardSettingsTabViewModel` 的注册表改名成功之后（行 VM 通过 `CascadeScada` 回调注入，不让行直接拿工作区）。整条链套 `ScadaWriteGuard.Suspend()`：改名级联是数据自愈，不是用户编辑，不进撤销栈、也不该被写守卫拦（否则 Strict 模式下改名会抛，而一半已经改成功了）。**已知残余**：`AxisOptions`（轴面板候选清单）里的名字不回填——运行期面板按 Id 取得到新名，属性行摘要要等重开选轴弹窗。 |
+| R103 | **"设计期配置 + 运行期选择"的图元，断言必须分两段测**：设计段只验"候选清单 → 下拉项 / 单轴收起 / 空态 / 不编造量值"（无运行上下文时位置是"—"、状态是"设计预览"）；运行段才装 `ScadaRuntimeContext` 验"订阅节拍 / 默认选第一根 / 量值落地 / 切轴换源 / 删轴不跳 / 摘上下文订阅归零"。把两段混成一段，最容易得到"设计期看起来对、运行期拿不到值"的假绿——`AxisPanelElement.ApplyCustomProperty`（属性袋 → 候选）与 `OnRuntimeContextChanged`（装/摘节拍）是两条独立入口，必须各测一次。另外**模板必须真的 `ApplyTemplate` 一次并检查命名件**（`AxisCombo`）：XAML 写坏在编译期全绿，只有套模板时才炸；断言宿主没有 `Application`，得显式把 `Generic.xaml` 里对应类型的样式赋给控件（与画布/报警条那段同一处理）。 |
+
+---
+
+## 29. `RequireRefresh` = 整表重建，不许收窄成"只重建该属性所在的页签"（2026-10-19）
+
+**起因**：真机反馈「通讯设置里选择 ModbusRtu 不显示串口、选择 Tcp 不显示网口，原来动态反射配置属性的功能怎么没了」。
+模型层一直是对的（`CommunicationConfig.Protocol` 的 setter → `TryCreateConfig` 按协议 new 出对应 `*Config`），
+坏的是属性面板的刷新范围：`PropertyGridBase` 把 `RequireRefresh` 的消费点改成了"只重建该属性所属的页签"
+（`RebuildTabForProperty` + `_tabByKey`），而**切换开关与被它换掉的子对象不在同一个页签**——
+`Protocol` 在「1. 基本设置」，`Config` 在「2. 链路配置」，于是链路配置里的嵌套子网格永远绑着旧实例。
+细节、探针实测三场景与变异反证见 `docs\code-changes\2026-10-19-通讯设置协议切换后链路参数不刷新（属性面板只重建单页签）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R104 | **`[SuperDisplay(RequireRefresh = true)]` 的消费动作必须是整表重建（`UpdatePropertyGrid(preserveSelectedTab: true)`），不许"只重建触发者所在的页签"**。判据是"**被驱动的对象会不会在别的页签**"——只要可能，单页签重建就一定漏。`preserveSelectedTab` 负责按页签标题保住选中项（整表重建换掉全部 `TabItem` 实例，不保就跳回第一页）；分组整体消失时落回第一页，不保留已不存在的页签。`RebuildTabForProperty` 与 `_tabByKey` 一并删除（这个能力本身就是陷阱，留着迟早有人再用一次）。**普通属性仍不触发重建**（走 WPF 绑定），50ms 防抖 / 异步投递 / 跨线程封送一律不动。守门人：`FlowCanvasChecks\PropertyGridRefreshCheck.cs` 的 **PG0~PG8**（进常规 gate 基线）——PG2 必须调 `UpdatePropertyGrid(`、PG3 必须带 `preserveSelectedTab: true`、**PG4 反向**禁止 `RebuildTabForProperty` 复现、PG5 公开签名保留，PG6~PG8 钉住"`CommunicationConfig` 的 `Protocol` 仍标 `RequireRefresh`、`Config` 仍标 `[PropertyItem]`"（前提没了闸就变空跑，R38）。变异反证两批：去掉 `preserveSelectedTab` → PG3 红；改回单页签重建 → PG2/PG3/PG4 三条同时红。 |
+| R105 | **这类"只在特定操作顺序下坏"的刷新缺陷，静态闸挡不住，必须按真实操作顺序各跑一遍**。本轮的两种顺序给出完全相反的结论：**先改协议再第一次点开子页签 → 正常**（懒加载那刻才构建，取到新实例）；**先点开过子页签再改协议 → 永远不刷新**，而且来回切页签也不自愈（旧页签仍在 `_builtTabs` 里，懒构建不会重跑）。所以"我手动试了一下是好的"不构成证据——**要先问"用户会以什么顺序操作"**，把每种顺序都测一遍。范式：临时探针工程引用 `UI` + `Core`，用真 `CommunicationConfig` + 真 `FlatPropertyGrid` 挂在**屏幕外真窗口**（`Left=-4000`）+ 手动 `Dispatcher` 泵（`ApplicationIdle` 每轮 15ms）里跑；探针用完即删，不留在仓库。 |
+| R106 | **多态配置不许专门搭窗口**：给切换字段标 `RequireRefresh = true`、给被切换对象标 `[PropertyItem(Type = typeof(Control))]`、**换成一个新实例**（原地改字段不会换绑，子网格构建时抓的是当时那个实例）——三条齐了就自动出"选 ModbusRtu 显示串口、选 Tcp 显示网口"的效果。用法已沉淀为 skill `.zcode/skills/vm-property-grid/SKILL.md`（含生成器 Priority 表、枚举显示名两条路 R84、草稿/取消语义、常见坑速查、以及"什么时候确实该手写视图"的判据：界面元素与字段一一对应 → 属性面板；要表达关系/图形/时序 → 手写视图）。**判断"要不要手写视图"时先查这份 skill，别再为一张字段表单新建 `.xaml`。** |
+| R107 | **互斥的字段集不许平铺在同一个 `[SuperDisplay]` 类上——必须做成"切换字段 + 嵌套子对象"**。属性面板只按"这个类上有没有 `[SuperDisplay]`"决定渲染什么，**没有任何"按另一个字段隐藏同行字段"的能力**（`Visible=false` 是编译期固定的，不是条件显示）。所以把 TCP 的 `Host/Port` 与串口的 `PortName/BaudRate` 平铺在同一个 `IoBusEditModel` 上，界面必然两种参数同时出现；把 Modbus 的 `UnitId` 与 S7 的 `Rack/Slot` 平铺在同一个 `IoDeviceEditModel` 上，同理。**正解（与 `CommunicationConfig` 同一范式，三条缺一不可）**：① 切换字段（`TransportKind` / `DriverId`）标 `RequireRefresh = true` 且**走 `SetProperty`**（普通自动属性不发 `PropertyChanged`，`RequireRefresh` 等于没写——这是本轮第二个错误，改模型时最容易漏）；② 被切换对象（`Transport` / `DriverConfig`）标 `[PropertyItem(Type = typeof(Control))]` 且**每次切换换一个新实例**；③ 每种取值的字段集各自独立成类（`TcpLinkEditModel` / `SerialLinkEditModel`、`ModbusDriverEditModel` / `S7DriverEditModel`）。配套两条：**切换时保留另一种取值的草稿实例**（来回切不丢已填参数），**写回描述符时两种都保留**（描述符本就并存两套，运行期只看当前那一套）。守门人：`IoChecks` 的 `TestBusLinkSwitching` / `TestDriverConfigSwitching`（**18 条**，进常规 gate 基线）——判据直接调 `PropertyGridDefaults.GetVisibleProperties(子对象)` 看**网格实际会渲染哪些字段**，断言"TCP 链路的可见属性不含 `PortName`、串口链路的可见属性不含 `Host`、Modbus 驱动不含 `Rack`、S7 驱动不含 `UnitId`"，并反向钉住"切走再切回保留原值""写回 JSON 只含当前驱动字段"。**断言必须查可见属性集，不能只查对象类型**——`Transport is SerialLinkEditModel` 通过而字段仍平铺的话，界面照样错。 |
+| R108 | **轴面板自带的操作按钮与组态动作表必须走同一个执行器，且三件事缺一不可**：① **命令出口** `IScadaAxisCommandSink` 由宿主注入（`MotionActionExecutor` 同时实现它），面板不直接拿 `IMotionProvider`——否则门禁与点动看门狗会长出第二份；② **权限在按下之前就判**（`RuntimeContext.AccessPolicy.CanOperate(Element.RequiredRole)`），`CanOperate` 直接绑按钮容器的 `IsEnabled`——灰掉比"按下去没反应"诚实；每拍重算一次（登录/登出会改当前角色），`OnElementRefreshed` 也补一次（属性面板改 `RequiredRole` 后立刻生效）；③ **点动必须按住才动**：`PreviewMouseLeftButtonDown` 起、`PreviewMouseLeftButtonUp`/`MouseLeave`/`LostMouseCapture` 停（要 `CaptureMouse`，否则按住后移出按钮收不到 Up → 轴一直走）；**回零必须长按 0.5s**（`DispatcherTimer`，松开即取消），与参考模板一致、防误触。`ShowCommands=false` 时整块操作区收起，退化成纯监视面板。**六个命名件**（`BtnEnable`/`BtnStop`/`BtnHome`/`BtnJogForward`/`BtnJogReverse`/`BtnClearAlarm`）由断言钉住——`GetTemplateChild` 拿不到就是"永远点不动的按钮"，编译期全绿。**另：不要在 `Control` 子类上声明名为 `IsEnabled` 的依赖属性**（会遮蔽 `UIElement.IsEnabled`），轴使能状态用 `AxisEnabled`。守门人：AX9（出口/权限/收起）+ AX3 的命名件检查。 |
+
+---
+
+## 30. UI 工作流：Web 基准 → WPF 复刻 → 通用入库（2026-10-19）
+
+**起因**：用户裁定——桌面端界面过于陈旧，此后 UI 一律以 Web 端为设计基准，用 WPF 复刻，通用样式沉淀入库，避免各页面自行发挥导致风格不统一。
+
+**适用范围**
+
+- **R108（适用）**：新增或改版任何界面（页面、视图、弹窗、面板、工具栏、主题与控件样式），以及 UI 库/组件库建设。
+- **R109（不适用）**：纯业务逻辑、数据层、算法与非可视代码改动。
+- **R110（基准唯一）**：Web 端（设计稿或已上线的 Web 版本）是本仓 UI 的**唯一设计基准**。无 Web 基准时，先产出设计稿或指定参考界面再动手，不许直接按桌面习惯发挥。
+
+**执行顺序（默认三步，不可跳步）**
+
+- **R111（第一步 · Web 设计）**：先落纸六项——布局结构（分区/栅格/层级）、间距刻度、配色令牌、字号字重、组件五态（Normal/Hover/Pressed/Focus/Disabled）、交互细节（动效时长与缓动、加载/空/错误三态、键盘可达性）。
+- **R112（第二步 · WPF 复刻）**：用 WPF 原生能力按上述基准实现，以"接近 Web 设计稿"为唯一目标；不因平台差异自行改布局、改间距、改控件形态。
+- **R113（第三步 · 通用入库）**：出现跨页面共用、同一界面重复 ≥2 次、或属于基础控件的样式，必须沉淀进 `UI/Controls/Themes` 资源字典或 `UI/Controls` 组件库，以可复用样式/组件引用，**禁止在各页面重复手写**。
+
+**复刻要求**
+
+- **R114（视觉一致）**：布局分区、间距、圆角、阴影层级、颜色、字号字重与设计稿一致。允许的差异仅限平台强制项（系统字体度量、DPI 缩放），且须在交接中逐项列明。
+- **R115（状态一致）**：每个可交互控件五态齐全，键盘焦点必须可见；状态缺失视同未完成。
+- **R116（交互一致）**：动效时长与缓动与 Web 基准同档（一般 150~200ms）；加载/空/错误三态必须有明确视觉。
+- **R117（令牌化）**：颜色、间距、圆角、阴影、字号只能引用资源令牌；视图内禁止硬编码数值与十六进制色值。
+- **R118（禁止自行发挥）**：桌面端不得以"更适合桌面"为由擅自改变布局、信息密度、控件形态或交互路径；确有必要时按 R125 升级决策。
+
+**沉淀要求**
+
+- **R119（入库位置）**：主题令牌进 `Colors.xaml`；基础控件与样式进 `UI/Controls/Themes` 对应分册；跨工程复用组件进 `UI/Controls`。
+- **R120（复用优先）**：新页面先检索 UI 库，能复用不新建；确有差异用样式派生或附加属性扩展，不复制模板。
+- **R121（反向清理）**：改造中发现页面内的重复样式与魔法值，同批迁入 UI 库并删除原处副本，避免两套并存。
+
+**验收标准（缺一条不算完成）**
+
+- **R122（对照设计稿）**：逐项核对布局、间距、配色、字体、五态与交互细节，并提供改前/改后截图；每处差异写明原因与是否可接受。
+- **R123（工程闸门）**：无硬编码颜色与尺寸；通用样式已入库、页面无重复手写；`UIThemeSmokeTest` 通过，资源断链契约（R30-R32）与图标按钮裁切契约（R68）不回归。
+- **R124（判定标准）**：最终判定以"接近 Web 设计稿"为准，不以"桌面端看起来还行"为准。
+
+**例外与升级**
+
+- **R125（无法复刻）**：平台无法复刻或复刻成本明显不合理时，先记录差异点与替代方案，交 architect 评审，经用户确认后方可偏离，并在 `docs/code-changes/` 留档。
+
+### 30.1 交付边界与实施流程（2026-10-19）
+
+**起因**：用户裁定——Web 端只作设计媒介，**不把 Web UI 实现作为交付内容**；先在 Web 形式下完成设计与确认，再把同一套设计复刻到桌面端。
+
+| # | 规则 |
+| --- | --- |
+| R126 | **Web 端产物是设计媒介，不是交付物**。允许产出可点击 HTML / 截图 / 原型用于评审，但不得进入仓库构建、不得部署、不得作为"另一个客户端"维护。产品交付物只有四类：**WPF 代码、令牌映射表、截图证据、差异清单**。 |
+| R127 | **流程固定四步，不可跳步**：① 设计基线（Web 形式，含默认态 / 关键流程 / 边界态）→ ② 设计定稿与令牌映射（Web token ↔ WPF 资源键，标注允许偏差）→ ③ 桌面端复刻（按 30 节批次：令牌层 → 基础控件 → 壳层 → 弹窗/视图）→ ④ 验收（截图逐块对照 + 差异清单）。**没有设计基线不得直接改桌面端样式**。 |
+| R128 | **设计基线存放在 `docs/UI设计基线/<页面>/`**，由目录内 `README.md` 记录版本号、确认日期、确认人与覆盖范围；该目录**不参与任何工程构建**。基线只读：变更必须升版本，并同步映射表与已复刻页面（防止设计与实现漂移）。 |
+| R129 | **对应关系的判定口径**：布局分区、信息层级、控件形态、文案位置、状态语义、交互路径必须一致；字体度量、滚动条宽度、阴影层数、动效曲线的细微差异允许存在，但必须逐条写进该页面 README 的"已知偏差"。判定以"同一屏、同一状态"的截图对照为准。 |
+| R130 | **复刻差异必须在设计阶段预判并写进基线**，至少覆盖：字体度量、DPI 缩放（125%/150% 下 1px 线）、滚动条占位、flex/grid 与 WPF 布局差异、多层阴影不可复刻、动效曲线近似、文本截断、表格列宽（GridView 无星号列宽）、焦点态（显式样式会丢默认焦点框）、无障碍（`AutomationProperties`）。 |
+| R131 | **禁止用"桌面端实现更方便"反向修改设计**。设计变更只能由设计基线升版发起；实现侧遇到不可复刻项，按 R125 走升级决策，不得静默降级。 |
+| R132 | **验收由用户裁定**：每批交付必须附"改前/改后截图 + 与设计基线的逐项对照表 + 差异清单"；差异清单未关闭或未经用户接受的，不得宣称完成。 |
+
+### 30.2 自定义控件模板的高度表达（2026-10-19）
+
+**起因**：IO 健康弹窗的页签文字被裁成一条（真机截图）。模板用 `Grid` 的 `Auto` 行承载文字、`2px` 行承载指示条，靠 `ContentPresenter` 的上下 `Margin` 撑开高度；在对话框宿主里高度分配不稳定，文字被压没。细节与探针证据见 `docs\code-changes\2026-10-19-IO健康页签文字被裁（TabItem模板依赖Grid行高分配）.md`。**排查流程已固化为 Skill `.zcode/skills/wpf-ui-debug/SKILL.md`——改主题/模板后"没生效"先照它走，不要凭截图猜。**
+
+| # | 规则 |
+| --- | --- |
+| R133 | **自定义 `TabItem` / 列表项模板不许用"Grid Auto 行 + 子元素 Margin"来表达上下留白**。高度必须由样式显式决定：`MinHeight` + 模板根 `Border.Padding`；指示条用 `Border.BorderThickness` 的底边表达，不要再加一行 `RowDefinition`。判据：渲染探针量 `TabItem.ActualHeight ≥ 36` 且文字完整可见。 |
+| R134 | **验证 .NET 9 的 WPF 程序集必须用 `net9.0-windows` 探针工程**（`dotnet run`），**不许用 PowerShell 5.1**：它是 .NET Framework 宿主，`Assembly.LoadFrom` 看似成功，但资源字典加载为 0 条目、`LoadComponent` 直接报 `System.Runtime, Version=9.0.0.0` 找不到——据此得出"样式没生效"是假结论（本轮据此白排查两轮）。探针工程放临时目录，用完即删，不进仓库。 |
+| R135 | **弹窗内的可聚焦控件必须挂 `FocusVisualStyle="{StaticResource DialogFocusVisual}"`，ToolTip 必须用 `<ToolTip Style="{StaticResource DialogToolTipStyle}">`**。默认 `FocusVisualStyle` 画的是黑色/虚线矩形（真机截图里关闭按钮外那圈方框），默认 `ToolTip` 是方角系统灰边——两者都会把现代圆角界面瞬间拉回旧风格。两个样式定义在 `UI/Controls/Themes/Dialog/Dialog.Misc.xaml`（显式键控，因为 Fluent 在 App 级最后合并会顶掉隐式样式）。**注意**：对话框打开时键盘焦点默认落在第一个可聚焦元素上（通常是标题栏关闭按钮），所以焦点环会"自己出现"；若不想让关闭按钮抢初始焦点，用 `FocusManager.FocusedElement` 指到内容区，**不要用 `Focusable="False"`**（键盘用户会够不到它）。 |
+| R136 | **运行期"改配置"必须走"权限闸门 + 同一个命令出口"，且写的是方案活对象（随保存落盘、不进撤销栈）**。用户裁定「有足够权限就可以改」后，点位表的示教/改速度直接写 `MotionDescriptor.Points`。三条口径：① **权限在按下之前判**（`AccessPolicy.CanOperate(Element.RequiredRole)`），按钮 `CanExecute`、行内输入框 `CanEdit`、命令执行前各判一次——只判其中一处，绕过按钮直接调命令就漏了；② **示教写"当前轴位置"而不是行上原位置**，所以必须先有有效快照（离线明确拒绝，不写一个猜的值）；③ **定位与动作表走同一条路径**（`TryMove` → `ScadaActionType.MotionMoveAbsolute` → `CheckMove`），软限位/未使能/未回零/忙的判据只有一份；**示教/改速度不做门禁**（它们不动轴），但要校验数值有限且速度 ≥ 0。**图元侧不直接拿 `IMotionProvider`**：点位读 `IScadaAxisSource.TryGetPoints`，写 `IScadaAxisCommandSink.TryTeach/TrySetPointSpeed`，宿主侧同一个 `MotionActionExecutor` 实现两件事。**模板纪律**：行 `DataTemplate` 里没有 `TemplatedParent`，颜色/可见性/可编辑性一律用 `RelativeSource AncestorType=图元类型`（写 `TemplateBinding` 拿到 null）；ComboBox 样式**不许跨分册 `StaticResource`**（R30），本分册自带一份（键名加前缀）。守门人：AX7 的点位三条 + AX10 十条。 |
+
+### 30.3 Modbus 地址串的语义（2026-10-19）
+
+**起因**：给自写 RTU 从站做互通测试时，客户端把 `"40001"` 发成了 `9C 40`（= 40000），而不是 0。查 HSL 源码确认：`ModbusInfo.AnalysisAddress` 只按 `AddressStartWithZero` 决定**是否减 1**，**不会**把 `4xxxx` 剥成寄存器偏移。细节见 `docs/code-changes/2026-10-18-IO接入层（方案级配置+系统变量+Modbus-S7驱动）.md` 第十批。
+
+| # | 规则 |
+| --- | --- |
+| R137 | **Modbus 点位的 `Address` 是"原始协议地址"，不是 PLC 变量表里的 `4xxxx` 编号**：`"40001"` 落到第 40001（0 基）或第 40000（1 基）号寄存器，**不是**"第一个保持寄存器"。三条口径：① 按原始地址写就直接写 `"0"`/`"1"`；要显式指定区域用 HSL 的 `x=3;0`（保持寄存器）/ `x=1;0`（线圈）；② `ModbusDeviceConfig.AddressStartWithZero` 只控制**是否减 1**，默认 `true`（HSL 默认、与既有方案一致）；按 1 基编号配置时必须关掉，否则会**静默读写到相邻寄存器**（不报错、值不对，最难查的一类故障）；③ 新增 Modbus 类驱动必须把该开关透传到客户端（`ModbusTcpNet` / `ModbusRtu` / `ModbusRtuOverTcp` 都有该属性），UI 的 `ModbusDriverEditModel` 必须同步 `ToJson`/`From`——否则"界面上能改、运行时无效"（R33 同族）。守门：`IoChecks` M.6~M.10（同一从站、同一地址串，1 基与 0 基必须落到不同寄存器）。 |
+| R138 | **配置型数据的运行期展示必须"每拍重读 + 指纹短路"，不能只靠"自己写的时候刷一次"**。点位是 `List<MotionPoint>`（不是可观察集合），外部（「运动卡设置 → 点位列表」）改了它**没有任何变更通知**；只在自己示教/改速度后刷新，运行中的表就永远看不到外部改动。正解：在统一节拍里每拍 `TryGetPoints` 重读一次，用**指纹**（轴 Id + 每行 序号/名字/位置/速度，数值用 `"R"` 往返格式）比对，**只有变化才重建行**——无条件重建会把用户正在输入的速度框连行一起换掉（WPF 会丢掉焦点与未提交文本）。同理适用于任何"配置在别处改、运行画面要跟"的列表（报警定义、变量事件、配方表）：**先问"谁还会改它、改完有没有通知"**，没有通知就必须轮询 + 短路。守门人：AX10 的两条（外部改点位后自动刷新 / 没变化时不重建行——后者用引用相等断言，防"每拍都重建"的过度修复）。 |
+
+### 30.4 派生只读属性与版本号（2026-10-19）
+
+**起因**：`FlowCanvasChecks` clean build 实测 8 条 `Version +1` 断言全红（实际 +2）。根因是容器里加步骤时，`ContainerStepCountWatcher` 会主动 `RaisePropertyChanged(nameof(TotalStepCount))`；而 `TotalStepCount` 是从 `Children`/`Steps` 派生的只读计数、没被 `[RuntimeState]` 排除，`FlowModel.OnStepPropertyChanged` 于是又计了一次版本。细节见 `docs/code-changes/2026-10-19-系统健康面板阶段0（门禁可信化与三处前置修复）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R139 | **任何由代码主动 `RaisePropertyChanged` 的派生只读属性，只要它挂在 `StepModel` 子类上，就必须标 `[RuntimeState]`**。`FlowModel.OnStepPropertyChanged` 的判据是"属性名不在 RuntimeState 名单里 → Version++"，它**不看属性有没有 setter**；而"派生值变了"的根因通常已经由结构变更计过一次版本，再计一次就是**一次操作涨 2**（表现为"改一下要重编译两轮"）。三条口径：① 典型成员：`TotalStepCount`（For/Condition/Parallel 各一份）、任何由 watcher 驱动的 `Count`/`Summary`；② **不要**改成在 `FlowModel` 里加字符串名单——那正是 `RuntimeStateAttribute` 要取代的旧写法（重命名即静默失效）；③ 新增 watcher 时先问一句"我 raise 的这个属性会被 FlowModel 当成语义变更吗"。守门人：`FlowModelVersionChecks` 的 E14 八条（容器/分支/往返四类各两条，去掉 `[RuntimeState]` 立刻红）。 |
+
+---
+
+## 31. 流程栏 v2 视觉改版：整行 section bar 与聚合计数（2026-10-19）
+
+**起因**：用户裁定按 v2 设计基线（`docs/UI设计基线/process-panel/`）重做流程栏。三件事有复用价值：整行 section bar 的做法、聚合计数的通知、渲染探针的图标陷阱。细节与证据见 `docs/code-changes/2026-10-19-流程栏视觉改版（v2设计基线复刻）.md`。
+
+| # | 规则 |
+| --- | --- |
+| R139 | **树行要"铺满整行"时，`ContentPresenter` 必须 `Stretch`，且 section 色条要靠负边距 + 箭头 `ZIndex` 延伸到展开箭头下方**。默认 `HorizontalAlignment="Left"` 会让所有行按内容宽度排，状态底色/分组条都横贯不了。做法：数据模板根 `Margin="-22,…"`（把条左移到行左缘）、内容再用 19/22 的左内边距拉回 30px 竖线、模板里的 `Expander` 设 `Panel.ZIndex="2"` 压在条上（否则不透明的条会盖住箭头）。**改 TreeViewItem 模板的 Padding/箭头列宽时，-22 与 19/22 要同步**，否则三种行的竖线错位。守门：`RenderProbe` 场景 F 出图 + 三条点击拦截判据（分支卡拦/箭头放行/算子卡不拦）。 |
+| R140 | **`ObservableCollection` 只替自己发 `Count` 通知，不替容器发聚合值**。容器组头要显示「N 分支 · M 算子」时，`Children.Count` 可以直接绑（自带通知），但"各分支 Steps.Count 之和"必须自己订阅：`Children` 增删 + 每个分支 `Steps` 增删 → `RaisePropertyChanged`。本仓已封装 `ContainerStepCountWatcher`（`Core/Models/ProcessStep/`），`Children` 被反序列化整体替换时由 `Rebind` 摘挂旧集合。**没有通知的只读计算属性 = 拖入/删除算子后界面永远停在旧值**（编译期全绿，只有真机看得出）。 |
+| R141 | **`RenderProbe` 出图里的"豆腐块"不是产品缺陷**：探针把 `app.Resources["Icon"]` 直接设成 `Segoe MDL2 Assets`，它优先于场景 F 后合并的 App.xaml 内联资源（Font Awesome），所以 `&#xf06a;`、插件图标在探针图里显示为空框。**判据**：看探针图只判布局/底色/对齐，字形必须回真机或按 App.xaml 的 `Icon` 资源核对；不要把探针的 tofu 当字体 bug 修（会改坏真机）。 |
+| R142 | **同一类图元的多个"预设"只能是一个控件类 + 多套描述符默认值，不许复制成多个控件类**。轴控台（监控+运动+点位）、轴面板（只操作）、旧点位表（兼容）共用 `AxisPanelElement`：**一个 `AxisOptions` + 一个 `SelectedAxisId`**，预设只差 `ShowCommands` / `ShowPoints` 两个默认值。复制成三个类 = 三份轴选择状态，现场就会出现"监控看 X、点动动 Y"的错靶（用户裁定合并的直接原因）。默认值覆盖走 `ScadaPropertyCatalog.WithDefaults(...)`（复制描述符、不改缓存实例）；旧 TypeKey 保留注册但 `ShowInToolbox=false`，工具箱按该位过滤。**合并控件的切轴必须"先对旧轴收手"**：`SelectedAxisId` 变化时用 `e.OldValue` 直呼出口发 `JogStop`（**不能用按当前选中轴的 `EndJog()`**——那时已经是新值，会把停止发给新轴、旧轴继续走到看门狗）；同时停回零长按计时器、清操作文案。`CanEdit = CanOperate && ShowCommands` 控制行内速度框；点位区收起时**不读** `TryGetPoints`（懒加载）。守门人：AX11（三预设默认值 / 一个选择器同时驱动监控与点位 / 切轴停旧轴）+ AX10（合并后的点位写入与自动刷新）。 |
+| R143 | **改面板默认宽度/尺寸必须同时处理已保存的 `Layout.xml`**：AvalonDock 恢复布局时用文件里的**绝对像素**（实测流程栏被拖成 230）完整覆盖 Shell.xaml 的默认值，只改 XAML 对老用户等于没发生（与 R43"旧布局抵消改造"同族）。正解 = 反序列化后按 `ContentId` 找到面板所在的列并**夹紧**（`LayoutHelper.EnsureProcessColumnWidth`：`DockMinWidth=320`、绝对宽度 `<320` 拉回 `340`），只动这一列，**不升结构版本**（R43 的触发条件是"面板归属/停靠语义变了"；只修宽度不该丢掉用户其它布局）。守门人：`UIThemeSmokeTest.RunPanelModeChecks` 第 ⑨ 条——把列改成 230 → 调夹紧 → 必须回到 340/320（变异反证）。 |
+| R144 | **出厂布局快照（`DefaultLayout.xml`）必须每次启动重捕获，且"加载布局"命令不许刷新它**。`LayoutHelper.Load(bool refreshDefaultSnapshot)`：启动路径（`OnContentRendered`）传 true——此刻 `LoadFromString` 还没跑，内存里必然是 Shell.xaml 默认布局；「加载布局」命令传 false——那时内存里是用户布局，刷新会把用户布局写成"出厂默认"。**"只捕获一次"会让历史错误快照永久留存**：实测 2026-10-18 的 `DefaultLayout.xml` 里流程栏 `DockWidth="25"`、两个左栏 pane 连 `DockHeight` 都没有，点"恢复默认布局"等于恢复成一条缝。捕获前先 `UpdateLayout()`，宽高才是实测值。**恢复命令必须"先确认、失败也说话"**：`Reset()` 在快照缺失/过期时只删文件返回 false，命令不提示就是"点了没反应"（现场会当成功能坏了）。守门人：`UIThemeSmokeTest.RunPanelModeChecks` 第 ⑩ 条——序列化 ShellCopy 后必须含 `DockWidth="340"` 与 `DockHeight="180"`（变异反证：改 230 / 去掉 180 → 红）。 |
+| R145 | **AvalonDock 的"让空间"与标签页有三条硬语义，写模式收敛前必须知道**：① **`DockHeight = 0` 会被夹回原值**（实测 set0 读回 200），要收起一个 pane 用 **1px**；幂等判据不能用高度（收起后是 1 不是 0），用"是否已保存过原高度"的字段。② **同一 pane 的多个 anchorable 是标签页**：切标签看 `IsSelected`，`IsActive` 是"整个 DockingManager 的活动内容"——`ShowPanel` 里少一句 `anchorable.IsSelected = true`，会停在最后 Show 的那个标签上（属性/图层合并后实测）。③ **`ShowAnchorable` 会重挂 LayoutContent**，模式切换后**旧引用会失效**——断言/后续代码必须重新 `FindPanel`，不能拿切换前的对象读状态（本轮两条断言假红就是拿旧实例量高度）。**组态模式的"让空间"收敛**（`ApplyScadaPanelMode`）：左栏（程序/流程栏）收起 + 底部日志收 1px；退出恢复。属性/图层合并属于**面板归属变更**，必须同时升 `CurrentLayoutSchemaVersion`（3→4，R43）；左栏/日志的收起是模式收敛，不升版本。守门人：`UIThemeSmokeTest.RunPanelModeChecks` ③b 三条（左栏收起/恢复、日志 1px/恢复 200、属性图层同 pane 且属性选中）。 |

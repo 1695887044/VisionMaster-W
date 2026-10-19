@@ -37,8 +37,32 @@ namespace VisionMaster.Services
         /// 工具箱从自动隐藏区改为常驻停靠栏"这类重排，ContentId 全部复用，
         /// 旧的 Layout.xml / .vms 内嵌布局照样通过覆盖度检查被原样恢复回来，
         /// 改造在老用户机器上等于没发生。版本属性就是 ContentId 之外的结构指纹。
+        ///
+        /// v4（2026-10-19）：图层并入属性 pane 做标签页（原独立 240px 列），
+        /// 右侧从 260+240+300 收成 260+260——面板归属变了，必须让旧布局让位。
         /// </summary>
-        private const int CurrentLayoutSchemaVersion = 3;
+        private const int CurrentLayoutSchemaVersion = 4;
+
+        /// <summary>
+        /// 流程栏所在列的默认宽度（与 Shell.xaml 的 DockWidth 一致）。
+        /// 依据：流程栏 v2 组头要同时放"类型标签 + 实例名 + N 分支 · M 算子 + 状态图标"，
+        /// 340 时默认名称（如"并行分组_0"）能完整显示；320 是下限（名称开始截断但统计不丢）。
+        /// </summary>
+        private const double DefaultProcessColumnWidth = 340;
+
+        /// <summary>
+        /// 流程栏所在列的最小宽度。低于它组头右侧统计会把实例名挤到只剩两三个字。
+        /// </summary>
+        private const double MinProcessColumnWidth = 320;
+
+        private const string ProcessViewContentId = "Panel_ProcessView";
+
+        /// <summary>
+        /// 本次启动捕获的出厂布局快照（内存副本）。
+        /// 「恢复默认布局」优先用它：文件快照可能是旧版本留下的（结构版本/尺寸都可能过期），
+        /// 而内存副本一定与当前 Shell.xaml 同步；文件被删/被占用时也能立即恢复，不必重启。
+        /// </summary>
+        private static string? _defaultLayoutXml;
 
         /// <summary>
         /// 布局结构版本的根元素属性名：保存时写入，下发给反序列化器之前摘除。
@@ -114,10 +138,17 @@ namespace VisionMaster.Services
         /// <summary>
         /// 从 Layout.xml 加载默认布局（文件不存在或损坏时保持当前布局）
         /// </summary>
+        /// <param name="refreshDefaultSnapshot">
+        /// 是否先刷新出厂快照（默认 true）。**只有启动路径能传 true**：那一刻内存里还是
+        /// Shell.xaml 的默认布局；「加载布局」命令必须传 false，否则会把用户当前布局
+        /// 当成出厂默认写进 DefaultLayout.xml。
+        /// </param>
         /// <returns>是否成功加载</returns>
-        public static bool Load()
+        public static bool Load(bool refreshDefaultSnapshot = true)
         {
-            CaptureDefaultLayoutSnapshot(); // 出厂快照缺失时补捕获（须在 XAML 默认布局就绪后调用）
+            if (refreshDefaultSnapshot)
+                CaptureDefaultLayoutSnapshot();
+
             try
             {
                 if (!File.Exists(LayoutFilePath)) return false;
@@ -132,16 +163,27 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 首次启动把 XAML 内置默认布局快照到 DefaultLayout.xml（"恢复默认布局"的数据源；
-        /// 只捕获一次，之后即使用户改乱布局也不覆盖）
+        /// 把当前 XAML 内置默认布局快照到 DefaultLayout.xml（"恢复默认布局"的数据源）。
+        ///
+        /// 【为什么每次启动都重捕获，而不是"只捕获一次"】
+        /// 调用点在 LoadFromString 之前，此刻内存里必然是 Shell.xaml 的默认布局，
+        /// 重捕获不会覆盖用户布局。反过来，"只捕获一次"会让历史快照永久留存：
+        /// 实测 2026-10-18 的 DefaultLayout.xml 里流程栏列宽是 **25px**（早期布局未测量时捕获的），
+        /// 点"恢复默认布局"等于把界面恢复成一条缝。快照必须跟着 Shell.xaml 走。
+        ///
+        /// 先 UpdateLayout 再序列化：OnContentRendered 时机通常已排好版，但保险起见让
+        /// 宽高取实测值，而不是未测量时的占位值。
         /// </summary>
         private static void CaptureDefaultLayoutSnapshot()
         {
             try
             {
-                if (File.Exists(DefaultLayoutFilePath)) return;
+                FindManager()?.UpdateLayout();
+
                 var xml = SaveToString();
                 if (string.IsNullOrEmpty(xml)) return;
+
+                _defaultLayoutXml = xml; // 内存副本：Reset 优先用它（文件可能被删/是旧版本）
                 File.WriteAllText(DefaultLayoutFilePath, xml);
             }
             catch (Exception ex)
@@ -222,6 +264,10 @@ namespace VisionMaster.Services
                 // CanHide=False 只能从源头禁止后续关闭，已持久化的 Hidden 条目仍需此处兜底。
                 EnsureCriticalPanelsVisible(manager);
 
+                // 流程栏列宽兜底：旧布局里可能是被拖窄的绝对宽度（实测 230），
+                // 低于最小宽度时拉回默认值（只动这一列，其余面板位置不变）。
+                EnsureProcessColumnWidth(manager);
+
                 LayoutLoaded?.Invoke();
                 return true;
             }
@@ -295,11 +341,15 @@ namespace VisionMaster.Services
             var restored = false;
             try
             {
-                if (File.Exists(DefaultLayoutFilePath))
-                {
-                    var snapshot = File.ReadAllText(DefaultLayoutFilePath);
+                // 优先用本次启动的内存快照（一定与当前 Shell.xaml 同步）；
+                // 内存快照不可用时再退回文件（兼容"启动时捕获失败"的极端情况）。
+                var snapshot = _defaultLayoutXml;
+                if (string.IsNullOrEmpty(snapshot) && File.Exists(DefaultLayoutFilePath))
+                    snapshot = File.ReadAllText(DefaultLayoutFilePath);
 
-                    // 出厂快照是"首次启动那一刻的 XAML 布局"，新增面板或布局重排后它就过期了
+                if (!string.IsNullOrEmpty(snapshot))
+                {
+                    // 出厂快照是"启动那一刻的 XAML 布局"，新增面板或布局重排后它就过期了
                     // （结构版本落后 / 缺面板）。过期快照不能用于恢复，直接作废删除，
                     // 下次启动 CaptureDefaultLayoutSnapshot 会按新布局重新捕获出厂快照。
                     if (IsLayoutXmlUsable(snapshot, out var snapshotReason))
@@ -387,12 +437,32 @@ namespace VisionMaster.Services
         /// 组态界面设计专属的三个面板（进入组态设计时显示，其余情况收起）。
         /// 「属性」是"选中图元才有内容"的上下文面板，但它只在组态场景才有意义，故一并收敛。
         /// </summary>
+        /// <summary>
+        /// 组态界面设计专属的三个面板（进入组态设计时显示，其余情况收起）。
+        /// 顺序：图层在前、属性在后——两者现在是同一个 pane 的两个标签页，
+        /// ShowPanel 会顺带 IsActive=true，最后显示的那个成为当前标签；属性是主面板，必须最后。
+        /// </summary>
         private static readonly string[] ScadaDesignPanels =
         {
-            "Panel_ScadaPropertyView",   // 属性
-            "Panel_ScadaLayerView",      // 图层
+            "Panel_ScadaLayerView",      // 图层（属性 pane 的第二个标签）
+            "Panel_ScadaPropertyView",   // 属性（主标签，最后显示以取得选中态）
             "Panel_ScadaToolboxView",    // 图元工具箱
         };
+
+        /// <summary>
+        /// 左侧工作面板（程序 / 流程栏）：组态设计时不参与，收起后把整列 340px 让给画布。
+        /// 退出组态设计时按原位置恢复（走 ShowAnchorable，R58）。
+        /// </summary>
+        private static readonly string[] LeftWorkPanels =
+        {
+            "Panel_FlowListView",
+            "Panel_ProcessView",
+        };
+
+        private const string LogPanelContentId = "Panel_LogView";
+
+        /// <summary>组态模式收起前记录的底部日志 pane 高度（null = 当前未收起）。</summary>
+        private static GridLength? _savedLogPaneHeight;
 
         /// <summary>算子工具箱（非组态场景下唯一保留的右侧面板）</summary>
         private const string OperatorToolboxPanel = "Panel_ToolView";
@@ -424,12 +494,67 @@ namespace VisionMaster.Services
             {
                 foreach (var id in ScadaDesignPanels) ShowPanel(manager, id);
                 HidePanel(manager, OperatorToolboxPanel);
+
+                // 组态设计时左栏（程序/流程栏）不参与，收起后整列宽度让给画布；
+                // 底部日志收成 0 高（保留用户原来的可见性与标签选择，只动高度）。
+                foreach (var id in LeftWorkPanels) HidePanel(manager, id);
+                CollapseLogPane(manager);
             }
             else
             {
                 ShowPanel(manager, OperatorToolboxPanel);
                 foreach (var id in ScadaDesignPanels) HidePanel(manager, id);
+
+                foreach (var id in LeftWorkPanels) ShowPanel(manager, id);
+                RestoreLogPane(manager);
             }
+        }
+
+        /// <summary>
+        /// 把底部日志 pane 收成 0 高。不用 HidePanel 是为了保住用户原来的可见性/标签选择
+        /// （日志、监控栏、设备状态共用这个 pane，隐藏其中一个会把整组收起）。
+        /// 重复调用幂等：已经是 0 时不再覆盖保存的高度。
+        /// </summary>
+        private static void CollapseLogPane(DockingManager manager)
+        {
+            // 已收起：重复调用直接返回（不能拿高度判断——收起后高度是 1，不是 0）
+            if (_savedLogPaneHeight != null) return;
+
+            var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
+            if (pane == null) return;
+
+            _savedLogPaneHeight = pane.DockHeight;
+
+            // 为什么是 1 而不是 0：AvalonDock 的 DockHeight 会把 0 夹回原值（实测 set0 读回 200），
+            // 1px 则正常生效——视觉上就是一条边线，高度已经还给画布。
+            pane.DockHeight = new GridLength(1);
+        }
+
+        /// <summary>恢复底部日志 pane 的高度（没收起过则空操作）。</summary>
+        private static void RestoreLogPane(DockingManager manager)
+        {
+            if (_savedLogPaneHeight == null) return;
+
+            var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
+            if (pane == null) return;
+
+            pane.DockHeight = _savedLogPaneHeight.Value;
+            _savedLogPaneHeight = null;
+        }
+
+        /// <summary>按 ContentId 找到锚定面板所在的 LayoutAnchorablePane（沿 Parent 链）。</summary>
+        private static LayoutAnchorablePane? FindAncestorAnchorablePane(DockingManager manager, string contentId)
+        {
+            if (FindPanel(manager, contentId) is not LayoutAnchorable anchorable) return null;
+
+            ILayoutElement current = anchorable;
+            while (current?.Parent is ILayoutContainer parent)
+            {
+                if (parent is LayoutAnchorablePane pane) return pane;
+                current = parent as ILayoutElement;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -461,7 +586,14 @@ namespace VisionMaster.Services
 
             // 停靠面板先恢复可见再激活；文档选项卡直接激活（切标签）
             if (content is LayoutAnchorable anchorable)
+            {
                 ShowAnchorable(manager, anchorable);
+
+                // 同一 pane 的多个 anchorable 是标签页：IsActive 表示"整个 DockingManager 的活动内容"，
+                // 切到哪个标签要看 IsSelected。属性/图层合并后，这里少一句就会停在最后一个 Show 的标签上。
+                anchorable.IsSelected = true;
+            }
+
             content.IsActive = true;
         }
 
@@ -622,6 +754,52 @@ namespace VisionMaster.Services
 
                 ShowAnchorable(manager, anchorable);
                 Console.WriteLine($"关键面板 {anchorable.ContentId} 从 Hidden 区强制恢复可见（{(anchorable.IsVisible ? "成功" : "失败：仍未显示")}）");
+            }
+        }
+
+        /// <summary>
+        /// 流程栏列宽兜底：旧 Layout.xml / .vms 里这一列可能是用户拖窄的绝对宽度（实测 230），
+        /// 反序列化后按 ContentId 找到流程栏，沿父链找到它所在的 LayoutPanel，把宽度拉回最小值以上。
+        ///
+        /// 为什么不能只改 Shell.xaml 的默认值：AvalonDock 恢复布局时用的是文件里的宽度，
+        /// 会把默认布局整个覆盖掉；只改 XAML 对老用户等于没发生（与 R43 的"旧布局抵消改造"同族）。
+        /// 为什么不用升结构版本：这里只修一列宽度，不该顺手丢掉用户其它面板的位置与高度。
+        /// 失败只记日志、不影响启动（最坏情况是维持用户原来的窄列）。
+        /// </summary>
+        internal static void EnsureProcessColumnWidth(DockingManager manager)
+        {
+            try
+            {
+                var anchorable = EnumerateContents(manager)
+                    .OfType<LayoutAnchorable>()
+                    .FirstOrDefault(a => string.Equals(a.ContentId, ProcessViewContentId, StringComparison.Ordinal));
+                if (anchorable == null) return;
+
+                ILayoutElement current = anchorable;
+                while (current?.Parent is ILayoutContainer parent)
+                {
+                    if (parent is LayoutPanel panel)
+                    {
+                        panel.DockMinWidth = MinProcessColumnWidth;
+
+                        // 只纠正"绝对且过窄"的宽度；星号宽度交给 AvalonDock 按窗口分配
+                        if (panel.DockWidth.IsAbsolute && panel.DockWidth.Value < MinProcessColumnWidth)
+                        {
+                            var oldWidth = panel.DockWidth.Value;
+                            panel.DockWidth = new GridLength(DefaultProcessColumnWidth);
+                            Console.WriteLine(
+                                $"流程栏列宽过窄（{oldWidth:0.#}），已拉回 {DefaultProcessColumnWidth}");
+                        }
+
+                        return;
+                    }
+
+                    current = parent as ILayoutElement;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"流程栏列宽校正失败（不影响启动）：{ex.Message}");
             }
         }
 

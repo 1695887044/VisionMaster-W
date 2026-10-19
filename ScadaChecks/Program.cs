@@ -2404,9 +2404,9 @@ namespace ScadaChecks
                 "Hmi.Rectangle", "Hmi.Ellipse", "Hmi.Text", "Hmi.Button", "Hmi.BitButton", "Hmi.Indicator",
                 "Hmi.ProgressBar", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
                 "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner", "Hmi.ImageView",
-                "Hmi.Panel", "Hmi.AxisPanel",
+                "Hmi.Panel", "Hmi.AxisConsole", "Hmi.AxisPanel", "Hmi.AxisPointTable",
             };
-            Check("19 个内置图元全部注册（含容器图元 Hmi.Panel 与轴面板 Hmi.AxisPanel）",
+            Check("21 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -5139,16 +5139,20 @@ namespace ScadaChecks
             // ---------------- ⑤ 工具箱视图模型：只读注册表 ----------------
 
             var toolbox = new ScadaToolboxVM();
-            int allCount = ElementRegistry.All.Count;
 
-            Check("工具箱条目总数 = 注册表全量（注册即出现在面板上，不必改这里一行）",
+            // 工具箱只列 ShowInToolbox=true 的（旧 TypeKey 兼容别名照常注册、但不再从工具箱拖出来）。
+            int allCount = ElementRegistry.All.Count(d => d.ShowInToolbox);
+            int hiddenCount = ElementRegistry.All.Count(d => !d.ShowInToolbox);
+
+            Check("工具箱条目总数 = 可上工具箱的注册项（注册即出现；ShowInToolbox=false 的兼容别名不计入）",
                 toolbox.TotalCount == allCount
-                && toolbox.Groups.Sum(g => g.Items.Count) == allCount,
-                $"共 {toolbox.TotalCount} 种");
+                && toolbox.Groups.Sum(g => g.Items.Count) == allCount
+                && ElementRegistry.All.Count == allCount + hiddenCount,
+                $"共 {toolbox.TotalCount} 种 / 隐藏 {hiddenCount} 种");
 
             Check("分组覆盖注册表里的每个分类，且分类先后沿用注册表次序",
                 toolbox.Groups.Select(g => g.Name)
-                    .SequenceEqual(ElementRegistry.All.Select(d => d.Category)
+                    .SequenceEqual(ElementRegistry.All.Where(d => d.ShowInToolbox).Select(d => d.Category)
                         .GroupBy(c => c).Select(g => g.Key)),
                 string.Join("、", toolbox.Groups.Select(g => g.Name)));
 
@@ -5172,8 +5176,10 @@ namespace ScadaChecks
             Check("搜索命中类型键（大小写不敏感，中英混输也能找到）", Shown(toolbox) == 1, $"命中 {Shown(toolbox)}");
 
             toolbox.SearchText = "操作";
-            Check("搜索命中分类（\"操作\"出来的是这一类下全部图元：按钮 + 位按钮）",
-                Shown(toolbox) == 2, $"命中 {Shown(toolbox)}");
+            var operationHits = toolbox.Groups.SelectMany(g => g.Items).Select(i => i.TypeKey).ToList();
+            Check("搜索命中分类（「操作」至少带出这一类下的全部图元：按钮 + 位按钮）",
+                operationHits.Contains("Hmi.Button") && operationHits.Contains("Hmi.BitButton"),
+                $"命中 {Shown(toolbox)}：{string.Join("、", operationHits)}");
 
             toolbox.SearchText = "罐体";
             Check("搜索命中说明文字（用户记得的是\"罐体\"而不是\"椭圆\"）", Shown(toolbox) == 1, $"命中 {Shown(toolbox)}");
@@ -5233,7 +5239,8 @@ namespace ScadaChecks
             var picker = new FakeVariablePicker();
             var pagePicker = new FakePagePicker();
             var flowPicker = new FakeFlowPicker();
-            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker, flowPicker, new FakeAxisPicker());
+            var axisRegistry = new MotionAxisRegistry(() => solution.MotionCards);
+            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker, flowPicker, new FakeAxisPicker(), axisRegistry);
 
             static int Total(ScadaPropertyVM vm) => vm.Groups.Sum(g => g.Rows.Count);
 
@@ -14437,7 +14444,8 @@ namespace ScadaChecks
                     editor.SelectedElements = new[] { e1 };
 
                     var panel = new ScadaPropertyVM(
-                        editor, new RecordingNotifier(), new FakeVariablePicker(), new FakePagePicker(), new FakeFlowPicker(), new FakeAxisPicker());
+                        editor, new RecordingNotifier(), new FakeVariablePicker(), new FakePagePicker(), new FakeFlowPicker(), new FakeAxisPicker(),
+                        new MotionAxisRegistry(() => workspace.CurrentSolution?.MotionCards));
 
                     ScadaEditHistory.Clear();
                     ScadaWriteGuard.Strict = true;

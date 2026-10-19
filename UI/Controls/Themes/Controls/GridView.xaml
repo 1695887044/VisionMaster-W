@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+
   <!--  ==========================================================================
         表格视图（ListView + GridView）的"让路"样式
         ==========================================================================
@@ -41,5 +45,44 @@
             "无法找到名为 GridListViewStyle 的资源"（2026-10-06 实测复现，5 个视图已按此办）。
     -->
   <Style x:Key="GridListViewStyle" TargetType="ListView" />
+
+  <!--  ==========================================================================
+        列头：现代表格观感（无竖分隔线、透明底、12 号次要色、底部发丝线）
+        ==========================================================================
+
+        为什么必须显式写 Template：只给 GridViewColumnHeader 挂一个"只设 Setter"的键控样式时，
+        模板会回落到框架 Aero2 那份——它带列间竖线（真机截图里就是"一格格表格"）。
+        自绘模板去掉竖线，只留一条底部发丝线；同时去掉拖拽改列宽用的 Gripper
+        （只读诊断表不需要，且 Gripper 会在列头右缘画一条短竖线）。
+
+        Colors.xaml 由本字典自行合并（R30/R31：分册里的 StaticResource 必须在本分册
+        + 本分册自己 merge 的子树内可解析；视图就地合并本字典时也能拿到令牌）。
+  -->
+  <Style x:Key="GridListHeaderStyle" TargetType="GridViewColumnHeader">
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="Height" Value="36" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="GridViewColumnHeader">
+          <Border
+              Padding="{TemplateBinding Padding}"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{StaticResource DialogBorderLightBrush}"
+              BorderThickness="0,0,0,1">
+            <ContentPresenter
+                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                VerticalAlignment="Center"
+                RecognizesAccessKey="True"
+                SnapsToDevicePixels="True" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
 </ResourceDictionary>

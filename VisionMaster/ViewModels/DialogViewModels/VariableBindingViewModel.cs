@@ -606,8 +606,13 @@ namespace VisionMaster.ViewModels
                 SelectedInputPort = DisplayDataPort[0];
             }
 
+            // 用户变量 + 系统变量（运动/IO）都进入绑定候选；系统变量按 VariableId 解析。
+            var allVariables = Workspace.GlobalVariables
+                .Concat(Workspace.SystemVariables)
+                .ToList();
+
             var availableVars = FlowQueryHelper.GetAvailableVariablesTree(
-                Workspace.GlobalVariables,
+                allVariables,
                 Workspace.CurrentFlow.Steps,
                 _targetStep
             );

@@ -111,6 +111,30 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 轴改名后的引用刷新（与本类上一个方法同一范式，只是引用的是轴而不是变量）。
+        ///
+        /// <b>为什么必须有它</b>：动作表里的运动命令按 <see cref="ScadaAction.AxisId"/> 寻址，
+        /// 但行上还要显示轴名（"轴：X"）。轴改名后 Id 仍然命中，可面板上会一直显示旧名——
+        /// 用户看到"我明明改了名，这里还是旧的"，只会怀疑改名没生效。
+        /// 所以改名入口要把新名字回填一遍（Id 不变、只刷展示串）。
+        /// </summary>
+        public int RefreshAxisReferences(Guid axisId, string? oldName, string newName)
+        {
+            int changed = 0;
+
+            foreach (var action in _actions)
+            {
+                if (action == null || !action.MatchesAxis(axisId, oldName))
+                    continue;
+
+                action.BindAxis(axisId, newName);
+                changed++;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
         /// 动作集合内容变化 → 转译成一次属性变更再往上冒。
         /// 理由与 <c>ScadaElement.OnBindingsChanged</c> 完全相同：上层只对每个对象的 PropertyChanged
         /// 挂一个处理器来累计版本号，不再往"每个对象的每个子集合"挂一层，所以集合变更必须在这里

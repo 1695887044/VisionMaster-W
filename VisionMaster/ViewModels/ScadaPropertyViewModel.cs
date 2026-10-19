@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Core.Interfaces;
 using Prism.Commands;
 using Prism.Mvvm;
@@ -653,18 +654,28 @@ namespace VisionMaster.ViewModels
     {
         private readonly Action<ScadaAxisListRow> _pick;
 
+        /// <summary>按 Id 取最新轴名；null = 轴已删除（回退到落盘名并标注「已移除」）</summary>
+        private readonly Func<Guid, string?> _resolveName;
+
         public ScadaAxisListRow(ScadaElement element, ElementPropertyDescriptor descriptor,
-                                Action<ScadaAxisListRow> pick)
+                                Action<ScadaAxisListRow> pick, Func<Guid, string?> resolveName)
             : base(element, descriptor)
         {
             _pick = pick ?? throw new ArgumentNullException(nameof(pick));
+            _resolveName = resolveName ?? throw new ArgumentNullException(nameof(resolveName));
             PickAxesCommand = new DelegateCommand(() => _pick(this));
         }
 
         /// <summary>「选择轴…」：打开多选弹窗，确认后由面板写回模型</summary>
         public DelegateCommand PickAxesCommand { get; }
 
-        /// <summary>属性行上显示的摘要（未选 / X、Y、Z / X 等 N 根）</summary>
+        /// <summary>
+        /// 属性行上显示的摘要（未选 / X、Y、Z / X 等 N 根）。
+        ///
+        /// 名字<b>不读</b>属性袋里那份 JSON：它是"选轴那一刻"的快照，轴改名后必然过期。
+        /// 先按 Id 问注册表要最新名；查不到（轴被删）才回退到落盘名并标注「已移除」——
+        /// 这样用户一眼能区分"名字改了"与"轴没了"。
+        /// </summary>
         public string Summary
         {
             get
@@ -673,10 +684,22 @@ namespace VisionMaster.ViewModels
                 if (axes.Count == 0)
                     return "未选择轴";
 
-                string names = string.Join("、", axes.Select(a => a.Name));
+                string names = string.Join("、", axes.Select(DisplayNameOf));
                 return axes.Count <= 3 ? names : $"{names} 等 {axes.Count} 根";
             }
         }
+
+        private string DisplayNameOf(ScadaAxisRef axis)
+        {
+            var live = _resolveName(axis.AxisId);
+            if (!string.IsNullOrWhiteSpace(live))
+                return live!;
+
+            return string.IsNullOrWhiteSpace(axis.Name) ? "（已移除）" : $"{axis.Name}（已移除）";
+        }
+
+        /// <summary>轴注册表变化后重算摘要（名字变了，但属性袋里那串 JSON 没变）</summary>
+        internal void RefreshSummary() => RaisePropertyChanged(nameof(Summary));
 
         public override void RefreshValue()
         {
@@ -1885,6 +1908,15 @@ namespace VisionMaster.ViewModels
         private readonly IScadaFlowPicker _flowPicker;
         private readonly IScadaAxisPicker _axisPicker;
 
+        /// <summary>轴身份 → 最新轴名的权威来源（属性行摘要按 Id 取显示名，不信任落盘时那份旧名）</summary>
+        private readonly MotionAxisRegistry _axisRegistry;
+
+        /// <summary>创建本 VM 的线程（轴改名事件可能在后台线程触发，通知必须回 UI 线程）</summary>
+        private readonly Dispatcher _dispatcher;
+
+        /// <summary>本拍轴名快照（轴注册表变化时整体换掉，见 <see cref="OnAxisRegistryChanged"/>）</summary>
+        private IReadOnlyDictionary<Guid, string> _axisNames = new Dictionary<Guid, string>();
+
         /// <summary>摊平的行（模型有外部写入时逐行回读；分组视图从它派生）</summary>
         private readonly List<ScadaPropertyRowBase> _rows = new();
 
@@ -1892,7 +1924,7 @@ namespace VisionMaster.ViewModels
         private ScadaElement? _element;
         private ScadaPage? _page;
 
-        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker)
+        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker, MotionAxisRegistry axisRegistry)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -1900,6 +1932,9 @@ namespace VisionMaster.ViewModels
             _pagePicker = pagePicker ?? throw new ArgumentNullException(nameof(pagePicker));
             _flowPicker = flowPicker ?? throw new ArgumentNullException(nameof(flowPicker));
             _axisPicker = axisPicker ?? throw new ArgumentNullException(nameof(axisPicker));
+            _axisRegistry = axisRegistry ?? throw new ArgumentNullException(nameof(axisRegistry));
+            _dispatcher = Dispatcher.CurrentDispatcher;
+            RefreshAxisNames();
 
             // 参数化的 CanExecute 而不是 IsEnabled：行对象换了，可用性就得重算，
             // 挂在参数上比挂在面板状态上准（也便于断言里直接调 CanExecute）。
@@ -2012,6 +2047,12 @@ namespace VisionMaster.ViewModels
             _subscribed = true;
 
             _editor.PropertyChanged += OnEditorPropertyChanged;
+
+            // 轴改名不一定经过编辑器（用户在「运动卡设置」里改），所以单独订阅注册表：
+            // 「候选轴」摘要按 Id 取最新名字，轴名变了要立刻回填，不能等重开选轴弹窗。
+            _axisRegistry.Changed += OnAxisRegistryChanged;
+            RefreshAxisNames();
+
             Rebuild();
         }
 
@@ -2022,6 +2063,7 @@ namespace VisionMaster.ViewModels
             _subscribed = false;
 
             _editor.PropertyChanged -= OnEditorPropertyChanged;
+            _axisRegistry.Changed -= OnAxisRegistryChanged;
             BindElement(null);
             BindPage(null);
         }
@@ -2041,6 +2083,46 @@ namespace VisionMaster.ViewModels
                 Rebuild();
             }
         }
+
+        /// <summary>
+        /// 轴注册表变了（改名/增删/换卡）：重取名字快照，并让所有「候选轴」行重算摘要。
+        ///
+        /// 事件可能在后台线程触发（发布器/别的会话调 Snapshot 时发现指纹变化），
+        /// 所以先切回创建本 VM 的 Dispatcher 再碰属性通知。
+        /// </summary>
+        private void OnAxisRegistryChanged(object? sender, EventArgs e)
+        {
+            if (!_dispatcher.CheckAccess())
+            {
+                _dispatcher.BeginInvoke(new Action(() => OnAxisRegistryChanged(sender, e)));
+                return;
+            }
+
+            RefreshAxisNames();
+
+            foreach (var row in _rows.OfType<ScadaAxisListRow>())
+                row.RefreshSummary();
+        }
+
+        /// <summary>重取「轴 Id → 最新轴名」快照（一次遍历，不在每个摘要 getter 里各查一遍）</summary>
+        private void RefreshAxisNames()
+        {
+            var names = new Dictionary<Guid, string>();
+
+            foreach (var binding in _axisRegistry.Snapshot())
+            {
+                if (binding.AxisId == Guid.Empty || string.IsNullOrWhiteSpace(binding.Name))
+                    continue;
+
+                names[binding.AxisId] = binding.Name;
+            }
+
+            _axisNames = names;
+        }
+
+        /// <summary>按 Id 取最新轴名；取不到（轴已删除）返回 null，由行回退到落盘名 + 标注</summary>
+        private string? ResolveAxisName(Guid axisId)
+            => _axisNames.TryGetValue(axisId, out var name) ? name : null;
 
         private void OnElementPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
@@ -2108,8 +2190,10 @@ namespace VisionMaster.ViewModels
                 {
                     // AxisList 行要一个"选择轴…"入口，普通属性行没有这个动作。
                     // 判据是行的 Kind 自述，而不是图元类型——与编辑器按 Kind 分流同一手法。
+                    // 摘要显示的名字按 Id 从注册表现取（落盘 JSON 里那份是"选的时候"的名字，
+                    // 轴改名后它必然过期；Id 才是权威）。
                     _rows.Add(property.Kind == ElementPropertyKind.AxisList
-                        ? new ScadaAxisListRow(element, property, OnPickAxes)
+                        ? new ScadaAxisListRow(element, property, OnPickAxes, ResolveAxisName)
                         : new ScadaPropertyRow(element, property));
                 }
 

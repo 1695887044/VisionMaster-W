@@ -20,6 +20,7 @@ namespace VisionMaster.Models
         public int DefaultLoopCount { get; set; } = 10;
 
         private ObservableCollection<StepCollection> _children = new();
+        private readonly ContainerStepCountWatcher _stepCountWatcher;
 
         /// <summary>
         /// 循环体步骤集合
@@ -30,7 +31,31 @@ namespace VisionMaster.Models
         public ObservableCollection<StepCollection> Children
         {
             get => _children;
-            set => _children = value ?? new ObservableCollection<StepCollection>();
+            set
+            {
+                _children = value ?? new ObservableCollection<StepCollection>();
+                _stepCountWatcher?.Rebind(_children);
+            }
+        }
+
+        /// <summary>
+        /// 循环体里的步骤总数。只读计算属性，供流程栏组头右侧统计；
+        /// 变更通知由 <see cref="ContainerStepCountWatcher"/> 驱动。
+        /// <para>[RuntimeState]：它派生自 Children/Steps 的结构，结构变更已经由
+        /// FlowModel.OnStructureChanged 计过一次版本；若这条派生通知再计一次，
+        /// 每次往循环体里加步骤都会 Version +2（表现为"改一次要重编译两轮"）。</para>
+        /// </summary>
+        [RuntimeState]
+        [JsonIgnore]
+        public int TotalStepCount
+        {
+            get
+            {
+                var total = 0;
+                foreach (var branch in Children)
+                    total += branch?.Steps?.Count ?? 0;
+                return total;
+            }
         }
 
         /// <summary>
@@ -39,7 +64,9 @@ namespace VisionMaster.Models
         public ForStep(string icon, string pluginName, string pluginTypeName, string stepName = null)
             : base(icon, pluginName, pluginTypeName, stepName)
         {
+            _stepCountWatcher = new ContainerStepCountWatcher(() => RaisePropertyChanged(nameof(TotalStepCount)));
             Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = "循环体" });
+            _stepCountWatcher.Rebind(Children);
         }
     }
 }

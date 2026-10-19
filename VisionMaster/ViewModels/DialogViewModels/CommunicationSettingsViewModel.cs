@@ -393,11 +393,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 Notifier.ShowInfo("创建新通信已取消");
                 return;
             }
-            // B3：Manager 抛出来的异常（协议未实现 / 名称重复 / 参数非法）必须弹给人看。
-            // 旧实现是裸调——异常直接穿透命令执行栈，用户看到的只是"点了确定，界面毫无反应"，
-            // 连失败原因都拿不到；而它旁边就摆着一句 Notifier.ShowInfo("创建新通信已取消")，
-            // 更让人以为是自己点了取消。
-            // 失败时**不入列表、不选中**：否则会留下一条点不动、也删不掉的假条目。
             try
             {
                 _communicationManager.AddConnection(newConfig);

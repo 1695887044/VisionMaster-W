@@ -52,18 +52,24 @@ namespace VisionMaster.Scada.Controls
         /// <param name="writer">本轮的回写通道；纯监视画面可以不给（见类注释）</param>
         /// <param name="accessPolicy">本轮的权限出口；不给则按"未登录（操作员）"算（见类注释）</param>
         /// <param name="axisSource">本轮的运动轴快照源；纯画面（不跑轴面板）可以不给</param>
+        /// <param name="axisCommands">本轮的运动轴命令出口；纯监视画面可以不给</param>
+        /// <param name="confirmations">本轮的操作二次确认出口；不给则轴控台的示教/定位在需要确认时拒绝执行</param>
         public ScadaRuntimeContext(
             ScadaAlarmEngine alarms,
             ScadaBeatSource beat,
             IScadaValueWriter? writer = null,
             IScadaAccessPolicy? accessPolicy = null,
-            IScadaAxisSource? axisSource = null)
+            IScadaAxisSource? axisSource = null,
+            IScadaAxisCommandSink? axisCommands = null,
+            IScadaConfirmationService? confirmations = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
             Writer = writer;
             AccessPolicy = accessPolicy ?? DefaultScadaAccessPolicy.Instance;
             AxisSource = axisSource;
+            AxisCommands = axisCommands;
+            Confirmations = confirmations;
         }
 
         /// <summary>
@@ -117,5 +123,23 @@ namespace VisionMaster.Scada.Controls
         /// 不订阅每轴事件（运动卡 10ms 轮询，推事件会把 UI 线程刷满）。
         /// </summary>
         public IScadaAxisSource? AxisSource { get; }
+
+        /// <summary>
+        /// 本轮的运动轴命令出口（<b>可为 null</b>：画面里没有轴面板、或宿主没接运动模块）。
+        ///
+        /// 与 <see cref="Writer"/> 同一种可选性：没有它时轴面板上的操作按钮整体置灰，
+        /// 而不是"按下去没反应"。所有命令最终落到宿主的同一个执行器上——
+        /// 门禁、点动看门狗、下发口径只有一份（见 <see cref="IScadaAxisCommandSink"/>）。
+        /// </summary>
+        public IScadaAxisCommandSink? AxisCommands { get; }
+
+        /// <summary>
+        /// 本轮的操作二次确认出口（<b>可为 null</b>：无窗口宿主/断言工程可以不给）。
+        ///
+        /// 轴控台的「示教 / 定位」默认先弹一次确认（<c>ConfirmCommands=true</c>）；
+        /// 没有这个出口时，需要确认的操作会<b>拒绝执行并给出原因</b>，
+        /// 不会静默跳过确认——那等于把"防误触"开关悄悄关掉。
+        /// </summary>
+        public IScadaConfirmationService? Confirmations { get; }
     }
 }

@@ -83,11 +83,25 @@ namespace VisionMaster.Models
         /// </summary>
         public object? Value => _value;
 
-        /// <summary><see cref="IPort.Value"/> 的显式实现：读镜像，写一律拒绝（见 <see cref="Value"/>）</summary>
+        /// <summary>
+        /// <see cref="IPort.Value"/> 的显式实现：读镜像；写**静默忽略**（不抛）。
+        ///
+        /// 为什么写要静默而不是抛：端口契约要求 <c>Value</c> 可写，而"只读"这件事已经由
+        /// 类型上不实现 <see cref="IWritableVariable"/> 表达了——所有正规写路径
+        /// （<c>GlobalVariableWriter</c> / <c>RegistryScadaValueSource.TryWrite</c>）都会在那一层
+        /// 如实拒绝并给出中文原因。剩下能走到这个 setter 的只有"控件 TwoWay 误绑 Value"这一类
+        /// 意外路径，而它跑在 UI 线程上：<c>NotSupportedException</c> 在这里会直接退进程
+        /// （本仓 <c>App</c> 没有 <c>DispatcherUnhandledException</c> 兜底）。
+        /// 一句话：拒绝要留给"用户点了写"这条正路，意外路径上宁可什么都不发生。
+        /// </summary>
         object IPort.Value
         {
             get => _value!;
-            set => throw new NotSupportedException($"系统变量「{_name}」是只读派生量，不支持写入");
+            set
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[SystemVariableModel] 系统变量「{_name}」是只读派生量，写入已被忽略（Value={value ?? "null"}）");
+            }
         }
 
         private EventHandler? _valueChanged;

@@ -122,8 +122,74 @@
         </Setter>
     </Style>
 
-    <Style TargetType="{x:Type local:AxisPanelElement}">
-        <Setter Property="SnapsToDevicePixels" Value="True" />
+    <!--  操作按钮：自带模板，避开应用级 Fluent 的隐式 Button 样式（浅色底 + 大内边距）  -->
+    <Style x:Key="AxisCommandButton" TargetType="Button">
+        <Setter Property="Foreground" Value="#FFFAFAFA" />
+        <Setter Property="Background" Value="#FF1B1E22" />
+        <Setter Property="BorderBrush" Value="#FF2A2D31" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Margin" Value="0,0,5,0" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="6">
+                        <ContentPresenter
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#33FF6161" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Background" Value="#55FF6161" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style
+        x:Key="AxisCommandDangerButton"
+        BasedOn="{StaticResource AxisCommandButton}"
+        TargetType="Button">
+        <Setter Property="Background" Value="#FFE03A2B" />
+        <Setter Property="BorderBrush" Value="#FFE03A2B" />
+        <Setter Property="Foreground" Value="#FFFFFFFF" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!--  点位行的小按钮：比操作按钮更窄，一行里要塞下「示教 / 定位」两颗  -->
+    <!--  内边距/边距在 2026-10-19 收窄 2px：280 宽的窄面板下，原来的 64+52+两颗按钮
+          会把右边缘切掉（离屏图 scada-axis-console-280.png 抓到）。 -->
+    <Style
+        x:Key="PointRowButton"
+        BasedOn="{StaticResource AxisCommandButton}"
+        TargetType="Button">
+        <Setter Property="Padding" Value="4,1" />
+        <Setter Property="Margin" Value="0,0,2,0" />
+        <Setter Property="FontSize" Value="9" />
+    </Style>
+
+    <Style x:Key="PointCellText" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style TargetType="{x:Type local:AxisPanelElement}">        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="FontFamily" Value="Microsoft YaHei" />
         <Setter Property="FontSize" Value="12" />
@@ -137,8 +203,10 @@
                         BorderThickness="{TemplateBinding StrokeThickness}"
                         ClipToBounds="True"
                         CornerRadius="{TemplateBinding CornerRadius}">
-                        <Grid Margin="{TemplateBinding Padding}">
+                        <Grid x:Name="RootGrid" Margin="{TemplateBinding Padding}">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -167,8 +235,7 @@
                                     DisplayMemberPath="DisplayName"
                                     Foreground="{TemplateBinding Foreground}"
                                     ItemsSource="{TemplateBinding AxisItems}"
-                                    SelectedValue="{Binding SelectedAxisId, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                    SelectedValuePath="AxisId"
+                                    SelectedItem="{Binding SelectedAxisItem, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                                     Style="{StaticResource AxisPanelCombo}"
                                     ToolTip="{Binding SelectedAxisName, RelativeSource={RelativeSource TemplatedParent}}"
                                     Visibility="{TemplateBinding SelectorVisibility}" />
@@ -381,6 +448,212 @@
                                     Text="{TemplateBinding StatusText}"
                                     TextTrimming="CharacterEllipsis"
                                     ToolTip="{TemplateBinding StatusText}" />
+                            </StackPanel>
+
+                            <!--  操作按钮（ShowCommands=false 时整块收起）。
+                                  整块 IsEnabled 绑 CanOperate：没有命令出口/没选轴/权限不够时一起灰掉，
+                                  比"按下去没反应"诚实。  -->
+                            <StackPanel
+                                Grid.Row="4"
+                                Margin="12,0,12,10"
+                                Visibility="{TemplateBinding CommandsVisibility}">
+                                <Grid IsEnabled="{TemplateBinding CanOperate}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Button
+                                        x:Name="BtnEnable"
+                                        Grid.Row="0"
+                                        Grid.Column="0"
+                                        Margin="0,0,5,4"
+                                        Content="{TemplateBinding EnableButtonText}"
+                                        Style="{StaticResource AxisCommandButton}" />
+
+                                    <Button
+                                        x:Name="BtnJogReverse"
+                                        Grid.Row="0"
+                                        Grid.Column="1"
+                                        Margin="0,0,5,4"
+                                        Content="◀ 点动"
+                                        Style="{StaticResource AxisCommandButton}" />
+
+                                    <Button
+                                        x:Name="BtnJogForward"
+                                        Grid.Row="0"
+                                        Grid.Column="2"
+                                        Margin="0,0,0,4"
+                                        Content="点动 ▶"
+                                        Style="{StaticResource AxisCommandButton}" />
+
+                                    <Button
+                                        x:Name="BtnHome"
+                                        Grid.Row="1"
+                                        Grid.Column="0"
+                                        Margin="0,0,5,0"
+                                        Content="回零"
+                                        Style="{StaticResource AxisCommandButton}"
+                                        ToolTip="长按 0.5 秒才触发（防误触）" />
+
+                                    <Button
+                                        x:Name="BtnStop"
+                                        Grid.Row="1"
+                                        Grid.Column="1"
+                                        Margin="0,0,5,0"
+                                        Content="停止"
+                                        Style="{StaticResource AxisCommandDangerButton}" />
+
+                                    <Button
+                                        x:Name="BtnClearAlarm"
+                                        Grid.Row="1"
+                                        Grid.Column="2"
+                                        Content="清报警"
+                                        Style="{StaticResource AxisCommandButton}" />
+                                </Grid>
+
+                                <!--  上一次操作的结果：成功为空串（零高度），失败给可上屏的原因  -->
+                                <TextBlock
+                                    Margin="0,5,0,0"
+                                    FontSize="10"
+                                    Foreground="{TemplateBinding AlarmColor}"
+                                    Text="{TemplateBinding CommandMessage}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{TemplateBinding CommandMessage}" />
+                            </StackPanel>
+
+                            <!--  点位区：与运动共用同一个 SelectedAxisId（合并控件的核心）。
+                                  ShowPoints=false 时整块收起（轴面板的紧凑预设）。  -->
+                            <StackPanel
+                                x:Name="PointsPanel"
+                                Grid.Row="5"
+                                Margin="12,0,12,10"
+                                Visibility="{TemplateBinding PointsVisibility}">
+                                <Grid
+                                    x:Name="PointsHeader"
+                                    Margin="4,0,4,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="58" />
+                                        <ColumnDefinition Width="46" />
+                                        <ColumnDefinition Width="Auto" MinWidth="50" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="10"
+                                        FontWeight="SemiBold"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="点位"
+                                        ToolTip="示教 = 把当前轴位置写进该行；定位 = 让轴走到该行位置与速度" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="0,0,4,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="8"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="位置(mm)" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Margin="0,0,2,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="8"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="速度(mm/s)" />
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="8"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="操作" />
+                                </Grid>
+
+                                <Border
+                                    MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
+                                    Background="#0AFFFFFF"
+                                    BorderBrush="{TemplateBinding Stroke}"
+                                    BorderThickness="1"
+                                    ClipToBounds="True"
+                                    CornerRadius="4">
+                                    <ScrollViewer
+                                        x:Name="PointsScroll"
+                                        MaxHeight="{TemplateBinding PointsHeight}"
+                                        HorizontalContentAlignment="Stretch"
+                                        HorizontalScrollBarVisibility="Disabled"
+                                        VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl
+                                            x:Name="PointsList"
+                                            HorizontalContentAlignment="Stretch"
+                                            ItemsSource="{TemplateBinding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid MinHeight="20" Margin="4,1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="58" />
+                                                            <ColumnDefinition Width="46" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <TextBlock
+                                                            Style="{StaticResource PointCellText}"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
+                                                            Text="{Binding Caption}"
+                                                            ToolTip="{Binding Caption}" />
+
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            HorizontalAlignment="Right"
+                                                            FontFamily="Cascadia Mono, Consolas"
+                                                            Style="{StaticResource PointCellText}"
+                                                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
+                                                            Text="{Binding PositionText}" />
+
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            Margin="2,0,0,0"
+                                                            Padding="2,0"
+                                                            HorizontalContentAlignment="Right"
+                                                            Background="#FF15171A"
+                                                            BorderBrush="#FF2A2D31"
+                                                            BorderThickness="1"
+                                                            FontFamily="Cascadia Mono, Consolas"
+                                                            FontSize="9"
+                                                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
+                                                            IsEnabled="{Binding CanEdit, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
+                                                            Text="{Binding SpeedText, UpdateSourceTrigger=LostFocus}" />
+
+                                                        <StackPanel
+                                                            Grid.Column="3"
+                                                            Margin="4,0,0,0"
+                                                            Orientation="Horizontal">
+                                                            <Button
+                                                                Command="{Binding TeachCommand, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="示教"
+                                                                Style="{StaticResource PointRowButton}"
+                                                                Visibility="{Binding CommandsVisibility, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}" />
+                                                            <Button
+                                                                Command="{Binding LocateCommand, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="定位"
+                                                                Style="{StaticResource PointRowButton}"
+                                                                Visibility="{Binding CommandsVisibility, RelativeSource={RelativeSource AncestorType=local:AxisPanelElement}}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
                             </StackPanel>
                         </Grid>
                     </Border>

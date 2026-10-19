@@ -28,6 +28,7 @@ namespace VisionMaster.Models
         public ObservableCollection<LocalVariableItem> RuntimeVariableRefs { get; set; } = new();
 
         private ObservableCollection<StepCollection> _children = new();
+        private readonly ContainerStepCountWatcher _stepCountWatcher;
 
         /// <summary>
         /// 子分支集合
@@ -44,7 +45,30 @@ namespace VisionMaster.Models
         public ObservableCollection<StepCollection> Children
         {
             get => _children;
-            set => _children = value ?? new ObservableCollection<StepCollection>();
+            set
+            {
+                _children = value ?? new ObservableCollection<StepCollection>();
+                _stepCountWatcher?.Rebind(_children);
+            }
+        }
+
+        /// <summary>
+        /// 子步骤总数（各分支 Steps.Count 之和）。只读计算属性，供流程栏组头右侧统计；
+        /// 变更通知由 <see cref="ContainerStepCountWatcher"/> 驱动。
+        /// <para>[RuntimeState]：派生自结构，结构变更已单独计过版本；再计一次会让
+        /// 每次往分支里加步骤 Version +2。</para>
+        /// </summary>
+        [RuntimeState]
+        [JsonIgnore]
+        public int TotalStepCount
+        {
+            get
+            {
+                var total = 0;
+                foreach (var branch in Children)
+                    total += branch?.Steps?.Count ?? 0;
+                return total;
+            }
         }
 
         /// <summary>
@@ -67,6 +91,8 @@ namespace VisionMaster.Models
         )
             : base(icon, pluginName, pluginTypeName, stepName)
         {
+            _stepCountWatcher = new ContainerStepCountWatcher(() => RaisePropertyChanged(nameof(TotalStepCount)));
+
             if (IsIfLike)
             {
                 // If 算子默认创建 If 和 Else 两个分支
@@ -90,6 +116,8 @@ namespace VisionMaster.Models
                     new StepCollection { BranchType = BranchType.If, StepName = "默认分支" }
                 );
             }
+
+            _stepCountWatcher.Rebind(Children);
         }
     }
 }

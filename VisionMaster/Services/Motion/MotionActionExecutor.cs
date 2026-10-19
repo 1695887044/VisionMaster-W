@@ -52,7 +52,7 @@ namespace VisionMaster.Services.Motion
     /// 判据复用 <see cref="MotionJogGuard.IsPulseTimedOut"/>（安全判断只有一份），
     /// 定时器只负责"什么时候问"。
     /// </summary>
-    public sealed class MotionActionExecutor : IDisposable
+    public sealed class MotionActionExecutor : IDisposable, IScadaAxisCommandSink
     {
         /// <summary>
         /// 点动看门狗的扫描周期。取 200ms：判据本身是 500ms×2=1000ms，
@@ -176,6 +176,66 @@ namespace VisionMaster.Services.Motion
         }
 
         /// <summary>
+        /// <see cref="IScadaAxisCommandSink"/> 的实现：轴面板上的按钮走这条入口。
+        ///
+        /// 与动作表共用同一个 <see cref="TryExecute(ScadaAction, out string)"/>——
+        /// 门禁、点动看门狗、下发口径只有一份。这里只做一次"命令种类 → ScadaAction"的翻译，
+        /// 不另写任何运动判断（那正是本类存在的理由：运动知识只在一个地方）。
+        /// </summary>
+        public bool TryExecute(Guid axisId, ScadaAxisCommandKind command, double? value, out string? error)
+        {
+            if (!TryToActionType(command, out var actionType))
+            {
+                // 枚举是闭集，走到这里只可能是"以后加了命令忘了映射"。
+                // 契约要求本方法不抛异常（调用点在鼠标事件链上），所以如实返回 false。
+                error = $"未知的轴命令（{(int)command}），本条未执行";
+                return false;
+            }
+
+            var action = new ScadaAction { Type = actionType };
+            action.BindAxis(axisId, null);
+
+            switch (command)
+            {
+                case ScadaAxisCommandKind.JogStart:
+                    // 带符号速度：正=正向、负=反向。缺省给一个正向慢速，
+                    // 与调试面板"按住才动"的手感一致（速度由面板属性配）。
+                    double signed = value is { } v && !double.IsNaN(v) && v != 0 ? v : 1d;
+                    action.TargetMm = Math.Sign(signed);
+                    action.VelocityMmPerS = Math.Abs(signed);
+                    break;
+
+                case ScadaAxisCommandKind.Home:
+                case ScadaAxisCommandKind.Stop:
+                case ScadaAxisCommandKind.ClearAlarm:
+                case ScadaAxisCommandKind.Enable:
+                case ScadaAxisCommandKind.Disable:
+                case ScadaAxisCommandKind.JogStop:
+                    // 这些命令没有参数
+                    break;
+            }
+
+            bool ok = TryExecute(action, out var message);
+            error = ok ? null : (string.IsNullOrEmpty(message) ? null : message);
+            return ok;
+        }
+
+        private static bool TryToActionType(ScadaAxisCommandKind command, out ScadaActionType type)
+        {
+            switch (command)
+            {
+                case ScadaAxisCommandKind.Enable: type = ScadaActionType.MotionEnable; return true;
+                case ScadaAxisCommandKind.Disable: type = ScadaActionType.MotionDisable; return true;
+                case ScadaAxisCommandKind.JogStart: type = ScadaActionType.MotionJogStart; return true;
+                case ScadaAxisCommandKind.JogStop: type = ScadaActionType.MotionJogStop; return true;
+                case ScadaAxisCommandKind.Home: type = ScadaActionType.MotionHome; return true;
+                case ScadaAxisCommandKind.Stop: type = ScadaActionType.MotionStop; return true;
+                case ScadaAxisCommandKind.ClearAlarm: type = ScadaActionType.MotionClearAlarm; return true;
+                default: type = default; return false;
+            }
+        }
+
+        /// <summary>
         /// 轴解析：Id 优先、名字兜底（见类注释的取轴口径）。
         /// 失败原因参照 <see cref="MotionAxisResolution"/> 的措辞口径——同一件事在流程侧与组态侧
         /// 必须说同一句话，否则现场要学两套排查话术。
@@ -192,24 +252,53 @@ namespace VisionMaster.Services.Motion
                 return false;
             }
 
-            MotionAxisBinding? found = null;
-
             if (action.AxisId != Guid.Empty)
-                found = _registry.Snapshot().FirstOrDefault(b => b.AxisId == action.AxisId);
-
-            // 名字兜底：旧数据（只有名字）与"轴被删后重建、Id 变了但名字没变"这两种情况都靠它
-            if (found == null
-                && !string.IsNullOrWhiteSpace(action.AxisName)
-                && _registry.TryResolve(action.AxisName, out var byName))
             {
-                found = byName;
+                // ★ 有 Id 就只认 Id，不落到名字兜底。
+                //   "轴被删掉、后来又新建了一根同名轴"在产线上很常见（换了电机重配一根），
+                //   此时按名字兜底会驱动到**另一根物理轴**——按钮看着还能用、动的是别的机构，
+                //   这是本项目最不能接受的一类错靶（比"点了没反应"危险得多）。
+                //   只有 Id 为空（旧数据、从没按 Id 存过）时才走名字。
+                if (TryResolveAxis(action.AxisId, out binding, out device, out error))
+                    return true;
+
+                if (!string.IsNullOrWhiteSpace(action.AxisName))
+                    error = $"这条动作配的轴「{action.AxisName}」已被删除（或换了新的轴）：请重新选轴";
+                return false;
             }
 
+            if (string.IsNullOrWhiteSpace(action.AxisName)
+                || !_registry.TryResolve(action.AxisName, out var byName))
+            {
+                // 既没有 Id 也没有能解析的名字：动作从没选过轴。
+                error = "这条动作还没选轴：请点动作行上的「选轴」挑一根";
+                return false;
+            }
+
+            // 旧数据（只有名字、没有 Id）的兜底路径。
+            // 解析成功就把身份回填进动作——与变量连线的"自愈"同一手法：
+            // 下次保存落盘后，这条动作改为按 Id 寻址，此后轴改名/重建都不会再错靶。
+            action.BindAxis(byName.AxisId, byName.Name);
+            return TryResolveAxis(byName.AxisId, out binding, out device, out error);
+        }
+
+        /// <summary>按稳定身份解析（Id 路径的唯一实现；动作表与面板按钮共用）。</summary>
+        private bool TryResolveAxis(
+            Guid axisId, out MotionAxisBinding binding, out IMotionDevice device, out string error)
+        {
+            binding = null!;
+            device = null!;
+
+            if (axisId == Guid.Empty)
+            {
+                error = "没有指定轴";
+                return false;
+            }
+
+            var found = _registry.Snapshot().FirstOrDefault(b => b.AxisId == axisId);
             if (found == null)
             {
-                error = string.IsNullOrWhiteSpace(action.AxisName)
-                    ? "找不到这条动作配的轴：它可能已被删除，请重新选轴"
-                    : $"找不到轴「{action.AxisName}」：它可能已被删除或改名，请重新选轴";
+                error = "这条命令配的轴已被删除：请重新选择轴";
                 return false;
             }
 
@@ -237,11 +326,103 @@ namespace VisionMaster.Services.Motion
             return true;
         }
 
-        /// <summary>使能 / 失能：设备级门禁（未连接、报警、安全停机都不许）。</summary>
+        /// <summary>
+        /// 点位表的「定位」：走与动作表「轴绝对定位」同一条路径（同一套门禁）。
+        /// </summary>
+        public bool TryMove(Guid axisId, double targetMm, double velocityMmPerS, out string? error)
+        {
+            var action = new ScadaAction
+            {
+                Type = ScadaActionType.MotionMoveAbsolute,
+                TargetMm = targetMm,
+                VelocityMmPerS = velocityMmPerS,
+            };
+            action.BindAxis(axisId, null);
+
+            bool ok = TryExecute(action, out var message);
+            error = ok ? null : (string.IsNullOrEmpty(message) ? null : message);
+            return ok;
+        }
+
+        /// <summary>
+        /// 点位表的「示教」：把当前位置写进某个点位。
+        ///
+        /// 这是**运行期改配置**——权限由调用方（图元）在按下之前判，本方法只负责写入。
+        /// 写的是方案里的活对象，随方案保存落盘；不进撤销栈（与变量改名的级联同一口径：
+        /// 运行态操作不是设计期编辑）。
+        /// </summary>
+        public bool TryTeach(Guid axisId, int pointIndex, double positionMm, double speedMmPerS, out string? error)
+            => TryWritePoint(axisId, pointIndex, positionMm, speedMmPerS, writePosition: true, out error);
+
+        /// <summary>点位表的「改速度」（运行期改配置；权限口径同示教）。</summary>
+        public bool TrySetPointSpeed(Guid axisId, int pointIndex, double speedMmPerS, out string? error)
+            => TryWritePoint(axisId, pointIndex, 0, speedMmPerS, writePosition: false, out error);
+
+        private bool TryWritePoint(
+            Guid axisId, int pointIndex, double positionMm, double speedMmPerS,
+            bool writePosition, out string? error)
+        {
+            error = null;
+
+            if (!TryResolveAxis(axisId, out var binding, out _, out var resolveError))
+            {
+                error = resolveError;
+                return false;
+            }
+
+            if (pointIndex < 0 || pointIndex >= MotionPointExtensions.PointsPerAxis)
+            {
+                error = $"点位号 {pointIndex} 超出范围（0~{MotionPointExtensions.PointsPerAxis - 1}）";
+                return false;
+            }
+
+            if (!double.IsFinite(speedMmPerS) || speedMmPerS < 0)
+            {
+                error = $"速度「{speedMmPerS}」不是有效数字（必须 ≥ 0）";
+                return false;
+            }
+
+            if (writePosition && !double.IsFinite(positionMm))
+            {
+                error = $"位置「{positionMm}」不是有效数字";
+                return false;
+            }
+
+            var card = _motions.Cards?.FirstOrDefault(c => c.Id == binding.CardId);
+            if (card == null)
+            {
+                error = $"找不到运动卡「{binding.CardCaption}」的配置：无法写点位";
+                return false;
+            }
+
+            // GetAxisPoints 会懒补齐 16 行（与「运动卡设置 → 点位列表」同一口径）。
+            var point = card.GetAxisPoints(binding.Name).FirstOrDefault(p => p.Index == pointIndex);
+            if (point == null)
+            {
+                error = $"轴「{binding.Name}」上没有点位 P{pointIndex}";
+                return false;
+            }
+
+            if (writePosition)
+                point.PositionMm = positionMm;
+
+            point.SpeedMmPerS = speedMmPerS;
+            return true;
+        }
+
+        /// <summary>
+        /// 使能 / 失能。
+        ///
+        /// <b>使能与失能的门禁不同</b>（这是安全口径，不是口味）：
+        ///   · 使能 = 给伺服上电，有机械后果，必须卡在 Online（报警态先清报警）；
+        ///   · 失能 = 撤掉力矩，是安全动作，报警态/安全停机态也放行
+        ///     （清报警前往往需要先失能，而"报警中不让失能"恰恰是最危险的拒绝）。
+        /// </summary>
         private bool ExecuteEnable(
             ScadaAction action, MotionAxisBinding binding, IMotionDevice device, bool enable, out string message)
         {
-            var gate = MotionCommandGate.CheckDevice(device);
+            var gate = MotionCommandGate.CheckEnable(device, enable);
+
             if (!gate.Passed)
             {
                 message = $"{action.Describe()}：{gate.Reason}，本条未执行";
@@ -338,12 +519,14 @@ namespace VisionMaster.Services.Motion
         /// 轴停止：减速停（<see cref="MotionCommand.StopMode"/> 默认 2），与流程侧「轴停止」的默认档一致。
         /// 立即停对机械冲击很大，只该由急停通道（<see cref="IMotionDevice.EmergencyStop"/>）做。
         ///
-        /// 门禁用 <see cref="MotionCommandGate.CheckDevice"/>（规格：停止同样要卡在线才下发）：
-        /// 离线的卡上本来就没有在走的轴，如实报"运动卡未连接"比"发出去但没人收"更准确。
+        /// 门禁用 <see cref="MotionCommandGate.CheckSafetyAction"/>：停是安全动作，
+        /// 报警态与安全停机态都要放行。旧写法用 <see cref="MotionCommandGate.CheckDevice"/>
+        /// （只认 Online），结果恰好在"轴还在走、卡已经报警"这个最需要停的时刻报"未连接"。
+        /// 未连接/正在连接仍会拒绝——那种状态下命令线程不在跑，收下也执行不了。
         /// </summary>
         private bool ExecuteStop(ScadaAction action, MotionAxisBinding binding, IMotionDevice device, out string message)
         {
-            var gate = MotionCommandGate.CheckDevice(device);
+            var gate = MotionCommandGate.CheckSafetyAction(device);
             if (!gate.Passed)
             {
                 message = $"{action.Describe()}：{gate.Reason}，本条未执行";
@@ -445,12 +628,18 @@ namespace VisionMaster.Services.Motion
         private bool ExecuteJogStop(
             ScadaAction action, MotionAxisBinding binding, IMotionDevice device, out string message)
         {
-            // 先清登记：即使停止被拒，也不该让看门狗在下一拍再停一次（它会把日志刷成两条）
-            _activeJogs.TryRemove(binding.AxisId, out _);
-
             var command = NewStopCommand(device, binding.AxisIndex, binding.Name);
 
-            return Enqueue(device, command, action, out message);
+            bool accepted = Enqueue(device, command, action, out message);
+
+            // ★ 只有卡真收下了才清登记。
+            //   反过来（先清再发）的话，停止被拒（队列满 / 参数非法）时看门狗与 Dispose
+            //   都不会再碰这根轴——而它还在动，这是本类唯一能兜住"松手没停住"的路径。
+            //   被拒时保留租约，下一拍看门狗会重试；成功停住之后租约由这里摘掉。
+            if (accepted)
+                _activeJogs.TryRemove(binding.AxisId, out _);
+
+            return accepted;
         }
 
         /// <summary>

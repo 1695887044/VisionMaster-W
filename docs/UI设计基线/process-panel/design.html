@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>流程栏 · 设计基线 v2</title>
+<style>
+  :root{
+    /* ---- WPF 令牌 → CSS 变量（见 README 映射表） ---- */
+    --fg:            #303133; /* ScadaTextBrush */
+    --fg-2:          #66708A; /* ScadaSecondaryTextBrush */
+    --fg-3:          #A8ABB2; /* ScadaFaintTextBrush（仅装饰） */
+    --label:         #606266; /* ScadaLabelTextBrush */
+    --border:        #E2E8F0; /* DialogBorderBrush */
+    --border-soft:   #EEF2F7; /* DialogBorderLightBrush */
+    --guide:         #E2E8F0; /* DialogBorderBrush（层级引导线） */
+    --accent:        #3B82F6; /* ScadaAccentBrush */
+    --accent-2:      #0EA5E9; /* DialogAccentBrush */
+    --accent-soft:   #F0F9FF; /* DialogAccentSoftBrush */
+    --accent-light:  #E0F2FE; /* DialogAccentLightBrush */
+    --accent-border: #BAE6FD; /* DialogAccentBorderBrush */
+    --hover:         #F1F5F9; /* DialogRowHoverBrush */
+    --row-alt:       #F8FAFC; /* DialogRowAlternateBrush */
+    --danger:        #EF4444; /* DialogDangerBrush */
+    --danger-soft:   #FEF2F2; /* DialogDangerSubtleBrush */
+    --success:       #22C55E; /* DialogSuccessBrush */
+    --success-text:  #15803D; /* DialogSuccessTextBrush */
+    --success-soft:  #F0FDF4; /* DialogSuccessSubtleBrush */
+    --warning-soft:  #FFF4E5; /* DialogWarningSubtleBrush */
+    --warning-text:  #B45309;
+    --surface:       #FFFFFF; /* DialogSurfaceBrush */
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:#F5F7FA;
+    color:var(--fg);
+    font-family:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI",sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    padding:32px 40px 64px;
+  }
+  .page-head{ max-width:1180px; margin:0 auto 24px; }
+  .page-head h1{ font-size:22px; font-weight:600; margin:0 0 6px; }
+  .page-head .ver{
+    display:inline-block; margin-left:8px; padding:2px 8px; border-radius:6px;
+    background:var(--accent-light); color:#0369A1; font-size:12px; font-weight:600; vertical-align:3px;
+  }
+  .page-head .meta{ margin:0; color:var(--fg-2); font-size:13px; }
+  main{ max-width:1180px; margin:0 auto; }
+  section{ margin:0 0 44px; }
+  h2{ font-size:16px; font-weight:600; margin:0 0 6px; }
+  .note{ margin:0 0 16px; color:var(--fg-2); font-size:13px; }
+  .row-2col{ display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+
+  /* ================= 面板外框（AvalonDock 宿主提供，仅作上下文） ================= */
+  .panel{
+    width:340px; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 1px 2px rgba(15,23,42,.04);
+  }
+  .panel.narrow{ width:280px; }
+  .pane-head{
+    display:flex; align-items:center; gap:6px;
+    height:32px; padding:0 8px; border-bottom:1px solid var(--border-soft);
+    font-size:12px; color:var(--label); background:var(--surface);
+  }
+  .pane-head .spacer{ flex:1; }
+  .pane-head .ico{ width:14px; height:14px; color:#8A8F99; }
+
+  /* ================= 树 ================= */
+  .tree{ padding:6px 6px 8px; min-height:420px; }
+  .children{ margin-left:14px; border-left:1px solid var(--guide); }
+  .row{
+    position:relative; display:flex; align-items:center;
+    min-height:30px; padding:3px 8px; margin:1px 0;
+    border-radius:8px; cursor:pointer;
+  }
+  .row:hover{ background:var(--hover); }
+
+  /* ---- 分组头：整行 section bar ---- */
+  .group{
+    position:relative; display:flex; align-items:center;
+    height:36px; margin:4px 0 2px; padding:0 26px 0 30px;
+    background:var(--row-alt); border-radius:8px; cursor:pointer;
+    transition:background 120ms ease;
+  }
+  .group::before{
+    content:""; position:absolute; left:0; top:9px; bottom:9px; width:3px;
+    border-radius:0 2px 2px 0; background:var(--accent);
+  }
+  .group:hover{ background:var(--hover); }
+  .group.selected{ background:var(--accent-light); }
+  .group.selected::before{ background:var(--accent); }
+  .group.failed{ background:var(--danger-soft); }
+  .group.failed::before{ background:var(--danger); }
+  .group.failed .gname{ color:var(--danger); }
+  .group.running{ background:var(--success-soft); }
+  .group.running::before{ background:var(--success); }
+  .group.running .gname{ color:var(--success-text); }
+  .group .chev{ position:absolute; left:8px; top:50%; transform:translateY(-50%); }
+  .group.gray::before{ background:var(--fg-2); }
+  .group.orange::before{ background:var(--warning-text); }
+  .group.green::before{ background:var(--success); }
+  .group.cyan::before{ background:var(--accent-2); }
+  .gtype{
+    display:inline-flex; align-items:center; gap:4px; flex:none;
+    margin:0 8px 0 0; font-size:11px; font-weight:600; letter-spacing:.02em;
+    color:var(--accent);
+  }
+  .gtype svg{ width:12px; height:12px; }
+  .gtype.orange{ color:var(--warning-text); }
+  .gtype.green{ color:var(--success-text); }
+  .gtype.cyan{ color:var(--accent-2); }
+  .gtype.gray{ color:var(--fg-2); }
+  .gname{
+    font-size:13px; font-weight:600; color:var(--fg); line-height:1.35;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .gmeta{
+    margin-left:auto; padding-left:10px; flex:none;
+    font-size:11px; color:var(--fg-2); font-variant-numeric:tabular-nums;
+  }
+  .gstate{ margin-left:8px; flex:none; display:flex; align-items:center; }
+  .gstate svg{ width:14px; height:14px; }
+  .gstate.fail{ color:var(--danger); }
+  .gstate.run{ color:var(--success); }
+  .gstate.ok{ color:var(--success); }
+
+  /* ---- 分支：整行子标题 ---- */
+  .branch{
+    position:relative; display:flex; align-items:center;
+    height:32px; margin:2px 0; padding:0 26px 0 30px;
+    background:var(--accent-soft); border:1px solid var(--border-soft);
+    border-radius:8px; cursor:pointer;
+    transition:background 120ms ease, border-color 120ms ease;
+  }
+  .branch:hover{ background:var(--accent-light); border-color:var(--accent-border); }
+  .branch.running{ background:var(--success-soft); border-color:#BBF7D0; }
+  .branch.running .bname{ color:var(--success-text); }
+  .branch.missing{ background:var(--danger-soft); border-color:#FECACA; }
+  .branch.missing .bname{ color:var(--danger); }
+  .branch.else{ background:var(--row-alt); border-color:var(--border-soft); }
+  .branch.else .dot{ background:var(--fg-3); }
+  .branch.else .bname{ color:var(--label); }
+  .branch.empty{ background:transparent; border:1px dashed #CBD5E1; }
+  .branch .chev{ position:absolute; left:8px; top:50%; transform:translateY(-50%); }
+  .dot{ width:7px; height:7px; border-radius:50%; flex:none; margin:0 9px 0 0; background:var(--accent); }
+  .bname{ font-size:12px; font-weight:600; color:var(--fg); white-space:nowrap; }
+  .bcount{
+    margin-left:auto; padding-left:10px; flex:none;
+    font-size:11px; color:var(--fg-2); font-variant-numeric:tabular-nums;
+  }
+  .bempty{ margin-left:auto; padding-left:10px; flex:none; font-size:11px; color:var(--fg-2); }
+
+  /* ---- 算子行 ---- */
+  .step{
+    position:relative; display:flex; align-items:center;
+    min-height:38px; padding:4px 8px 4px 30px; margin:1px 0;
+    border-radius:8px; cursor:pointer; background:transparent;
+    transition:background 120ms ease;
+  }
+  .step:hover{ background:var(--hover); }
+  .step.selected{ background:var(--accent-light); }
+  .step.selected::before{
+    content:""; position:absolute; left:0; top:50%; transform:translateY(-50%);
+    width:3px; height:22px; border-radius:0 2px 2px 0; background:var(--accent);
+  }
+  .step.failed{ background:var(--danger-soft); }
+  .step.failed .name,
+  .step.failed .type{ color:var(--danger); }
+  .step.running{ background:var(--success-soft); }
+  .step.running .name,
+  .step.running .type{ color:var(--success-text); }
+  .step.skipped{ opacity:.62; }
+  .step.disabled{ opacity:.42; }
+  .step.disabled .name{ text-decoration:line-through; }
+
+  .status{ width:16px; display:flex; justify-content:center; flex:none; }
+  .status .glyph{ width:13px; height:13px; color:var(--danger); }
+  .status .dot{ margin:0; }
+  .status .dot.run{ background:var(--accent); box-shadow:0 0 0 0 rgba(59,130,246,.45); animation:pulse 1.6s ease-out infinite; }
+  .status .dot.ok{ background:var(--success); }
+  .status .dot.fail{ background:var(--danger); }
+  .status .dot.skip{ background:#CBD5E1; }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(59,130,246,.45); }
+    70%{ box-shadow:0 0 0 6px rgba(59,130,246,0); }
+    100%{ box-shadow:0 0 0 0 rgba(59,130,246,0); }
+  }
+
+  .icon-chip{
+    width:26px; height:26px; border-radius:7px; margin:0 9px 0 0;
+    display:flex; align-items:center; justify-content:center; flex:none;
+    background:var(--accent-soft); color:var(--accent-2);
+  }
+  .icon-chip svg{ width:13px; height:13px; }
+  .step.failed .icon-chip{ background:var(--surface); color:var(--danger); }
+  .step.running .icon-chip{ background:var(--surface); color:var(--success-text); }
+
+  .text{ display:flex; flex-direction:column; min-width:0; }
+  .name{
+    font-size:13px; font-weight:600; color:var(--fg); line-height:1.35;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .type{
+    font-size:11px; color:var(--fg-2); line-height:1.35;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .time{
+    margin-left:auto; padding-left:10px; flex:none;
+    display:flex; align-items:center; gap:3px;
+    font-size:11px; color:var(--fg-2); font-variant-numeric:tabular-nums;
+  }
+  .time svg{ width:10px; height:10px; color:var(--fg-3); }
+
+  /* ---- 底部统计 ---- */
+  .stats{
+    margin:2px 8px 6px; padding-top:6px; border-top:1px solid var(--border-soft);
+    display:flex; align-items:center; gap:8px;
+  }
+  .stats .lines{ flex:1; min-width:0; }
+  .stats .lines div{
+    font-size:11px; color:var(--fg-2); font-variant-numeric:tabular-nums;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .stats label{ display:flex; align-items:center; gap:4px; font-size:11px; color:var(--fg-2); white-space:nowrap; }
+
+  /* ================= 标注 / 图例 / 表格 ================= */
+  .mark{
+    position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    width:16px; height:16px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface); border:1px solid var(--accent-2); color:var(--accent-2);
+    font-size:10px; font-weight:600;
+  }
+  .step > .mark{ left:100%; right:auto; margin-left:6px; }
+  .legend{ flex:1; min-width:0; margin:12px 0 0; padding:0; list-style:none; font-size:12.5px; color:var(--fg-2); }
+  .legend li{ margin:0 0 8px; }
+  .legend b{ color:var(--fg); font-weight:600; }
+  .gallery{ display:flex; gap:24px; flex-wrap:wrap; }
+  .card{
+    width:340px; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:14px 12px;
+  }
+  .card h3{ margin:0 0 10px; font-size:12.5px; font-weight:600; color:var(--fg-2); }
+  .card .group{ margin-left:0; margin-right:0; }
+  .card .step{ padding-left:4px; padding-right:4px; }
+  table{ border-collapse:collapse; width:100%; font-size:13px; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th{ font-weight:600; color:var(--fg-2); font-size:12px; background:var(--row-alt); }
+  code{ font-family:Consolas,monospace; font-size:12px; background:var(--row-alt); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>流程栏（ProcessView）· 设计基线 <span class="ver">v2</span></h1>
+  <p class="meta">
+    设计媒介，不是交付物（AGENTS.md R126）。v2 方向：<b>更平、更轻、层级更清楚</b>——
+    分组头改为整行 section bar，状态改用柔和底色，分支改为整行子标题，去掉多余的描边与胶囊。
+  </p>
+</header>
+
+<main>
+
+<!-- ============================================================ -->
+<section>
+  <h2>1. 默认态</h2>
+  <p class="note">与真机同构：<b>并行分组_0</b> 失败（两个分支内各有失败算子），<b>并行分组_1</b> 选中。标注对应第 4 节的功能性变更。</p>
+
+  <div class="row-2col">
+    <div class="panel">
+      <div class="pane-head">
+        <span>流程栏</span>
+        <span class="spacer"></span>
+        <svg class="ico" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <svg class="ico" viewBox="0 0 16 16"><path d="M9 2v5l3 3-1 1-3-3H4V2z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+        <svg class="ico" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </div>
+
+      <div class="tree">
+        <!-- 分组 0（失败） -->
+        <div class="group failed">
+          <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <span class="gtype">
+            <svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="4.8" y="5.2" width="1.8" height="1.8" fill="currentColor"/><rect x="9.4" y="5.2" width="1.8" height="1.8" fill="currentColor"/><rect x="6.6" y="9.2" width="2.8" height="3.8" fill="currentColor"/></svg>
+            并行分组
+          </span>
+          <span class="gname">并行分组_0</span>
+          <span class="gmeta">2 分支 · 2 算子</span>
+          <span class="gstate fail"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor"/></svg></span>
+          <span class="mark" title="变更 1：容器失败态">1</span>
+        </div>
+
+        <div class="children">
+          <!-- 分支 1 -->
+          <div class="branch">
+            <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <span class="dot"></span>
+            <span class="bname">分支 1</span>
+            <span class="bcount">1 个算子</span>
+            <span class="mark" title="变更 3：计数可读">3</span>
+          </div>
+          <div class="children">
+            <div class="step failed">
+              <div class="status"><svg class="glyph" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor"/></svg></div>
+              <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+              <div class="text"><span class="name">延时_0</span><span class="type">延时</span></div>
+              <span class="mark" title="变更 1/2：失败态统一、名字对齐">1</span>
+            </div>
+          </div>
+
+          <!-- 分支 2 -->
+          <div class="branch">
+            <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <span class="dot"></span>
+            <span class="bname">分支 2</span>
+            <span class="bcount">1 个算子</span>
+          </div>
+          <div class="children">
+            <div class="step failed">
+              <div class="status"><svg class="glyph" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor"/></svg></div>
+              <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+              <div class="text"><span class="name">延时_1</span><span class="type">延时</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 根层算子 -->
+        <div class="step">
+          <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+          <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+          <div class="text"><span class="name">延时_2</span><span class="type">延时</span></div>
+        </div>
+
+        <!-- 分组 1（选中） -->
+        <div class="group selected">
+          <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <span class="gtype">
+            <svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="4.8" y="5.2" width="1.8" height="1.8" fill="currentColor"/><rect x="9.4" y="5.2" width="1.8" height="1.8" fill="currentColor"/><rect x="6.6" y="9.2" width="2.8" height="3.8" fill="currentColor"/></svg>
+            并行分组
+          </span>
+          <span class="gname">并行分组_1</span>
+          <span class="gmeta">2 分支 · 2 算子</span>
+          <span class="mark" title="变更 5/6：容器名权重、ToolTip">5</span>
+        </div>
+
+        <div class="children">
+          <div class="branch">
+            <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <span class="dot"></span><span class="bname">分支 1</span><span class="bcount">1 个算子</span>
+          </div>
+          <div class="children">
+            <div class="step">
+              <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+              <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+              <div class="text"><span class="name">延时_3</span><span class="type">延时</span></div>
+            </div>
+          </div>
+
+          <div class="branch">
+            <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <span class="dot"></span><span class="bname">分支 2</span><span class="bcount">1 个算子</span>
+          </div>
+          <div class="children">
+            <div class="step">
+              <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+              <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+              <div class="text"><span class="name">延时_4</span><span class="type">延时</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+          <div class="icon-chip"><svg viewBox="0 0 16 16"><path d="M3 13l1-3 7-7 2 2-7 7-3 1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
+          <div class="text"><span class="name">变量赋值_0</span><span class="type">变量赋值</span></div>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="lines">
+          <div>共 9 个步骤 · 2 个容器</div>
+          <div>上次运行 00:00:12.4</div>
+        </div>
+        <label><input type="checkbox" checked> 失败自动跳转</label>
+      </div>
+    </div>
+
+    <ul class="legend">
+      <li><b>分组头 = 整行 section bar</b>：左侧 3px 身份色条 + 类型标签 + 名称，右侧「2 分支 · 2 算子」与状态图标。分组是"章节"，不再是一个小胶囊。</li>
+      <li><b>状态用柔和底色，不用硬描边</b>：失败 <code>#FEF2F2</code>、运行 <code>#F0FDF4</code>；状态列仍保留感叹号/脉冲点，色盲可辨。</li>
+      <li><b>分支 = 整行子标题</b>：浅蓝底 + 1px 发丝边，计数右对齐；悬停时底色与描边各提一档。空分支用虚线框。</li>
+      <li><b>算子行 40px / 分支 32px / 分组 36px</b>：4px 节奏，行内信息两行（名称 + 类型），耗时右对齐。</li>
+      <li><b>运行态脉冲</b>：蓝点 1.6s 扩散环，表达"此刻在跑"；成功只留绿点，不抢色。</li>
+      <li><b>数字等宽</b>：计数、耗时、统计行用 tabular-nums，纵向对齐不跳动。</li>
+      <li><b>图标块 26px / 圆角 7</b>：比原来的 24px 更松弛；失败/运行行上改用白底，避免与行底色糊在一起。</li>
+      <li><b>层级引导线</b>：<code>#E2E8F0</code> 发丝线，14px 缩进；不再用几乎看不见的 <code>#EEF2F7</code>。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2>2. 状态矩阵</h2>
+  <p class="note">同一套语言覆盖六种状态；绿色只给「正在运行」，红色只给「失败」。</p>
+
+  <div class="gallery">
+    <!-- 算子 -->
+    <div class="card">
+      <h3>算子（ActionStep）</h3>
+
+      <div class="step">
+        <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">待机 · 延时_0</span><span class="type">Idle</span></div>
+      </div>
+
+      <div class="step running">
+        <span class="status"><span class="dot run"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">运行中 · 延时_1</span><span class="type">Running</span></div>
+        <span class="time"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2 1.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>128.4 ms</span>
+      </div>
+
+      <div class="step">
+        <span class="status"><span class="dot ok"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">成功 · 延时_2</span><span class="type">Success</span></div>
+        <span class="time"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2 1.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>96.2 ms</span>
+      </div>
+
+      <div class="step failed">
+        <div class="status"><svg class="glyph" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor"/></svg></div>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">失败 · 延时_3</span><span class="type">Failed</span></div>
+      </div>
+
+      <div class="step skipped">
+        <span class="status"><span class="dot skip"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">跳过 · 延时_4</span><span class="type">Skipped</span></div>
+      </div>
+
+      <div class="step disabled">
+        <span class="status"></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">已禁用 · 延时_5</span><span class="type">Disabled</span></div>
+      </div>
+
+      <div class="step selected">
+        <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">选中 · 延时_6</span><span class="type">Selected</span></div>
+      </div>
+    </div>
+
+    <!-- 分组 -->
+    <div class="card">
+      <h3>分组头</h3>
+
+      <div class="group" style="margin-top:0">
+        <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="gtype">并行分组</span><span class="gname">待机 · 分组_0</span><span class="gmeta">2 分支</span>
+      </div>
+
+      <div class="group running">
+        <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="gtype">并行分组</span><span class="gname">运行中 · 分组_1</span><span class="gmeta">2 分支</span>
+        <span class="gstate run"><svg viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+      </div>
+
+      <div class="group failed">
+        <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="gtype">并行分组</span><span class="gname">失败 · 分组_2</span><span class="gmeta">2 分支</span>
+        <span class="gstate fail"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor"/></svg></span>
+      </div>
+
+      <div class="group selected">
+        <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="gtype">并行分组</span><span class="gname">选中 · 分组_3</span><span class="gmeta">2 分支</span>
+      </div>
+
+      <h3 style="margin-top:18px">其它容器身份色</h3>
+      <div class="group gray" style="margin-top:0"><div class="chev"></div><span class="gtype gray">逻辑路由</span><span class="gname">条件_0</span></div>
+      <div class="group orange" style="margin-top:2px"><div class="chev"></div><span class="gtype orange">While 循环</span><span class="gname">循环_0</span></div>
+      <div class="group green" style="margin-top:2px"><div class="chev"></div><span class="gtype green">For 循环</span><span class="gname">循环_1</span></div>
+      <div class="group cyan" style="margin-top:2px"><div class="chev"></div><span class="gtype cyan">分支匹配</span><span class="gname">分支_0</span></div>
+    </div>
+
+    <!-- 分支 -->
+    <div class="card">
+      <h3>分支</h3>
+
+      <div class="branch" style="margin-top:0"><div class="chev"></div><span class="dot"></span><span class="bname">普通 · 分支 1</span><span class="bcount">2 个算子</span></div>
+      <div class="branch" style="margin-top:4px;background:var(--accent-light);border-color:var(--accent-border)"><div class="chev"></div><span class="dot"></span><span class="bname">悬停 · 分支 1</span><span class="bcount">2 个算子</span></div>
+      <div class="branch running" style="margin-top:4px"><div class="chev"></div><span class="dot" style="background:var(--success)"></span><span class="bname">运行中 · 分支 1</span><span class="bcount">2 个算子</span></div>
+      <div class="branch missing" style="margin-top:4px"><div class="chev"></div><span class="dot" style="background:var(--danger)"></span><span class="bname">缺条件 · If</span><span class="bempty">未绑定条件</span></div>
+      <div class="branch else" style="margin-top:4px"><div class="chev"></div><span class="dot"></span><span class="bname">Else</span><span class="bcount">0 个算子</span></div>
+      <div class="branch empty" style="margin-top:4px"><div class="chev"></div><span class="dot" style="background:var(--fg-3)"></span><span class="bname">空分支</span><span class="bempty">拖入算子</span></div>
+
+      <h3 style="margin-top:18px">选中态</h3>
+      <div class="step selected" style="margin-top:0">
+        <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">活动选中</span><span class="type">算子行</span></div>
+      </div>
+      <div class="step" style="margin-top:2px;background:var(--hover)">
+        <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+        <div class="text"><span class="name">失焦选中</span><span class="type">算子行</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2>3. 窄宽度（280px）</h2>
+  <p class="note">左栏按 <code>DockWidth="20*"</code> 分配，窄窗口下约 260–280px。名称单行截断；计数与空态提示不换行。</p>
+
+  <div class="panel narrow">
+    <div class="pane-head"><span>流程栏</span><span class="spacer"></span><span>⋯</span></div>
+    <div class="tree" style="min-height:0">
+      <div class="group failed" style="margin-top:0">
+        <div class="chev"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <span class="gtype">并行分组</span><span class="gname">并行分组_0</span>
+        <span class="gstate fail"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor"/></svg></span>
+      </div>
+      <div class="children">
+        <div class="branch"><div class="chev"></div><span class="dot"></span><span class="bname">分支 1</span><span class="bcount">1 个算子</span></div>
+        <div class="children">
+          <div class="step failed">
+            <div class="status"><svg class="glyph" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor"/></svg></div>
+            <div class="icon-chip"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
+            <div class="text"><span class="name">延时_0_超长实例名截断</span><span class="type">延时</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <span class="status"><span class="dot" style="background:var(--fg-3)"></span></span>
+        <div class="icon-chip"><svg viewBox="0 0 16 16"><path d="M3 13l1-3 7-7 2 2-7 7-3 1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
+        <div class="text"><span class="name">变量赋值_0_超长实例名截断</span><span class="type">变量赋值</span></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="lines"><div>共 3 个步骤 · 1 个容器</div><div>上次运行 00:00:01.2</div></div>
+      <label><input type="checkbox" checked> 失败自动跳转</label>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2>4. 相对现状的变更点</h2>
+  <p class="note">前半是 v1 已确认的功能性修正（仍适用），后半是 v2 的现代化改版。</p>
+
+  <table>
+    <thead><tr><th style="width:44px">#</th><th style="width:220px">现状</th><th>基线</th><th style="width:250px">理由</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>失败：算子红边 + 名字前 <code>×</code>；等待节点只有红点；容器只有红 <code>!</code></td><td>统一：状态列感叹号 + 名字红 + 类型行红 + 柔和红底；容器同样处理；去掉 <code>×</code></td><td>同一语义三套画法；<code>×</code> 易误读为关闭</td></tr>
+      <tr><td>2</td><td>失败步骤名字右移约 15px</td><td>标记进状态列，名字始终对齐</td><td>同层步骤名必须共用竖线</td></tr>
+      <tr><td>3</td><td><code>1 算子</code>：10px <code>#A8ABB2</code></td><td>11px <code>#66708A</code>，右对齐、等宽数字</td><td>原对比度 2.2:1</td></tr>
+      <tr><td>4</td><td>分支胶囊吞掉悬停反馈</td><td>整行分支自己响应悬停</td><td>分支是拖放落点</td></tr>
+      <tr><td>5</td><td>容器名 12px 常规</td><td>13px SemiBold</td><td>层级不能反转</td></tr>
+      <tr><td>6</td><td>容器名无 ToolTip</td><td>补 <code>ToolTip="{Binding StepName}"</code></td><td>截断后可看全名</td></tr>
+      <tr><td>7</td><td>等待节点图标重复</td><td>与算子行同构：第二行「等待 · 条件」，不单独占 chip</td><td>冗余</td></tr>
+      <tr><td>8</td><td>引导线 <code>#EEF2F7</code></td><td><code>#E2E8F0</code>（1.23:1）</td><td>原线基本不可见</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="font-size:14px;margin:24px 0 8px">v2 现代化改版</h3>
+  <table>
+    <thead><tr><th style="width:200px">维度</th><th>v1</th><th>v2</th></tr></thead>
+    <tbody>
+      <tr><td>分组头</td><td>类型 chip + 名称（内容宽度）</td><td>整行 section bar：3px 身份色条 + 类型标签 + 名称 + 右侧分支数/状态图标</td></tr>
+      <tr><td>失败态</td><td>白底 + 1px 红描边</td><td>柔和红底 <code>#FEF2F2</code>，无描边；白底图标块 + 红字 + 感叹号</td></tr>
+      <tr><td>运行态</td><td>浅绿底 + 绿描边</td><td>浅绿底 <code>#F0FDF4</code>，无描边；状态点脉冲扩散</td></tr>
+      <tr><td>分支</td><td>150px 最小宽度的胶囊</td><td>整行子标题：浅蓝底 + 发丝边，计数右对齐；空分支虚线框</td></tr>
+      <tr><td>行高</td><td>算子 32 / 分支 26 / 分组 28</td><td>算子 40 / 分支 32 / 分组 36</td></tr>
+      <tr><td>图标块</td><td>24px / 圆角 6</td><td>26px / 圆角 7；失败/运行行改白底</td></tr>
+      <tr><td>耗时</td><td>灰底胶囊</td><td>纯文字 + 小钟表，右对齐，等宽数字</td></tr>
+      <tr><td>选中</td><td>浅蓝行 + 3px 竖条</td><td>保持；分组选中同时改左侧身份色条为强调蓝</td></tr>
+    </tbody>
+  </table>
+
+  <p class="note" style="margin-top:14px">
+    只做记录、不改：失焦选中仍用 <code>#F1F5F9</code> + 灰竖条（不引入新色）；面板标题栏由 AvalonDock 提供。
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2>5. 令牌映射</h2>
+  <table>
+    <thead><tr><th style="width:300px">用途</th><th style="width:240px">WPF 资源键</th><th>值</th></tr></thead>
+    <tbody>
+      <tr><td>正文 / 实例名</td><td><code>ScadaTextBrush</code></td><td>#303133</td></tr>
+      <tr><td>次要文字 / 类型行 / 计数 / 耗时</td><td><code>ScadaSecondaryTextBrush</code></td><td>#66708A</td></tr>
+      <tr><td>标签 / Else 分支名</td><td><code>ScadaLabelTextBrush</code></td><td>#606266</td></tr>
+      <tr><td>装饰点 / 空分支点</td><td><code>ScadaFaintTextBrush</code></td><td>#A8ABB2</td></tr>
+      <tr><td>层级引导线</td><td><code>DialogBorderBrush</code></td><td>#E2E8F0</td></tr>
+      <tr><td>发丝边 / 分隔线</td><td><code>DialogBorderLightBrush</code></td><td>#EEF2F7</td></tr>
+      <tr><td>主色（选中条、身份色条、分支点）</td><td><code>ScadaAccentBrush</code></td><td>#3B82F6</td></tr>
+      <tr><td>主色（分支悬停描边）</td><td><code>DialogAccentBrush</code></td><td>#0EA5E9</td></tr>
+      <tr><td>分支底 / 图标块底</td><td><code>DialogAccentSoftBrush</code></td><td>#F0F9FF</td></tr>
+      <tr><td>选中行 / 分支悬停底</td><td><code>DialogAccentLightBrush</code></td><td>#E0F2FE</td></tr>
+      <tr><td>分支悬停描边</td><td><code>DialogAccentBorderBrush</code></td><td>#BAE6FD</td></tr>
+      <tr><td>行悬停</td><td><code>DialogRowHoverBrush</code></td><td>#F1F5F9</td></tr>
+      <tr><td>分组底</td><td><code>DialogRowAlternateBrush</code></td><td>#F8FAFC</td></tr>
+      <tr><td>失败底 / 失败字</td><td><code>DialogDangerSubtleBrush</code> / <code>DialogDangerBrush</code></td><td>#FEF2F2 / #EF4444</td></tr>
+      <tr><td>运行底 / 运行点</td><td><code>DialogSuccessSubtleBrush</code> / <code>DialogSuccessBrush</code></td><td>#F0FDF4 / #22C55E</td></tr>
+      <tr><td>运行文字</td><td><code>DialogSuccessTextBrush</code></td><td>#15803D</td></tr>
+      <tr><td>While 身份色</td><td><code>DialogWarningSubtleBrush</code> + 文字 #B45309</td><td>#FFF4E5</td></tr>
+    </tbody>
+  </table>
+
+  <p class="note" style="margin-top:14px">
+    已知偏差（复刻时按 R130 记录）：字体度量、滚动条占位（WPF 约 17px）、动效曲线（WPF 150ms CubicEase）、
+    阴影（WPF 无窗口级阴影）。运行脉冲在 WPF 用 <code>DoubleAnimation</code> 做圆环缩放+淡出，不用 CSS 阴影。
+  </p>
+</section>
+
+</main>
+</body>
+</html>

@@ -276,6 +276,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 if (Model.VariableType == VariableType.System)
                     return "系统只读";
 
+                if (Model.VariableType == VariableType.Io)
+                    return Model is IWritableVariable ? "IO可写" : "IO只读";
+
                 // 用户变量：保持原有口径不动（本地="本地"，网络变量带连接名、缺名字时"网络"）
                 return Model.VariableType == VariableType.Local
                     ? "本地"

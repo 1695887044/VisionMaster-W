@@ -189,16 +189,15 @@ namespace VisionMaster.Binding
                 return false;
             }
 
-            // 保留前缀：`Motion.` 归系统变量（运行态派生的轴状态投影）。
+            // 保留前缀：`System.` 归系统变量（运行态派生的轴/IO 状态投影）。
             // 放行会造出"用户变量遮住系统变量"的同名冲突，而遮住之后的表现是
             // "轴在动、画面上的数值不变"——现场几乎不可能自己定位到重名。
             // 判据放在"能不能改名"之后：系统变量自己改名时应先报"不允许改名"，
             // 而不是报一个与它的只读语义无关的前缀问题。
-            if (SystemVariableCatalog.IsReservedName(target))
-            {
-                error = $"「{SystemVariableCatalog.NamePrefix}」前缀是系统变量保留前缀，请更换名称";
+            // 与新建变量共用 VariableNameRules 一份规则（两处各写一份就是这次交接里
+            // "创建侧漏拦"的成因）。
+            if (!VariableNameRules.TryValidateNewName(target, out error))
                 return false;
-            }
 
             // 查重与变量管理弹窗同一口径（OrdinalIgnoreCase）：
             // 旧口径允许 Var / var 共存，但索引查找与监视栏匹配都是大小写不敏感的，
@@ -565,6 +564,17 @@ namespace VisionMaster.Binding
             {
                 _systemByName.Remove(variable.Name);
             }
+        }
+
+        /// <inheritdoc />
+        public void RefreshSystemNames()
+        {
+            // 系统变量的名字是**派生量**（轴名变了名字就变），而模型对象是原地复用、不重建的
+            // （见 SystemVariableCatalog.Rebuild 的实例复用）。集合没有增删时一个 CollectionChanged
+            // 都不会发，增量维护那条路走不到——名字索引就会永久停在旧名上：
+            // 新名查不到、旧名一直命中，而且下一拍"名字已一致"还会让重建被短路，不会自愈。
+            // 所以"轴改名"那条路必须主动喊一声（调用方见 SystemVariableCatalog.RebuildAxisRenames）。
+            RebuildSystem();
         }
     }
 }

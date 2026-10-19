@@ -112,7 +112,7 @@ if (EasyDialog.ShowSync("编辑数组", editor))
 | `IsReadOnly = true` | 可见但不可编辑（如"版本号"） |
 | `GroupPath = "运动/限位"` | 按 `/` 分层，第一段作为 Tab 分组 |
 | `Order` / `GroupOrder` | 字段内 / 分组间排序 |
-| `RequireRefresh = true` | 该属性变化后整表重建（多态切换用） |
+| `RequireRefresh = true` | 该属性变化后**整表重建**（多态切换用）。⚠ 是整张表、不是"该属性所在的页签"——被切换的子对象可能在别的页签，见 [2026-10-19 记录](../code-changes/2026-10-19-通讯设置协议切换后链路参数不刷新（属性面板只重建单页签）.md) |
 
 ---
 

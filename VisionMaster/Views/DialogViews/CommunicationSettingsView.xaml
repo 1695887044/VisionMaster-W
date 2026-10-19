@@ -8,23 +8,8 @@
     prism:ViewModelLocator.AutoWireViewModel="True"
     Background="{StaticResource DialogBackgroundBrush}">
 
-    <!--
-        窗口尺寸挂在 Window 上，不写在 UserControl 根节点上。
-        UserControl 的 HorizontalAlignment 默认是 Stretch（撑满父容器），
-        但一旦显式写了 Width，Stretch 就退化成"居中"——窗口一拉大/最大化，
-        内容块就居中缩在中间、四周一圈留白，而且永远不跟着窗口变宽。
-        搬到 Window 后 UserControl 自然撑满，内部 * 行 / * 列才能吸收多余空间。
-        刻意不用 SizeToContent：它会让窗口随内容自己改大小，且手动放大后内容不重排。
-        （与 PluginConfigShellView 同一范式。原注释写着"这里保留系统标题栏"，现已改为自绘：
-          系统窗框与其余弹窗差别太大，同屏切换像两个软件。）
-    -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
-            <!--
-                WindowStyle=None：去掉系统标题栏，改由视图自绘（见下方标题栏）。
-                代价是窗口失去系统拖动区域与关闭按钮，两者都在视图里补齐：
-                标题栏挂 ui:WindowDragBehavior，右侧 × 绑 VM 的 CloseCommand。
-            -->
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />

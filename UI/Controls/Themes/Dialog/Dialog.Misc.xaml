@@ -19,6 +19,59 @@
   <DataTemplate x:Key="DialogDisplayNameTemplate">
     <TextBlock VerticalAlignment="Center" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
   </DataTemplate>
+
+  <!--  ==========================================================================
+        键盘焦点环：替代 WPF 默认的虚线矩形
+        ==========================================================================
+        默认 FocusVisualStyle 画的是黑色/虚线矩形，在现代圆角界面上非常突兀（真机截图里
+        关闭按钮外面那个方框）。这里改成 2px 强调色圆角环、外扩 2px，与控件圆角一致。
+        用法：FocusVisualStyle="{StaticResource DialogFocusVisual}"。
+        注意 FocusVisualStyle 的 TargetType 必须是 Control（模板会被应用到 Adorner 上）。  -->
+  <Style x:Key="DialogFocusVisual">
+    <Setter Property="Control.Template">
+      <Setter.Value>
+        <ControlTemplate>
+          <Border
+              Margin="2"
+              BorderBrush="{StaticResource DialogAccentBrush}"
+              BorderThickness="2"
+              CornerRadius="6"
+              SnapsToDevicePixels="True" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!--  ==========================================================================
+        弹窗内的 ToolTip：圆角 + 细描边 + 12 号字
+        ==========================================================================
+        默认 ToolTip 是方角、系统灰边，和圆角卡片放在一起像另一个年代的控件。
+        显式键控（Fluent 在 App 级最后合并，隐式 ToolTip 样式会被它顶掉）。
+        用法：<ToolTip Style="{StaticResource DialogToolTipStyle}" Content="…" />  -->
+  <Style x:Key="DialogToolTipStyle" TargetType="ToolTip">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="HasDropShadow" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToolTip">
+          <Border
+              Padding="{TemplateBinding Padding}"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="8"
+              SnapsToDevicePixels="True">
+            <ContentPresenter />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
   <DataTemplate x:Key="DialogConnectionOptionTemplate">
     <StackPanel Orientation="Horizontal">
       <TextBlock VerticalAlignment="Center" Text="{Binding ConnectionName}" TextTrimming="CharacterEllipsis" />

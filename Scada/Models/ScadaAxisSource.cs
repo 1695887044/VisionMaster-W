@@ -160,6 +160,20 @@ namespace VisionMaster.Scada
     }
 
     /// <summary>
+    /// 一个点位（点位表图元用）。名字与位置来自 <c>MotionDescriptor.Points</c>；
+    /// 这是**配置快照**，不是运行态量值——它只在示教/改速度后变化。
+    /// </summary>
+    public readonly record struct ScadaAxisPointInfo(
+        int Index,
+        string Name,
+        double PositionMm,
+        double SpeedMmPerS)
+    {
+        /// <summary>行标题（P0 / P0 · 取料位）</summary>
+        public string Caption => string.IsNullOrWhiteSpace(Name) ? $"P{Index}" : $"P{Index} · {Name}";
+    }
+
+    /// <summary>
     /// 轴快照数据源（运行态）。
     ///
     /// 为什么由宿主注入、而不是让图元直接拿 <c>IMotionProvider</c>：
@@ -183,6 +197,12 @@ namespace VisionMaster.Scada
         /// <see cref="ScadaAxisSample.IsValid"/> 为 false；轴根本不存在返回 false。
         /// </summary>
         bool TryGetSample(Guid axisId, out ScadaAxisSample sample);
+
+        /// <summary>
+        /// 取某根轴的点位表（配置快照，按序号排序）。
+        /// 轴不存在返回 false；轴存在但还没铺点位时返回空表（调用方显示空态即可）。
+        /// </summary>
+        bool TryGetPoints(Guid axisId, out IReadOnlyList<ScadaAxisPointInfo> points);
 
         /// <summary>
         /// 轴表拓扑变化（可能在后台线程触发）。面板通常不必订阅它——

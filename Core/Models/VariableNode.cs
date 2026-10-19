@@ -171,8 +171,16 @@ namespace VisionMaster.Models
         /// 位图不是一段字符串，<see cref="DefaultValueText"/> 的 setter 会走
         /// Convert.ChangeType 而必然抛异常。所以这里一并排除——变量表里那一格就变成只读，
         /// 而不是等操作员输入完再弹一个他看不懂的异常（图像的来源本就是流程，不是手填）。
+        ///
+        /// 系统变量（运动/IO 等）同样排除：它们的初始值由设备/宿主决定，改这一格没有落点
+        /// （<c>DefaultValue</c> 写进去也不会回灌到设备），只能给"可编辑"的假象。
         /// </summary>
-        public bool IsEditableNode => Level == 0 && DataType != null && !DataType.IsArray && !IsImageType(DataType);
+        public bool IsEditableNode => Level == 0 && DataType != null && !DataType.IsArray
+            && !IsImageType(DataType) && !IsSystemOwned;
+
+        /// <summary>系统维护的变量（系统变量 / IO 点变量）：值可读，定义不可编辑。</summary>
+        public bool IsSystemOwned =>
+            OriginalModel?.VariableType is VariableType.System or VariableType.Io;
 
         /// <summary>是不是图像变量（位图类，其初始值不可文本化）</summary>
         private static bool IsImageType(Type type) => typeof(HImage).IsAssignableFrom(type);

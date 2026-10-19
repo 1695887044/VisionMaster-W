@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>IO 健康 · 设计基线 v1</title>
+<style>
+  :root {
+    --primary: #0EA5E9;
+    --primary-weak: #E0F2FE;
+    --primary-soft: #F0F9FF;
+    --foreground: #0F172A;
+    --muted: #64748B;
+    --muted-2: #94A3B8;
+    --border: #E2E8F0;
+    --background: #F1F5F9;
+    --card: #FFFFFF;
+    --row-hover: #F1F5F9;
+    --row-selected: #E0F2FE;
+    --danger: #DC2626;
+    --success: #16A34A;
+    --warning: #D97706;
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --font: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: var(--space-6);
+    background: var(--background);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--foreground);
+    display: flex;
+    justify-content: center;
+  }
+
+  .dialog {
+    width: 1180px;
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .06);
+    overflow: hidden;
+  }
+
+  /* ---------- 标题栏 ---------- */
+  .titlebar {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-5);
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+  .titlebar .logo { color: var(--primary); font-size: 15px; }
+  .titlebar h1 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .01em;
+  }
+  .titlebar .sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-left: var(--space-2);
+  }
+  .titlebar .spacer { flex: 1; }
+  .icon-btn {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: var(--radius-sm);
+    background: transparent; color: var(--muted);
+    font-size: 15px; cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .icon-btn:hover { background: var(--row-hover); color: var(--foreground); }
+  .icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+  /* ---------- 摘要卡 ---------- */
+  .summary {
+    margin: var(--space-4) var(--space-5) 0;
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: box-shadow 150ms ease, border-color 150ms ease;
+  }
+  .summary.flash {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, .12);
+  }
+  .summary .stat { font-size: 13px; font-weight: 600; }
+  .summary .hint {
+    flex: 1;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .btn {
+    height: 26px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--foreground);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  .btn:hover { background: var(--row-hover); border-color: var(--muted-2); }
+  .btn:active { background: var(--primary-weak); border-color: var(--primary); }
+  .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+  /* ---------- 页签（下划线式） ---------- */
+  .tabs {
+    margin: var(--space-4) var(--space-5) var(--space-5);
+  }
+  .tabbar {
+    display: flex;
+    gap: var(--space-5);
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    position: relative;
+    padding: 10px 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: color 150ms ease;
+  }
+  .tab:hover { color: var(--foreground); }
+  .tab:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 2px; }
+  .tab[aria-selected="true"] {
+    color: var(--primary);
+    font-weight: 600;
+  }
+  .tab[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--primary);
+  }
+
+  /* ---------- 表格 ---------- */
+  .panel { position: relative; margin-top: var(--space-3); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  thead th {
+    height: 36px;
+    padding: 0 var(--space-2);
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td {
+    height: 40px;
+    padding: 0 var(--space-2);
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tbody tr { cursor: default; }
+  tbody tr:hover td { background: var(--row-hover); }
+  tbody tr.selected td { background: var(--row-selected); }
+  tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+  .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted-2);
+  }
+  .dot.ok { background: var(--success); }
+  .dot.warn { background: var(--warning); }
+  .dot.err { background: var(--danger); }
+
+  /* ---------- 空态 ---------- */
+  .empty {
+    display: none;
+    padding: 96px 0;
+    text-align: center;
+  }
+  .empty .glyph { font-size: 40px; color: #CBD5E1; line-height: 1; }
+  .empty h2 {
+    margin: var(--space-3) 0 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .empty p {
+    margin: var(--space-2) 0 0;
+    font-size: 12px;
+    color: var(--muted-2);
+  }
+  .panel.is-empty table { display: none; }
+  .panel.is-empty .empty { display: block; }
+
+  /* ---------- 演示控制（不属于设计稿本身） ---------- */
+  .demo-bar {
+    position: fixed;
+    right: 20px; bottom: 20px;
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: rgba(15, 23, 42, .86);
+    border-radius: var(--radius-md);
+    color: #fff;
+    font-size: 12px;
+    align-items: center;
+  }
+  .demo-bar button {
+    height: 24px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, .14);
+    color: #fff;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .demo-bar button:hover { background: rgba(255, 255, 255, .26); }
+</style>
+</head>
+<body>
+
+<div class="dialog">
+  <!-- 标题栏 -->
+  <div class="titlebar">
+    <span class="logo">◈</span>
+    <h1>IO 健康</h1>
+    <span class="sub">总线 / 设备 / 点位 运行态诊断，1 秒自动刷新</span>
+    <span class="spacer"></span>
+    <button class="icon-btn" title="关闭" aria-label="关闭">✕</button>
+  </div>
+
+  <!-- 摘要卡 -->
+  <div class="summary" id="summary">
+    <span class="stat" id="stat">总线 0 / 设备 0/0 在线</span>
+    <span class="hint" id="hint">当前方案没有配置 IO 总线或设备</span>
+    <button class="btn" id="refresh">立即刷新</button>
+  </div>
+
+  <!-- 页签 + 表格 -->
+  <div class="tabs">
+    <div class="tabbar" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-panel="devices">设备</button>
+      <button class="tab" role="tab" aria-selected="false" data-panel="buses">总线</button>
+      <button class="tab" role="tab" aria-selected="false" data-panel="points">点位</button>
+    </div>
+
+    <!-- 设备 -->
+    <div class="panel" id="panel-devices">
+      <table>
+        <colgroup>
+          <col style="width:60px"><col style="width:110px"><col style="width:120px">
+          <col style="width:110px"><col style="width:70px"><col style="width:240px">
+          <col style="width:80px"><col style="width:150px"><col style="width:160px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>状态灯</th><th>设备</th><th>显示名</th><th>驱动</th><th>状态</th>
+            <th>状态说明</th><th>最近成功</th><th>写 / 拒 / 故障</th><th>隔离点</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr tabindex="0"><td><span class="dot ok"></span></td><td>dev-01</td><td>主输送线 PLC</td><td>Modbus-TCP</td><td>在线</td><td>通讯正常，周期 100ms</td><td>19:02:11</td><td>128 / 0 / 0</td><td>—</td></tr>
+          <tr tabindex="0"><td><span class="dot warn"></span></td><td>dev-02</td><td>分拣工位 IO</td><td>Modbus-RTU</td><td>告警</td><td>点位 P3 连续 3 次读超时</td><td>19:01:58</td><td>96 / 2 / 3</td><td>P3</td></tr>
+          <tr tabindex="0"><td><span class="dot err"></span></td><td>dev-03</td><td>缓存区传感器</td><td>S7-1200</td><td>离线</td><td>连接被拒绝（10.0.0.31:102）</td><td>18:57:02</td><td>0 / 0 / 12</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div class="empty">
+        <div class="glyph">◈</div>
+        <h2>暂无设备数据</h2>
+        <p>当前方案没有配置 IO 设备，或诊断数据尚未就绪。</p>
+      </div>
+    </div>
+
+    <!-- 总线 -->
+    <div class="panel is-empty" id="panel-buses" hidden>
+      <table>
+        <colgroup>
+          <col style="width:120px"><col style="width:160px"><col style="width:80px">
+          <col style="width:110px"><col style="width:90px">
+        </colgroup>
+        <thead>
+          <tr><th>总线</th><th>显示名</th><th>传输</th><th>设备</th><th>故障</th></tr>
+        </thead>
+        <tbody>
+          <tr tabindex="0"><td>bus-01</td><td>主站总线</td><td>TCP</td><td>2 台</td><td>0</td></tr>
+        </tbody>
+      </table>
+      <div class="empty">
+        <div class="glyph">◈</div>
+        <h2>暂无总线数据</h2>
+        <p>当前方案没有配置 IO 总线。</p>
+      </div>
+    </div>
+
+    <!-- 点位 -->
+    <div class="panel is-empty" id="panel-points" hidden>
+      <table>
+        <colgroup>
+          <col style="width:60px"><col style="width:110px"><col style="width:120px">
+          <col style="width:140px"><col style="width:60px"><col style="width:80px">
+          <col style="width:110px"><col style="width:60px"><col style="width:90px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>质量</th><th>设备</th><th>点位</th><th>显示名</th><th>类型</th>
+            <th>质量</th><th>当前值</th><th>启用</th><th>更新于</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr tabindex="0"><td><span class="dot ok"></span></td><td>dev-01</td><td>P1</td><td>启动信号</td><td>Bool</td><td>良好</td><td>1</td><td>是</td><td>19:02:11</td></tr>
+        </tbody>
+      </table>
+      <div class="empty">
+        <div class="glyph">◈</div>
+        <h2>暂无点位数据</h2>
+        <p>当前方案没有配置 IO 点位，或设备尚未上报。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 仅用于演示，不属于设计稿 -->
+<div class="demo-bar">
+  <span>演示控制</span>
+  <button id="toggle">切换：有数据 / 空态</button>
+</div>
+
+<script>
+  // 页签切换
+  const tabs = Array.from(document.querySelectorAll('.tab'));
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+      ['devices', 'buses', 'points'].forEach(name => {
+        document.getElementById('panel-' + name).hidden = (name !== tab.dataset.panel);
+      });
+    });
+  });
+
+  // 行选中
+  document.querySelectorAll('tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      tr.parentElement.querySelectorAll('tr').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+    });
+  });
+
+  // 刷新反馈：600ms 高亮
+  const summary = document.getElementById('summary');
+  document.getElementById('refresh').addEventListener('click', () => {
+    summary.classList.add('flash');
+    setTimeout(() => summary.classList.remove('flash'), 600);
+  });
+
+  // 空态 / 有数据切换（演示用）
+  let empty = false;
+  document.getElementById('toggle').addEventListener('click', () => {
+    empty = !empty;
+    document.querySelectorAll('.panel').forEach(p => p.classList.toggle('is-empty', empty));
+    document.getElementById('stat').textContent = empty ? '总线 0 / 设备 0/0 在线' : '总线 1 / 设备 3/2 在线';
+    document.getElementById('hint').textContent = empty
+      ? '当前方案没有配置 IO 总线或设备'
+      : '2 台在线，1 台离线；1 个点位被隔离';
+  });
+</script>
+</body>
+</html>

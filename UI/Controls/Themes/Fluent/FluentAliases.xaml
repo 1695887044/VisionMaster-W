@@ -54,7 +54,17 @@
         x:Key="DialogIconButton"
         BasedOn="{StaticResource FluentButtonSubtleStyle}"
         TargetType="Button">
-        <Setter Property="Padding" Value="{StaticResource FluentPaddingCompact}" />
+        <!--
+            图标按钮必须是**方形**（30x30，与 docs/UI设计基线/io-health 的 .icon-btn 一致）。
+            原来的写法只给 Padding="6,4"，按钮尺寸被内容（一个 13px 字形）撑成 22x32，
+            而模板里的悬停叠加层是"按钮内容区 + CornerRadius 8"：
+            内容区只有 10x24，圆角 8 就把它渲染成一根竖着的胶囊 —— 真机截图里关闭按钮
+            悬停时出现一条窄竖条，看着像错位的滚动条。
+            Padding=0 让叠加层铺满 30x30，圆角 8 才是正常的圆角方块。
+        -->
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinWidth" Value="30" />
+        <Setter Property="MinHeight" Value="30" />
     </Style>
     <Style
         x:Key="DialogChipButton"

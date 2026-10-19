@@ -1480,6 +1480,46 @@ namespace UIThemeSmokeTest
                     backToScada && backToNormal,
                     $"切回组态={backToScada}，切回非组态={backToNormal}");
 
+                // ---- ③b 组态模式的"让空间"收敛（v4）：左栏收起、底部日志收 0、属性/图层合并成标签页 ----
+                static AvalonDock.Layout.LayoutAnchorablePane FindAncestorPane(AvalonDock.DockingManager manager, string contentId)
+                {
+                    AvalonDock.Layout.ILayoutElement cursor = VisionMaster.Services.LayoutHelper.FindPanel(manager, contentId);
+                    while (cursor?.Parent is AvalonDock.Layout.ILayoutContainer parent)
+                    {
+                        if (parent is AvalonDock.Layout.LayoutAnchorablePane pane) return pane;
+                        cursor = parent as AvalonDock.Layout.ILayoutElement;
+                    }
+
+                    return null;
+                }
+
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, true);
+                // 模式收敛可能重建布局树（ShowAnchorable 会重挂面板），检查必须用**切换之后**的实例
+                var logPaneScada = FindAncestorPane(dock, "Panel_LogView");
+                var propScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaPropertyView");
+                var layerScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaLayerView");
+                bool leftHiddenInScada = !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_FlowListView")
+                                         && !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
+                bool logCollapsed = logPaneScada != null && logPaneScada.DockHeight.IsAbsolute && logPaneScada.DockHeight.Value < 2;
+                string logCollapsedHeight = logPaneScada?.DockHeight.ToString() ?? "null";
+                bool samePane = propScada?.Parent != null && ReferenceEquals(propScada.Parent, layerScada?.Parent);
+                bool propSelected = (propScada as AvalonDock.Layout.LayoutAnchorable)?.IsSelected == true;
+
+                VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
+                var logPaneNormal = FindAncestorPane(dock, "Panel_LogView");
+                bool leftRestored = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_FlowListView")
+                                    && VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
+                bool logRestored = logPaneNormal != null && logPaneNormal.DockHeight.IsAbsolute
+                                   && System.Math.Abs(logPaneNormal.DockHeight.Value - 200) < 0.1;
+                string logRestoredHeight = logPaneNormal?.DockHeight.ToString() ?? "null";
+
+                Check("组态模式收起左栏（程序/流程栏），退出后恢复", leftHiddenInScada && leftRestored,
+                    $"组态收起={leftHiddenInScada}，退出恢复={leftRestored}");
+                Check("组态模式把底部日志收成 1px 条（高度还给画布），退出后恢复 200", logCollapsed && logRestored,
+                    $"组态高度={logCollapsedHeight}，退出高度={logRestoredHeight}");
+                Check("属性/图层在同一个 pane（标签页），组态模式默认选中属性", samePane && propSelected,
+                    $"同 pane={samePane}，属性选中={propSelected}");
+
                 // ---- ④ 判据闸：文档的 IsSelected 才是"当前在组态设计"，IsActive 不是 ----
                 // 这条钉的是"为什么不能用 IsPanelActive 当判据"：点一下右侧停靠面板就会把
                 // 文档的 IsActive 抢走（AvalonDock 语义），拿它当判据会自毁循环。
@@ -1497,6 +1537,52 @@ namespace UIThemeSmokeTest
                 Check("图层面板登记在 ContentFactories 里（缺它 = 每次恢复布局后图层面板变空壳，且覆盖度校验不会拦）",
                     factoryProbe != null && factoryProbe.Contains("Panel_ScadaLayerView"),
                     factoryProbe == null ? "(反射取不到 ContentFactories)" : $"登记项 {factoryProbe.Count} 个");
+
+                // ---- ⑨ 流程栏列宽兜底（用户把这一列拖到 230 → v2 组头右侧统计会把实例名挤没） ----
+                // 反证：把 ShellCopy 里流程栏那一列改成 230，再调一次校正，必须回到 340 / 最小 320。
+                var processContent = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ProcessView");
+                AvalonDock.Layout.LayoutPanel processPanel = null;
+                AvalonDock.Layout.ILayoutElement cursor = processContent;
+                while (cursor?.Parent is AvalonDock.Layout.ILayoutContainer parent)
+                {
+                    if (parent is AvalonDock.Layout.LayoutPanel layoutPanel)
+                    {
+                        processPanel = layoutPanel;
+                        break;
+                    }
+
+                    cursor = parent as AvalonDock.Layout.ILayoutElement;
+                }
+
+                if (processPanel == null)
+                {
+                    Check("流程栏列宽兜底（过窄 → 拉回 340）", false, "没找到流程栏所在的 LayoutPanel");
+                }
+                else
+                {
+                    processPanel.DockWidth = new System.Windows.GridLength(230);
+                    processPanel.DockMinWidth = 0;
+                    VisionMaster.Services.LayoutHelper.EnsureProcessColumnWidth(dock);
+                    Check("流程栏列宽兜底：230 → 340、最小宽度 320（旧 Layout.xml 拖窄后恢复不再溢出）",
+                        processPanel.DockWidth.IsAbsolute
+                        && System.Math.Abs(processPanel.DockWidth.Value - 340) < 0.1
+                        && System.Math.Abs(processPanel.DockMinWidth - 320) < 0.1,
+                        $"宽度={processPanel.DockWidth}（期望 340） 最小={processPanel.DockMinWidth}（期望 320）");
+                }
+
+                // ---- ⑩ 出厂快照尺寸基线（"恢复默认布局"的数据源） ----
+                // 序列化出来的就是启动时 CaptureDefaultLayoutSnapshot 写进 DefaultLayout.xml 的内容。
+                // 反证：把 ShellCopy 的流程栏列改成 230、或去掉程序栏 DockHeight=180 → 这条红。
+                string defaultXml;
+                using (var writer = new System.IO.StringWriter())
+                {
+                    new AvalonDock.Layout.Serialization.XmlLayoutSerializer(dock).Serialize(writer);
+                    defaultXml = writer.ToString();
+                }
+
+                Check("出厂快照尺寸基线：流程栏列宽 340、程序栏高 180（否则\"恢复默认布局\"会恢复出错误尺寸）",
+                    defaultXml.Contains("DockWidth=\"340\"") && defaultXml.Contains("DockHeight=\"180\""),
+                    $"宽度340={defaultXml.Contains("DockWidth=\"340\"")} 高度180={defaultXml.Contains("DockHeight=\"180\"")}");
 
                 // ---- ⑥⑦⑧ AvalonDock 4.74.1 的 Show() 只判上界不判下界（2026-10-16 真机闪退） ----
                 // 现场：LayoutAnchorable.Show() 把 Hide 时记下的"回哪一列、第几个位置"原样喂给
@@ -1803,25 +1889,71 @@ namespace UIThemeSmokeTest
 
                 // ---- 静态扫描：用 GridView 的视图，三件套必须在同一个文件里齐 ----
                 // 少任何一件，屏幕上就是"列头没了 / 一行行类型全名"，而这两种错只读 XAML 看不出来。
+                //
+                // 两条口径（2026-10-19 修）：
+                // ① 只扫第一方目录。vendored 的 VM3.0-main 不是本仓维护的代码，把它算进来会让
+                //    扫描恒红（实测 10 条 offender），新违规会被挤掉、看不见。
+                // ② 逐个 ListView 判，不做文件级子串。文件级判据下"4 张表里 3 张漏挂样式"照样绿。
                 string repoRoot = @"d:\C#\VM";
+                string[] firstPartyRoots =
+                {
+                    Path.Combine(repoRoot, "VisionMaster"),
+                    Path.Combine(repoRoot, "UI"),
+                    Path.Combine(repoRoot, "Scada"),
+                    Path.Combine(repoRoot, "Scada.Controls"),
+                    Path.Combine(repoRoot, "Scada.Controls.Charts"),
+                    Path.Combine(repoRoot, "Plugins"),
+                };
+
+                bool IsFirstParty(string file) =>
+                    firstPartyRoots.Any(root =>
+                        file.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+
+                int LineOf(string text, int index)
+                {
+                    int line = 1;
+                    for (int i = 0; i < index && i < text.Length; i++)
+                        if (text[i] == '\n') line++;
+                    return line;
+                }
+
                 var offenders = new List<string>();
                 int scanned = 0;
                 foreach (var file in Directory.GetFiles(repoRoot, "*.xaml", SearchOption.AllDirectories))
                 {
-                    if (file.Contains(@"\obj\") || file.Contains(@"\bin\")
-                        || file.Contains(@"WPF-Halcon-流程拖拉")) continue;
+                    if (!IsFirstParty(file)) continue;
+                    if (file.Contains(@"\obj\") || file.Contains(@"\bin\")) continue;
+
                     string text = File.ReadAllText(file);
                     if (!text.Contains("<GridView", StringComparison.Ordinal)) continue;
                     scanned++;
                     string name = Path.GetFileName(file);
-                    if (!text.Contains("GridListViewStyle", StringComparison.Ordinal))
-                        offenders.Add(name + ": 没挂 GridListViewStyle（列头会被 Fluent 的隐式 ListView 样式顶掉）");
+
+                    // <ListView(?![.\w]) 排除 <ListView.View> 这类成员元素。
+                    var listViews = Regex.Matches(text, @"<ListView(?![.\w])[^>]*>");
+                    if (listViews.Count == 0)
+                    {
+                        if (!text.Contains("GridListViewStyle", StringComparison.Ordinal))
+                            offenders.Add(name + ": 没挂 GridListViewStyle（列头会被 Fluent 的隐式 ListView 样式顶掉）");
+                    }
+                    else
+                    {
+                        foreach (Match lv in listViews)
+                        {
+                            if (lv.Value.Contains("GridListViewStyle", StringComparison.Ordinal)) continue;
+                            offenders.Add($"{name}: 第 {LineOf(text, lv.Index)} 行的 ListView 未挂 GridListViewStyle");
+                        }
+                    }
+
                     if (!text.Contains("GridViewRowPresenter", StringComparison.Ordinal))
                         offenders.Add(name + ": 行模板缺 GridViewRowPresenter（列布局会塌成一行行类型全名）");
                 }
-                Check($"凡用 GridView 的视图都带齐三件套（扫过 {scanned} 个含 GridView 的 xaml）",
+
+                Check($"凡用 GridView 的第一方视图都带齐三件套（扫过 {scanned} 个含 GridView 的 xaml）",
                     offenders.Count == 0,
-                    offenders.Count == 0 ? "全部齐全" : string.Join(" | ", offenders.Take(6)));
+                    offenders.Count == 0
+                        ? "全部齐全"
+                        : $"{offenders.Count} 条：{string.Join(" | ", offenders)}");
             }
             catch (Exception ex)
             {

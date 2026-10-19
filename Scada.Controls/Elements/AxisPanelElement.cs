@@ -3,7 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
+using Prism.Commands;
 using VisionMaster.Scada;
 
 namespace VisionMaster.Scada.Controls
@@ -67,6 +71,48 @@ namespace VisionMaster.Scada.Controls
                        Description = "单位、状态说明与轴卡片副标题的颜色")]
         public partial Brush? MutedColor { get; set; }
 
+        /// <summary>是否显示操作按钮（使能/点动/回零/停止/清报警）</summary>
+        [ScadaProperty(Key = "ShowCommands", DisplayName = "显示操作按钮", Kind = ElementPropertyKind.Bool,
+                       Group = "操作", DefaultValue = "True",
+                       Description = "关掉就退化成纯监视面板：只显示位置/速度/状态灯，不出现任何会动机构的按钮")]
+        public partial bool ShowCommands { get; set; }
+
+        /// <summary>点动速度（mm/s）。按住点动按钮时按这个速度走。</summary>
+        [ScadaProperty(Key = "JogVelocity", DisplayName = "点动速度", Kind = ElementPropertyKind.Number,
+                       Group = "操作", DefaultValue = "10", Min = 0.1, Max = 10000,
+                       Description = "按住点动按钮时的速度（mm/s）；方向由按钮决定")]
+        public partial double JogVelocityMmPerS { get; set; }
+
+        /// <summary>
+        /// 示教/定位前是否弹二次确认（默认开）。
+        ///
+        /// 为什么默认开：示教写的是**方案配置**（随方案落盘），定位会让机构真的走；
+        /// 两者都不该因为手滑一下就发生。关掉之后是一键直接执行——权限仍照常检查，
+        /// 这个开关只控制"多问一句"，不是权限的替代品。
+        /// </summary>
+        [ScadaProperty(Key = "ConfirmCommands", DisplayName = "操作二次确认", Kind = ElementPropertyKind.Bool,
+                       Group = "操作", DefaultValue = "True",
+                       Description = "示教/定位前弹出确认框；关掉后一键直接执行（权限仍照常检查）")]
+        public partial bool ConfirmCommands { get; set; }
+
+        /// <summary>
+        /// 是否显示点位区（示教 / 定位 / 改速度）。
+        ///
+        /// 默认 false：`Hmi.AxisPanel` 是"只要状态与手动操作"的紧凑预设；
+        /// `Hmi.AxisConsole`（轴控台）把默认值覆盖成 true，就是"状态 + 操作 + 点位"的完整调试台。
+        /// 同一个控件类、同一份数据绑定，只是预设不同——这样运动与监控永远是同一根轴。
+        /// </summary>
+        [ScadaProperty(Key = "ShowPoints", DisplayName = "显示点位", Kind = ElementPropertyKind.Bool,
+                       Group = "点位", DefaultValue = "False",
+                       Description = "显示点位表（示教/定位/改速度）。关掉就是紧凑面板；打开后与运动共用同一个轴选择器")]
+        public partial bool ShowPoints { get; set; }
+
+        /// <summary>点位区可见行数（其余滚动）</summary>
+        [ScadaProperty(Key = "PointsRows", DisplayName = "点位可见行数", Kind = ElementPropertyKind.Number,
+                       Group = "点位", DefaultValue = "6", Min = 1, Max = 16,
+                       Description = "点位区最多显示几行，超出的滚动；这个值决定点位区高度")]
+        public partial int PointsRows { get; set; }
+
         private static readonly Brush FallbackAccent = ScadaBrushes.Frozen("#FFFF6161");
         private static readonly Brush FallbackAlarm = ScadaBrushes.Frozen("#FFE03A2B");
         private static readonly Brush FallbackOff = ScadaBrushes.Frozen("#FF2A2D31");
@@ -123,6 +169,28 @@ namespace VisionMaster.Scada.Controls
             nameof(SelectedAxisId), typeof(Guid), typeof(AxisPanelElement),
             new PropertyMetadata(Guid.Empty, OnSelectedAxisIdChanged));
 
+        private static readonly DependencyProperty SelectedAxisItemProperty = DependencyProperty.Register(
+            nameof(SelectedAxisItem), typeof(AxisPanelItem), typeof(AxisPanelElement),
+            new FrameworkPropertyMetadata(
+                null,
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+                OnSelectedAxisItemChanged));
+
+        /// <summary>
+        /// 下拉框的选中项（与 <see cref="SelectedAxisId"/> 双向同步）。
+        ///
+        /// 为什么模板绑 `SelectedItem` 而不是 `SelectedValue`：`SelectedValue` 在
+        /// "ItemsSource 后到"时会丢掉选择——模板套上那一刻 `SelectedAxisId` 已经有值，
+        /// 但 `AxisItems` 还没绑定过去，ComboBox 找不到对应项就把选中置空，
+        /// 屏幕上就是一个**空的选择框**（2026-10-19 离屏图抓到）。
+        /// `SelectedItem` 绑定的是对象本身，Selector 会在 ItemsSource 到位后重新解析它。
+        /// </summary>
+        public AxisPanelItem? SelectedAxisItem
+        {
+            get => (AxisPanelItem?)GetValue(SelectedAxisItemProperty);
+            set => SetValue(SelectedAxisItemProperty, value);
+        }
+
         private static readonly DependencyPropertyKey SelectedAxisNamePropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(SelectedAxisName), typeof(string), typeof(AxisPanelElement), new PropertyMetadata(string.Empty));
 
@@ -159,11 +227,11 @@ namespace VisionMaster.Scada.Controls
         /// <summary>当前轴是否在运动</summary>
         public static readonly DependencyProperty IsMovingProperty = IsMovingPropertyKey.DependencyProperty;
 
-        private static readonly DependencyPropertyKey IsEnabledPropertyKey = DependencyProperty.RegisterReadOnly(
-            nameof(IsEnabled), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+        private static readonly DependencyPropertyKey AxisEnabledPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(AxisEnabled), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
 
         /// <summary>当前轴是否已使能</summary>
-        public static readonly DependencyProperty IsEnabledProperty = IsEnabledPropertyKey.DependencyProperty;
+        public static readonly DependencyProperty AxisEnabledProperty = AxisEnabledPropertyKey.DependencyProperty;
 
         private static readonly DependencyPropertyKey IsInPositionPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(IsInPosition), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
@@ -218,6 +286,74 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty EmergencyStopLampBrushProperty =
             EmergencyStopLampBrushPropertyKey.DependencyProperty;
 
+        private static readonly DependencyPropertyKey CanOperatePropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CanOperate), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        /// <summary>
+        /// 操作按钮是否可用（只读）：有命令出口、有选中轴、且当前角色够格。
+        /// 模板直接绑它到按钮容器的 IsEnabled —— 灰掉比"按下去没反应"诚实。
+        /// </summary>
+        public static readonly DependencyProperty CanOperateProperty = CanOperatePropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey CommandMessagePropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CommandMessage), typeof(string), typeof(AxisPanelElement), new PropertyMetadata(string.Empty));
+
+        /// <summary>
+        /// 最近一次操作按钮的结果文案（只读）。成功为空串，失败是可直接上屏的原因。
+        /// 不做自动消失：下一次操作会覆盖它——多养一个计时器只为淡出一行字，不值得。
+        /// </summary>
+        public static readonly DependencyProperty CommandMessageProperty = CommandMessagePropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey CommandsVisibilityPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CommandsVisibility), typeof(Visibility), typeof(AxisPanelElement),
+            new PropertyMetadata(Visibility.Visible));
+
+        /// <summary>操作按钮区的显隐（由 <see cref="ShowCommands"/> 算好，模板直绑）</summary>
+        public static readonly DependencyProperty CommandsVisibilityProperty =
+            CommandsVisibilityPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey EnableButtonTextPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(EnableButtonText), typeof(string), typeof(AxisPanelElement), new PropertyMetadata("使能"));
+
+        /// <summary>使能按钮的文案（已使能时显示「失能」）。模板 DataTrigger 不触发，所以由代码算好。</summary>
+        public static readonly DependencyProperty EnableButtonTextProperty =
+            EnableButtonTextPropertyKey.DependencyProperty;
+
+        // ---- 点位区（与运动共用同一个 SelectedAxisId） ----
+
+        private static readonly DependencyPropertyKey PointsVisibilityPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(PointsVisibility), typeof(Visibility), typeof(AxisPanelElement),
+            new PropertyMetadata(Visibility.Collapsed));
+
+        /// <summary>点位区显隐（由 <see cref="ShowPoints"/> 算好，模板直绑）</summary>
+        public static readonly DependencyProperty PointsVisibilityProperty =
+            PointsVisibilityPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey PointsHeightPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(PointsHeight), typeof(double), typeof(AxisPanelElement), new PropertyMetadata(132d));
+
+        /// <summary>
+        /// 点位区高度（由 <see cref="PointsRows"/> 算好；行高 22px）。
+        ///
+        /// <b>表头不计入</b>：模板里表头那行在 ScrollViewer 外面，把 18px 加进来的话
+        /// 6 行视口会变成 150px，实际能塞下 8 行——`PointsRows` 这个"可见行数"就不准了。
+        /// </summary>
+        public static readonly DependencyProperty PointsHeightProperty =
+            PointsHeightPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey RowsPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(Rows), typeof(IReadOnlyList<AxisPointRow>), typeof(AxisPanelElement),
+            new PropertyMetadata(Array.Empty<AxisPointRow>()));
+
+        /// <summary>点位行（只读；示教/改速度/外部改动后按指纹重建）</summary>
+        public static readonly DependencyProperty RowsProperty = RowsPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey CanEditPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CanEdit), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        /// <summary>行内"可改"判据 = 有权限且显示了操作入口（关掉后速度框只读）</summary>
+        public static readonly DependencyProperty CanEditProperty = CanEditPropertyKey.DependencyProperty;
+
         /// <summary>设计期候选轴（从属性袋里的规范 JSON 解析；运行期下拉项由它 + 数据源名字合成）</summary>
         private IReadOnlyList<ScadaAxisRef> _options = Array.Empty<ScadaAxisRef>();
 
@@ -229,6 +365,21 @@ namespace VisionMaster.Scada.Controls
             DefaultStyleKeyProperty.OverrideMetadata(
                 typeof(AxisPanelElement),
                 new FrameworkPropertyMetadata(typeof(AxisPanelElement)));
+        }
+
+        public AxisPanelElement()
+        {
+            // 面板被移出可视树（切页/关窗口）时，若还按着点动、或回零长按计时器还在跑，
+            // 必须收手：点动没有终点，"松手即停"的前提是有人发停止。
+            // 这里只是补一道兜底，执行器自己的看门狗仍会在 1s 后兜住。
+            Unloaded += (_, _) =>
+            {
+                _homeHoldTimer?.Stop();
+                EndJog();
+            };
+
+            TeachCommand = new DelegateCommand<AxisPointRow>(OnTeach, r => r != null && CanOperate);
+            LocateCommand = new DelegateCommand<AxisPointRow>(OnLocate, r => r != null && CanOperate);
         }
 
         /// <summary>下拉框的候选轴（只读，见 <see cref="AxisItemsProperty"/>）</summary>
@@ -272,7 +423,7 @@ namespace VisionMaster.Scada.Controls
         public bool IsValid => (bool)GetValue(IsValidProperty);
 
         public bool IsMoving => (bool)GetValue(IsMovingProperty);
-        public bool IsEnabled => (bool)GetValue(IsEnabledProperty);
+        public bool AxisEnabled => (bool)GetValue(AxisEnabledProperty);
         public bool IsInPosition => (bool)GetValue(IsInPositionProperty);
         public bool IsAlarm => (bool)GetValue(IsAlarmProperty);
 
@@ -285,15 +436,564 @@ namespace VisionMaster.Scada.Controls
         public Brush OriginLampBrush => (Brush)GetValue(OriginLampBrushProperty);
         public Brush EmergencyStopLampBrush => (Brush)GetValue(EmergencyStopLampBrushProperty);
 
-        protected override void OnElementRefreshed() => ApplyStrokeInset(1);
+        /// <summary>操作按钮是否可用（只读）</summary>
+        public bool CanOperate => (bool)GetValue(CanOperateProperty);
+
+        /// <summary>最近一次操作的结果文案（只读；空串 = 上一次是成功的）</summary>
+        public string CommandMessage => (string)GetValue(CommandMessageProperty);
+
+        /// <summary>操作按钮区的显隐（只读）</summary>
+        public Visibility CommandsVisibility => (Visibility)GetValue(CommandsVisibilityProperty);
+
+        /// <summary>使能按钮文案（只读；已使能时是「失能」）</summary>
+        public string EnableButtonText => (string)GetValue(EnableButtonTextProperty);
+
+        /// <summary>点位区显隐（只读）</summary>
+        public Visibility PointsVisibility => (Visibility)GetValue(PointsVisibilityProperty);
+
+        /// <summary>点位区高度（只读）</summary>
+        public double PointsHeight => (double)GetValue(PointsHeightProperty);
+
+        /// <summary>点位行（只读）</summary>
+        public IReadOnlyList<AxisPointRow> Rows => (IReadOnlyList<AxisPointRow>)GetValue(RowsProperty);
+
+        /// <summary>行内可改（只读）= 有权限且显示了操作入口</summary>
+        public bool CanEdit => (bool)GetValue(CanEditProperty);
+
+        /// <summary>「示教」：把当前位置写进该行点位（与运动共用当前选中轴）</summary>
+        public DelegateCommand<AxisPointRow> TeachCommand { get; }
+
+        /// <summary>「定位」：走到该行点位（与运动共用当前选中轴）</summary>
+        public DelegateCommand<AxisPointRow> LocateCommand { get; }
+
+        /// <summary>
+        /// 执行一条轴命令（面板按钮与断言共用这一个入口）。
+        ///
+        /// 权限、命令出口、选中轴三件事缺一不可；任何一条不满足都返回 false 并给原因，
+        /// <b>绝不静默空跑</b>——操作员按了按钮什么都没发生，是这类界面最伤信任的失效。
+        /// </summary>
+        public bool TryExecuteCommand(ScadaAxisCommandKind command, double? value = null)
+        {
+            if (!CheckCanRun(out var error))
+            {
+                SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
+                return false;
+            }
+
+            bool ok;
+            try
+            {
+                ok = RuntimeContext!.AxisCommands!.TryExecute(SelectedAxisId, command, value, out error);
+            }
+            catch (Exception ex)
+            {
+                // 契约要求实现方不抛；真抛了也绝不让它冒到鼠标事件链上（那会退进程）。
+                ok = false;
+                error = $"命令执行异常：{ex.Message}";
+            }
+
+            SetValue(CommandMessagePropertyKey, ok ? string.Empty : error ?? "命令被拒绝（没有给出原因）");
+            return ok;
+        }
+
+        /// <summary>
+        /// "权限 + 出口 + 选中轴"的统一闸门：操作按钮与点位写入都先过这里。
+        /// 返回 false 时 <paramref name="error"/> 已是可上屏的原因。
+        /// </summary>
+        private bool CheckCanRun(out string? error)
+        {
+            error = null;
+
+            if (RuntimeContext == null)
+            {
+                error = "设计期不执行命令（运行后可用）";
+                return false;
+            }
+
+            if (RuntimeContext.AxisCommands == null)
+            {
+                error = "未接入运动模块，命令不可用";
+                return false;
+            }
+
+            if (SelectedAxisId == Guid.Empty)
+            {
+                error = "请先选择一根轴";
+                return false;
+            }
+
+            // 权限：与事件钩子同一口径（高角色含低角色，未登录=操作员）。
+            // 这里先判一次是为了让操作员"按之前"就知道自己没权限，而不是命令发出去才被拦。
+            if (!RuntimeContext.AccessPolicy.CanOperate(Element?.RequiredRole, out var denyReason))
+            {
+                error = denyReason ?? "没有权限操作该轴";
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 按钮可用性重算：有出口 + 有选中轴 + 权限够。
+        /// 每个"会让它变"的入口都调一次（装/摘上下文、换轴、角色变化）。
+        /// </summary>
+        private void RefreshCanOperate()
+        {
+            bool can = RuntimeContext?.AxisCommands != null
+                       && SelectedAxisId != Guid.Empty
+                       && RuntimeContext.AccessPolicy.CanOperate(Element?.RequiredRole, out _);
+
+            SetValue(CanOperatePropertyKey, can);
+            SetValue(CanEditPropertyKey, can && ShowCommands);
+
+            TeachCommand.RaiseCanExecuteChanged();
+            LocateCommand.RaiseCanExecuteChanged();
+        }
+
+        // ==================================================================
+        //  点位区（与运动共用同一个 SelectedAxisId —— 这是合并控件的核心）
+        // ==================================================================
+
+        /// <summary>上一次刷新时点位表的指纹（轴 Id + 每行 序号/名字/位置/速度）</summary>
+        private string _pointsFingerprint = string.Empty;
+
+        /// <summary>
+        /// 重读点位并（必要时）重建行。
+        ///
+        /// 点位是**配置**、`List&lt;MotionPoint&gt;` 不是可观察集合：外部（运动卡设置）改了它
+        /// 没有任何通知。所以节拍里每拍重读一次，靠指纹短路——没变时连行对象都不重建，
+        /// 否则会把用户正在输入的速度框连行一起换掉。
+        /// </summary>
+        /// <param name="force">true = 跳过指纹比对（本控件自己写完配置后用）</param>
+        private void RefreshRows(bool force = false)
+        {
+            // 点位区收起时不读：16 行 × N 轴的点位是配置，没必要为一个看不见的区域每拍现读。
+            if (!ShowPoints)
+            {
+                _pointsFingerprint = string.Empty;
+                SetValue(RowsPropertyKey, Array.Empty<AxisPointRow>());
+                return;
+            }
+
+            var source = RuntimeContext?.AxisSource;
+            if (source == null || SelectedAxisId == Guid.Empty
+                || !source.TryGetPoints(SelectedAxisId, out var points))
+            {
+                _pointsFingerprint = string.Empty;
+                SetValue(RowsPropertyKey, Array.Empty<AxisPointRow>());
+                return;
+            }
+
+            string fingerprint = BuildPointsFingerprint(SelectedAxisId, points);
+            if (!force && string.Equals(fingerprint, _pointsFingerprint, StringComparison.Ordinal))
+                return;
+
+            _pointsFingerprint = fingerprint;
+
+            var rows = new List<AxisPointRow>(points.Count);
+            foreach (var point in points)
+                rows.Add(new AxisPointRow(point, OnSpeedCommitted));
+
+            SetValue(RowsPropertyKey, (IReadOnlyList<AxisPointRow>)rows);
+        }
+
+        private static string BuildPointsFingerprint(Guid axisId, IReadOnlyList<ScadaAxisPointInfo> points)
+        {
+            var builder = new System.Text.StringBuilder(axisId.ToString("N"));
+
+            foreach (var point in points)
+            {
+                builder.Append(';')
+                       .Append(point.Index).Append('|')
+                       .Append(point.Name).Append('|')
+                       .Append(point.PositionMm.ToString("R", CultureInfo.InvariantCulture)).Append('|')
+                       .Append(point.SpeedMmPerS.ToString("R", CultureInfo.InvariantCulture));
+            }
+
+            return builder.ToString();
+        }
+
+        private void OnTeach(AxisPointRow row)
+        {
+            if (!CheckCanRun(out var error))
+            {
+                SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
+                return;
+            }
+
+            if (RuntimeContext!.AxisSource is not { } source
+                || !source.TryGetSample(SelectedAxisId, out var sample) || !sample.IsValid)
+            {
+                SetValue(CommandMessagePropertyKey, "读不到当前位置，无法示教（轴可能离线）");
+                return;
+            }
+
+            // 二次确认放在"读到当前位置"之后：确认框里要写清**这一下会写入什么值**。
+            // 权限已在 CheckCanRun 里判过——没权限的人根本走不到弹窗（不会先弹再拒）。
+            if (!ConfirmOperation(
+                    "示教确认",
+                    $"确认把轴「{SelectedAxisName}」的当前位置 {sample.PositionMm:F3} mm "
+                    + $"写入 {row.Caption}？"))
+                return;
+
+            bool ok;
+            try
+            {
+                ok = RuntimeContext.AxisCommands!.TryTeach(
+                    SelectedAxisId, row.Index, sample.PositionMm, row.SpeedMmPerS, out error);
+            }
+            catch (Exception ex)
+            {
+                ok = false;
+                error = $"命令执行异常：{ex.Message}";
+            }
+
+            SetValue(CommandMessagePropertyKey, ok ? string.Empty : error ?? "示教失败");
+            if (ok) RefreshRows(force: true);
+        }
+
+        private void OnLocate(AxisPointRow row)
+        {
+            if (!CheckCanRun(out var error))
+            {
+                SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
+                return;
+            }
+
+            if (!ConfirmOperation(
+                    "定位确认",
+                    $"确认让轴「{SelectedAxisName}」走到 {row.Caption}"
+                    + $"（{row.PositionText} mm @ {row.SpeedText} mm/s）？"))
+                return;
+
+            bool ok;
+            try
+            {
+                ok = RuntimeContext!.AxisCommands!.TryMove(
+                    SelectedAxisId, row.PositionMm, row.SpeedMmPerS, out error);
+            }
+            catch (Exception ex)
+            {
+                ok = false;
+                error = $"命令执行异常：{ex.Message}";
+            }
+
+            SetValue(CommandMessagePropertyKey, ok ? string.Empty : error ?? "定位失败");
+        }
+
+        /// <summary>
+        /// 示教/定位前的二次确认。
+        ///
+        /// <b>权限不是在这里判的</b>：调用方（OnTeach/OnLocate）已经先过了
+        /// <see cref="CheckCanRun"/>（命令出口 + 选中轴 + <c>RequiredRole</c>）。
+        /// 所以没权限的用户根本走不到这里，不会出现"先弹窗、再告诉他没权限"的羞辱式交互。
+        ///
+        /// <c>ConfirmCommands=false</c> 时直接放行（这个开关只管"多问一句"）。
+        /// 开关为 true 但宿主没接确认出口时**拒绝执行**：静默跳过确认等于把防误触悄悄关掉。
+        /// </summary>
+        private bool ConfirmOperation(string title, string message)
+        {
+            if (!ConfirmCommands)
+                return true;
+
+            var confirmations = RuntimeContext?.Confirmations;
+            if (confirmations == null)
+            {
+                SetValue(CommandMessagePropertyKey, "二次确认服务未接入，已取消操作");
+                return false;
+            }
+
+            try
+            {
+                if (confirmations.Confirm(title, message))
+                    return true;
+
+                // 用户主动取消不是错误：不写红字，弹窗本身已经是最直接的反馈。
+                SetValue(CommandMessagePropertyKey, string.Empty);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                SetValue(CommandMessagePropertyKey, $"二次确认失败：{ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>行内速度编辑提交（LostFocus 触发）</summary>
+        private void OnSpeedCommitted(AxisPointRow row, string text)
+        {
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var speed)
+                || !double.IsFinite(speed) || speed < 0)
+            {
+                SetValue(CommandMessagePropertyKey, $"速度「{text}」不是有效数字（必须 ≥ 0）");
+                RefreshRows(force: true);
+                return;
+            }
+
+            if (!CheckCanRun(out var error))
+            {
+                SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
+                RefreshRows(force: true);
+                return;
+            }
+
+            bool ok;
+            try
+            {
+                ok = RuntimeContext!.AxisCommands!.TrySetPointSpeed(
+                    SelectedAxisId, row.Index, speed, out error);
+            }
+            catch (Exception ex)
+            {
+                ok = false;
+                error = $"命令执行异常：{ex.Message}";
+            }
+
+            SetValue(CommandMessagePropertyKey, ok ? string.Empty : error ?? "改速度失败");
+            RefreshRows(force: true);
+        }
+
+        private void UpdatePointsLayout()
+        {
+            SetValue(PointsVisibilityPropertyKey, ShowPoints ? Visibility.Visible : Visibility.Collapsed);
+
+            // 行高 22（与模板里的 MinHeight 一致）；夹在 1~16 行。
+            // 表头在 ScrollViewer 外面，不计入 MaxHeight（见 PointsHeight 的注释）。
+            int rows = Math.Clamp(PointsRows, 1, 16);
+            SetValue(PointsHeightPropertyKey, rows * 22d);
+        }
+
+        partial void OnShowPointsPropertyChanged()
+        {
+            UpdatePointsLayout();
+            RefreshRows();
+        }
+
+        partial void OnPointsRowsPropertyChanged() => UpdatePointsLayout();
+
+        protected override void OnElementRefreshed()
+        {
+            ApplyStrokeInset(1);
+
+            // 权限（RequiredRole）改了要立刻反映到按钮上：属性面板改完、或加载期恢复布局，
+            // 都走 RefreshCore → 这里。不补的话按钮会停在旧权限上，直到下一次切轴。
+            RefreshCanOperate();
+        }
+
+        // ---- 操作按钮的模板部件名（模板里 x:Name 必须逐字一致）----
+
+        public const string PartCommands = "Commands";
+        public const string PartBtnEnable = "BtnEnable";
+        public const string PartBtnStop = "BtnStop";
+        public const string PartBtnHome = "BtnHome";
+        public const string PartBtnJogForward = "BtnJogForward";
+        public const string PartBtnJogReverse = "BtnJogReverse";
+        public const string PartBtnClearAlarm = "BtnClearAlarm";
+
+        /// <summary>回零必须长按多久才触发（与参考模板一致：防误触）</summary>
+        private static readonly TimeSpan HomeHoldDelay = TimeSpan.FromMilliseconds(500);
+
+        /// <summary>回零长按计时器（模板套上时建、控件卸载时停）</summary>
+        private DispatcherTimer? _homeHoldTimer;
+
+        /// <summary>点动是否正按着（松开/移出/失焦都要发停止，不能只认 MouseUp）</summary>
+        private bool _jogHeld;
+
+        // 点动的四个处理委托必须存成字段：模板重新套用（换主题/换模板）时要能逐字摘掉，
+        // 用匿名 lambda 现写一个 `-=` 是永远摘不掉的（每次都是新对象）——那正是订阅泄漏最隐蔽的写法。
+        private Button? _jogForwardButton;
+        private Button? _jogReverseButton;
+        private MouseButtonEventHandler? _jogForwardDown;
+        private MouseButtonEventHandler? _jogReverseDown;
+        private MouseButtonEventHandler? _jogUp;
+        private MouseEventHandler? _jogLeave;
+        private MouseEventHandler? _jogLostCapture;
 
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
 
+            DetachCommandHandlers();
+
+            if (GetTemplateChild(PartBtnEnable) is Button enable)
+                enable.Click += OnEnableClicked;
+
+            if (GetTemplateChild(PartBtnStop) is Button stop)
+                stop.Click += OnStopClicked;
+
+            if (GetTemplateChild(PartBtnClearAlarm) is Button clear)
+                clear.Click += OnClearAlarmClicked;
+
+            if (GetTemplateChild(PartBtnHome) is Button home)
+            {
+                home.PreviewMouseLeftButtonDown += OnHomePressed;
+                home.PreviewMouseLeftButtonUp += OnHomeReleased;
+                home.MouseLeave += OnHomeReleased;
+            }
+
+            if (GetTemplateChild(PartBtnJogForward) is Button jogForward)
+                AttachJog(jogForward, +1);
+
+            if (GetTemplateChild(PartBtnJogReverse) is Button jogReverse)
+                AttachJog(jogReverse, -1);
+
             // 数据可能先于模板到达（RuntimeContext 在造控件之后才注入），这里补摆一次。
             RebuildAxisItems();
             RefreshFromSource();
+            RefreshCanOperate();
+            SetValue(CommandsVisibilityPropertyKey, ShowCommands ? Visibility.Visible : Visibility.Collapsed);
+            UpdatePointsLayout();
+            RefreshRows();
+        }
+
+        private void AttachJog(Button button, int direction)
+        {
+            // 共用同一组"松开"处理：方向只在按下那一刻需要。
+            _jogUp ??= (_, _) => EndJog();
+            _jogLeave ??= (_, _) => EndJog();
+            _jogLostCapture ??= (_, _) => EndJog();
+
+            MouseButtonEventHandler down = (_, e) =>
+            {
+                // 捕获鼠标：按住后移出按钮也要收到 MouseUp，否则"松手不停"。
+                button.CaptureMouse();
+                StartJog(direction);
+                e.Handled = true;
+            };
+
+            if (direction > 0)
+            {
+                _jogForwardButton = button;
+                _jogForwardDown = down;
+            }
+            else
+            {
+                _jogReverseButton = button;
+                _jogReverseDown = down;
+            }
+
+            button.PreviewMouseLeftButtonDown += down;
+            button.PreviewMouseLeftButtonUp += _jogUp;
+            button.MouseLeave += _jogLeave;
+            button.LostMouseCapture += _jogLostCapture;
+        }
+
+        private void DetachJog(Button? button, MouseButtonEventHandler? down)
+        {
+            if (button == null || down == null) return;
+
+            button.PreviewMouseLeftButtonDown -= down;
+            if (_jogUp != null) button.PreviewMouseLeftButtonUp -= _jogUp;
+            if (_jogLeave != null) button.MouseLeave -= _jogLeave;
+            if (_jogLostCapture != null) button.LostMouseCapture -= _jogLostCapture;
+        }
+
+        /// <summary>
+        /// 开始点动（按钮按下时调用；也开放给脚本/断言）。
+        /// 方向：正数正向、负数反向；速度取 <see cref="JogVelocityMmPerS"/>。
+        /// </summary>
+        public bool StartJog(int direction)
+        {
+            if (direction == 0) return false;
+
+            _jogHeld = true;
+            bool ok = TryExecuteCommand(
+                ScadaAxisCommandKind.JogStart, Math.Sign(direction) * JogVelocityMmPerS);
+
+            // 没发出去就别留下"按着"的假状态，否则松开时会多发一条停止。
+            if (!ok) _jogHeld = false;
+            return ok;
+        }
+
+        /// <summary>结束点动（按钮松开/移出/失焦时调用；也开放给脚本/断言）。</summary>
+        public void EndJog()
+        {
+            if (!_jogHeld) return;
+            _jogHeld = false;
+            TryExecuteCommand(ScadaAxisCommandKind.JogStop);
+        }
+
+        /// <summary>
+        /// 切轴/摘上下文时停掉**旧轴**的点动。
+        ///
+        /// 为什么不能用 <see cref="EndJog"/>：它按"当前选中轴"发停止，而切轴回调里
+        /// <see cref="SelectedAxisId"/> 已经是新值了——那样会把停止发给新轴，旧轴继续走。
+        /// 这里显式拿旧 Id 直呼出口，且**不过权限/门禁**：停是安全动作，
+        /// 门禁里那条"未连接/无权限"恰恰是最该把停止发下去的时候。
+        /// </summary>
+        private void EndJogForAxis(Guid axisId)
+        {
+            if (!_jogHeld) return;
+            _jogHeld = false;
+
+            if (axisId == Guid.Empty || RuntimeContext?.AxisCommands is not { } sink)
+                return;
+
+            try
+            {
+                sink.TryExecute(axisId, ScadaAxisCommandKind.JogStop, null, out _);
+            }
+            catch
+            {
+                // 停止失败不能让切轴这个动作崩掉（执行器的看门狗仍会兜住）。
+            }
+        }
+
+        private void OnEnableClicked(object? sender, RoutedEventArgs e)
+            => TryExecuteCommand(AxisEnabled ? ScadaAxisCommandKind.Disable : ScadaAxisCommandKind.Enable);
+
+        private void OnStopClicked(object? sender, RoutedEventArgs e)
+            => TryExecuteCommand(ScadaAxisCommandKind.Stop);
+
+        private void OnClearAlarmClicked(object? sender, RoutedEventArgs e)
+            => TryExecuteCommand(ScadaAxisCommandKind.ClearAlarm);
+
+        private void OnHomePressed(object? sender, MouseButtonEventArgs e)
+        {
+            if (!CanOperate) return;
+
+            _homeHoldTimer ??= new DispatcherTimer { Interval = HomeHoldDelay };
+            _homeHoldTimer.Tick -= OnHomeHoldElapsed;
+            _homeHoldTimer.Tick += OnHomeHoldElapsed;
+            _homeHoldTimer.Start();
+        }
+
+        private void OnHomeHoldElapsed(object? sender, EventArgs e)
+        {
+            _homeHoldTimer?.Stop();
+            TryExecuteCommand(ScadaAxisCommandKind.Home);
+        }
+
+        private void OnHomeReleased(object? sender, EventArgs e) => _homeHoldTimer?.Stop();
+
+        private void DetachCommandHandlers()
+        {
+            _homeHoldTimer?.Stop();
+
+            if (GetTemplateChild(PartBtnEnable) is Button enable)
+                enable.Click -= OnEnableClicked;
+
+            if (GetTemplateChild(PartBtnStop) is Button stop)
+                stop.Click -= OnStopClicked;
+
+            if (GetTemplateChild(PartBtnClearAlarm) is Button clear)
+                clear.Click -= OnClearAlarmClicked;
+
+            if (GetTemplateChild(PartBtnHome) is Button home)
+            {
+                home.PreviewMouseLeftButtonDown -= OnHomePressed;
+                home.PreviewMouseLeftButtonUp -= OnHomeReleased;
+                home.MouseLeave -= OnHomeReleased;
+            }
+
+            // 点动的处理是匿名委托，只能靠存下来的字段逐字摘（见字段区注释）。
+            DetachJog(_jogForwardButton, _jogForwardDown);
+            DetachJog(_jogReverseButton, _jogReverseDown);
+            _jogForwardButton = null;
+            _jogReverseButton = null;
+            _jogForwardDown = null;
+            _jogReverseDown = null;
+            _jogHeld = false;
         }
 
         /// <summary>
@@ -326,10 +1026,12 @@ namespace VisionMaster.Scada.Controls
             _lastSourceVersion = -1;
             RebuildAxisItems();
             RefreshFromSource();
+            RefreshCanOperate();
+            RefreshRows();
         }
 
         /// <summary>
-        /// 一拍：轴表拓扑变了就重建下拉项（改名/增删/启停），然后读当前轴的最新快照。
+        /// 一拍：轴表拓扑变了就重建下拉项（改名/增删/启停），然后读当前轴的最新快照与点位。
         /// 只在 UI 线程上跑（节拍源由宿主在运行窗口的 Dispatcher 上养）。
         /// </summary>
         private void OnBeat(TimeSpan elapsed)
@@ -344,13 +1046,42 @@ namespace VisionMaster.Scada.Controls
             }
 
             RefreshFromSource();
+
+            // 点位是配置、没有变更通知：每拍重读一次，靠指纹短路（没变不重建行）。
+            RefreshRows();
+
+            // 登录/登出会改当前角色：每拍重算一次按钮可用性（一次策略调用，代价可忽略）。
+            // 少了这一步，用户登录成工程师之后按钮仍是灰的，直到他切一次轴。
+            RefreshCanOperate();
+        }
+
+        private static void OnSelectedAxisItemChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var panel = (AxisPanelElement)d;
+            if (e.NewValue is not AxisPanelItem item || item.AxisId == Guid.Empty)
+                return;
+
+            if (panel.SelectedAxisId != item.AxisId)
+                panel.SelectedAxisId = item.AxisId;
         }
 
         private static void OnSelectedAxisIdChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var panel = (AxisPanelElement)d;
+
+            // ★ 切轴 = 先对**旧轴**收手，再换目标。
+            //   合并控件里"显示轴"与"命令靶"是同一个变量：若用户按着点动 X 时切到 Y，
+            //   不在这里停 X 的话，X 会一直走到执行器看门狗（1s）才停——期间界面显示的是 Y。
+            //   旧 Id 从 e.OldValue 拿：此刻 SelectedAxisId 已经是新值。
+            panel.EndJogForAxis(e.OldValue is Guid oldAxisId ? oldAxisId : Guid.Empty);
+            panel._homeHoldTimer?.Stop();
+            panel.SetValue(CommandMessagePropertyKey, string.Empty);
+
+            panel.SelectedAxisItem = panel.AxisItems.FirstOrDefault(i => i.AxisId == panel.SelectedAxisId);
             panel.UpdateSelectedAxisName();
             panel.RefreshFromSource();
+            panel.RefreshCanOperate();
+            panel.RefreshRows();
         }
 
         /// <summary>
@@ -397,6 +1128,10 @@ namespace VisionMaster.Scada.Controls
             }
 
             SetValue(AxisItemsPropertyKey, (IReadOnlyList<AxisPanelItem>)items);
+
+            // 下拉项换了新对象（轴改名/启停/增删）：把选中项也换成新对象，
+            // 否则 ComboBox 的 SelectedItem 还指着旧实例，选中框会重新变空。
+            SelectedAxisItem = items.FirstOrDefault(i => i.AxisId == SelectedAxisId);
             SetValue(HasAxesPropertyKey, items.Count > 0);
             SetValue(HasMultipleAxesPropertyKey, items.Count > 1);
             SetValue(SelectorVisibilityPropertyKey, items.Count > 1 ? Visibility.Visible : Visibility.Collapsed);
@@ -415,6 +1150,7 @@ namespace VisionMaster.Scada.Controls
             // 选中的 Id 没变时 DP 回调不会触发，这里必须自己补一次。
             UpdateSelectedAxisName();
             RefreshFromSource();
+            RefreshCanOperate();
         }
 
         private void UpdateSelectedAxisName()
@@ -454,7 +1190,8 @@ namespace VisionMaster.Scada.Controls
 
             SetValue(IsValidPropertyKey, sample.IsValid);
             SetValue(IsMovingPropertyKey, sample.Moving);
-            SetValue(IsEnabledPropertyKey, sample.Enabled);
+            SetValue(AxisEnabledPropertyKey, sample.Enabled);
+            SetValue(EnableButtonTextPropertyKey, sample.Enabled ? "失能" : "使能");
             SetValue(IsInPositionPropertyKey, sample.InPosition);
             SetValue(IsAlarmPropertyKey, sample.Alarm);
 
@@ -477,7 +1214,8 @@ namespace VisionMaster.Scada.Controls
         {
             SetValue(IsValidPropertyKey, false);
             SetValue(IsMovingPropertyKey, false);
-            SetValue(IsEnabledPropertyKey, false);
+            SetValue(AxisEnabledPropertyKey, false);
+            SetValue(EnableButtonTextPropertyKey, "使能");
             SetValue(IsInPositionPropertyKey, false);
             SetValue(IsAlarmPropertyKey, false);
             SetValue(PositionTextPropertyKey, "—");
@@ -505,6 +1243,14 @@ namespace VisionMaster.Scada.Controls
         partial void OnAccentColorPropertyChanged() => RefreshFromSource();
         partial void OnAlarmColorPropertyChanged() => RefreshFromSource();
         partial void OnOffColorPropertyChanged() => RefreshFromSource();
+
+        partial void OnShowCommandsPropertyChanged()
+        {
+            SetValue(CommandsVisibilityPropertyKey, ShowCommands ? Visibility.Visible : Visibility.Collapsed);
+
+            // 关掉操作入口后点位速度框要变只读；重新打开后恢复（权限本身没变）。
+            SetValue(CanEditPropertyKey, CanOperate && ShowCommands);
+        }
     }
 
     /// <summary>

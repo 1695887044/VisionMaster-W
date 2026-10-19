@@ -112,4 +112,22 @@ namespace Plugin.PreProcessing.Models
         [Description("双三次（最平滑，最慢）")]
         Bicubic = 2,
     }
+
+    /// <summary>Sobel 梯度合成方式（sobel_amp 的 FilterType）</summary>
+    public enum SobelFilterType
+    {
+        [Description("绝对值和（|Gx|+|Gy|，抗抵消）")]
+        SumAbs = 0,
+        [Description("代数和（Gx+Gy，可能抵消）")]
+        Sum = 1,
+    }
+
+    /// <summary>Laplace 邻域模板（laplace 的 FilterMask）</summary>
+    public enum LaplaceFilterMask
+    {
+        [Description("4 邻域（n_4）")]
+        N4 = 0,
+        [Description("8 邻域（n_8，更各向同性也更敏感）")]
+        N8 = 1,
+    }
 }

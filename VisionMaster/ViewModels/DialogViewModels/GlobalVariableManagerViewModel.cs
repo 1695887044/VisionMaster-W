@@ -96,6 +96,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
             SourceNodes.Clear();
             SourceNodes.Add(new VariableSourceNode { Key = "Local", DisplayName = "本地变量", Icon = "\uf15b", Count = _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local), IsOnline = true });
 
+            // 系统变量（运动 / IO 点等）：由宿主按方案与设备维护，这里只读展示。
+            // 单独一个来源节点的理由：它们不属于"本地变量"——放进本地池会让用户以为可以改初始值/删除，
+            // 而那些操作要么没有落点（初始值不回灌设备），要么会破坏宿主维护的集合。
+            SourceNodes.Add(new VariableSourceNode
+            {
+                Key = SystemSourceKey,
+                DisplayName = "系统变量",
+                Icon = "\uf013",
+                Count = CountSystemVariables(),
+                IsOnline = true
+            });
+
             foreach (var conn in _communicationManager.GetAllConnections())
             {
                 SourceNodes.Add(new VariableSourceNode
@@ -117,11 +129,24 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             foreach (var node in SourceNodes)
             {
-                node.Count = node.Key == "Local"
-                    ? _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local)
-                    : _workspace.GlobalVariables.Count(v => v is NetworkVariableModel n && n.ConnectionName == node.Key);
+                node.Count = node.Key switch
+                {
+                    "Local" => _workspace.GlobalVariables.Count(v => v.VariableType == VariableType.Local),
+                    SystemSourceKey => CountSystemVariables(),
+                    _ => _workspace.GlobalVariables.Count(v => v is NetworkVariableModel n && n.ConnectionName == node.Key)
+                };
             }
         }
+
+        /// <summary>来源树里「系统变量」节点的键（与连接名同名也不冲突：连接名不允许叫 System.*，见创建校验）。</summary>
+        public const string SystemSourceKey = "System";
+
+        /// <summary>系统维护的变量：系统变量（运动/状态）+ IO 点变量。</summary>
+        private static bool IsSystemVariable(IVariable? variable)
+            => variable?.VariableType is VariableType.System or VariableType.Io;
+
+        private int CountSystemVariables()
+            => _workspace.GlobalVariables.Count(IsSystemVariable);
 
         private void RefreshSourceStates()
         {
@@ -185,10 +210,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (node.IsRootNode)
                 {
-                    // 来源：本地分组只显本地变量，连接分组只显该连接的变量
-                    bool matchSource = sourceKey == "Local"
-                        ? !node.IsNetwork
-                        : (node.IsNetwork && node.SourceLabel == sourceKey);
+                    // 来源：本地分组只显本地变量；系统分组只显系统/IO 变量；连接分组只显该连接的变量。
+                    // "本地"必须显式排除系统变量——它们也在 GlobalVariables 集合里，
+                    // 不排除就会以"可以编辑/删除"的样子混进本地池。
+                    bool matchSource = sourceKey switch
+                    {
+                        "Local" => !node.IsNetwork && !node.IsSystemOwned,
+                        SystemSourceKey => node.IsSystemOwned,
+                        _ => node.IsNetwork && node.SourceLabel == sourceKey
+                    };
 
                     // 搜索：名称 / 描述 / 地址，任一命中即可
                     bool matchSearch = string.IsNullOrEmpty(query)
@@ -497,7 +527,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 n => n != null && n.IsRootNode);
             RenameCommand = new DelegateCommand<VariableNode>(
                 RenameVariable,
-                n => n != null && n.IsRootNode && n.OriginalModel != null);
+                n => n != null && n.IsRootNode && n.OriginalModel != null && !IsSystemVariable(n.OriginalModel));
 
             SelectSourceCommand = new DelegateCommand<VariableSourceNode>(node => SelectedSource = node);
 
@@ -689,15 +719,22 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // 这里前置判空走同一口径：无应用上下文 = 弹不出去 = 按"用户取消"处理（草稿丢弃）。
             if (Application.Current == null) return;
 
+            // 「系统变量」是只读来源：在这里点新增，用户的本意一定是"建一个自己的变量"，
+            // 所以先把来源切回本地，再走原有的本地草稿流程（而不是静默什么都不做）。
+            if (SelectedSource?.Key == SystemSourceKey)
+                SelectedSource = SourceNodes.FirstOrDefault(s => s.Key == "Local");
+
             var draft = CreateDraft();
             if (draft == null) return;   // 左栏没有任何来源可选
 
             if (!await EasyDialog.ShowPropertyGridAsync("添加变量", draft)) return;   // 取消 = 草稿丢弃
 
-            if (string.IsNullOrWhiteSpace(draft.VariableName))
+            // 空名 / System. 保留前缀：与改名共用 VariableNameRules 一份规则。
+            // 两处各写一份的结果就是交接里记的"创建侧漏拦"——用户能建出
+            // System.X 把系统变量遮住，而遮住之后只有"数值不刷新"这一个无声症状。
+            if (!VisionMaster.Binding.VariableNameRules.TryValidateNewName(draft.VariableName, out var nameError))
             {
-                // 签名是 ShowSync(title, message)：早期这里写反了，标题栏显示的是报错句、正文显示"提示"
-                EasyDialog.ShowSync(title: "提示", message: "变量名不能为空！");
+                EasyDialog.ShowSync(title: "提示", message: nameError + "！");
                 return;
             }
 
@@ -973,6 +1010,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var gv = node?.OriginalModel;
             if (gv == null) return;
 
+            // 系统变量由宿主维护（IO 目录随设备/方案重建、运动变量随轴配置重建）：
+            // 删掉它不会"真的消失"，下次 Rebuild 又回来；更糟的是删的那一刻引用它的画面/流程会断链。
+            if (IsSystemVariable(gv))
+            {
+                EasyDialog.ShowSync($"系统变量 [{gv.Name}] 由系统维护（运动 / IO 等），不能删除。", "只读");
+                return;
+            }
+
             // A4：运行中禁删变量——已编译会话持有的是变量【实例引用】，
             // 运行中删除/重建同名变量，流程会继续吃"尸体"（冻结旧值）且零提示
             if (_workspace.CurrentFlow?.RunState == FlowRunState.Running)
@@ -1008,6 +1053,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             var model = node?.OriginalModel;
             if (model == null) return;
+
+            if (IsSystemVariable(model))
+            {
+                EasyDialog.ShowSync($"系统变量 [{model.Name}] 的名字由系统生成（含设备/点位标识），不能改名。", "只读");
+                return;
+            }
 
             var (confirmed, newName) = EasyDialog.ShowTextInputSync("重命名变量", model.Name);
             if (!confirmed) return;

@@ -272,15 +272,93 @@ namespace FlowCanvasChecks
                 blockedResult == MotionCommandResult.Rejected_NotConnected,
                 "返回=" + blockedResult);
 
+            // ★ 安全动作在报警态必须放行：停止 / 失能是"让设备停下"，
+            //   把它们挡在门禁后面等于"越危险越不发"（旧实现用 CheckDevice，只认 Online）。
+            using (var stop = Stop(0))
+            {
+                var accepted = card.Enqueue(stop);
+                var done = accepted == MotionCommandResult.Accepted && stop.Completion.Wait(2000);
+                Check("★报警态仍接受停止命令（停是安全动作，不能被门禁挡）",
+                    done && stop.State == MotionCommandState.Done,
+                    $"返回={accepted} 状态={stop.State} 原因={stop.Error}");
+            }
+
+            using (var disable = Disable(0))
+            {
+                var accepted = card.Enqueue(disable);
+                var done = accepted == MotionCommandResult.Accepted && disable.Completion.Wait(2000);
+                Check("★报警态仍接受失能命令（清报警前往往要先失能）",
+                    done && disable.State == MotionCommandState.Done,
+                    $"返回={accepted} 状态={disable.State} 原因={disable.Error}");
+            }
+
+            using (var enable = Enable(0))
+            {
+                var rejected = card.Enqueue(enable);
+                Check("★报警态仍拒绝使能（必须先清报警，避免带着报警上电）",
+                    rejected == MotionCommandResult.Rejected_NotConnected,
+                    "返回=" + rejected);
+            }
+
             var cleared = card.ClearAlarm(out var clearError);
             Check("★清除报警后回到可运动状态（不必重启软件）",
                 cleared && card.State == MotionCardState.Online,
                 $"清报警={cleared} 原因={clearError} 状态={card.State}");
 
+            // 上面的失能断言把轴关了；清报警后要先重新使能，否则下面的 Move 会以
+            // "轴未使能"失败，基类会把卡打进 SafeStopped，后面的单轴清报警就全被门禁拒了。
+            EnableAxis(card, 0);
+
             using var afterClear = Move(0, 5);
+            var afterClearResult = card.Enqueue(afterClear);
             Check("清报警后运动命令恢复正常",
-                card.Enqueue(afterClear) == MotionCommandResult.Accepted,
-                "返回=" + card.Enqueue(afterClear));
+                afterClearResult == MotionCommandResult.Accepted,
+                "返回=" + afterClearResult);
+
+            // ★ 单轴清报警：两根轴都报警，只清 0 号，1 号必须还在。
+            //   旧实现无视 PhysicalAxis、永远清整卡，这条会红。
+            card.SimulateAlarm = false;
+            card.SetSimulatedAlarm(0, true);
+            card.SetSimulatedAlarm(1, true);
+
+            Check("两根轴都进入报警（准备单轴清除的初始条件）",
+                WaitFor(() => card.GetAxisStatus(0)?.Alarm == true
+                              && card.GetAxisStatus(1)?.Alarm == true, 2000),
+                $"轴0={card.GetAxisStatus(0)?.Alarm} 轴1={card.GetAxisStatus(1)?.Alarm}");
+
+            // 状态机转 Alarm 与轴状态快照是两条线：先等整卡真的进 Alarm，
+            // 否则清报警命令可能赶在门禁拉起来之前执行，后面的"仍在 Alarm"断言会读到瞬态。
+            Check("整卡进入 Alarm（等待轮询把报警门禁拉起来）",
+                WaitFor(() => card.State == MotionCardState.Alarm, 2000),
+                $"状态={card.State} 说明={card.StateDetail}");
+
+            using (var clearAxis0 = ClearAlarm(0))
+            {
+                var accepted = card.Enqueue(clearAxis0);
+                var done = accepted == MotionCommandResult.Accepted && clearAxis0.Completion.Wait(2000);
+                Check("单轴清报警命令被接受并完成",
+                    done && clearAxis0.State == MotionCommandState.Done,
+                    $"返回={accepted} 状态={clearAxis0.State} 原因={clearAxis0.Error}");
+            }
+
+            Check("★只清 0 号轴：0 号报警消失、1 号报警保留（旧实现会清整卡）",
+                WaitFor(() => card.GetAxisStatus(0) is { Alarm: false }
+                              && card.GetAxisStatus(1) is { Alarm: true }, 2000),
+                $"轴0={card.GetAxisStatus(0)?.Alarm} 轴1={card.GetAxisStatus(1)?.Alarm}");
+
+            Check("清掉 0 号轴后整卡仍在 Alarm（1 号还在报警，不能误放行）",
+                WaitFor(() => card.State == MotionCardState.Alarm, 2000),
+                $"状态={card.State} 说明={card.StateDetail}");
+
+            using (var clearAxis1 = ClearAlarm(1))
+            {
+                card.Enqueue(clearAxis1);
+                clearAxis1.Completion.Wait(2000);
+            }
+
+            Check("★最后一根轴的报警清掉后整卡回到 Online（由轮询确认所有轴无报警）",
+                WaitFor(() => card.State == MotionCardState.Online, 2000),
+                $"状态={card.State} 说明={card.StateDetail}");
         }
 
         // ==================================================================
@@ -368,6 +446,45 @@ namespace FlowCanvasChecks
             LogicalAxis = axis == 0 ? "X" : "Y",
             TargetMm = target,
             VelocityMmPerS = velocity,
+            Timeout = TimeSpan.FromSeconds(2),
+        };
+
+        private static MotionCommand Stop(int axis) => new()
+        {
+            Kind = MotionCommandKind.Stop,
+            PhysicalAxis = axis,
+            LogicalAxis = axis == 0 ? "X" : "Y",
+            StopMode = 2,
+            WaitsForCompletion = false,
+            Retryable = false,
+            Timeout = TimeSpan.FromSeconds(2),
+        };
+
+        private static MotionCommand Enable(int axis) => new()
+        {
+            Kind = MotionCommandKind.Enable,
+            PhysicalAxis = axis,
+            LogicalAxis = axis == 0 ? "X" : "Y",
+            WaitsForCompletion = true,
+            Timeout = TimeSpan.FromSeconds(2),
+        };
+
+        private static MotionCommand Disable(int axis) => new()
+        {
+            Kind = MotionCommandKind.Disable,
+            PhysicalAxis = axis,
+            LogicalAxis = axis == 0 ? "X" : "Y",
+            WaitsForCompletion = true,
+            Timeout = TimeSpan.FromSeconds(2),
+        };
+
+        private static MotionCommand ClearAlarm(int axis) => new()
+        {
+            Kind = MotionCommandKind.ClearAlarm,
+            PhysicalAxis = axis,
+            LogicalAxis = axis == 0 ? "X" : "Y",
+            WaitsForCompletion = true,
+            Retryable = false,
             Timeout = TimeSpan.FromSeconds(2),
         };
 

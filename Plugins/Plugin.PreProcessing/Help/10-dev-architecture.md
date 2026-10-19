@@ -38,13 +38,17 @@
 | `Models\OperatorRegistry.cs` | 反射扫描全程序集建注册表，按最小 `Order` 分组出分类 | 中 |
 | `Models\OperatorEnums.cs` | 算子参数用的枚举，全部只有 `[Description]`（见 §11） | 高（数值即存盘格式） |
 | `Models\OperatorStepItem.cs` | 弱类型存盘单元：`OperatorKey` + `Enabled` + `Dictionary<string,string> Params` | 高（格式即兼容） |
-| `Operators\*.cs` | 21 个算子实现，按 color / geometry / filter / morphology / enhance / binary 六类 | 低（单算子局部） |
+| `Operators\*.cs` | 25 个算子实现，按 color / geometry / filter / morphology / enhance / binary / edge 七类 | 低（单算子局部） |
 | `Services\PreprocessHService.cs` | 所有 HALCON 调用与已实测的坑位修正，纯静态、无状态 | 中 |
 | `PreProcessingView.xaml(.cs)` | 自有编辑视图：画布 + 算子库 + 处理链 + 参数面板 | 中 |
 
 **分层原则**：算子只做"参数校验 + 调 `PreprocessHService`"，不碰端口、不碰 UI、不碰日志；
 `PreprocessHService` 只做 HALCON，不认插件类型；`PreProcessingPlugin` 只做编排与状态。
 新加算子时不要把这三层混着写。
+
+**边缘类算子的所有权提醒**：`Sobel 边缘` / `Laplace 边缘` 在 `Process` 里先调 `EnsureMono`——
+彩色输入会产生一张临时灰度图，必须用 `ReferenceEquals(mono, input)` 判断该不该释放；
+无条件 `Dispose` 会把上游的图一起释放掉（这是本插件历史上最严重的一类崩溃来源）。
 
 ---
 

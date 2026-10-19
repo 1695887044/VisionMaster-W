@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using Core.Interfaces.Io;
 
 namespace Core.Interfaces
 {
@@ -67,6 +68,12 @@ namespace Core.Interfaces
         /// <see cref="NullFlowInvoker"/>（调用即失败并说明原因），插件只判结果的 Success 即可。
         /// </summary>
         IFlowInvoker FlowInvoker { get; }
+
+        /// <summary>
+        /// IO 设备仓库（方案级硬件资源）。默认值是 <see cref="NullIoProvider"/>，
+        /// 插件侧只判 TryGetDevice 的返回值，不必为“IO 能力可能不存在”再写一层判空。
+        /// </summary>
+        IIoProvider Ios => NullIoProvider.Instance;
 
         IDictionary<string, object> LocalVariables { get; }
     }

@@ -1,0 +1,528 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.SystemHealthView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:views="clr-namespace:VisionMaster.Views.DialogViews"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    Background="{StaticResource DialogBackgroundBrush}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--  R22：引用 GridListViewStyle 必须就地合并，相对 pack 写法。  -->
+                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="SystemHealthRowStyle" TargetType="ListViewItem">
+                <Setter Property="MinHeight" Value="40" />
+                <Setter Property="Padding" Value="4,0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,0,0,1">
+                                <GridViewRowPresenter
+                                    Columns="{TemplateBinding GridView.ColumnCollection}"
+                                    Content="{TemplateBinding Content}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SystemHealthDotBase" TargetType="Ellipse">
+                <Setter Property="Width" Value="8" />
+                <Setter Property="Height" Value="8" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+            </Style>
+
+            <Style x:Key="SystemHealthDotStyle" TargetType="Ellipse" BasedOn="{StaticResource SystemHealthDotBase}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding LevelKey}" Value="ok">
+                        <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding LevelKey}" Value="warn">
+                        <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding LevelKey}" Value="error">
+                        <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  概览行与域卡用同一套 ok/warn/error/idle 档位。  -->
+            <Style x:Key="HealthLevelDotStyle" TargetType="Ellipse" BasedOn="{StaticResource SystemHealthDotBase}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding LevelKey}" Value="ok">
+                        <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding LevelKey}" Value="warn">
+                        <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding LevelKey}" Value="error">
+                        <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <DataTemplate x:Key="StatusCellTemplate">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Style="{StaticResource SystemHealthDotStyle}" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="{Binding LevelText}" />
+                </StackPanel>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="CanResize" />
+            <Setter Property="SizeToContent" Value="Manual" />
+            <!--  四张表列宽合计 ≤1100；加左右 24 边距与纵向滚动条约 1168，MinWidth 取 1176 留 8px 余量。  -->
+            <Setter Property="Width" Value="1180" />
+            <Setter Property="Height" Value="700" />
+            <Setter Property="MinWidth" Value="1176" />
+            <Setter Property="MinHeight" Value="600" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <Grid UseLayoutRounding="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--  自绘标题栏  -->
+        <Border
+            Grid.Row="0"
+            Padding="24,0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogSurfaceBrush}"
+            Style="{StaticResource DialogCardHeader}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Style="{StaticResource DialogCardTitleIcon}" Text="&#xf21e;" />
+
+                <StackPanel
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource DialogCardTitle}" Text="{Binding Title}" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource DialogHintText}"
+                        Text="相机 / 运动 / 通讯 / IO 运行态诊断 · 1 秒自动刷新" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,8,0"
+                        AutomationProperties.Name="刷新"
+                        Command="{Binding RefreshCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Style="{StaticResource DialogIconButton}"
+                        ToolTip="立即刷新">
+                        <TextBlock
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="13"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="&#xf021;" />
+                    </Button>
+                    <Button
+                        AutomationProperties.Name="关闭"
+                        Command="{Binding CloseCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Style="{StaticResource DialogIconButton}"
+                        ToolTip="关闭">
+                        <TextBlock
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="13"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="&#xf00d;" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!--  摘要条  -->
+        <Border
+            Grid.Row="1"
+            Margin="24,12,24,0"
+            Padding="16,10"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse" BasedOn="{StaticResource SystemHealthDotBase}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding OverallLevelKey}" Value="ok">
+                                        <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding OverallLevelKey}" Value="warn">
+                                        <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding OverallLevelKey}" Value="error">
+                                        <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="{Binding IssueSummary}" />
+                </StackPanel>
+
+                <ItemsControl
+                    Grid.Column="1"
+                    Margin="16,0,12,0"
+                    VerticalAlignment="Center"
+                    ItemsSource="{Binding DomainCards}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock
+                                Margin="0,0,14,0"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource DialogHintText}">
+                                <Run Text="{Binding Title, Mode=OneWay}" />
+                                <Run Text=" " />
+                                <Run FontWeight="SemiBold" Text="{Binding CountText, Mode=OneWay}" />
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource DialogHintText}"
+                    Text="{Binding LastRefreshText}" />
+            </Grid>
+        </Border>
+
+        <TabControl
+            Grid.Row="2"
+            Margin="24,12,24,20"
+            SelectedIndex="{Binding SelectedTab}"
+            Style="{StaticResource DialogTabControl}">
+
+            <!--  ============ 概览 ============  -->
+            <TabItem Header="概览" Style="{StaticResource DialogTabItem}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <ItemsControl
+                        Grid.Row="0"
+                        Margin="0,12,0,0"
+                        AutomationProperties.Name="HealthDomainCards"
+                        ItemsSource="{Binding DomainCards}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="4" Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border
+                                    Margin="0,0,8,0"
+                                    Padding="12,10"
+                                    Background="{StaticResource DialogSurfaceBrush}"
+                                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Style="{StaticResource HealthLevelDotStyle}" />
+                                            <TextBlock
+                                                Margin="6,0,0,0"
+                                                FontSize="12"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="{Binding Title}" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            Margin="0,4,0,0"
+                                            FontSize="17"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding CountText}" />
+                                        <TextBlock
+                                            Margin="0,2,0,0"
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="{Binding Note}"
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="NoWrap"
+                                            ToolTip="{Binding Note}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid Grid.Row="1" Margin="0,10,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <CheckBox
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Content="仅异常"
+                            IsChecked="{Binding ShowOnlyIssues}"
+                            Style="{StaticResource DialogCheckBox}" />
+
+                        <TextBox
+                            Grid.Column="1"
+                            Width="220"
+                            Margin="12,0,0,0"
+                            HorizontalAlignment="Left"
+                            VerticalContentAlignment="Center"
+                            Style="{StaticResource DialogInput}"
+                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="按对象 / 说明过滤" />
+
+                        <TextBlock
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource DialogHintText}"
+                            Text="按严重度排序" />
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <ListView
+                            AutomationProperties.Name="HealthIssuesTable"
+                            BorderThickness="0"
+                            ItemContainerStyle="{StaticResource SystemHealthRowStyle}"
+                            ItemsSource="{Binding Issues}"
+                            Style="{StaticResource GridListViewStyle}">
+                            <ListView.View>
+                                <GridView ColumnHeaderContainerStyle="{StaticResource GridListHeaderStyle}">
+                                    <GridViewColumn CellTemplate="{StaticResource StatusCellTemplate}" Header="状态" Width="100" />
+                                    <GridViewColumn DisplayMemberBinding="{Binding Domain}" Header="域" Width="60" />
+                                    <GridViewColumn DisplayMemberBinding="{Binding Target}" Header="对象" Width="150" />
+                                    <GridViewColumn Header="状态说明" Width="600">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock
+                                                    Text="{Binding Message}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    ToolTip="{Binding Message}" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn DisplayMemberBinding="{Binding Metric}" Header="关键指标" Width="130" />
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <StackPanel
+                            Margin="0,72,0,0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Issues.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf058;" />
+                            <TextBlock Style="{StaticResource DialogEmptyStateTitle}" Text="{Binding EmptyTitle}" />
+                            <TextBlock Style="{StaticResource DialogEmptyStateHint}" Text="{Binding EmptyHint}" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!--  ============ 通讯 ============  -->
+            <TabItem Header="通讯" Style="{StaticResource DialogTabItem}">
+                <Grid>
+                    <TextBlock
+                        Margin="0,12,0,6"
+                        Style="{StaticResource DialogHintText}"
+                        Text="{Binding Comm.Summary}" />
+                    <ListView
+                        Margin="0,30,0,0"
+                        BorderThickness="0"
+                        ItemContainerStyle="{StaticResource SystemHealthRowStyle}"
+                        ItemsSource="{Binding Comm.Rows}"
+                        Style="{StaticResource GridListViewStyle}">
+                        <ListView.View>
+                            <GridView ColumnHeaderContainerStyle="{StaticResource GridListHeaderStyle}">
+                                <GridViewColumn CellTemplate="{StaticResource StatusCellTemplate}" Header="状态" Width="90" />
+                                <GridViewColumn DisplayMemberBinding="{Binding ConnectionName}" Header="连接" Width="140" />
+                                <GridViewColumn DisplayMemberBinding="{Binding ProtocolText}" Header="协议" Width="90" />
+                                <GridViewColumn Header="端点" Width="170">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding EndpointText}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    FontSize="11"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="{Binding EndpointTag}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding RoleText}" Header="角色" Width="110" />
+                                <GridViewColumn DisplayMemberBinding="{Binding PollText}" Header="连接轮询" Width="150" />
+                                <GridViewColumn Header="失败原因" Width="350">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
+                                                Text="{Binding FailureText}"
+                                                TextTrimming="CharacterEllipsis"
+                                                ToolTip="{Binding FailureText}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
+            </TabItem>
+
+            <!--  ============ 相机 ============  -->
+            <TabItem Header="相机" Style="{StaticResource DialogTabItem}">
+                <Grid>
+                    <TextBlock
+                        Margin="0,12,0,6"
+                        Style="{StaticResource DialogHintText}"
+                        Text="{Binding Camera.Summary}" />
+                    <ListView
+                        Margin="0,30,0,0"
+                        BorderThickness="0"
+                        ItemContainerStyle="{StaticResource SystemHealthRowStyle}"
+                        ItemsSource="{Binding Camera.Rows}"
+                        Style="{StaticResource GridListViewStyle}">
+                        <ListView.View>
+                            <GridView ColumnHeaderContainerStyle="{StaticResource GridListHeaderStyle}">
+                                <GridViewColumn CellTemplate="{StaticResource StatusCellTemplate}" Header="状态" Width="90" />
+                                <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Header="相机" Width="120" />
+                                <GridViewColumn DisplayMemberBinding="{Binding SerialNo}" Header="序列号" Width="110" />
+                                <GridViewColumn DisplayMemberBinding="{Binding DriverText}" Header="驱动" Width="100" />
+                                <GridViewColumn Header="状态说明" Width="320">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
+                                                Text="{Binding DetailText}"
+                                                TextTrimming="CharacterEllipsis"
+                                                ToolTip="{Binding DetailText}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding FrameRateText}" Header="帧率" Width="70" />
+                                <GridViewColumn DisplayMemberBinding="{Binding CountersText}" Header="收·待·溢·丢" Width="150" />
+                                <GridViewColumn DisplayMemberBinding="{Binding LastFrameText}" Header="最近收帧" Width="80" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
+            </TabItem>
+
+            <!--  ============ 运动 ============  -->
+            <TabItem Header="运动" Style="{StaticResource DialogTabItem}">
+                <Grid>
+                    <TextBlock
+                        Margin="0,12,0,6"
+                        Style="{StaticResource DialogHintText}"
+                        Text="{Binding Motion.Summary}" />
+                    <ListView
+                        Margin="0,30,0,0"
+                        BorderThickness="0"
+                        ItemContainerStyle="{StaticResource SystemHealthRowStyle}"
+                        ItemsSource="{Binding Motion.Rows}"
+                        Style="{StaticResource GridListViewStyle}">
+                        <ListView.View>
+                            <GridView ColumnHeaderContainerStyle="{StaticResource GridListHeaderStyle}">
+                                <GridViewColumn CellTemplate="{StaticResource StatusCellTemplate}" Header="状态" Width="100" />
+                                <GridViewColumn DisplayMemberBinding="{Binding Caption}" Header="卡" Width="130" />
+                                <GridViewColumn DisplayMemberBinding="{Binding DriverText}" Header="驱动" Width="90" />
+                                <GridViewColumn DisplayMemberBinding="{Binding AddressText}" Header="地址" Width="120" />
+                                <GridViewColumn DisplayMemberBinding="{Binding AxisText}" Header="轴（启用/能力）" Width="150" />
+                                <GridViewColumn DisplayMemberBinding="{Binding HomingText}" Header="回零" Width="100" />
+                                <GridViewColumn Header="最近故障" Width="210">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock
+                                                Text="{Binding LastFaultText}"
+                                                TextTrimming="CharacterEllipsis"
+                                                ToolTip="{Binding LastFaultText}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn DisplayMemberBinding="{Binding CountersText}" Header="计数" Width="150" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
+            </TabItem>
+
+            <!--  ============ IO（复用原 IO 健康面板） ============  -->
+            <TabItem Header="IO" Style="{StaticResource DialogTabItem}">
+                <views:IoHealthPanelView Margin="0,12,0,0" DataContext="{Binding Io}" />
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

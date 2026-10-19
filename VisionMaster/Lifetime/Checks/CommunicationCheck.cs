@@ -59,7 +59,15 @@ namespace VisionMaster.Lifetime.Checks
                 return await Task.Run(async () =>
                 {
                     var manager = _managerFactory();
-                    var configs = manager.ConnectionsList;
+
+                    // 必须取快照：本检查在 OnInitialized 之后的后台线程跑（R57），
+                    // 而方案装配（CommunicationSolutionBinder.Apply）会在同一时段增删连接。
+                    // 直接遍历活动集合会抛「Collection was modified; enumeration operation may not execute」
+                    // ——2026-10-19 真机日志实测命中（自检本身是全 Warning 出口，所以只多一行警告，
+                    // 但那行警告会让现场误以为通讯有问题）。
+                    // 注意用 GetAllConnections() 而不是 ConnectionsList.ToList()：
+                    // 后者只是绕开枚举器的版本检查，没有持 _connectionsListLock，仍会读到撕裂快照。
+                    var configs = manager.GetAllConnections();
                     if (configs.Count == 0)
                         return CheckResult.Ok("无通讯配置");
 

@@ -56,7 +56,13 @@ namespace VisionMaster
         /// （<c>SystemVariableModel</c> 刻意不实现 IWritableVariable）。
         /// 追加在末尾：本枚举的整数值可能已经落进旧文件，插在中间会让老数据整体错位。
         /// </summary>
-        System
+        System,
+
+        /// <summary>
+        /// IO 变量：由 IO 点位投影出来的运行态变量。输入只读，输出实现 IWritableVariable。
+        /// 追加在末尾（理由同上）。
+        /// </summary>
+        Io
     }
     /// <summary>
     /// 会话状态枚举
@@ -223,7 +229,28 @@ namespace VisionMaster
         /// 帮助手册：把"软件自带手册 + 各插件自带手册"合并成一本打开（含未写手册插件的自动生成页）。
         /// 追加在末尾——理由见 <see cref="RuntimeWindowSettings"/>（枚举整数值可能已落盘）。
         /// </summary>
-        Help
+        Help,
+
+        /// <summary>
+        /// IO 设置：方案级 IO 总线/设备/点位配置。与相机/运动/通讯设置平级。
+        /// 追加在末尾——理由见 <see cref="RuntimeWindowSettings"/>。
+        /// </summary>
+        IoSettings,
+
+        /// <summary>
+        /// IO 健康：总线/设备/点位的运行态诊断面板（只读、1s 刷新）。
+        /// 追加在末尾——理由见 <see cref="RuntimeWindowSettings"/>。
+        /// <para>2026-10-19 起它只是"系统健康"的一个页签；该值保留用于旧布局/脚本的转发，
+        /// 新入口用 <see cref="SystemHealth"/>。</para>
+        /// </summary>
+        IoHealth,
+
+        /// <summary>
+        /// 系统健康：通讯 / 相机 / 运动 / IO 四域诊断（只读、1s 刷新）。
+        /// <para><b>只能追加在末尾</b>：这些枚举值会落进 <c>Layout.xml</c> 与旧配置，
+        /// 中间插项会把后面所有成员的整数值整体挪位（旧文件读回来就指向别的动作）。</para>
+        /// </summary>
+        SystemHealth
     }
 
     /// <summary>
@@ -389,7 +416,8 @@ namespace VisionMaster
     {
         Good,       // 最近一次读成功，值为新鲜值
         Uncertain,  // 最近一次读失败（段读/单读/解码失败），当前显示的是旧值
-        Bad         // 连接断开或从未读到过任何值
+        Bad,        // 连接断开或从未读到过任何值
+        Disabled    // IO 点位被设计端禁用（不是故障）
     }
     // 校验位
     public enum ParityMode

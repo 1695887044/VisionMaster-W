@@ -97,14 +97,19 @@
             Background="#FFF5F7FA"
             BorderBrush="#FFDCE0E6"
             BorderThickness="0,0,0,1">
-            <DockPanel LastChildFill="False">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                <!--  左侧：当前编辑哪一页  -->
-                <StackPanel
-                    Margin="8,0"
-                    HorizontalAlignment="Left"
-                    DockPanel.Dock="Left"
-                    Orientation="Horizontal">
+                <!--  第 1 行：画面/基座 + 新建/删除 + 撤销/重做。
+                      横向可滚：面板被 AvalonDock 拖窄时宁可出滚动条，也不要把按钮裁掉。  -->
+                <ScrollViewer
+                    Grid.Row="0"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Disabled">
+                <StackPanel Margin="8,4" Orientation="Horizontal">
                     <TextBlock
                         Margin="0,0,6,0"
                         VerticalAlignment="Center"
@@ -229,13 +234,15 @@
                         </StackPanel>
                     </Button>
                 </StackPanel>
+                </ScrollViewer>
 
-                <!--  右侧：设计辅助与取景  -->
-                <StackPanel
-                    Margin="8,0"
-                    HorizontalAlignment="Right"
-                    DockPanel.Dock="Right"
-                    Orientation="Horizontal">
+                <!--  第 2 行：设计辅助（网格/吸附）+ 取景（缩放）+ 运行画面。
+                      与第 1 行分开：单行在 1280 窗口下会被裁掉右半截（运行按钮首当其冲）。  -->
+                <ScrollViewer
+                    Grid.Row="1"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Disabled">
+                <StackPanel Margin="8,0,8,4" Orientation="Horizontal">
                     <!--  网格与吸附是画面属性（落盘），所以绑到 SelectedPage 上双向写回模型  -->
                     <CheckBox
                         VerticalAlignment="Center"
@@ -299,7 +306,8 @@
                         Foreground="#FF1B7F3B"
                         ToolTip="按启动画面全屏运行当前方案（不存盘，跑的是内存里这份）" />
                 </StackPanel>
-            </DockPanel>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
         <!--  ====================  格式工具栏（r5）  ====================  -->

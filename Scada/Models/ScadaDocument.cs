@@ -883,6 +883,133 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 轴改名后的引用刷新：递归到每张画面（见 <see cref="ScadaPage.RefreshAxisReferences"/>）。
+        /// 返回被改动的条数，0 = 本方案没有引用这根轴。
+        ///
+        /// 与 <see cref="RefreshVariableReferences"/> 同一套纪律：改名级联是数据自愈，
+        /// 不在撤销栈里，也不该被写守卫拦——否则 Strict 模式下改名会直接抛，
+        /// 而画面上的绑定已经改成功了，留下"一半改一半没改"的半成品状态。
+        /// </summary>
+        public int RefreshAxisReferences(Guid axisId, string? oldName, string newName)
+        {
+            int changed = 0;
+
+            using (ScadaWriteGuard.Suspend())
+            {
+                foreach (var page in _pages)
+                    changed += page.RefreshAxisReferences(axisId, oldName, newName);
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// 旧轴控件迁移：把"同页只有一块轴面板 + 一张旧点位表"的画面自动合并成轴控台。
+        ///
+        /// 为什么只在这一个条件下自动合并：旧画面里轴面板与点位表往往摆在不同的位置，
+        /// 无条件合并会**删掉用户画面上的一块**、并在原处留一个洞（版面/叠放都会变）。
+        /// 当且仅当整页只有这两个图元时，这一页本来就是"一根轴的调试页"，
+        /// 合并不会撞到任何别的图元——这是唯一能自动做、又不改用户版面的情形。
+        /// 其余页面只产出一条提示，让用户自己决定（保留哪块、删哪块）。
+        ///
+        /// 合并后的面板尺寸补到至少 320×470（轴控台默认尺寸）：点位区 6 行需要这个高度，
+        /// 否则"合并成功"在屏幕上表现为"点位区被裁掉"。宽高只放大不缩小。
+        ///
+        /// 迁移不是用户编辑：走 <see cref="ScadaWriteGuard.Suspend"/> + <see cref="ScadaChangeScope.SuspendRecording"/>，
+        /// 不进撤销栈、也不被写守卫拦（与 <see cref="EnsureIdentity"/> 同一口径）。
+        /// </summary>
+        /// <param name="messages">每个被处理画面的结果/未合并原因（加载期写诊断日志）</param>
+        /// <returns>实际合并的画面数</returns>
+        public int MigrateLegacyAxisElements(out IReadOnlyList<string> messages)
+        {
+            const string LegacyTypeKey = "Hmi.AxisPointTable";
+
+            var notes = new List<string>();
+            int merged = 0;
+
+            using (ScadaWriteGuard.Suspend())
+            using (ScadaChangeScope.SuspendRecording())
+            {
+                foreach (var page in _pages)
+                {
+                    if (page == null)
+                        continue;
+
+                    var legacyTables = page.Elements
+                        .Where(e => e != null && string.Equals(e.TypeKey, LegacyTypeKey, StringComparison.Ordinal))
+                        .ToList();
+
+                    if (legacyTables.Count == 0)
+                        continue;
+
+                    var panels = page.Elements
+                        .Where(e => e != null && (string.Equals(e.TypeKey, "Hmi.AxisPanel", StringComparison.Ordinal)
+                                                  || string.Equals(e.TypeKey, "Hmi.AxisConsole", StringComparison.Ordinal)))
+                        .ToList();
+
+                    if (legacyTables.Count != 1 || panels.Count != 1)
+                    {
+                        notes.Add($"画面「{page.Name}」有 {legacyTables.Count} 张旧点位表、{panels.Count} 块轴面板："
+                                  + "未自动合并，请手工保留一块轴面板并删掉旧点位表");
+                        continue;
+                    }
+
+                    if (page.Elements.Count != 2)
+                    {
+                        notes.Add($"画面「{page.Name}」除轴面板与旧点位表外还有其它图元："
+                                  + "未自动合并（避免改动版面），请手工把点位表并进轴面板");
+                        continue;
+                    }
+
+                    var panel = panels[0];
+                    var table = legacyTables[0];
+
+                    if (table.IsLocked)
+                    {
+                        notes.Add($"画面「{page.Name}」的旧点位表已锁定：未自动合并，请先解锁再迁移");
+                        continue;
+                    }
+
+                    // 先取并集再删旧表：删完就读不到旧表的候选轴了。
+                    // 顺序：面板在前、旧表独有的在后；按 Id 去重。
+                    var options = new List<ScadaAxisRef>();
+                    var seen = new HashSet<Guid>();
+
+                    foreach (var source in new[] { panel, table })
+                    {
+                        foreach (var axis in ScadaAxisOptionsCodec.Parse(source.GetProperty(ScadaAxisOptionsCodec.Key)))
+                        {
+                            if (axis.AxisId == Guid.Empty || !seen.Add(axis.AxisId))
+                                continue;
+
+                            options.Add(axis);
+                        }
+                    }
+
+                    // 再摘旧表：删除失败时不要留下"面板已经打开点位、旧表还在"的半合并状态。
+                    if (!page.TryRemoveElement(table, out var removeError))
+                    {
+                        notes.Add($"画面「{page.Name}」自动合并失败：{removeError}");
+                        continue;
+                    }
+
+                    panel.SetProperty(ScadaAxisOptionsCodec.Key, ScadaAxisOptionsCodec.Format(options));
+                    panel.SetProperty("ShowPoints", "True");
+                    panel.SetProperty("ShowCommands", "True");
+                    panel.Width = Math.Max(panel.Width, 320);
+                    panel.Height = Math.Max(panel.Height, 470);
+
+                    merged++;
+                    notes.Add($"画面「{page.Name}」已自动合并旧点位表到轴面板"
+                              + $"（候选轴 {options.Count} 根，面板尺寸已补到至少 320×470）");
+                }
+            }
+
+            messages = notes;
+            return merged;
+        }
+
+        /// <summary>
         /// 补发缺失的稳定身份（画面/图层/图元及其归属/报警，旧数据迁移）。返回补发的处数。
         /// 加载流程在读文件后调用一次即可（见 SolutionService 的加载链路）。
         /// 图元归属的补齐规则见 <see cref="ScadaPage.EnsureIdentity"/>。

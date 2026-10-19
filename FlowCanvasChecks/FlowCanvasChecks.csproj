@@ -75,6 +75,13 @@
     -->
     <ProjectReference Include="..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />
     <!--
+      图像预处理：直接引用（不走 Modules\ 反射加载）。
+      断言新增算子的注册表口径、像素级结果（顶帽/黑帽/边缘图）、参数收敛与存盘往返，
+      以及"快照 → 活链 → 真执行"的端到端链路。引用它也让构建顺带把
+      Plugin.PreProcessing.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.PreProcessing\Plugin.PreProcessing.csproj" />
+    <!--
       标定：直接引用（不走 Modules\ 反射加载）。
       断言两层——纯托管算法（CalibrationMath：合成已知仿射 → 精度/互逆/共线守卫/径向带诊断）
       与插件级执行语义（真 RunAlgorithm：质量闸门、半填行指名、端口面不改名）。

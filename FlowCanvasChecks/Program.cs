@@ -206,6 +206,7 @@ namespace FlowCanvasChecks
             ClassifyChecks.Run();
 
             BlobDetectChecks.Run();
+            PreProcessingChecks.Run();
             PortBindChecks.Run();
             GlobalVariableChecks.Run();
             MotionChecks.Run();
@@ -298,6 +299,10 @@ namespace FlowCanvasChecks
             // 图标字符按钮放进固定格子必须挂样式或显式 Padding（Fluent 隐式 Button 样式的 11,5,11,6
             // 内边距把 30×30 的「✕」切成残字符，真机三连报；编译期全绿，只有静态算术闸拦得住）
             GlyphButtonClipCheck.Run();
+
+            // 属性网格的多态刷新 = 整表重建（RequireRefresh 的契约；曾被改成"只重建单页签"，
+            // 导致"切换字段"与"被换掉的子对象"不在同一页签时界面永久停在旧协议字段上）
+            PropertyGridRefreshCheck.Run();
 
             // 插件清单缓存（层 3 启动提速）：指纹失效三态 / 缓存产物与全量扫描逐项一致 /
             // 构造器无副作用前提（缓存路径跳过实例化，这个前提一破就必须当场红）

@@ -25,6 +25,13 @@ namespace VisionMaster.Communications
             // 1) 恢复上次保存的连接配置（communications.json）：通讯自检要按配置逐条测连通，
             //    配置没加载它只能看到空列表；变量绑定与流程运行也都依赖连接已就位。
             // 2) 按 AutoStart 发起自动连接（非阻塞，建连由连接专属线程完成）。
+            //
+            // ⚠ 方案级改造后的口径：连接配置的**唯一事实源是方案**（SolutionModel.CommunicationConfigs），
+            //    由 CommunicationSolutionBinder 在"打开/新建/自动加载方案"时整体替换。
+            //    这里仍读机器级文件，是为了两条老场景不退化：
+            //      · 没有配置任何启动方案（纯壳子启动）时，通讯自检仍有一份配置可测；
+            //      · 打开方案时 Apply 会先 StopAll 再逐条移除，机器级那份不会残留成"幽灵连接"。
+            //    一旦方案被加载，机器级配置即被整体替换——不再出现"两份配置各说各话"。
             try
             {
                 manager.LoadConfig();

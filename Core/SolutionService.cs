@@ -1,4 +1,5 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Result;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces.Io;
+using Core.Interfaces.Result;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
@@ -139,6 +140,19 @@ namespace VisionMaster.Services
                     return Result<SolutionModel>.NG("方案文件解析失败");
                 }
 
+                // IO/方案身份归一化：老文件没有这些字段时补默认值，避免运行期空引用。
+                if (solution.SolutionId == Guid.Empty)
+                    solution.SolutionId = Guid.NewGuid();
+                solution.IoBuses ??= new List<IoBusDescriptor>();
+                solution.IoDevices ??= new List<IoDeviceDescriptor>();
+                foreach (var device in solution.IoDevices)
+                {
+                    if (device == null) continue;
+                    device.Points ??= new List<IoPointDescriptor>();
+                    device.Params ??= new IoParams();
+                }
+                MigrateIoConfig(solution);
+
                 // P1-⑦：老方案升级——历史版本 While 循环体误用 BranchType.Default 存储，
                 // 归一化为专属的 WhileLoop，使"未绑定条件"红灯红字与流程栏样式恢复正确判定
                 foreach (var flow in solution.Flows)
@@ -161,6 +175,12 @@ namespace VisionMaster.Services
                 // 读入后补一次（幂等），使按 Id 寻址的绑定、画面跳转从第一次打开起就是稳定的
                 solution.Scada.EnsureIdentity();
 
+                // 旧轴控件迁移：轴面板与旧点位表合并（只处理"整页只有这两个图元"的安全情形，
+                // 其余页面只产出提示、不自动改版面）。幂等：合并后旧 TypeKey 不再存在。
+                solution.Scada.MigrateLegacyAxisElements(out var axisMigrationMessages);
+                foreach (var message in axisMigrationMessages)
+                    System.Diagnostics.Debug.WriteLine($"[SCADA 轴控件迁移] {message}");
+
                 if (!_solutionModels.Contains(solution))
                 {
                     _solutionModels.Add(solution);
@@ -177,6 +197,20 @@ namespace VisionMaster.Services
         /// <summary>
         /// 递归归一化分支类型（含嵌套在分支内的容器步骤）
         /// </summary>
+        /// <summary>
+        /// IO 配置的版本迁移 + 防御性归一化。
+        ///
+        /// 为什么在加载期做：迁移的输入是"磁盘上的旧结构"，只有这一刻它还存在；
+        /// 一旦进入运行期，provider 只会看到归一化后的对象。
+        /// 失败只记日志、不阻断加载（配置是现场资产，宁可留着让人修，也不要静默丢掉）。
+        /// </summary>
+        private static void MigrateIoConfig(SolutionModel solution)
+        {
+            var result = IoConfigMigrator.Migrate(solution.IoBuses, solution.IoDevices);
+            foreach (var message in result.Messages)
+                System.Diagnostics.Debug.WriteLine($"[IO 配置] {message}");
+        }
+
         private static void NormalizeBranchTypes(IEnumerable<StepModel> steps)
         {
             if (steps == null) return;

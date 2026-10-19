@@ -81,6 +81,15 @@ namespace VisionMaster.Scada.Controls
         public string? Description { get; init; }
 
         /// <summary>
+        /// 是否出现在工具箱里（默认 true）。
+        ///
+        /// 为 false 的典型用途：**旧 TypeKey 的兼容别名**——老方案里还有这种图元、必须能打开，
+        /// 但新用户不该再从工具箱拖一个"已经被合并/替代"的控件出来。
+        /// 隐藏只影响工具箱列举，<see cref="ElementRegistry"/> 里照常注册、照常能反序列化。
+        /// </summary>
+        public bool ShowInToolbox { get; init; } = true;
+
+        /// <summary>
         /// 造一个"新建状态"的图元模型（只填模型，不碰 WPF）。
         ///
         /// 名字先填显示名（图层列表里不至于一排空白）；重名由 S3 编辑器在放置时去重，

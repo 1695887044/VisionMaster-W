@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Core.Interfaces.Io;
 using Prism.Ioc;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -165,6 +166,8 @@ namespace VisionMaster
             // 让相机先就绪更贴合实际使用顺序；而且运动卡自动连接会**给伺服上电**，
             // 这类会动的东西排在收图/相机等外围服务之后，出问题时日志里更好定位。
             _modules.Add(new MotionModule());
+            // IO 子系统：设备/点位配置随方案走，变量投影到系统变量。
+            _modules.Add(new VisionMaster.Services.Io.IoModule());
             foreach (var module in _modules)
                 module.Register(containerRegistry);
 
@@ -316,6 +319,20 @@ namespace VisionMaster
             // 分派点在 StepParameterDialog（命中窗的「打开模块参数」与流程栏共用同一处）。
             containerRegistry.RegisterDialog<FlowManagerView, FlowManagerViewModel>("FlowManagerView");
             containerRegistry.RegisterDialog<CommunicationSettingsView, CommunicationSettingsViewModel>("CommunicationSettingsView");
+            containerRegistry.RegisterDialog<IoConfigView, IoConfigViewModel>("IoConfigView");
+
+            // 系统健康：四域只读诊断（通讯/相机/运动/IO）。
+            // 三个采集器用显式工厂注册：构造函数里带可选委托（时钟等），
+            // 让 Unity 自己挑构造函数会去解析无法注册的 Func<long>。
+            containerRegistry.RegisterSingleton<Services.Health.CommunicationHealthMonitor>(c =>
+                new Services.Health.CommunicationHealthMonitor(
+                    c.Resolve<AdvancedCommunicationManager>(),
+                    c.Resolve<IIoProvider>()));
+            containerRegistry.RegisterSingleton<Services.Health.CameraHealthMonitor>(c =>
+                new Services.Health.CameraHealthMonitor(c.Resolve<ICameraProvider>()));
+            containerRegistry.RegisterSingleton<Services.Health.MotionHealthMonitor>(c =>
+                new Services.Health.MotionHealthMonitor(c.Resolve<IMotionProvider>()));
+            containerRegistry.RegisterDialog<SystemHealthView, SystemHealthViewModel>("SystemHealthView");
             // 相机设置：方案级相机资源（增删相机 / 连接 / 采流 / 参数 / 溢出计数 / 预览）。
             // 与通讯设置同一范式，但相机配置不走 Manager——它直接就是 SolutionModel.CameraConfigs，
             // 弹窗从"当前方案"现取，故 ShellViewModel 侧不传任何参数（见 ShowCameraSettings）。

@@ -67,10 +67,14 @@ namespace Plugin.Motion.Steps
                 return;
             }
 
-            // 使能/失能在"报警态"下也允许（清报警前往往需要先失能），但仍要求已连接
-            if (device.State == MotionCardState.Closed || device.State == MotionCardState.SafeStopped)
+            // 使能与失能的口径必须分家（与组态动作表共用 MotionCommandGate.CheckEnable）：
+            //   · 使能 = 给伺服上电，有机械后果 → 必须 Online；报警态先清报警；
+            //   · 失能 = 撤掉力矩，是安全动作 → 报警态/安全停机态也放行
+            //     （清报警前往往需要先失能，而"报警中不让失能"恰恰是最危险的拒绝）。
+            var gate = MotionCommandGate.CheckEnable(device, enable);
+            if (!gate.Passed)
             {
-                Fail($"运动卡「{device.Descriptor.Caption}」当前不可操作：{device.StateDetail}");
+                Fail($"运动卡「{device.Descriptor.Caption}」：{gate.Reason}");
                 return;
             }
 

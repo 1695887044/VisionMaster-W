@@ -49,4 +49,22 @@ namespace Plugin.PreProcessing.Operators
         protected override HImage ProcessMask(HImage input, int width, int height)
             => PreprocessHService.GrayClosing(input, width, height);
     }
+
+    /// <summary>灰度顶帽：原图 − 开运算，只留下被开运算清掉的亮结构</summary>
+    [PreprocessOperator("gray_top_hat", "灰度顶帽", "灰度形态学", Order = 115,
+        Description = "原图 − 开运算：提取比模板小的亮结构（亮斑、毛刺、亮点），输出的是残差图")]
+    public sealed class GrayTopHatOperator : RectMaskOperator
+    {
+        protected override HImage ProcessMask(HImage input, int width, int height)
+            => PreprocessHService.GrayTopHat(input, width, height);
+    }
+
+    /// <summary>灰度黑帽：闭运算 − 原图，只留下被闭运算填掉的暗结构</summary>
+    [PreprocessOperator("gray_black_hat", "灰度黑帽", "灰度形态学", Order = 116,
+        Description = "闭运算 − 原图：提取比模板小的暗结构（暗点、裂纹、黑斑），输出的是残差图")]
+    public sealed class GrayBlackHatOperator : RectMaskOperator
+    {
+        protected override HImage ProcessMask(HImage input, int width, int height)
+            => PreprocessHService.GrayBlackHat(input, width, height);
+    }
 }

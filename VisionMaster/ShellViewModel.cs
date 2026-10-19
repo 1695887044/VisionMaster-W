@@ -33,6 +33,10 @@ namespace VisionMaster
         private readonly IFlowEngine flowEngine;
         private readonly AdvancedCommunicationManager _communicationManager;
         private readonly NetworkVariableBridge _variableBridge;
+
+        /// <summary>通讯配置的方案级装配（打开/新建/保存方案三处共用）。</summary>
+        public Services.CommunicationSolutionBinder CommunicationBinder { get; }
+
         private readonly IExecutionContext executionContext;
         private readonly IDialogService dialogService;
         private readonly IFlowEngine flowService;
@@ -354,7 +358,8 @@ namespace VisionMaster
             AdvancedCommunicationManager communicationManager,
             NetworkVariableBridge variableBridge,
             ScadaAccessPolicy accessPolicy,
-            FlowEngineService flowEngineService
+            FlowEngineService flowEngineService,
+            Services.CommunicationSolutionBinder communicationBinder
         )
         {
             StartBackgroundMonitoring();
@@ -377,6 +382,7 @@ namespace VisionMaster
             this._flowCompiler = _flowCompiler;
             this._communicationManager = communicationManager;
             this._variableBridge = variableBridge;
+            CommunicationBinder = communicationBinder;
 
             // DWV 第 1 期：调试会话状态订阅（生命周期 = Shell 全程，无需退订）。
             // 调试态由各运行入口（RunAllEnabledOnce/Continuous）以 debugSession 参数交给
@@ -503,6 +509,8 @@ namespace VisionMaster
                         }
 
                         Workspace.SwitchSolution(newSolution);
+                        // 新方案没有通讯配置 → 清空当前连接（方案即唯一事实源）
+                        CommunicationBinder.Apply(newSolution, autoStart: false);
                         Notifier.ShowSuccess($"方案 [{newSolution.SolutionName}] 已创建");
                     }
                     catch (Exception ex)
@@ -558,6 +566,8 @@ namespace VisionMaster
                     // 按快照重建变量集合 + 重新接线网络变量（轮询镜像链路）
                     VariablePersistenceService.Restore(loadResult.Data, Workspace);
                     _variableBridge.RebindAll();
+                    // 通讯配置随方案走：用方案里的连接替换管理器集合（先停后换，逐条隔离）
+                    CommunicationBinder.Apply(loadResult.Data, autoStart: true);
                     Notifier.ShowSuccess($"方案 [{loadResult.Data.SolutionName}] 加载成功");
                 }
                 else
@@ -596,6 +606,7 @@ namespace VisionMaster
             // 按快照重建变量集合 + 重新接线网络变量（轮询镜像链路）
             VariablePersistenceService.Restore(loadResult.Data, Workspace);
             _variableBridge.RebindAll();
+            CommunicationBinder.Apply(loadResult.Data, autoStart: true);
             Notifier.ShowSuccess($"已自动加载方案 [{loadResult.Data.SolutionName}]");
         }
 
@@ -623,10 +634,9 @@ namespace VisionMaster
             {
                 CaptureLayoutToConfig();
                 VariablePersistenceService.Capture(Workspace.CurrentSolution, Workspace); // 变量快照随方案落盘
-                // 通信配置快照：通信设置里的增删改只更新管理器内存，保存时同步进方案
-                Workspace.CurrentSolution.CommunicationConfigs =
-                    new System.Collections.ObjectModel.ObservableCollection<CommunicationConfig>(
-                        _communicationManager.GetAllConnections());
+                // 通信配置快照：通信设置里的增删改只更新管理器内存，保存时经绑定器同步进方案
+                // （与"打开方案时 Apply"配对，保存走同一个类，避免两处各写一遍集合替换逻辑）
+                CommunicationBinder.Capture(Workspace.CurrentSolution);
                 var saveResult = await solutionService.SaveAsync(Workspace.CurrentSolution, dialog.FileName);
                 if (saveResult.Success)
                 {
@@ -760,6 +770,17 @@ namespace VisionMaster
                 case SystemAction.CommSettings:
                     ShowCommunicationSettings();
                     break;
+                case SystemAction.IoSettings:
+                    ShowIoSettings();
+                    break;
+                case SystemAction.SystemHealth:
+                    dialogService.ShowDialog("SystemHealthView");
+                    break;
+                case SystemAction.IoHealth:
+                    // 旧枚举值转发：旧布局/脚本仍按 IoHealth 触发，直接落到系统健康的 IO 页签。
+                    // 保留旧值是为了不让已落盘的整数值失效（枚举只能追加）。
+                    dialogService.ShowDialog("SystemHealthView", new DialogParameters { { "tab", "io" } });
+                    break;
                 case SystemAction.RuntimeWindowSettings:
                     // 软件级偏好（依附主窗口 / 独立窗口），存 AppConfig.json。
                     // 弹窗自己负责读当前值、写盘，这里不传参数、也不看返回值——
@@ -851,6 +872,17 @@ namespace VisionMaster
             dialogService.ShowDialog("MotionBoardView");
         }
 
+
+        private void ShowIoSettings()
+        {
+            if (Workspace.CurrentSolution == null)
+            {
+                Notifier.ShowWarning("请先打开一个解决方案");
+                return;
+            }
+
+            dialogService.ShowDialog("IoConfigView");
+        }
 
         private void ShowCommunicationSettings()
         {

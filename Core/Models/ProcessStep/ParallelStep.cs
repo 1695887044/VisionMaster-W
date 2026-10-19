@@ -65,6 +65,7 @@ namespace VisionMaster.Models
         public const int DefaultJoinTimeoutMs = 15000;
 
         private ObservableCollection<StepCollection> _children = new();
+        private readonly ContainerStepCountWatcher _stepCountWatcher;
 
         /// <summary>
         /// 并行分支集合。必须"带 setter + ObjectCreationHandling.Replace"两件套齐备，
@@ -75,7 +76,30 @@ namespace VisionMaster.Models
         public ObservableCollection<StepCollection> Children
         {
             get => _children;
-            set => _children = value ?? new ObservableCollection<StepCollection>();
+            set
+            {
+                _children = value ?? new ObservableCollection<StepCollection>();
+                _stepCountWatcher?.Rebind(_children);
+            }
+        }
+
+        /// <summary>
+        /// 子步骤总数（各分支 Steps.Count 之和）。只读计算属性，供流程栏组头右侧统计；
+        /// 变更通知由 <see cref="ContainerStepCountWatcher"/> 驱动（分支增删、分支内步骤增删都算）。
+        /// <para>[RuntimeState]：派生自结构，结构变更已单独计过版本；再计一次会让
+        /// 每次增删分支/步骤 Version +2。</para>
+        /// </summary>
+        [RuntimeState]
+        [JsonIgnore]
+        public int TotalStepCount
+        {
+            get
+            {
+                var total = 0;
+                foreach (var branch in Children)
+                    total += branch?.Steps?.Count ?? 0;
+                return total;
+            }
         }
 
         /// <summary>
@@ -117,8 +141,10 @@ namespace VisionMaster.Models
         public ParallelStep(string icon, string pluginName, string pluginTypeName, string stepName = null)
             : base(icon, pluginName, pluginTypeName, stepName)
         {
+            _stepCountWatcher = new ContainerStepCountWatcher(() => RaisePropertyChanged(nameof(TotalStepCount)));
             Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = "分支 1" });
             Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = "分支 2" });
+            _stepCountWatcher.Rebind(Children);
         }
     }
 }

@@ -1,0 +1,1353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图像采集 · 配置窗口 · 设计基线 v1</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #ia-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="ia-design-root">
+  <style>
+    #ia-design-root{
+      color-scheme: light dark;
+      --ia-surface:#FFFFFF;
+      --ia-surface-2:#F8FAFC;
+      --ia-surface-3:#F1F5F9;
+      --ia-border:#E2E8F0;
+      --ia-border-soft:#EEF2F7;
+      --ia-border-strong:#CBD5E1;
+      --ia-text:#0F172A;
+      --ia-text-2:#475569;
+      --ia-text-3:#94A3B8;
+      --ia-text-4:#64748B;
+      --ia-primary:#0EA5E9;
+      --ia-primary-strong:#0284C7;
+      --ia-primary-text:#0369A1;
+      --ia-primary-soft:#F0F9FF;
+      --ia-primary-light:#E0F2FE;
+      --ia-primary-border:#BAE6FD;
+      --ia-accent:#3B82F6;
+      --ia-success:#22C55E;
+      --ia-success-text:#15803D;
+      --ia-success-soft:#F0FDF4;
+      --ia-success-border:#BBF7D0;
+      --ia-danger:#EF4444;
+      --ia-danger-text:#B91C1C;
+      --ia-danger-soft:#FEF2F2;
+      --ia-danger-border:#FECACA;
+      --ia-warning:#F59E0B;
+      --ia-warning-text:#B45309;
+      --ia-warning-soft:#FFF4E5;
+      --ia-warning-border:#FDE68A;
+      --ia-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --ia-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --ia-radius-sm:6px;
+      --ia-radius-md:8px;
+      --ia-radius-lg:10px;
+      --ia-radius-xl:12px;
+      --ia-radius-window:16px;
+      --ia-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      font-family:var(--ia-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #ia-design-root *{box-sizing:border-box;}
+    #ia-design-root button,
+    #ia-design-root input,
+    #ia-design-root select,
+    #ia-design-root textarea{font-family:inherit;}
+    #ia-design-root button{color:inherit;}
+    #ia-design-root [hidden]{display:none !important;}
+    #ia-design-root :focus-visible{outline:2px solid var(--ia-primary);outline-offset:2px;}
+
+    #ia-design-root .ia-page{
+      max-width:1360px;
+      margin:0 auto;
+      padding:24px 24px 44px;
+      background:transparent;
+    }
+    #ia-design-root .ia-page-head{max-width:1360px;margin:0 auto 16px;}
+    #ia-design-root .ia-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #ia-design-root .ia-page-title-row h1{
+      margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;
+      color:light-dark(#0F172A,#E2E8F0);
+    }
+    #ia-design-root .ia-ver{
+      display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+      background:light-dark(var(--ia-primary-light),rgba(14,165,233,.18));
+      color:light-dark(var(--ia-primary-text),#7DD3FC);
+      font-size:11px;font-weight:700;letter-spacing:.02em;
+    }
+    #ia-design-root .ia-page-sub{
+      margin:7px 0 14px;font-size:12.5px;line-height:1.6;
+      color:light-dark(var(--ia-text-2),#94A3B8);
+    }
+    #ia-design-root .ia-page-sub b{color:light-dark(var(--ia-text),#E2E8F0);font-weight:600;}
+    #ia-design-root .ia-demo-bar{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+    #ia-design-root .ia-demo-group{display:flex;align-items:center;gap:8px;}
+    #ia-design-root .ia-demo-label{font-size:11.5px;color:light-dark(var(--ia-text-4),#94A3B8);}
+    #ia-design-root .ia-seg{
+      display:inline-flex;gap:2px;padding:2px;border-radius:var(--ia-radius-md);
+      background:light-dark(var(--ia-surface-3),#1E293B);
+    }
+    #ia-design-root .ia-seg button{
+      height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+      color:light-dark(var(--ia-text-2),#CBD5E1);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+    }
+    #ia-design-root .ia-seg button:hover{color:light-dark(var(--ia-text),#F8FAFC);}
+    #ia-design-root .ia-seg button.is-on{
+      background:light-dark(#FFFFFF,#334155);
+      color:light-dark(var(--ia-text),#F8FAFC);
+      font-weight:600;
+      box-shadow:0 1px 2px rgba(15,23,42,.10);
+    }
+
+    /* ================= 产品窗口 ================= */
+    #ia-design-root .ia-window{
+      width:960px;max-width:100%;height:680px;margin:0 auto;
+      display:flex;flex-direction:column;overflow:hidden;
+      background:var(--ia-surface);
+      border-radius:var(--ia-radius-window);
+      box-shadow:var(--ia-shadow-window);
+      transition:width 200ms ease;
+    }
+    #ia-design-root .ia-window.is-narrow{width:640px;}
+
+    /* ---- 标题栏 ---- */
+    #ia-design-root .ia-titlebar{
+      height:72px;flex:none;display:flex;align-items:center;
+      padding:0 20px;background:var(--ia-surface);
+      border-bottom:1px solid var(--ia-border-soft);
+    }
+    #ia-design-root .ia-app-icon{
+      width:40px;height:40px;flex:none;border-radius:12px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--ia-primary-light);color:var(--ia-primary-text);
+    }
+    #ia-design-root .ia-app-icon svg{width:19px;height:19px;}
+    #ia-design-root .ia-title-text{margin-left:12px;min-width:0;flex:1;}
+    #ia-design-root .ia-title-line{display:flex;align-items:center;gap:8px;min-width:0;}
+    #ia-design-root .ia-title{
+      font-size:16px;font-weight:600;line-height:1.3;color:var(--ia-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ia-design-root .ia-title-chip{
+      flex:none;display:inline-flex;align-items:center;height:20px;padding:0 7px;
+      border-radius:5px;background:var(--ia-surface-3);color:var(--ia-text-2);
+      font-size:10.5px;font-weight:500;
+    }
+    #ia-design-root .ia-subtitle{
+      margin-top:2px;font-size:12px;line-height:1.4;color:var(--ia-text-2);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ia-design-root .ia-title-actions{display:flex;align-items:center;gap:4px;margin-left:12px;flex:none;}
+
+    /* ---- 内容 ---- */
+    #ia-design-root .ia-content{
+      flex:1;min-height:0;display:grid;
+      grid-template-columns:356px minmax(0,1fr);
+      gap:16px;padding:16px 20px 20px;background:var(--ia-surface);
+    }
+    #ia-design-root .ia-window.is-narrow .ia-content{
+      grid-template-columns:300px minmax(0,1fr);
+      gap:12px;padding:14px 16px 16px;
+    }
+
+    /* ---- 左栏 ---- */
+    #ia-design-root .ia-rail{
+      min-height:0;overflow-y:auto;overflow-x:hidden;
+      display:flex;flex-direction:column;
+      padding:14px;border:1px solid var(--ia-border-soft);border-radius:var(--ia-radius-xl);
+      background:var(--ia-surface-2);
+      scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+    }
+    #ia-design-root .ia-rail::-webkit-scrollbar{width:8px;}
+    #ia-design-root .ia-rail::-webkit-scrollbar-thumb{
+      background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;
+    }
+    #ia-design-root .ia-rail::-webkit-scrollbar-track{background:transparent;}
+
+    #ia-design-root .ia-mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    #ia-design-root .ia-mode{
+      position:relative;display:flex;align-items:center;gap:8px;
+      min-height:56px;padding:8px 10px;border:1px solid var(--ia-border);border-radius:var(--ia-radius-lg);
+      background:var(--ia-surface);text-align:left;cursor:pointer;
+      transition:border-color 150ms ease,background 150ms ease,box-shadow 150ms ease;
+    }
+    #ia-design-root .ia-mode:hover{border-color:var(--ia-border-strong);background:#FBFDFF;}
+    #ia-design-root .ia-mode:active{background:var(--ia-surface-3);}
+    #ia-design-root .ia-mode.is-active{
+      border-color:var(--ia-primary);background:var(--ia-primary-soft);
+      box-shadow:0 0 0 3px rgba(14,165,233,.10);
+    }
+    #ia-design-root .ia-mode-icon{
+      width:28px;height:28px;flex:none;border-radius:8px;
+      display:flex;align-items:center;justify-content:center;
+      background:var(--ia-surface-3);color:var(--ia-text-4);
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #ia-design-root .ia-mode-icon svg{width:15px;height:15px;}
+    #ia-design-root .ia-mode.is-active .ia-mode-icon{background:var(--ia-primary-light);color:var(--ia-primary-text);}
+    #ia-design-root .ia-mode-text{display:flex;flex-direction:column;min-width:0;padding-right:18px;}
+    #ia-design-root .ia-mode-text b{
+      font-size:12.5px;font-weight:600;line-height:1.35;color:var(--ia-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ia-design-root .ia-mode-text small{
+      margin-top:2px;font-size:10.5px;line-height:1.3;color:var(--ia-text-4);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ia-design-root .ia-mode-check{
+      position:absolute;right:9px;top:50%;transform:translateY(-50%);
+      width:16px;height:16px;border-radius:50%;display:none;align-items:center;justify-content:center;
+      background:var(--ia-primary);color:#fff;
+    }
+    #ia-design-root .ia-mode-check svg{width:10px;height:10px;}
+    #ia-design-root .ia-mode.is-active .ia-mode-check{display:flex;}
+
+    #ia-design-root .ia-panel{margin-top:14px;}
+    #ia-design-root .ia-section-head{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:9px;font-size:12px;font-weight:600;color:#334155;
+    }
+    #ia-design-root .ia-section-hint{font-size:10.5px;font-weight:400;color:var(--ia-text-3);white-space:nowrap;}
+
+    #ia-design-root .ia-field{margin-bottom:12px;}
+    #ia-design-root .ia-field:last-child{margin-bottom:0;}
+    #ia-design-root .ia-label{
+      display:flex;align-items:center;gap:5px;margin-bottom:6px;
+      font-size:12px;font-weight:500;line-height:1.3;color:var(--ia-text-2);
+    }
+    #ia-design-root .ia-label .ia-req{color:var(--ia-danger);font-size:11px;}
+    #ia-design-root .ia-input-row{display:flex;align-items:center;gap:8px;}
+    #ia-design-root .ia-input,
+    #ia-design-root .ia-select,
+    #ia-design-root .ia-textarea{
+      width:100%;height:36px;padding:0 10px;
+      border:1px solid var(--ia-border);border-radius:var(--ia-radius-md);
+      background:var(--ia-surface);color:var(--ia-text);
+      font-size:12.5px;line-height:1;outline:none;
+      transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+    }
+    #ia-design-root .ia-input::placeholder{color:var(--ia-text-3);}
+    #ia-design-root .ia-input:hover,
+    #ia-design-root .ia-select:hover,
+    #ia-design-root .ia-textarea:hover{border-color:var(--ia-border-strong);}
+    #ia-design-root .ia-input:focus,
+    #ia-design-root .ia-select:focus,
+    #ia-design-root .ia-textarea:focus{
+      border-color:var(--ia-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);
+    }
+    #ia-design-root .ia-input:disabled{background:var(--ia-surface-3);color:var(--ia-text-3);cursor:not-allowed;}
+    #ia-design-root .ia-select{
+      appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;
+    }
+    #ia-design-root .ia-select-wrap{position:relative;flex:1;min-width:0;}
+    #ia-design-root .ia-select-wrap > svg{
+      position:absolute;right:10px;top:50%;transform:translateY(-50%);
+      width:13px;height:13px;color:var(--ia-text-3);pointer-events:none;
+    }
+    #ia-design-root .ia-grid-2{display:grid;grid-template-columns:1fr 92px;gap:8px;}
+    #ia-design-root .ia-help{
+      display:flex;align-items:flex-start;gap:5px;margin:6px 0 0;
+      font-size:11.5px;line-height:1.5;color:var(--ia-text-4);
+    }
+    #ia-design-root .ia-help svg{width:12px;height:12px;flex:none;margin-top:1px;color:var(--ia-text-3);}
+
+    /* 按钮 */
+    #ia-design-root .ia-btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:6px;
+      height:36px;padding:0 13px;border:1px solid var(--ia-border);border-radius:var(--ia-radius-md);
+      background:var(--ia-surface);color:var(--ia-text);font-size:12.5px;font-weight:500;
+      line-height:1;cursor:pointer;white-space:nowrap;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease;
+    }
+    #ia-design-root .ia-btn svg{width:14px;height:14px;}
+    #ia-design-root .ia-btn:hover{background:var(--ia-surface-2);border-color:var(--ia-border-strong);}
+    #ia-design-root .ia-btn:active{background:var(--ia-surface-3);}
+    #ia-design-root .ia-btn:disabled{opacity:.45;cursor:not-allowed;}
+    #ia-design-root .ia-btn-primary{
+      background:var(--ia-primary);border-color:var(--ia-primary);color:#fff;font-weight:600;
+    }
+    #ia-design-root .ia-btn-primary:hover{background:var(--ia-primary-strong);border-color:var(--ia-primary-strong);}
+    #ia-design-root .ia-btn-ghost{border-color:transparent;background:transparent;color:var(--ia-text-2);}
+    #ia-design-root .ia-btn-ghost:hover{background:var(--ia-surface-3);border-color:transparent;color:var(--ia-text);}
+    #ia-design-root .ia-btn-sm{height:32px;padding:0 11px;font-size:12px;}
+    #ia-design-root .ia-btn-block{width:100%;}
+    #ia-design-root .ia-btn-square{
+      width:36px;height:36px;flex:none;padding:0;border:1px solid var(--ia-border);
+      border-radius:var(--ia-radius-md);background:var(--ia-surface);color:var(--ia-text-4);
+      display:flex;align-items:center;justify-content:center;cursor:pointer;
+      transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+    }
+    #ia-design-root .ia-btn-square:hover{background:var(--ia-primary-soft);border-color:var(--ia-primary-border);color:var(--ia-primary-text);}
+    #ia-design-root .ia-btn-square svg{width:14px;height:14px;}
+
+    /* 图标按钮 */
+    #ia-design-root .ia-icon-btn{
+      width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--ia-radius-md);
+      display:inline-flex;align-items:center;justify-content:center;
+      background:transparent;color:var(--ia-text-4);cursor:pointer;
+      transition:background 150ms ease,color 150ms ease;
+    }
+    #ia-design-root .ia-icon-btn svg{width:15px;height:15px;}
+    #ia-design-root .ia-icon-btn:hover{background:var(--ia-surface-3);color:var(--ia-text);}
+    #ia-design-root .ia-icon-btn:active{background:var(--ia-border);}
+    #ia-design-root .ia-icon-btn.is-on{background:var(--ia-primary-light);color:var(--ia-primary-text);}
+    #ia-design-root .ia-icon-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+    /* 横幅 / 状态卡 */
+    #ia-design-root .ia-banner{
+      display:flex;align-items:flex-start;gap:8px;
+      padding:10px 12px;border:1px solid;border-radius:var(--ia-radius-lg);
+      font-size:11.5px;line-height:1.5;
+    }
+    #ia-design-root .ia-banner svg{width:14px;height:14px;flex:none;margin-top:1px;}
+    #ia-design-root .ia-banner.is-ok{background:var(--ia-success-soft);border-color:var(--ia-success-border);color:var(--ia-success-text);}
+    #ia-design-root .ia-banner.is-warn{background:var(--ia-warning-soft);border-color:var(--ia-warning-border);color:var(--ia-warning-text);}
+    #ia-design-root .ia-banner.is-info{background:var(--ia-primary-soft);border-color:var(--ia-primary-border);color:var(--ia-primary-text);}
+    #ia-design-root .ia-banner.is-err{background:var(--ia-danger-soft);border-color:var(--ia-danger-border);color:var(--ia-danger-text);}
+    #ia-design-root .ia-banner.is-muted{background:var(--ia-surface-3);border-color:var(--ia-border);color:var(--ia-text-2);}
+    #ia-design-root .ia-dot{width:7px;height:7px;border-radius:50%;flex:none;margin-top:6px;background:currentColor;}
+    #ia-design-root .ia-dot.is-ok{background:var(--ia-success);box-shadow:0 0 0 0 rgba(34,197,94,.35);animation:ia-pulse 1.8s ease-out infinite;}
+    #ia-design-root .ia-dot.is-warn{background:var(--ia-warning);}
+    #ia-design-root .ia-dot.is-info{background:var(--ia-primary);}
+    #ia-design-root .ia-dot.is-err{background:var(--ia-danger);}
+    #ia-design-root .ia-dot.is-muted{background:var(--ia-text-3);}
+    @keyframes ia-pulse{
+      0%{box-shadow:0 0 0 0 rgba(34,197,94,.35);}
+      70%{box-shadow:0 0 0 7px rgba(34,197,94,0);}
+      100%{box-shadow:0 0 0 0 rgba(34,197,94,0);}
+    }
+
+    #ia-design-root .ia-camera-card{
+      display:flex;align-items:center;gap:10px;padding:10px 12px;
+      border:1px solid var(--ia-border);border-radius:var(--ia-radius-lg);
+      background:var(--ia-surface);transition:border-color 150ms ease,background 150ms ease;
+    }
+    #ia-design-root .ia-camera-card.is-ok{border-color:var(--ia-success-border);background:var(--ia-success-soft);}
+    #ia-design-root .ia-camera-card.is-err{border-color:var(--ia-danger-border);background:var(--ia-danger-soft);}
+    #ia-design-root .ia-camera-card.is-info{border-color:var(--ia-primary-border);background:var(--ia-primary-soft);}
+    #ia-design-root .ia-camera-card.is-muted{background:var(--ia-surface-3);}
+    #ia-design-root .ia-camera-icon{
+      width:32px;height:32px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+      background:var(--ia-primary-light);color:var(--ia-primary-text);
+    }
+    #ia-design-root .ia-camera-icon svg{width:16px;height:16px;}
+    #ia-design-root .ia-camera-card.is-err .ia-camera-icon{background:#FEE2E2;color:var(--ia-danger);}
+    #ia-design-root .ia-camera-card.is-muted .ia-camera-icon{background:var(--ia-surface-3);color:var(--ia-text-3);}
+    #ia-design-root .ia-camera-body{min-width:0;flex:1;}
+    #ia-design-root .ia-camera-name{
+      font-size:12px;font-weight:600;line-height:1.35;color:var(--ia-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ia-design-root .ia-camera-sub{
+      margin-top:2px;font-size:10.5px;line-height:1.35;color:var(--ia-text-4);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ia-design-root .ia-camera-state{
+      display:inline-flex;align-items:center;gap:5px;flex:none;
+      height:22px;padding:0 8px;border-radius:999px;
+      background:var(--ia-surface);border:1px solid var(--ia-border);
+      font-size:10.5px;font-weight:600;color:var(--ia-text-2);
+    }
+    #ia-design-root .ia-camera-dot{width:6px;height:6px;border-radius:50%;background:var(--ia-text-3);}
+    #ia-design-root .ia-camera-dot.is-ok{background:var(--ia-success);}
+    #ia-design-root .ia-camera-dot.is-err{background:var(--ia-danger);}
+    #ia-design-root .ia-camera-dot.is-info{background:var(--ia-primary);}
+    #ia-design-root .ia-camera-dot.is-muted{background:var(--ia-text-3);}
+
+    /* 折叠区 */
+    #ia-design-root .ia-details{
+      margin-top:10px;border:1px solid var(--ia-border);border-radius:var(--ia-radius-lg);
+      background:var(--ia-surface);overflow:hidden;
+    }
+    #ia-design-root .ia-details summary{
+      display:flex;align-items:center;gap:8px;padding:10px 12px;
+      font-size:12px;font-weight:500;color:var(--ia-text-2);cursor:pointer;list-style:none;
+    }
+    #ia-design-root .ia-details summary::-webkit-details-marker{display:none;}
+    #ia-design-root .ia-details summary:hover{background:var(--ia-surface-2);}
+    #ia-design-root .ia-details summary svg{width:14px;height:14px;color:var(--ia-text-3);}
+    #ia-design-root .ia-details summary .ia-chev{margin-left:auto;transition:transform 150ms ease;}
+    #ia-design-root .ia-details[open] summary .ia-chev{transform:rotate(180deg);}
+    #ia-design-root .ia-details-body{padding:0 12px 12px;border-top:1px solid var(--ia-border-soft);}
+    #ia-design-root .ia-details-sub{
+      margin:10px 0 7px;font-size:10.5px;font-weight:600;letter-spacing:.03em;
+      color:var(--ia-text-3);
+    }
+    #ia-design-root .ia-details-body > .ia-btn-block{margin-top:10px;}
+    #ia-design-root .ia-file-line{
+      display:flex;align-items:center;gap:6px;min-width:0;
+      font-size:11.5px;line-height:1.4;color:var(--ia-text-2);
+    }
+    #ia-design-root .ia-file-line svg{width:12px;height:12px;flex:none;color:var(--ia-text-3);}
+    #ia-design-root .ia-file-line b{
+      min-width:0;font-weight:600;color:var(--ia-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    #ia-design-root .ia-file-line span{
+      flex:none;margin-left:auto;color:var(--ia-text-3);font-size:10.5px;
+    }
+    #ia-design-root .ia-textarea{
+      height:auto;min-height:64px;padding:8px 10px;resize:vertical;
+      font-family:var(--ia-mono);font-size:10.5px;line-height:1.55;
+      background:var(--ia-surface-2);color:#334155;
+    }
+    #ia-design-root .ia-code{
+      margin:8px 0 0;padding:9px 10px;border-radius:var(--ia-radius-md);
+      background:#0F172A;color:#E2E8F0;font-family:var(--ia-mono);font-size:10.5px;line-height:1.6;
+      white-space:pre-wrap;word-break:break-all;
+    }
+    #ia-design-root .ia-code .k{color:#7DD3FC;}
+    #ia-design-root .ia-code .m{color:#86EFAC;}
+
+    /* 输出区 */
+    #ia-design-root .ia-output{
+      margin-top:auto;padding-top:14px;border-top:1px solid var(--ia-border);
+    }
+    #ia-design-root .ia-output .ia-section-head{margin-bottom:9px;}
+
+    /* ---- 预览区 ---- */
+    #ia-design-root .ia-preview{
+      min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+      border:1px solid var(--ia-border);border-radius:var(--ia-radius-xl);background:var(--ia-surface);
+    }
+    #ia-design-root .ia-preview-head{
+      height:44px;flex:none;display:flex;align-items:center;gap:8px;
+      padding:0 10px;border-bottom:1px solid var(--ia-border-soft);background:var(--ia-surface);
+    }
+    #ia-design-root .ia-file-chip{
+      width:26px;height:26px;flex:none;border-radius:7px;display:flex;align-items:center;justify-content:center;
+      background:var(--ia-surface-3);color:var(--ia-text-2);
+    }
+    #ia-design-root .ia-file-chip svg{width:13px;height:13px;}
+    #ia-design-root .ia-file-name{
+      font-size:12.5px;font-weight:600;line-height:1.3;color:var(--ia-text);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;
+    }
+    #ia-design-root .ia-file-meta{
+      flex:none;font-size:10.5px;line-height:1.3;color:var(--ia-text-3);
+      font-variant-numeric:tabular-nums;white-space:nowrap;
+    }
+    #ia-design-root .ia-preview-tools{margin-left:auto;display:flex;align-items:center;gap:1px;flex:none;}
+    #ia-design-root .ia-tool-sep{width:1px;height:16px;background:var(--ia-border);margin:0 4px;flex:none;}
+    #ia-design-root .ia-tool-text{
+      height:26px;padding:0 7px;border:0;border-radius:6px;background:transparent;
+      color:var(--ia-text-4);font-size:10.5px;font-weight:600;line-height:1;cursor:pointer;
+      font-variant-numeric:tabular-nums;transition:background 150ms ease,color 150ms ease;
+    }
+    #ia-design-root .ia-tool-text:hover{background:var(--ia-surface-3);color:var(--ia-text);}
+    #ia-design-root .ia-tool-text.is-on{background:var(--ia-primary-light);color:var(--ia-primary-text);}
+    #ia-design-root .ia-window.is-narrow .ia-tool-optional{display:none;}
+    #ia-design-root .ia-window.is-narrow .ia-file-name{max-width:110px;}
+    #ia-design-root .ia-window.is-narrow .ia-file-meta{display:none;}
+    #ia-design-root .ia-window.is-narrow .ia-index-row{gap:6px;}
+    #ia-design-root .ia-window.is-narrow .ia-refresh-text{display:none;}
+    #ia-design-root .ia-window.is-narrow .ia-status-path{display:none;}
+
+    #ia-design-root .ia-canvas{
+      position:relative;flex:1;min-height:0;overflow:hidden;background:#0B1220;
+    }
+    #ia-design-root .ia-canvas-view{
+      position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;
+    }
+    #ia-design-root .ia-canvas-view:not([data-view="image"]){padding:24px;}
+    #ia-design-root .ia-canvas-view[data-view="image"]{display:block;}
+    #ia-design-root .ia-scene{width:100%;height:100%;display:block;}
+    #ia-design-root .ia-overlay{
+      position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:6px;pointer-events:none;
+    }
+    #ia-design-root .ia-overlay.is-right{left:auto;right:10px;}
+    #ia-design-root .ia-chip{
+      display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;
+      background:rgba(15,23,42,.58);border:1px solid rgba(148,163,184,.22);color:#E2E8F0;
+      font-size:10.5px;line-height:1;font-variant-numeric:tabular-nums;
+      backdrop-filter:blur(6px);
+    }
+    #ia-design-root .ia-chip svg{width:11px;height:11px;color:#7DD3FC;}
+
+    #ia-design-root .ia-dropzone{
+      width:min(420px,82%);padding:26px 24px;border:1.5px dashed #334155;border-radius:14px;
+      background:rgba(30,41,59,.35);display:flex;flex-direction:column;align-items:center;text-align:center;
+      transition:border-color 150ms ease,background 150ms ease;
+    }
+    #ia-design-root .ia-dropzone:hover{border-color:var(--ia-primary);background:rgba(14,165,233,.08);}
+    #ia-design-root .ia-state-icon{
+      width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+      background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.18);color:#94A3B8;margin-bottom:13px;
+    }
+    #ia-design-root .ia-state-icon svg{width:22px;height:22px;}
+    #ia-design-root .ia-state-title{font-size:14px;font-weight:600;line-height:1.4;color:#E2E8F0;margin-bottom:4px;}
+    #ia-design-root .ia-state-sub{
+      max-width:330px;font-size:11.5px;line-height:1.6;color:#94A3B8;margin:0 0 14px;
+    }
+    #ia-design-root .ia-state-sub code{
+      font-family:var(--ia-mono);font-size:10.5px;color:#BAE6FD;background:rgba(14,165,233,.12);
+      padding:1px 5px;border-radius:4px;
+    }
+    #ia-design-root .ia-state-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;}
+    #ia-design-root .ia-state-actions .ia-btn{
+      background:rgba(255,255,255,.06);border-color:rgba(148,163,184,.28);color:#E2E8F0;
+    }
+    #ia-design-root .ia-state-actions .ia-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(148,163,184,.45);}
+    #ia-design-root .ia-state-actions .ia-btn-primary{background:var(--ia-primary);border-color:var(--ia-primary);color:#fff;}
+    #ia-design-root .ia-state-actions .ia-btn-primary:hover{background:var(--ia-primary-strong);border-color:var(--ia-primary-strong);}
+    #ia-design-root .ia-wait-dot{
+      width:10px;height:10px;border-radius:50%;background:var(--ia-success);margin-bottom:14px;
+      box-shadow:0 0 0 0 rgba(34,197,94,.4);animation:ia-pulse 1.8s ease-out infinite;
+    }
+    #ia-design-root .ia-error .ia-state-icon{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.30);color:#F87171;}
+    #ia-design-root .ia-error .ia-state-title{color:#FCA5A5;}
+
+    #ia-design-root .ia-loading{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+      color:#94A3B8;font-size:11.5px;
+    }
+    #ia-design-root .ia-spinner{
+      width:26px;height:26px;border-radius:50%;border:2.5px solid rgba(148,163,184,.25);
+      border-top-color:#38BDF8;animation:ia-spin .9s linear infinite;
+    }
+    @keyframes ia-spin{to{transform:rotate(360deg);}}
+    #ia-design-root .ia-skeleton{
+      position:absolute;inset:0;
+      background:linear-gradient(100deg,rgba(30,41,59,.35) 20%,rgba(51,65,85,.55) 40%,rgba(30,41,59,.35) 60%);
+      background-size:200% 100%;animation:ia-shimmer 1.4s ease-in-out infinite;
+    }
+    @keyframes ia-shimmer{0%{background-position:160% 0;}100%{background-position:-40% 0;}}
+
+    #ia-design-root .ia-statusbar{
+      height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;
+      border-top:1px solid var(--ia-border-soft);background:var(--ia-surface);
+      font-size:11.5px;min-width:0;
+    }
+    #ia-design-root .ia-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--ia-text-3);}
+    #ia-design-root .ia-status-dot.is-ok{background:var(--ia-success);}
+    #ia-design-root .ia-status-dot.is-warn{background:var(--ia-warning);}
+    #ia-design-root .ia-status-dot.is-info{background:var(--ia-primary);}
+    #ia-design-root .ia-status-dot.is-err{background:var(--ia-danger);}
+    #ia-design-root .ia-status-msg{
+      min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ia-text-2);
+    }
+    #ia-design-root .ia-status-msg.is-ok{color:var(--ia-success-text);}
+    #ia-design-root .ia-status-msg.is-warn{color:var(--ia-warning-text);}
+    #ia-design-root .ia-status-msg.is-info{color:var(--ia-primary-text);}
+    #ia-design-root .ia-status-msg.is-err{color:var(--ia-danger-text);}
+    #ia-design-root .ia-status-path{
+      margin-left:auto;max-width:48%;flex:none;
+      font-family:var(--ia-mono);font-size:10.5px;color:var(--ia-text-3);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+
+    /* ---- 底部 ---- */
+    #ia-design-root .ia-footer{
+      height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+      border-top:1px solid var(--ia-border-soft);background:var(--ia-surface-2);
+    }
+    #ia-design-root .ia-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #ia-design-root .ia-status-chip{
+      display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+      background:var(--ia-surface);border:1px solid var(--ia-border);
+      font-size:11.5px;color:var(--ia-text-2);white-space:nowrap;
+    }
+    #ia-design-root .ia-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--ia-text-3);}
+    #ia-design-root .ia-footer-dot.is-ok{background:var(--ia-success);}
+    #ia-design-root .ia-footer-dot.is-warn{background:var(--ia-warning);}
+    #ia-design-root .ia-footer-dot.is-info{background:var(--ia-primary);}
+    #ia-design-root .ia-footer-dot.is-err{background:var(--ia-danger);}
+    #ia-design-root .ia-elapsed{
+      font-family:var(--ia-mono);font-size:11px;color:var(--ia-text-3);font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
+    #ia-design-root .ia-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+    #ia-design-root .ia-footer .ia-btn{height:32px;padding:0 16px;font-size:12.5px;}
+    #ia-design-root .ia-footer .ia-btn-primary{padding:0 18px;}
+
+    /* ---- 改动说明 ---- */
+    #ia-design-root .ia-notes{
+      max-width:1360px;margin:26px auto 0;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+      column-gap:28px;row-gap:0;
+    }
+    #ia-design-root .ia-notes-head{
+      grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;
+      color:light-dark(var(--ia-text-2),#94A3B8);
+    }
+    #ia-design-root .ia-note{
+      display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;
+      border-top:1px solid light-dark(var(--ia-border),#1E293B);
+    }
+    #ia-design-root .ia-note-num{
+      width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:light-dark(var(--ia-primary-light),rgba(14,165,233,.18));
+      color:light-dark(var(--ia-primary-text),#7DD3FC);
+      font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    }
+    #ia-design-root .ia-note b{
+      display:block;font-size:12.5px;font-weight:600;line-height:1.4;
+      color:light-dark(var(--ia-text),#E2E8F0);
+    }
+    #ia-design-root .ia-note span{
+      display:block;margin-top:3px;font-size:11.5px;line-height:1.55;
+      color:light-dark(var(--ia-text-2),#94A3B8);
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      #ia-design-root *{animation:none !important;transition:none !important;}
+    }
+    @media (max-width:1024px){
+      #ia-design-root .ia-page{padding:18px 14px 32px;}
+      #ia-design-root .ia-window{height:auto;min-height:640px;}
+      #ia-design-root .ia-content{grid-template-columns:1fr;}
+      #ia-design-root .ia-rail{overflow:visible;}
+      #ia-design-root .ia-preview{min-height:420px;}
+    }
+  </style>
+
+  <div class="ia-page">
+    <header class="ia-page-head">
+      <div class="ia-page-title-row">
+        <h1>图像采集 · 配置窗口</h1>
+        <span class="ia-ver">v1</span>
+      </div>
+      <p class="ia-page-sub">
+        Web 设计基线，设计媒介不进入构建（AGENTS.md R126）。窗口 <b>960 × 680</b>，四种采集模式共用同一套两栏布局：
+        左侧配置轨 <b>356px</b>，右侧预览工作区自适应。可直接切换模式、预览状态与窗口宽度。
+      </p>
+      <div class="ia-demo-bar">
+        <div class="ia-demo-group" role="group" aria-label="窗口宽度">
+          <span class="ia-demo-label">窗口宽度</span>
+          <div class="ia-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="ia-demo-group" role="group" aria-label="预览状态">
+          <span class="ia-demo-label">预览状态</span>
+          <div class="ia-seg">
+            <button type="button" data-state="normal" class="is-on" aria-pressed="true">正常</button>
+            <button type="button" data-state="empty" aria-pressed="false">空态</button>
+            <button type="button" data-state="loading" aria-pressed="false">加载</button>
+            <button type="button" data-state="error" aria-pressed="false">错误</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="ia-window" id="ia-window">
+      <div class="ia-titlebar">
+        <div class="ia-app-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="image" aria-hidden="true" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg></div>
+        <div class="ia-title-text">
+          <div class="ia-title-line">
+            <div class="ia-title">图像采集</div>
+            <span class="ia-title-chip">常用工具</span>
+          </div>
+          <div class="ia-subtitle">从文件、文件夹、网络或相机获取图像，供后续视觉处理使用</div>
+        </div>
+        <div class="ia-title-actions">
+          <button type="button" class="ia-icon-btn" data-tooltip="帮助手册" aria-label="帮助手册">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="circle-help" aria-hidden="true" class="lucide lucide-circle-help"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+          </button>
+          <button type="button" class="ia-icon-btn" data-tooltip="关闭" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="x" aria-hidden="true" class="lucide lucide-x"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="ia-content">
+        <aside class="ia-rail" aria-label="采集配置">
+          <div class="ia-mode-grid" role="group" aria-label="采集模式">
+            <button type="button" class="ia-mode is-active" data-mode="file" aria-pressed="true">
+              <span class="ia-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="file-image" aria-hidden="true" class="lucide lucide-file-image"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><circle cx="10" cy="12" r="2"></circle><path d="m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22"></path></svg></span>
+              <span class="ia-mode-text"><b>指定图像</b><small>单张图片</small></span>
+              <span class="ia-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="check" aria-hidden="true" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="ia-mode" data-mode="folder" aria-pressed="false">
+              <span class="ia-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="folder-open" aria-hidden="true" class="lucide lucide-folder-open"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg></span>
+              <span class="ia-mode-text"><b>文件目录</b><small>批量序列</small></span>
+              <span class="ia-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="check" aria-hidden="true" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="ia-mode" data-mode="hub" aria-pressed="false">
+              <span class="ia-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="radio-tower" aria-hidden="true" class="lucide lucide-radio-tower"><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"></path><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"></path><circle cx="12" cy="9" r="2"></circle><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"></path><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"></path><path d="M9.5 18h5"></path><path d="m8 22 4-11 4 11"></path></svg></span>
+              <span class="ia-mode-text"><b>网络推送</b><small>HTTP 推图</small></span>
+              <span class="ia-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="check" aria-hidden="true" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+            <button type="button" class="ia-mode" data-mode="camera" aria-pressed="false">
+              <span class="ia-mode-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="camera" aria-hidden="true" class="lucide lucide-camera"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"></path><circle cx="12" cy="13" r="3"></circle></svg></span>
+              <span class="ia-mode-text"><b>相机采集</b><small>相机取帧</small></span>
+              <span class="ia-mode-check"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="check" aria-hidden="true" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"></path></svg></span>
+            </button>
+          </div>
+
+          <section class="ia-panel" data-panel="file">
+            <div class="ia-section-head"><span>图像源</span><span class="ia-section-hint">固定值 / 变量链接</span></div>
+            <div class="ia-field">
+              <label class="ia-label" for="ia-path-input">图像路径</label>
+              <div class="ia-input-row">
+                <input class="ia-input" id="ia-path-input" type="text" value="D:\Images\part-0042.bmp" spellcheck="false">
+                <button type="button" class="ia-btn ia-btn-sm" style="height:36px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="folder-open" aria-hidden="true" class="lucide lucide-folder-open"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>浏览
+                </button>
+                <button type="button" class="ia-btn-square" data-tooltip="绑定变量" aria-label="绑定变量">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="link-2" aria-hidden="true" class="lucide lucide-link-2"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+              <p class="ia-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="info" aria-hidden="true" class="lucide lucide-info"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                支持 BMP / JPG / PNG / TIF；路径可来自上游变量，运行时以链接值为准。
+              </p>
+            </div>
+          </section>
+
+          <section class="ia-panel" data-panel="folder" hidden="">
+            <div class="ia-section-head"><span>图像目录</span><span class="ia-section-hint">自然排序</span></div>
+            <div class="ia-field">
+              <label class="ia-label" for="ia-folder-input">文件夹路径</label>
+              <div class="ia-input-row">
+                <input class="ia-input" id="ia-folder-input" type="text" value="D:\Images\Line-A" spellcheck="false">
+                <button type="button" class="ia-btn ia-btn-sm" style="height:36px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="folder-open" aria-hidden="true" class="lucide lucide-folder-open"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>浏览
+                </button>
+                <button type="button" class="ia-btn-square" data-tooltip="绑定变量" aria-label="绑定变量">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="link-2" aria-hidden="true" class="lucide lucide-link-2"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>
+                </button>
+              </div>
+            </div>
+            <div class="ia-field">
+              <label class="ia-label" for="ia-index-input">文件索引</label>
+              <div class="ia-input-row ia-index-row">
+                <button type="button" class="ia-btn-square" data-tooltip="上一张" aria-label="上一张">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-left" aria-hidden="true" class="lucide lucide-chevron-left"><path d="m15 18-6-6 6-6"></path></svg>
+                </button>
+                <input class="ia-input" id="ia-index-input" type="number" value="42" min="0" style="width:64px;flex:none;text-align:center;font-variant-numeric:tabular-nums;">
+                <span id="ia-folder-total" style="flex:none;font-size:12px;color:var(--ia-text-3);font-variant-numeric:tabular-nums;">/ 128</span>
+                <button type="button" class="ia-btn-square" data-tooltip="下一张" aria-label="下一张">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-right" aria-hidden="true" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"></path></svg>
+                </button>
+                <button type="button" class="ia-btn ia-btn-sm" style="height:36px;margin-left:auto;" data-tooltip="重新扫描文件夹">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="refresh-cw" aria-hidden="true" class="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg><span class="ia-refresh-text">刷新</span>
+                </button>
+              </div>
+            </div>
+            <div class="ia-field">
+              <div class="ia-file-line">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="file-image" aria-hidden="true" class="lucide lucide-file-image"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><circle cx="10" cy="12" r="2"></circle><path d="m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22"></path></svg>
+                <b id="ia-folder-file-name">part-0042.bmp</b>
+                <span id="ia-folder-file-count">共 128 张</span>
+              </div>
+            </div>
+            <p class="ia-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="info" aria-hidden="true" class="lucide lucide-info"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              按文件名自然排序（img2 排在 img10 前）；索引从 0 开始，越界会自动夹取。
+            </p>
+          </section>
+
+          <section class="ia-panel" data-panel="hub" hidden="">
+            <div class="ia-section-head"><span>网络推送</span><span class="ia-section-hint">HTTP 收图</span></div>
+            <div class="ia-banner is-ok" id="ia-hub-banner" style="margin-bottom:12px;">
+              <span class="ia-dot is-ok" id="ia-hub-dot"></span>
+              <span id="ia-hub-text">宿主收图服务正在监听 0.0.0.0:19000</span>
+            </div>
+            <div class="ia-field">
+              <label class="ia-label" for="ia-flow-input">流程名</label>
+              <input class="ia-input" id="ia-flow-input" type="text" value="检测流程">
+              <p class="ia-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="info" aria-hidden="true" class="lucide lucide-info"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                外部程序 POST 到 /flow/{流程名}。
+              </p>
+            </div>
+            <details class="ia-details" id="ia-debug">
+              <summary>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings-2" aria-hidden="true" class="lucide lucide-settings-2"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+                调试与接口
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-down" class="lucide lucide-chevron-down ia-chev" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </summary>
+              <div class="ia-details-body">
+                <div class="ia-details-sub">连接参数（通常由宿主预填）</div>
+                <div class="ia-field">
+                  <label class="ia-label" for="ia-host-input">主机 / 端口</label>
+                  <div class="ia-grid-2">
+                    <input class="ia-input" id="ia-host-input" type="text" value="127.0.0.1">
+                    <input class="ia-input" id="ia-port-input" type="text" value="19000" style="font-variant-numeric:tabular-nums;">
+                  </div>
+                </div>
+                <div class="ia-field">
+                  <label class="ia-label" for="ia-token-input">访问令牌</label>
+                  <div class="ia-input-row">
+                    <input class="ia-input" id="ia-token-input" type="password" value="vm-demo-token">
+                    <button type="button" class="ia-btn-square" data-tooltip="显示令牌" aria-label="显示令牌">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="eye" aria-hidden="true" class="lucide lucide-eye"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="ia-details-sub">推送测试</div>
+                <button type="button" class="ia-btn ia-btn-block">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="upload-cloud" aria-hidden="true" class="lucide lucide-upload-cloud"><path d="M12 13v8"></path><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="m8 17 4-4 4 4"></path></svg>选择本地图片并推送测试
+                </button>
+                <textarea class="ia-textarea" readonly="" rows="4" style="margin-top:10px;">HTTP 200 OK    客户端耗时 86 ms
+流程: 检测流程
+图像: 2448x2048x1
+服务端耗时: 61 ms</textarea>
+                <pre class="ia-code"><span class="k">POST</span> http://127.0.0.1:19000/flow/检测流程?outputs=图像采集.Image
+<span class="k">Authorization:</span> Bearer ••••••
+<span class="m">请求体：图片文件字节</span></pre>
+              </div>
+            </details>
+            <p class="ia-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="info" aria-hidden="true" class="lucide lucide-info"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+              推送测试走真实 HTTP，与外部设备同链路。
+            </p>
+          </section>
+
+          <section class="ia-panel" data-panel="camera" hidden="">
+            <div class="ia-section-head"><span>相机</span><span class="ia-section-hint">序列号寻址</span></div>
+            <div class="ia-field">
+              <label class="ia-label" for="ia-camera-select">选择相机</label>
+              <div class="ia-select-wrap">
+                <select class="ia-select" id="ia-camera-select">
+                  <option value="">请选择相机</option>
+                  <option value="40123456">Basler acA1920-40gm（40123456）</option>
+                  <option value="K12345678">海康 MV-CA050-10GM（K12345678）</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-down" aria-hidden="true" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+            </div>
+            <div class="ia-field">
+              <div class="ia-camera-card is-ok" id="ia-camera-card">
+                <div class="ia-camera-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="camera" aria-hidden="true" class="lucide lucide-camera"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"></path><circle cx="12" cy="13" r="3"></circle></svg></div>
+                <div class="ia-camera-body">
+                  <div class="ia-camera-name" id="ia-camera-name">Basler acA1920-40gm</div>
+                  <div class="ia-camera-sub" id="ia-camera-sub">序列号 40123456</div>
+                </div>
+                <span class="ia-camera-state"><span class="ia-camera-dot is-ok" id="ia-camera-dot"></span><span id="ia-camera-state-text">采流中</span></span>
+              </div>
+            </div>
+            <div class="ia-field">
+              <label class="ia-label" for="ia-timeout-input">取图超时 (ms)</label>
+              <input class="ia-input" id="ia-timeout-input" type="number" value="0" min="0" style="font-variant-numeric:tabular-nums;">
+              <p class="ia-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="info" aria-hidden="true" class="lucide lucide-info"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+                0 = 使用相机自身超时；超时永远有限。
+              </p>
+            </div>
+            <p class="ia-help">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings-2" aria-hidden="true" class="lucide lucide-settings-2"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+              连接与实时画面在「系统 → 相机设置」管理。
+            </p>
+          </section>
+
+          <div class="ia-output">
+            <div class="ia-section-head"><span>输出</span><span class="ia-section-hint">运行结果</span></div>
+            <div class="ia-field">
+              <label class="ia-label" for="ia-view-select">显示窗口</label>
+              <div class="ia-select-wrap">
+                <select class="ia-select" id="ia-view-select">
+                  <option>图像窗口 1</option>
+                  <option>图像窗口 2</option>
+                  <option>图像窗口 3</option>
+                  <option>图像窗口 4</option>
+                  <option>不显示</option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-down" aria-hidden="true" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg>
+              </div>
+              <p class="ia-help">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="monitor" aria-hidden="true" class="lucide lucide-monitor"><rect width="20" height="14" x="2" y="3" rx="2"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line></svg>
+                0 = 不显示；1~9 对应主界面视图窗口。
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        <section class="ia-preview" aria-label="图像预览">
+          <div class="ia-preview-head">
+            <div class="ia-file-chip"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="image" aria-hidden="true" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg></div>
+            <span class="ia-file-name" id="ia-file-name">part-0042.bmp</span>
+            <span class="ia-file-meta" id="ia-file-meta">2448 × 2048</span>
+            <div class="ia-preview-tools">
+              <button type="button" class="ia-icon-btn is-on" data-tooltip="适应窗口" aria-label="适应窗口">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="maximize" aria-hidden="true" class="lucide lucide-maximize"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+              </button>
+              <button type="button" class="ia-tool-text ia-tool-optional" data-tooltip="实际像素" aria-label="实际像素">1:1</button>
+              <button type="button" class="ia-icon-btn ia-tool-optional" data-tooltip="放大" aria-label="放大">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="zoom-in" aria-hidden="true" class="lucide lucide-zoom-in"><circle cx="11" cy="11" r="8"></circle><line x1="21" x2="16.65" y1="21" y2="16.65"></line><line x1="11" x2="11" y1="8" y2="14"></line><line x1="8" x2="14" y1="11" y2="11"></line></svg>
+              </button>
+              <button type="button" class="ia-icon-btn ia-tool-optional" data-tooltip="缩小" aria-label="缩小">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="zoom-out" aria-hidden="true" class="lucide lucide-zoom-out"><circle cx="11" cy="11" r="8"></circle><line x1="21" x2="16.65" y1="21" y2="16.65"></line><line x1="8" x2="14" y1="11" y2="11"></line></svg>
+              </button>
+              <span class="ia-tool-sep ia-tool-optional"></span>
+              <button type="button" class="ia-icon-btn ia-tool-optional" data-tooltip="打开所在文件夹" aria-label="打开所在文件夹">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="folder-search" aria-hidden="true" class="lucide lucide-folder-search"><path d="M10.7 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v4.1"></path><path d="m21 21-1.9-1.9"></path><circle cx="17" cy="17" r="3"></circle></svg>
+              </button>
+              <button type="button" class="ia-icon-btn" data-tooltip="刷新预览" aria-label="刷新预览">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="refresh-cw" aria-hidden="true" class="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="ia-canvas">
+            <div class="ia-canvas-view" data-view="image">
+              <svg class="ia-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="ia-scene-title ia-scene-desc">
+                <title id="ia-scene-title">工业零件相机预览</title>
+                <desc id="ia-scene-desc">深色背景上有一个带六个螺栓孔的金属圆形法兰零件，带测量十字线与取景角标。</desc>
+                <defs>
+                  <radialGradient id="ia-metal" cx="42%" cy="38%" r="66%">
+                    <stop offset="0%" stop-color="#E8EDF3"></stop>
+                    <stop offset="45%" stop-color="#AEB9C6"></stop>
+                    <stop offset="75%" stop-color="#7B8794"></stop>
+                    <stop offset="100%" stop-color="#4B5563"></stop>
+                  </radialGradient>
+                  <linearGradient id="ia-bg" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#0B1220"></stop>
+                    <stop offset="100%" stop-color="#151F31"></stop>
+                  </linearGradient>
+                  <pattern id="ia-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path>
+                  </pattern>
+                  <filter id="ia-soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="9"></feGaussianBlur>
+                  </filter>
+                </defs>
+                <rect width="800" height="520" fill="url(#ia-bg)"></rect>
+                <rect width="800" height="520" fill="url(#ia-grid)" opacity=".55"></rect>
+                <ellipse cx="400" cy="278" rx="232" ry="205" fill="#000000" opacity=".45" filter="url(#ia-soft)"></ellipse>
+                <circle cx="400" cy="260" r="190" fill="url(#ia-metal)" stroke="#D7DEE8" stroke-width="2"></circle>
+                <circle cx="400" cy="260" r="160" fill="none" stroke="#5B6675" stroke-width="2" opacity=".7"></circle>
+                <circle cx="400" cy="260" r="118" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="92" fill="#5F6B7A" stroke="#AEB9C6" stroke-width="1.5"></circle>
+                <circle cx="400" cy="260" r="52" fill="#2F3947" stroke="#7B8794" stroke-width="2"></circle>
+                <g fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2">
+                  <circle cx="400" cy="118" r="15"></circle>
+                  <circle cx="523" cy="189" r="15"></circle>
+                  <circle cx="523" cy="331" r="15"></circle>
+                  <circle cx="400" cy="402" r="15"></circle>
+                  <circle cx="277" cy="331" r="15"></circle>
+                  <circle cx="277" cy="189" r="15"></circle>
+                </g>
+                <circle cx="400" cy="260" r="24" fill="#111827" stroke="#94A3B8" stroke-width="1"></circle>
+                <g fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="1">
+                  <path d="M 245 260 A 155 155 0 0 1 400 105"></path>
+                  <path d="M 555 260 A 155 155 0 0 0 400 415"></path>
+                  <path d="M 300 260 A 100 100 0 0 1 400 160"></path>
+                </g>
+                <g stroke="#38BDF8" stroke-opacity=".85" stroke-width="1">
+                  <path d="M 400 40 V 110"></path>
+                  <path d="M 400 410 V 480"></path>
+                  <path d="M 180 260 H 240"></path>
+                  <path d="M 560 260 H 620"></path>
+                </g>
+                <circle cx="400" cy="260" r="6" fill="none" stroke="#38BDF8" stroke-width="1.5"></circle>
+                <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+                  <path d="M 30 30 H 70 M 30 30 V 70"></path>
+                  <path d="M 770 30 H 730 M 770 30 V 70"></path>
+                  <path d="M 30 490 H 70 M 30 490 V 450"></path>
+                  <path d="M 770 490 H 730 M 770 490 V 450"></path>
+                </g>
+              </svg>
+              <div class="ia-overlay">
+                <span class="ia-chip"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="scan" aria-hidden="true" class="lucide lucide-scan"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>RGB · 8-bit</span>
+              </div>
+              <div class="ia-overlay is-right">
+                <span class="ia-chip">适应窗口 · 42%</span>
+              </div>
+            </div>
+
+            <div class="ia-canvas-view" data-view="dropzone" hidden="">
+              <div class="ia-dropzone">
+                <div class="ia-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="image-plus" aria-hidden="true" class="lucide lucide-image-plus"><path d="M16 5h6"></path><path d="M19 2v6"></path><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"></path><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path><circle cx="9" cy="9" r="2"></circle></svg></div>
+                <div class="ia-state-title">选择图片开始预览</div>
+                <p class="ia-state-sub">支持 BMP / JPG / PNG / TIF；点击左侧「浏览」或下方按钮选择文件。路径来自变量链接时，配置态不加载预览。</p>
+                <div class="ia-state-actions">
+                  <button type="button" class="ia-btn ia-btn-primary" data-action="focus-path">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="folder-open" aria-hidden="true" class="lucide lucide-folder-open"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>选择图片
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="ia-canvas-view" data-view="loading" hidden="" aria-busy="true">
+              <div class="ia-skeleton"></div>
+              <div class="ia-loading">
+                <div class="ia-spinner"></div>
+                <span id="ia-loading-text">正在加载预览…</span>
+              </div>
+            </div>
+
+            <div class="ia-canvas-view ia-error" data-view="error" hidden="" role="alert">
+              <div class="ia-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="triangle-alert" aria-hidden="true" class="lucide lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></div>
+              <div class="ia-state-title" id="ia-error-title">预览加载失败</div>
+              <p class="ia-state-sub" id="ia-error-sub">文件不存在，请重新选择图像文件。</p>
+              <div class="ia-state-actions">
+                <button type="button" class="ia-btn ia-btn-primary" data-action="retry">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="refresh-cw" aria-hidden="true" class="lucide lucide-refresh-cw"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>重试
+                </button>
+              </div>
+            </div>
+
+            <div class="ia-canvas-view" data-view="hub-wait" hidden="">
+              <div class="ia-wait-dot"></div>
+              <div class="ia-state-title">等待网络推图</div>
+              <p class="ia-state-sub">外部程序 POST 到 <code>/flow/检测流程</code>，图像会进入本流程的图像槽；槽内只保留最新一帧。</p>
+              <div class="ia-state-actions">
+                <button type="button" class="ia-btn" data-action="open-debug">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="upload-cloud" aria-hidden="true" class="lucide lucide-upload-cloud"><path d="M12 13v8"></path><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="m8 17 4-4 4 4"></path></svg>推送测试
+                </button>
+              </div>
+            </div>
+
+            <div class="ia-canvas-view" data-view="hub-empty" hidden="">
+              <div class="ia-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="inbox" aria-hidden="true" class="lucide lucide-inbox"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></div>
+              <div class="ia-state-title">还没有收到图像</div>
+              <p class="ia-state-sub">服务已在监听，但图像槽为空。外部程序推送后，本步骤会自动取到最新一帧。</p>
+              <div class="ia-state-actions">
+                <button type="button" class="ia-btn" data-action="open-debug">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings-2" aria-hidden="true" class="lucide lucide-settings-2"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>查看接口
+                </button>
+              </div>
+            </div>
+
+            <div class="ia-canvas-view" data-view="camera-live" hidden="">
+              <div class="ia-state-icon" style="background:rgba(14,165,233,.12);border-color:rgba(14,165,233,.28);color:#7DD3FC;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="camera" aria-hidden="true" class="lucide lucide-camera"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+              </div>
+              <div class="ia-state-title">相机预览在「相机设置」中查看</div>
+              <p class="ia-state-sub">本步骤只从帧队列消费一帧；相机连接状态与实时画面统一在系统设置里管理。</p>
+              <div class="ia-state-actions">
+                <button type="button" class="ia-btn">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="settings-2" aria-hidden="true" class="lucide lucide-settings-2"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>前往相机设置
+                </button>
+              </div>
+            </div>
+
+            <div class="ia-canvas-view" data-view="camera-empty" hidden="">
+              <div class="ia-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="camera-off" aria-hidden="true" class="lucide lucide-camera-off"><path d="M14.564 14.558a3 3 0 1 1-4.122-4.121"></path><path d="m2 2 20 20"></path><path d="M20 20H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 .819-.175"></path><path d="M9.695 4.024A2 2 0 0 1 10.004 4h3.993a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v7.344"></path></svg></div>
+              <div class="ia-state-title">尚未选择相机</div>
+              <p class="ia-state-sub">先到「系统 → 相机设置」添加并连接相机，再回到本页选择要消费图像的设备。</p>
+              <div class="ia-state-actions">
+                <button type="button" class="ia-btn ia-btn-primary" data-action="focus-camera">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="camera" aria-hidden="true" class="lucide lucide-camera"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"></path><circle cx="12" cy="13" r="3"></circle></svg>选择相机
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ia-statusbar" aria-live="polite">
+            <span class="ia-status-dot is-ok" id="ia-status-dot"></span>
+            <span class="ia-status-msg is-ok" id="ia-status-msg">预览已就绪 · 第 42 / 128 张</span>
+            <span class="ia-status-path" id="ia-status-path">D:\Images\part-0042.bmp · 5.9 MB</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="ia-footer">
+        <div class="ia-footer-left">
+          <span class="ia-status-chip">
+            <span class="ia-footer-dot is-ok" id="ia-footer-dot"></span>
+            <span id="ia-footer-text">就绪</span>
+          </span>
+          <span class="ia-elapsed">— ms</span>
+        </div>
+        <div class="ia-footer-right">
+          <button type="button" class="ia-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="play" aria-hidden="true" class="lucide lucide-play"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>执行
+          </button>
+          <button type="button" class="ia-btn ia-btn-ghost">取消</button>
+          <button type="button" class="ia-btn ia-btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ia-notes">
+      <div class="ia-notes-head">关键改动</div>
+      <div class="ia-note">
+        <div class="ia-note-num">01</div>
+        <div><b>模式选择改为 2×2 卡片</b><span>替代 4 个单选 + GroupBox。图标、名称、用途说明与选中态同屏，窄窗口不再靠换行硬塞。</span></div>
+      </div>
+      <div class="ia-note">
+        <div class="ia-note-num">02</div>
+        <div><b>一屏完成配置</b><span>取消「基本参数 / 图像参数」两级页签；「显示窗口」并入左侧「输出」区，不再为一个下拉单开一页。</span></div>
+      </div>
+      <div class="ia-note">
+        <div class="ia-note-num">03</div>
+        <div><b>表单节奏统一</b><span>标签 12px、控件 36px、帮助 11.5px，行距 12px；去掉 MaxWidth 430 的硬截断，输入区随栏宽伸缩。</span></div>
+      </div>
+      <div class="ia-note">
+        <div class="ia-note-num">04</div>
+        <div><b>预览升级为工作区</b><span>文件信息头 + 缩放工具条 + 深色画布 + 状态栏；空态、加载、错误三态齐备，路径与尺寸不再只靠一行状态字。</span></div>
+      </div>
+      <div class="ia-note">
+        <div class="ia-note-num">05</div>
+        <div><b>生产配置与调试分层</b><span>网络推送把服务状态置顶；推送测试与接口说明收进「调试与接口」折叠区，生产参数保持干净。</span></div>
+      </div>
+      <div class="ia-note">
+        <div class="ia-note-num">06</div>
+        <div><b>相机状态前置</b><span>显示名、序列号、连接状态同卡展示；未连接时直接说明「运行时会失败」，不再让用户等运行失败才知道。</span></div>
+      </div>
+      <div class="ia-note">
+        <div class="ia-note-num">07</div>
+        <div><b>颜色全部令牌化</b><span>映射 Colors.xaml 的 Dialog* / Scada* 令牌，去掉 #666 / #333 / #999 / #FAFAFA / #DDDDDD 等内联灰阶。</span></div>
+      </div>
+      <div class="ia-note">
+        <div class="ia-note-num">08</div>
+        <div><b>五态与键盘可达</b><span>hover / pressed / focus / disabled 全量定义；图标按钮 30×30 且 Padding=0，焦点环可见，避免字形被裁（R68）。</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('ia-design-root');
+      if (!root) return;
+
+      var win = root.querySelector('#ia-window');
+      var modeButtons = Array.prototype.slice.call(root.querySelectorAll('.ia-mode'));
+      var panels = Array.prototype.slice.call(root.querySelectorAll('.ia-panel'));
+      var stateButtons = Array.prototype.slice.call(root.querySelectorAll('[data-state]'));
+      var sizeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-width]'));
+      var views = Array.prototype.slice.call(root.querySelectorAll('.ia-canvas-view'));
+
+      var fileName = root.querySelector('#ia-file-name');
+      var fileMeta = root.querySelector('#ia-file-meta');
+      var statusDot = root.querySelector('#ia-status-dot');
+      var statusMsg = root.querySelector('#ia-status-msg');
+      var statusPath = root.querySelector('#ia-status-path');
+      var footerDot = root.querySelector('#ia-footer-dot');
+      var footerText = root.querySelector('#ia-footer-text');
+      var loadingText = root.querySelector('#ia-loading-text');
+      var errorTitle = root.querySelector('#ia-error-title');
+      var errorSub = root.querySelector('#ia-error-sub');
+      var cameraCard = root.querySelector('#ia-camera-card');
+      var cameraDot = root.querySelector('#ia-camera-dot');
+      var cameraStateText = root.querySelector('#ia-camera-state-text');
+      var hubBanner = root.querySelector('#ia-hub-banner');
+      var hubDot = root.querySelector('#ia-hub-dot');
+      var hubText = root.querySelector('#ia-hub-text');
+      var debug = root.querySelector('#ia-debug');
+      var cameraSelect = root.querySelector('#ia-camera-select');
+      var pathInput = root.querySelector('#ia-path-input');
+      var folderInput = root.querySelector('#ia-folder-input');
+      var indexInput = root.querySelector('#ia-index-input');
+      var folderFileName = root.querySelector('#ia-folder-file-name');
+      var folderFileCount = root.querySelector('#ia-folder-file-count');
+      var folderTotal = root.querySelector('#ia-folder-total');
+      var cameraName = root.querySelector('#ia-camera-name');
+      var cameraSub = root.querySelector('#ia-camera-sub');
+
+      var mode = 'file';
+      var state = 'normal';
+
+      var meta = {
+        file: {
+          normal: { name: 'part-0042.bmp', meta: '2448 × 2048', view: 'image', level: 'ok', msg: '预览已就绪 · 第 42 / 128 张', path: 'D:\\Images\\part-0042.bmp · 5.9 MB', footer: '就绪' },
+          empty: { name: '未选择图像', meta: '—', view: 'dropzone', level: 'warn', msg: '请选择图像文件', path: '尚未选择路径', footer: '待配置' },
+          loading: { name: '正在加载…', meta: '—', view: 'loading', level: 'info', msg: '正在加载预览…', path: 'D:\\Images\\part-0042.bmp', footer: '加载中' },
+          error: { name: 'missing.bmp', meta: '—', view: 'error', level: 'err', msg: '文件不存在，无法加载预览', path: 'D:\\Images\\missing.bmp', footer: '配置有误' }
+        },
+        folder: {
+          normal: { name: 'part-0042.bmp', meta: '2448 × 2048', view: 'image', level: 'ok', msg: '找到 128 张图像 · 当前第 43 张', path: 'D:\\Images\\Line-A\\part-0042.bmp · 5.9 MB', footer: '就绪' },
+          empty: { name: '未选择目录', meta: '—', view: 'dropzone', level: 'warn', msg: '请选择图像文件夹', path: '尚未选择路径', footer: '待配置' },
+          loading: { name: '正在加载…', meta: '—', view: 'loading', level: 'info', msg: '正在扫描文件夹并载入预览…', path: 'D:\\Images\\Line-A', footer: '加载中' },
+          error: { name: '目录不可用', meta: '—', view: 'error', level: 'err', msg: '文件夹不存在或没有匹配的图像文件', path: 'D:\\Images\\Line-A', footer: '配置有误' }
+        },
+        hub: {
+          normal: { name: '等待网络图像', meta: 'hub://检测流程', view: 'hub-wait', level: 'ok', msg: '推送服务正在监听 0.0.0.0:19000', path: '流程「检测流程」· 等待 POST', footer: '服务监听中' },
+          empty: { name: '等待网络图像', meta: 'hub://检测流程', view: 'hub-empty', level: 'warn', msg: '还没有收到图像', path: '流程「检测流程」· 槽内为空', footer: '等待推图' },
+          loading: { name: '正在等待…', meta: 'hub://检测流程', view: 'loading', level: 'info', msg: '正在等待网络图像…', path: '流程「检测流程」· 阻塞等待', footer: '等待中' },
+          error: { name: '服务未启用', meta: '—', view: 'error', level: 'err', msg: '宿主收图服务未启用，推送会连接失败', path: 'AppConfig.json → HttpImageServer.Enabled=false', footer: '服务未启用' }
+        },
+        camera: {
+          normal: { name: 'camera://40123456', meta: '采流中', view: 'camera-live', level: 'ok', msg: '相机已连接 · 采流中', path: 'Basler acA1920-40gm · 序列号 40123456', footer: '相机在线' },
+          empty: { name: '未选择相机', meta: '—', view: 'camera-empty', level: 'warn', msg: '请选择一个相机', path: '当前方案还没有配置相机', footer: '待配置' },
+          loading: { name: '正在连接…', meta: '—', view: 'loading', level: 'info', msg: '正在连接相机…', path: 'Basler acA1920-40gm · 序列号 40123456', footer: '连接中' },
+          error: { name: '相机未连接', meta: '—', view: 'error', level: 'err', msg: '相机未连接，运行时会失败', path: '请到「系统 → 相机设置」连接该相机', footer: '相机离线' }
+        }
+      };
+
+      var errorCopy = {
+        file: ['预览加载失败', '文件不存在：D:\\Images\\missing.bmp。请重新选择图像文件。'],
+        folder: ['文件夹不可用', '路径不存在或没有匹配的图像文件。请重新选择文件夹。'],
+        hub: ['收图服务未启用', 'AppConfig.json → HttpImageServer.Enabled=false。启用后重启宿主，或改用本地文件模式。'],
+        camera: ['相机未连接', '请到「系统 → 相机设置」连接相机后再运行本步骤。']
+      };
+
+      function setStatus(level, msg, path) {
+        statusDot.className = 'ia-status-dot is-' + level;
+        statusMsg.className = 'ia-status-msg is-' + level;
+        statusMsg.textContent = msg;
+        statusPath.textContent = path;
+      }
+
+      function setFooter(level, text) {
+        footerDot.className = 'ia-footer-dot is-' + level;
+        footerText.textContent = text;
+      }
+
+      function setCamera(level, text) {
+        cameraCard.className = 'ia-camera-card is-' + level;
+        cameraDot.className = 'ia-camera-dot is-' + level;
+        cameraStateText.textContent = text;
+      }
+
+      function setHub(level, text) {
+        hubBanner.className = 'ia-banner is-' + level;
+        hubDot.className = 'ia-dot is-' + level;
+        hubText.textContent = text;
+      }
+
+      function render() {
+        var item = meta[mode][state];
+        fileName.textContent = item.name;
+        fileMeta.textContent = item.meta;
+
+        if (mode === 'file') {
+          pathInput.value = state === 'empty'
+            ? ''
+            : state === 'error'
+              ? 'D:\\Images\\missing.bmp'
+              : 'D:\\Images\\part-0042.bmp';
+        }
+
+        if (mode === 'folder') {
+          folderInput.value = state === 'empty'
+            ? ''
+            : state === 'error'
+              ? 'D:\\Images\\Missing'
+              : 'D:\\Images\\Line-A';
+          indexInput.value = state === 'empty' || state === 'error' ? '0' : '42';
+          folderTotal.textContent = state === 'empty' || state === 'error' ? '/ 0' : '/ 128';
+          folderFileName.textContent = state === 'empty' ? '尚未选择文件夹' : state === 'error' ? '—' : 'part-0042.bmp';
+          folderFileCount.textContent = state === 'empty' || state === 'error' ? '共 0 张' : '共 128 张';
+        }
+
+        if (mode === 'camera') {
+          if (state === 'empty') {
+            cameraSelect.value = '';
+            cameraName.textContent = '未选择相机';
+            cameraSub.textContent = '—';
+          } else {
+            cameraSelect.value = '40123456';
+            cameraName.textContent = 'Basler acA1920-40gm';
+            cameraSub.textContent = '序列号 40123456';
+          }
+        }
+
+        views.forEach(function (view) {
+          view.hidden = view.dataset.view !== item.view;
+        });
+
+        if (state === 'error') {
+          errorTitle.textContent = errorCopy[mode][0];
+          errorSub.textContent = errorCopy[mode][1];
+        }
+
+        loadingText.textContent = mode === 'camera'
+          ? '正在连接相机…'
+          : mode === 'hub'
+            ? '正在等待网络图像…'
+            : '正在加载预览…';
+
+        setStatus(item.level, item.msg, item.path);
+        setFooter(item.level, item.footer);
+
+        if (mode === 'camera') {
+          var camLevel = state === 'error' ? 'err' : state === 'empty' ? 'muted' : state === 'loading' ? 'info' : 'ok';
+          var camText = state === 'error' ? '未连接' : state === 'empty' ? '未选择' : state === 'loading' ? '连接中' : '采流中';
+          setCamera(camLevel, camText);
+        }
+
+        if (mode === 'hub') {
+          var hubLevel = state === 'error' ? 'err' : state === 'empty' ? 'muted' : state === 'loading' ? 'info' : 'ok';
+          var hubMsg = state === 'error'
+            ? '宿主收图服务未启用（AppConfig.json → HttpImageServer.Enabled=false）'
+            : state === 'empty'
+              ? '服务正在监听 0.0.0.0:19000 · 槽内暂无图像'
+              : state === 'loading'
+                ? '服务正在监听 0.0.0.0:19000 · 正在等待推图'
+                : '宿主收图服务正在监听 0.0.0.0:19000';
+          setHub(hubLevel, hubMsg);
+        }
+      }
+
+      modeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          mode = btn.dataset.mode;
+          modeButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          panels.forEach(function (panel) {
+            panel.hidden = panel.dataset.panel !== mode;
+          });
+          render();
+        });
+      });
+
+      stateButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = btn.dataset.state;
+          stateButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      sizeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var narrow = btn.dataset.width === '640';
+          win.classList.toggle('is-narrow', narrow);
+          sizeButtons.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+        });
+      });
+
+      root.querySelectorAll('[data-action="open-debug"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!debug) return;
+          debug.open = true;
+          debug.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+      });
+
+      root.querySelectorAll('[data-action="focus-camera"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (cameraSelect) cameraSelect.focus();
+        });
+      });
+
+      root.querySelectorAll('[data-action="focus-path"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var input = root.querySelector('#ia-path-input');
+          if (input) input.focus();
+        });
+      });
+
+      root.querySelectorAll('[data-action="retry"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          state = 'normal';
+          stateButtons.forEach(function (b) {
+            var on = b.dataset.state === 'normal';
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-pressed', String(on));
+          });
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
+</div>
+</body>
+</html>
