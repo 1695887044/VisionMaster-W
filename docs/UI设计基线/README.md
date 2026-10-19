@@ -37,7 +37,8 @@ docs/UI设计基线/
 | `io-health/` | v1 | `IoHealthView.xaml`（设备 / 总线 / 点位三页签） | 待用户确认 |
 | `app-shell/` | v2 | `Shell.xaml` 及三场景工作区（调试 / 运行 / 组态 + 自由布局）、单列检查器、可收起控制台、运行条、运行驾驶舱、命令面板；v1 归档在 `design-v1.html` | 待用户确认 |
 | `image-acquisition/` | v2 | `Plugin.ImageAcquisition\ImageAcquisitionView.xaml`（配置窗口内容区 + 960×680 宿主外壳；v1 归档在 `design-v1.html`） | 已复刻，证据 `image-acquisition/evidence/after-render-v2-*.png`；待用户确认 |
-| `logic-operators/` | v1 | 流程画布逻辑节点视觉语言：41 个算子 / 6 族、IF/SWITCH/PARALLEL/WHILE 容器、3 个组合示例、节点状态矩阵、逐算子 WPF 映射 | 待用户确认 |
+| `logic-operators/` | v1 | 通用逻辑门参考库：41 个算子 / 6 族、真值表、门形与 WPF 映射；**安全回路备用，不是本期流程画布基线** | 参考库，待未来安全回路使用 |
+| `flow-logic/` | v1 | 项目真实算子版流程栏 + 画布：逻辑运算 6 种操作、数值比较 6 种操作、If/分支匹配/While/For/并行分组/等待/Break/Continue/Return；42 节点复杂项目、逻辑容器重点改造、检查器、状态矩阵、WPF 复刻映射 | 待用户确认 |
 
 ## 插件改造 SOP 与清单
 

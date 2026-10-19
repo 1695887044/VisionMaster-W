@@ -176,6 +176,9 @@ namespace UIThemeSmokeTest
                 if (args.Contains("--image-acquisition-render"))
                     return RunImageAcquisitionViewRender();
 
+                if (args.Contains("--plugin-views"))
+                    return PluginViewSmoke.Run(args);
+
                 // 控件级检查：开关动画不得污染应用级共享画刷。
                 //
                 // 为什么值得单独测：开关模板里的 ColorAnimation 目标是 Background/Fill 的 Color，
